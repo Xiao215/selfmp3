@@ -48,7 +48,7 @@ export default tseslint.config(
   },
   {
     // Config files and scripts run outside the type-checked project graph.
-    files: ['**/*.config.js', '**/*.config.ts', 'scripts/**/*.js'],
+    files: ['**/*.config.js', '**/*.config.ts', 'scripts/**/*.js', 'scripts/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
     rules: { 'no-console': 'off' },
   },

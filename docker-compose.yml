@@ -1,0 +1,27 @@
+# self.mp3 on an always-on box.
+#
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose pull && docker compose up -d --build   # update
+#
+# library/ and data/ next to this file are bind-mounted in, so a backup is
+# still "copy those two folders" — see docs/INSTALL.md.
+
+services:
+  selfmp3:
+    build: .
+    image: selfmp3:latest
+    container_name: selfmp3
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only when Tailscale (or a reverse proxy) sits in
+      # front; drop the 127.0.0.1: prefix to expose it on every interface.
+      - '127.0.0.1:4600:4600'
+    volumes:
+      - ./library:/app/library
+      - ./data:/app/data
+    environment:
+      SELFMP3_LOG_LEVEL: info
+      # SELFMP3_AUTH_TOKEN: change-me-to-something-long
+      # SELFMP3_SCAN_ON_BOOT: 'true'
+    # yt-dlp and ffmpeg are inside the image; nothing else to install.

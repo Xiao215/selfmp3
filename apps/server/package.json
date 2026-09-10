@@ -5,6 +5,9 @@
   "type": "module",
   "description": "self.mp3 API — library, streaming, import queue, stats.",
   "main": "./dist/main.js",
+  "bin": {
+    "selfmp3": "./dist/cli.js"
+  },
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/main.ts",
     "build": "tsc --build",

@@ -36,7 +36,8 @@ export function GemsRow() {
           {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
           <span className="gems-title-label">Forgotten gems</span>
           <span className="hint">
-            {data.total} songs you liked, unplayed for {data.minDays}+ days
+            {data.total} {data.total === 1 ? 'song' : 'songs'} you liked, unplayed for{' '}
+            {data.minDays}+ days
           </span>
         </button>
 

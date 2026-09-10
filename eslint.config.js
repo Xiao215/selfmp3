@@ -13,6 +13,14 @@ export default tseslint.config(
       'library/**',
       '.claude/**',
       'data/**',
+      /*
+       * The native app lints itself with eslint-config-expo (see
+       * apps/mobile/eslint.config.js). This config is type-aware and resolves
+       * types through the root tsconfig project graph, which deliberately does
+       * not include apps/mobile — pulling React Native's globals and JSX types
+       * into that graph would leak them into the web app.
+       */
+      'apps/mobile/**',
     ],
   },
   js.configs.recommended,

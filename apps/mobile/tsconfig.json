@@ -1,0 +1,29 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    /*
+     * The same strictness the rest of the monorepo uses. It is repeated here
+     * rather than extending ../../tsconfig.base.json because that file targets
+     * Node (module: NodeNext, composite emit) and would fight Expo's bundler
+     * resolution. Only the strictness flags are worth sharing, and they are
+     * short enough to state twice.
+     */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "allowUnusedLabels": false,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "expo-env.d.ts"],
+  "exclude": ["node_modules", "ios", "android", ".expo"]
+}

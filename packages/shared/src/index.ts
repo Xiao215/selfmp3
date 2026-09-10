@@ -28,6 +28,7 @@ export * from './links.js'
 export * from './script.js'
 export * from './lrcBuild.js'
 export * from './features.js'
+export * from './queue.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

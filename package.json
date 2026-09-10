@@ -18,6 +18,10 @@
     "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/server && npm run build --workspace @selfmp3/web",
     "start": "npm run start --workspace @selfmp3/server",
     "typecheck": "tsc --build --force",
+    "typecheck:mobile": "npm run build --workspace @selfmp3/shared && npm run typecheck --workspace @selfmp3/mobile",
+    "lint:mobile": "npm run lint --workspace @selfmp3/mobile",
+    "check:mobile": "npm run typecheck:mobile && npm run lint:mobile",
+    "dev:mobile": "npm run build --workspace @selfmp3/shared && npm run start --workspace @selfmp3/mobile",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -26,6 +30,16 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-carplay": {
+      "react": "19.2.3",
+      "react-native": "0.86.3"
+    },
+    "react-native-reanimated": "4.5.5",
+    "react-native-worklets": "0.10.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

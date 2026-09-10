@@ -19,3 +19,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 .claude/
+
+# Superseded v1 files, kept until you delete them
+_to_delete/

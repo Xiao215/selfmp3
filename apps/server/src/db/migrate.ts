@@ -158,6 +158,41 @@ const MIGRATIONS: readonly Migration[] = [
       END;
     `,
   },
+  {
+    name: 'lyrics+: lyric search index and provider secrets',
+    sql: `
+      -- One row per lyric line. \`tokens\` is the line with every CJK character
+      -- space-separated so unicode61 can match inside a run of Han/kana; the
+      -- original \`line\` is kept unindexed for display.
+      CREATE VIRTUAL TABLE lyrics_fts USING fts5(
+        song_id UNINDEXED,
+        line_no UNINDEXED,
+        line UNINDEXED,
+        tokens,
+        tokenize = 'unicode61 remove_diacritics 2'
+      );
+
+      -- Which text each song's index rows were built from, so a re-index is
+      -- skipped when nothing changed and the boot backfill knows what is missing.
+      CREATE TABLE lyrics_index (
+        song_id    INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        hash       TEXT    NOT NULL,
+        indexed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+
+      -- A virtual table cannot cascade, so mirror the delete by trigger.
+      CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM lyrics_fts WHERE song_id = old.id;
+      END;
+
+      -- API keys live apart from settings so they can never be returned by
+      -- accident from GET /api/settings.
+      CREATE TABLE secrets (
+        name  TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

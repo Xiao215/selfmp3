@@ -14,6 +14,12 @@ import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
 import { ImportQueueService } from './services/importQueue.js'
+import { SecretsRepository } from './repositories/secrets.js'
+import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
+import { LyricsCache } from './services/lyricsCache.js'
+import { RomanizationService } from './services/romanization.js'
+import { TranslationService } from './services/translation.js'
+import { LyricsIndexService } from './services/lyricsIndex.js'
 
 /**
  * Composition root.
@@ -36,6 +42,8 @@ export interface Container {
   readonly settings: SettingsRepository
   readonly stats: StatsRepository
   readonly imports: ImportRepository
+  readonly secrets: SecretsRepository
+  readonly lyricsSearch: LyricsSearchRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -43,6 +51,10 @@ export interface Container {
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
   readonly importQueue: ImportQueueService
+  readonly lyricsCache: LyricsCache
+  readonly romanization: RomanizationService
+  readonly translation: TranslationService
+  readonly lyricsIndex: LyricsIndexService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -66,6 +78,8 @@ export function createContainer(config: Config): Container {
   const settings = new SettingsRepository(db)
   const stats = new StatsRepository(db)
   const imports = new ImportRepository(db)
+  const secrets = new SecretsRepository(db)
+  const lyricsSearch = new LyricsSearchRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger)
@@ -98,6 +112,11 @@ export function createContainer(config: Config): Container {
     logger,
   })
 
+  const lyricsCache = new LyricsCache(config, logger)
+  const romanization = new RomanizationService(logger)
+  const translation = new TranslationService(secrets, logger)
+  const lyricsIndex = new LyricsIndexService({ songs, search: lyricsSearch, lyrics, metadata, logger })
+
   let version = 1
 
   return {
@@ -111,12 +130,18 @@ export function createContainer(config: Config): Container {
     settings,
     stats,
     imports,
+    secrets,
+    lyricsSearch,
     metadata,
     lyrics,
     covers,
     scanner,
     ytdlp,
     importQueue,
+    lyricsCache,
+    romanization,
+    translation,
+    lyricsIndex,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++

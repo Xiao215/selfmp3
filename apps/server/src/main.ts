@@ -34,6 +34,9 @@ function main(): void {
   server.requestTimeout = 0
 
   container.importQueue.start()
+  // Lyrics+: the Japanese dictionary takes a second or two; load it now, not on first tap.
+  container.romanization.warmUp()
+  if (!config.scanOnBoot) void container.lyricsIndex.backfill()
 
   if (config.scanOnBoot) {
     // Deliberately not awaited: the API is already serving, and a first scan of
@@ -42,6 +45,8 @@ function main(): void {
       .scan()
       .then(result => {
         if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
+        // Lyrics+: index lyrics for search once the scan knows which songs have them.
+        void container.lyricsIndex.backfill()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {

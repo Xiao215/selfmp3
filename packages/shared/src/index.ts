@@ -16,10 +16,13 @@ export * from './schemas/import.js'
 export * from './schemas/stats.js'
 export * from './schemas/library.js'
 export * from './schemas/settings.js'
+export * from './schemas/lyrics.js'
 
 export * from './format.js'
 export * from './lrc.js'
 export * from './fuzzy.js'
+export * from './script.js'
+export * from './lrcBuild.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

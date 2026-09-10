@@ -11,6 +11,7 @@ import {
 import { useOffline } from '../offline/OfflineProvider.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Trash, X } from '../components/Icons.js'
+import { LyricsSettings } from '../components/LyricsSettings.js'
 
 /**
  * Settings.
@@ -260,6 +261,10 @@ export function SettingsView() {
           </label>
         </section>
       )}
+
+      {/* ---------------- lyrics+ ---------------- */}
+
+      {settings && <LyricsSettings settings={settings} onSet={set} />}
 
       {/* ---------------- importing ---------------- */}
 

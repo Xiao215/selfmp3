@@ -34,6 +34,8 @@ export const queryKeys = {
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
   health: ['health'] as const,
+  secrets: ['settings', 'secrets'] as const,
+  lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
 }
 
 /**

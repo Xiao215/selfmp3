@@ -21,6 +21,7 @@ import {
   Refresh,
   X,
 } from '../components/Icons.js'
+import { Select } from '../components/Select.js'
 
 /**
  * Importing.
@@ -354,23 +355,18 @@ export function ImportView() {
             )}
 
             {manualPlaylists.length > 0 && (
-              <label className="import-option">
+              <div className="import-option">
                 <span className="field-label">Add to playlist</span>
-                <select
-                  className="select"
-                  value={playlistId ?? ''}
-                  onChange={event =>
-                    setPlaylistId(event.target.value ? Number(event.target.value) : null)
-                  }
-                >
-                  <option value="">Don’t add to a playlist</option>
-                  {manualPlaylists.map(list => (
-                    <option key={list.id} value={list.id}>
-                      {list.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <Select<number | null>
+                  value={playlistId}
+                  onChange={setPlaylistId}
+                  options={[
+                    { value: null, label: 'Don’t add to a playlist' },
+                    ...manualPlaylists.map(list => ({ value: list.id, label: list.name })),
+                  ]}
+                  label="Add to playlist"
+                />
+              </div>
             )}
           </div>
 

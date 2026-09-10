@@ -1,5 +1,34 @@
 /* -------------------------------------------------------- notices ------ */
 
+/*
+ * The toast row.
+ *
+ * Transient messages sit in their own row of the app shell rather than on top
+ * of it: a toast that covers the last song in the list, or the play button, is
+ * worse than no toast. The layer never takes pointer events itself, so an
+ * empty or animating one can never swallow a click.
+ */
+.toast-layer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: var(--z-toast);
+  padding: 0 12px 10px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.toast-layer:empty {
+  display: none;
+}
+
+.toast-layer > * {
+  pointer-events: auto;
+  max-width: 100%;
+}
+
 .notice {
   display: flex;
   align-items: center;

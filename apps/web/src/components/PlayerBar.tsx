@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useToggleLoved } from '../lib/queries.js'
@@ -25,6 +25,7 @@ import {
   Volume,
   VolumeMute,
 } from './Icons.js'
+import { Popover } from './Menu.js'
 
 /**
  * The transport bar.
@@ -59,6 +60,8 @@ export function PlayerBar({
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
+  const speedRef = useRef<HTMLButtonElement>(null)
+  const sleepRef = useRef<HTMLButtonElement>(null)
 
   const song = transport.song
   // While dragging, show the handle position rather than the playhead, or the
@@ -69,12 +72,7 @@ export function PlayerBar({
   const loopRegion = loopRegionPercent(player.loopA, player.loopB, duration)
 
   if (isMobile) {
-    return (
-      <MiniPlayer
-        onOpen={onOpenNowPlaying}
-        percent={percent}
-      />
-    )
+    return <MiniPlayer onOpen={onOpenNowPlaying} percent={percent} />
   }
 
   return (
@@ -231,16 +229,20 @@ export function PlayerBar({
 
         <div className="popover-anchor">
           <button
+            ref={speedRef}
             type="button"
             className={`icon-button ${player.rate !== 1 ? 'is-accent' : ''}`}
             onClick={() => setSpeedOpen(open => !open)}
             aria-label="Playback speed"
+            aria-haspopup="menu"
+            aria-expanded={speedOpen}
             title={`Speed: ${player.rate}×`}
           >
             <Speed size={17} />
           </button>
           {speedOpen && (
             <SpeedMenu
+              anchorRef={speedRef}
               current={player.rate}
               onPick={rate => {
                 player.setRate(rate)
@@ -253,15 +255,18 @@ export function PlayerBar({
 
         <div className="popover-anchor">
           <button
+            ref={sleepRef}
             type="button"
             className={`icon-button ${player.sleepTimerEndsAt ? 'is-accent' : ''}`}
             onClick={() => setSleepOpen(open => !open)}
             aria-label="Sleep timer"
+            aria-haspopup="menu"
+            aria-expanded={sleepOpen}
             title="Sleep timer"
           >
             <Moon size={17} />
           </button>
-          {sleepOpen && <SleepMenu onClose={() => setSleepOpen(false)} />}
+          {sleepOpen && <SleepMenu anchorRef={sleepRef} onClose={() => setSleepOpen(false)} />}
         </div>
 
         <button
@@ -365,44 +370,50 @@ function RemoteOnlyStrip() {
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const
 
 function SpeedMenu({
+  anchorRef,
   current,
   onPick,
   onClose,
 }: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
   current: number
   onPick: (rate: number) => void
   onClose: () => void
 }) {
-  useEffect(() => {
-    const onEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onEscape)
-    return () => window.removeEventListener('keydown', onEscape)
-  }, [onClose])
-
   return (
-    <>
-      <div className="popover-backdrop" onClick={onClose} />
-      <div className="popover popover-up" role="menu">
-        {SPEEDS.map(rate => (
-          <button
-            key={rate}
-            type="button"
-            className={`popover-item ${current === rate ? 'is-active' : ''}`}
-            onClick={() => onPick(rate)}
-          >
-            {rate}×{rate === 1 && ' (normal)'}
-          </button>
-        ))}
-      </div>
-    </>
+    <Popover
+      anchorRef={anchorRef}
+      onClose={onClose}
+      placement="above"
+      label="Playback speed"
+      sheet
+      roving
+    >
+      {SPEEDS.map(rate => (
+        <button
+          key={rate}
+          type="button"
+          role="menuitemradio"
+          aria-checked={current === rate}
+          className={`popover-item ${current === rate ? 'is-active' : ''}`}
+          onClick={() => onPick(rate)}
+        >
+          {rate}×{rate === 1 && ' (normal)'}
+        </button>
+      ))}
+    </Popover>
   )
 }
 
 const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
 
-function SleepMenu({ onClose }: { onClose: () => void }) {
+function SleepMenu({
+  anchorRef,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onClose: () => void
+}) {
   const player = usePlayer()
   const [remaining, setRemaining] = useState('')
 
@@ -421,38 +432,44 @@ function SleepMenu({ onClose }: { onClose: () => void }) {
   }, [player.sleepTimerEndsAt])
 
   return (
-    <>
-      <div className="popover-backdrop" onClick={onClose} />
-      <div className="popover popover-up" role="menu">
-        <div className="popover-title">
-          {player.sleepTimerEndsAt ? `Stopping in ${remaining}` : 'Sleep timer'}
-        </div>
-        {SLEEP_OPTIONS.map(minutes => (
-          <button
-            key={minutes}
-            type="button"
-            className="popover-item"
-            onClick={() => {
-              player.setSleepTimer(minutes)
-              onClose()
-            }}
-          >
-            {minutes} minutes
-          </button>
-        ))}
-        {player.sleepTimerEndsAt !== null && (
-          <button
-            type="button"
-            className="popover-item is-danger"
-            onClick={() => {
-              player.setSleepTimer(null)
-              onClose()
-            }}
-          >
-            Cancel timer
-          </button>
-        )}
+    <Popover
+      anchorRef={anchorRef}
+      onClose={onClose}
+      placement="above"
+      label="Sleep timer"
+      sheet
+      roving
+    >
+      <div className="popover-title">
+        {player.sleepTimerEndsAt ? `Stopping in ${remaining}` : 'Sleep timer'}
       </div>
-    </>
+      {SLEEP_OPTIONS.map(minutes => (
+        <button
+          key={minutes}
+          type="button"
+          role="menuitem"
+          className="popover-item"
+          onClick={() => {
+            player.setSleepTimer(minutes)
+            onClose()
+          }}
+        >
+          {minutes} minutes
+        </button>
+      ))}
+      {player.sleepTimerEndsAt !== null && (
+        <button
+          type="button"
+          role="menuitem"
+          className="popover-item is-danger"
+          onClick={() => {
+            player.setSleepTimer(null)
+            onClose()
+          }}
+        >
+          Cancel timer
+        </button>
+      )}
+    </Popover>
   )
 }

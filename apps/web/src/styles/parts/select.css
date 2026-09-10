@@ -1,0 +1,193 @@
+/* ----------------------------------------------------------- select ----- */
+
+/*
+ * The dropdown that replaced every native <select>. The trigger is a button
+ * wearing the same clothes as the rest of the controls; the list is a
+ * portalled listbox (parts/popovers.css does the floating layer, this file
+ * does what is inside it).
+ */
+
+.select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 9px 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+  text-align: left;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+
+.select-trigger svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--dur-fast), color var(--dur-fast);
+}
+
+.select-trigger:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.select-trigger:hover:not(:disabled) svg {
+  color: var(--text-secondary);
+}
+
+.select-trigger.is-open {
+  border-color: var(--accent);
+}
+
+.select-trigger.is-open svg {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* The value takes the squeeze, never the layout around it. */
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.select-value.is-placeholder {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.select-trigger-small {
+  padding: 5px 7px 5px 8px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+/* Sits inside a sentence ("Match all of these rules"), so it stays small. */
+.select-trigger-inline {
+  padding: 2px 4px 2px 6px;
+  gap: 4px;
+  background: var(--surface-3);
+  font-size: inherit;
+}
+
+/* --- the list ------------------------------------------------------------ */
+
+.select-listbox {
+  padding: 4px;
+  gap: 0;
+}
+
+.select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.select-group + .select-group .select-group-label {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 9px;
+}
+
+.select-group-label {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  scroll-margin: 4px;
+}
+
+/* One highlight, driven by the keyboard cursor — the pointer moves it too, so
+   the mouse and the arrow keys can never disagree about what Enter will pick. */
+.select-option.is-active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.select-option.is-selected {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.select-option.is-disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.select-option-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.select-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-option-hint {
+  margin-left: auto;
+  padding-left: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.select-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- phone --------------------------------------------------------------- */
+
+.popover-sheet .select-sheet-title {
+  padding: 10px 10px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.popover-sheet .select-option {
+  min-height: var(--hit-target);
+  padding: 10px 12px 10px 8px;
+  font-size: 15px;
+}
+
+.popover-sheet .select-option-check {
+  width: 18px;
+}
+
+.popover-sheet .select-group-label {
+  padding: 10px 12px 4px;
+}

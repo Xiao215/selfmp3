@@ -10,6 +10,7 @@ import {
 import { api } from '../lib/api.js'
 import { useDebounced } from '../lib/hooks.js'
 import { Plus, Sparkles, X } from './Icons.js'
+import { Select } from './Select.js'
 
 /**
  * The smart-playlist rule builder.
@@ -106,6 +107,24 @@ const SORT_LABELS: ReadonlyArray<[SongSortField, string]> = [
   ['lastPlayedAt', 'Last played'],
   ['random', 'Random'],
 ]
+
+/**
+ * `[value, label]` tuples are how the tables above read best; the dropdown
+ * wants `{ value, label }`, so convert in one place.
+ */
+function toOptions<T extends string>(
+  pairs: ReadonlyArray<[T, string]>,
+): ReadonlyArray<{ value: T; label: string }> {
+  return pairs.map(([value, label]) => ({ value, label }))
+}
+
+const FIELD_OPTIONS = FIELD_GROUPS.map(group => ({
+  label: group.label,
+  options: toOptions(group.fields),
+}))
+
+const SORT_OPTIONS = toOptions(SORT_LABELS)
+const KEY_OPTIONS = toOptions(CAMELOT_CODES)
 
 /** A sensible starting rule for each field, so adding one is never a dead end. */
 function defaultRuleFor(field: FieldKey, tags: readonly Tag[]): SmartRule {
@@ -206,16 +225,16 @@ export function SmartRuleBuilder({
         <Sparkles size={16} />
         <span>
           Match{' '}
-          <select
-            className="select select-inline"
+          <Select<'all' | 'any'>
             value={rules.match}
-            onChange={event =>
-              update({ ...rules, match: event.target.value === 'any' ? 'any' : 'all' })
-            }
-          >
-            <option value="all">all</option>
-            <option value="any">any</option>
-          </select>{' '}
+            onChange={match => update({ ...rules, match })}
+            options={[
+              { value: 'all', label: 'all' },
+              { value: 'any', label: 'any' },
+            ]}
+            label="Match all or any rule"
+            size="inline"
+          />{' '}
           of these rules
         </span>
         <span className={`rule-count ${matchCount === 0 ? 'is-empty' : ''}`}>{preview}</span>
@@ -246,32 +265,28 @@ export function SmartRuleBuilder({
       <div className="rule-builder-foot">
         <label className="field-inline">
           Sort by
-          <select
-            className="select select-small"
+          <Select<SongSortField>
             value={rules.orderBy}
-            onChange={event => update({ ...rules, orderBy: event.target.value as SongSortField })}
-          >
-            {SORT_LABELS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={orderBy => update({ ...rules, orderBy })}
+            options={SORT_OPTIONS}
+            label="Sort by"
+            size="small"
+          />
         </label>
 
         {rules.orderBy !== 'random' && (
           <label className="field-inline">
             Order
-            <select
-              className="select select-small"
+            <Select<'asc' | 'desc'>
               value={rules.order}
-              onChange={event =>
-                update({ ...rules, order: event.target.value === 'asc' ? 'asc' : 'desc' })
-              }
-            >
-              <option value="desc">Highest first</option>
-              <option value="asc">Lowest first</option>
-            </select>
+              onChange={order => update({ ...rules, order })}
+              options={[
+                { value: 'desc', label: 'Highest first' },
+                { value: 'asc', label: 'Lowest first' },
+              ]}
+              label="Order"
+              size="small"
+            />
           </label>
         )}
 
@@ -314,39 +329,31 @@ function RuleRow({
 
   return (
     <div className="rule-row">
-      <select
-        className="select select-small"
+      <Select<FieldKey>
         value={rule.field}
-        onChange={event => changeField(event.target.value as FieldKey)}
-        aria-label="Field"
-      >
-        {FIELD_GROUPS.map(group => (
-          <optgroup key={group.label} label={group.label}>
-            {group.fields.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+        onChange={changeField}
+        options={FIELD_OPTIONS}
+        label="Field"
+        size="small"
+      />
 
       {(rule.field === 'title' ||
         rule.field === 'artist' ||
         rule.field === 'album' ||
         rule.field === 'albumArtist') && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="contains">contains</option>
-            <option value="notContains">does not contain</option>
-            <option value="equals">is exactly</option>
-            <option value="startsWith">starts with</option>
-          </select>
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'contains', label: 'contains' },
+              { value: 'notContains', label: 'does not contain' },
+              { value: 'equals', label: 'is exactly' },
+              { value: 'startsWith', label: 'starts with' },
+            ]}
+            label="Operator"
+            size="small"
+          />
           <input
             className="input input-small input-grow"
             value={rule.value}
@@ -359,28 +366,28 @@ function RuleRow({
 
       {rule.field === 'tag' && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="has">is</option>
-            <option value="notHas">is not</option>
-          </select>
-          <select
-            className="select select-small input-grow"
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'has', label: 'is' },
+              { value: 'notHas', label: 'is not' },
+            ]}
+            label="Operator"
+            size="small"
+          />
+          <Select<number>
             value={rule.tagId}
-            onChange={event => onChange({ ...rule, tagId: Number(event.target.value) })}
-            aria-label="Tag"
-          >
-            {tags.length === 0 && <option value={0}>no tags yet</option>}
-            {tags.map(tag => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
+            onChange={tagId => onChange({ ...rule, tagId })}
+            options={
+              tags.length === 0
+                ? [{ value: 0, label: 'no tags yet', disabled: true }]
+                : tags.map(tag => ({ value: tag.id, label: tag.name }))
+            }
+            label="Tag"
+            size="small"
+            className="input-grow"
+          />
         </>
       )}
 
@@ -389,18 +396,19 @@ function RuleRow({
         rule.field === 'duration' ||
         rule.field === 'year') && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="gt">is more than</option>
-            <option value="gte">is at least</option>
-            <option value="eq">is exactly</option>
-            <option value="lte">is at most</option>
-            <option value="lt">is less than</option>
-          </select>
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'gt', label: 'is more than' },
+              { value: 'gte', label: 'is at least' },
+              { value: 'eq', label: 'is exactly' },
+              { value: 'lte', label: 'is at most' },
+              { value: 'lt', label: 'is less than' },
+            ]}
+            label="Operator"
+            size="small"
+          />
           <input
             className="input input-small"
             type="number"
@@ -413,16 +421,17 @@ function RuleRow({
 
       {(rule.field === 'addedAt' || rule.field === 'lastPlayedAt') && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="inLastDays">in the last</option>
-            <option value="notInLastDays">not in the last</option>
-            <option value="never">never</option>
-          </select>
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'inLastDays', label: 'in the last' },
+              { value: 'notInLastDays', label: 'not in the last' },
+              { value: 'never', label: 'never' },
+            ]}
+            label="Operator"
+            size="small"
+          />
           {rule.op !== 'never' && (
             <>
               <input
@@ -442,18 +451,19 @@ function RuleRow({
 
       {(rule.field === 'bpm' || rule.field === 'energy' || rule.field === 'loudness') && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="gt">is more than</option>
-            <option value="gte">is at least</option>
-            <option value="eq">is exactly</option>
-            <option value="lte">is at most</option>
-            <option value="lt">is less than</option>
-          </select>
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'gt', label: 'is more than' },
+              { value: 'gte', label: 'is at least' },
+              { value: 'eq', label: 'is exactly' },
+              { value: 'lte', label: 'is at most' },
+              { value: 'lt', label: 'is less than' },
+            ]}
+            label="Operator"
+            size="small"
+          />
           <input
             className="input input-small"
             type="number"
@@ -472,40 +482,37 @@ function RuleRow({
 
       {rule.field === 'key' && (
         <>
-          <select
-            className="select select-small"
+          <Select<typeof rule.op>
             value={rule.op}
-            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
-            aria-label="Operator"
-          >
-            <option value="compatible">mixes with</option>
-            <option value="is">is exactly</option>
-          </select>
-          <select
-            className="select select-small"
+            onChange={op => onChange({ ...rule, op })}
+            options={[
+              { value: 'compatible', label: 'mixes with' },
+              { value: 'is', label: 'is exactly' },
+            ]}
+            label="Operator"
+            size="small"
+          />
+          <Select<string>
             value={rule.value}
-            onChange={event => onChange({ ...rule, value: event.target.value })}
-            aria-label="Key"
-          >
-            {CAMELOT_CODES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={value => onChange({ ...rule, value })}
+            options={KEY_OPTIONS}
+            label="Key"
+            size="small"
+          />
         </>
       )}
 
       {(rule.field === 'loved' || rule.field === 'hasLyrics' || rule.field === 'hasArt') && (
-        <select
-          className="select select-small"
+        <Select<'yes' | 'no'>
           value={rule.value ? 'yes' : 'no'}
-          onChange={event => onChange({ ...rule, value: event.target.value === 'yes' })}
-          aria-label="Value"
-        >
-          <option value="yes">yes</option>
-          <option value="no">no</option>
-        </select>
+          onChange={value => onChange({ ...rule, value: value === 'yes' })}
+          options={[
+            { value: 'yes', label: 'yes' },
+            { value: 'no', label: 'no' },
+          ]}
+          label="Value"
+          size="small"
+        />
       )}
 
       <button type="button" className="icon-button" onClick={onRemove} aria-label="Remove rule">

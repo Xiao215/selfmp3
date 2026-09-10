@@ -11,6 +11,7 @@ import { api } from '../lib/api.js'
 import { queryKeys, useImportTools, useLibrary, useMigrateJob } from '../lib/queries.js'
 import { TagChip } from '../components/TagChip.js'
 import { Check, Download, X } from '../components/Icons.js'
+import { Select } from '../components/Select.js'
 
 /**
  * Migrating a playlist from Spotify, Apple Music or a text file.
@@ -442,18 +443,18 @@ function MigrateRow({
               <div className="migrate-thumb migrate-thumb-placeholder" />
             )}
             <div className="migrate-match-text">
-              <select
-                className="select migrate-pick"
+              <Select<number>
                 value={pickedIndex}
-                onChange={event => onPick(Number(event.target.value))}
-                aria-label="Choose a different match"
-              >
-                {item.candidates.map((candidate, index) => (
-                  <option key={candidate.url} value={index}>
-                    {Math.round(candidate.confidence * 100)}% · {candidate.title}
-                  </option>
-                ))}
-              </select>
+                onChange={onPick}
+                options={item.candidates.map((candidate, index) => ({
+                  value: index,
+                  label: candidate.title,
+                  hint: `${Math.round(candidate.confidence * 100)}%`,
+                }))}
+                label="Choose a different match"
+                size="small"
+                className="migrate-pick"
+              />
               <span className="migrate-sub">
                 {match.channel || 'Unknown channel'}
                 {match.duration > 0 && ` · ${formatDuration(match.duration)}`}

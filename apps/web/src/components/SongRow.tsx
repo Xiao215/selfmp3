@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useOffline } from '../offline/OfflineProvider.js'
@@ -42,6 +42,8 @@ export const SongRow = memo(function SongRow({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const tagButtonRef = useRef<HTMLButtonElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const player = usePlayer()
   const offline = useOffline()
   const toggleLoved = useToggleLoved()
@@ -115,16 +117,20 @@ export const SongRow = memo(function SongRow({
           ) : null
         })}
         <button
+          ref={tagButtonRef}
           type="button"
           className="icon-button icon-button-ghost"
           onClick={() => setPickerOpen(open => !open)}
           aria-label="Edit tags"
+          aria-haspopup="dialog"
+          aria-expanded={pickerOpen}
           title="Edit tags"
         >
           <Plus size={13} />
         </button>
         {pickerOpen && (
           <TagPicker
+            anchorRef={tagButtonRef}
             song={song}
             allTags={[...tagById.values()]}
             onClose={() => setPickerOpen(false)}
@@ -152,16 +158,20 @@ export const SongRow = memo(function SongRow({
         <span className="song-duration">{formatDuration(song.duration)}</span>
 
         <button
+          ref={menuButtonRef}
           type="button"
           className="icon-button"
           onClick={() => setMenuOpen(open => !open)}
           aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
         >
           <More size={16} />
         </button>
 
         {menuOpen && (
           <SongMenu
+            anchorRef={menuButtonRef}
             song={song}
             onClose={() => setMenuOpen(false)}
             onPlayNext={() => player.playNext([song])}

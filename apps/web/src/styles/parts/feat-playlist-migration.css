@@ -193,9 +193,6 @@
 .migrate-pick {
   width: 100%;
   max-width: 420px;
-  font-size: 12px;
-  padding: 4px 26px 4px 8px;
-  text-overflow: ellipsis;
 }
 
 .migrate-confidence {

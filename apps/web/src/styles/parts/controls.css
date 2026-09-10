@@ -12,7 +12,7 @@
   font-size: 13px;
   font-weight: 550;
   white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+  transition: background var(--dur-fast), border-color var(--dur-fast), transform 80ms;
 }
 
 .button:hover:not(:disabled) {
@@ -66,6 +66,11 @@
   font-size: 12px;
   text-decoration: underline;
   text-underline-offset: 2px;
+  transition: color var(--dur-fast);
+}
+
+.link-button:hover:not(:disabled) {
+  color: var(--accent-strong);
 }
 
 .icon-button {
@@ -76,12 +81,16 @@
   height: 34px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
 
 .icon-button:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text-primary);
+}
+
+.icon-button:active:not(:disabled) {
+  background: var(--surface-3);
 }
 
 .icon-button.is-accent {
@@ -118,7 +127,11 @@
   border-radius: 50%;
   background: var(--text-primary);
   color: var(--surface-0);
-  transition: transform 0.1s, background 0.12s;
+  transition: transform var(--dur-fast), background var(--dur-fast);
+}
+
+.play-button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .play-button:hover:not(:disabled) {
@@ -133,7 +146,6 @@
 }
 
 .input,
-.select,
 textarea {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -145,36 +157,22 @@ textarea {
 }
 
 .input:focus,
-.select:focus,
 textarea:focus {
   border-color: var(--accent);
   outline: none;
 }
 
-.select {
-  cursor: pointer;
-  appearance: none;
-  padding-right: 26px;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: right 12px center, right 7px center;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
+/* A coloured border alone is too quiet to find with the keyboard; put the ring
+   back for focus-visible, which the `outline: none` above would otherwise eat. */
+.input:focus-visible,
+textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
-.select-small,
 .input-small {
   padding: 5px 8px;
   font-size: 12px;
-}
-
-.select-small {
-  padding-right: 22px;
-}
-
-.select-inline {
-  padding: 2px 20px 2px 6px;
-  background-color: var(--surface-3);
 }
 
 .input-grow {
@@ -192,8 +190,11 @@ textarea:focus {
   color: var(--text-muted);
 }
 
+/* The ring goes on the box: the input inside it has no border of its own. */
 .search-box:focus-within {
   border-color: var(--accent);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .search-box input {
@@ -220,6 +221,12 @@ textarea:focus {
   font-size: 12px;
   font-weight: 550;
   color: var(--text-muted);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+.segmented-item:hover:not(.is-active):not(:disabled) {
+  color: var(--text-secondary);
+  background: var(--surface-3);
 }
 
 .segmented-item.is-active {
@@ -236,8 +243,17 @@ textarea:focus {
   border: 1px solid var(--border-strong);
   position: relative;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dur);
   flex-shrink: 0;
+}
+
+.toggle:hover:not(:disabled) {
+  border-color: var(--accent-dim);
+}
+
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .toggle::after {
@@ -249,7 +265,7 @@ textarea:focus {
   height: 18px;
   border-radius: 50%;
   background: var(--text-secondary);
-  transition: transform 0.15s, background 0.15s;
+  transition: transform var(--dur), background var(--dur);
 }
 
 .toggle:checked {
@@ -324,11 +340,13 @@ input[type='range']::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--text-primary);
   border: none;
+  box-shadow: var(--shadow-1);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 
 input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:active::-webkit-slider-thumb,
 input[type='range']:focus-visible::-webkit-slider-thumb {
   opacity: 1;
 }
@@ -339,6 +357,29 @@ input[type='range']::-moz-range-thumb {
   border-radius: 50%;
   background: var(--text-primary);
   border: none;
+}
+
+/*
+ * A thumb that only appears on hover has no affordance at all on a phone, and
+ * a 13px target is not draggable with a finger. On coarse pointers the thumb
+ * is always there and finger-sized.
+ */
+@media (hover: none), (pointer: coarse) {
+  input[type='range']::-webkit-slider-thumb {
+    opacity: 1;
+    width: 18px;
+    height: 18px;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  input[type='range'] {
+    height: 26px;
+    padding: 11px 0;
+  }
 }
 
 .scrubber {

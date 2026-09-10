@@ -56,13 +56,17 @@ export function useHotkeys(handlers: Record<string, (event: KeyboardEvent) => vo
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target
-      // Never hijack keys while the user is typing.
+      // Never hijack keys while the user is typing — or while a dropdown or a
+      // menu has the keyboard. Those run their own arrow keys and type-ahead,
+      // exactly as the native <select> this list used to name did.
       if (target instanceof HTMLElement) {
         if (
           target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
-          target.isContentEditable
+          target.isContentEditable ||
+          target.closest('[role="combobox"], [role="listbox"], [role="menu"], [role="dialog"]') !==
+            null
         ) {
           // Escape is the one exception: it should always be able to close things.
           if (event.key !== 'Escape') return

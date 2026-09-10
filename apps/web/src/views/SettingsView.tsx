@@ -15,6 +15,7 @@ import { useOffline } from '../offline/OfflineProvider.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../components/Icons.js'
 import { LyricsSettings } from '../components/LyricsSettings.js'
+import { Select } from '../components/Select.js'
 import { DevicesSettings } from '../devices/DevicesSettings.js'
 
 /**
@@ -285,7 +286,7 @@ export function SettingsView() {
             <h2>Importing</h2>
           </header>
 
-          <label className="setting-row">
+          <div className="setting-row">
             <span className="setting-label">
               Downloads at once
               <span className="setting-hint">
@@ -293,21 +294,17 @@ export function SettingsView() {
               </span>
             </span>
             <span className="setting-control">
-              <select
-                className="select"
+              <Select<number>
                 value={settings.importConcurrency}
-                onChange={event => set('importConcurrency', Number(event.target.value))}
-              >
-                {[1, 2, 3, 4].map(value => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
+                onChange={value => set('importConcurrency', value)}
+                options={[1, 2, 3, 4].map(value => ({ value, label: String(value) }))}
+                label="Downloads at once"
+                align="end"
+              />
             </span>
-          </label>
+          </div>
 
-          <label className="setting-row">
+          <div className="setting-row">
             <span className="setting-label">
               Rescan automatically
               <span className="setting-hint">
@@ -316,18 +313,20 @@ export function SettingsView() {
               </span>
             </span>
             <span className="setting-control">
-              <select
-                className="select"
+              <Select<number>
                 value={settings.autoScanMinutes}
-                onChange={event => set('autoScanMinutes', Number(event.target.value))}
-              >
-                <option value={0}>Never</option>
-                <option value={5}>Every 5 minutes</option>
-                <option value={15}>Every 15 minutes</option>
-                <option value={60}>Every hour</option>
-              </select>
+                onChange={value => set('autoScanMinutes', value)}
+                options={[
+                  { value: 0, label: 'Never' },
+                  { value: 5, label: 'Every 5 minutes' },
+                  { value: 15, label: 'Every 15 minutes' },
+                  { value: 60, label: 'Every hour' },
+                ]}
+                label="Rescan automatically"
+                align="end"
+              />
             </span>
-          </label>
+          </div>
 
           {/* ---- import suite: folder watching + YouTube cookies ---- */}
 
@@ -347,7 +346,7 @@ export function SettingsView() {
             />
           </label>
 
-          <label className="setting-row" id="youtube">
+          <div className="setting-row" id="youtube">
             <span className="setting-label">
               YouTube login cookies
               <span className="setting-hint">
@@ -356,22 +355,22 @@ export function SettingsView() {
               </span>
             </span>
             <span className="setting-control">
-              <select
-                className="select"
+              <Select<Settings['ytCookieSource']>
                 value={settings.ytCookieSource}
-                onChange={event =>
-                  set('ytCookieSource', event.target.value as Settings['ytCookieSource'])
-                }
-              >
-                <option value="none">Off</option>
-                <option value="browser">From a browser</option>
-                <option value="file">From a cookies.txt file</option>
-              </select>
+                onChange={value => set('ytCookieSource', value)}
+                options={[
+                  { value: 'none', label: 'Off' },
+                  { value: 'browser', label: 'From a browser' },
+                  { value: 'file', label: 'From a cookies.txt file' },
+                ]}
+                label="YouTube login cookies"
+                align="end"
+              />
             </span>
-          </label>
+          </div>
 
           {settings.ytCookieSource === 'browser' && (
-            <label className="setting-row">
+            <div className="setting-row">
               <span className="setting-label">
                 Browser
                 <span className="setting-hint">
@@ -383,22 +382,22 @@ export function SettingsView() {
                 </span>
               </span>
               <span className="setting-control">
-                <select
-                  className="select"
+                <Select<Settings['ytCookieBrowser']>
                   value={settings.ytCookieBrowser}
-                  onChange={event =>
-                    set('ytCookieBrowser', event.target.value as Settings['ytCookieBrowser'])
-                  }
-                >
-                  <option value="chrome">Chrome</option>
-                  <option value="safari">Safari</option>
-                  <option value="firefox">Firefox</option>
-                  <option value="brave">Brave</option>
-                  <option value="edge">Edge</option>
-                  <option value="chromium">Chromium</option>
-                </select>
+                  onChange={value => set('ytCookieBrowser', value)}
+                  options={[
+                    { value: 'chrome', label: 'Chrome' },
+                    { value: 'safari', label: 'Safari' },
+                    { value: 'firefox', label: 'Firefox' },
+                    { value: 'brave', label: 'Brave' },
+                    { value: 'edge', label: 'Edge' },
+                    { value: 'chromium', label: 'Chromium' },
+                  ]}
+                  label="Browser"
+                  align="end"
+                />
               </span>
-            </label>
+            </div>
           )}
 
           {settings.ytCookieSource === 'file' && (

@@ -3,10 +3,10 @@ import type { Song } from '@selfmp3/shared'
 import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
-import { useClickOutside } from '../lib/hooks.js'
 import { api } from '../lib/api.js'
 import { CloudDownload, ListMusic, Queue, Sparkles, Trash, X } from './Icons.js'
 import { MetadataDialog } from './MetadataDialog.js'
+import { Popover } from './Menu.js'
 
 /**
  * The per-song action menu.
@@ -16,11 +16,13 @@ import { MetadataDialog } from './MetadataDialog.js'
  * very different intentions and must never be one mis-tap apart.
  */
 export function SongMenu({
+  anchorRef,
   song,
   onClose,
   onPlayNext,
   onAddToQueue,
 }: {
+  anchorRef: React.RefObject<HTMLElement | null>
   song: Song
   onClose: () => void
   onPlayNext: () => void
@@ -36,7 +38,6 @@ export function SongMenu({
   const offline = useOffline()
   const player = usePlayer()
 
-  const ref = useClickOutside<HTMLDivElement>(onClose)
   const cached = offline.isCached(song.id)
 
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
@@ -58,120 +59,148 @@ export function SongMenu({
   }
 
   return (
-    <>
-      <div className="popover-backdrop" onClick={onClose} />
-      <div className="popover song-menu" ref={ref} role="menu">
-        <button type="button" className="popover-item" onClick={() => act(onPlayNext)}>
-          <Queue size={15} /> Play next
-        </button>
+    <Popover
+      anchorRef={anchorRef}
+      onClose={onClose}
+      label="Song actions"
+      className="song-menu"
+      sheet
+      roving
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => act(onPlayNext)}
+      >
+        <Queue size={15} /> Play next
+      </button>
 
-        <button type="button" className="popover-item" onClick={() => act(onAddToQueue)}>
-          <ListMusic size={15} /> Add to queue
-        </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => act(onAddToQueue)}
+      >
+        <ListMusic size={15} /> Add to queue
+      </button>
 
-        <div className="popover-divider" />
+      <div className="popover-divider" />
 
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => act(() => withSimilar(songs => player.playFrom(songs, 0)))}
+      >
+        <Sparkles size={15} /> Play similar
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => act(() => withSimilar(songs => player.addToQueue(songs.slice(1))))}
+      >
+        <Sparkles size={15} /> Add similar to queue
+      </button>
+
+      <div className="popover-divider" />
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => setPlaylistOpen(open => !open)}
+        aria-expanded={playlistOpen}
+      >
+        <ListMusic size={15} /> Add to playlist…
+      </button>
+
+      {playlistOpen && (
+        <div className="popover-nested">
+          {manualPlaylists.length === 0 && <p className="hint">No playlists yet.</p>}
+          {manualPlaylists.map(list => (
+            <button
+              key={list.id}
+              type="button"
+              role="menuitem"
+              className="popover-item"
+              onClick={() =>
+                act(() => addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] }))
+              }
+            >
+              {list.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="popover-divider" />
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => setMetadataOpen(true)}
+      >
+        <Sparkles size={15} /> Fix metadata…
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() =>
+          act(() => {
+            void (cached ? offline.removeOne(song.id) : offline.downloadOne(song.id))
+          })
+        }
+      >
+        {cached ? <X size={15} /> : <CloudDownload size={15} />}
+        {cached ? 'Remove download' : 'Download for offline'}
+      </button>
+
+      <div className="popover-divider" />
+
+      {!confirmingDelete ? (
         <button
           type="button"
-          className="popover-item"
-          onClick={() => act(() => withSimilar(songs => player.playFrom(songs, 0)))}
+          role="menuitem"
+          className="popover-item is-danger"
+          onClick={() => setConfirmingDelete(true)}
         >
-          <Sparkles size={15} /> Play similar
+          <Trash size={15} /> Remove from library…
         </button>
-
-        <button
-          type="button"
-          className="popover-item"
-          onClick={() => act(() => withSimilar(songs => player.addToQueue(songs.slice(1))))}
-        >
-          <Sparkles size={15} /> Add similar to queue
-        </button>
-
-        <div className="popover-divider" />
-
-        <button
-          type="button"
-          className="popover-item"
-          onClick={() => setPlaylistOpen(open => !open)}
-          aria-expanded={playlistOpen}
-        >
-          <ListMusic size={15} /> Add to playlist…
-        </button>
-
-        {playlistOpen && (
-          <div className="popover-nested">
-            {manualPlaylists.length === 0 && <p className="hint">No playlists yet.</p>}
-            {manualPlaylists.map(list => (
-              <button
-                key={list.id}
-                type="button"
-                className="popover-item"
-                onClick={() =>
-                  act(() => addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] }))
-                }
-              >
-                {list.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="popover-divider" />
-
-        <button type="button" className="popover-item" onClick={() => setMetadataOpen(true)}>
-          <Sparkles size={15} /> Fix metadata…
-        </button>
-
-        <button
-          type="button"
-          className="popover-item"
-          onClick={() =>
-            act(() => {
-              void (cached ? offline.removeOne(song.id) : offline.downloadOne(song.id))
-            })
-          }
-        >
-          {cached ? <X size={15} /> : <CloudDownload size={15} />}
-          {cached ? 'Remove download' : 'Download for offline'}
-        </button>
-
-        <div className="popover-divider" />
-
-        {!confirmingDelete ? (
+      ) : (
+        <div className="popover-confirm">
+          <p className="hint">Remove &ldquo;{song.title}&rdquo;?</p>
           <button
             type="button"
-            className="popover-item is-danger"
-            onClick={() => setConfirmingDelete(true)}
+            role="menuitem"
+            className="popover-item"
+            onClick={() => act(() => deleteSong.mutate({ id: song.id, deleteFile: false }))}
           >
-            <Trash size={15} /> Remove from library…
+            Remove from library, keep the file
           </button>
-        ) : (
-          <div className="popover-confirm">
-            <p className="hint">Remove &ldquo;{song.title}&rdquo;?</p>
-            <button
-              type="button"
-              className="popover-item"
-              onClick={() => act(() => deleteSong.mutate({ id: song.id, deleteFile: false }))}
-            >
-              Remove from library, keep the file
-            </button>
-            <button
-              type="button"
-              className="popover-item is-danger"
-              onClick={() => act(() => deleteSong.mutate({ id: song.id, deleteFile: true }))}
-            >
-              <Trash size={15} /> Delete the file too
-            </button>
-            <button
-              type="button"
-              className="popover-item"
-              onClick={() => setConfirmingDelete(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-    </>
+          <button
+            type="button"
+            role="menuitem"
+            className="popover-item is-danger"
+            onClick={() => act(() => deleteSong.mutate({ id: song.id, deleteFile: true }))}
+          >
+            <Trash size={15} /> Delete the file too
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="popover-item"
+            onClick={() => setConfirmingDelete(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </Popover>
   )
 }

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
 import { useCreateTag, useSetSongTags } from '../lib/queries.js'
-import { useClickOutside } from '../lib/hooks.js'
 import { Check, Plus } from './Icons.js'
+import { Popover } from './Menu.js'
 
 /**
  * Attach tags to a song.
@@ -14,10 +14,12 @@ import { Check, Plus } from './Icons.js'
  * and "chilled" as three separate tags.
  */
 export function TagPicker({
+  anchorRef,
   song,
   allTags,
   onClose,
 }: {
+  anchorRef: React.RefObject<HTMLElement | null>
   song: Song
   allTags: readonly Tag[]
   onClose: () => void
@@ -28,8 +30,6 @@ export function TagPicker({
 
   const setSongTags = useSetSongTags()
   const createTag = useCreateTag()
-
-  const containerRef = useClickOutside<HTMLDivElement>(onClose)
 
   const ranked = useMemo(() => fuzzyRank(query, allTags, tag => tag.name), [query, allTags])
   const hasExact = ranked.some(match => match.exact)
@@ -68,59 +68,64 @@ export function TagPicker({
   }
 
   return (
-    <>
-      <div className="popover-backdrop" onClick={onClose} />
-      <div className="popover tag-picker" ref={containerRef} role="dialog" aria-label="Edit tags">
-        <div className="popover-title">
-          Tags for <strong>{song.title}</strong>
-        </div>
+    <Popover
+      anchorRef={anchorRef}
+      onClose={onClose}
+      role="dialog"
+      label="Edit tags"
+      className="tag-picker"
+      focus="trap"
+      sheet
+    >
+      <div className="popover-title">
+        Tags for <strong>{song.title}</strong>
+      </div>
 
-        <form onSubmit={onSubmit}>
-          <input
-            ref={inputRef}
-            className="popover-input"
-            autoFocus
-            value={query}
-            placeholder="Search or create a tag…"
-            onChange={event => setQuery(event.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </form>
+      <form onSubmit={onSubmit}>
+        <input
+          ref={inputRef}
+          className="popover-input"
+          autoFocus
+          value={query}
+          placeholder="Search or create a tag…"
+          onChange={event => setQuery(event.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </form>
 
-        <div className="popover-list">
-          {ranked.map(({ item }) => (
-            <button
-              key={item.id}
-              type="button"
-              className="popover-item"
-              onClick={() => {
-                toggle(item.id)
-                setQuery('')
-              }}
-            >
-              <span className={`checkbox ${selected.has(item.id) ? 'is-on' : ''}`}>
-                {selected.has(item.id) && <Check size={12} />}
-              </span>
-              <span className="tag-dot" style={{ '--tag-hue': item.hue } as React.CSSProperties} />
-              {item.name}
-              <span className="popover-item-count">{item.songCount}</span>
-            </button>
-          ))}
-
-          {ranked.length === 0 && !trimmed && (
-            <p className="hint">No tags yet — type a name to create your first one.</p>
-          )}
-        </div>
-
-        {trimmed && !hasExact && (
-          <button type="button" className="popover-item popover-create" onClick={() => void create()}>
-            <Plus size={14} />
-            Create <strong>{trimmed}</strong>
-            {ranked[0] && <span className="hint-inline">similar: {ranked[0].item.name}</span>}
+      <div className="popover-list">
+        {ranked.map(({ item }) => (
+          <button
+            key={item.id}
+            type="button"
+            className="popover-item"
+            onClick={() => {
+              toggle(item.id)
+              setQuery('')
+            }}
+          >
+            <span className={`checkbox ${selected.has(item.id) ? 'is-on' : ''}`}>
+              {selected.has(item.id) && <Check size={12} />}
+            </span>
+            <span className="tag-dot" style={{ '--tag-hue': item.hue } as React.CSSProperties} />
+            {item.name}
+            <span className="popover-item-count">{item.songCount}</span>
           </button>
+        ))}
+
+        {ranked.length === 0 && !trimmed && (
+          <p className="hint">No tags yet — type a name to create your first one.</p>
         )}
       </div>
-    </>
+
+      {trimmed && !hasExact && (
+        <button type="button" className="popover-item popover-create" onClick={() => void create()}>
+          <Plus size={14} />
+          Create <strong>{trimmed}</strong>
+          {ranked[0] && <span className="hint-inline">similar: {ranked[0].item.name}</span>}
+        </button>
+      )}
+    </Popover>
   )
 }

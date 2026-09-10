@@ -15,8 +15,10 @@
 @import './parts/layout.css';
 @import './parts/sidebar.css';
 @import './parts/controls.css';
+@import './parts/select.css';
 @import './parts/songs.css';
 @import './parts/player.css';
+@import './parts/popovers.css';
 @import './parts/queue.css';
 @import './parts/playlists.css';
 @import './parts/import.css';

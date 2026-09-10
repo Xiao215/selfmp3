@@ -160,6 +160,12 @@ function Shell() {
         {!isMobile && practiceOpen && <PracticePanel onClose={() => setPracticeOpen(false)} />}
       </div>
 
+      {/* Toasts live between the content and the transport: they announce
+          themselves without covering a song row or the player. */}
+      <div className="toast-layer">
+        <ResumeToast />
+      </div>
+
       <PlayerBar
         onOpenLyrics={openLyrics}
         onOpenQueue={openQueue}
@@ -179,8 +185,6 @@ function Shell() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
       />
-
-      <ResumeToast />
     </div>
   )
 }

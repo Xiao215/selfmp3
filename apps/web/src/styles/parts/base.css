@@ -94,11 +94,50 @@ pre.code-block {
   overflow-x: auto;
 }
 
-/* Focus rings are visible for keyboard users and invisible for mouse users. */
+/*
+ * Focus rings are visible for keyboard users and invisible for mouse users.
+ * One rule for the whole app: anything focusable gets the ring whether or not
+ * its component remembered to ask for one. Modern browsers follow the
+ * element's own border-radius, so round buttons keep round rings.
+ */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * Rows and controls that live inside a scrolling or clipping container draw
+ * the ring just inside their own edge — an outset ring there is cropped by the
+ * overflow and the row looks unfocused.
+ */
+.song-row:focus-visible,
+.queue-row:focus-visible,
+.popover-item:focus-visible,
+.mobile-nav-item:focus-visible,
+.nav-item:focus-visible,
+.segmented-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* A disabled control should look disabled and never take focus. */
+:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/*
+ * Motion is decoration here, never information: with reduced motion asked for,
+ * transitions collapse and one-shot entrances are turned off where they are
+ * defined. Looping indicators (the spinner, the equalizer) are left alone —
+ * they are showing that something is still happening.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::selection {

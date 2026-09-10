@@ -13,6 +13,7 @@ import { useDebounced, useIsMobile } from '../lib/hooks.js'
 import { SongRow } from '../components/SongRow.js'
 import { TagChip } from '../components/TagChip.js'
 import { GemsRow } from '../components/GemsRow.js'
+import { Select } from '../components/Select.js'
 import { Play, Search, Shuffle, X } from '../components/Icons.js'
 
 /**
@@ -184,18 +185,13 @@ export function LibraryView({
             )}
           </div>
 
-          <select
-            className="select"
+          <Select<SongSortField>
             value={sort}
-            onChange={event => setSort(event.target.value as SongSortField)}
-            aria-label="Sort by"
-          >
-            {SORT_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={setSort}
+            options={SORT_OPTIONS}
+            label="Sort by"
+            align="end"
+          />
 
           <button
             type="button"
@@ -333,23 +329,16 @@ function SelectionBar({
       </button>
 
       {tags.length > 0 && (
-        <select
-          className="select select-small"
-          value=""
-          onChange={event => {
-            const tagId = Number(event.target.value)
-            if (Number.isInteger(tagId) && tagId > 0) onTag(tagId)
-            event.target.value = ''
+        <Select<number>
+          value={0}
+          onChange={tagId => {
+            if (tagId > 0) onTag(tagId)
           }}
-          aria-label="Add a tag to the selection"
-        >
-          <option value="">Add tag…</option>
-          {tags.map(tag => (
-            <option key={tag.id} value={tag.id}>
-              {tag.name}
-            </option>
-          ))}
-        </select>
+          options={tags.map(tag => ({ value: tag.id, label: tag.name }))}
+          label="Add a tag to the selection"
+          placeholder="Add tag…"
+          size="small"
+        />
       )}
 
       <button

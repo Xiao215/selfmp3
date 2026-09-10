@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Devices, Remote } from '../components/Icons.js'
 import { useDeviceContext } from './DevicesProvider.js'
 import { DevicesPopover } from './DevicesPopover.js'
@@ -21,6 +21,7 @@ export function DevicesButton({
 }) {
   const { others, playingElsewhere, remote } = useDeviceContext()
   const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   const chip = remote
     ? { label: `Remote · ${shortDeviceName(remote.name)}`, icon: <Remote size={13} /> }
@@ -46,6 +47,7 @@ export function DevicesButton({
       )}
 
       <button
+        ref={buttonRef}
         type="button"
         className={`icon-button ${chip ? 'is-accent' : ''}`}
         onClick={() => setOpen(value => !value)}
@@ -57,7 +59,7 @@ export function DevicesButton({
         {remote ? <Remote size={17} /> : <Devices size={17} />}
       </button>
 
-      {open && <DevicesPopover onClose={() => setOpen(false)} up={up} />}
+      {open && <DevicesPopover anchorRef={buttonRef} onClose={() => setOpen(false)} up={up} />}
     </div>
   )
 }

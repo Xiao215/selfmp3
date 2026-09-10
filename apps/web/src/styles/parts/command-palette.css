@@ -3,7 +3,7 @@
 .palette-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   background: oklch(0.1 0.02 var(--accent-hue) / 0.6);
   backdrop-filter: blur(3px);
   display: flex;

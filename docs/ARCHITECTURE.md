@@ -217,3 +217,8 @@ add the config branch. Nothing else changes.
 
 **A schema change:** append a migration to the array in `db/migrate.ts`. Never edit an
 existing entry, never renumber — the array index *is* the version.
+
+**A dropdown, a menu, or anything that floats:** use `components/Select.tsx` and
+`components/Menu.tsx` rather than a native `<select>` or a hand-rolled popover, and take
+z-index, radii, durations and the focus ring from the tokens. See
+[docs/features/design-system.md](features/design-system.md).

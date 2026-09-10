@@ -3,6 +3,7 @@ import type { SecretProvider, Settings, TranslationProvider } from '@selfmp3/sha
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { queryKeys } from '../lib/queries.js'
+import { Select } from './Select.js'
 
 /**
  * The Lyrics+ section of Settings.
@@ -105,7 +106,7 @@ export function LyricsSettings({
         </span>
       </label>
 
-      <label className="setting-row">
+      <div className="setting-row">
         <span className="setting-label">
           Translation provider
           <span className="setting-hint">
@@ -114,21 +115,15 @@ export function LyricsSettings({
           </span>
         </span>
         <span className="setting-control">
-          <select
-            className="select"
+          <Select<TranslationProvider>
             value={settings.lyricsTranslationProvider}
-            onChange={event =>
-              onSet('lyricsTranslationProvider', event.target.value as TranslationProvider)
-            }
-          >
-            {PROVIDERS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={value => onSet('lyricsTranslationProvider', value)}
+            options={PROVIDERS}
+            label="Translation provider"
+            align="end"
+          />
         </span>
-      </label>
+      </div>
 
       {(['anthropic', 'openai'] as const).map(provider => (
         <ApiKeyRow

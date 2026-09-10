@@ -8,6 +8,7 @@ import { PlaylistRepository } from './repositories/playlists.js'
 import { SettingsRepository } from './repositories/settings.js'
 import { StatsRepository } from './repositories/stats.js'
 import { ImportRepository } from './repositories/imports.js'
+import { FeaturesRepository } from './repositories/features.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { CoverService } from './services/covers.js'
@@ -24,6 +25,7 @@ import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
 import { TranslationService } from './services/translation.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
+import { AnalysisService } from './services/analysis.js'
 
 /**
  * Composition root.
@@ -48,6 +50,7 @@ export interface Container {
   readonly imports: ImportRepository
   readonly secrets: SecretsRepository
   readonly lyricsSearch: LyricsSearchRepository
+  readonly features: FeaturesRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -63,6 +66,7 @@ export interface Container {
   readonly romanization: RomanizationService
   readonly translation: TranslationService
   readonly lyricsIndex: LyricsIndexService
+  readonly analysis: AnalysisService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -88,6 +92,7 @@ export function createContainer(config: Config): Container {
   const imports = new ImportRepository(db)
   const secrets = new SecretsRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
+  const features = new FeaturesRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger)
@@ -125,7 +130,13 @@ export function createContainer(config: Config): Container {
   const lyricsCache = new LyricsCache(config, logger)
   const romanization = new RomanizationService(logger)
   const translation = new TranslationService(secrets, logger)
-  const lyricsIndex = new LyricsIndexService({ songs, search: lyricsSearch, lyrics, metadata, logger })
+  const lyricsIndex = new LyricsIndexService({
+    songs,
+    search: lyricsSearch,
+    lyrics,
+    metadata,
+    logger,
+  })
 
   let version = 1
 
@@ -149,6 +160,29 @@ export function createContainer(config: Config): Container {
       version++
     },
   })
+  const analysis = new AnalysisService({
+    config,
+    storage,
+    songs,
+    features,
+    scanner,
+    importQueue,
+    logger,
+    // A version bump makes clients refetch; do it in batches, and once at the
+    // end, so a long first run does not have every phone re-downloading the
+    // library after each song.
+    onProgress: (done, finished) => {
+      if (finished || done % 25 === 0) version++
+    },
+  })
+
+  // Analysis runs after the work that matters: new and changed files are
+  // queued as they are ingested, and a finished scan nudges the loop.
+  scanner.onIngested = (songId, change) => {
+    if (change === 'updated') analysis.invalidate(songId)
+    else analysis.kick()
+  }
+  scanner.onScanComplete = () => analysis.kick()
 
   return {
     config,
@@ -163,6 +197,7 @@ export function createContainer(config: Config): Container {
     imports,
     secrets,
     lyricsSearch,
+    features,
     metadata,
     lyrics,
     covers,
@@ -177,12 +212,14 @@ export function createContainer(config: Config): Container {
     romanization,
     translation,
     lyricsIndex,
+    analysis,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++
     },
     close: () => {
       libraryWatcher.stop()
+      analysis.stop()
       importQueue.stop()
       migrate.stop()
       db.close()

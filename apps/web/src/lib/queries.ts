@@ -8,11 +8,13 @@ import {
 import type {
   ApplyMetadata,
   FixCoversStatus,
+  AnalysisStatus,
   Library,
   Settings,
   Stats,
   StatsRange,
   ImportQueue,
+  SimilarSongs,
   ToolStatus,
   MigrateMatchJob,
 } from '@selfmp3/shared'
@@ -42,6 +44,8 @@ export const queryKeys = {
   fixCovers: ['metadata', 'fix-covers'] as const,
   secrets: ['settings', 'secrets'] as const,
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
+  similar: (id: number) => ['similar', id] as const,
+  analysis: ['analysis'] as const,
 }
 
 /**
@@ -333,6 +337,47 @@ export function useFixCovers() {
     onSuccess: status => {
       client.setQueryData(queryKeys.fixCovers, status)
       void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
+  })
+}
+
+/** Nearest neighbours of a song. Cheap on the server, so cached only briefly. */
+export function useSimilar(songId: number | null, limit = 12): UseQueryResult<SimilarSongs, Error> {
+  return useQuery({
+    queryKey: songId === null ? ['similar', 'none'] : queryKeys.similar(songId),
+    queryFn: () => api.similar(songId ?? 0, limit),
+    enabled: songId !== null,
+    staleTime: 60_000,
+  })
+}
+
+/**
+ * Background analysis progress, polled only while it is running — and the
+ * library is refetched once it stops, so the new BPM and key badges appear.
+ */
+export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStatus, Error> {
+  const client = useQueryClient()
+  return useQuery({
+    queryKey: queryKeys.analysis,
+    queryFn: async () => {
+      const status = await api.analysisStatus()
+      const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis)
+      if (previous?.running && !status.running) {
+        void client.invalidateQueries({ queryKey: queryKeys.library })
+      }
+      return status
+    },
+    enabled,
+    refetchInterval: query => (query.state.data?.running ? 1_500 : false),
+  })
+}
+
+export function useStartAnalysis() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (force: boolean) => api.analyze(force),
+    onSuccess: status => {
+      client.setQueryData(queryKeys.analysis, status)
     },
   })
 }

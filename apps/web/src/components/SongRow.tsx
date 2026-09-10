@@ -7,6 +7,7 @@ import { Cover } from './Cover.js'
 import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
 import { SongMenu } from './SongMenu.js'
+import { FeatureBadges } from './FeatureBadges.js'
 import { CheckCircle, Equalizer, Heart, More, Play, Plus } from './Icons.js'
 
 /**
@@ -102,6 +103,7 @@ export const SongRow = memo(function SongRow({
         <div className="song-sub">
           {song.artist || 'Unknown artist'}
           {song.album && <span className="song-album"> · {song.album}</span>}
+          <FeatureBadges features={song.features} />
         </div>
       </div>
 

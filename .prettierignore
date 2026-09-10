@@ -4,3 +4,4 @@ library
 data
 *.md
 package-lock.json
+.claude/

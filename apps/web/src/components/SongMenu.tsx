@@ -2,7 +2,9 @@ import { useState } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { usePlayer } from '../player/PlayerProvider.js'
 import { useClickOutside } from '../lib/hooks.js'
+import { api } from '../lib/api.js'
 import { CloudDownload, ListMusic, Queue, Sparkles, Trash, X } from './Icons.js'
 import { MetadataDialog } from './MetadataDialog.js'
 
@@ -32,6 +34,7 @@ export function SongMenu({
   const addToPlaylist = useAddToPlaylist()
   const deleteSong = useDeleteSong()
   const offline = useOffline()
+  const player = usePlayer()
 
   const ref = useClickOutside<HTMLDivElement>(onClose)
   const cached = offline.isCached(song.id)
@@ -46,6 +49,13 @@ export function SongMenu({
   // The dialog replaces the menu rather than stacking on it: the menu's
   // click-outside handler would otherwise close both on the first click.
   if (metadataOpen) return <MetadataDialog song={song} onClose={onClose} />
+  /** Nearest neighbours from the server; the seed song leads the list. */
+  const withSimilar = (fn: (songs: Song[]) => void): void => {
+    void api
+      .similar(song.id, 20)
+      .then(result => fn([song, ...result.songs]))
+      .catch(() => undefined)
+  }
 
   return (
     <>
@@ -58,6 +68,26 @@ export function SongMenu({
         <button type="button" className="popover-item" onClick={() => act(onAddToQueue)}>
           <ListMusic size={15} /> Add to queue
         </button>
+
+        <div className="popover-divider" />
+
+        <button
+          type="button"
+          className="popover-item"
+          onClick={() => act(() => withSimilar(songs => player.playFrom(songs, 0)))}
+        >
+          <Sparkles size={15} /> Play similar
+        </button>
+
+        <button
+          type="button"
+          className="popover-item"
+          onClick={() => act(() => withSimilar(songs => player.addToQueue(songs.slice(1))))}
+        >
+          <Sparkles size={15} /> Add similar to queue
+        </button>
+
+        <div className="popover-divider" />
 
         <button
           type="button"

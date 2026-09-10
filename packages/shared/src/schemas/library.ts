@@ -54,6 +54,13 @@ export const SyncManifestSchema = z.object({
 })
 export type SyncManifest = z.infer<typeof SyncManifestSchema>
 
+/** Nearest neighbours of one song, closest first. */
+export const SimilarSongsSchema = z.object({
+  songId: IdSchema,
+  songs: z.array(SongSchema),
+})
+export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
+
 export const HealthSchema = z.object({
   ok: z.literal(true),
   version: z.string(),

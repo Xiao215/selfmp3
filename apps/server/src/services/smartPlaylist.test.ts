@@ -33,6 +33,12 @@ function makeDb(): Database.Database {
     );
     CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE song_tags (song_id INTEGER, tag_id INTEGER, PRIMARY KEY (song_id, tag_id));
+    CREATE TABLE song_features (
+      song_id INTEGER PRIMARY KEY,
+      bpm REAL, energy REAL, loudness_lufs REAL, key TEXT, camelot TEXT, danceability REAL,
+      analyzed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      version INTEGER NOT NULL DEFAULT 1
+    );
   `)
 
   const insert = db.prepare(`
@@ -63,6 +69,14 @@ function makeDb(): Database.Database {
 
   db.prepare('INSERT INTO tags (id, name) VALUES (1, ?), (2, ?)').run('chill', 'classical')
   db.prepare('INSERT INTO song_tags VALUES (1, 1), (2, 1), (3, 2)').run()
+
+  // Song 2 has not been analysed; song 3 was analysed but has no beat.
+  db.prepare(`
+    INSERT INTO song_features (song_id, bpm, energy, loudness_lufs, key, camelot) VALUES
+      (1, 124, 0.8, -9.5, 'A minor', '8A'),
+      (3, NULL, 0.2, -22, 'E major', '12B'),
+      (4, 128, 0.9, -8, 'A minor', '8A')
+  `).run()
 
   return db
 }
@@ -140,6 +154,28 @@ describe('compileSmartRules', () => {
     expect(run(db, { rules: [{ field: 'hasLyrics', op: 'is', value: true }] })).toEqual([1, 3])
   })
 
+  it('compares analysed features, ignoring songs that were not analysed', () => {
+    expect(run(db, { rules: [{ field: 'bpm', op: 'gt', value: 100 }] })).toEqual([1])
+    expect(run(db, { rules: [{ field: 'energy', op: 'lt', value: 0.5 }] })).toEqual([3])
+    expect(run(db, { rules: [{ field: 'loudness', op: 'gte', value: -10 }] })).toEqual([1])
+    // Song 2 has no row at all; song 3 has a null BPM. Neither is "less than 200".
+    expect(run(db, { rules: [{ field: 'bpm', op: 'lt', value: 200 }] })).toEqual([1])
+  })
+
+  it('matches keys exactly and by Camelot compatibility', () => {
+    expect(run(db, { rules: [{ field: 'key', op: 'is', value: '8A' }] })).toEqual([1])
+    expect(run(db, { rules: [{ field: 'key', op: 'is', value: '12B' }] })).toEqual([3])
+    // 8A mixes with 7A, 9A and 8B — not 12B.
+    expect(run(db, { rules: [{ field: 'key', op: 'compatible', value: '9A' }] })).toEqual([1])
+    expect(run(db, { rules: [{ field: 'key', op: 'compatible', value: '8B' }] })).toEqual([1])
+    expect(run(db, { rules: [{ field: 'key', op: 'compatible', value: '1B' }] })).toEqual([3])
+    expect(run(db, { rules: [{ field: 'key', op: 'compatible', value: '4A' }] })).toEqual([])
+  })
+
+  it('rejects a key that is not a Camelot code at the schema', () => {
+    expect(() => run(db, { rules: [{ field: 'key', op: 'is', value: 'A minor' } as never] })).toThrow()
+  })
+
   it('combines rules with AND', () => {
     expect(
       run(db, {
@@ -204,6 +240,20 @@ describe('describeSmartRules', () => {
       ],
     })
     expect(describeSmartRules(rules, tagNames)).toBe('tagged chill and playCount > 5')
+  })
+
+  it('describes feature rules', () => {
+    const rules = SmartRulesSchema.parse({
+      match: 'any',
+      rules: [
+        { field: 'bpm', op: 'gte', value: 120 },
+        { field: 'loudness', op: 'lt', value: -12 },
+        { field: 'key', op: 'compatible', value: '8a' },
+      ],
+    })
+    expect(describeSmartRules(rules, tagNames)).toBe(
+      'bpm >= 120 or loudness < -12 LUFS or key mixes with 8A',
+    )
   })
 
   it('falls back gracefully for a deleted tag', () => {

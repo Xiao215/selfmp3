@@ -1,4 +1,5 @@
 import {
+  AnalysisStatusSchema,
   HealthSchema,
   ImportEnqueueResultSchema,
   ImportPreviewSchema,
@@ -21,6 +22,7 @@ import {
   PlaylistSongsSchema,
   ScanResultSchema,
   SettingsSchema,
+  SimilarSongsSchema,
   SongSchema,
   StatsSchema,
   SyncManifestSchema,
@@ -154,6 +156,11 @@ export const api = {
 
   manifest: () => request('GET', '/api/library/manifest', SyncManifestSchema),
 
+  analyze: (force = false) =>
+    request('POST', '/api/library/analyze', AnalysisStatusSchema, { force }),
+
+  analysisStatus: () => request('GET', '/api/library/analyze', AnalysisStatusSchema),
+
   search: (query: string, limit = 50) =>
     request(
       'GET',
@@ -207,6 +214,8 @@ export const api = {
 
   setSecret: (provider: SecretProvider, key: string | null) =>
     request('PUT', '/api/settings/secrets', SecretsStatusSchema, { provider, key }),
+  similar: (id: number, limit = 20) =>
+    request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 
   deleteSong: (id: number, deleteFile: boolean) =>
     request('DELETE', `/api/songs/${id}?deleteFile=${deleteFile ? 1 : 0}`, OkSchema),

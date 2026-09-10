@@ -1,4 +1,9 @@
-import type { SmartRule, SmartRules, SongSortField } from '@selfmp3/shared'
+import {
+  compatibleCamelot,
+  type SmartRule,
+  type SmartRules,
+  type SongSortField,
+} from '@selfmp3/shared'
 
 /**
  * Compiling smart-playlist rules into SQL.
@@ -39,6 +44,17 @@ const NUMBER_COLUMNS = {
 const DATE_COLUMNS = {
   addedAt: 's.added_at',
   lastPlayedAt: 's.last_played_at',
+} as const satisfies Record<string, string>
+
+/**
+ * Analysed features live in their own table, so each rule is an EXISTS over
+ * it — which also means a song that has not been analysed simply does not
+ * match, rather than matching as if its BPM were zero.
+ */
+const FEATURE_COLUMNS = {
+  bpm: 'f.bpm',
+  energy: 'f.energy',
+  loudness: 'f.loudness_lufs',
 } as const satisfies Record<string, string>
 
 const NUMBER_OPERATORS = {
@@ -142,6 +158,29 @@ function compileRule(rule: SmartRule): CompiledQuery {
 
     case 'hasArt':
       return { sql: `s.has_art = ?`, params: [rule.value ? 1 : 0] }
+
+    case 'bpm':
+    case 'energy':
+    case 'loudness': {
+      const column = FEATURE_COLUMNS[rule.field]
+      const operator = NUMBER_OPERATORS[rule.op]
+      return {
+        sql: `EXISTS (SELECT 1 FROM song_features f WHERE f.song_id = s.id AND ${column} IS NOT NULL AND ${column} ${operator} ?)`,
+        params: [rule.value],
+      }
+    }
+
+    case 'key': {
+      // The schema has already validated the code, and the compatible set is
+      // computed here rather than trusted from the client.
+      const codes = rule.op === 'is' ? [rule.value.toUpperCase()] : compatibleCamelot(rule.value)
+      if (codes.length === 0) return { sql: '0', params: [] }
+      const placeholders = codes.map(() => '?').join(', ')
+      return {
+        sql: `EXISTS (SELECT 1 FROM song_features f WHERE f.song_id = s.id AND f.camelot IN (${placeholders}))`,
+        params: codes,
+      }
+    }
   }
 
   // Unreachable while the union is fully handled above; kept so an unhandled
@@ -185,7 +224,10 @@ export function compileSmartRules(rules: SmartRules): CompiledQuery {
 }
 
 /** Human-readable summary of a rule set, for playlist subtitles. */
-export function describeSmartRules(rules: SmartRules, tagNames: ReadonlyMap<number, string>): string {
+export function describeSmartRules(
+  rules: SmartRules,
+  tagNames: ReadonlyMap<number, string>,
+): string {
   if (rules.rules.length === 0) {
     return rules.limit === null ? 'Every song' : `${rules.limit} songs`
   }
@@ -232,6 +274,17 @@ export function describeSmartRules(rules: SmartRules, tagNames: ReadonlyMap<numb
         return rule.value ? 'has lyrics' : 'no lyrics'
       case 'hasArt':
         return rule.value ? 'has art' : 'no art'
+      case 'bpm':
+      case 'energy':
+      case 'loudness': {
+        const symbol = NUMBER_OPERATORS[rule.op]
+        const unit = rule.field === 'loudness' ? ' LUFS' : ''
+        return `${rule.field} ${symbol} ${rule.value}${unit}`
+      }
+      case 'key':
+        return rule.op === 'is'
+          ? `key is ${rule.value.toUpperCase()}`
+          : `key mixes with ${rule.value.toUpperCase()}`
     }
   })
 

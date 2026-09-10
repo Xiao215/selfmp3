@@ -10,11 +10,24 @@ import { toSong, type SongRow } from '../db/rows.js'
  * from thousands of parses into one.
  */
 
-/** Columns plus the aggregated tag list, used everywhere a Song is returned. */
+/**
+ * Columns plus the aggregated tag list and the analysed features, used
+ * everywhere a Song is returned. The features join is a LEFT JOIN so a song
+ * that has not been analysed yet is still a song.
+ */
 const SONG_SELECT = `
   SELECT s.*,
-         (SELECT GROUP_CONCAT(tag_id) FROM song_tags WHERE song_id = s.id) AS tag_ids
+         (SELECT GROUP_CONCAT(tag_id) FROM song_tags WHERE song_id = s.id) AS tag_ids,
+         f.bpm           AS feat_bpm,
+         f.energy        AS feat_energy,
+         f.loudness_lufs AS feat_loudness_lufs,
+         f.key           AS feat_key,
+         f.camelot       AS feat_camelot,
+         f.danceability  AS feat_danceability,
+         f.analyzed_at   AS feat_analyzed_at,
+         f.version       AS feat_version
   FROM songs s
+  LEFT JOIN song_features f ON f.song_id = s.id
 `
 
 export interface NewSong {

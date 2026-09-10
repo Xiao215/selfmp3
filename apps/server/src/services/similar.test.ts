@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest'
+import type { Song, SongFeatures } from '@selfmp3/shared'
+import { similarSongs } from './similar.js'
+
+const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
+  bpm: 120,
+  energy: 0.5,
+  loudnessLufs: -14,
+  key: 'C major',
+  camelot: '8B',
+  danceability: 0.5,
+  analyzedAt: '2026-01-01 00:00:00',
+  version: 1,
+  ...patch,
+})
+
+const song = (id: number, patch: Partial<Song> = {}): Song => ({
+  id,
+  path: `${id}.m4a`,
+  title: `Song ${id}`,
+  artist: '',
+  album: '',
+  albumArtist: '',
+  trackNo: null,
+  year: null,
+  duration: 200,
+  sizeBytes: 0,
+  mime: 'audio/mp4',
+  hasArt: false,
+  lyricsKind: 'none',
+  playCount: 0,
+  skipCount: 0,
+  loved: false,
+  sourceUrl: null,
+  lastPlayedAt: null,
+  addedAt: '2026-01-01',
+  missing: false,
+  tagIds: [],
+  features: null,
+  ...patch,
+})
+
+describe('similarSongs', () => {
+  const seed = song(1, { artist: 'Aurora Lane', tagIds: [1], features: feat() })
+  const library = [
+    seed,
+    song(2, { features: feat({ bpm: 122, camelot: '9B' }) }), // very close
+    song(3, { features: feat({ bpm: 61, camelot: '8A' }) }), // half time, relative key
+    song(4, { features: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }), // far
+    song(5, { features: null }), // not analysed
+    song(6, { missing: true, features: feat() }), // identical but gone
+    song(7, { artist: 'Aurora Lane', features: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }),
+  ]
+
+  it('never returns the seed or a missing file', () => {
+    const ids = similarSongs(seed, library, 10).map(s => s.id)
+    expect(ids).not.toContain(1)
+    expect(ids).not.toContain(6)
+  })
+
+  it('orders by distance and honours the limit', () => {
+    const ids = similarSongs(seed, library, 3).map(s => s.id)
+    expect(ids).toHaveLength(3)
+    expect(ids[0]).toBe(2)
+    expect(ids[1]).toBe(3)
+  })
+
+  it('lets the same artist pull a distant song ahead of an identical stranger', () => {
+    const ids = similarSongs(seed, library, 10).map(s => s.id)
+    expect(ids.indexOf(7)).toBeLessThan(ids.indexOf(4))
+  })
+
+  it('ranks an un-analysed song between close and far matches', () => {
+    const ids = similarSongs(seed, library, 10).map(s => s.id)
+    expect(ids.indexOf(5)).toBeGreaterThan(ids.indexOf(2))
+    expect(ids.indexOf(5)).toBeLessThan(ids.indexOf(4))
+  })
+
+  it('still works when the seed has no features', () => {
+    const bare = song(9, { tagIds: [42] })
+    const ids = similarSongs(bare, [...library, song(10, { tagIds: [42] })], 2).map(s => s.id)
+    // The only signal is the shared tag, so the tagged song comes first.
+    expect(ids[0]).toBe(10)
+  })
+})

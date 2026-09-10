@@ -8,11 +8,13 @@ import {
   SkipEventSchema,
   SongPatchSchema,
   type LyricsResponse,
+  type SimilarSongs,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { transact } from '../db/index.js'
+import { similarSongs } from '../services/similar.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -94,6 +96,24 @@ export function songRoutes(container: Container): Router {
       container.songs.recordSkip(params.id)
       return { ok: true as const }
     }),
+  )
+
+  /** Nearest neighbours by tempo, key, energy, loudness, tags and artist. */
+  router.get(
+    '/songs/:id/similar',
+    route(
+      {
+        params: ParamsWithId,
+        query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
+      },
+      ({ params, query }): SimilarSongs => {
+        const seed = requireSong(params.id)
+        return {
+          songId: seed.id,
+          songs: similarSongs(seed, container.songs.all(), query.limit),
+        }
+      },
+    ),
   )
 
   /**

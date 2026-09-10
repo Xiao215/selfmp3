@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import type { Library, ScanResult, SyncManifest } from '@selfmp3/shared'
+import type { AnalysisStatus, Library, ScanResult, SyncManifest } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
@@ -60,6 +60,25 @@ export function libraryRoutes(container: Container): Router {
       if (purged > 0) container.bumpLibraryVersion()
       return { purged }
     }),
+  )
+
+  /**
+   * Audio analysis: start (or resume) analysing whatever is missing features.
+   *
+   * `force` throws existing results away first. The work happens in the
+   * background; poll the GET for progress.
+   */
+  router.post(
+    '/library/analyze',
+    route(
+      { body: z.object({ force: z.boolean().default(false) }).default({}) },
+      ({ body }): AnalysisStatus => container.analysis.start(body.force),
+    ),
+  )
+
+  router.get(
+    '/library/analyze',
+    route({}, (): AnalysisStatus => container.analysis.status()),
   )
 
   /**

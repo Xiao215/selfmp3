@@ -2961,6 +2961,9 @@ input[type='range']::-moz-range-thumb {
     flex-direction: row;
     align-items: center;
     margin-left: auto;
+  }
+}
+
 /* ================================================= playlist migration ==== */
 
 .migrate-card,
@@ -3119,6 +3122,135 @@ input[type='range']::-moz-range-thumb {
 }
 
 .migrate-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migrate-match {
+  min-width: 240px;
+}
+
+.migrate-match-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.migrate-thumb {
+  width: 54px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  background: var(--surface-2);
+}
+
+.migrate-match-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.migrate-pick {
+  width: 100%;
+  max-width: 420px;
+  font-size: 12px;
+  padding: 4px 26px 4px 8px;
+  text-overflow: ellipsis;
+}
+
+.migrate-confidence {
+  display: inline-block;
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.migrate-confidence.is-good {
+  background: oklch(0.36 0.08 155 / 0.45);
+  color: var(--good);
+}
+
+.migrate-confidence.is-fair {
+  background: oklch(0.36 0.09 78 / 0.5);
+  color: var(--warning);
+}
+
+.migrate-confidence.is-poor {
+  background: oklch(0.34 0.09 22 / 0.45);
+  color: var(--danger);
+}
+
+.migrate-playlist-name {
+  max-width: 360px;
+}
+
+@media (max-width: 720px) {
+  .migrate-table thead {
+    display: none;
+  }
+
+  .migrate-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    grid-template-areas:
+      'check source conf'
+      'check match match';
+    column-gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .migrate-table td {
+    border-bottom: none;
+    padding: 4px 8px;
+  }
+
+  .migrate-row .migrate-col-check {
+    grid-area: check;
+    align-self: start;
+    padding-top: 8px;
+  }
+
+  .migrate-row .migrate-source {
+    grid-area: source;
+    min-width: 0;
+  }
+
+  .migrate-row .migrate-match {
+    grid-area: match;
+    min-width: 0;
+  }
+
+  .migrate-row .migrate-col-conf {
+    grid-area: conf;
+    width: auto;
+    align-self: start;
+  }
+
+  .migrate-row-pending {
+    display: block;
+  }
+
+  .migrate-pick {
+    max-width: 100%;
+  }
+
+  /* The dropdown needs the width more than a 54px thumbnail does. */
+  .migrate-thumb {
+    display: none;
+  }
+}
+
 /* ================================================== metadata polish ==== */
 
 .meta-backdrop {
@@ -3284,125 +3416,6 @@ input[type='range']::-moz-range-thumb {
   white-space: nowrap;
 }
 
-.migrate-match {
-  min-width: 240px;
-}
-
-.migrate-match-inner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.migrate-thumb {
-  width: 54px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  background: var(--surface-2);
-}
-
-.migrate-match-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.migrate-pick {
-  width: 100%;
-  max-width: 420px;
-  font-size: 12px;
-  padding: 4px 26px 4px 8px;
-  text-overflow: ellipsis;
-}
-
-.migrate-confidence {
-  display: inline-block;
-  min-width: 44px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  padding: 3px 8px;
-  border-radius: 999px;
-}
-
-.migrate-confidence.is-good {
-  background: oklch(0.36 0.08 155 / 0.45);
-  color: var(--good);
-}
-
-.migrate-confidence.is-fair {
-  background: oklch(0.36 0.09 78 / 0.5);
-  color: var(--warning);
-}
-
-.migrate-confidence.is-poor {
-  background: oklch(0.34 0.09 22 / 0.45);
-  color: var(--danger);
-}
-
-.migrate-playlist-name {
-  max-width: 360px;
-}
-
-@media (max-width: 720px) {
-  .migrate-table thead {
-    display: none;
-  }
-
-  .migrate-row {
-    display: grid;
-    grid-template-columns: 36px 1fr auto;
-    grid-template-areas:
-      'check source conf'
-      'check match match';
-    column-gap: 4px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .migrate-table td {
-    border-bottom: none;
-    padding: 4px 8px;
-  }
-
-  .migrate-row .migrate-col-check {
-    grid-area: check;
-    align-self: start;
-    padding-top: 8px;
-  }
-
-  .migrate-row .migrate-source {
-    grid-area: source;
-    min-width: 0;
-  }
-
-  .migrate-row .migrate-match {
-    grid-area: match;
-    min-width: 0;
-  }
-
-  .migrate-row .migrate-col-conf {
-    grid-area: conf;
-    width: auto;
-    align-self: start;
-  }
-
-  .migrate-row-pending {
-    display: block;
-  }
-
-  .migrate-pick {
-    max-width: 100%;
-  }
-
-  /* The dropdown needs the width more than a 54px thumbnail does. */
-  .migrate-thumb {
-    display: none;
 .meta-candidate-meta {
   display: flex;
   flex-direction: column;
@@ -3561,6 +3574,9 @@ input[type='range']::-moz-range-thumb {
 
   .meta-error {
     flex-basis: 100%;
+  }
+}
+
 /* ============================================================ lyrics+ ===== */
 
 /* Romanization and translation sit under the original as quieter lines. */
@@ -3828,6 +3844,8 @@ input[type='range']::-moz-range-thumb {
   .lyrics-key-control {
     width: 100%;
   }
+}
+
 /* ================================================ audio intelligence ===== */
 /* BPM · key · energy badges, the auto-mix toggle, and the similar strip. */
 

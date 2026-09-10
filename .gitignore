@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-types/
+*.tsbuildinfo
+
+# Your music and your database. Never committed.
+library/
+data/
+
+# Local config
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

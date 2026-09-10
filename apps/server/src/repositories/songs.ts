@@ -1,0 +1,270 @@
+import type { Song, SongPatch } from '@selfmp3/shared'
+import type { Db } from '../db/index.js'
+import { toSong, type SongRow } from '../db/rows.js'
+
+/**
+ * All SQL that touches the `songs` table lives here.
+ *
+ * Statements are prepared once in the constructor rather than on every call.
+ * better-sqlite3 caches the compiled plan, which turns a full library read
+ * from thousands of parses into one.
+ */
+
+/** Columns plus the aggregated tag list, used everywhere a Song is returned. */
+const SONG_SELECT = `
+  SELECT s.*,
+         (SELECT GROUP_CONCAT(tag_id) FROM song_tags WHERE song_id = s.id) AS tag_ids
+  FROM songs s
+`
+
+export interface NewSong {
+  path: string
+  title: string
+  artist: string
+  album: string
+  albumArtist: string
+  trackNo: number | null
+  year: number | null
+  duration: number
+  sizeBytes: number
+  mime: string
+  mtimeMs: number
+  hasArt: boolean
+  artExt: string | null
+  lyricsKind: string
+  sourceUrl: string | null
+}
+
+export class SongRepository {
+  readonly #db: Db
+
+  readonly #all
+  readonly #byId
+  readonly #byPath
+  readonly #insert
+  readonly #updateScanned
+  readonly #markMissing
+  readonly #clearMissing
+  readonly #deleteById
+  readonly #recordPlay
+  readonly #recordSkip
+  readonly #setArt
+  readonly #setLyricsKind
+  readonly #search
+  readonly #count
+  readonly #totalDuration
+  readonly #manifest
+
+  constructor(db: Db) {
+    this.#db = db
+
+    this.#all = db.prepare<[], SongRow>(`${SONG_SELECT} ORDER BY s.added_at DESC, s.id DESC`)
+    this.#byId = db.prepare<[number], SongRow>(`${SONG_SELECT} WHERE s.id = ?`)
+    this.#byPath = db.prepare<[string], SongRow>(`${SONG_SELECT} WHERE s.path = ?`)
+
+    this.#insert = db.prepare(`
+      INSERT INTO songs (
+        path, title, artist, album, album_artist, track_no, year,
+        duration, size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, source_url
+      ) VALUES (
+        @path, @title, @artist, @album, @albumArtist, @trackNo, @year,
+        @duration, @sizeBytes, @mime, @mtimeMs, @hasArt, @artExt, @lyricsKind, @sourceUrl
+      )
+    `)
+
+    // Refresh only the fields derived from the file itself. User edits to
+    // title/artist/album survive a rescan, which is the whole point of keeping
+    // metadata in the database rather than rewriting tags into the audio file.
+    this.#updateScanned = db.prepare(`
+      UPDATE songs
+         SET duration    = @duration,
+             size_bytes  = @sizeBytes,
+             mime        = @mime,
+             mtime_ms    = @mtimeMs,
+             lyrics_kind = @lyricsKind,
+             missing     = 0,
+             updated_at  = datetime('now')
+       WHERE id = @id
+    `)
+
+    this.#markMissing = db.prepare('UPDATE songs SET missing = 1 WHERE path = ?')
+    this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
+    this.#deleteById = db.prepare('DELETE FROM songs WHERE id = ?')
+
+    this.#recordPlay = db.prepare(`
+      UPDATE songs
+         SET play_count     = play_count + 1,
+             last_played_at = datetime('now'),
+             updated_at     = datetime('now')
+       WHERE id = ?
+    `)
+
+    this.#recordSkip = db.prepare('UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?')
+
+    this.#setArt = db.prepare('UPDATE songs SET has_art = ?, art_ext = ? WHERE id = ?')
+    this.#setLyricsKind = db.prepare('UPDATE songs SET lyrics_kind = ? WHERE id = ?')
+
+    // FTS5 with a bm25 ranking. Column weights bias toward title matches,
+    // which is what people mean when they half-remember a song.
+    this.#search = db.prepare<[string, number], SongRow>(`
+      ${SONG_SELECT}
+      JOIN songs_fts ON songs_fts.rowid = s.id
+      WHERE songs_fts MATCH ?
+      ORDER BY bm25(songs_fts, 10.0, 5.0, 1.0)
+      LIMIT ?
+    `)
+
+    this.#count = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM songs')
+    this.#totalDuration = db.prepare<[], { total: number | null }>(
+      'SELECT SUM(duration) AS total FROM songs WHERE missing = 0',
+    )
+    this.#manifest = db.prepare<[], { id: number; size_bytes: number; mtime_ms: number }>(
+      'SELECT id, size_bytes, mtime_ms FROM songs WHERE missing = 0 ORDER BY id',
+    )
+  }
+
+  all(): Song[] {
+    return this.#all.all().map(toSong)
+  }
+
+  byId(id: number): Song | null {
+    const row = this.#byId.get(id)
+    return row ? toSong(row) : null
+  }
+
+  byPath(path: string): Song | null {
+    const row = this.#byPath.get(path)
+    return row ? toSong(row) : null
+  }
+
+  /** Returns the new row id. */
+  insert(song: NewSong): number {
+    const info = this.#insert.run({
+      ...song,
+      hasArt: song.hasArt ? 1 : 0,
+    })
+    return Number(info.lastInsertRowid)
+  }
+
+  updateScanned(input: {
+    id: number
+    duration: number
+    sizeBytes: number
+    mime: string
+    mtimeMs: number
+    lyricsKind: string
+  }): void {
+    this.#updateScanned.run(input)
+  }
+
+  /**
+   * Apply a user's manual edits.
+   *
+   * The column list is a fixed allow-list rather than anything derived from
+   * the request body, so no amount of creative JSON can reach a column the
+   * user is not meant to write.
+   */
+  patch(id: number, patch: SongPatch): void {
+    const assignments: string[] = []
+    const values: Record<string, unknown> = { id }
+
+    const columns: Record<keyof SongPatch, string> = {
+      title: 'title',
+      artist: 'artist',
+      album: 'album',
+      albumArtist: 'album_artist',
+      year: 'year',
+      trackNo: 'track_no',
+      loved: 'loved',
+    }
+
+    for (const [key, column] of Object.entries(columns) as [keyof SongPatch, string][]) {
+      const value = patch[key]
+      if (value === undefined) continue
+      assignments.push(`${column} = @${key}`)
+      values[key] = typeof value === 'boolean' ? (value ? 1 : 0) : value
+    }
+
+    if (assignments.length === 0) return
+    this.#db
+      .prepare(`UPDATE songs SET ${assignments.join(', ')}, updated_at = datetime('now') WHERE id = @id`)
+      .run(values)
+  }
+
+  markMissing(path: string): void {
+    this.#markMissing.run(path)
+  }
+
+  clearMissing(id: number): void {
+    this.#clearMissing.run(id)
+  }
+
+  delete(id: number): void {
+    this.#deleteById.run(id)
+  }
+
+  recordPlay(id: number): void {
+    this.#recordPlay.run(id)
+  }
+
+  recordSkip(id: number): void {
+    this.#recordSkip.run(id)
+  }
+
+  setArt(id: number, hasArt: boolean, extension: string | null): void {
+    this.#setArt.run(hasArt ? 1 : 0, extension, id)
+  }
+
+  setLyricsKind(id: number, kind: string): void {
+    this.#setLyricsKind.run(kind, id)
+  }
+
+  /**
+   * Full-text search.
+   *
+   * User input is turned into a prefix query per token and every token is
+   * quoted, so FTS5 operators typed by accident (`*`, `NEAR`, an unbalanced
+   * quote) are treated as literal text instead of blowing up the query.
+   */
+  search(query: string, limit = 50): Song[] {
+    const tokens = query
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(token => `"${token.replace(/"/g, '""')}"*`)
+    if (tokens.length === 0) return []
+    try {
+      return this.#search.all(tokens.join(' '), limit).map(toSong)
+    } catch {
+      // A malformed MATCH expression should degrade to "no results", never 500.
+      return []
+    }
+  }
+
+  count(): number {
+    return this.#count.get()?.n ?? 0
+  }
+
+  totalDuration(): number {
+    return this.#totalDuration.get()?.total ?? 0
+  }
+
+  /** Compact list used by the phone to work out what it still needs to cache. */
+  manifest(): Array<{ id: number; sizeBytes: number; etag: string }> {
+    return this.#manifest.all().map(row => ({
+      id: row.id,
+      sizeBytes: row.size_bytes,
+      etag: `"${row.size_bytes.toString(16)}-${row.mtime_ms.toString(16)}"`,
+    }))
+  }
+
+  /** Paths of every song currently in the database, for scan reconciliation. */
+  allPaths(): Map<string, { id: number; mtimeMs: number }> {
+    const rows = this.#db
+      .prepare<[], { id: number; path: string; mtime_ms: number }>(
+        'SELECT id, path, mtime_ms FROM songs',
+      )
+      .all()
+    return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "self.mp3",
+  "short_name": "self.mp3",
+  "description": "Your own music library. Private, offline, yours.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c0b10",
+  "theme_color": "#0c0b10",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Import music",
+      "url": "/import",
+      "description": "Paste a link and add it to your library"
+    },
+    {
+      "name": "Listening stats",
+      "url": "/stats",
+      "description": "What you have been playing"
+    }
+  ]
+}

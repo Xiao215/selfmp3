@@ -1,0 +1,22 @@
+{
+  "name": "@selfmp3/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The API contract. Zod schemas here are the single source of truth for both the server and the web app.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}

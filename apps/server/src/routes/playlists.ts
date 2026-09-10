@@ -1,0 +1,164 @@
+import { Router } from 'express'
+import { z } from 'zod'
+import {
+  AddToPlaylistSchema,
+  CreatePlaylistSchema,
+  IdSchema,
+  ReorderPlaylistSchema,
+  UpdatePlaylistSchema,
+} from '@selfmp3/shared'
+import type { Container } from '../container.js'
+import { route } from '../http/route.js'
+import { HttpError } from '../http/errors.js'
+import { describeSmartRules } from '../services/smartPlaylist.js'
+
+const ParamsWithId = z.object({ id: IdSchema })
+const ParamsWithSong = z.object({ id: IdSchema, songId: IdSchema })
+
+export function playlistRoutes(container: Container): Router {
+  const router = Router()
+
+  const requirePlaylist = (id: number) => {
+    const playlist = container.playlists.byId(id)
+    if (!playlist) throw HttpError.notFound(`no playlist with id ${id}`)
+    return playlist
+  }
+
+  router.get(
+    '/playlists',
+    route({}, () => container.playlists.all()),
+  )
+
+  router.post(
+    '/playlists',
+    route({ body: CreatePlaylistSchema }, ({ body }) => {
+      if (body.kind === 'smart' && !body.rules) {
+        throw HttpError.badRequest('a smart playlist needs a rule set')
+      }
+      const created = container.playlists.create(body)
+      container.bumpLibraryVersion()
+      return created
+    }),
+  )
+
+  router.get(
+    '/playlists/:id',
+    route({ params: ParamsWithId }, ({ params }) => requirePlaylist(params.id)),
+  )
+
+  /** Ordered song ids. Smart playlists resolve their rules on every read. */
+  router.get(
+    '/playlists/:id/songs',
+    route({ params: ParamsWithId }, ({ params }) => ({
+      playlistId: params.id,
+      songIds: container.playlists.songIds(requirePlaylist(params.id)),
+    })),
+  )
+
+  router.patch(
+    '/playlists/:id',
+    route({ params: ParamsWithId, body: UpdatePlaylistSchema }, ({ params, body }) => {
+      const playlist = requirePlaylist(params.id)
+      if (body.rules !== undefined && playlist.kind === 'manual' && body.rules !== null) {
+        throw HttpError.badRequest('a manual playlist cannot have rules')
+      }
+      const updated = container.playlists.update(params.id, body)
+      container.bumpLibraryVersion()
+      return updated
+    }),
+  )
+
+  router.delete(
+    '/playlists/:id',
+    route({ params: ParamsWithId }, ({ params }) => {
+      requirePlaylist(params.id)
+      container.playlists.delete(params.id)
+      container.bumpLibraryVersion()
+      return { ok: true as const }
+    }),
+  )
+
+  router.post(
+    '/playlists/:id/songs',
+    route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
+      const playlist = requirePlaylist(params.id)
+      if (playlist.kind === 'smart') {
+        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      }
+
+      // Drop ids that are not real songs rather than failing the whole request.
+      const valid = body.songIds.filter(id => container.songs.byId(id) !== null)
+      if (valid.length === 0) throw HttpError.badRequest('none of those songs exist')
+
+      if (body.position === undefined) container.playlists.add(params.id, valid)
+      else container.playlists.add(params.id, valid, body.position)
+
+      container.bumpLibraryVersion()
+      return container.playlists.byId(params.id)
+    }),
+  )
+
+  router.delete(
+    '/playlists/:id/songs/:songId',
+    route({ params: ParamsWithSong }, ({ params }) => {
+      const playlist = requirePlaylist(params.id)
+      if (playlist.kind === 'smart') {
+        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      }
+      container.playlists.remove(params.id, params.songId)
+      container.bumpLibraryVersion()
+      return container.playlists.byId(params.id)
+    }),
+  )
+
+  router.put(
+    '/playlists/:id/order',
+    route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }) => {
+      const playlist = requirePlaylist(params.id)
+      if (playlist.kind === 'smart') {
+        throw HttpError.badRequest('a smart playlist is ordered by its rules')
+      }
+      container.playlists.reorder(params.id, body.songIds)
+      container.bumpLibraryVersion()
+      return { ok: true as const }
+    }),
+  )
+
+  /**
+   * Preview a rule set before saving it.
+   *
+   * Lets the smart-playlist builder show "matches 43 songs" as you type,
+   * which is the difference between guessing at rules and understanding them.
+   */
+  router.post(
+    '/playlists/preview',
+    route(
+      {
+        body: z.object({
+          rules: z.lazy(() => CreatePlaylistSchema.shape.rules),
+        }),
+      },
+      ({ body }) => {
+        if (!body.rules) return { songIds: [], description: 'No rules yet' }
+
+        const tagNames = new Map(container.tags.all().map(tag => [tag.id, tag.name]))
+        const songIds = container.playlists.songIds({
+          id: 0,
+          name: 'preview',
+          description: '',
+          kind: 'smart',
+          rules: body.rules,
+          songCount: 0,
+          totalDuration: 0,
+          pinned: false,
+          createdAt: '',
+          updatedAt: '',
+        })
+
+        return { songIds, description: describeSmartRules(body.rules, tagNames) }
+      },
+    ),
+  )
+
+  return router
+}

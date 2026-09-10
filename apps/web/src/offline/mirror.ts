@@ -1,0 +1,108 @@
+import { LibrarySchema, type Library } from '@selfmp3/shared'
+
+/**
+ * The offline metadata mirror.
+ *
+ * The audio itself lives in the Cache API (see `audioCache.ts`); this stores
+ * the library *metadata* in IndexedDB so the app can render its full song
+ * list, tags and playlists with the server unreachable.
+ *
+ * Written as a hand-rolled IndexedDB wrapper rather than pulling in a library:
+ * there are exactly three operations, and the promise wrapping is the only
+ * genuinely awkward part.
+ */
+
+const DB_NAME = 'selfmp3'
+const DB_VERSION = 1
+const STORE = 'kv'
+const LIBRARY_KEY = 'library-snapshot'
+
+let dbPromise: Promise<IDBDatabase> | null = null
+
+function openDb(): Promise<IDBDatabase> {
+  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+    }
+
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('could not open IndexedDB'))
+    request.onblocked = () => reject(new Error('IndexedDB upgrade blocked by another tab'))
+  })
+  return dbPromise
+}
+
+async function put(key: string, value: unknown): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).put(value, key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB write aborted'))
+  })
+}
+
+async function get<T>(key: string): Promise<T | null> {
+  const db = await openDb()
+  return new Promise<T | null>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly')
+    const request = tx.objectStore(STORE).get(key)
+    request.onsuccess = () => resolve((request.result as T | undefined) ?? null)
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB read failed'))
+  })
+}
+
+/**
+ * Store the library for offline use.
+ *
+ * Failures are swallowed on purpose. Private browsing, a full disk or a
+ * storage quota can all make this fail, and none of them should stop the app
+ * from working online.
+ */
+export async function saveLibrarySnapshot(library: Library): Promise<void> {
+  try {
+    await put(LIBRARY_KEY, { savedAt: Date.now(), library })
+  } catch {
+    // Offline mirroring is a nice-to-have, never a requirement.
+  }
+}
+
+export async function loadLibrarySnapshot(): Promise<Library | null> {
+  try {
+    const stored = await get<{ savedAt: number; library: unknown }>(LIBRARY_KEY)
+    if (!stored) return null
+    // Validate rather than trust: a snapshot written by an older version of the
+    // app could be missing fields the UI now assumes exist.
+    const parsed = LibrarySchema.safeParse(stored.library)
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+export async function snapshotAge(): Promise<number | null> {
+  try {
+    const stored = await get<{ savedAt: number }>(LIBRARY_KEY)
+    return stored ? Date.now() - stored.savedAt : null
+  } catch {
+    return null
+  }
+}
+
+export async function clearSnapshot(): Promise<void> {
+  try {
+    const db = await openDb()
+    await new Promise<void>(resolve => {
+      const tx = db.transaction(STORE, 'readwrite')
+      tx.objectStore(STORE).delete(LIBRARY_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+    })
+  } catch {
+    // Nothing to clear.
+  }
+}

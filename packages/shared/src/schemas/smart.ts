@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
+import { CamelotSchema } from './features.js'
 
 /**
  * Smart playlist rules.
@@ -46,12 +47,34 @@ export const BoolRuleSchema = z.object({
 })
 export type BoolRule = z.infer<typeof BoolRuleSchema>
 
+/**
+ * Rules over analysed audio features. Kept apart from `NumberRuleSchema`
+ * because the values live in `song_features`, not on the song row, and a
+ * song that has not been analysed yet should simply not match.
+ */
+export const FeatureRuleSchema = z.object({
+  field: z.enum(['bpm', 'energy', 'loudness']),
+  op: z.enum(['gt', 'lt', 'eq', 'gte', 'lte']),
+  value: z.number().finite(),
+})
+export type FeatureRule = z.infer<typeof FeatureRuleSchema>
+
+/** Key, in Camelot notation: exactly this code, or anything that mixes with it. */
+export const KeyRuleSchema = z.object({
+  field: z.literal('key'),
+  op: z.enum(['is', 'compatible']),
+  value: CamelotSchema,
+})
+export type KeyRule = z.infer<typeof KeyRuleSchema>
+
 export const SmartRuleSchema = z.union([
   TextRuleSchema,
   TagRuleSchema,
   NumberRuleSchema,
   DateRuleSchema,
   BoolRuleSchema,
+  FeatureRuleSchema,
+  KeyRuleSchema,
 ])
 export type SmartRule = z.infer<typeof SmartRuleSchema>
 
@@ -90,4 +113,8 @@ export const RULE_FIELD_LABELS: Record<SmartRule['field'], string> = {
   loved: 'Loved',
   hasLyrics: 'Has lyrics',
   hasArt: 'Has cover art',
+  bpm: 'BPM',
+  energy: 'Energy (0–1)',
+  loudness: 'Loudness (LUFS)',
+  key: 'Key',
 }

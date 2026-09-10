@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IdSchema, NameSchema, OptionalTextSchema } from './common.js'
+import { SongFeaturesSchema } from './features.js'
 
 /** Whether a song has lyrics, and whether they carry timestamps. */
 export const LyricsKindSchema = z.enum(['none', 'plain', 'synced'])
@@ -36,6 +37,8 @@ export const SongSchema = z.object({
   /** True when the file vanished from disk but we kept the metadata. */
   missing: z.boolean(),
   tagIds: z.array(IdSchema),
+  /** Null until the background analyser has looked at the file. */
+  features: SongFeaturesSchema.nullable().default(null),
 })
 export type Song = z.infer<typeof SongSchema>
 

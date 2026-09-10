@@ -93,6 +93,11 @@ export class ImportQueueService {
     this.#inFlight.clear()
   }
 
+  /** Downloads in flight right now; other background work yields to them. */
+  get activeCount(): number {
+    return this.#activeCount
+  }
+
   /** Ask the worker to look for work. Safe to call as often as you like. */
   kick(): void {
     if (this.#stopped) return

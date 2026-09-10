@@ -3,14 +3,16 @@ import { formatBytes, type Settings } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
 import {
   queryKeys,
+  useAnalysisStatus,
   useLibrary,
   useScanLibrary,
   useSettings,
+  useStartAnalysis,
   useUpdateSettings,
 } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { api } from '../lib/api.js'
-import { CheckCircle, CloudDownload, Refresh, Trash, X } from '../components/Icons.js'
+import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../components/Icons.js'
 
 /**
  * Settings.
@@ -35,6 +37,8 @@ export function SettingsView() {
   })
 
   const [purging, setPurging] = useState(false)
+  const analysis = useAnalysisStatus(true)
+  const startAnalysis = useStartAnalysis()
 
   // Depend on the function, not the whole context object. The context identity
   // changes whenever usage updates, so depending on it here would loop:
@@ -50,6 +54,7 @@ export function SettingsView() {
 
   const songs = library?.songs ?? []
   const missingCount = songs.filter(song => song.missing).length
+  const analyzedCount = songs.filter(song => song.features !== null).length
   const cachedCount = offline.cachedIds.size
   const syncing = offline.sync.status === 'syncing'
 
@@ -346,6 +351,49 @@ export function SettingsView() {
             {scan.data.removed} now missing. Took {Math.round(scan.data.durationMs)}ms.
           </p>
         )}
+
+        <div className="analysis-block">
+          <p className="setting-hint">
+            <strong>Audio analysis</strong> works out each song&rsquo;s tempo, key, energy and
+            loudness from the file itself, on this Mac. It powers smart-playlist rules, &ldquo;similar
+            songs&rdquo; and auto-mix. {analyzedCount} of {songs.length} songs analysed.
+          </p>
+          {analysis.data?.running && (
+            <div className="sync-progress">
+              <div className="sync-progress-head">
+                <span className="spinner" />
+                <span>
+                  Analysing{analysis.data.current ? ` — ${analysis.data.current.title}` : '…'}
+                  {analysis.data.pending > 0 && ` · ${analysis.data.pending} to go`}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="button-row">
+            <button
+              type="button"
+              className="button"
+              onClick={() => startAnalysis.mutate(false)}
+              disabled={analysis.data?.running || startAnalysis.isPending}
+            >
+              <Sparkles size={15} />{' '}
+              {analysis.data?.running ? 'Analysing…' : 'Analyse songs without features'}
+            </button>
+            {analyzedCount > 0 && !analysis.data?.running && (
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  if (window.confirm('Throw away existing analysis and redo every song?')) {
+                    startAnalysis.mutate(true)
+                  }
+                }}
+              >
+                <Refresh size={15} /> Re-analyse everything
+              </button>
+            )}
+          </div>
+        </div>
 
         {missingCount > 0 && (
           <>

@@ -158,6 +158,26 @@ const MIGRATIONS: readonly Migration[] = [
       END;
     `,
   },
+  {
+    name: 'audio features',
+    sql: `
+      -- One row per analysed song. Nullable columns mean "looked, found
+      -- nothing" (a silent file has no tempo); a missing row means "not yet".
+      CREATE TABLE song_features (
+        song_id       INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        bpm           REAL,
+        energy        REAL,
+        loudness_lufs REAL,
+        key           TEXT,
+        camelot       TEXT,
+        danceability  REAL,
+        analyzed_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        version       INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE INDEX idx_song_features_camelot ON song_features(camelot);
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

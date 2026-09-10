@@ -103,7 +103,10 @@ function mountWebApp(app: Express, container: Container): void {
   // Client-side routing: any non-API path falls through to the app shell.
   app.get(/^(?!\/api\/).*/, (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache')
-    res.sendFile(path.join(webDir, 'index.html'))
+    // `root` + relative name: with an absolute path, `send` applies its
+    // dotfile check to every directory on the way, so a checkout living under
+    // a `.something` folder would 404 its own shell.
+    res.sendFile('index.html', { root: webDir })
   })
 
   container.logger.debug('serving web app', { webDir })

@@ -8,12 +8,14 @@ import { PlaylistRepository } from './repositories/playlists.js'
 import { SettingsRepository } from './repositories/settings.js'
 import { StatsRepository } from './repositories/stats.js'
 import { ImportRepository } from './repositories/imports.js'
+import { FeaturesRepository } from './repositories/features.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
 import { ImportQueueService } from './services/importQueue.js'
+import { AnalysisService } from './services/analysis.js'
 
 /**
  * Composition root.
@@ -36,6 +38,7 @@ export interface Container {
   readonly settings: SettingsRepository
   readonly stats: StatsRepository
   readonly imports: ImportRepository
+  readonly features: FeaturesRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -43,6 +46,7 @@ export interface Container {
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
   readonly importQueue: ImportQueueService
+  readonly analysis: AnalysisService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -66,6 +70,7 @@ export function createContainer(config: Config): Container {
   const settings = new SettingsRepository(db)
   const stats = new StatsRepository(db)
   const imports = new ImportRepository(db)
+  const features = new FeaturesRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger)
@@ -100,6 +105,30 @@ export function createContainer(config: Config): Container {
 
   let version = 1
 
+  const analysis = new AnalysisService({
+    config,
+    storage,
+    songs,
+    features,
+    scanner,
+    importQueue,
+    logger,
+    // A version bump makes clients refetch; do it in batches, and once at the
+    // end, so a long first run does not have every phone re-downloading the
+    // library after each song.
+    onProgress: (done, finished) => {
+      if (finished || done % 25 === 0) version++
+    },
+  })
+
+  // Analysis runs after the work that matters: new and changed files are
+  // queued as they are ingested, and a finished scan nudges the loop.
+  scanner.onIngested = (songId, change) => {
+    if (change === 'updated') analysis.invalidate(songId)
+    else analysis.kick()
+  }
+  scanner.onScanComplete = () => analysis.kick()
+
   return {
     config,
     logger,
@@ -111,17 +140,20 @@ export function createContainer(config: Config): Container {
     settings,
     stats,
     imports,
+    features,
     metadata,
     lyrics,
     covers,
     scanner,
     ytdlp,
     importQueue,
+    analysis,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++
     },
     close: () => {
+      analysis.stop()
       importQueue.stop()
       db.close()
     },

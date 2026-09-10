@@ -2,6 +2,7 @@ import { formatDuration, formatLongDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useDragReorder } from '../lib/hooks.js'
 import { Cover } from './Cover.js'
+import { FeatureBadges } from './FeatureBadges.js'
 import { Equalizer, Grip, Trash, X } from './Icons.js'
 
 /**
@@ -29,6 +30,24 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
               : `${upcoming.length} songs · ${formatLongDuration(remainingSeconds)} left`}
           </div>
         </div>
+        <label
+          className="automix-toggle"
+          title="Reorder what's coming up into a smooth path and pick a crossfade for each transition"
+        >
+          <span className="automix-toggle-row">
+            <span>Auto-mix</span>
+            <input
+              type="checkbox"
+              className="toggle toggle-small"
+              checked={player.autoMix}
+              onChange={event => player.setAutoMix(event.target.checked)}
+              aria-label="Auto-mix"
+            />
+          </span>
+          {player.autoMix && upcoming.length > 0 && (
+            <span className="automix-fade">next fade {player.nextCrossfadeSeconds}s</span>
+          )}
+        </label>
         <div className="side-panel-actions">
           {player.queueSongs.length > 0 && (
             <button
@@ -98,7 +117,10 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 )}
                 <span className="queue-meta">
                   <span className="queue-title">{song.title}</span>
-                  <span className="queue-artist">{song.artist || 'Unknown artist'}</span>
+                  <span className="queue-artist">
+                    {song.artist || 'Unknown artist'}
+                    {player.autoMix && <FeatureBadges features={song.features} />}
+                  </span>
                 </span>
                 <span className="queue-duration">{formatDuration(song.duration)}</span>
               </button>

@@ -1,4 +1,4 @@
-import type { LyricsKind, Song, Tag } from '@selfmp3/shared'
+import type { LyricsKind, Song, SongFeatures, Tag } from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -36,6 +36,27 @@ export interface SongRow {
   missing: number
   /** Present only on the joined library query: "1,4,7" or null. */
   tag_ids?: string | null
+  /** From the LEFT JOIN on song_features; all null when not analysed yet. */
+  feat_bpm?: number | null
+  feat_energy?: number | null
+  feat_loudness_lufs?: number | null
+  feat_key?: string | null
+  feat_camelot?: string | null
+  feat_danceability?: number | null
+  feat_analyzed_at?: string | null
+  feat_version?: number | null
+}
+
+export interface SongFeaturesRow {
+  song_id: number
+  bpm: number | null
+  energy: number | null
+  loudness_lufs: number | null
+  key: string | null
+  camelot: string | null
+  danceability: number | null
+  analyzed_at: string
+  version: number
 }
 
 export interface TagRow {
@@ -99,6 +120,35 @@ export function toSong(row: SongRow): Song {
     addedAt: row.added_at,
     missing: row.missing === 1,
     tagIds: parseIdList(row.tag_ids),
+    features: featuresFromSongRow(row),
+  }
+}
+
+/** The joined feature columns, or null when the song has no features row. */
+function featuresFromSongRow(row: SongRow): SongFeatures | null {
+  if (row.feat_analyzed_at == null) return null
+  return {
+    bpm: row.feat_bpm ?? null,
+    energy: row.feat_energy ?? null,
+    loudnessLufs: row.feat_loudness_lufs ?? null,
+    key: row.feat_key ?? null,
+    camelot: row.feat_camelot ?? null,
+    danceability: row.feat_danceability ?? null,
+    analyzedAt: row.feat_analyzed_at,
+    version: row.feat_version ?? 0,
+  }
+}
+
+export function toSongFeatures(row: SongFeaturesRow): SongFeatures {
+  return {
+    bpm: row.bpm,
+    energy: row.energy,
+    loudnessLufs: row.loudness_lufs,
+    key: row.key,
+    camelot: row.camelot,
+    danceability: row.danceability,
+    analyzedAt: row.analyzed_at,
+    version: row.version,
   }
 }
 

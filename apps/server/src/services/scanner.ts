@@ -29,6 +29,15 @@ export class ScannerService {
   readonly #logger: Logger
   #running = false
 
+  /**
+   * Called after a file is ingested — `added` for a new song, `updated` when
+   * the file changed underneath an existing one. Nullable callback properties
+   * rather than an event emitter, the same shape the player engine uses.
+   */
+  onIngested: ((songId: number, change: 'added' | 'updated') => void) | null = null
+  /** Called once a full scan finishes, whatever it found. */
+  onScanComplete: ((result: ScanResult) => void) | null = null
+
   constructor(deps: {
     config: Config
     storage: StorageDriver
@@ -75,6 +84,7 @@ export class ScannerService {
       if (!existing.hasArt && metadata.picture) {
         await this.#covers.save(existing.id, metadata.picture.data, metadata.picture.extension)
       }
+      this.onIngested?.(existing.id, 'updated')
       return existing.id
     }
 
@@ -100,6 +110,7 @@ export class ScannerService {
       await this.#covers.save(id, metadata.picture.data, metadata.picture.extension)
     }
 
+    this.onIngested?.(id, 'added')
     return id
   }
 
@@ -170,6 +181,7 @@ export class ScannerService {
       ms: result.durationMs,
     })
 
+    this.onScanComplete?.(result)
     return result
   }
 

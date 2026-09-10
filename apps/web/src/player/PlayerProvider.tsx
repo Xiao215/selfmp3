@@ -26,6 +26,7 @@ import {
   setShuffle as setShuffleState,
   type QueueState,
 } from './queue.js'
+import { autoMixCrossfade, autoMixOrder } from './autoMix.js'
 
 /**
  * The player, exposed to the UI.
@@ -49,6 +50,10 @@ interface PlayerContextValue extends EngineState {
   readonly current: Song | null
   readonly queueSongs: readonly Song[]
   readonly sleepTimerEndsAt: number | null
+  /** Auto-mix: upcoming songs re-ordered into a smooth path, crossfade per transition. */
+  readonly autoMix: boolean
+  /** Seconds the next handover will fade over, after auto-mix has had its say. */
+  readonly nextCrossfadeSeconds: number
 
   readonly playFrom: (songs: readonly Song[], index: number) => void
   readonly playSong: (song: Song) => void
@@ -69,6 +74,7 @@ interface PlayerContextValue extends EngineState {
   readonly jumpTo: (position: number) => void
   readonly clearQueue: () => void
   readonly setSleepTimer: (minutes: number | null) => void
+  readonly setAutoMix: (on: boolean) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -81,6 +87,7 @@ export function usePlayer(): PlayerContextValue {
 
 const QUEUE_STORAGE_KEY = 'selfmp3:queue'
 const VOLUME_STORAGE_KEY = 'selfmp3:volume'
+const AUTO_MIX_STORAGE_KEY = 'selfmp3:automix'
 
 interface PersistedQueue {
   items: number[]
@@ -109,6 +116,7 @@ export function PlayerProvider({
 
   const [queue, setQueue] = useState<QueueState>(() => restoreQueue())
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
+  const [autoMix, setAutoMixState] = useState<boolean>(() => restoreAutoMix())
 
   // Refs mirroring state, so the engine's imperative callbacks always see the
   // latest values without being re-created (and re-subscribed) on every render.
@@ -118,6 +126,16 @@ export function PlayerProvider({
   const songById = useMemo(() => new Map(songs.map(song => [song.id, song])), [songs])
   const songByIdRef = useRef(songById)
   songByIdRef.current = songById
+
+  const autoMixRef = useRef(autoMix)
+  autoMixRef.current = autoMix
+
+  /** With auto-mix on, anything that changes the upcoming list re-smooths it. */
+  const mixed = useCallback(
+    (state: QueueState): QueueState =>
+      autoMixRef.current ? autoMixOrder(state, songByIdRef.current) : state,
+    [],
+  )
 
   /**
    * Bridge the engine's imperative state into React.
@@ -224,9 +242,27 @@ export function PlayerProvider({
     }
   }, [engine, loadIndex])
 
+  // --- current and next ------------------------------------------------------
+
+  const current = useMemo(() => {
+    const id = queue.items[queue.index]
+    return id === undefined ? null : (songById.get(id) ?? null)
+  }, [queue.items, queue.index, songById])
+
+  const nextSong = useMemo(() => {
+    const id = peekNext(queue)
+    return id === null ? null : (songById.get(id) ?? null)
+  }, [queue, songById])
+
+  // Auto-mix picks the fade for each transition from the two songs' features;
+  // otherwise the user's fixed setting applies.
+  const nextCrossfadeSeconds = autoMix
+    ? autoMixCrossfade(current, nextSong, crossfadeSeconds)
+    : crossfadeSeconds
+
   useEffect(() => {
-    engine.configure({ crossfadeSeconds, gapless })
-  }, [engine, crossfadeSeconds, gapless])
+    engine.configure({ crossfadeSeconds: nextCrossfadeSeconds, gapless })
+  }, [engine, nextCrossfadeSeconds, gapless])
 
   // Restore the saved volume once, on mount.
   useEffect(() => {
@@ -253,13 +289,6 @@ export function PlayerProvider({
     }
   }, [queue])
 
-  // --- media session -------------------------------------------------------
-
-  const current = useMemo(() => {
-    const id = queue.items[queue.index]
-    return id === undefined ? null : (songById.get(id) ?? null)
-  }, [queue.items, queue.index, songById])
-
   const queueSongs = useMemo(() => {
     const out: Song[] = []
     for (const id of queue.items) {
@@ -273,15 +302,17 @@ export function PlayerProvider({
 
   const playFrom = useCallback(
     (list: readonly Song[], index: number) => {
-      const next = playFromQueue(
-        queueRef.current,
-        list.map(song => song.id),
-        index,
+      const next = mixed(
+        playFromQueue(
+          queueRef.current,
+          list.map(song => song.id),
+          index,
+        ),
       )
       setQueue(next)
       loadIndex(next, true)
     },
-    [loadIndex],
+    [loadIndex, mixed],
   )
 
   const playSong = useCallback(
@@ -353,13 +384,18 @@ export function PlayerProvider({
     setQueue(state => ({ ...state, repeat: cycleRepeat(state.repeat) }))
   }, [])
 
+  // "Play next" is an explicit choice about order, so auto-mix leaves it be;
+  // "add to queue" is not, so the additions are folded into the path.
   const playNext = useCallback((list: readonly Song[]) => {
     setQueue(state => playNextItems(state, list.map(song => song.id)))
   }, [])
 
-  const addToQueue = useCallback((list: readonly Song[]) => {
-    setQueue(state => enqueueItems(state, list.map(song => song.id)))
-  }, [])
+  const addToQueue = useCallback(
+    (list: readonly Song[]) => {
+      setQueue(state => mixed(enqueueItems(state, list.map(song => song.id))))
+    },
+    [mixed],
+  )
 
   const removeFromQueue = useCallback(
     (position: number) => {
@@ -394,6 +430,21 @@ export function PlayerProvider({
     engine.pause()
     setQueue(state => ({ ...state, items: [], index: -1, original: [] }))
   }, [engine])
+
+  // --- auto-mix ------------------------------------------------------------
+
+  const setAutoMix = useCallback((on: boolean) => {
+    setAutoMixState(on)
+    autoMixRef.current = on
+    try {
+      localStorage.setItem(AUTO_MIX_STORAGE_KEY, on ? '1' : '0')
+    } catch {
+      // Not worth surfacing.
+    }
+    // Turning it on smooths what is already queued; turning it off keeps the
+    // order as it is, since there is no "original" worth going back to.
+    if (on) setQueue(state => autoMixOrder(state, songByIdRef.current))
+  }, [])
 
   // --- sleep timer ---------------------------------------------------------
 
@@ -506,6 +557,8 @@ export function PlayerProvider({
       current,
       queueSongs,
       sleepTimerEndsAt,
+      autoMix,
+      nextCrossfadeSeconds,
       playFrom,
       playSong,
       toggle,
@@ -525,6 +578,7 @@ export function PlayerProvider({
       jumpTo,
       clearQueue,
       setSleepTimer,
+      setAutoMix,
     }),
     [
       engineState,
@@ -532,6 +586,10 @@ export function PlayerProvider({
       current,
       queueSongs,
       sleepTimerEndsAt,
+      autoMix,
+      nextCrossfadeSeconds,
+      autoMix,
+      nextCrossfadeSeconds,
       playFrom,
       playSong,
       toggle,
@@ -551,10 +609,19 @@ export function PlayerProvider({
       jumpTo,
       clearQueue,
       setSleepTimer,
+      setAutoMix,
     ],
   )
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>
+}
+
+function restoreAutoMix(): boolean {
+  try {
+    return localStorage.getItem(AUTO_MIX_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 /** Restore the queue from a previous session, defensively. */

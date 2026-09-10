@@ -57,6 +57,43 @@ const FIELD_GROUPS: ReadonlyArray<{ label: string; fields: ReadonlyArray<[FieldK
       ['hasArt', 'Has cover art'],
     ],
   },
+  {
+    label: 'Audio',
+    fields: [
+      ['bpm', 'BPM'],
+      ['key', 'Key'],
+      ['energy', 'Energy'],
+      ['loudness', 'Loudness (LUFS)'],
+    ],
+  },
+]
+
+/** The Camelot wheel in order, for the key picker. */
+const CAMELOT_CODES: ReadonlyArray<[string, string]> = [
+  ['1A', '1A · A♭ minor'],
+  ['2A', '2A · E♭ minor'],
+  ['3A', '3A · B♭ minor'],
+  ['4A', '4A · F minor'],
+  ['5A', '5A · C minor'],
+  ['6A', '6A · G minor'],
+  ['7A', '7A · D minor'],
+  ['8A', '8A · A minor'],
+  ['9A', '9A · E minor'],
+  ['10A', '10A · B minor'],
+  ['11A', '11A · F♯ minor'],
+  ['12A', '12A · C♯ minor'],
+  ['1B', '1B · B major'],
+  ['2B', '2B · F♯ major'],
+  ['3B', '3B · C♯ major'],
+  ['4B', '4B · A♭ major'],
+  ['5B', '5B · E♭ major'],
+  ['6B', '6B · B♭ major'],
+  ['7B', '7B · F major'],
+  ['8B', '8B · C major'],
+  ['9B', '9B · G major'],
+  ['10B', '10B · D major'],
+  ['11B', '11B · A major'],
+  ['12B', '12B · E major'],
 ]
 
 const SORT_LABELS: ReadonlyArray<[SongSortField, string]> = [
@@ -92,6 +129,14 @@ function defaultRuleFor(field: FieldKey, tags: readonly Tag[]): SmartRule {
     case 'hasLyrics':
     case 'hasArt':
       return { field, op: 'is', value: true }
+    case 'bpm':
+      return { field, op: 'gte', value: 120 }
+    case 'energy':
+      return { field, op: 'gte', value: 0.6 }
+    case 'loudness':
+      return { field, op: 'gte', value: -12 }
+    case 'key':
+      return { field: 'key', op: 'compatible', value: '8A' }
   }
 }
 
@@ -204,9 +249,7 @@ export function SmartRuleBuilder({
           <select
             className="select select-small"
             value={rules.orderBy}
-            onChange={event =>
-              update({ ...rules, orderBy: event.target.value as SongSortField })
-            }
+            onChange={event => update({ ...rules, orderBy: event.target.value as SongSortField })}
           >
             {SORT_LABELS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -394,6 +437,62 @@ function RuleRow({
               <span className="rule-unit">days</span>
             </>
           )}
+        </>
+      )}
+
+      {(rule.field === 'bpm' || rule.field === 'energy' || rule.field === 'loudness') && (
+        <>
+          <select
+            className="select select-small"
+            value={rule.op}
+            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
+            aria-label="Operator"
+          >
+            <option value="gt">is more than</option>
+            <option value="gte">is at least</option>
+            <option value="eq">is exactly</option>
+            <option value="lte">is at most</option>
+            <option value="lt">is less than</option>
+          </select>
+          <input
+            className="input input-small"
+            type="number"
+            step={rule.field === 'energy' ? 0.05 : 1}
+            min={rule.field === 'energy' ? 0 : undefined}
+            max={rule.field === 'energy' ? 1 : undefined}
+            value={rule.value}
+            onChange={event => onChange({ ...rule, value: Number(event.target.value) })}
+            aria-label="Value"
+          />
+          <span className="rule-unit">
+            {rule.field === 'bpm' ? 'BPM' : rule.field === 'energy' ? '0–1' : 'LUFS'}
+          </span>
+        </>
+      )}
+
+      {rule.field === 'key' && (
+        <>
+          <select
+            className="select select-small"
+            value={rule.op}
+            onChange={event => onChange({ ...rule, op: event.target.value as typeof rule.op })}
+            aria-label="Operator"
+          >
+            <option value="compatible">mixes with</option>
+            <option value="is">is exactly</option>
+          </select>
+          <select
+            className="select select-small"
+            value={rule.value}
+            onChange={event => onChange({ ...rule, value: event.target.value })}
+            aria-label="Key"
+          >
+            {CAMELOT_CODES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
         </>
       )}
 

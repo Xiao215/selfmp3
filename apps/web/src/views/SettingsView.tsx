@@ -8,6 +8,7 @@ import {
   useSettings,
   useUpdateSettings,
 } from '../lib/queries.js'
+import { FixCoversPanel } from '../components/FixCoversPanel.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Trash, X } from '../components/Icons.js'
@@ -346,6 +347,8 @@ export function SettingsView() {
             {scan.data.removed} now missing. Took {Math.round(scan.data.durationMs)}ms.
           </p>
         )}
+
+        <FixCoversPanel missingArt={songs.filter(song => !song.hasArt && !song.missing).length} />
 
         {missingCount > 0 && (
           <>

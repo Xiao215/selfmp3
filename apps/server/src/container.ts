@@ -14,6 +14,8 @@ import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
 import { ImportQueueService } from './services/importQueue.js'
+import { MetadataLookupService } from './services/lookup.js'
+import { FixCoversService } from './services/fixCovers.js'
 
 /**
  * Composition root.
@@ -43,6 +45,8 @@ export interface Container {
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
   readonly importQueue: ImportQueueService
+  readonly lookup: MetadataLookupService
+  readonly fixCovers: FixCoversService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -100,6 +104,17 @@ export function createContainer(config: Config): Container {
 
   let version = 1
 
+  const lookup = new MetadataLookupService(logger)
+  const fixCovers = new FixCoversService({
+    songs,
+    covers,
+    lookup,
+    logger,
+    onChange: () => {
+      version++
+    },
+  })
+
   return {
     config,
     logger,
@@ -117,6 +132,8 @@ export function createContainer(config: Config): Container {
     scanner,
     ytdlp,
     importQueue,
+    lookup,
+    fixCovers,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++

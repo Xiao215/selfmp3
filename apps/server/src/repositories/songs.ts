@@ -258,6 +258,14 @@ export class SongRepository {
     }))
   }
 
+  /** Songs with no cover art whose file is present, for the cover-art pass. */
+  withoutArt(): Song[] {
+    return this.#db
+      .prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 AND s.missing = 0 ORDER BY s.id`)
+      .all()
+      .map(toSong)
+  }
+
   /** Paths of every song currently in the database, for scan reconciliation. */
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#db

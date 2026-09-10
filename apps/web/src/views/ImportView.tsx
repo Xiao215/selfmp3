@@ -4,6 +4,7 @@ import {
   formatDuration,
   IMPORT_STEP_LABELS,
   type ImportEnqueueItem,
+  type ImportJob,
   type ImportPreviewItem,
 } from '@selfmp3/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +23,15 @@ import {
   X,
 } from '../components/Icons.js'
 import { Select } from '../components/Select.js'
+
+/** What each queue state is called, for the icon's tooltip and screen readers. */
+const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
+  queued: 'Waiting',
+  running: 'Downloading',
+  done: 'Done',
+  error: 'Failed',
+  cancelled: 'Cancelled',
+}
 
 /**
  * Importing.
@@ -121,6 +131,8 @@ export function ImportView() {
     () => (items ?? []).filter((_, index) => chosen.has(index)),
     [items, chosen],
   )
+
+  const duplicateCount = (items ?? []).filter(item => item.alreadyHave).length
 
   const start = (): void => {
     if (selectedItems.length === 0) return
@@ -238,8 +250,17 @@ export function ImportView() {
           <div className="import-review-head">
             <h2>
               {items.length} {items.length === 1 ? 'track' : 'tracks'} found
+              {duplicateCount > 0 && (
+                <span className="hint">
+                  {' '}
+                  · {duplicateCount} already in your library
+                </span>
+              )}
             </h2>
             <div className="import-review-actions">
+              <span className="hint">
+                {selectedItems.length} of {items.length} selected
+              </span>
               <button
                 type="button"
                 className="link-button"
@@ -253,7 +274,23 @@ export function ImportView() {
             </div>
           </div>
 
-          <div className="import-list">
+          {/*
+            * A real table rather than a stack of cards: one line per track,
+            * with title, artist and album as three columns you can tab across.
+            * A forty-track playlist is the case this screen exists for, and
+            * three stacked full-width inputs per track made six of them fill
+            * the screen.
+            */}
+          <div className="import-list" role="group" aria-label="Tracks to import">
+            <div className="import-item import-item-head" aria-hidden="true">
+              <span />
+              <span />
+              <span>Title</span>
+              <span>Artist</span>
+              <span>Album</span>
+              <span className="import-col-side">Length</span>
+            </div>
+
             {items.map((item, index) => (
               <div
                 key={`${item.url}-${index}`}
@@ -272,7 +309,9 @@ export function ImportView() {
                       return next
                     })
                   }
-                  aria-label={chosen.has(index) ? 'Deselect' : 'Select'}
+                  role="checkbox"
+                  aria-checked={chosen.has(index)}
+                  aria-label={`Import ${item.title}`}
                 >
                   {chosen.has(index) && <Check size={12} />}
                 </button>
@@ -283,34 +322,37 @@ export function ImportView() {
                   <div className="import-thumb import-thumb-placeholder" />
                 )}
 
-                <div className="import-fields">
-                  <input
-                    className="input"
-                    value={item.title}
-                    onChange={event => patchItem(index, { title: event.target.value })}
-                    placeholder="Title"
-                    aria-label="Title"
-                  />
-                  <input
-                    className="input"
-                    value={item.artist}
-                    onChange={event => patchItem(index, { artist: event.target.value })}
-                    placeholder="Artist"
-                    aria-label="Artist"
-                  />
-                  <input
-                    className="input"
-                    value={item.album}
-                    onChange={event => patchItem(index, { album: event.target.value })}
-                    placeholder="Album (optional)"
-                    aria-label="Album"
-                  />
-                </div>
+                <input
+                  className="input input-small"
+                  value={item.title}
+                  onChange={event => patchItem(index, { title: event.target.value })}
+                  placeholder="Title"
+                  aria-label={`Title of track ${index + 1}`}
+                />
+                <input
+                  className="input input-small"
+                  value={item.artist}
+                  onChange={event => patchItem(index, { artist: event.target.value })}
+                  placeholder="Artist"
+                  aria-label={`Artist of track ${index + 1}`}
+                />
+                <input
+                  className="input input-small"
+                  value={item.album}
+                  onChange={event => patchItem(index, { album: event.target.value })}
+                  placeholder="Album"
+                  aria-label={`Album of track ${index + 1}`}
+                />
 
-                <div className="import-item-side">
-                  <span className="hint">{formatDuration(item.duration)}</span>
-                  {item.alreadyHave && <span className="badge">already have</span>}
-                </div>
+                <span className="import-col-side">
+                  {item.alreadyHave ? (
+                    <span className="import-dup" title="A song with this title and artist is already in your library">
+                      <CheckCircle size={12} /> Have it
+                    </span>
+                  ) : (
+                    <span className="hint">{formatDuration(item.duration)}</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>
@@ -361,7 +403,7 @@ export function ImportView() {
                   value={playlistId}
                   onChange={setPlaylistId}
                   options={[
-                    { value: null, label: 'Don’t add to a playlist' },
+                    { value: null, label: 'Don\u2019t add to a playlist' },
                     ...manualPlaylists.map(list => ({ value: list.id, label: list.name })),
                   ]}
                   label="Add to playlist"
@@ -414,43 +456,68 @@ export function ImportView() {
             </button>
           </div>
 
-          <div className="job-list">
+          <div className="job-list" aria-live="polite">
             {queue.jobs.map(job => (
               <div key={job.id} className={`job-row is-${job.status}`}>
-                <span className="job-status">
+                <span className="job-status" title={JOB_STATUS_LABELS[job.status]}>
                   {job.status === 'running' && <span className="spinner" />}
                   {job.status === 'done' && <CheckCircle size={16} />}
                   {job.status === 'error' && <X size={16} />}
+                  {job.status === 'cancelled' && <X size={16} />}
                   {job.status === 'queued' && <span className="job-dot" />}
+                  <span className="visually-hidden">{JOB_STATUS_LABELS[job.status]}</span>
                 </span>
 
                 <span className="job-meta">
                   <span className="job-title">{job.title || job.url}</span>
                   <span className="job-sub">
                     {job.status === 'error'
-                      ? job.error
-                      : job.status === 'done'
-                        ? 'Added to your library'
-                        : IMPORT_STEP_LABELS[job.step]}
+                      ? (job.error ?? 'Failed')
+                      : job.status === 'cancelled'
+                        ? 'Cancelled'
+                        : job.status === 'done'
+                          ? 'Added to your library'
+                          : IMPORT_STEP_LABELS[job.step]}
+                    {job.status === 'error' && job.attempts > 1 && ` \u00b7 ${job.attempts} attempts`}
                   </span>
                 </span>
 
-                {job.status === 'running' && job.progress !== null && (
-                  <span className="job-progress">
-                    <span className="job-progress-bar" style={{ width: `${job.progress}%` }} />
+                {/*
+                  * A download reports a percentage; the steps around it do not.
+                  * The bar is there either way so the row does not change width
+                  * halfway through - it just goes indeterminate.
+                  */}
+                {job.status === 'running' && (
+                  <span
+                    className={`job-progress ${job.progress === null ? 'is-indeterminate' : ''}`}
+                    role="progressbar"
+                    aria-valuenow={job.progress ?? undefined}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${job.title || 'Track'} progress`}
+                  >
+                    <span
+                      className="job-progress-bar"
+                      style={job.progress === null ? undefined : { width: `${job.progress}%` }}
+                    />
                   </span>
+                )}
+
+                {job.status === 'running' && job.progress !== null && (
+                  <span className="job-percent">{Math.round(job.progress)}%</span>
                 )}
 
                 {(job.status === 'queued' || job.status === 'running') && (
                   <button
                     type="button"
-                    className="icon-button"
+                    className="icon-button icon-button-tiny job-action"
                     onClick={() => {
                       void api.cancelImport(job.id).then(() => {
                         void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue })
                       })
                     }}
-                    aria-label="Cancel"
+                    aria-label={`Cancel ${job.title || 'this import'}`}
+                    title="Cancel"
                   >
                     <X size={15} />
                   </button>
@@ -459,14 +526,15 @@ export function ImportView() {
                 {(job.status === 'error' || job.status === 'cancelled') && (
                   <button
                     type="button"
-                    className="button button-small"
+                    className="button button-small job-action"
                     onClick={() => {
                       void api.retryImport(job.id).then(() => {
                         void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue })
                       })
                     }}
+                    aria-label={`Retry ${job.title || 'this import'}`}
                   >
-                    Retry
+                    <Refresh size={13} /> Retry
                   </button>
                 )}
               </div>

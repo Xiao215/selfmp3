@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useLibrary, useSettings } from './lib/queries.js'
 import { PlayerProvider, usePlayer } from './player/PlayerProvider.js'
@@ -41,6 +41,14 @@ export default function App() {
 function AppWithLibrary() {
   const { data: library } = useLibrary()
   const { data: settings } = useSettings()
+
+  // The accent hue is a saved setting, and every colour token in the app is
+  // derived from it, so one custom property on the root repaints everything.
+  const accentHue = settings?.accentHue
+  useEffect(() => {
+    if (accentHue === undefined) return
+    document.documentElement.style.setProperty('--accent-hue', String(accentHue))
+  }, [accentHue])
 
   return (
     <PlayerProvider

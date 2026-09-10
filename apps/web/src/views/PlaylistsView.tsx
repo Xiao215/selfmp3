@@ -13,6 +13,10 @@ import { GemsPlaylistCard } from '../components/GemsRow.js'
  * Two kinds sit side by side: manual lists you curate, and smart lists that
  * build themselves from rules and stay correct as the library grows. The
  * distinction is visible at a glance rather than buried in a submenu.
+ *
+ * The empty state is a card in the grid rather than a block underneath it,
+ * because the built-in "forgotten gems" card is already up there — an empty
+ * state below a populated grid reads as a contradiction.
  */
 export function PlaylistsView() {
   const { data: library } = useLibrary()
@@ -55,13 +59,18 @@ export function PlaylistsView() {
       <header className="view-head">
         <div className="view-titles">
           <h1>Playlists</h1>
-          <p className="view-sub">{playlists.length} playlists</p>
+          <p className="view-sub">
+            {playlists.length === 0
+              ? 'None of your own yet'
+              : `${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
+          </p>
         </div>
 
         <div className="view-actions">
           <button
             type="button"
             className="button"
+            aria-expanded={creating === 'manual'}
             onClick={() => setCreating(current => (current === 'manual' ? null : 'manual'))}
           >
             <Plus size={15} /> New playlist
@@ -69,6 +78,7 @@ export function PlaylistsView() {
           <button
             type="button"
             className="button button-primary"
+            aria-expanded={creating === 'smart'}
             onClick={() => setCreating(current => (current === 'smart' ? null : 'smart'))}
           >
             <Sparkles size={15} /> New smart playlist
@@ -83,6 +93,7 @@ export function PlaylistsView() {
             value={name}
             onChange={event => setName(event.target.value)}
             placeholder={creating === 'smart' ? 'e.g. Chill, most played' : 'Playlist name'}
+            aria-label={creating === 'smart' ? 'Smart playlist name' : 'Playlist name'}
             spellCheck={false}
           />
           <button type="submit" className="button button-primary" disabled={!name.trim()}>
@@ -106,65 +117,78 @@ export function PlaylistsView() {
         <GemsPlaylistCard />
 
         {playlists.map(playlist => (
-            <div key={playlist.id} className="playlist-card">
+          <div key={playlist.id} className="playlist-card">
+            <button
+              type="button"
+              className="playlist-card-main"
+              onClick={() => void navigate(`/playlists/${playlist.id}`)}
+            >
+              <span className="playlist-card-icon">
+                {playlist.kind === 'smart' ? <Sparkles size={22} /> : <ListMusic size={22} />}
+              </span>
+              <span className="playlist-card-name">{playlist.name}</span>
+              <span className="playlist-card-sub">
+                {playlist.songCount} {playlist.songCount === 1 ? 'song' : 'songs'} ·{' '}
+                {formatLongDuration(playlist.totalDuration)}
+                {playlist.kind === 'smart' && ' · updates itself'}
+              </span>
+              {playlist.description && (
+                <span className="playlist-card-desc">{playlist.description}</span>
+              )}
+            </button>
+
+            <div className="playlist-card-actions">
               <button
                 type="button"
-                className="playlist-card-main"
-                onClick={() => void navigate(`/playlists/${playlist.id}`)}
+                className="icon-button"
+                onClick={() => void playNow(playlist)}
+                aria-label={`Play ${playlist.name}`}
+                title="Play"
+                disabled={playlist.songCount === 0}
               >
-                <span className="playlist-card-icon">
-                  {playlist.kind === 'smart' ? <Sparkles size={22} /> : <ListMusic size={22} />}
-                </span>
-                <span className="playlist-card-name">{playlist.name}</span>
-                <span className="playlist-card-sub">
-                  {playlist.songCount} songs · {formatLongDuration(playlist.totalDuration)}
-                </span>
-                {playlist.description && (
-                  <span className="playlist-card-desc">{playlist.description}</span>
-                )}
+                <Play size={16} />
               </button>
-
-              <div className="playlist-card-actions">
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => void playNow(playlist)}
-                  aria-label={`Play ${playlist.name}`}
-                  disabled={playlist.songCount === 0}
-                >
-                  <Play size={16} />
-                </button>
-                <button
-                  type="button"
-                  className={`icon-button ${playlist.pinned ? 'is-accent' : ''}`}
-                  onClick={() =>
-                    updatePlaylist.mutate({
-                      id: playlist.id,
-                      patch: { pinned: !playlist.pinned },
-                    })
-                  }
-                  aria-label={playlist.pinned ? 'Unpin' : 'Pin to sidebar'}
-                  title={playlist.pinned ? 'Unpin' : 'Pin to sidebar'}
-                >
-                  ★
-                </button>
-              </div>
+              <button
+                type="button"
+                className={`icon-button playlist-pin ${playlist.pinned ? 'is-accent' : ''}`}
+                onClick={() =>
+                  updatePlaylist.mutate({
+                    id: playlist.id,
+                    patch: { pinned: !playlist.pinned },
+                  })
+                }
+                aria-pressed={playlist.pinned}
+                aria-label={`Pin ${playlist.name} to the sidebar`}
+                title={playlist.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'}
+              >
+                <span aria-hidden="true">★</span>
+              </button>
             </div>
-          ))}
-      </div>
+          </div>
+        ))}
 
-      {/* Below the grid, because the built-in card is already up there and an
-          empty state above it would be contradicting itself. */}
-      {playlists.length === 0 && (
-        <div className="empty-state">
-          <p className="empty-emoji">📼</p>
-          <h2>No playlists of your own yet</h2>
-          <p className="hint">
-            A <strong>smart playlist</strong> is worth trying first — set a rule like &ldquo;tagged
-            chill and played more than 5 times&rdquo; and it keeps itself up to date forever.
-          </p>
-        </div>
-      )}
+        {/*
+         * The empty state is a cell of the grid, so it lines up beside the
+         * built-in card instead of arguing with it.
+         */}
+        {playlists.length === 0 && (
+          <div className="playlist-card playlist-card-empty">
+            <p className="playlist-empty-title">Nothing of your own yet</p>
+            <p className="hint">
+              A <strong>smart playlist</strong> is worth trying first — set a rule like
+              &ldquo;tagged chill and played more than 5 times&rdquo; and it keeps itself up to date
+              forever.
+            </p>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => setCreating('smart')}
+            >
+              <Sparkles size={15} /> New smart playlist
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   )
 }

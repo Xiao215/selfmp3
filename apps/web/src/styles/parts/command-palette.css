@@ -8,6 +8,9 @@
   backdrop-filter: blur(3px);
   display: flex;
   justify-content: center;
+  /* Not `stretch`: the panel should be as tall as its results, not as tall as
+     its cap — an empty band under the last row makes the list look broken. */
+  align-items: flex-start;
   padding-top: 14vh;
 }
 
@@ -30,15 +33,24 @@
   padding: 15px 18px;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .palette-input {
   flex: 1;
+  min-width: 0;
   background: none;
   border: none;
   outline: none;
   font-size: 16px;
   color: var(--text-primary);
+}
+
+.palette-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .palette-kbd {
@@ -55,12 +67,22 @@
 }
 
 .palette-group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
   padding: 8px 10px 5px;
   font-weight: 650;
+}
+
+.palette-group-title span {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  opacity: 0.75;
 }
 
 .palette-item {
@@ -72,11 +94,14 @@
   width: 100%;
   text-align: left;
   color: var(--text-secondary);
+  min-height: 40px;
 }
 
 .palette-item.is-active {
   background: var(--surface-3);
   color: var(--text-primary);
+  /* Which row Enter will take is worth more than a background alone. */
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .palette-label {
@@ -93,9 +118,43 @@
 .palette-sub {
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .palette-hint {
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* --- the key legend --- */
+
+.palette-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-0);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.palette-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette-foot kbd {
+  font-size: 10px;
+}
+
+/* No keyboard to legend on a phone, and the row is 34px of nothing. */
+@media (hover: none), (pointer: coarse) {
+  .palette-foot {
+    display: none;
+  }
 }

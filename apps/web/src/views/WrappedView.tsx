@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { formatLongDuration, WRAPPED_RANGE_LABELS, type WrappedRange } from '@selfmp3/shared'
 import { useLibrary, useWrapped } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
+import { mediaUrl } from '../lib/api.js'
 import { downloadWrappedCard, readPalette } from '../lib/wrappedCard.js'
 import { Cover } from '../components/Cover.js'
 import { Download, Play, Sparkles } from '../components/Icons.js'
@@ -14,6 +15,12 @@ import { Download, Play, Sparkles } from '../components/Icons.js'
  * being able to ask "what did last week sound like" on a Tuesday. Everything
  * here comes from the same play events the Stats page uses, so the numbers
  * agree with each other.
+ *
+ * This is the one screen in the app allowed to be a bit of a show: the hero
+ * borrows the top song's artwork as a blurred backdrop, the figure is set
+ * large, and each section is a numbered chapter. It stays inside the app's
+ * type scale, spacing and accent, so it reads as the same product wearing its
+ * good coat rather than as a different app.
  *
  * "Share as image" draws a 1080×1080 card on a canvas rather than
  * screenshotting the page: the result is identical on a phone and a laptop and
@@ -120,17 +127,45 @@ export function WrappedView() {
   }
 
   if (wrapped.totals.plays === 0) {
+    /*
+     * An empty window is almost always the wrong window, so the way out is
+     * offered rather than described: the longer ranges are one tap away.
+     */
+    const longer = RANGES.slice(RANGES.indexOf(range) + 1)
     return (
       <section className="view wrapped-view">
         {header}
         <div className="empty-state">
           <p className="empty-emoji">🎁</p>
-          <h2>Nothing in this window yet</h2>
-          <p className="hint">Play something, or try a longer range.</p>
+          <h2>Nothing in {range === 'all' ? 'your history' : 'this window'} yet</h2>
+          <p className="hint">
+            {range === 'all'
+              ? 'Play something and Wrapped starts keeping score — the first minute counts.'
+              : `You have no plays in the ${WRAPPED_RANGE_LABELS[range].toLowerCase()}. Try a longer window, or go and put something on.`}
+          </p>
+          <div className="button-row wrapped-empty-actions">
+            {longer.map(option => (
+              <button
+                key={option}
+                type="button"
+                className="button"
+                onClick={() => setRange(option)}
+              >
+                Try {RANGE_SHORT[option].toLowerCase()}
+              </button>
+            ))}
+            <Link to="/" className="button button-primary">
+              <Play size={15} /> Go to the library
+            </Link>
+          </div>
         </div>
       </section>
     )
   }
+
+  const topSong = wrapped.topSongs[0]
+  const topSongInLibrary = topSong ? songById.get(topSong.songId) : undefined
+  const hero = topSong?.hasArt ? mediaUrl.art(topSong.songId) : null
 
   return (
     <section className="view wrapped-view">
@@ -143,144 +178,193 @@ export function WrappedView() {
       )}
 
       <div className="wrapped-hero">
-        <div className="wrapped-hero-main">
-          <p className="wrapped-eyebrow">You listened for</p>
-          <p className="wrapped-figure">{Math.round(wrapped.totals.minutes).toLocaleString()}</p>
-          {/* The hours form only earns its place once there are hours to show;
-              below that it just repeats the number above it. */}
-          <p className="wrapped-figure-unit">
-            minutes
-            {wrapped.totals.minutes >= 60 &&
-              ` · ${formatLongDuration(wrapped.totals.minutes * 60)}`}
-          </p>
-          <p className="wrapped-personality">
-            <Sparkles size={16} /> {wrapped.personality.line}
-          </p>
-        </div>
+        {/*
+          * The top song's artwork, blurred well past recognition, as the hero's
+          * ground. It is the one image on the page and it is always the right
+          * one — decoration that is also data.
+          */}
+        {hero && (
+          <div
+            className="wrapped-hero-art"
+            style={{ backgroundImage: `url(${hero})` }}
+            aria-hidden="true"
+          />
+        )}
 
-        <dl className="wrapped-facts">
-          <Fact label="Plays" value={wrapped.totals.plays.toLocaleString()} />
-          <Fact label="Songs" value={wrapped.totals.songsPlayed.toLocaleString()} />
-          <Fact label="Days with music" value={wrapped.totals.activeDays.toLocaleString()} />
-          <Fact
-            label="Longest streak"
-            value={`${wrapped.longestStreakDays} ${wrapped.longestStreakDays === 1 ? 'day' : 'days'}`}
-          />
-          <Fact
-            label="Peak hour"
-            value={wrapped.peakHour ? formatHour(wrapped.peakHour.hour) : '—'}
-            hint={wrapped.peakHour ? `${wrapped.peakHour.plays} plays` : undefined}
-          />
-          <Fact
-            label="Best day"
-            value={wrapped.peakWeekday ? (WEEKDAYS[wrapped.peakWeekday.weekday] ?? '—') : '—'}
-            hint={wrapped.peakWeekday ? `${wrapped.peakWeekday.plays} plays` : undefined}
-          />
-        </dl>
+        <div className="wrapped-hero-inner">
+          <div className="wrapped-hero-main">
+            <p className="wrapped-eyebrow">{WRAPPED_RANGE_LABELS[range]} · you listened for</p>
+            <p className="wrapped-figure">{Math.round(wrapped.totals.minutes).toLocaleString()}</p>
+            {/* The hours form only earns its place once there are hours to show;
+                below that it just repeats the number above it. */}
+            <p className="wrapped-figure-unit">
+              minutes
+              {wrapped.totals.minutes >= 60 &&
+                ` · ${formatLongDuration(wrapped.totals.minutes * 60)}`}
+            </p>
+
+            {wrapped.personality.traits.length > 0 && (
+              <ul className="wrapped-traits" aria-label="Your listening traits">
+                {wrapped.personality.traits.map(trait => (
+                  <li key={trait} className="wrapped-trait">
+                    <Sparkles size={13} /> {trait}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <dl className="wrapped-facts">
+            <Fact label="Plays" value={wrapped.totals.plays.toLocaleString()} />
+            <Fact label="Songs" value={wrapped.totals.songsPlayed.toLocaleString()} />
+            <Fact label="Days with music" value={wrapped.totals.activeDays.toLocaleString()} />
+            <Fact
+              label="Longest streak"
+              value={`${wrapped.longestStreakDays} ${wrapped.longestStreakDays === 1 ? 'day' : 'days'}`}
+            />
+            <Fact
+              label="Peak hour"
+              value={wrapped.peakHour ? formatHour(wrapped.peakHour.hour) : '—'}
+              hint={wrapped.peakHour ? `${plays(wrapped.peakHour.plays)}` : undefined}
+            />
+            <Fact
+              label="Best day"
+              value={wrapped.peakWeekday ? (WEEKDAYS[wrapped.peakWeekday.weekday] ?? '—') : '—'}
+              hint={wrapped.peakWeekday ? `${plays(wrapped.peakWeekday.plays)}` : undefined}
+            />
+          </dl>
+        </div>
       </div>
 
-      <div className="stats-panels">
-        <section className="panel">
+      <div className="wrapped-chapters">
+        <section className="panel wrapped-panel wrapped-songs">
           <header className="panel-head">
-            <h2>Top songs</h2>
+            <h2>
+              <span className="wrapped-chapter-no">01</span> Top songs
+            </h2>
             {wrapped.topSongs.length > 0 && (
               <button
                 type="button"
                 className="button button-small"
                 onClick={() => playTop(wrapped.topSongs.map(song => song.songId))}
               >
-                <Play size={13} /> Play
+                <Play size={13} /> Play all
               </button>
             )}
           </header>
-          <div className="top-song-list">
-            {wrapped.topSongs.map((entry, index) => {
-              const song = songById.get(entry.songId)
-              return (
-                <button
-                  key={entry.songId}
-                  type="button"
-                  className="top-song-row"
-                  onClick={() => song && player.playSong(song)}
-                  disabled={!song}
-                >
-                  <span className="top-song-rank">{index + 1}</span>
-                  {song ? (
-                    <Cover song={song} size={34} />
-                  ) : (
-                    <span className="cover cover-placeholder" style={{ width: 34, height: 34 }} />
-                  )}
-                  <span className="top-song-meta">
-                    <span className="top-song-title">{entry.title}</span>
-                    <span className="top-song-artist">{entry.artist || 'Unknown artist'}</span>
-                  </span>
-                  <span className="top-song-plays">
-                    {entry.plays} {entry.plays === 1 ? 'play' : 'plays'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+
+          {/* The number one gets to be a picture, not a row. */}
+          {topSong && (
+            <button
+              type="button"
+              className="wrapped-number-one"
+              onClick={() => topSongInLibrary && player.playSong(topSongInLibrary)}
+              disabled={!topSongInLibrary}
+            >
+              {topSongInLibrary ? (
+                <Cover song={topSongInLibrary} size={92} className="wrapped-number-one-art" />
+              ) : (
+                <span className="cover cover-placeholder" style={{ width: 92, height: 92 }} />
+              )}
+              <span className="wrapped-number-one-text">
+                <span className="wrapped-number-one-label">Your number one</span>
+                <span className="wrapped-number-one-title">{topSong.title}</span>
+                <span className="wrapped-number-one-artist">
+                  {topSong.artist || 'Unknown artist'}
+                </span>
+                <span className="wrapped-number-one-plays">
+                  {plays(topSong.plays)} · {Math.round(topSong.minutes)} minutes
+                </span>
+              </span>
+            </button>
+          )}
+
+          {wrapped.topSongs.length > 1 && (
+            <div className="top-song-list">
+              {wrapped.topSongs.slice(1).map((entry, index) => {
+                const song = songById.get(entry.songId)
+                return (
+                  <button
+                    key={entry.songId}
+                    type="button"
+                    className="top-song-row"
+                    onClick={() => song && player.playSong(song)}
+                    disabled={!song}
+                  >
+                    <span className="top-song-rank">{index + 2}</span>
+                    {song ? (
+                      <Cover song={song} size={34} />
+                    ) : (
+                      <span
+                        className="cover cover-placeholder"
+                        style={{ width: 34, height: 34 }}
+                      />
+                    )}
+                    <span className="top-song-meta">
+                      <span className="top-song-title">{entry.title}</span>
+                      <span className="top-song-artist">{entry.artist || 'Unknown artist'}</span>
+                    </span>
+                    <span className="top-song-plays">{plays(entry.plays)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </section>
 
-        <section className="panel">
+        <section className="panel wrapped-panel">
           <header className="panel-head">
-            <h2>Top artists</h2>
+            <h2>
+              <span className="wrapped-chapter-no">02</span> Top artists
+            </h2>
           </header>
-          <ol className="wrapped-rank-list">
-            {wrapped.topArtists.map((entry, index) => (
-              <li key={entry.key}>
-                <span className="wrapped-rank">{index + 1}</span>
-                <span className="wrapped-rank-name">{entry.key}</span>
-                <span className="wrapped-rank-value">{entry.plays}</span>
-              </li>
-            ))}
-          </ol>
+          <RankList entries={wrapped.topArtists} max={wrapped.topArtists[0]?.plays ?? 1} />
 
           {wrapped.topTags.length > 0 && (
             <>
               <h3 className="wrapped-subhead">Top tags</h3>
-              <ol className="wrapped-rank-list">
-                {wrapped.topTags.map((entry, index) => (
-                  <li key={entry.key}>
-                    <span className="wrapped-rank">{index + 1}</span>
-                    <span className="wrapped-rank-name">{entry.key}</span>
-                    <span className="wrapped-rank-value">{entry.plays}</span>
-                  </li>
-                ))}
-              </ol>
+              <RankList entries={wrapped.topTags} max={wrapped.topTags[0]?.plays ?? 1} />
             </>
           )}
         </section>
 
         {wrapped.mostInOneDay && (
-          <section className="panel">
+          <section className="panel wrapped-panel wrapped-repeat">
             <header className="panel-head">
-              <h2>On repeat</h2>
+              <h2>
+                <span className="wrapped-chapter-no">03</span> On repeat
+              </h2>
               <span className="hint">{longDate(wrapped.mostInOneDay.date)}</span>
             </header>
-            <p className="panel-figure">{wrapped.mostInOneDay.plays}×</p>
+            <p className="wrapped-repeat-figure">
+              {wrapped.mostInOneDay.plays}
+              <span>×</span>
+            </p>
             <p className="wrapped-repeat-song">
               <strong>{wrapped.mostInOneDay.title}</strong>
               <span className="hint"> — {wrapped.mostInOneDay.artist || 'Unknown artist'}</span>
             </p>
             <p className="hint">
               The most you played one song in a single day
-              {wrapped.busiestDate && ` · busiest day overall: ${wrapped.busiestDate.plays} plays`}
+              {wrapped.busiestDate && ` · busiest day overall: ${plays(wrapped.busiestDate.plays)}`}
+              .
             </p>
           </section>
         )}
 
-        <section className="panel">
+        <section className="panel wrapped-panel">
           <header className="panel-head">
-            <h2>Discovered</h2>
+            <h2>
+              <span className="wrapped-chapter-no">{wrapped.mostInOneDay ? '04' : '03'}</span>{' '}
+              Discovered
+            </h2>
             {wrapped.discovered.length > 0 && (
               <button
                 type="button"
                 className="button button-small"
                 onClick={() => playTop(wrapped.discovered.map(song => song.songId))}
               >
-                <Play size={13} /> Play
+                <Play size={13} /> Play all
               </button>
             )}
           </header>
@@ -291,22 +375,53 @@ export function WrappedView() {
               three times.
             </p>
           ) : (
-            <ol className="wrapped-rank-list">
-              {wrapped.discovered.slice(0, 8).map((song, index) => (
-                <li key={song.songId}>
-                  <span className="wrapped-rank">{index + 1}</span>
-                  <span className="wrapped-rank-name">
-                    {song.title}
-                    <span className="hint"> — {song.artist || 'Unknown artist'}</span>
-                  </span>
-                  <span className="wrapped-rank-value">{song.plays}</span>
-                </li>
-              ))}
-            </ol>
+            <RankList
+              entries={wrapped.discovered.slice(0, 8).map(song => ({
+                key: song.title,
+                sub: song.artist || 'Unknown artist',
+                plays: song.plays,
+              }))}
+              max={wrapped.discovered[0]?.plays ?? 1}
+            />
           )}
         </section>
       </div>
     </section>
+  )
+}
+
+/**
+ * A ranked list where each row carries its own share of the total as a quiet
+ * bar behind the name — the same information the number gives, in a form the
+ * eye reads without counting.
+ */
+function RankList({
+  entries,
+  max,
+}: {
+  entries: ReadonlyArray<{ key: string; plays: number; sub?: string }>
+  max: number
+}) {
+  if (entries.length === 0) return <p className="chart-empty">Nothing here yet</p>
+
+  return (
+    <ol className="wrapped-rank-list">
+      {entries.map((entry, index) => (
+        <li key={`${entry.key}-${index}`}>
+          <span
+            className="wrapped-rank-bar"
+            style={{ width: `${Math.max(6, (entry.plays / Math.max(max, 1)) * 100)}%` }}
+            aria-hidden="true"
+          />
+          <span className="wrapped-rank">{index + 1}</span>
+          <span className="wrapped-rank-name">
+            {entry.key}
+            {entry.sub && <span className="hint"> — {entry.sub}</span>}
+          </span>
+          <span className="wrapped-rank-value">{entry.plays}</span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -320,6 +435,10 @@ function Fact({ label, value, hint }: { label: string; value: string; hint?: str
       </dd>
     </div>
   )
+}
+
+function plays(count: number): string {
+  return `${count} ${count === 1 ? 'play' : 'plays'}`
 }
 
 function formatHour(hour: number): string {

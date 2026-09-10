@@ -30,9 +30,17 @@
   flex-shrink: 0;
 }
 
-.yt-status-dot.is-on {
+.yt-status.is-on .yt-status-dot {
   background: var(--good);
   box-shadow: 0 0 0 3px oklch(0.6 0.15 155 / 0.25);
+}
+
+.yt-status.is-on {
+  border-color: oklch(0.45 0.1 155 / 0.6);
+}
+
+.yt-status strong {
+  color: var(--text-primary);
 }
 
 .yt-sources {
@@ -128,11 +136,6 @@
   }
 }
 
-.yt-panel .panel-head .hint {
-  text-align: right;
-  white-space: nowrap;
-}
-
 @media (max-width: 819px) {
   /* The column layout above left the textarea at its intrinsic width. */
   .import-form .import-input {
@@ -140,15 +143,3 @@
   }
 }
 
-@media (max-width: 819px) {
-  /* Let the title/artist/album inputs take the full row under the thumbnail. */
-  .import-item .import-fields {
-    flex-basis: 100%;
-  }
-
-  .import-item .import-item-side {
-    flex-direction: row;
-    align-items: center;
-    margin-left: auto;
-  }
-}

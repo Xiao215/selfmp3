@@ -25,48 +25,76 @@
 
 .import-review-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
 .import-review-actions {
   display: flex;
+  align-items: baseline;
   gap: 12px;
 }
 
 .import-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 460px;
+  gap: 2px;
+  max-height: 480px;
   overflow-y: auto;
   padding-right: 6px;
 }
 
+/*
+ * One line per track: tick, thumbnail, then title / artist / album as three
+ * columns that line up down the list, and the length or duplicate mark at the
+ * end. Editing metadata for forty tracks is a table job, not a card job.
+ */
 .import-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px;
+  display: grid;
+  grid-template-columns: 18px 56px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 78px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
   border-radius: var(--radius-sm);
-  background: var(--surface-0);
   border: 1px solid transparent;
 }
 
 .import-item.is-chosen {
+  background: var(--surface-0);
   border-color: var(--accent-dim);
 }
 
-.import-item.is-duplicate {
-  opacity: 0.6;
+/*
+ * A duplicate is dimmed, but only its chrome: the inputs stay at full contrast
+ * because they are still editable, and unreadable text is not a "hint".
+ */
+.import-item.is-duplicate .import-thumb,
+.import-item.is-duplicate .checkbox {
+  opacity: 0.55;
+}
+
+.import-item-head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-raised);
+  background: var(--surface-1);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding-bottom: 7px;
+  border-radius: 0;
 }
 
 .import-thumb {
-  width: 64px;
-  height: 48px;
+  width: 56px;
+  height: 34px;
   object-fit: cover;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   flex-shrink: 0;
 }
 
@@ -74,18 +102,26 @@
   background: var(--surface-2);
 }
 
-.import-fields {
-  flex: 1;
-  display: grid;
+.import-col-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 6px;
-  min-width: 0;
+  text-align: right;
 }
 
-.import-item-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+/* The duplicate mark: a word and a tick, not a colour. */
+.import-dup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px 2px 6px;
+  white-space: nowrap;
 }
 
 .import-options {
@@ -121,8 +157,9 @@
 
 .import-queue-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -136,13 +173,24 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 10px 9px 12px;
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  border: 1px solid transparent;
+  min-height: 46px;
 }
 
-.job-row.is-done {
+.job-row.is-running {
+  border-color: var(--accent-dim);
+}
+
+.job-row.is-done,
+.job-row.is-cancelled {
   color: var(--text-muted);
+}
+
+.job-row.is-error {
+  border-color: oklch(0.4 0.1 22 / 0.7);
 }
 
 .job-row.is-error .job-sub {
@@ -154,6 +202,7 @@
   width: 20px;
   justify-content: center;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .job-row.is-done .job-status {
@@ -189,19 +238,136 @@
 .job-sub {
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .job-progress {
-  width: 100px;
+  width: 110px;
   height: 4px;
   border-radius: 2px;
   background: var(--surface-3);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .job-progress-bar {
   display: block;
   height: 100%;
   background: var(--accent);
-  transition: width 0.3s;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* Converting and tagging report no percentage; the bar says "still working". */
+.job-progress.is-indeterminate .job-progress-bar {
+  width: 40%;
+  animation: job-slide 1.4s var(--ease-out) infinite;
+}
+
+@keyframes job-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(275%);
+  }
+}
+
+/* With the animation off, a sliding sliver would just be an invisible bar. */
+@media (prefers-reduced-motion: reduce) {
+  .job-progress.is-indeterminate .job-progress-bar {
+    width: 100%;
+    opacity: 0.45;
+    transform: none;
+  }
+}
+
+.job-percent {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+
+.job-action {
+  flex-shrink: 0;
+}
+
+/*
+ * A 17px tick is a miss waiting to happen with a thumb. The box stays the size
+ * it looks; an invisible pseudo-element carries the hit area out to 41px.
+ */
+@media (hover: none), (pointer: coarse) {
+  .import-item > .checkbox {
+    position: relative;
+  }
+
+  .import-item > .checkbox::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
+/* --- the review table on a phone --- */
+
+@media (max-width: 819px) {
+  .import-item-head {
+    display: none;
+  }
+
+  /*
+   * Two lines per track: tick, thumbnail and title on the first, artist and
+   * album underneath. Three text columns do not fit in 390px and pretending
+   * they do gets you three unusable inputs.
+   */
+  .import-item {
+    grid-template-columns: 18px 56px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'check thumb title  side'
+      'check thumb artist artist'
+      'check thumb album  album';
+    gap: 6px 10px;
+    padding: 8px;
+    background: var(--surface-0);
+    align-items: center;
+  }
+
+  .import-item > .checkbox {
+    grid-area: check;
+  }
+
+  .import-thumb {
+    grid-area: thumb;
+    align-self: stretch;
+    height: auto;
+    min-height: 44px;
+  }
+
+  .import-item > .input:nth-of-type(1) {
+    grid-area: title;
+  }
+
+  .import-item > .input:nth-of-type(2) {
+    grid-area: artist;
+  }
+
+  .import-item > .input:nth-of-type(3) {
+    grid-area: album;
+  }
+
+  .import-col-side {
+    grid-area: side;
+  }
+
+  .import-list {
+    max-height: none;
+    padding-right: 0;
+  }
+
+  .job-progress {
+    width: 64px;
+  }
 }

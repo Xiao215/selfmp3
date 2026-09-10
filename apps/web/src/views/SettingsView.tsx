@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatBytes, type Settings } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -25,7 +25,37 @@ import { DevicesSettings } from '../devices/DevicesSettings.js'
  * on the server so the Mac and the phone agree, while offline downloads are
  * per-device by definition — what you have cached on your phone is not a fact
  * about your library.
+ *
+ * Eleven groups is more than anyone scrolls through looking for one switch, so
+ * the page carries its own index: a sticky list on the left at desktop width,
+ * a scrollable chip row above the panels on anything narrower. Every group is
+ * one `<section class="panel">` with an id, and every setting inside it has the
+ * same anatomy — name, one quiet line of explanation, control on the right.
  */
+
+/** The index, in page order. */
+const SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'playback', label: 'Playback' },
+  { id: 'offline', label: 'Offline music' },
+  { id: 'importing', label: 'Importing' },
+  { id: 'library', label: 'Library' },
+  { id: 'lyrics', label: 'Lyrics' },
+  { id: 'devices', label: 'Devices' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'shortcuts', label: 'Shortcuts' },
+]
+
+/** A starting point for the accent, so the slider is not the only way in. */
+const ACCENT_PRESETS: ReadonlyArray<{ hue: number; name: string }> = [
+  { hue: 268, name: 'Violet' },
+  { hue: 220, name: 'Blue' },
+  { hue: 190, name: 'Teal' },
+  { hue: 150, name: 'Green' },
+  { hue: 60, name: 'Amber' },
+  { hue: 20, name: 'Red' },
+  { hue: 330, name: 'Pink' },
+]
+
 export function SettingsView() {
   const { data: settings } = useSettings()
   const { data: library } = useLibrary()
@@ -43,6 +73,18 @@ export function SettingsView() {
   const [purging, setPurging] = useState(false)
   const analysis = useAnalysisStatus(true)
   const startAnalysis = useStartAnalysis()
+  const active = useActiveSection(SECTIONS, settings !== undefined)
+  const indexRef = useRef<HTMLElement>(null)
+
+  // At narrow widths the index is a horizontal chip row, and the chip for the
+  // section you are reading is often scrolled out of it. Nudge it back.
+  useEffect(() => {
+    const nav = indexRef.current
+    if (!active || !nav || nav.scrollWidth <= nav.clientWidth) return
+    nav
+      .querySelector(`[data-section="${active}"]`)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [active])
 
   // Depend on the function, not the whole context object. The context identity
   // changes whenever usage updates, so depending on it here would loop:
@@ -75,518 +117,655 @@ export function SettingsView() {
         </div>
       </header>
 
-      {/* ---------------- offline ---------------- */}
-
-      <section className="panel" id="offline">
-        <header className="panel-head">
-          <h2>Offline music</h2>
-          <span className="hint">on this device</span>
-        </header>
-
-        <p className="panel-lead">
-          Downloaded songs play with no connection at all — which is the point, since your Mac
-          won&rsquo;t always be awake. Everything else needs the server.
-        </p>
-
-        <div className="offline-summary">
-          <div className="offline-stat">
-            <span className="offline-stat-value">{cachedCount}</span>
-            <span className="offline-stat-label">of {songs.length} songs downloaded</span>
-          </div>
-          <div className="offline-stat">
-            <span className="offline-stat-value">
-              {offline.usage ? formatBytes(offline.usage.audioBytes) : '—'}
-            </span>
-            <span className="offline-stat-label">
-              {offline.usage?.quotaBytes
-                ? `of ~${formatBytes(offline.usage.quotaBytes)} available`
-                : 'used'}
-            </span>
-          </div>
-        </div>
-
-        {songs.length > 0 && (
-          <div
-            className="offline-meter"
-            role="progressbar"
-            aria-valuenow={cachedCount}
-            aria-valuemin={0}
-            aria-valuemax={songs.length}
-            aria-label="Songs downloaded"
-          >
-            <span style={{ width: `${(cachedCount / songs.length) * 100}%` }} />
-          </div>
-        )}
-
-        {syncing && offline.sync.status === 'syncing' && (
-          <div className="sync-progress">
-            <div className="sync-progress-head">
-              <span className="spinner" />
-              <span>
-                Downloading {offline.sync.progress.done} of {offline.sync.progress.total}
-                {offline.sync.progress.currentTitle && ` — ${offline.sync.progress.currentTitle}`}
-              </span>
-            </div>
-            <div className="offline-meter">
-              <span
-                style={{
-                  width: `${
-                    offline.sync.progress.total > 0
-                      ? (offline.sync.progress.done / offline.sync.progress.total) * 100
-                      : 0
-                  }%`,
-                }}
-              />
-            </div>
-            {offline.sync.progress.failed > 0 && (
-              <p className="hint">{offline.sync.progress.failed} couldn’t be downloaded.</p>
-            )}
-          </div>
-        )}
-
-        {offline.sync.status === 'done' && (
-          <p className="notice notice-good">
-            <CheckCircle size={15} /> Downloaded {offline.sync.progress.done} songs.
-            {offline.sync.progress.failed > 0 && ` ${offline.sync.progress.failed} failed.`}
-          </p>
-        )}
-
-        {offline.sync.status === 'error' && (
-          <p className="notice notice-error">{offline.sync.message}</p>
-        )}
-
-        <div className="button-row">
-          {syncing ? (
-            <button type="button" className="button" onClick={offline.cancelSync}>
-              <X size={15} /> Stop downloading
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={() => void offline.syncAll(songs)}
-              disabled={!offline.serverReachable || songs.length === 0}
+      <div className="settings-layout">
+        <nav className="settings-index" aria-label="Settings sections" ref={indexRef}>
+          <span className="settings-index-title">On this page</span>
+          {SECTIONS.map(section => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              data-section={section.id}
+              aria-current={active === section.id ? 'true' : undefined}
             >
-              <CloudDownload size={15} />
-              {cachedCount === 0 ? 'Download everything' : 'Download what’s missing'}
-            </button>
-          )}
+              {section.label}
+            </a>
+          ))}
+        </nav>
 
-          {cachedCount > 0 && (
-            <button
-              type="button"
-              className="button button-danger"
-              onClick={() => {
-                if (window.confirm('Remove all downloaded songs from this device?')) {
-                  void offline.clearAll()
-                }
-              }}
-            >
-              <Trash size={15} /> Remove all downloads
-            </button>
-          )}
-        </div>
+        <div className="settings-panels">
+          {/* ---------------- playback ---------------- */}
 
-        {!offline.persistent && (
-          <p className="hint">
-            This browser hasn’t marked your downloads as permanent, so it may clear them if
-            storage runs low. Adding self.mp3 to your home screen usually fixes that.
-          </p>
-        )}
-      </section>
+          {settings && (
+            <section className="panel" id="playback">
+              <header className="panel-head">
+                <h2>Playback</h2>
+                <span className="hint">shared across your devices</span>
+              </header>
 
-      {/* ---------------- playback ---------------- */}
-
-      {settings && (
-        <section className="panel">
-          <header className="panel-head">
-            <h2>Playback</h2>
-            <span className="hint">shared across your devices</span>
-          </header>
-
-          <label className="setting-row">
-            <span className="setting-label">
-              Crossfade
-              <span className="setting-hint">
-                Overlap the end of one track with the start of the next. Zero turns it off.
-              </span>
-            </span>
-            <span className="setting-control">
-              <input
-                type="range"
-                min={0}
-                max={12}
-                step={1}
-                value={settings.crossfadeSeconds}
-                style={
-                  { '--progress': `${(settings.crossfadeSeconds / 12) * 100}%` } as React.CSSProperties
-                }
-                onChange={event => set('crossfadeSeconds', Number(event.target.value))}
-              />
-              <span className="setting-value">
-                {settings.crossfadeSeconds === 0 ? 'off' : `${settings.crossfadeSeconds}s`}
-              </span>
-            </span>
-          </label>
-
-          <label className="setting-row">
-            <span className="setting-label">
-              Count a play after
-              <span className="setting-hint">
-                How much of a song you have to hear before it counts in your stats.
-              </span>
-            </span>
-            <span className="setting-control">
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={settings.playThreshold}
-                style={
-                  { '--progress': `${settings.playThreshold * 100}%` } as React.CSSProperties
-                }
-                onChange={event => set('playThreshold', Number(event.target.value))}
-              />
-              <span className="setting-value">{Math.round(settings.playThreshold * 100)}%</span>
-            </span>
-          </label>
-
-          <label className="setting-row setting-row-toggle">
-            <span className="setting-label">
-              Look up lyrics automatically
-              <span className="setting-hint">
-                Fetches synced lyrics from lrclib.net when a song is imported, and saves them
-                next to the audio so they work offline.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              className="toggle"
-              checked={settings.autoFetchLyrics}
-              onChange={event => set('autoFetchLyrics', event.target.checked)}
-            />
-          </label>
-        </section>
-      )}
-
-      {/* ---------------- lyrics+ ---------------- */}
-
-      {settings && <LyricsSettings settings={settings} onSet={set} />}
-
-      {/* ---------------- devices ---------------- */}
-
-      <DevicesSettings />
-
-      {/* ---------------- importing ---------------- */}
-
-      {settings && (
-        <section className="panel">
-          <header className="panel-head">
-            <h2>Importing</h2>
-          </header>
-
-          <div className="setting-row">
-            <span className="setting-label">
-              Downloads at once
-              <span className="setting-hint">
-                More is rarely faster and makes YouTube throttle. Two is a good default.
-              </span>
-            </span>
-            <span className="setting-control">
-              <Select<number>
-                value={settings.importConcurrency}
-                onChange={value => set('importConcurrency', value)}
-                options={[1, 2, 3, 4].map(value => ({ value, label: String(value) }))}
-                label="Downloads at once"
-                align="end"
-              />
-            </span>
-          </div>
-
-          <div className="setting-row">
-            <span className="setting-label">
-              Rescan automatically
-              <span className="setting-hint">
-                Watch the library folder for files you dropped in by hand. Takes effect on
-                restart.
-              </span>
-            </span>
-            <span className="setting-control">
-              <Select<number>
-                value={settings.autoScanMinutes}
-                onChange={value => set('autoScanMinutes', value)}
-                options={[
-                  { value: 0, label: 'Never' },
-                  { value: 5, label: 'Every 5 minutes' },
-                  { value: 15, label: 'Every 15 minutes' },
-                  { value: 60, label: 'Every hour' },
-                ]}
-                label="Rescan automatically"
-                align="end"
-              />
-            </span>
-          </div>
-
-          {/* ---- import suite: folder watching + YouTube cookies ---- */}
-
-          <label className="setting-row setting-row-toggle">
-            <span className="setting-label">
-              Watch the library folder
-              <span className="setting-hint">
-                Rescan the moment a file is added, removed or renamed — drag something into
-                the folder in Finder and it shows up here. No timer needed.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              className="toggle"
-              checked={settings.watchLibrary}
-              onChange={event => set('watchLibrary', event.target.checked)}
-            />
-          </label>
-
-          <div className="setting-row" id="youtube">
-            <span className="setting-label">
-              YouTube login cookies
-              <span className="setting-hint">
-                Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login
-                from a browser on this Mac; “File” reads a Netscape cookies.txt.
-              </span>
-            </span>
-            <span className="setting-control">
-              <Select<Settings['ytCookieSource']>
-                value={settings.ytCookieSource}
-                onChange={value => set('ytCookieSource', value)}
-                options={[
-                  { value: 'none', label: 'Off' },
-                  { value: 'browser', label: 'From a browser' },
-                  { value: 'file', label: 'From a cookies.txt file' },
-                ]}
-                label="YouTube login cookies"
-                align="end"
-              />
-            </span>
-          </div>
-
-          {settings.ytCookieSource === 'browser' && (
-            <div className="setting-row">
-              <span className="setting-label">
-                Browser
-                <span className="setting-hint">
-                  Must be signed in to YouTube Music.
-                  {settings.ytCookieBrowser === 'safari' &&
-                    ' Safari’s cookie file is protected by macOS: give the process running self.mp3 (Terminal or node) Full Disk Access in System Settings → Privacy & Security.'}
-                  {settings.ytCookieBrowser !== 'safari' &&
-                    ' Chromium browsers may ask for keychain access the first time; Firefox needs to be closed while cookies are read.'}
+              <label className="setting-row">
+                <span className="setting-label">
+                  Crossfade
+                  <span className="setting-hint">
+                    Overlap the end of one track with the start of the next. Zero turns it off.
+                  </span>
                 </span>
-              </span>
-              <span className="setting-control">
-                <Select<Settings['ytCookieBrowser']>
-                  value={settings.ytCookieBrowser}
-                  onChange={value => set('ytCookieBrowser', value)}
-                  options={[
-                    { value: 'chrome', label: 'Chrome' },
-                    { value: 'safari', label: 'Safari' },
-                    { value: 'firefox', label: 'Firefox' },
-                    { value: 'brave', label: 'Brave' },
-                    { value: 'edge', label: 'Edge' },
-                    { value: 'chromium', label: 'Chromium' },
-                  ]}
-                  label="Browser"
-                  align="end"
-                />
-              </span>
-            </div>
-          )}
-
-          {settings.ytCookieSource === 'file' && (
-            <label className="setting-row">
-              <span className="setting-label">
-                Cookies file
-                <span className="setting-hint">
-                  Full path to a Netscape-format cookies.txt exported from a browser where you
-                  are logged in to YouTube Music.
-                </span>
-              </span>
-              <span className="setting-control">
-                <input
-                  key={settings.ytCookieFile}
-                  className="input setting-input-path"
-                  defaultValue={settings.ytCookieFile}
-                  placeholder="/Users/you/cookies.txt"
-                  spellCheck={false}
-                  onBlur={event => {
-                    if (event.target.value.trim() !== settings.ytCookieFile) {
-                      set('ytCookieFile', event.target.value.trim())
+                <span className="setting-control">
+                  <input
+                    type="range"
+                    min={0}
+                    max={12}
+                    step={1}
+                    value={settings.crossfadeSeconds}
+                    style={
+                      {
+                        '--progress': `${(settings.crossfadeSeconds / 12) * 100}%`,
+                      } as React.CSSProperties
                     }
-                  }}
-                />
-              </span>
-            </label>
+                    onChange={event => set('crossfadeSeconds', Number(event.target.value))}
+                  />
+                  <span className="setting-value">
+                    {settings.crossfadeSeconds === 0 ? 'off' : `${settings.crossfadeSeconds}s`}
+                  </span>
+                </span>
+              </label>
+
+              <label className="setting-row">
+                <span className="setting-label">
+                  Count a play after
+                  <span className="setting-hint">
+                    How much of a song you have to hear before it counts in your stats.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                    value={settings.playThreshold}
+                    style={{ '--progress': `${settings.playThreshold * 100}%` } as React.CSSProperties}
+                    onChange={event => set('playThreshold', Number(event.target.value))}
+                  />
+                  <span className="setting-value">{Math.round(settings.playThreshold * 100)}%</span>
+                </span>
+              </label>
+
+              <label className="setting-row setting-row-toggle">
+                <span className="setting-label">
+                  Look up lyrics automatically
+                  <span className="setting-hint">
+                    Fetches synced lyrics from lrclib.net when a song is imported, and saves them
+                    next to the audio so they work offline.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <input
+                    type="checkbox"
+                    className="toggle"
+                    checked={settings.autoFetchLyrics}
+                    onChange={event => set('autoFetchLyrics', event.target.checked)}
+                  />
+                </span>
+              </label>
+            </section>
           )}
-        </section>
-      )}
 
-      {/* ---------------- library ---------------- */}
+          {/* ---------------- offline ---------------- */}
 
-      <section className="panel">
-        <header className="panel-head">
-          <h2>Library</h2>
-        </header>
+          <section className="panel" id="offline">
+            <header className="panel-head">
+              <h2>Offline music</h2>
+              <span className="hint">on this device</span>
+            </header>
 
-        {health && (
-          <p className="panel-lead">
-            Your music lives at <code>{health.libraryPath}</code>. It is just a folder of files —
-            copy it anywhere and you have a complete backup.
-          </p>
-        )}
+            <p className="panel-lead">
+              Downloaded songs play with no connection at all — which is the point, since your Mac
+              won&rsquo;t always be awake. Everything else needs the server.
+            </p>
 
-        <div className="button-row">
-          <button
-            type="button"
-            className="button"
-            onClick={() => scan.mutate()}
-            disabled={scan.isPending}
-          >
-            <Refresh size={15} /> {scan.isPending ? 'Scanning…' : 'Rescan library folder'}
-          </button>
-        </div>
-
-        {scan.data && (
-          <p className="hint">
-            Found {scan.data.total} songs — {scan.data.added} new, {scan.data.updated} updated,{' '}
-            {scan.data.removed} now missing. Took {Math.round(scan.data.durationMs)}ms.
-          </p>
-        )}
-
-        <FixCoversPanel missingArt={songs.filter(song => !song.hasArt && !song.missing).length} />
-        <div className="analysis-block">
-          <p className="setting-hint">
-            <strong>Audio analysis</strong> works out each song&rsquo;s tempo, key, energy and
-            loudness from the file itself, on this Mac. It powers smart-playlist rules, &ldquo;similar
-            songs&rdquo; and auto-mix. {analyzedCount} of {songs.length} songs analysed.
-          </p>
-          {analysis.data?.running && (
-            <div className="sync-progress">
-              <div className="sync-progress-head">
-                <span className="spinner" />
-                <span>
-                  Analysing{analysis.data.current ? ` — ${analysis.data.current.title}` : '…'}
-                  {analysis.data.pending > 0 && ` · ${analysis.data.pending} to go`}
+            <div className="offline-summary">
+              <div className="offline-stat">
+                <span className="offline-stat-value">{cachedCount}</span>
+                <span className="offline-stat-label">of {songs.length} songs downloaded</span>
+              </div>
+              <div className="offline-stat">
+                <span className="offline-stat-value">
+                  {offline.usage ? formatBytes(offline.usage.audioBytes) : '—'}
+                </span>
+                <span className="offline-stat-label">
+                  {offline.usage?.quotaBytes
+                    ? `of ~${formatBytes(offline.usage.quotaBytes)} available`
+                    : 'used'}
                 </span>
               </div>
             </div>
-          )}
-          <div className="button-row">
-            <button
-              type="button"
-              className="button"
-              onClick={() => startAnalysis.mutate(false)}
-              disabled={analysis.data?.running || startAnalysis.isPending}
-            >
-              <Sparkles size={15} />{' '}
-              {analysis.data?.running ? 'Analysing…' : 'Analyse songs without features'}
-            </button>
-            {analyzedCount > 0 && !analysis.data?.running && (
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  if (window.confirm('Throw away existing analysis and redo every song?')) {
-                    startAnalysis.mutate(true)
-                  }
-                }}
+
+            {songs.length > 0 && (
+              <div
+                className="offline-meter"
+                role="progressbar"
+                aria-valuenow={cachedCount}
+                aria-valuemin={0}
+                aria-valuemax={songs.length}
+                aria-label="Songs downloaded"
               >
-                <Refresh size={15} /> Re-analyse everything
-              </button>
+                <span style={{ width: `${(cachedCount / songs.length) * 100}%` }} />
+              </div>
             )}
-          </div>
+
+            {syncing && offline.sync.status === 'syncing' && (
+              <div className="sync-progress">
+                <div className="sync-progress-head">
+                  <span className="spinner" />
+                  <span>
+                    Downloading {offline.sync.progress.done} of {offline.sync.progress.total}
+                    {offline.sync.progress.currentTitle && ` — ${offline.sync.progress.currentTitle}`}
+                  </span>
+                </div>
+                <div className="offline-meter">
+                  <span
+                    style={{
+                      width: `${
+                        offline.sync.progress.total > 0
+                          ? (offline.sync.progress.done / offline.sync.progress.total) * 100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                {offline.sync.progress.failed > 0 && (
+                  <p className="hint">{offline.sync.progress.failed} couldn’t be downloaded.</p>
+                )}
+              </div>
+            )}
+
+            {offline.sync.status === 'done' && (
+              <p className="notice notice-good">
+                <CheckCircle size={15} /> Downloaded {offline.sync.progress.done} songs.
+                {offline.sync.progress.failed > 0 && ` ${offline.sync.progress.failed} failed.`}
+              </p>
+            )}
+
+            {offline.sync.status === 'error' && (
+              <p className="notice notice-error">{offline.sync.message}</p>
+            )}
+
+            <div className="button-row">
+              {syncing ? (
+                <button type="button" className="button" onClick={offline.cancelSync}>
+                  <X size={15} /> Stop downloading
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => void offline.syncAll(songs)}
+                  disabled={!offline.serverReachable || songs.length === 0}
+                >
+                  <CloudDownload size={15} />
+                  {cachedCount === 0 ? 'Download everything' : 'Download what’s missing'}
+                </button>
+              )}
+
+              {cachedCount > 0 && (
+                <button
+                  type="button"
+                  className="button button-danger"
+                  onClick={() => {
+                    if (window.confirm('Remove all downloaded songs from this device?')) {
+                      void offline.clearAll()
+                    }
+                  }}
+                >
+                  <Trash size={15} /> Remove all downloads
+                </button>
+              )}
+            </div>
+
+            {!offline.persistent && (
+              <p className="hint">
+                This browser hasn’t marked your downloads as permanent, so it may clear them if
+                storage runs low. Adding self.mp3 to your home screen usually fixes that.
+              </p>
+            )}
+          </section>
+
+          {/* ---------------- importing ---------------- */}
+
+          {settings && (
+            <section className="panel" id="importing">
+              <header className="panel-head">
+                <h2>Importing</h2>
+                <span className="hint">shared across your devices</span>
+              </header>
+
+              <div className="setting-row">
+                <span className="setting-label">
+                  Downloads at once
+                  <span className="setting-hint">
+                    More is rarely faster and makes YouTube throttle. Two is a good default.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <Select<number>
+                    value={settings.importConcurrency}
+                    onChange={value => set('importConcurrency', value)}
+                    options={[1, 2, 3, 4].map(value => ({ value, label: String(value) }))}
+                    label="Downloads at once"
+                    align="end"
+                  />
+                </span>
+              </div>
+
+              <div className="setting-row">
+                <span className="setting-label">
+                  Rescan automatically
+                  <span className="setting-hint">
+                    Watch the library folder for files you dropped in by hand. Takes effect on
+                    restart.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <Select<number>
+                    value={settings.autoScanMinutes}
+                    onChange={value => set('autoScanMinutes', value)}
+                    options={[
+                      { value: 0, label: 'Never' },
+                      { value: 5, label: 'Every 5 minutes' },
+                      { value: 15, label: 'Every 15 minutes' },
+                      { value: 60, label: 'Every hour' },
+                    ]}
+                    label="Rescan automatically"
+                    align="end"
+                  />
+                </span>
+              </div>
+
+              {/* ---- import suite: folder watching + YouTube cookies ---- */}
+
+              <label className="setting-row setting-row-toggle">
+                <span className="setting-label">
+                  Watch the library folder
+                  <span className="setting-hint">
+                    Rescan the moment a file is added, removed or renamed — drag something into the
+                    folder in Finder and it shows up here. No timer needed.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <input
+                    type="checkbox"
+                    className="toggle"
+                    checked={settings.watchLibrary}
+                    onChange={event => set('watchLibrary', event.target.checked)}
+                  />
+                </span>
+              </label>
+
+              <div className="setting-row" id="youtube">
+                <span className="setting-label">
+                  YouTube login cookies
+                  <span className="setting-hint">
+                    Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login
+                    from a browser on this Mac; “File” reads a Netscape cookies.txt.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <Select<Settings['ytCookieSource']>
+                    value={settings.ytCookieSource}
+                    onChange={value => set('ytCookieSource', value)}
+                    options={[
+                      { value: 'none', label: 'Off' },
+                      { value: 'browser', label: 'From a browser' },
+                      { value: 'file', label: 'From a cookies.txt file' },
+                    ]}
+                    label="YouTube login cookies"
+                    align="end"
+                  />
+                </span>
+              </div>
+
+              {settings.ytCookieSource === 'browser' && (
+                <div className="setting-row">
+                  <span className="setting-label">
+                    Browser
+                    <span className="setting-hint">
+                      Must be signed in to YouTube Music.
+                      {settings.ytCookieBrowser === 'safari' &&
+                        ' Safari’s cookie file is protected by macOS: give the process running self.mp3 (Terminal or node) Full Disk Access in System Settings → Privacy & Security.'}
+                      {settings.ytCookieBrowser !== 'safari' &&
+                        ' Chromium browsers may ask for keychain access the first time; Firefox needs to be closed while cookies are read.'}
+                    </span>
+                  </span>
+                  <span className="setting-control">
+                    <Select<Settings['ytCookieBrowser']>
+                      value={settings.ytCookieBrowser}
+                      onChange={value => set('ytCookieBrowser', value)}
+                      options={[
+                        { value: 'chrome', label: 'Chrome' },
+                        { value: 'safari', label: 'Safari' },
+                        { value: 'firefox', label: 'Firefox' },
+                        { value: 'brave', label: 'Brave' },
+                        { value: 'edge', label: 'Edge' },
+                        { value: 'chromium', label: 'Chromium' },
+                      ]}
+                      label="Browser"
+                      align="end"
+                    />
+                  </span>
+                </div>
+              )}
+
+              {settings.ytCookieSource === 'file' && (
+                <label className="setting-row">
+                  <span className="setting-label">
+                    Cookies file
+                    <span className="setting-hint">
+                      Full path to a Netscape-format cookies.txt exported from a browser where you
+                      are logged in to YouTube Music.
+                    </span>
+                  </span>
+                  <span className="setting-control">
+                    <input
+                      key={settings.ytCookieFile}
+                      className="input setting-input-path"
+                      defaultValue={settings.ytCookieFile}
+                      placeholder="/Users/you/cookies.txt"
+                      spellCheck={false}
+                      onBlur={event => {
+                        if (event.target.value.trim() !== settings.ytCookieFile) {
+                          set('ytCookieFile', event.target.value.trim())
+                        }
+                      }}
+                    />
+                  </span>
+                </label>
+              )}
+            </section>
+          )}
+
+          {/* ---------------- library ---------------- */}
+
+          <section className="panel" id="library">
+            <header className="panel-head">
+              <h2>Library</h2>
+              <span className="hint">{songs.length} songs</span>
+            </header>
+
+            {health && (
+              <p className="panel-lead">
+                Your music lives at <code>{health.libraryPath}</code>. It is just a folder of files —
+                copy it anywhere and you have a complete backup.
+              </p>
+            )}
+
+            <div className="setting-row">
+              <span className="setting-label">
+                Rescan the folder
+                <span className="setting-hint">
+                  {scan.data
+                    ? `Last scan found ${scan.data.total} songs — ${scan.data.added} new, ${scan.data.updated} updated, ${scan.data.removed} now missing.`
+                    : 'Pick up files you added, renamed or deleted outside self.mp3.'}
+                </span>
+              </span>
+              <span className="setting-control">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => scan.mutate()}
+                  disabled={scan.isPending}
+                >
+                  <Refresh size={15} /> {scan.isPending ? 'Scanning…' : 'Rescan'}
+                </button>
+              </span>
+            </div>
+
+            <FixCoversPanel missingArt={songs.filter(song => !song.hasArt && !song.missing).length} />
+
+            <div className="setting-row">
+              <span className="setting-label">
+                Audio analysis
+                <span className="setting-hint">
+                  Works out each song&rsquo;s tempo, key, energy and loudness from the file itself,
+                  on this Mac. It powers smart-playlist rules, &ldquo;similar songs&rdquo; and
+                  auto-mix. {analyzedCount} of {songs.length} songs analysed.
+                </span>
+              </span>
+              <span className="setting-control">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => startAnalysis.mutate(false)}
+                  disabled={analysis.data?.running || startAnalysis.isPending}
+                >
+                  <Sparkles size={15} />{' '}
+                  {analysis.data?.running ? 'Analysing…' : 'Analyse new songs'}
+                </button>
+                {analyzedCount > 0 && !analysis.data?.running && (
+                  <button
+                    type="button"
+                    className="button"
+                    title="Throw away existing analysis and redo every song"
+                    onClick={() => {
+                      if (window.confirm('Throw away existing analysis and redo every song?')) {
+                        startAnalysis.mutate(true)
+                      }
+                    }}
+                  >
+                    <Refresh size={15} /> Redo all
+                  </button>
+                )}
+              </span>
+            </div>
+
+            {analysis.data?.running && (
+              <div className="sync-progress" aria-live="polite">
+                <div className="sync-progress-head">
+                  <span className="spinner" />
+                  <span>
+                    Analysing{analysis.data.current ? ` — ${analysis.data.current.title}` : '…'}
+                    {analysis.data.pending > 0 && ` · ${analysis.data.pending} to go`}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {missingCount > 0 && (
+              <div className="setting-row setting-row-stacked">
+                <p className="notice notice-warn">
+                  <span>
+                    {missingCount} {missingCount === 1 ? 'song is' : 'songs are'} in your library but
+                    the {missingCount === 1 ? 'file is' : 'files are'} gone. Their tags and play
+                    counts are kept in case the files come back.
+                  </span>
+                </p>
+                <span className="setting-control">
+                  <button
+                    type="button"
+                    className="button button-danger"
+                    disabled={purging}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Permanently forget ${missingCount} missing songs, including their tags and play history?`,
+                        )
+                      ) {
+                        setPurging(true)
+                        void api.purgeMissing().finally(() => setPurging(false))
+                      }
+                    }}
+                  >
+                    <Trash size={15} /> Forget missing songs
+                  </button>
+                </span>
+              </div>
+            )}
+          </section>
+
+          {/* ---------------- lyrics+ ---------------- */}
+
+          {settings && <LyricsSettings settings={settings} onSet={set} />}
+
+          {/* ---------------- devices ---------------- */}
+
+          <DevicesSettings />
+
+          {/* ---------------- appearance ---------------- */}
+
+          {settings && (
+            <section className="panel" id="appearance">
+              <header className="panel-head">
+                <h2>Appearance</h2>
+                <span className="hint">shared across your devices</span>
+              </header>
+
+              <div className="setting-row">
+                <span className="setting-label">
+                  Accent colour
+                  <span className="setting-hint">
+                    Drives every colour in the app — the surfaces are tinted from it too, so a
+                    change is felt rather than spotted. {ACCENT_PRESETS.find(p => p.hue === settings.accentHue)?.name ??
+                      `Hue ${settings.accentHue}°`}
+                    .
+                  </span>
+                </span>
+                <span className="setting-control accent-control">
+                  <span className="accent-swatches">
+                    {ACCENT_PRESETS.map(preset => (
+                      <button
+                        key={preset.hue}
+                        type="button"
+                        className="accent-swatch"
+                        style={{ '--swatch-hue': preset.hue } as React.CSSProperties}
+                        aria-label={preset.name}
+                        aria-pressed={settings.accentHue === preset.hue}
+                        title={preset.name}
+                        onClick={() => set('accentHue', preset.hue)}
+                      />
+                    ))}
+                  </span>
+                  <input
+                    type="range"
+                    className="accent-slider"
+                    min={0}
+                    max={359}
+                    step={1}
+                    value={settings.accentHue}
+                    aria-label="Accent hue"
+                    onChange={event => set('accentHue', Number(event.target.value))}
+                  />
+                </span>
+              </div>
+            </section>
+          )}
+
+          {/* ---------------- shortcuts ---------------- */}
+
+          <section className="panel" id="shortcuts">
+            <header className="panel-head">
+              <h2>Keyboard shortcuts</h2>
+              <span className="hint">on a Mac</span>
+            </header>
+            <dl className="shortcut-list">
+              <div>
+                <dt>
+                  <kbd>⌘</kbd> <kbd>K</kbd>
+                </dt>
+                <dd>Search everything</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>Space</kbd>
+                </dt>
+                <dd>Play / pause</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>←</kbd> <kbd>→</kbd>
+                </dt>
+                <dd>Skip back / forward 5 seconds</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>⇧</kbd> <kbd>←</kbd> / <kbd>→</kbd>
+                </dt>
+                <dd>Previous / next track</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>S</kbd>
+                </dt>
+                <dd>Shuffle</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>R</kbd>
+                </dt>
+                <dd>Repeat</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>L</kbd>
+                </dt>
+                <dd>Lyrics</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>Q</kbd>
+                </dt>
+                <dd>Queue</dd>
+              </div>
+            </dl>
+          </section>
         </div>
-
-        {missingCount > 0 && (
-          <>
-            <p className="notice notice-warn">
-              {missingCount} {missingCount === 1 ? 'song is' : 'songs are'} in your library but
-              the {missingCount === 1 ? 'file is' : 'files are'} gone. Their tags and play counts
-              are kept in case the files come back.
-            </p>
-            <button
-              type="button"
-              className="button button-danger"
-              disabled={purging}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Permanently forget ${missingCount} missing songs, including their tags and play history?`,
-                  )
-                ) {
-                  setPurging(true)
-                  void api.purgeMissing().finally(() => setPurging(false))
-                }
-              }}
-            >
-              <Trash size={15} /> Forget missing songs
-            </button>
-          </>
-        )}
-      </section>
-
-      <section className="panel">
-        <header className="panel-head">
-          <h2>Keyboard shortcuts</h2>
-        </header>
-        <dl className="shortcut-list">
-          <div>
-            <dt>
-              <kbd>⌘</kbd> <kbd>K</kbd>
-            </dt>
-            <dd>Search everything</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>Space</kbd>
-            </dt>
-            <dd>Play / pause</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>←</kbd> <kbd>→</kbd>
-            </dt>
-            <dd>Skip back / forward 5 seconds</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>⇧</kbd> <kbd>←</kbd> / <kbd>→</kbd>
-            </dt>
-            <dd>Previous / next track</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>S</kbd>
-            </dt>
-            <dd>Shuffle</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>R</kbd>
-            </dt>
-            <dd>Repeat</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>L</kbd>
-            </dt>
-            <dd>Lyrics</dd>
-          </div>
-          <div>
-            <dt>
-              <kbd>Q</kbd>
-            </dt>
-            <dd>Queue</dd>
-          </div>
-        </dl>
-      </section>
+      </div>
     </section>
   )
+}
+
+/**
+ * Which section the reader is looking at.
+ *
+ * An IntersectionObserver is the trigger rather than the answer: it fires
+ * exactly when a section crosses the top of the page, and the answer is then
+ * read off the geometry — the last section whose top has passed the header.
+ * Taking the first *intersecting* section instead gets it wrong whenever two
+ * are on screen at once, which at the top of a scroll is most of the time.
+ */
+function useActiveSection(
+  sections: ReadonlyArray<{ id: string }>,
+  ready: boolean,
+): string | null {
+  const [active, setActive] = useState<string | null>(null)
+  const ids = sections.map(section => section.id).join(',')
+
+  useEffect(() => {
+    if (!ready) return
+    const elements = ids
+      .split(',')
+      .map(id => document.getElementById(id))
+      .filter((element): element is HTMLElement => element !== null)
+    if (elements.length === 0) return
+
+    const pick = (): void => {
+      // Just below the sticky chip row at narrow widths.
+      const threshold = 72
+      let current = elements[0]
+      for (const element of elements) {
+        if (element.getBoundingClientRect().top <= threshold) current = element
+      }
+      if (current) setActive(current.id)
+    }
+
+    pick()
+    const observer = new IntersectionObserver(pick, {
+      rootMargin: '-72px 0px -60% 0px',
+      threshold: [0, 1],
+    })
+    for (const element of elements) observer.observe(element)
+    return () => observer.disconnect()
+    // `ready` matters as much as `ids`: half the panels only exist once the
+    // settings have loaded, and an observer set up before then sees nothing.
+  }, [ids, ready])
+
+  return active
 }

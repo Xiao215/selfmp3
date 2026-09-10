@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 
 /**
  * Charts.
@@ -10,14 +10,26 @@ import { useId, useState } from 'react'
  *
  * The visual rules applied throughout, which are what keep these readable:
  *  - Single series, so one colour and no legend; the heading says what it is.
- *  - Thin marks with a rounded data-end and a square baseline.
- *  - Hairline, solid, recessive gridlines. Never dashed.
+ *  - Thin marks capped at 24px, with a rounded data-end and a square baseline.
+ *  - Hairline, solid, recessive gridlines, labelled with round numbers. Never
+ *    dashed.
  *  - Text always wears text tokens, never the series colour.
- *  - Every chart has a hover tooltip and a table fallback for screen readers.
+ *  - Every chart has a hover tooltip, the same tooltip from the keyboard, and
+ *    a table fallback for screen readers.
+ *
+ * The column chart measures its container and draws in real pixels rather than
+ * stretching a 0–100 viewBox: a non-uniform stretch turns a 4px rounded cap
+ * into an ellipse and makes the bar-width cap meaningless.
  */
 
 const SERIES = 'var(--chart-series)'
 const GRID = 'var(--chart-grid)'
+
+/** Widest a bar is ever allowed to be. Past this it reads as a slab. */
+const MAX_BAR = 24
+const MIN_BAR = 2
+/** Room under the plot for the value axis to breathe. */
+const TOP_PAD = 10
 
 export interface ColumnDatum {
   readonly label: string
@@ -26,11 +38,48 @@ export interface ColumnDatum {
   readonly detail?: string
 }
 
+/** The rendered width of an element, kept in sync with its container. */
+function useMeasuredWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
+  const ref = useRef<T>(null)
+  const [width, setWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    setWidth(element.clientWidth)
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0]
+      if (entry) setWidth(Math.round(entry.contentRect.width))
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, width]
+}
+
+/** A bar with a rounded data-end and a square baseline, as a path. */
+function barPath(x: number, y: number, width: number, height: number): string {
+  const radius = Math.min(4, width / 2, height)
+  if (height <= radius) return `M${x} ${y + height}h${width}v${-height}h${-width}z`
+  return [
+    `M${x} ${y + height}`,
+    `V${y + radius}`,
+    `a${radius} ${radius} 0 0 1 ${radius} ${-radius}`,
+    `h${width - radius * 2}`,
+    `a${radius} ${radius} 0 0 1 ${radius} ${radius}`,
+    `V${y + height}`,
+    'z',
+  ].join('')
+}
+
 /**
  * A column chart for values over time.
  *
- * Bars are capped at 24px and never fill their slot — the leftover space is
- * what makes a dense series readable rather than a solid block.
+ * Bars never fill their slot — the leftover space is what makes a dense series
+ * readable rather than a solid block — and each column carries a full-height
+ * transparent hit area, so hovering a one-play day does not mean landing on a
+ * 3px sliver.
  */
 export function ColumnChart({
   data,
@@ -38,6 +87,7 @@ export function ColumnChart({
   unit = '',
   emptyMessage = 'No activity yet',
   labelEvery,
+  caption,
 }: {
   data: readonly ColumnDatum[]
   height?: number
@@ -45,83 +95,157 @@ export function ColumnChart({
   emptyMessage?: string
   /** Show an x label every Nth column; defaults to something sensible. */
   labelEvery?: number
+  /** What the chart plots, for the screen-reader table. */
+  caption?: string
 }) {
   const [hovered, setHovered] = useState<number | null>(null)
-  const titleId = useId()
+  const [plotRef, plotWidth] = useMeasuredWidth<HTMLDivElement>()
+  const tableId = useId()
+
+  const move = useCallback(
+    (delta: number) => {
+      setHovered(current => {
+        const next = current === null ? 0 : current + delta
+        return Math.max(0, Math.min(data.length - 1, next))
+      })
+    },
+    [data.length],
+  )
 
   if (data.length === 0) return <p className="chart-empty">{emptyMessage}</p>
 
   const max = Math.max(...data.map(datum => datum.value), 1)
   const niceMax = niceCeiling(max)
-  const step = data.length > 0 ? 100 / data.length : 100
-  // Cap the bar so a sparse series does not render as slabs.
-  const barWidth = Math.min(step * 0.62, 3.2)
+  const plotHeight = height - TOP_PAD
+  const step = plotWidth / data.length
+  const barWidth = Math.max(MIN_BAR, Math.min(step * 0.62, MAX_BAR))
   const everyN = labelEvery ?? Math.max(1, Math.ceil(data.length / 7))
 
   return (
-    <figure className="chart" aria-labelledby={titleId}>
-      <div className="chart-plot" style={{ height }}>
-        <svg
-          viewBox={`0 0 100 ${height}`}
-          preserveAspectRatio="none"
-          role="img"
-          aria-label={`Column chart, ${data.length} points, maximum ${niceMax}${unit}`}
+    <figure className="chart">
+      <div className="chart-body">
+        {/* Round numbers on the gridlines carry the values nothing labels. */}
+        <div className="chart-yaxis" style={{ height }} aria-hidden="true">
+          <span>
+            {formatNumber(niceMax)}
+            {unit}
+          </span>
+          <span>
+            {formatNumber(niceMax / 2)}
+            {unit}
+          </span>
+          <span>0</span>
+        </div>
+
+        <div
+          className="chart-plot"
+          ref={plotRef}
+          style={{ height }}
+          tabIndex={0}
+          role="group"
+          aria-describedby={tableId}
+          aria-label={`${caption ?? 'Chart'}. Use the left and right arrow keys to read each value.`}
+          onKeyDown={event => {
+            if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              move(1)
+            } else if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              move(-1)
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              setHovered(0)
+            } else if (event.key === 'End') {
+              event.preventDefault()
+              setHovered(data.length - 1)
+            } else if (event.key === 'Escape') {
+              setHovered(null)
+            }
+          }}
+          onBlur={() => setHovered(null)}
+          onPointerLeave={() => setHovered(null)}
         >
-          {/* Gridlines: solid hairlines, one step off the surface. */}
-          {[0, 0.5, 1].map(fraction => (
-            <line
-              key={fraction}
-              x1={0}
-              x2={100}
-              y1={height - fraction * (height - 8)}
-              y2={height - fraction * (height - 8)}
-              stroke={GRID}
-              strokeWidth={0.5}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
+          {plotWidth > 0 && (
+            <svg width={plotWidth} height={height} aria-hidden="true">
+              {[0, 0.5, 1].map(fraction => (
+                <line
+                  key={fraction}
+                  x1={0}
+                  x2={plotWidth}
+                  y1={height - fraction * plotHeight}
+                  y2={height - fraction * plotHeight}
+                  stroke={GRID}
+                  strokeWidth={1}
+                  shapeRendering="crispEdges"
+                />
+              ))}
 
-          {data.map((datum, index) => {
-            const barHeight =
-              niceMax > 0 ? Math.max(datum.value > 0 ? 2 : 0, (datum.value / niceMax) * (height - 8)) : 0
-            const x = index * step + (step - barWidth) / 2
+              {data.map((datum, index) => {
+                const barHeight =
+                  niceMax > 0
+                    ? Math.max(datum.value > 0 ? 2 : 0, (datum.value / niceMax) * plotHeight)
+                    : 0
+                const x = index * step + (step - barWidth) / 2
 
-            return (
-              <rect
-                key={index}
-                x={x}
-                y={height - barHeight}
-                width={barWidth}
-                height={barHeight}
-                // A rounded data-end reads as a cap; the baseline stays square
-                // because the bar grows from it.
-                rx={Math.min(barWidth / 2, 1.4)}
-                fill={SERIES}
-                opacity={hovered === null || hovered === index ? 1 : 0.45}
-                onPointerEnter={() => setHovered(index)}
-                onPointerLeave={() => setHovered(null)}
-              />
-            )
-          })}
-        </svg>
+                return (
+                  <g key={index}>
+                    {barHeight > 0 && (
+                      <path
+                        d={barPath(x, height - barHeight, barWidth, barHeight)}
+                        fill={SERIES}
+                        opacity={hovered === null || hovered === index ? 1 : 0.4}
+                      />
+                    )}
+                    {/* The hit area is the whole column, not the 3px mark. */}
+                    <rect
+                      x={index * step}
+                      y={0}
+                      width={step}
+                      height={height}
+                      fill="transparent"
+                      onPointerEnter={() => setHovered(index)}
+                    />
+                  </g>
+                )
+              })}
+            </svg>
+          )}
 
-        <Tooltip datum={hovered === null ? undefined : data[hovered]} left={hovered === null ? 0 : (hovered + 0.5) * step} unit={unit} />
+          <Tooltip
+            datum={hovered === null ? undefined : data[hovered]}
+            left={
+              hovered === null || plotWidth === 0 ? 0 : ((hovered + 0.5) * step * 100) / plotWidth
+            }
+            unit={unit}
+          />
+        </div>
       </div>
 
       <div className="chart-axis">
         {data.map((datum, index) =>
           index % everyN === 0 ? (
-            <span key={index} style={{ left: `${(index + 0.5) * step}%` }}>
+            <span key={index} style={{ left: `${((index + 0.5) / data.length) * 100}%` }}>
               {datum.label}
             </span>
           ) : null,
         )}
       </div>
 
-      <figcaption id={titleId} className="visually-hidden">
-        Maximum {niceMax}
-        {unit}
-      </figcaption>
+      {/* Every value, reachable without the plot. */}
+      <table className="visually-hidden" id={tableId}>
+        <caption>{caption ?? 'Chart data'}</caption>
+        <tbody>
+          {data.map((datum, index) => (
+            <tr key={index}>
+              <th scope="row">{datum.detail ?? datum.label}</th>
+              <td>
+                {datum.value}
+                {unit}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </figure>
   )
 }
@@ -219,8 +343,16 @@ function Tooltip({
 }) {
   if (!datum) return null
 
+  // Near either edge the tooltip anchors to its own edge instead of its middle,
+  // so it never hangs off the side of the panel.
+  const anchor = left < 18 ? 'start' : left > 82 ? 'end' : 'center'
+
   return (
-    <div className="chart-tooltip" style={{ left: `${left}%` }} role="status">
+    <div
+      className={`chart-tooltip is-${anchor}`}
+      style={{ left: `${left}%` }}
+      role="status"
+    >
       <strong>
         {formatNumber(datum.value)}
         {unit}

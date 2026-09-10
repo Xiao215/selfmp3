@@ -196,6 +196,35 @@
   gap: 2px;
 }
 
+.meta-diff-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.meta-diff-head .meta-section-title {
+  margin-bottom: 8px;
+}
+
+.meta-diff-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.meta-diff-count {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
 .meta-diff-row {
   display: flex;
   align-items: center;
@@ -221,8 +250,15 @@
 .meta-diff-values {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  align-items: baseline;
+  gap: 2px 8px;
   min-width: 0;
+}
+
+/* Old, then an arrow, then new: the direction of the change, said once. */
+.meta-diff-arrow {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .meta-diff-old {
@@ -247,27 +283,6 @@
 .meta-error {
   margin-right: auto;
   color: var(--warning);
-}
-
-.fix-covers {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.fix-covers .button-row {
-  align-items: center;
-}
-
-.fix-covers .button-row .hint {
-  flex: 1;
-  min-width: 200px;
-}
-
-.fix-covers .notice {
-  margin-top: 14px;
-  margin-bottom: 0;
-  justify-content: flex-start;
 }
 
 @media (max-width: 819px) {
@@ -311,8 +326,40 @@
     overflow: visible;
   }
 
+  /*
+   * Side by side needs width this screen has not got: at 390px the label
+   * column was wrapping to two lines and the old and new values were sharing
+   * what was left. One line for the field, one for the change.
+   */
+  .meta-diff-row {
+    display: grid;
+    grid-template-columns: 17px minmax(0, 1fr);
+    grid-template-areas:
+      'check label'
+      'check values';
+    row-gap: 2px;
+    padding: 9px 8px;
+    align-items: center;
+  }
+
+  .meta-diff-row > .checkbox {
+    grid-area: check;
+    align-self: start;
+    margin-top: 2px;
+  }
+
   .meta-diff-label {
-    width: 76px;
+    grid-area: label;
+    width: auto;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .meta-diff-values {
+    grid-area: values;
+    font-size: 14px;
   }
 
   .meta-foot {

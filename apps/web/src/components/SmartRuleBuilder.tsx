@@ -39,7 +39,7 @@ const FIELD_GROUPS: ReadonlyArray<{ label: string; fields: ReadonlyArray<[FieldK
     fields: [
       ['playCount', 'Play count'],
       ['skipCount', 'Skip count'],
-      ['duration', 'Length (seconds)'],
+      ['duration', 'Length'],
       ['year', 'Year'],
     ],
   },
@@ -64,7 +64,7 @@ const FIELD_GROUPS: ReadonlyArray<{ label: string; fields: ReadonlyArray<[FieldK
       ['bpm', 'BPM'],
       ['key', 'Key'],
       ['energy', 'Energy'],
-      ['loudness', 'Loudness (LUFS)'],
+      ['loudness', 'Loudness'],
     ],
   },
 ]
@@ -126,6 +126,15 @@ const FIELD_OPTIONS = FIELD_GROUPS.map(group => ({
 const SORT_OPTIONS = toOptions(SORT_LABELS)
 const KEY_OPTIONS = toOptions(CAMELOT_CODES)
 
+/** Every numeric field compares the same way, so the wording is shared. */
+const NUMBER_OPS = [
+  { value: 'gt', label: 'is more than' },
+  { value: 'gte', label: 'is at least' },
+  { value: 'eq', label: 'is exactly' },
+  { value: 'lte', label: 'is at most' },
+  { value: 'lt', label: 'is less than' },
+] as const
+
 /** A sensible starting rule for each field, so adding one is never a dead end. */
 function defaultRuleFor(field: FieldKey, tags: readonly Tag[]): SmartRule {
   switch (field) {
@@ -173,6 +182,10 @@ export function SmartRuleBuilder({
   const [description, setDescription] = useState('')
 
   const debounced = useDebounced(rules, 350)
+  // The count is only about `debounced`; while the two disagree the number on
+  // screen belongs to the previous rules, so it is dimmed rather than left
+  // looking authoritative.
+  const stale = debounced !== rules
 
   // Preview against the real library, debounced so typing does not spam it.
   useEffect(() => {
@@ -214,9 +227,12 @@ export function SmartRuleBuilder({
   }
 
   const preview = useMemo(() => {
-    if (matchCount === null) return 'Checking…'
-    if (matchCount === 0) return 'Nothing matches these rules yet'
-    return `${matchCount} ${matchCount === 1 ? 'song' : 'songs'} match`
+    if (matchCount === null) return { number: '', text: 'Checking…' }
+    if (matchCount === 0) return { number: '', text: 'Nothing matches yet' }
+    return {
+      number: matchCount.toLocaleString(),
+      text: matchCount === 1 ? 'song matches' : 'songs match',
+    }
   }, [matchCount])
 
   return (
@@ -237,7 +253,19 @@ export function SmartRuleBuilder({
           />{' '}
           of these rules
         </span>
-        <span className={`rule-count ${matchCount === 0 ? 'is-empty' : ''}`}>{preview}</span>
+        <span
+          className={[
+            'rule-count',
+            matchCount === 0 ? 'is-empty' : '',
+            stale || matchCount === null ? 'is-stale' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-live="polite"
+        >
+          {preview.number && <span className="rule-count-number">{preview.number}</span>}
+          {preview.text}
+        </span>
       </div>
 
       <div className="rule-list">
@@ -246,19 +274,20 @@ export function SmartRuleBuilder({
             key={index}
             rule={rule}
             tags={tags}
+            join={index === 0 ? 'Where' : rules.match === 'all' ? 'and' : 'or'}
             onChange={next => setRule(index, next)}
             onRemove={() => removeRule(index)}
           />
         ))}
 
         {rules.rules.length === 0 && (
-          <p className="hint">
+          <p className="hint rule-empty">
             No rules yet — this matches your whole library. Add one to narrow it down.
           </p>
         )}
       </div>
 
-      <button type="button" className="button button-small" onClick={addRule}>
+      <button type="button" className="button button-small rule-add" onClick={addRule}>
         <Plus size={13} /> Add rule
       </button>
 
@@ -313,15 +342,23 @@ export function SmartRuleBuilder({
   )
 }
 
-/** One rule. The controls shown depend on which field is selected. */
+/**
+ * One rule, as one line of the sentence.
+ *
+ * The grid in `playlists.css` gives every rule the same five cells — joint,
+ * field, operator, value, remove — so which controls a field needs changes
+ * without anything below it shifting sideways.
+ */
 function RuleRow({
   rule,
   tags,
+  join,
   onChange,
   onRemove,
 }: {
   rule: SmartRule
   tags: readonly Tag[]
+  join: string
   onChange: (rule: SmartRule) => void
   onRemove: () => void
 }) {
@@ -329,12 +366,17 @@ function RuleRow({
 
   return (
     <div className="rule-row">
+      <span className="rule-join" aria-hidden="true">
+        {join}
+      </span>
+
       <Select<FieldKey>
         value={rule.field}
         onChange={changeField}
         options={FIELD_OPTIONS}
         label="Field"
         size="small"
+        className="rule-field"
       />
 
       {(rule.field === 'title' ||
@@ -353,14 +395,17 @@ function RuleRow({
             ]}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          <input
-            className="input input-small input-grow"
-            value={rule.value}
-            onChange={event => onChange({ ...rule, value: event.target.value })}
-            placeholder="text"
-            aria-label="Value"
-          />
+          <span className="rule-value">
+            <input
+              className="input input-small input-grow"
+              value={rule.value}
+              onChange={event => onChange({ ...rule, value: event.target.value })}
+              placeholder="text"
+              aria-label="Value"
+            />
+          </span>
         </>
       )}
 
@@ -375,19 +420,22 @@ function RuleRow({
             ]}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          <Select<number>
-            value={rule.tagId}
-            onChange={tagId => onChange({ ...rule, tagId })}
-            options={
-              tags.length === 0
-                ? [{ value: 0, label: 'no tags yet', disabled: true }]
-                : tags.map(tag => ({ value: tag.id, label: tag.name }))
-            }
-            label="Tag"
-            size="small"
-            className="input-grow"
-          />
+          <span className="rule-value">
+            <Select<number>
+              value={rule.tagId}
+              onChange={tagId => onChange({ ...rule, tagId })}
+              options={
+                tags.length === 0
+                  ? [{ value: 0, label: 'no tags yet', disabled: true }]
+                  : tags.map(tag => ({ value: tag.id, label: tag.name }))
+              }
+              label="Tag"
+              size="small"
+              className="input-grow"
+            />
+          </span>
         </>
       )}
 
@@ -399,23 +447,21 @@ function RuleRow({
           <Select<typeof rule.op>
             value={rule.op}
             onChange={op => onChange({ ...rule, op })}
-            options={[
-              { value: 'gt', label: 'is more than' },
-              { value: 'gte', label: 'is at least' },
-              { value: 'eq', label: 'is exactly' },
-              { value: 'lte', label: 'is at most' },
-              { value: 'lt', label: 'is less than' },
-            ]}
+            options={NUMBER_OPS}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          <input
-            className="input input-small"
-            type="number"
-            value={rule.value}
-            onChange={event => onChange({ ...rule, value: Number(event.target.value) })}
-            aria-label="Value"
-          />
+          <span className="rule-value">
+            <input
+              className="input input-small"
+              type="number"
+              value={rule.value}
+              onChange={event => onChange({ ...rule, value: Number(event.target.value) })}
+              aria-label="Value"
+            />
+            {rule.field === 'duration' && <span className="rule-unit">seconds</span>}
+          </span>
         </>
       )}
 
@@ -431,21 +477,24 @@ function RuleRow({
             ]}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          {rule.op !== 'never' && (
-            <>
-              <input
-                className="input input-small"
-                type="number"
-                min={1}
-                max={3650}
-                value={rule.days ?? 30}
-                onChange={event => onChange({ ...rule, days: Number(event.target.value) })}
-                aria-label="Days"
-              />
-              <span className="rule-unit">days</span>
-            </>
-          )}
+          <span className="rule-value">
+            {rule.op !== 'never' && (
+              <>
+                <input
+                  className="input input-small"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={rule.days ?? 30}
+                  onChange={event => onChange({ ...rule, days: Number(event.target.value) })}
+                  aria-label="Days"
+                />
+                <span className="rule-unit">days</span>
+              </>
+            )}
+          </span>
         </>
       )}
 
@@ -454,28 +503,25 @@ function RuleRow({
           <Select<typeof rule.op>
             value={rule.op}
             onChange={op => onChange({ ...rule, op })}
-            options={[
-              { value: 'gt', label: 'is more than' },
-              { value: 'gte', label: 'is at least' },
-              { value: 'eq', label: 'is exactly' },
-              { value: 'lte', label: 'is at most' },
-              { value: 'lt', label: 'is less than' },
-            ]}
+            options={NUMBER_OPS}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          <input
-            className="input input-small"
-            type="number"
-            step={rule.field === 'energy' ? 0.05 : 1}
-            min={rule.field === 'energy' ? 0 : undefined}
-            max={rule.field === 'energy' ? 1 : undefined}
-            value={rule.value}
-            onChange={event => onChange({ ...rule, value: Number(event.target.value) })}
-            aria-label="Value"
-          />
-          <span className="rule-unit">
-            {rule.field === 'bpm' ? 'BPM' : rule.field === 'energy' ? '0–1' : 'LUFS'}
+          <span className="rule-value">
+            <input
+              className="input input-small"
+              type="number"
+              step={rule.field === 'energy' ? 0.05 : 1}
+              min={rule.field === 'energy' ? 0 : undefined}
+              max={rule.field === 'energy' ? 1 : undefined}
+              value={rule.value}
+              onChange={event => onChange({ ...rule, value: Number(event.target.value) })}
+              aria-label="Value"
+            />
+            <span className="rule-unit">
+              {rule.field === 'bpm' ? 'BPM' : rule.field === 'energy' ? '0–1' : 'LUFS'}
+            </span>
           </span>
         </>
       )}
@@ -491,32 +537,46 @@ function RuleRow({
             ]}
             label="Operator"
             size="small"
+            className="rule-op"
           />
-          <Select<string>
-            value={rule.value}
-            onChange={value => onChange({ ...rule, value })}
-            options={KEY_OPTIONS}
-            label="Key"
-            size="small"
-          />
+          <span className="rule-value">
+            <Select<string>
+              value={rule.value}
+              onChange={value => onChange({ ...rule, value })}
+              options={KEY_OPTIONS}
+              label="Key"
+              size="small"
+              className="input-grow"
+            />
+          </span>
         </>
       )}
 
       {(rule.field === 'loved' || rule.field === 'hasLyrics' || rule.field === 'hasArt') && (
-        <Select<'yes' | 'no'>
-          value={rule.value ? 'yes' : 'no'}
-          onChange={value => onChange({ ...rule, value: value === 'yes' })}
-          options={[
-            { value: 'yes', label: 'yes' },
-            { value: 'no', label: 'no' },
-          ]}
-          label="Value"
-          size="small"
-        />
+        <>
+          <Select<'yes' | 'no'>
+            value={rule.value ? 'yes' : 'no'}
+            onChange={value => onChange({ ...rule, value: value === 'yes' })}
+            options={[
+              { value: 'yes', label: 'is yes' },
+              { value: 'no', label: 'is no' },
+            ]}
+            label="Value"
+            size="small"
+            className="rule-op"
+          />
+          <span className="rule-value" />
+        </>
       )}
 
-      <button type="button" className="icon-button" onClick={onRemove} aria-label="Remove rule">
-        <X size={15} />
+      <button
+        type="button"
+        className="icon-button icon-button-tiny rule-remove"
+        onClick={onRemove}
+        aria-label="Remove this rule"
+        title="Remove this rule"
+      >
+        <X size={14} />
       </button>
     </div>
   )

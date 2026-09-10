@@ -2,7 +2,7 @@
 
 .playlist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
   gap: 14px;
 }
 
@@ -11,10 +11,13 @@
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out);
 }
 
-.playlist-card:hover {
+.playlist-card:hover,
+.playlist-card:focus-within {
   background: var(--surface-2);
   border-color: var(--border-strong);
 }
@@ -26,36 +29,127 @@
   padding: 18px;
   width: 100%;
   text-align: left;
+  border-radius: var(--radius);
 }
 
 .playlist-card-icon {
   color: var(--accent);
   margin-bottom: 8px;
+  /* The action buttons live in this corner; the icon keeps out of their way. */
+  height: 26px;
 }
 
 .playlist-card-name {
   font-weight: 600;
   font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .playlist-card-sub,
 .playlist-card-desc {
   font-size: 12px;
   color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.playlist-card-desc {
+  /* Two lines of description, then an ellipsis: cards stay the same height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 4px;
 }
 
 .playlist-card-actions {
   position: absolute;
-  top: 12px;
-  right: 10px;
+  top: 10px;
+  right: 8px;
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur) var(--ease-out);
 }
 
-.playlist-card:hover .playlist-card-actions {
+.playlist-card:hover .playlist-card-actions,
+.playlist-card:focus-within .playlist-card-actions {
   opacity: 1;
+}
+
+/* A pinned playlist has to say so even when nothing is hovering it. */
+.playlist-card-actions:has(.playlist-pin[aria-pressed='true']) {
+  opacity: 1;
+}
+
+.playlist-pin {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.playlist-pin:not(.is-accent) {
+  color: var(--text-muted);
+}
+
+/*
+ * Hover is not a thing a finger does: on touch the actions are simply there.
+ */
+@media (hover: none), (pointer: coarse) {
+  .playlist-card-actions {
+    opacity: 1;
+  }
+}
+
+/* --- the empty state, as a cell of the grid --- */
+
+.playlist-card-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px;
+  background: none;
+  border-style: dashed;
+}
+
+.playlist-card-empty:hover {
+  background: none;
+  border-color: var(--border-strong);
+}
+
+.playlist-empty-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.playlist-card-empty .button {
+  margin-top: 4px;
+}
+
+.empty-actions {
+  justify-content: center;
+}
+
+/* --- one playlist --- */
+
+.playlist-title {
+  position: relative;
+}
+
+.playlist-rename {
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity var(--dur) var(--ease-out);
+}
+
+.playlist-title:hover .playlist-rename,
+.playlist-rename:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .playlist-rename {
+    opacity: 1;
+  }
 }
 
 .playlist-row {
@@ -63,9 +157,12 @@
   align-items: center;
   gap: 6px;
   border-radius: var(--radius-sm);
+  /* The drop indicator is drawn on the top edge; keep it from being clipped. */
+  position: relative;
 }
 
-.playlist-row:hover {
+.playlist-row:hover,
+.playlist-row:focus-within {
   background: var(--surface-1);
 }
 
@@ -74,11 +171,51 @@
 }
 
 .playlist-row.is-dragging {
-  opacity: 0.4;
+  opacity: 0.45;
+  background: var(--surface-2);
 }
 
-.playlist-row.is-drop-target {
-  box-shadow: inset 0 2px 0 var(--accent);
+.playlist-row.is-drop-target::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.playlist-song-list.is-reordering {
+  /* Nothing else should look draggable mid-drag. */
+  cursor: grabbing;
+  user-select: none;
+}
+
+.playlist-grip {
+  cursor: grab;
+  color: var(--text-muted);
+  opacity: 0.45;
+  transition:
+    opacity var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+  touch-action: none;
+}
+
+.playlist-row:hover .playlist-grip,
+.playlist-grip:focus-visible {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
+.playlist-grip:active {
+  cursor: grabbing;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .playlist-grip {
+    opacity: 1;
+  }
 }
 
 .playlist-row-main {
@@ -89,6 +226,7 @@
   padding: 7px 8px;
   min-width: 0;
   text-align: left;
+  border-radius: var(--radius-sm);
 }
 
 .playlist-row-index {
@@ -115,9 +253,58 @@
 .playlist-row-artist {
   font-size: 12px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-row-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+/* Removing a track is destructive and permanent; it does not need to shout. */
+.playlist-row-remove {
+  opacity: 0;
+  color: var(--text-muted);
+  transition:
+    opacity var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+
+.playlist-row:hover .playlist-row-remove,
+.playlist-row-remove:focus-visible {
+  opacity: 1;
+}
+
+.playlist-row-remove:hover {
+  color: var(--danger);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .playlist-row-remove {
+    opacity: 1;
+  }
+
+  /* Finger-sized: a 34px control is a miss waiting to happen. */
+  .playlist-row-remove,
+  .playlist-grip {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
 }
 
 /* ------------------------------------------------ smart rule builder ---- */
+
+/*
+ * Thirteen dropdowns is a wall of controls unless they line up. The rules are
+ * a grid, not a stack of flex rows: every field select starts at the same x,
+ * every operator at the same x, and every value fills what is left — so six
+ * rules read as six lines of one sentence rather than as six little forms.
+ */
 
 .rule-builder {
   background: var(--surface-1);
@@ -137,37 +324,140 @@
   font-size: 13px;
 }
 
+.rule-builder-head > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/*
+ * The live count. It is the answer to "did that help?", so it sits on the same
+ * line as the all/any switch, wears the accent, and fades while it is being
+ * recalculated instead of silently showing a stale number.
+ */
 .rule-count {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   color: var(--accent);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--dur) var(--ease-out),
+    opacity var(--dur) var(--ease-out);
 }
 
 .rule-count.is-empty {
   color: var(--warning);
+  border-color: oklch(0.45 0.1 78 / 0.6);
+}
+
+.rule-count.is-stale {
+  opacity: 0.55;
+}
+
+.rule-count-number {
+  font-size: 14px;
 }
 
 .rule-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
 }
 
 .rule-row {
+  display: grid;
+  grid-template-columns: 46px 148px 152px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  border-radius: var(--radius-sm);
+}
+
+.rule-row:hover,
+.rule-row:focus-within {
+  background: var(--surface-2);
+}
+
+/* "Where" on the first line, then "and" / "or" — the sentence's joints. */
+.rule-join {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+  padding-right: 2px;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+
+/* The value cell holds an input, a dropdown, or an input plus its unit. */
+.rule-value {
   display: flex;
   align-items: center;
   gap: 7px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.rule-value .input {
+  min-width: 0;
+}
+
+.rule-value > .input[type='number'] {
+  width: 96px;
+  flex: none;
 }
 
 .rule-unit {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.rule-remove {
+  opacity: 0;
+  color: var(--text-muted);
+  transition:
+    opacity var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+
+.rule-row:hover .rule-remove,
+.rule-remove:focus-visible {
+  opacity: 1;
+}
+
+.rule-remove:hover {
+  color: var(--danger);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .rule-remove {
+    opacity: 1;
+  }
+}
+
+.rule-empty {
+  padding: 10px 0 10px 53px;
+}
+
+/* The add button lines up under the first control, continuing the column. */
+.rule-add {
+  margin: 8px 0 0 53px;
+  border-style: dashed;
+  background: none;
+}
+
+.rule-add:hover:not(:disabled) {
+  background: var(--surface-2);
 }
 
 .rule-builder-foot {
   display: flex;
+  align-items: center;
   gap: 18px;
   flex-wrap: wrap;
   margin-top: 16px;
@@ -192,4 +482,64 @@
   font-size: 12px;
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* --- rules on a phone: two lines per rule, still aligned --- */
+
+@media (max-width: 819px) {
+  .rule-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'join    remove'
+      'field   field'
+      'op      op'
+      'value   value';
+    gap: 6px;
+    padding: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+
+  .rule-row:hover,
+  .rule-row:focus-within {
+    background: var(--surface-2);
+  }
+
+  .rule-join {
+    grid-area: join;
+    text-align: left;
+  }
+
+  .rule-field {
+    grid-area: field;
+  }
+
+  .rule-op {
+    grid-area: op;
+  }
+
+  .rule-value {
+    grid-area: value;
+  }
+
+  .rule-remove {
+    grid-area: remove;
+    opacity: 1;
+  }
+
+  /* Let the unit keep its place instead of being pushed off the card. */
+  .rule-value > .input[type='number'] {
+    flex: 1;
+    width: auto;
+  }
+
+  .rule-add,
+  .rule-empty {
+    margin-left: 0;
+    padding-left: 0;
+  }
+
+  .rule-count {
+    margin-left: 0;
+  }
 }

@@ -411,10 +411,16 @@
     grid-template-columns: 1fr;
   }
 
+  /* The label/control grid becomes one column: control under its explanation. */
   .setting-row {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .setting-control {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .offline-summary {
@@ -428,10 +434,6 @@
   .import-form .button {
     width: 100%;
     justify-content: center;
-  }
-
-  .import-item {
-    flex-wrap: wrap;
   }
 
   .palette-backdrop {

@@ -81,7 +81,7 @@
 
 .migrate-table-wrap {
   overflow-x: auto;
-  max-height: 520px;
+  max-height: 560px;
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -96,12 +96,12 @@
 .migrate-table th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-raised);
   text-align: left;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   padding: 8px 10px;
   background: var(--surface-2);
@@ -115,13 +115,25 @@
   background: var(--surface-0);
 }
 
+.migrate-row:last-child td {
+  border-bottom: none;
+}
+
+.migrate-row:hover td {
+  background: var(--surface-1);
+}
+
 .migrate-row.is-chosen td {
   background: var(--surface-1);
 }
 
+.migrate-row.is-chosen .migrate-col-check {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .migrate-row.is-duplicate .migrate-source,
 .migrate-row.is-duplicate .migrate-match {
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .migrate-row-pending td {
@@ -130,24 +142,28 @@
 }
 
 .migrate-col-check {
-  width: 36px;
+  width: 40px;
 }
 
 .migrate-col-conf {
-  width: 90px;
+  width: 104px;
   text-align: right;
 }
 
+/*
+ * The cell stays a table cell — a `display: flex` on a <td> takes it out of the
+ * table layout, which is what made every row's separator sit at its own height.
+ * The flex column goes on a wrapper inside it instead.
+ */
 .migrate-source {
+  min-width: 170px;
+}
+
+.migrate-source-inner {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 160px;
-}
-
-.migrate-source .badge {
-  align-self: flex-start;
-  margin-top: 3px;
+  align-items: flex-start;
 }
 
 .migrate-title {
@@ -156,11 +172,24 @@
 }
 
 .migrate-sub {
+  display: block;
   font-size: 12px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.migrate-dup {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 2px 6px;
 }
 
 .migrate-match {
@@ -195,55 +224,119 @@
   max-width: 420px;
 }
 
+/*
+ * Confidence, three ways at once: a shape, a word (in the tooltip and for
+ * screen readers) and a colour. Green-amber-red on its own is unreadable for
+ * anyone with a red-green deficiency, which is roughly one man in twelve.
+ */
 .migrate-confidence {
-  display: inline-block;
-  min-width: 44px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 62px;
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  padding: 3px 8px;
-  border-radius: 999px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+}
+
+.migrate-confidence-mark {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .migrate-confidence.is-good {
   background: oklch(0.36 0.08 155 / 0.45);
+  border-color: oklch(0.5 0.1 155 / 0.55);
   color: var(--good);
 }
 
 .migrate-confidence.is-fair {
   background: oklch(0.36 0.09 78 / 0.5);
+  border-color: oklch(0.5 0.11 78 / 0.55);
   color: var(--warning);
 }
 
 .migrate-confidence.is-poor {
   background: oklch(0.34 0.09 22 / 0.45);
+  border-color: oklch(0.5 0.12 22 / 0.55);
   color: var(--danger);
+}
+
+/* The key, once above the table, so the three levels are named somewhere. */
+.migrate-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.migrate-legend .migrate-confidence {
+  min-width: 0;
+}
+
+.migrate-legend .hint {
+  flex: 1;
+  min-width: 220px;
 }
 
 .migrate-playlist-name {
   max-width: 360px;
 }
 
+/* Same tick, same problem: a thumb-sized hit area on touch. */
+@media (hover: none), (pointer: coarse) {
+  .migrate-col-check .checkbox {
+    position: relative;
+  }
+
+  .migrate-col-check .checkbox::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
 @media (max-width: 720px) {
+  .migrate-table-wrap {
+    max-height: none;
+  }
+
   .migrate-table thead {
     display: none;
   }
 
   .migrate-row {
     display: grid;
-    grid-template-columns: 36px 1fr auto;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
     grid-template-areas:
       'check source conf'
-      'check match match';
+      'check match  match';
     column-gap: 4px;
-    padding: 6px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--border);
   }
 
   .migrate-table td {
     border-bottom: none;
     padding: 4px 8px;
+    background: none;
+  }
+
+  .migrate-row.is-chosen {
+    background: var(--surface-1);
+  }
+
+  .migrate-row.is-chosen .migrate-col-check {
+    box-shadow: none;
+  }
+
+  .migrate-row:hover td {
+    background: none;
   }
 
   .migrate-row .migrate-col-check {

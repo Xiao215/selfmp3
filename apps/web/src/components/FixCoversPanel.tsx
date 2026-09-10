@@ -4,9 +4,11 @@ import { queryKeys, useFixCovers, useFixCoversStatus } from '../lib/queries.js'
 import { CheckCircle, Sparkles, X } from './Icons.js'
 
 /**
- * "Find missing cover art" — the button and progress line inside the Library
- * settings panel. The pass runs on the server; this only starts, stops and
- * watches it, so closing the tab does not interrupt anything.
+ * "Find missing cover art" — one row of the Library settings panel, with the
+ * same anatomy as every other setting: what it is, one quiet line saying what
+ * it will do, and the control on the right. The pass runs on the server; this
+ * only starts, stops and watches it, so closing the tab does not interrupt
+ * anything.
  */
 export function FixCoversPanel({ missingArt }: { missingArt: number }) {
   const { data: status } = useFixCoversStatus()
@@ -26,38 +28,41 @@ export function FixCoversPanel({ missingArt }: { missingArt: number }) {
   }, [client, found, state])
 
   return (
-    <div className="fix-covers">
-      <div className="button-row">
-        {running ? (
-          <button
-            type="button"
-            className="button"
-            onClick={() => fixCovers.mutate('cancel')}
-            disabled={fixCovers.isPending}
-          >
-            <X size={15} /> Stop looking
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button"
-            onClick={() => fixCovers.mutate('start')}
-            disabled={fixCovers.isPending || missingArt === 0}
-          >
-            <Sparkles size={15} /> Find missing cover art
-          </button>
-        )}
-        {!running && (
-          <span className="hint">
+    <>
+      <div className="setting-row">
+        <span className="setting-label">
+          Cover art
+          <span className="setting-hint">
             {missingArt === 0
               ? 'Every song has artwork.'
-              : `${missingArt} ${missingArt === 1 ? 'song has' : 'songs have'} no artwork. Looks each one up on iTunes and MusicBrainz and keeps confident matches only.`}
+              : `${missingArt} ${missingArt === 1 ? 'song has' : 'songs have'} none. Looks each one up on iTunes and MusicBrainz and keeps confident matches only.`}
           </span>
-        )}
+        </span>
+        <span className="setting-control">
+          {running ? (
+            <button
+              type="button"
+              className="button"
+              onClick={() => fixCovers.mutate('cancel')}
+              disabled={fixCovers.isPending}
+            >
+              <X size={15} /> Stop looking
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button"
+              onClick={() => fixCovers.mutate('start')}
+              disabled={fixCovers.isPending || missingArt === 0}
+            >
+              <Sparkles size={15} /> Find missing art
+            </button>
+          )}
+        </span>
       </div>
 
       {status && running && (
-        <div className="sync-progress">
+        <div className="sync-progress" aria-live="polite">
           <div className="sync-progress-head">
             <span className="spinner" />
             <span>
@@ -76,12 +81,15 @@ export function FixCoversPanel({ missingArt }: { missingArt: number }) {
 
       {status && (status.status === 'done' || status.status === 'cancelled') && (
         <p className="notice notice-good">
-          <CheckCircle size={15} />
-          {status.status === 'cancelled' ? 'Stopped. ' : ''}
-          Found artwork for {status.found} of {status.done} {status.done === 1 ? 'song' : 'songs'}
-          {status.done < status.total ? ` (${status.total - status.done} not checked)` : ''}.
+          <span>
+            <CheckCircle size={15} />{' '}
+            {status.status === 'cancelled' ? 'Stopped. ' : ''}
+            Found artwork for {status.found} of {status.done}{' '}
+            {status.done === 1 ? 'song' : 'songs'}
+            {status.done < status.total ? ` (${status.total - status.done} not checked)` : ''}.
+          </span>
         </p>
       )}
-    </div>
+    </>
   )
 }

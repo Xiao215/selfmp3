@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { formatLongDuration, type SmartRules } from '@selfmp3/shared'
+import { useQueryClient } from '@tanstack/react-query'
+import { formatDuration, formatLongDuration, type SmartRules } from '@selfmp3/shared'
 import {
+  queryKeys,
   useDeletePlaylist,
   useLibrary,
   usePlaylistSongIds,
@@ -20,6 +22,10 @@ import { Grip, Play, Shuffle, Sparkles, Trash, X } from '../components/Icons.js'
  *
  * Manual playlists are drag-reorderable; smart playlists show their rule
  * builder instead, since their order comes from the rules.
+ *
+ * Reordering is available from the keyboard as well as the mouse: the grip is
+ * a real button, and ↑/↓ on it move the track. A drag affordance that only
+ * exists under a pointer is not an affordance on a phone or with a keyboard.
  */
 export function PlaylistDetailView() {
   const { id } = useParams<{ id: string }>()
@@ -29,6 +35,7 @@ export function PlaylistDetailView() {
   const { data: library } = useLibrary()
   const { data: contents } = usePlaylistSongIds(Number.isInteger(playlistId) ? playlistId : null)
   const player = usePlayer()
+  const queryClient = useQueryClient()
 
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
@@ -52,13 +59,26 @@ export function PlaylistDetailView() {
     [contents, songById],
   )
 
-  const reorder = useDragReorder((from, to) => {
+  /**
+   * Move a track and show it moved.
+   *
+   * The server is told the whole new order, but the cached list is updated
+   * first — without that the row snaps back to where it was until the query
+   * happens to refetch, which makes a successful drag look like a failed one.
+   */
+  const moveTo = (from: number, to: number): void => {
     const ids = songs.map(song => song.id)
     const [moved] = ids.splice(from, 1)
     if (moved === undefined) return
     ids.splice(to, 0, moved)
+    queryClient.setQueryData(queryKeys.playlistSongs(playlistId), {
+      playlistId,
+      songIds: ids,
+    })
     void api.reorderPlaylist(playlistId, ids)
-  })
+  }
+
+  const reorder = useDragReorder(moveTo)
 
   if (!playlist) {
     return (
@@ -74,9 +94,15 @@ export function PlaylistDetailView() {
   }
 
   const totalSeconds = songs.reduce((sum, song) => sum + song.duration, 0)
+  const manual = playlist.kind === 'manual'
 
   const saveRules = (rules: SmartRules): void => {
     updatePlaylist.mutate({ id: playlist.id, patch: { rules } })
+  }
+
+  const startRenaming = (): void => {
+    setDraftName(playlist.name)
+    setRenaming(true)
   }
 
   const saveName = (event: React.FormEvent): void => {
@@ -97,24 +123,31 @@ export function PlaylistDetailView() {
               <input
                 autoFocus
                 value={draftName}
+                aria-label="Playlist name"
                 onChange={event => setDraftName(event.target.value)}
                 onBlur={() => setRenaming(false)}
               />
             </form>
           ) : (
-            <h1
-              onDoubleClick={() => {
-                setDraftName(playlist.name)
-                setRenaming(true)
-              }}
-              title="Double-click to rename"
-            >
+            <h1 className="playlist-title" onDoubleClick={startRenaming}>
               {playlist.kind === 'smart' && <Sparkles size={20} />} {playlist.name}
+              <button
+                type="button"
+                className="icon-button icon-button-tiny playlist-rename"
+                onClick={startRenaming}
+                aria-label={`Rename ${playlist.name}`}
+                title="Rename"
+              >
+                <Pencil size={13} />
+              </button>
             </h1>
           )}
           <p className="view-sub">
-            {songs.length} songs · {formatLongDuration(totalSeconds)}
-            {playlist.kind === 'smart' && ' · updates itself'}
+            {songs.length} {songs.length === 1 ? 'song' : 'songs'} ·{' '}
+            {formatLongDuration(totalSeconds)}
+            {playlist.kind === 'smart'
+              ? ' · updates itself'
+              : songs.length > 1 && ' · drag the handles to reorder'}
           </p>
         </div>
 
@@ -145,6 +178,7 @@ export function PlaylistDetailView() {
             <button
               type="button"
               className="button"
+              aria-expanded={editingRules}
               onClick={() => setEditingRules(open => !open)}
             >
               {editingRules ? 'Done' : 'Edit rules'}
@@ -160,7 +194,8 @@ export function PlaylistDetailView() {
                 void navigate('/playlists')
               }
             }}
-            aria-label="Delete playlist"
+            aria-label={`Delete the playlist ${playlist.name}`}
+            title="Delete playlist"
           >
             <Trash size={15} />
           </button>
@@ -181,12 +216,29 @@ export function PlaylistDetailView() {
           <h2>Nothing here yet</h2>
           <p className="hint">
             {playlist.kind === 'smart'
-              ? 'No songs match these rules yet. Try loosening them.'
-              : 'Add songs from the library using the ⋮ menu on any track.'}
+              ? 'No songs match these rules yet. Try loosening them — the count above the rules updates as you type.'
+              : 'Add songs from the library using the ⋯ menu on any track.'}
           </p>
+          {!(playlist.kind === 'smart' && editingRules) && (
+            <div className="button-row empty-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() =>
+                  playlist.kind === 'smart' ? setEditingRules(true) : void navigate('/')
+                }
+              >
+                {playlist.kind === 'smart' ? 'Edit the rules' : 'Go to the library'}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="song-list" onPointerUp={reorder.end} onPointerCancel={reorder.end}>
+        <div
+          className={`song-list playlist-song-list ${reorder.dragging !== null ? 'is-reordering' : ''}`}
+          onPointerUp={reorder.end}
+          onPointerCancel={reorder.end}
+        >
           {songs.map((song, index) => (
             <div
               key={song.id}
@@ -202,12 +254,22 @@ export function PlaylistDetailView() {
                 .join(' ')}
               onPointerEnter={() => reorder.enter(index)}
             >
-              {playlist.kind === 'manual' && (
+              {manual && (
                 <button
                   type="button"
-                  className="queue-grip"
+                  className="queue-grip playlist-grip"
                   onPointerDown={event => reorder.start(index, event)}
-                  aria-label={`Reorder ${song.title}`}
+                  onKeyDown={event => {
+                    if (event.key === 'ArrowUp' && index > 0) {
+                      event.preventDefault()
+                      moveTo(index, index - 1)
+                    } else if (event.key === 'ArrowDown' && index < songs.length - 1) {
+                      event.preventDefault()
+                      moveTo(index, index + 1)
+                    }
+                  }}
+                  aria-label={`Move ${song.title}. Use the up and down arrow keys.`}
+                  title="Drag to reorder, or use ↑ and ↓"
                 >
                   <Grip size={16} />
                 </button>
@@ -226,14 +288,17 @@ export function PlaylistDetailView() {
                 </span>
               </button>
 
-              {playlist.kind === 'manual' && (
+              <span className="playlist-row-time">{formatDuration(song.duration)}</span>
+
+              {manual && (
                 <button
                   type="button"
-                  className="icon-button"
+                  className="icon-button playlist-row-remove"
                   onClick={() =>
                     removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id })
                   }
-                  aria-label={`Remove ${song.title} from playlist`}
+                  aria-label={`Remove ${song.title} from ${playlist.name}`}
+                  title="Remove from this playlist"
                 >
                   <X size={15} />
                 </button>
@@ -243,5 +308,25 @@ export function PlaylistDetailView() {
         </div>
       )}
     </section>
+  )
+}
+
+/** A pencil, for the rename affordance the double-click alone did not give. */
+function Pencil({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
   )
 }

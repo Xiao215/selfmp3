@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDuration, fuzzyRank, isCjkQuery, type Library, type Song } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -38,6 +38,8 @@ export function CommandPalette({
   const [highlighted, setHighlighted] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const listId = useId()
+  const optionId = (index: number): string => `${listId}-option-${index}`
   const navigate = useNavigate()
   const player = usePlayer()
 
@@ -253,14 +255,27 @@ export function CommandPalette({
             placeholder="Search songs, playlists, tags — or type a command"
             spellCheck={false}
             autoComplete="off"
+            role="combobox"
+            aria-expanded
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={flat.length > 0 ? optionId(highlighted) : undefined}
+            aria-label="Search songs, playlists and tags, or type a command"
           />
-          <kbd className="palette-kbd">esc</kbd>
+          {trimmed && (
+            <span className="palette-count" aria-live="polite">
+              {flat.length} {flat.length === 1 ? 'result' : 'results'}
+            </span>
+          )}
         </div>
 
-        <div className="palette-results" ref={listRef}>
+        <div className="palette-results" ref={listRef} role="listbox" id={listId}>
           {matchedCommands.length > 0 && (
             <div className="palette-group">
-              <div className="palette-group-title">Actions</div>
+              <div className="palette-group-title">
+                Actions
+                <span>{matchedCommands.length}</span>
+              </div>
               {matchedCommands.map(command => {
                 const index = cursor++
                 return (
@@ -268,6 +283,9 @@ export function CommandPalette({
                     key={command.id}
                     type="button"
                     data-index={index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={index === highlighted}
                     className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
                     onMouseEnter={() => setHighlighted(index)}
                     onClick={() => activate(index)}
@@ -283,7 +301,10 @@ export function CommandPalette({
 
           {matchedSongs.length > 0 && (
             <div className="palette-group">
-              <div className="palette-group-title">Songs</div>
+              <div className="palette-group-title">
+                Songs
+                <span>{matchedSongs.length}</span>
+              </div>
               {matchedSongs.map((song: Song) => {
                 const index = cursor++
                 return (
@@ -291,6 +312,9 @@ export function CommandPalette({
                     key={song.id}
                     type="button"
                     data-index={index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={index === highlighted}
                     className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
                     onMouseEnter={() => setHighlighted(index)}
                     onClick={() => activate(index)}
@@ -309,7 +333,10 @@ export function CommandPalette({
 
           {matchedPlaylists.length > 0 && (
             <div className="palette-group">
-              <div className="palette-group-title">Playlists</div>
+              <div className="palette-group-title">
+                Playlists
+                <span>{matchedPlaylists.length}</span>
+              </div>
               {matchedPlaylists.map(list => {
                 const index = cursor++
                 return (
@@ -317,6 +344,9 @@ export function CommandPalette({
                     key={list.id}
                     type="button"
                     data-index={index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={index === highlighted}
                     className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
                     onMouseEnter={() => setHighlighted(index)}
                     onClick={() => activate(index)}
@@ -332,7 +362,10 @@ export function CommandPalette({
 
           {matchedTags.length > 0 && (
             <div className="palette-group">
-              <div className="palette-group-title">Tags</div>
+              <div className="palette-group-title">
+                Tags
+                <span>{matchedTags.length}</span>
+              </div>
               {matchedTags.map(tag => {
                 const index = cursor++
                 return (
@@ -340,6 +373,9 @@ export function CommandPalette({
                     key={tag.id}
                     type="button"
                     data-index={index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={index === highlighted}
                     className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
                     onMouseEnter={() => setHighlighted(index)}
                     onClick={() => activate(index)}
@@ -355,7 +391,10 @@ export function CommandPalette({
 
           {matchedLyrics.length > 0 && (
             <div className="palette-group">
-              <div className="palette-group-title">Lyrics</div>
+              <div className="palette-group-title">
+                Lyrics
+                <span>{matchedLyrics.length}</span>
+              </div>
               {matchedLyrics.map(hit => {
                 const index = cursor++
                 return (
@@ -363,6 +402,9 @@ export function CommandPalette({
                     key={hit.songId}
                     type="button"
                     data-index={index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={index === highlighted}
                     className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
                     onMouseEnter={() => setHighlighted(index)}
                     onClick={() => activate(index)}
@@ -386,9 +428,30 @@ export function CommandPalette({
           )}
 
           {trimmed && flat.length === 0 && (
-            <p className="empty-hint">Nothing matches “{trimmed}”.</p>
+            <p className="empty-hint">
+              Nothing matches “{trimmed}”.
+              <br />
+              Try fewer letters, or part of a lyric.
+            </p>
           )}
         </div>
+
+        {/*
+          * The keys are the whole point of a palette; saying so costs one row
+          * and saves everyone the guess.
+          */}
+        <footer className="palette-foot">
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> move
+          </span>
+          <span>
+            <kbd>↵</kbd> open
+          </span>
+          <span>
+            <kbd>esc</kbd> close
+          </span>
+        </footer>
       </div>
     </div>
   )

@@ -253,6 +253,7 @@ export function MigrateView() {
                 </button>
               ) : (
                 <>
+                  <span className="hint">{selectedCount} selected</span>
                   <button
                     type="button"
                     className="link-button"
@@ -290,11 +291,31 @@ export function MigrateView() {
             </p>
           )}
 
+          {stage === 'review' && (
+            <p className="migrate-legend">
+              <span className="migrate-confidence is-good">
+                <span aria-hidden="true">✓</span> Strong
+              </span>
+              <span className="migrate-confidence is-fair">
+                <span aria-hidden="true">~</span> Likely
+              </span>
+              <span className="migrate-confidence is-poor">
+                <span aria-hidden="true">!</span> Weak
+              </span>
+              <span className="hint">
+                Strong matches are ticked for you. Check the likely ones, and pick a different
+                upload from the dropdown where the match is wrong.
+              </span>
+            </p>
+          )}
+
           <div className="migrate-table-wrap">
             <table className="migrate-table">
               <thead>
                 <tr>
-                  <th className="migrate-col-check" />
+                  <th className="migrate-col-check">
+                    <span className="visually-hidden">Import</span>
+                  </th>
                   <th>Source</th>
                   <th>Match on YouTube</th>
                   <th className="migrate-col-conf">Confidence</th>
@@ -383,8 +404,21 @@ export function MigrateView() {
   )
 }
 
-function confidenceClass(confidence: number): string {
-  return confidence >= 0.8 ? 'is-good' : confidence >= 0.5 ? 'is-fair' : 'is-poor'
+/**
+ * How sure the match is, as a class, a word and a mark.
+ *
+ * Green/amber/red alone fails anyone who cannot separate those hues — and a
+ * percentage on its own does not say what counts as good. Each level gets its
+ * own shape and its own word as well as its own colour.
+ */
+function confidenceLevel(confidence: number): {
+  className: string
+  word: string
+  mark: string
+} {
+  if (confidence >= 0.8) return { className: 'is-good', word: 'Strong', mark: '\u2713' }
+  if (confidence >= 0.5) return { className: 'is-fair', word: 'Likely', mark: '\u007e' }
+  return { className: 'is-poor', word: 'Weak', mark: '!' }
 }
 
 function MigrateRow({
@@ -400,6 +434,7 @@ function MigrateRow({
 }) {
   const { item, match } = row
   const pickedIndex = match ? item.candidates.indexOf(match) : 0
+  const level = confidenceLevel(match?.confidence ?? 0)
   // A thumbnail that fails to load (offline, or a video gone) becomes a plain box.
   const [thumbFailed, setThumbFailed] = useState(false)
 
@@ -413,19 +448,23 @@ function MigrateRow({
           className={`checkbox ${checked ? 'is-on' : ''}`}
           onClick={onToggle}
           disabled={!match}
-          aria-label={checked ? 'Deselect' : 'Select'}
+          role="checkbox"
+          aria-checked={checked}
+          aria-label={`Import ${item.source.title}`}
         >
           {checked && <Check size={12} />}
         </button>
       </td>
 
       <td className="migrate-source">
-        <span className="migrate-title">{item.source.title}</span>
-        <span className="migrate-sub">
-          {item.source.artist || 'Unknown artist'}
-          {item.source.duration > 0 && ` · ${formatDuration(item.source.duration)}`}
-        </span>
-        {item.alreadyHave && <span className="badge">already have</span>}
+        <div className="migrate-source-inner">
+          <span className="migrate-title">{item.source.title}</span>
+          <span className="migrate-sub">
+            {item.source.artist || 'Unknown artist'}
+            {item.source.duration > 0 && ` \u00b7 ${formatDuration(item.source.duration)}`}
+          </span>
+          {item.alreadyHave && <span className="migrate-dup">In your library</span>}
+        </div>
       </td>
 
       <td className="migrate-match">
@@ -468,8 +507,15 @@ function MigrateRow({
 
       <td className="migrate-col-conf">
         {match && (
-          <span className={`migrate-confidence ${confidenceClass(match.confidence)}`}>
+          <span
+            className={`migrate-confidence ${level.className}`}
+            title={`${level.word} match \u2014 ${Math.round(match.confidence * 100)}% confident`}
+          >
+            <span className="migrate-confidence-mark" aria-hidden="true">
+              {level.mark}
+            </span>
             {Math.round(match.confidence * 100)}%
+            <span className="visually-hidden"> confident, {level.word.toLowerCase()} match</span>
           </span>
         )}
       </td>

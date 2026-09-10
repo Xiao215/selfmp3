@@ -110,6 +110,8 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
     })
   }
 
+  const applyCount = diffs.filter(diff => ticked.has(diff.field)).length
+
   const submit = (): void => {
     const input: ApplyMetadata = {}
     for (const diff of diffs) {
@@ -122,8 +124,6 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
     if (Object.keys(input).length === 0) return
     apply.mutate({ id: song.id, input }, { onSuccess: onClose })
   }
-
-  const applyCount = diffs.filter(diff => ticked.has(diff.field)).length
 
   return createPortal(
     <div className="meta-backdrop" onClick={onClose}>
@@ -166,6 +166,9 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
           <section className="meta-candidates">
             <h3 className="meta-section-title">
               Suggestions
+              {candidates.length > 0 && (
+                <span className="meta-diff-count">{candidates.length}</span>
+              )}
               {lookup.isPending && <span className="spinner" />}
             </h3>
 
@@ -219,26 +222,63 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
                 {diffs.length === 0 ? (
                   <p className="hint">This suggestion matches what you already have.</p>
                 ) : (
-                  diffs.map(diff => (
-                    <button
-                      type="button"
-                      key={diff.field}
-                      role="checkbox"
-                      aria-checked={ticked.has(diff.field)}
-                      aria-label={`Apply ${FIELD_LABELS[diff.field].toLowerCase()}`}
-                      className="meta-diff-row"
-                      onClick={() => toggle(diff.field)}
-                    >
-                      <span className={`checkbox ${ticked.has(diff.field) ? 'is-on' : ''}`}>
-                        {ticked.has(diff.field) && <Check size={12} />}
-                      </span>
-                      <span className="meta-diff-label">{FIELD_LABELS[diff.field]}</span>
-                      <span className="meta-diff-values">
-                        {diff.current !== '—' && <s className="meta-diff-old">{diff.current}</s>}
-                        <span className="meta-diff-new">{diff.proposed}</span>
-                      </span>
-                    </button>
-                  ))
+                  <>
+                    <div className="meta-diff-head">
+                      <h3 className="meta-section-title">
+                        Changes to apply
+                        <span className="meta-diff-count">
+                          {applyCount} of {diffs.length}
+                        </span>
+                      </h3>
+                      <div className="meta-diff-actions">
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => setTicked(new Set(diffs.map(diff => diff.field)))}
+                        >
+                          select all
+                        </button>
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => setTicked(new Set())}
+                        >
+                          select none
+                        </button>
+                      </div>
+                    </div>
+
+                    {diffs.map(diff => (
+                      <button
+                        type="button"
+                        key={diff.field}
+                        role="checkbox"
+                        aria-checked={ticked.has(diff.field)}
+                        aria-label={`Apply ${FIELD_LABELS[diff.field].toLowerCase()}: ${
+                          diff.current === '—' ? 'nothing' : diff.current
+                        } becomes ${diff.proposed}`}
+                        className="meta-diff-row"
+                        onClick={() => toggle(diff.field)}
+                      >
+                        <span className={`checkbox ${ticked.has(diff.field) ? 'is-on' : ''}`}>
+                          {ticked.has(diff.field) && <Check size={12} />}
+                        </span>
+                        <span className="meta-diff-label">{FIELD_LABELS[diff.field]}</span>
+                        <span className="meta-diff-values">
+                          {diff.current !== '—' && (
+                            <>
+                              <s className="meta-diff-old">{diff.current}</s>
+                              {/* Which way round the change goes, said once. */}
+                              <span className="meta-diff-arrow" aria-hidden="true">
+                                →
+                              </span>
+                            </>
+                          )}
+                          <span className="meta-diff-new">{diff.proposed}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </>
                 )}
               </div>
             )}

@@ -63,7 +63,6 @@ export function YouTubeLibraryPanel({
     <section className="panel yt-panel">
       <header className="panel-head">
         <h2>Import my YouTube Music library</h2>
-        <span className="hint">{sourceLabel}</span>
       </header>
 
       <p className="panel-lead">
@@ -71,18 +70,21 @@ export function YouTubeLibraryPanel({
         the login cookies from your browser, or read a cookies.txt file.
       </p>
 
-      <div className="yt-status">
-        <span className={`yt-status-dot ${configured ? 'is-on' : ''}`} />
+      {/*
+        * A coloured dot is not a status: the state is spelled out, and the dot
+        * only reinforces it.
+        */}
+      <div className={`yt-status ${configured ? 'is-on' : ''}`}>
+        <span className="yt-status-dot" aria-hidden="true" />
         <span>
+          <strong>{configured ? 'Signed in' : 'Not signed in'}</strong>
           {configured ? (
-            <>
-              Cookies configured — <strong>{sourceLabel}</strong>.
-            </>
+            <> — using {sourceLabel}.</>
           ) : (
-            <>No cookies configured. Public playlists still work; Liked Music won’t.</>
+            <> — public playlists still work; Liked Music won’t.</>
           )}{' '}
           <Link to="/settings#youtube" className="link-button">
-            change in Settings
+            {configured ? 'change in Settings' : 'set cookies up in Settings'}
           </Link>
         </span>
         <button

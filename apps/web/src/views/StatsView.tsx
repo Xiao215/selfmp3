@@ -142,6 +142,11 @@ export function StatsView() {
               value={`${stats.streakDays} ${stats.streakDays === 1 ? 'day' : 'days'}`}
               hint={stats.longestStreakDays > 0 ? `best: ${stats.longestStreakDays} days` : undefined}
             />
+            <StatTile
+              label="Never played"
+              value={stats.totals.neverPlayed.toLocaleString()}
+              hint="worth a shuffle sometime"
+            />
           </div>
 
           <div className="stats-panels">
@@ -150,7 +155,12 @@ export function StatsView() {
                 <h2>Plays per day</h2>
                 <span className="hint">{STATS_RANGE_LABELS[range]}</span>
               </header>
-              <ColumnChart data={dailyData} height={170} emptyMessage="No plays in this window" />
+              <ColumnChart
+                data={dailyData}
+                height={170}
+                emptyMessage="No plays in this window"
+                caption={`Plays per day, ${STATS_RANGE_LABELS[range].toLowerCase()}`}
+              />
             </section>
 
             <section className="panel">
@@ -160,7 +170,12 @@ export function StatsView() {
                   <span className="hint">busiest around {formatHour(peakHour.hour)}</span>
                 )}
               </header>
-              <ColumnChart data={hourlyData} height={140} labelEvery={6} />
+              <ColumnChart
+                data={hourlyData}
+                height={140}
+                labelEvery={6}
+                caption="Plays by hour of the day"
+              />
             </section>
 
             <section className="panel">
@@ -223,22 +238,12 @@ export function StatsView() {
               </div>
             </section>
 
-            <section className="panel">
-              <header className="panel-head">
-                <h2>Waiting to be heard</h2>
-              </header>
-              <p className="panel-figure">{stats.totals.neverPlayed.toLocaleString()}</p>
-              <p className="hint">
-                songs in your library you have never played. Worth a shuffle sometime.
-              </p>
-            </section>
-
             {history && history.events.length > 0 && (
               <section className="panel panel-wide">
                 <header className="panel-head">
                   <h2>Recently played</h2>
                 </header>
-                <div className="history-list">
+                <div className="history-list is-columns">
                   {history.events.slice(0, 25).map((event, index) => {
                     const song = songById.get(event.songId)
                     return (

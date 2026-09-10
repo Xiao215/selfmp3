@@ -29,7 +29,7 @@
   display: none;
   position: relative;
   align-items: center;
-  gap: 11px;
+  gap: 8px;
   padding: 8px 12px;
   background: var(--surface-2);
   border-top: 1px solid var(--border);
@@ -71,10 +71,19 @@
   pointer-events: none;
 }
 
+/* The only transport on the phone's home screen: full touch targets, not the
+   34px an icon button gets on a desktop with a mouse. */
 .mini-play,
 .mini-next {
   position: relative;
   z-index: 3;
+  width: var(--hit-target);
+  height: var(--hit-target);
+}
+
+.mini-devices .icon-button {
+  width: var(--hit-target);
+  height: var(--hit-target);
 }
 
 .mini-title {
@@ -93,6 +102,12 @@
   white-space: nowrap;
 }
 
+/*
+ * The full-screen phone player: a fixed head and foot with one flexible stage
+ * between them. Everything in the stage keeps its size except the artwork,
+ * which is the one part that can afford to give way on a short screen — so the
+ * transport and the action row are never pushed off the bottom.
+ */
 .now-playing {
   position: fixed;
   inset: 0;
@@ -100,8 +115,8 @@
   background: var(--surface-0);
   display: flex;
   flex-direction: column;
-  padding: calc(var(--safe-top) + 12px) 20px calc(var(--safe-bottom) + 12px);
-  animation: slide-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: calc(var(--safe-top) + 8px) 16px calc(var(--safe-bottom) + 6px);
+  animation: slide-up var(--dur-slow) var(--ease-out);
 }
 
 @keyframes slide-up {
@@ -114,7 +129,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.np-head-button {
+  width: var(--hit-target);
+  height: var(--hit-target);
 }
 
 .now-playing-context {
@@ -122,6 +143,21 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-playing-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* On a tall phone nothing overflows and this never engages. On a short one
+     (an SE is 667px) the artwork stops shrinking at its floor and the similar
+     shelf goes below the fold instead of squeezing everything above it. */
+  overflow: hidden auto;
+  overscroll-behavior-y: contain;
 }
 
 .now-playing-art {
@@ -129,40 +165,63 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 0;
-  padding: 12px 0;
+  min-height: min(66vw, 300px);
+  padding: 10px 0;
 }
 
+/*
+ * Sized from the room that is left rather than from the viewport width: on a
+ * short phone, or once the similar strip is on screen, the art shrinks instead
+ * of pushing the controls down.
+ */
 .now-playing-cover {
-  width: min(78vw, 340px) !important;
-  height: min(78vw, 340px) !important;
+  width: min(100%, 80vw, 340px) !important;
+  height: auto !important;
+  max-height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  overflow: hidden;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-panel);
 }
 
 .now-playing-meta {
   text-align: center;
-  margin-bottom: 20px;
+  flex-shrink: 0;
+  padding: 4px 4px 14px;
 }
 
 .now-playing-title {
-  font-size: 21px;
-  margin-bottom: 4px;
+  font-size: clamp(19px, 5.4vw, 23px);
+  line-height: 1.25;
+  margin-bottom: 3px;
+  /* Two lines, then an ellipsis: a long CJK title should not eat the artwork. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .now-playing-artist {
   color: var(--text-secondary);
   font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .now-playing-album {
   color: var(--text-muted);
   font-size: 12px;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .now-playing-progress {
-  margin-bottom: 14px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
 }
 
 .now-playing-times {
@@ -171,22 +230,76 @@
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  margin-top: -4px;
+  margin-top: -2px;
 }
 
 .now-playing-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
-  margin-bottom: 24px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  margin-bottom: 18px;
+}
+
+/* Shuffle and repeat are modes, not transport: same row, less weight. */
+.np-mode {
+  width: var(--hit-target);
+  height: var(--hit-target);
+  color: var(--text-muted);
+}
+
+.np-mode.is-accent {
+  color: var(--accent);
 }
 
 .now-playing-foot {
-  display: flex;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  flex-shrink: 0;
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding-top: 6px;
+}
+
+/*
+ * A labelled, finger-sized action. Five bare glyphs in a row is a quiz; the
+ * label costs 12px of height and removes the guessing.
+ */
+.np-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: var(--hit-target);
+  padding: 6px 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  transition:
+    color var(--dur-fast),
+    background var(--dur-fast);
+}
+
+.np-action:active {
+  background: var(--surface-2);
+}
+
+.np-action.is-active {
+  color: var(--accent);
+}
+
+/* The devices trigger comes wrapped in its popover anchor, so the anchor is
+   the grid cell and the button fills it. */
+.devices-anchor.is-action {
+  display: flex;
+}
+
+.devices-anchor.is-action .np-action {
+  flex: 1;
 }
 
 .now-playing .side-panel {
@@ -195,6 +308,13 @@
   background: none;
   flex: 1;
   min-height: 0;
+}
+
+/* Inside the sheet the panel header is already under the now-playing header,
+   so it does not need a second full-width top border. */
+.now-playing .side-panel-head {
+  padding-left: 4px;
+  padding-right: 0;
 }
 
 @media (max-width: 819px) {

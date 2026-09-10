@@ -1,15 +1,22 @@
 /* ============================================================ lyrics+ ===== */
 
-/* Romanization and translation sit under the original as quieter lines. */
+/*
+ * Romanization and translation sit under the original as quieter lines.
+ *
+ * Three stacked lines per lyric is the density limit of this panel, so the two
+ * helpers are told apart by shape rather than by yet another colour step:
+ * the romanization is italic (it is the same words, said differently) and the
+ * translation is upright (it is different words, meaning the same).
+ */
 .lyric-line {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .lyric-sub {
   display: block;
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.4;
   font-weight: 400;
   color: var(--text-muted);
@@ -21,17 +28,13 @@
 }
 
 .lyric-trans {
-  color: var(--text-secondary);
-  opacity: 0.85;
+  color: var(--text-muted);
 }
 
+/* The line being sung is the one that has to be readable; its helpers come up
+   to full contrast with it rather than staying at the reading-ahead level. */
 .lyric-line.is-active .lyric-sub {
   color: var(--text-secondary);
-}
-
-.lyric-line.is-active .lyric-trans {
-  color: var(--text-primary);
-  opacity: 0.9;
 }
 
 .lyrics-hint {
@@ -39,6 +42,16 @@
   color: var(--text-muted);
   padding: 6px 8px 10px;
   line-height: 1.5;
+}
+
+.lyrics-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 40px 20px;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .lyrics-hint a {
@@ -205,6 +218,11 @@
 
 .sync-notice {
   margin: 8px 12px 0;
+}
+
+/* Inside the phone sheet the safe area is already paid for by .now-playing. */
+.now-playing .sync-editor-foot {
+  padding-bottom: 10px;
 }
 
 /* ---- palette lyric hits ---- */

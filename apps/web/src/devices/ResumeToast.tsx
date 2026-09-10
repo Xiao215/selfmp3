@@ -79,9 +79,10 @@ export function ResumeToast() {
 
       <button
         type="button"
-        className="icon-button icon-button-tiny"
+        className="icon-button resume-toast-close"
         onClick={() => setCandidate(null)}
         aria-label="Dismiss"
+        title="Dismiss"
       >
         <X size={15} />
       </button>

@@ -2,9 +2,15 @@
 
 .player-bar {
   display: grid;
-  grid-template-columns: 1fr minmax(360px, 2fr) 1fr;
+  /*
+   * The outer columns are `auto`, not `1fr`: a fixed 1fr track let the eight
+   * controls on the right overflow their share and shove the track title down
+   * to two characters. `auto` lets the right column take exactly what it needs
+   * and gives the rest to the title and the scrubber.
+   */
+  grid-template-columns: minmax(200px, 1fr) minmax(300px, 1.9fr) auto;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   height: var(--player-height);
   padding: 0 18px;
   background: var(--surface-1);
@@ -19,8 +25,18 @@
   min-width: 0;
 }
 
+/* The artwork is the anchor: it never shrinks, and it is the one thing on the
+   bar that says at a glance what is playing. */
+.player-left .cover {
+  flex-shrink: 0;
+  box-shadow: var(--shadow-1);
+}
+
 .player-meta {
+  /* Shrinks before anything else in the row, but does not stretch: the love
+     button belongs beside the title, not marooned at the far side of the gap. */
   min-width: 0;
+  flex: 0 1 auto;
 }
 
 .player-title {
@@ -38,11 +54,17 @@
   white-space: nowrap;
 }
 
+.player-love {
+  flex-shrink: 0;
+}
+
 .player-center {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 0;
+  width: 100%;
 }
 
 .player-buttons {
@@ -70,11 +92,57 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 6px;
+}
+
+/*
+ * Three jobs, three groups: what is on screen, how it plays, where it comes
+ * out. The hairline is what turns a wall of icons into something scannable.
+ */
+.player-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.player-group + .player-group {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+/* --- volume ------------------------------------------------------------- */
+
+.volume-popover {
+  min-width: 0;
+  padding: 6px;
+}
+
+.volume-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-popover-row .volume {
+  width: 120px;
+}
+
+.volume-readout {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
 }
 
 /* ----------------------------------------------------- side panels ------ */
 
+/*
+ * One shell for lyrics, up next and practice: a fixed header with the title on
+ * the left and the actions on the right (close always last, behind a hairline),
+ * one scrolling body, and an optional footer. Anything that differs between the
+ * three should be inside the body, not in the frame.
+ */
 .side-panel {
   width: 340px;
   flex-shrink: 0;
@@ -87,11 +155,13 @@
 
 .side-panel-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 16px;
+  min-height: 58px;
+  padding: 10px 10px 10px 16px;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .side-panel-titles {
@@ -108,36 +178,114 @@
 .side-panel-sub {
   font-size: 12px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .side-panel-actions {
   display: flex;
+  align-items: center;
   gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Close is the one control every panel has, so it always sits last and always
+   behind a hairline — never mistaken for one more panel option. */
+.side-panel-close {
+  position: relative;
+  margin-left: 6px;
+}
+
+.side-panel-actions > .side-panel-close:not(:only-child)::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 7px;
+  bottom: 7px;
+  width: 1px;
+  background: var(--border);
+}
+
+/* The one scrolling region each panel has. */
+.side-panel-body,
+.lyrics-body,
+.queue-list,
+.practice-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .side-panel-foot {
   padding: 10px 16px;
   border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Shared empty state: nothing playing, an empty queue, a song with no lyrics. */
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 44px 24px;
+  margin: auto 0;
+}
+
+.panel-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.panel-empty-title {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.panel-empty p {
+  max-width: 30ch;
+}
+
+.panel-empty .link-button {
+  font-size: 13px;
 }
 
 .lyrics-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 20px 40vh;
+  /* 40vh of tail so the last line can still be scrolled to the middle. */
+  padding: 24px 16px 40vh;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
 .lyric-line {
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-size: 15px;
   line-height: 1.45;
   text-align: left;
-  transition: color 0.2s, transform 0.2s;
-  transform-origin: left center;
+  /* The accent bar is drawn as a transparent border so the text never shifts
+     sideways when a line becomes active. */
+  border-left: 2px solid transparent;
+  transition:
+    color var(--dur-slow),
+    background var(--dur-fast),
+    border-color var(--dur);
   width: 100%;
 }
 
@@ -153,10 +301,58 @@
 .lyric-line.is-active {
   color: var(--text-primary);
   font-weight: 600;
-  transform: scale(1.04);
+  border-left-color: var(--accent);
+  background: oklch(0.42 0.1 var(--accent-hue) / 0.14);
 }
 
 .lyric-line.is-plain {
   color: var(--text-secondary);
   cursor: default;
+}
+
+/*
+ * With romanization and a translation, every lyric is a three-line block. At
+ * the default 3px rhythm those blocks run together, so the gap opens up and the
+ * original gets a touch more weight than its two helpers.
+ */
+.lyrics-body.has-extras {
+  gap: 12px;
+}
+
+.lyrics-body.has-extras .lyric-line {
+  padding-block: 7px;
+}
+
+/* --- a narrowing window ---------------------------------------------------
+ *
+ * The bar has to give something up before it starts eating the track title.
+ * The order is deliberate: spacing first, then the volume slider (which moves
+ * into a popover on the speaker button — see VolumeControl), then the love
+ * button, which is also on every song row and on the now-playing screen.
+ */
+
+@media (max-width: 1160px) {
+  .player-bar {
+    gap: 12px;
+    padding: 0 12px;
+    grid-template-columns: minmax(170px, 1fr) minmax(280px, 1.9fr) auto;
+  }
+
+  .player-right {
+    gap: 4px;
+  }
+
+  .player-group + .player-group {
+    padding-left: 5px;
+  }
+}
+
+@media (max-width: 980px) {
+  .player-bar {
+    grid-template-columns: minmax(150px, 1fr) minmax(260px, 1.9fr) auto;
+  }
+
+  .player-love {
+    display: none;
+  }
 }

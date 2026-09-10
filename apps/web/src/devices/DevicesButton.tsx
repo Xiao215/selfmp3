@@ -15,9 +15,12 @@ import { shortDeviceName } from './handoff.js'
 export function DevicesButton({
   up = true,
   showChip = true,
+  actionLabel,
 }: {
   up?: boolean
   showChip?: boolean
+  /** Renders the trigger as a labelled action, for the phone's now-playing row. */
+  actionLabel?: string
 }) {
   const { others, playingElsewhere, remote } = useDeviceContext()
   const [open, setOpen] = useState(false)
@@ -32,14 +35,19 @@ export function DevicesButton({
         }
       : null
 
+  const hint =
+    others.length === 0
+      ? 'Devices'
+      : `Devices · ${others.length} other ${others.length === 1 ? 'device' : 'devices'} online`
+
   return (
-    <div className="popover-anchor devices-anchor">
+    <div className={`popover-anchor devices-anchor ${actionLabel ? 'is-action' : ''}`}>
       {chip && showChip && (
         <button
           type="button"
           className="device-chip"
           onClick={() => setOpen(value => !value)}
-          title="Devices"
+          title={hint}
         >
           {chip.icon}
           <span>{chip.label}</span>
@@ -49,14 +57,23 @@ export function DevicesButton({
       <button
         ref={buttonRef}
         type="button"
-        className={`icon-button ${chip ? 'is-accent' : ''}`}
+        className={
+          actionLabel
+            ? `np-action ${chip ? 'is-active' : ''}`
+            : `icon-button ${chip ? 'is-accent' : ''}`
+        }
         onClick={() => setOpen(value => !value)}
-        aria-label="Devices"
+        aria-label={actionLabel ? undefined : 'Devices'}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={others.length > 0 ? `${others.length} other device(s) online` : 'Devices'}
+        title={hint}
       >
-        {remote ? <Remote size={17} /> : <Devices size={17} />}
+        {remote ? (
+          <Remote size={actionLabel ? 19 : 17} />
+        ) : (
+          <Devices size={actionLabel ? 19 : 17} />
+        )}
+        {actionLabel && <span>{actionLabel}</span>}
       </button>
 
       {open && <DevicesPopover anchorRef={buttonRef} onClose={() => setOpen(false)} up={up} />}

@@ -27,6 +27,13 @@ import {
 } from './Icons.js'
 import { Popover } from './Menu.js'
 
+/** Said as a sentence, because "Repeat: off" is not what a screen reader wants. */
+const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
+  off: 'Repeat off',
+  all: 'Repeat all',
+  one: 'Repeat this song',
+}
+
 /**
  * The transport bar.
  *
@@ -57,6 +64,10 @@ export function PlayerBar({
   const transport = useTransport()
   const toggleLoved = useToggleLoved()
   const isMobile = useIsMobile()
+  // Same breakpoint hook, a different question: below this the nine controls on
+  // the right no longer fit beside a readable title, so the volume slider folds
+  // into its own popover instead of squeezing the track info to two characters.
+  const compact = useIsMobile(1160)
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
@@ -89,9 +100,11 @@ export function PlayerBar({
             </div>
             <button
               type="button"
-              className={`icon-button ${song.loved ? 'is-loved' : ''}`}
+              className={`icon-button player-love ${song.loved ? 'is-loved' : ''}`}
               onClick={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
               aria-label={song.loved ? 'Unlove' : 'Love'}
+              aria-pressed={song.loved}
+              title={song.loved ? 'Remove from loved' : 'Love this song'}
             >
               <Heart size={17} filled={song.loved} />
             </button>
@@ -111,7 +124,7 @@ export function PlayerBar({
             onClick={player.toggleShuffle}
             aria-label="Shuffle"
             aria-pressed={player.queue.shuffle}
-            title="Shuffle"
+            title={`Shuffle ${player.queue.shuffle ? 'on' : 'off'} (S)`}
           >
             <Shuffle size={17} />
           </button>
@@ -121,6 +134,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.previous}
             aria-label="Previous"
+            title="Previous (⇧←)"
             disabled={!song}
           >
             <Prev size={20} />
@@ -131,6 +145,7 @@ export function PlayerBar({
             className="play-button"
             onClick={transport.toggle}
             aria-label={transport.playing ? 'Pause' : 'Play'}
+            title={`${transport.playing ? 'Pause' : 'Play'} (space)`}
             disabled={!song}
           >
             {transport.playing ? <Pause size={20} /> : <Play size={20} />}
@@ -141,6 +156,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.next}
             aria-label="Next"
+            title="Next (⇧→)"
             disabled={!song}
           >
             <Next size={20} />
@@ -150,8 +166,8 @@ export function PlayerBar({
             type="button"
             className={`icon-button ${player.queue.repeat !== 'off' ? 'is-accent' : ''}`}
             onClick={player.cycleRepeatMode}
-            aria-label={`Repeat: ${player.queue.repeat}`}
-            title={`Repeat: ${player.queue.repeat}`}
+            aria-label={REPEAT_LABEL[player.queue.repeat]}
+            title={`${REPEAT_LABEL[player.queue.repeat]} (R)`}
           >
             {player.queue.repeat === 'one' ? <RepeatOne size={17} /> : <Repeat size={17} />}
           </button>
@@ -192,106 +208,190 @@ export function PlayerBar({
         </div>
       </div>
 
+      {/*
+        Nine controls in a row read as one undifferentiated wall of icons. They
+        are three separate jobs — what is on screen, how it plays, where it
+        comes out — so they are three labelled groups with a hairline between.
+      */}
       <div className="player-right">
         {player.stalled && <span className="spinner" aria-label="Buffering" />}
 
-        <DevicesButton />
-
-        <button
-          type="button"
-          className={`icon-button ${lyricsOpen ? 'is-accent' : ''}`}
-          onClick={onOpenLyrics}
-          aria-label="Lyrics"
-          title="Lyrics"
-        >
-          <Mic size={17} />
-        </button>
-
-        <button
-          type="button"
-          className={`icon-button ${queueOpen ? 'is-accent' : ''}`}
-          onClick={onOpenQueue}
-          aria-label="Queue"
-          title="Queue"
-        >
-          <Queue size={17} />
-        </button>
-
-        <button
-          type="button"
-          className={`icon-button ${practiceOpen || player.loopB !== null ? 'is-accent' : ''}`}
-          onClick={onOpenPractice}
-          aria-label="Practice tools"
-          title="Practice: A–B loop, speed, transpose"
-        >
-          <Metronome size={17} />
-        </button>
-
-        <div className="popover-anchor">
+        <div className="player-group" role="group" aria-label="Panels">
           <button
-            ref={speedRef}
             type="button"
-            className={`icon-button ${player.rate !== 1 ? 'is-accent' : ''}`}
-            onClick={() => setSpeedOpen(open => !open)}
-            aria-label="Playback speed"
-            aria-haspopup="menu"
-            aria-expanded={speedOpen}
-            title={`Speed: ${player.rate}×`}
+            className={`icon-button ${lyricsOpen ? 'is-accent' : ''}`}
+            onClick={onOpenLyrics}
+            aria-label="Lyrics"
+            aria-pressed={lyricsOpen}
+            title="Lyrics (L)"
           >
-            <Speed size={17} />
+            <Mic size={17} />
           </button>
-          {speedOpen && (
-            <SpeedMenu
-              anchorRef={speedRef}
-              current={player.rate}
-              onPick={rate => {
-                player.setRate(rate)
-                setSpeedOpen(false)
-              }}
-              onClose={() => setSpeedOpen(false)}
-            />
-          )}
+
+          <button
+            type="button"
+            className={`icon-button ${queueOpen ? 'is-accent' : ''}`}
+            onClick={onOpenQueue}
+            aria-label="Queue"
+            aria-pressed={queueOpen}
+            title="Up next (Q)"
+          >
+            <Queue size={17} />
+          </button>
+
+          <button
+            type="button"
+            className={`icon-button ${practiceOpen || player.loopB !== null ? 'is-accent' : ''}`}
+            onClick={onOpenPractice}
+            aria-label="Practice tools"
+            aria-pressed={practiceOpen}
+            title="Practice: A–B loop, speed, transpose (P)"
+          >
+            <Metronome size={17} />
+          </button>
         </div>
 
-        <div className="popover-anchor">
-          <button
-            ref={sleepRef}
-            type="button"
-            className={`icon-button ${player.sleepTimerEndsAt ? 'is-accent' : ''}`}
-            onClick={() => setSleepOpen(open => !open)}
-            aria-label="Sleep timer"
-            aria-haspopup="menu"
-            aria-expanded={sleepOpen}
-            title="Sleep timer"
-          >
-            <Moon size={17} />
-          </button>
-          {sleepOpen && <SleepMenu anchorRef={sleepRef} onClose={() => setSleepOpen(false)} />}
+        <div className="player-group" role="group" aria-label="Playback">
+          <div className="popover-anchor">
+            <button
+              ref={speedRef}
+              type="button"
+              className={`icon-button ${player.rate !== 1 ? 'is-accent' : ''}`}
+              onClick={() => setSpeedOpen(open => !open)}
+              aria-label={`Playback speed: ${player.rate}×`}
+              aria-haspopup="menu"
+              aria-expanded={speedOpen}
+              title={`Playback speed: ${player.rate}×`}
+            >
+              <Speed size={17} />
+            </button>
+            {speedOpen && (
+              <SpeedMenu
+                anchorRef={speedRef}
+                current={player.rate}
+                onPick={rate => {
+                  player.setRate(rate)
+                  setSpeedOpen(false)
+                }}
+                onClose={() => setSpeedOpen(false)}
+              />
+            )}
+          </div>
+
+          <div className="popover-anchor">
+            <button
+              ref={sleepRef}
+              type="button"
+              className={`icon-button ${player.sleepTimerEndsAt ? 'is-accent' : ''}`}
+              onClick={() => setSleepOpen(open => !open)}
+              aria-label="Sleep timer"
+              aria-haspopup="menu"
+              aria-expanded={sleepOpen}
+              title={player.sleepTimerEndsAt ? 'Sleep timer is running' : 'Sleep timer'}
+            >
+              <Moon size={17} />
+            </button>
+            {sleepOpen && <SleepMenu anchorRef={sleepRef} onClose={() => setSleepOpen(false)} />}
+          </div>
         </div>
 
-        <button
-          type="button"
-          className="icon-button"
-          onClick={player.toggleMute}
-          aria-label={player.muted ? 'Unmute' : 'Mute'}
-          disabled={transport.remote !== null}
-        >
-          {player.muted || player.volume === 0 ? <VolumeMute size={17} /> : <Volume size={17} />}
-        </button>
-
-        <input
-          className="volume"
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={transport.volume}
-          style={{ '--progress': `${transport.volume * 100}%` } as React.CSSProperties}
-          aria-label="Volume"
-          onChange={event => transport.setVolume(Number(event.target.value))}
-        />
+        <div className="player-group" role="group" aria-label="Output">
+          <DevicesButton />
+          <VolumeControl compact={compact} />
+        </div>
       </div>
     </footer>
+  )
+}
+
+/**
+ * Mute plus the slider.
+ *
+ * A window narrow enough to squeeze the track title down to two characters has
+ * no room for 88px of slider, but dropping volume entirely is not an answer
+ * either — so below the breakpoint the same two controls move into a popover
+ * hanging off the speaker button.
+ */
+function VolumeControl({ compact }: { compact: boolean }) {
+  const player = usePlayer()
+  const transport = useTransport()
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  const muted = player.muted || transport.volume === 0
+  const percent = Math.round(transport.volume * 100)
+  const Icon = muted ? VolumeMute : Volume
+
+  const slider = (
+    <input
+      className="volume"
+      type="range"
+      min={0}
+      max={1}
+      step={0.01}
+      value={transport.volume}
+      style={{ '--progress': `${transport.volume * 100}%` } as React.CSSProperties}
+      aria-label="Volume"
+      aria-valuetext={`${percent}%`}
+      onChange={event => transport.setVolume(Number(event.target.value))}
+    />
+  )
+
+  const muteButton = (
+    <button
+      type="button"
+      className="icon-button"
+      onClick={player.toggleMute}
+      aria-label={player.muted ? 'Unmute' : 'Mute'}
+      aria-pressed={player.muted}
+      title={player.muted ? 'Unmute' : 'Mute'}
+      disabled={transport.remote !== null}
+    >
+      <Icon size={17} />
+    </button>
+  )
+
+  if (!compact) {
+    return (
+      <>
+        {muteButton}
+        {slider}
+      </>
+    )
+  }
+
+  return (
+    <div className="popover-anchor">
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`icon-button ${player.muted ? 'is-accent' : ''}`}
+        onClick={() => setOpen(value => !value)}
+        aria-label={`Volume: ${percent}%`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={`Volume: ${percent}%`}
+      >
+        <Icon size={17} />
+      </button>
+      {open && (
+        <Popover
+          anchorRef={buttonRef}
+          onClose={() => setOpen(false)}
+          role="dialog"
+          placement="above"
+          align="end"
+          label="Volume"
+          className="volume-popover"
+        >
+          <div className="volume-popover-row">
+            {muteButton}
+            {slider}
+            <span className="volume-readout">{percent}%</span>
+          </div>
+        </Popover>
+      )}
+    </div>
   )
 }
 
@@ -407,7 +507,8 @@ function SpeedMenu({
 
 const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
 
-function SleepMenu({
+/** Shared with the phone's now-playing sheet, so a sleep timer is set the same way everywhere. */
+export function SleepMenu({
   anchorRef,
   onClose,
 }: {

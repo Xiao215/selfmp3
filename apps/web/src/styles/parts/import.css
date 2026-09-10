@@ -1,0 +1,207 @@
+/* ----------------------------------------------------------- import ---- */
+
+.import-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.import-input {
+  flex: 1;
+  resize: vertical;
+  min-height: 74px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.import-review {
+  margin-top: 26px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.import-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.import-review-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.import-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  border: 1px solid transparent;
+}
+
+.import-item.is-chosen {
+  border-color: var(--accent-dim);
+}
+
+.import-item.is-duplicate {
+  opacity: 0.6;
+}
+
+.import-thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.import-thumb-placeholder {
+  background: var(--surface-2);
+}
+
+.import-fields {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.import-item-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.import-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.import-option {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.import-submit {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.import-queue {
+  margin-top: 30px;
+}
+
+.import-queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.job-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+.job-row.is-done {
+  color: var(--text-muted);
+}
+
+.job-row.is-error .job-sub {
+  color: var(--danger);
+}
+
+.job-status {
+  display: flex;
+  width: 20px;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.job-row.is-done .job-status {
+  color: var(--good);
+}
+
+.job-row.is-error .job-status {
+  color: var(--danger);
+}
+
+.job-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.job-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.job-title {
+  font-size: 13px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.job-progress {
+  width: 100px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.job-progress-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}

@@ -1,0 +1,361 @@
+/* ---------------------------------------------------------- controls ---- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: transparent;
+}
+
+.button-danger {
+  color: var(--danger);
+  border-color: oklch(0.4 0.1 22);
+}
+
+.button-danger:hover:not(:disabled) {
+  background: oklch(0.34 0.09 22 / 0.4);
+}
+
+.button-small {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.button-large {
+  padding: 11px 20px;
+  font-size: 14px;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.link-button {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: background 0.12s, color 0.12s;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.icon-button.is-accent {
+  color: var(--accent);
+}
+
+.icon-button.is-loved {
+  color: var(--danger);
+}
+
+.icon-button-tiny {
+  width: 24px;
+  height: 24px;
+}
+
+.icon-button-ghost {
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+}
+
+.icon-button-large {
+  width: 52px;
+  height: 52px;
+}
+
+.play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: var(--surface-0);
+  transition: transform 0.1s, background 0.12s;
+}
+
+.play-button:hover:not(:disabled) {
+  transform: scale(1.06);
+}
+
+.play-button-large {
+  width: 68px;
+  height: 68px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.input,
+.select,
+textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.input:focus,
+.select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 12px center, right 7px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.select-small,
+.input-small {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.select-small {
+  padding-right: 22px;
+}
+
+.select-inline {
+  padding: 2px 20px 2px 6px;
+  background-color: var(--surface-3);
+}
+
+.input-grow {
+  flex: 1;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 8px 0 10px;
+  color: var(--text-muted);
+}
+
+.search-box:focus-within {
+  border-color: var(--accent);
+}
+
+.search-box input {
+  border: none;
+  background: none;
+  padding: 8px 0;
+  width: 180px;
+  outline: none;
+  color: var(--text-primary);
+}
+
+.segmented {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.segmented-item {
+  padding: 5px 11px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+
+.segmented-item.is-active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.toggle {
+  appearance: none;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.toggle:checked {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.toggle:checked::after {
+  transform: translateX(18px);
+  background: var(--on-accent);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  flex-shrink: 0;
+  color: var(--on-accent);
+}
+
+.checkbox.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.inline-form input {
+  flex: 1;
+  max-width: 340px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+}
+
+/* ------------------------------------------------------- range inputs --- */
+
+input[type='range'] {
+  appearance: none;
+  /* 4px of visible track (the content box) inside a 20px hit area. The height
+     must include the padding below, because everything here is border-box —
+     setting it to 4px collapses the content box and the track disappears. */
+  height: 20px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--progress, 0%),
+    var(--surface-3) var(--progress, 0%),
+    var(--surface-3) 100%
+  );
+  cursor: pointer;
+  /* A generous invisible hit area — a 4px track is impossible to grab. */
+  padding: 8px 0;
+  background-clip: content-box;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: none;
+}
+
+.scrubber {
+  flex: 1;
+}
+
+.scrubber-large {
+  width: 100%;
+  height: 6px;
+}
+
+.scrubber-large::-webkit-slider-thumb {
+  opacity: 1;
+  width: 16px;
+  height: 16px;
+}
+
+.volume {
+  width: 88px;
+}

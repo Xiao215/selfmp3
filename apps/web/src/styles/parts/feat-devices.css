@@ -1,0 +1,314 @@
+/* ========================================== devices, handoff and remote === */
+
+.devices-anchor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The quiet "something is happening elsewhere" status, not a banner. */
+.device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 190px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.device-chip:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.device-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.devices-popover {
+  min-width: 300px;
+  max-width: min(340px, calc(100vw - 24px));
+}
+
+.devices-popover .popover-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.devices-link {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.devices-link.is-live {
+  color: var(--good);
+}
+
+.device-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.device-row.is-self {
+  background: var(--surface-1);
+}
+
+.device-row.is-remote {
+  background: var(--surface-3);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.device-row + .device-row {
+  margin-top: 3px;
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.device-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.device-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.device-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-at {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.device-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.device-row-actions .button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.device-remote {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.device-remote input:disabled + span {
+  opacity: 0.6;
+}
+
+.devices-empty {
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* --- the "continue from your phone" offer -------------------------------- */
+
+.resume-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--player-height) + 16px);
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(460px, calc(100vw - 24px));
+  padding: 6px 8px 6px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-panel);
+  animation: resume-rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes resume-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+.resume-toast-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.resume-toast-main:hover {
+  background: var(--surface-3);
+}
+
+.resume-toast-label {
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.resume-toast-song {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-toast-from {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* --- settings ------------------------------------------------------------ */
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.device-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.device-list-item:last-child {
+  border-bottom: none;
+}
+
+.device-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.device-dot.is-online {
+  background: var(--good);
+}
+
+.device-list-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-list-when {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.device-list-empty {
+  padding: 9px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- phone --------------------------------------------------------------- */
+
+.mini-devices {
+  position: relative;
+  z-index: 3;
+}
+
+/* Nothing loaded here, but the Mac is playing: one tappable strip. */
+.mini-player-remote {
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+@media (max-width: 819px) {
+  .resume-toast {
+    bottom: calc(var(--mobile-nav-height) + var(--safe-bottom) + 78px);
+  }
+
+  .devices-popover {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--mobile-nav-height) + var(--safe-bottom) + 12px);
+    top: auto;
+    max-width: none;
+    min-width: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+/* A narrow desktop bar has no room for the chip's words; the accented icon
+   still says something is happening elsewhere. */
+@media (max-width: 1100px) {
+  .device-chip span {
+    display: none;
+  }
+
+  .device-chip {
+    padding: 4px 6px;
+  }
+}

@@ -1,0 +1,89 @@
+/**
+ * self.mp3 styles.
+ *
+ * Organised as tokens → base → layout → components. Everything is driven by
+ * custom properties, so the accent colour and the light/dark switch are one
+ * variable change rather than a search-and-replace.
+ *
+ * Colours use OKLCH: it keeps perceived lightness consistent as the hue moves,
+ * which is what makes the generated tag colours and cover placeholders sit
+ * together evenly instead of some looking washed out.
+ */
+
+/* ============================================================ tokens ===== */
+
+:root {
+  color-scheme: dark;
+
+  --accent-hue: 268;
+
+  /* Surfaces, darkest to lightest. */
+  --surface-0: oklch(0.16 0.012 var(--accent-hue));
+  --surface-1: oklch(0.19 0.014 var(--accent-hue));
+  --surface-2: oklch(0.23 0.016 var(--accent-hue));
+  --surface-3: oklch(0.28 0.018 var(--accent-hue));
+
+  /* Ink. */
+  --text-primary: oklch(0.97 0.005 var(--accent-hue));
+  --text-secondary: oklch(0.76 0.012 var(--accent-hue));
+  --text-muted: oklch(0.6 0.014 var(--accent-hue));
+
+  --accent: oklch(0.72 0.16 var(--accent-hue));
+  --accent-strong: oklch(0.78 0.18 var(--accent-hue));
+  --accent-dim: oklch(0.42 0.1 var(--accent-hue));
+  --on-accent: oklch(0.15 0.02 var(--accent-hue));
+
+  --danger: oklch(0.66 0.19 22);
+  --warning: oklch(0.78 0.15 78);
+  --good: oklch(0.72 0.15 155);
+
+  --border: oklch(0.3 0.016 var(--accent-hue));
+  --border-strong: oklch(0.38 0.02 var(--accent-hue));
+
+  /* Charts. Validated against the dark surface for contrast and CVD safety. */
+  --chart-series: #3987e5;
+  --chart-grid: oklch(0.29 0.014 var(--accent-hue));
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+
+  --shadow-panel: 0 12px 40px oklch(0.08 0.02 var(--accent-hue) / 0.55);
+
+  --player-height: 84px;
+  --sidebar-width: 246px;
+  --mobile-nav-height: 58px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+
+  /* iPhone safe areas. Without these the tab bar sits under the home indicator. */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --surface-0: oklch(0.985 0.004 var(--accent-hue));
+  --surface-1: oklch(1 0 0);
+  --surface-2: oklch(0.96 0.006 var(--accent-hue));
+  --surface-3: oklch(0.93 0.008 var(--accent-hue));
+
+  --text-primary: oklch(0.22 0.015 var(--accent-hue));
+  --text-secondary: oklch(0.44 0.014 var(--accent-hue));
+  --text-muted: oklch(0.56 0.012 var(--accent-hue));
+
+  --accent: oklch(0.52 0.19 var(--accent-hue));
+  --accent-strong: oklch(0.46 0.21 var(--accent-hue));
+  --accent-dim: oklch(0.9 0.05 var(--accent-hue));
+  --on-accent: oklch(0.99 0 0);
+
+  --border: oklch(0.89 0.008 var(--accent-hue));
+  --border-strong: oklch(0.8 0.01 var(--accent-hue));
+
+  --chart-series: #2a78d6;
+  --chart-grid: oklch(0.91 0.006 var(--accent-hue));
+
+  --shadow-panel: 0 12px 40px oklch(0.5 0.02 var(--accent-hue) / 0.14);
+}

@@ -1,0 +1,155 @@
+/* --- practice tools ------------------------------------------------------- */
+
+/*
+ * The scrubber gets a positioned wrapper so the A–B region can be drawn behind
+ * it as a percentage of the track, rather than of the whole progress row.
+ */
+.scrubber-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.scrubber-wrap .scrubber {
+  width: 100%;
+}
+
+/*
+ * The region sits behind the range input, which clips its own background to a
+ * 4–6px content box — so this is kept low-contrast and only a little taller
+ * than the track, or it swamps the accent progress fill drawn over it.
+ */
+.loop-region {
+  position: absolute;
+  top: 50%;
+  height: 10px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: oklch(0.72 0.16 var(--accent-hue) / 0.16);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.loop-region-large {
+  height: 14px;
+}
+
+.practice-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0 20px;
+}
+
+.practice-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.practice-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.practice-group-head:hover {
+  background: var(--surface-2);
+}
+
+.practice-group-state {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.practice-ab {
+  display: flex;
+  gap: 8px;
+}
+
+.practice-ab-button {
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  /* Comfortably past the 44px touch target, since these are tapped in time. */
+  min-height: 52px;
+}
+
+.practice-ab-button.is-set {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.practice-ab-letter {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.practice-ab-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-hint {
+  margin: 0;
+}
+
+.practice-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.practice-speeds {
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+.practice-transpose {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-transpose .button {
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.practice-key {
+  flex: 1;
+  text-align: center;
+}
+
+.practice-key-name {
+  display: block;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.practice-key-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}

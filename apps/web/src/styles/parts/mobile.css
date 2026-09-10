@@ -1,0 +1,301 @@
+/* ============================================================ mobile ==== */
+
+.mobile-nav {
+  display: none;
+  height: calc(var(--mobile-nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.mobile-nav-item.active {
+  color: var(--accent);
+}
+
+.mini-player {
+  display: none;
+  position: relative;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mini-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 0.25s linear;
+  z-index: 2;
+}
+
+/* An invisible full-bleed button so tapping anywhere but the transport
+   controls opens the full player — without nesting buttons inside a button. */
+.mini-expand {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.mini-meta {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.mini-player .cover {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.mini-play,
+.mini-next {
+  position: relative;
+  z-index: 3;
+}
+
+.mini-title {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-playing {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top) + 12px) 20px calc(var(--safe-bottom) + 12px);
+  animation: slide-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.now-playing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.now-playing-context {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.now-playing-art {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 12px 0;
+}
+
+.now-playing-cover {
+  width: min(78vw, 340px) !important;
+  height: min(78vw, 340px) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+}
+
+.now-playing-meta {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.now-playing-title {
+  font-size: 21px;
+  margin-bottom: 4px;
+}
+
+.now-playing-artist {
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.now-playing-album {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.now-playing-progress {
+  margin-bottom: 14px;
+}
+
+.now-playing-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: -4px;
+}
+
+.now-playing-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-bottom: 24px;
+}
+
+.now-playing-foot {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.now-playing .side-panel {
+  width: 100%;
+  border: none;
+  background: none;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 819px) {
+  .view {
+    padding: 18px 16px 24px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  .player-bar {
+    display: none;
+  }
+
+  .mini-player {
+    display: flex;
+  }
+
+  .mobile-nav {
+    display: flex;
+  }
+
+  .side-panel {
+    display: none;
+  }
+
+  .now-playing .side-panel {
+    display: flex;
+  }
+
+  .view-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .view-actions {
+    justify-content: space-between;
+  }
+
+  .search-box {
+    flex: 1;
+  }
+
+  .search-box input {
+    width: 100%;
+  }
+
+  /* On a phone, tags are the row's second line rather than a right column. */
+  .song-row {
+    padding: 9px 6px;
+  }
+
+  .song-tags {
+    display: none;
+  }
+
+  .song-actions .icon-button:not(.is-loved) {
+    display: none;
+  }
+
+  .stats-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .offline-summary {
+    gap: 20px;
+  }
+
+  .import-form {
+    flex-direction: column;
+  }
+
+  .import-form .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .import-item {
+    flex-wrap: wrap;
+  }
+
+  .palette-backdrop {
+    padding-top: 6vh;
+  }
+}
+
+/* Respect a reduced-motion preference everywhere at once. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

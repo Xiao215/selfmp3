@@ -1,0 +1,79 @@
+/* -------------------------------------------------------- notices ------ */
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.notice-warn {
+  border-color: oklch(0.45 0.1 78);
+  background: oklch(0.3 0.06 78 / 0.3);
+}
+
+.notice-error {
+  border-color: oklch(0.45 0.12 22);
+  background: oklch(0.3 0.07 22 / 0.3);
+  color: var(--danger);
+}
+
+.notice-good {
+  border-color: oklch(0.45 0.1 155);
+  background: oklch(0.3 0.06 155 / 0.3);
+  color: var(--good);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 70px 20px;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.empty-emoji {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.empty-state h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.empty-hint {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px 20px;
+  line-height: 1.6;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

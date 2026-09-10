@@ -1,0 +1,106 @@
+/* --- forgotten gems ------------------------------------------------------- */
+
+.gems-row {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.gems-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gems-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+  text-align: left;
+}
+
+.gems-title-label {
+  white-space: nowrap;
+}
+
+.gems-title .hint {
+  font-weight: 400;
+}
+
+.gems-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.gems-list {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+
+.gems-list::-webkit-scrollbar {
+  height: 6px;
+}
+
+.gem-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100px;
+  flex-shrink: 0;
+  text-align: left;
+  min-width: 0;
+}
+
+.gem-card-title,
+.gem-card-artist,
+.gem-card-when {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gem-card-title {
+  font-weight: 550;
+  margin-top: 3px;
+}
+
+.gem-card-artist {
+  color: var(--text-secondary);
+}
+
+.gem-card-when {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 819px) {
+  /* On a phone the title, its explanation and the two buttons cannot share a
+     line; stack them instead of letting the heading wrap mid-phrase. */
+  .gems-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .gems-title {
+    flex-wrap: wrap;
+  }
+
+  .gems-title .hint {
+    flex-basis: 100%;
+    padding-left: 23px;
+  }
+}

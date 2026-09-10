@@ -40,8 +40,11 @@ export function bearerAuth(config: Config): RequestHandler {
   const expectedBuffer = Buffer.from(expected, 'utf8')
 
   return (req: Request, _res: Response, next: NextFunction): void => {
-    // Health checks stay open so a monitor does not need the secret.
-    if (req.path === '/api/health') return next()
+    // Health checks stay open so a monitor, launchd or a container HEALTHCHECK
+    // does not need the secret. This is mounted at `/api`, so express has
+    // already stripped that prefix from req.path — accept both spellings so the
+    // exemption survives a change of mount point.
+    if (req.path === '/health' || req.path === '/api/health') return next()
 
     // The <audio> element cannot send an Authorization header, so media URLs
     // accept the token as a query parameter instead.

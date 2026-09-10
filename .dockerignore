@@ -1,0 +1,18 @@
+# Only sources and manifests go to the builder; everything else is noise or private.
+node_modules
+**/node_modules
+**/dist
+**/dist-types
+**/*.tsbuildinfo
+library
+data
+.git
+.claude
+.env
+.env.local
+*.log
+docs
+scripts
+Dockerfile
+docker-compose.yml
+.DS_Store

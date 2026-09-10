@@ -13,6 +13,10 @@ import {
   MigrateEnqueueResultSchema,
   MigrateMatchJobSchema,
   MigrateParseResultSchema,
+  LyricsSearchResponseSchema,
+  RomanizedLyricsSchema,
+  SecretsStatusSchema,
+  TranslatedLyricsSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
   ScanResultSchema,
@@ -30,6 +34,7 @@ import {
   type MigrateEnqueue,
   type MigrateSourceTrack,
   type PlayEvent,
+  type SecretProvider,
   type SmartRules,
   type SongPatch,
   type StatsRange,
@@ -178,6 +183,30 @@ export const api = {
 
   saveLyrics: (id: number, text: string) =>
     request('PUT', `/api/songs/${id}/lyrics`, OkSchema, { text }),
+
+  // --- lyrics+ ------------------------------------------------------------
+
+  romanizedLyrics: (id: number) =>
+    request('GET', `/api/songs/${id}/lyrics/romanized`, RomanizedLyricsSchema),
+
+  translatedLyrics: (id: number, lang: string) =>
+    request(
+      'GET',
+      `/api/songs/${id}/lyrics/translation?lang=${encodeURIComponent(lang)}`,
+      TranslatedLyricsSchema,
+    ),
+
+  lyricsSearch: (query: string, limit = 8) =>
+    request(
+      'GET',
+      `/api/lyrics/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      LyricsSearchResponseSchema,
+    ),
+
+  secrets: () => request('GET', '/api/settings/secrets', SecretsStatusSchema),
+
+  setSecret: (provider: SecretProvider, key: string | null) =>
+    request('PUT', '/api/settings/secrets', SecretsStatusSchema, { provider, key }),
 
   deleteSong: (id: number, deleteFile: boolean) =>
     request('DELETE', `/api/songs/${id}?deleteFile=${deleteFile ? 1 : 0}`, OkSchema),

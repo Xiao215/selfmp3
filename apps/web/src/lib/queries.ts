@@ -40,6 +40,8 @@ export const queryKeys = {
   health: ['health'] as const,
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
   fixCovers: ['metadata', 'fix-covers'] as const,
+  secrets: ['settings', 'secrets'] as const,
+  lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
 }
 
 /**

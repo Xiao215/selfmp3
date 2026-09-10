@@ -123,6 +123,7 @@ export function songRoutes(container: Container): Router {
           await container.lyrics.writeSidecar(song.path, remote.text, remote.synced)
           container.songs.setLyricsKind(params.id, remote.synced ? 'synced' : 'plain')
           container.bumpLibraryVersion()
+          container.lyricsIndex.index(song.id, remote.text)
           return { source: 'remote', kind: remote.synced ? 'synced' : 'plain', text: remote.text }
         }
 
@@ -143,6 +144,7 @@ export function songRoutes(container: Container): Router {
           container.bumpLibraryVersion()
         }
 
+        container.lyricsIndex.index(song.id, resolved.text)
         return resolved
       },
     ),
@@ -164,6 +166,8 @@ export function songRoutes(container: Container): Router {
           await container.lyrics.deleteSidecar(song.path)
           container.songs.setLyricsKind(params.id, 'none')
           container.bumpLibraryVersion()
+          container.lyricsIndex.remove(song.id)
+          await container.lyricsCache.delete(song.id)
           return { ok: true as const, kind: 'none' as const }
         }
 
@@ -174,6 +178,7 @@ export function songRoutes(container: Container): Router {
         await container.lyrics.writeSidecar(song.path, body.text, synced)
         container.songs.setLyricsKind(params.id, synced ? 'synced' : 'plain')
         container.bumpLibraryVersion()
+        container.lyricsIndex.index(song.id, body.text)
         return { ok: true as const, kind: synced ? ('synced' as const) : ('plain' as const) }
       },
     ),
@@ -202,6 +207,7 @@ export function songRoutes(container: Container): Router {
         }
 
         await container.covers.delete(song.id)
+        await container.lyricsCache.delete(song.id)
         container.songs.delete(song.id)
         container.bumpLibraryVersion()
         return { ok: true as const, fileDeleted: query.deleteFile }

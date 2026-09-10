@@ -47,6 +47,7 @@ export function libraryRoutes(container: Container): Router {
       if (result.added > 0 || result.updated > 0 || result.removed > 0) {
         container.bumpLibraryVersion()
       }
+      void container.lyricsIndex.backfill()
       return result
     }),
   )

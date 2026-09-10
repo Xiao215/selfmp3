@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatDuration, fuzzyRank, type Library, type Song } from '@selfmp3/shared'
+import { formatDuration, fuzzyRank, isCjkQuery, type Library, type Song } from '@selfmp3/shared'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/api.js'
+import { useDebounced } from '../lib/hooks.js'
+import { queryKeys } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { Cover } from './Cover.js'
-import { BarChart, ListMusic, Music, Search, Settings, Shuffle, Tag } from './Icons.js'
+import { BarChart, ListMusic, Mic, Music, Search, Settings, Shuffle, Tag } from './Icons.js'
 
 /**
  * The ⌘K palette.
@@ -137,6 +141,24 @@ export function CommandPalette({
     [trimmed, tags],
   )
 
+  // Lyrics+: search inside lyrics on the server. Debounced, and only once the
+  // query is long enough to mean something — two characters is a word in
+  // Chinese or Japanese, three is the floor for Latin text.
+  const debounced = useDebounced(trimmed, 180)
+  const lyricsQuery = debounced.length >= (isCjkQuery(debounced) ? 2 : 3) ? debounced : ''
+  const lyricsHits = useQuery({
+    queryKey: queryKeys.lyricsSearch(lyricsQuery),
+    queryFn: () => api.lyricsSearch(lyricsQuery, 6),
+    enabled: open && lyricsQuery !== '',
+    retry: false,
+    staleTime: 60_000,
+    placeholderData: previous => previous,
+  })
+  const matchedLyrics = useMemo(
+    () => (lyricsQuery ? (lyricsHits.data?.hits ?? []) : []),
+    [lyricsQuery, lyricsHits.data],
+  )
+
   /** One flat list of everything selectable, so arrow keys work across groups. */
   const flat = useMemo(() => {
     const entries: Array<{ key: string; run: () => void }> = []
@@ -156,8 +178,26 @@ export function CommandPalette({
     for (const tag of matchedTags) {
       entries.push({ key: `tag-${tag.id}`, run: () => void navigate(`/?tag=${tag.id}`) })
     }
+    for (const hit of matchedLyrics) {
+      entries.push({
+        key: `lyric-${hit.songId}`,
+        run: () => {
+          const index = songs.findIndex(item => item.id === hit.songId)
+          if (index >= 0) player.playFrom(songs, index)
+        },
+      })
+    }
     return entries
-  }, [matchedCommands, matchedSongs, matchedPlaylists, matchedTags, songs, player, navigate])
+  }, [
+    matchedCommands,
+    matchedSongs,
+    matchedPlaylists,
+    matchedTags,
+    matchedLyrics,
+    songs,
+    player,
+    navigate,
+  ])
 
   useEffect(() => {
     setHighlighted(current => Math.min(current, Math.max(0, flat.length - 1)))
@@ -307,6 +347,38 @@ export function CommandPalette({
                     <Tag size={16} />
                     <span className="palette-label">{tag.name}</span>
                     <span className="palette-hint">{tag.songCount} songs</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {matchedLyrics.length > 0 && (
+            <div className="palette-group">
+              <div className="palette-group-title">Lyrics</div>
+              {matchedLyrics.map(hit => {
+                const index = cursor++
+                return (
+                  <button
+                    key={hit.songId}
+                    type="button"
+                    data-index={index}
+                    className={`palette-item ${index === highlighted ? 'is-active' : ''}`}
+                    onMouseEnter={() => setHighlighted(index)}
+                    onClick={() => activate(index)}
+                  >
+                    <Mic size={16} />
+                    <span className="palette-label">
+                      <span className="palette-lyric">
+                        {hit.before}
+                        {hit.match && <mark>{hit.match}</mark>}
+                        {hit.after}
+                      </span>
+                      <span className="palette-sub">
+                        {hit.title}
+                        {hit.artist ? ` · ${hit.artist}` : ''}
+                      </span>
+                    </span>
                   </button>
                 )
               })}

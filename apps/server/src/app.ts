@@ -14,6 +14,7 @@ import { importRoutes } from './routes/imports.js'
 import { migrateRoutes } from './routes/migrate.js'
 import { systemRoutes } from './routes/system.js'
 import { metadataRoutes } from './routes/metadata.js'
+import { lyricsRoutes } from './routes/lyrics.js'
 
 /**
  * Wire the HTTP layer.
@@ -58,6 +59,7 @@ export function createApp(container: Container): Express {
   api.use(migrateRoutes(container))
   api.use(systemRoutes(container))
   api.use(metadataRoutes(container))
+  api.use(lyricsRoutes(container))
   app.use('/api', api)
 
   app.use('/api', notFoundHandler)

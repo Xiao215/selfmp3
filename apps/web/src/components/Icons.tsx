@@ -306,3 +306,23 @@ export const Equalizer = () => (
     <span />
   </span>
 )
+
+/* ---- Lyrics+ ---- */
+
+/** "Aa" — romanization. */
+export const Romanize = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 17 7.5 6l4.5 11M4.6 13h5.8" />
+    <path d="M15 11.2c1-.9 3.6-1 4.6.2.4.5.4 1.1.4 1.8V17" />
+    <path d="M20 13.8c-1.4 0-4.4.1-4.4 1.9 0 1.6 2.4 1.9 4.4.4" />
+  </Icon>
+)
+
+/** Translation. */
+export const Translate = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 5h9M8.5 3v2M11 5c-.6 3.7-2.9 6.7-6 8.5" />
+    <path d="M6.2 9c1.2 2.2 3.3 4 5.8 5" />
+    <path d="m13 21 4-9 4 9M14.3 18h5.4" />
+  </Icon>
+)

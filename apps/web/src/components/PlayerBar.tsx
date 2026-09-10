@@ -3,9 +3,11 @@ import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useToggleLoved } from '../lib/queries.js'
 import { useIsMobile } from '../lib/hooks.js'
+import { loopRegionPercent } from '../player/practice.js'
 import { Cover } from './Cover.js'
 import {
   Heart,
+  Metronome,
   Mic,
   Moon,
   Next,
@@ -31,15 +33,19 @@ import {
 export function PlayerBar({
   onOpenLyrics,
   onOpenQueue,
+  onOpenPractice,
   onOpenNowPlaying,
   lyricsOpen,
   queueOpen,
+  practiceOpen,
 }: {
   onOpenLyrics: () => void
   onOpenQueue: () => void
+  onOpenPractice: () => void
   onOpenNowPlaying: () => void
   lyricsOpen: boolean
   queueOpen: boolean
+  practiceOpen: boolean
 }) {
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
@@ -54,6 +60,7 @@ export function PlayerBar({
   const displayTime = scrubbing ?? player.currentTime
   const duration = player.duration || song?.duration || 0
   const percent = duration > 0 ? (displayTime / duration) * 100 : 0
+  const loopRegion = loopRegionPercent(player.loopA, player.loopB, duration)
 
   if (isMobile) {
     return (
@@ -148,26 +155,35 @@ export function PlayerBar({
 
         <div className="player-progress">
           <span className="time">{formatDuration(displayTime)}</span>
-          <input
-            className="scrubber"
-            type="range"
-            min={0}
-            max={duration || 1}
-            step={0.1}
-            value={Math.min(displayTime, duration || 1)}
-            style={{ '--progress': `${percent}%` } as React.CSSProperties}
-            disabled={!song}
-            aria-label="Seek"
-            onChange={event => setScrubbing(Number(event.target.value))}
-            onPointerUp={() => {
-              if (scrubbing !== null) player.seek(scrubbing)
-              setScrubbing(null)
-            }}
-            onKeyUp={() => {
-              if (scrubbing !== null) player.seek(scrubbing)
-              setScrubbing(null)
-            }}
-          />
+          <div className="scrubber-wrap">
+            {loopRegion && (
+              <div
+                className="loop-region"
+                style={{ left: `${loopRegion.left}%`, width: `${loopRegion.width}%` }}
+                aria-hidden="true"
+              />
+            )}
+            <input
+              className="scrubber"
+              type="range"
+              min={0}
+              max={duration || 1}
+              step={0.1}
+              value={Math.min(displayTime, duration || 1)}
+              style={{ '--progress': `${percent}%` } as React.CSSProperties}
+              disabled={!song}
+              aria-label="Seek"
+              onChange={event => setScrubbing(Number(event.target.value))}
+              onPointerUp={() => {
+                if (scrubbing !== null) player.seek(scrubbing)
+                setScrubbing(null)
+              }}
+              onKeyUp={() => {
+                if (scrubbing !== null) player.seek(scrubbing)
+                setScrubbing(null)
+              }}
+            />
+          </div>
           <span className="time">{formatDuration(duration)}</span>
         </div>
       </div>
@@ -193,6 +209,16 @@ export function PlayerBar({
           title="Queue"
         >
           <Queue size={17} />
+        </button>
+
+        <button
+          type="button"
+          className={`icon-button ${practiceOpen || player.loopB !== null ? 'is-accent' : ''}`}
+          onClick={onOpenPractice}
+          aria-label="Practice tools"
+          title="Practice: A–B loop, speed, transpose"
+        >
+          <Metronome size={17} />
         </button>
 
         <div className="popover-anchor">

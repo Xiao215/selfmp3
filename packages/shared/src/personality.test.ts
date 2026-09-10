@@ -69,9 +69,9 @@ describe('listeningPersonality', () => {
   it('recognises a daily ritual and a weekend habit', () => {
     expect(listeningPersonality({ ...BASE, longestStreakDays: 7 })).toContain('Daily ritual')
     expect(listeningPersonality({ ...BASE, longestStreakDays: 6 })).not.toContain('Daily ritual')
-    expect(
-      listeningPersonality({ ...BASE, weekday: weekdays({ 0: 25, 6: 25, 3: 50 }) }),
-    ).toContain('Weekender')
+    expect(listeningPersonality({ ...BASE, weekday: weekdays({ 0: 25, 6: 25, 3: 50 }) })).toContain(
+      'Weekender',
+    )
   })
 
   it('is a marathoner on minutes per active day', () => {

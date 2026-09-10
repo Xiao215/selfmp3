@@ -18,10 +18,38 @@ function makeDb(): Database.Database {
     `INSERT INTO songs (id, path, title, artist, added_at, play_count)
      VALUES (@id, @path, @title, @artist, datetime('now', @added), @plays)`,
   )
-  insertSong.run({ id: 1, path: 'a', title: 'Midnight Drive', artist: 'Aurora Lane', added: '-400 days', plays: 6 })
-  insertSong.run({ id: 2, path: 'b', title: 'Sunrise', artist: 'Aurora Lane', added: '-400 days', plays: 2 })
-  insertSong.run({ id: 3, path: 'c', title: 'Nocturne', artist: 'Klara Feld', added: '-3 days', plays: 3 })
-  insertSong.run({ id: 4, path: 'd', title: 'Old Favourite', artist: 'Ghost', added: '-400 days', plays: 1 })
+  insertSong.run({
+    id: 1,
+    path: 'a',
+    title: 'Midnight Drive',
+    artist: 'Aurora Lane',
+    added: '-400 days',
+    plays: 6,
+  })
+  insertSong.run({
+    id: 2,
+    path: 'b',
+    title: 'Sunrise',
+    artist: 'Aurora Lane',
+    added: '-400 days',
+    plays: 2,
+  })
+  insertSong.run({
+    id: 3,
+    path: 'c',
+    title: 'Nocturne',
+    artist: 'Klara Feld',
+    added: '-3 days',
+    plays: 3,
+  })
+  insertSong.run({
+    id: 4,
+    path: 'd',
+    title: 'Old Favourite',
+    artist: 'Ghost',
+    added: '-400 days',
+    plays: 1,
+  })
 
   db.prepare("INSERT INTO tags (id, name) VALUES (1, 'chill'), (2, 'piano')").run()
   db.prepare('INSERT INTO song_tags VALUES (1, 1), (3, 1), (3, 2)').run()
@@ -132,10 +160,35 @@ describe('WrappedRepository', () => {
   })
 })
 
+describe('WrappedRepository windows', () => {
+  it('covers exactly as many local days as the label claims', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.prepare(
+      "INSERT INTO songs (id, path, title, added_at) VALUES (1, 'a', 'A', datetime('now'))",
+    ).run()
+
+    // One play per day for a fortnight, at the current time of day.
+    const insert = db.prepare(
+      "INSERT INTO play_events (song_id, played_at, ms_played) VALUES (1, datetime('now', ?), 60000)",
+    )
+    for (let day = 0; day < 14; day++) insert.run(`-${day} days`)
+
+    const week = new WrappedRepository(db).build('week')
+    // A window counted back in 24-hour steps would straddle eight dates and
+    // contradict its own "Last 7 days" heading.
+    expect(week.totals.activeDays).toBe(7)
+    expect(week.totals.plays).toBe(7)
+    expect(week.longestStreakDays).toBe(7)
+  })
+})
+
 describe('longestRun', () => {
   it('counts consecutive dates', () => {
     expect(longestRun([])).toBe(0)
     expect(longestRun(['2026-01-01'])).toBe(1)
-    expect(longestRun(['2026-01-01', '2026-01-02', '2026-01-04', '2026-01-05', '2026-01-06'])).toBe(3)
+    expect(longestRun(['2026-01-01', '2026-01-02', '2026-01-04', '2026-01-05', '2026-01-06'])).toBe(
+      3,
+    )
   })
 })

@@ -27,6 +27,7 @@ import {
   type QueueState,
 } from './queue.js'
 import { autoMixCrossfade, autoMixOrder } from './autoMix.js'
+import { countInMs, tapLoop } from './practice.js'
 
 /**
  * The player, exposed to the UI.
@@ -75,6 +76,15 @@ interface PlayerContextValue extends EngineState {
   readonly clearQueue: () => void
   readonly setSleepTimer: (minutes: number | null) => void
   readonly setAutoMix: (on: boolean) => void
+
+  // --- practice ------------------------------------------------------------
+  /** Set A or B of the loop from the current playhead. */
+  readonly tapLoopPoint: (which: 'A' | 'B') => void
+  readonly clearLoop: () => void
+  readonly setPreservesPitch: (on: boolean) => void
+  /** Whether a restart of the loop waits one beat first. */
+  readonly countIn: boolean
+  readonly setCountIn: (on: boolean) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -88,6 +98,8 @@ export function usePlayer(): PlayerContextValue {
 const QUEUE_STORAGE_KEY = 'selfmp3:queue'
 const VOLUME_STORAGE_KEY = 'selfmp3:volume'
 const AUTO_MIX_STORAGE_KEY = 'selfmp3:automix'
+const PITCH_LOCK_STORAGE_KEY = 'selfmp3:pitchlock'
+const COUNT_IN_STORAGE_KEY = 'selfmp3:countin'
 
 interface PersistedQueue {
   items: number[]
@@ -117,6 +129,7 @@ export function PlayerProvider({
   const [queue, setQueue] = useState<QueueState>(() => restoreQueue())
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
   const [autoMix, setAutoMixState] = useState<boolean>(() => restoreAutoMix())
+  const [countIn, setCountInState] = useState<boolean>(() => restoreFlag(COUNT_IN_STORAGE_KEY, false))
 
   // Refs mirroring state, so the engine's imperative callbacks always see the
   // latest values without being re-created (and re-subscribed) on every render.
@@ -446,6 +459,53 @@ export function PlayerProvider({
     if (on) setQueue(state => autoMixOrder(state, songByIdRef.current))
   }, [])
 
+  // --- practice ------------------------------------------------------------
+
+  const tapLoopPoint = useCallback(
+    (which: 'A' | 'B') => {
+      const { a, b } = tapLoop(which, engine.state.currentTime, {
+        a: engine.state.loopA,
+        b: engine.state.loopB,
+      })
+      engine.setLoop(a, b)
+    },
+    [engine],
+  )
+
+  const clearLoop = useCallback(() => engine.clearLoop(), [engine])
+
+  const setPreservesPitch = useCallback(
+    (on: boolean) => {
+      engine.setPreservesPitch(on)
+      try {
+        localStorage.setItem(PITCH_LOCK_STORAGE_KEY, on ? '1' : '0')
+      } catch {
+        // Not worth surfacing.
+      }
+    },
+    [engine],
+  )
+
+  const setCountIn = useCallback((on: boolean) => {
+    setCountInState(on)
+    try {
+      localStorage.setItem(COUNT_IN_STORAGE_KEY, on ? '1' : '0')
+    } catch {
+      // Not worth surfacing.
+    }
+  }, [])
+
+  // Restore the pitch-lock preference once, on mount. Default is on, which is
+  // what INITIAL_STATE already has, so only an explicit "off" needs applying.
+  useEffect(() => {
+    if (!restoreFlag(PITCH_LOCK_STORAGE_KEY, true)) engine.setPreservesPitch(false)
+  }, [engine])
+
+  // The count-in is one beat of *this* song, so it follows the current track.
+  useEffect(() => {
+    engine.setCountIn(countIn ? countInMs(current?.features?.bpm) : 0)
+  }, [engine, countIn, current?.features?.bpm])
+
   // --- sleep timer ---------------------------------------------------------
 
   const setSleepTimer = useCallback((minutes: number | null) => {
@@ -579,6 +639,11 @@ export function PlayerProvider({
       clearQueue,
       setSleepTimer,
       setAutoMix,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      countIn,
+      setCountIn,
     }),
     [
       engineState,
@@ -610,6 +675,11 @@ export function PlayerProvider({
       clearQueue,
       setSleepTimer,
       setAutoMix,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      countIn,
+      setCountIn,
     ],
   )
 
@@ -621,6 +691,16 @@ function restoreAutoMix(): boolean {
     return localStorage.getItem(AUTO_MIX_STORAGE_KEY) === '1'
   } catch {
     return false
+  }
+}
+
+/** A stored on/off preference, falling back to `fallback` when unset. */
+function restoreFlag(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw === null ? fallback : raw === '1'
+  } catch {
+    return fallback
   }
 }
 

@@ -18,6 +18,21 @@ import type { Db } from '../db/index.js'
  * evening, not UTC's.
  */
 
+/**
+ * The start of the window, as a UTC timestamp, snapped to a local midnight.
+ *
+ * Everything on this page is counted in days — active days, the streak, the
+ * busiest date, the peak weekday — so a window that started at "now minus
+ * seven times twenty-four hours" would straddle eight local dates and report
+ * "8 days with music" under a heading that says seven. Snapping to local
+ * midnight makes the label and the numbers agree. The bound parameter is the
+ * offset, e.g. `-6 days` for a seven-day window (today plus the six before).
+ *
+ * `localtime` … `utc` is the standard SQLite round trip: shift to wall clock,
+ * truncate, step back, shift back to what the column actually stores.
+ */
+const WINDOW_START = "datetime('now', 'localtime', 'start of day', ?, 'utc')"
+
 interface SongPlaysRow {
   song_id: number
   title: string
@@ -37,12 +52,12 @@ export class WrappedRepository {
   build(range: WrappedRange): Wrapped {
     const days = WRAPPED_RANGE_DAYS[range]
     // `e.` prefixed so the same clause works in every join below.
-    const clause = days === null ? '1 = 1' : "e.played_at >= datetime('now', ?)"
-    const params: unknown[] = days === null ? [] : [`-${days} days`]
+    const clause = days === null ? '1 = 1' : `e.played_at >= ${WINDOW_START}`
+    const params: unknown[] = days === null ? [] : [`-${days - 1} days`]
 
     const bounds = this.#db
       .prepare<unknown[], { from_at: string | null; to_at: string }>(
-        `SELECT ${days === null ? 'NULL' : "datetime('now', ?)"} AS from_at, datetime('now') AS to_at`,
+        `SELECT ${days === null ? 'NULL' : WINDOW_START} AS from_at, datetime('now') AS to_at`,
       )
       .get(...params)
 
@@ -136,7 +151,7 @@ export class WrappedRepository {
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
-            AND ${days === null ? '1 = 1' : "s.added_at >= datetime('now', ?)"}
+            AND ${days === null ? '1 = 1' : `s.added_at >= ${WINDOW_START}`}
           GROUP BY s.id HAVING COUNT(*) >= 3
           ORDER BY plays DESC, s.title LIMIT 10`,
       )

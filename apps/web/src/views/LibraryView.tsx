@@ -12,6 +12,7 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { useDebounced, useIsMobile } from '../lib/hooks.js'
 import { SongRow } from '../components/SongRow.js'
 import { TagChip } from '../components/TagChip.js'
+import { GemsRow } from '../components/GemsRow.js'
 import { Play, Search, Shuffle, X } from '../components/Icons.js'
 
 /**
@@ -215,6 +216,10 @@ export function LibraryView({
           </button>
         </div>
       </header>
+
+      {/* Only on the unfiltered library: a "forgotten" row inside a search
+          result would be about the search, not about what you have forgotten. */}
+      {effectiveTags.size === 0 && !debouncedQuery.trim() && <GemsRow />}
 
       {isMobile && tags.length > 0 && (
         <div className="mobile-tag-strip">

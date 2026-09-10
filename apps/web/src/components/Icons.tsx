@@ -326,3 +326,14 @@ export const Translate = (p: IconProps) => (
     <path d="m13 21 4-9 4 9M14.3 18h5.4" />
   </Icon>
 )
+
+/* ---- Practice ---- */
+
+/** A metronome — the practice panel. */
+export const Metronome = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9.5 3h5l4 18h-13z" />
+    <path d="M6.2 16h11.6" />
+    <path d="M12 15 16.5 6.5" />
+  </Icon>
+)

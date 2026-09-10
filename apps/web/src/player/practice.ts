@@ -34,10 +34,15 @@ export function loopRegionPercent(
 ): LoopRegion | null {
   if (a === null || !(duration > 0)) return null
   const start = clamp(a / duration, 0, 1)
-  if (b === null) return { left: start * 100, width: 0 }
+  if (b === null) return { left: percent(start), width: 0 }
   const end = clamp(b / duration, 0, 1)
   const [lo, hi] = start <= end ? [start, end] : [end, start]
-  return { left: lo * 100, width: (hi - lo) * 100 }
+  return { left: percent(lo), width: percent(hi - lo) }
+}
+
+/** A CSS percentage. Rounded because 90 % + 10 % of a bar should still be 100. */
+function percent(fraction: number): number {
+  return Math.round(fraction * 100 * 1e6) / 1e6
 }
 
 /**

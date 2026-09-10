@@ -25,6 +25,8 @@ import {
   SimilarSongsSchema,
   SongSchema,
   StatsSchema,
+  WrappedSchema,
+  ForgottenGemsSchema,
   SyncManifestSchema,
   TagSchema,
   type AddToPlaylist,
@@ -40,6 +42,7 @@ import {
   type SmartRules,
   type SongPatch,
   type StatsRange,
+  type WrappedRange,
   type UpdatePlaylist,
   type UpdateSettings,
 } from '@selfmp3/shared'
@@ -333,6 +336,11 @@ export const api = {
     request('PATCH', '/api/settings', SettingsSchema, patch),
 
   stats: (range: StatsRange) => request('GET', `/api/stats?range=${range}`, StatsSchema),
+
+  wrapped: (range: WrappedRange) =>
+    request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),
+
+  gems: (limit = 20) => request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
 
   history: (limit = 100) =>
     request(

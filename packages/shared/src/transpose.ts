@@ -26,7 +26,8 @@ export function parseKeyName(key: string): ParsedKey | null {
   if (accidental === 'b' || accidental === '♭') pitchClass -= 1
 
   const modeWord = (match[3] ?? 'major').toLowerCase()
-  const mode: KeyMode = modeWord === 'minor' || modeWord === 'min' || modeWord === 'm' ? 'minor' : 'major'
+  const mode: KeyMode =
+    modeWord === 'minor' || modeWord === 'min' || modeWord === 'm' ? 'minor' : 'major'
 
   return { pitchClass: ((pitchClass % 12) + 12) % 12, mode }
 }

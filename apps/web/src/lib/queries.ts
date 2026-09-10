@@ -13,6 +13,9 @@ import type {
   Settings,
   Stats,
   StatsRange,
+  Wrapped,
+  WrappedRange,
+  ForgottenGems,
   ImportQueue,
   SimilarSongs,
   ToolStatus,
@@ -37,6 +40,8 @@ export const queryKeys = {
   importTools: ['import', 'tools'] as const,
   migrateJob: (id: string) => ['migrate', id] as const,
   stats: (range: StatsRange) => ['stats', range] as const,
+  wrapped: (range: WrappedRange) => ['stats', 'wrapped', range] as const,
+  gems: (limit: number) => ['library', 'gems', limit] as const,
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
   health: ['health'] as const,
@@ -94,6 +99,32 @@ export function useStats(range: StatsRange): UseQueryResult<Stats, Error> {
     queryKey: queryKeys.stats(range),
     queryFn: () => api.stats(range),
     staleTime: 60_000,
+  })
+}
+
+export function useWrapped(range: WrappedRange): UseQueryResult<Wrapped, Error> {
+  return useQuery({
+    queryKey: queryKeys.wrapped(range),
+    queryFn: () => api.wrapped(range),
+    staleTime: 60_000,
+  })
+}
+
+/**
+ * Forgotten gems.
+ *
+ * `staleTime: Infinity` on purpose: the server shuffles the ranking on every
+ * request, so a background refetch would silently rearrange the row under the
+ * user's finger. It reloads when the page is opened again, which is the only
+ * time a different set is welcome.
+ */
+export function useGems(limit = 12): UseQueryResult<ForgottenGems, Error> {
+  return useQuery({
+    queryKey: queryKeys.gems(limit),
+    queryFn: () => api.gems(limit),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
   })
 }
 

@@ -15,13 +15,76 @@ function makeDb(): Database.Database {
              CASE WHEN @last IS NULL THEN NULL ELSE datetime('now', @last) END, @missing)`,
   )
   // Library is a year old, so the threshold is the 60-day ceiling.
-  insert.run({ id: 1, path: 'a', title: 'Well loved, long quiet', added: '-365 days', plays: 20, loved: 1, last: '-120 days', missing: 0 })
-  insert.run({ id: 2, path: 'b', title: 'Played a lot, quiet', added: '-365 days', plays: 8, loved: 0, last: '-90 days', missing: 0 })
-  insert.run({ id: 3, path: 'c', title: 'Played recently', added: '-365 days', plays: 30, loved: 1, last: '-2 days', missing: 0 })
-  insert.run({ id: 4, path: 'd', title: 'Barely played', added: '-365 days', plays: 2, loved: 0, last: '-200 days', missing: 0 })
-  insert.run({ id: 5, path: 'e', title: 'Loved, never played', added: '-100 days', plays: 0, loved: 1, last: null, missing: 0 })
-  insert.run({ id: 6, path: 'f', title: 'Missing file', added: '-365 days', plays: 50, loved: 1, last: '-200 days', missing: 1 })
-  insert.run({ id: 7, path: 'g', title: 'Just under the line', added: '-365 days', plays: 9, loved: 0, last: '-59 days', missing: 0 })
+  insert.run({
+    id: 1,
+    path: 'a',
+    title: 'Well loved, long quiet',
+    added: '-365 days',
+    plays: 20,
+    loved: 1,
+    last: '-120 days',
+    missing: 0,
+  })
+  insert.run({
+    id: 2,
+    path: 'b',
+    title: 'Played a lot, quiet',
+    added: '-365 days',
+    plays: 8,
+    loved: 0,
+    last: '-90 days',
+    missing: 0,
+  })
+  insert.run({
+    id: 3,
+    path: 'c',
+    title: 'Played recently',
+    added: '-365 days',
+    plays: 30,
+    loved: 1,
+    last: '-2 days',
+    missing: 0,
+  })
+  insert.run({
+    id: 4,
+    path: 'd',
+    title: 'Barely played',
+    added: '-365 days',
+    plays: 2,
+    loved: 0,
+    last: '-200 days',
+    missing: 0,
+  })
+  insert.run({
+    id: 5,
+    path: 'e',
+    title: 'Loved, never played',
+    added: '-100 days',
+    plays: 0,
+    loved: 1,
+    last: null,
+    missing: 0,
+  })
+  insert.run({
+    id: 6,
+    path: 'f',
+    title: 'Missing file',
+    added: '-365 days',
+    plays: 50,
+    loved: 1,
+    last: '-200 days',
+    missing: 1,
+  })
+  insert.run({
+    id: 7,
+    path: 'g',
+    title: 'Just under the line',
+    added: '-365 days',
+    plays: 9,
+    loved: 0,
+    last: '-59 days',
+    missing: 0,
+  })
   return db
 }
 

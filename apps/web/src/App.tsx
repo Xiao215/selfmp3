@@ -9,6 +9,7 @@ import { MobileNav } from './components/MobileNav.js'
 import { PlayerBar } from './components/PlayerBar.js'
 import { LyricsPanel } from './components/LyricsPanel.js'
 import { QueuePanel } from './components/QueuePanel.js'
+import { PracticePanel } from './components/PracticePanel.js'
 import { NowPlaying } from './components/NowPlaying.js'
 import { CommandPalette } from './components/CommandPalette.js'
 import { LibraryView } from './views/LibraryView.js'
@@ -17,6 +18,7 @@ import { PlaylistDetailView } from './views/PlaylistDetailView.js'
 import { ImportView } from './views/ImportView.js'
 import { MigrateView } from './views/MigrateView.js'
 import { StatsView } from './views/StatsView.js'
+import { WrappedView } from './views/WrappedView.js'
 import { SettingsView } from './views/SettingsView.js'
 
 /**
@@ -60,6 +62,7 @@ function Shell() {
   const [queueOpen, setQueueOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
+  const [practiceOpen, setPracticeOpen] = useState(false)
 
   const toggleTag = useCallback((tagId: number) => {
     setSelectedTags(current => {
@@ -94,11 +97,19 @@ function Shell() {
   const openLyrics = useCallback(() => {
     setLyricsOpen(open => !open)
     setQueueOpen(false)
+    setPracticeOpen(false)
   }, [])
 
   const openQueue = useCallback(() => {
     setQueueOpen(open => !open)
     setLyricsOpen(false)
+    setPracticeOpen(false)
+  }, [])
+
+  const openPractice = useCallback(() => {
+    setPracticeOpen(open => !open)
+    setLyricsOpen(false)
+    setQueueOpen(false)
   }, [])
 
   return (
@@ -130,6 +141,7 @@ function Shell() {
             <Route path="/import" element={<ImportView />} />
             <Route path="/import/migrate" element={<MigrateView />} />
             <Route path="/stats" element={<StatsView />} />
+            <Route path="/stats/wrapped" element={<WrappedView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -137,14 +149,17 @@ function Shell() {
 
         {!isMobile && lyricsOpen && <LyricsPanel onClose={() => setLyricsOpen(false)} />}
         {!isMobile && queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+        {!isMobile && practiceOpen && <PracticePanel onClose={() => setPracticeOpen(false)} />}
       </div>
 
       <PlayerBar
         onOpenLyrics={openLyrics}
         onOpenQueue={openQueue}
+        onOpenPractice={openPractice}
         onOpenNowPlaying={() => setNowPlayingOpen(true)}
         lyricsOpen={lyricsOpen}
         queueOpen={queueOpen}
+        practiceOpen={practiceOpen}
       />
 
       {isMobile && <MobileNav />}

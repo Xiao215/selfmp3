@@ -5,6 +5,7 @@ import { useCreatePlaylist, useLibrary, useUpdatePlaylist } from '../lib/queries
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
 import { ListMusic, Play, Plus, Sparkles } from '../components/Icons.js'
+import { GemsPlaylistCard } from '../components/GemsRow.js'
 
 /**
  * Playlist index.
@@ -100,18 +101,11 @@ export function PlaylistsView() {
         </form>
       )}
 
-      {playlists.length === 0 ? (
-        <div className="empty-state">
-          <p className="empty-emoji">📼</p>
-          <h2>No playlists yet</h2>
-          <p className="hint">
-            A <strong>smart playlist</strong> is worth trying first — set a rule like &ldquo;tagged
-            chill and played more than 5 times&rdquo; and it keeps itself up to date forever.
-          </p>
-        </div>
-      ) : (
-        <div className="playlist-grid">
-          {playlists.map(playlist => (
+      <div className="playlist-grid">
+        {/* Built in, and not a database row: nothing to delete or rename. */}
+        <GemsPlaylistCard />
+
+        {playlists.map(playlist => (
             <div key={playlist.id} className="playlist-card">
               <button
                 type="button"
@@ -157,6 +151,18 @@ export function PlaylistsView() {
               </div>
             </div>
           ))}
+      </div>
+
+      {/* Below the grid, because the built-in card is already up there and an
+          empty state above it would be contradicting itself. */}
+      {playlists.length === 0 && (
+        <div className="empty-state">
+          <p className="empty-emoji">📼</p>
+          <h2>No playlists of your own yet</h2>
+          <p className="hint">
+            A <strong>smart playlist</strong> is worth trying first — set a rule like &ldquo;tagged
+            chill and played more than 5 times&rdquo; and it keeps itself up to date forever.
+          </p>
         </div>
       )}
     </section>

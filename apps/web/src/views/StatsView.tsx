@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   formatLongDuration,
   formatRelative,
@@ -9,6 +10,7 @@ import { useHistory, useLibrary, useStats } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { BarList, ColumnChart, StatTile, type ColumnDatum } from '../components/charts.js'
 import { Cover } from '../components/Cover.js'
+import { Sparkles } from '../components/Icons.js'
 
 /**
  * Listening stats.
@@ -107,6 +109,10 @@ export function StatsView() {
               </button>
             ))}
           </div>
+
+          <Link to="/stats/wrapped" className="button button-primary">
+            <Sparkles size={15} /> Wrapped
+          </Link>
         </div>
       </header>
 

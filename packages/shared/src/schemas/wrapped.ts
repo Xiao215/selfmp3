@@ -6,8 +6,10 @@ import { TopEntrySchema, TopSongSchema } from './stats.js'
  * "Wrapped, anytime": a year-in-review style summary for any window.
  *
  * Everything is computed from `play_events`, like the rest of the stats. The
- * ranges are rolling windows counted back from now rather than calendar
- * periods, so "week" on a Tuesday is still seven full days of listening.
+ * ranges are rolling windows counted back from today rather than calendar
+ * periods, so "week" on a Tuesday is still seven days of listening — but they
+ * start at a local midnight, because every headline here is a count of days
+ * and a window straddling eight dates would contradict its own label.
  */
 
 export const WrappedRangeSchema = z.enum(['week', 'month', 'year', 'all'])

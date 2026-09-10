@@ -4,13 +4,19 @@ import {
   BooleanQuerySchema,
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
+  ImportShareRequestSchema,
+  YT_LIKED_MUSIC_URL,
+  type ImportEnqueueItem,
+  type ImportEnqueueResult,
   type ImportPreview,
-  type ImportPreviewItem,
   type ImportQueue,
+  type ImportShareResult,
+  type YtCookieTest,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 
@@ -32,82 +38,105 @@ export function importRoutes(container: Container): Router {
     ),
   )
 
+  /** Queue what is not already queued, so a double tap does not download twice. */
+  const enqueueFresh = (
+    items: readonly ImportEnqueueItem[],
+    tagIds: readonly number[],
+    playlistId: number | null,
+  ): ImportEnqueueResult => {
+    const fresh = items.filter(item => !container.imports.isPending(item.url))
+    if (fresh.length === 0) {
+      throw HttpError.conflict('those tracks are already in the queue')
+    }
+    const jobs = container.imports.enqueue(fresh, tagIds, playlistId)
+    container.importQueue.kick()
+    return { jobs, skipped: items.length - fresh.length, playlistId }
+  }
+
   router.post(
     '/import/preview',
-    route({ body: ImportPreviewRequestSchema }, async ({ body }): Promise<ImportPreview> => {
-      const tools = await container.ytdlp.status()
-      if (!tools.ytdlp) {
-        throw HttpError.failedDependency(
-          'yt-dlp is not installed. Install it with: brew install yt-dlp ffmpeg',
-        )
-      }
-
-      // Accept several URLs at once, one per line.
-      const urls = body.url
-        .split(/[\s\n]+/)
-        .map(part => part.trim())
-        .filter(part => /^https?:\/\//i.test(part))
-        .slice(0, 20)
-
-      if (urls.length === 0) throw HttpError.badRequest('that does not look like a link')
-
-      // An index of what is already here, so the UI can grey out duplicates.
-      const existing = new Set(
-        container.songs
-          .all()
-          .map(song => `${song.artist}::${song.title}`.toLowerCase()),
-      )
-
-      const items: ImportPreviewItem[] = []
-      let kind: 'single' | 'playlist' = 'single'
-      let playlistTitle: string | null = null
-
-      for (const url of urls) {
-        const probed = await container.ytdlp.probe(url)
-        if (probed.kind === 'playlist') {
-          kind = 'playlist'
-          playlistTitle ??= probed.playlistTitle
-        }
-        for (const track of probed.tracks) {
-          items.push({
-            url: track.url,
-            title: track.title,
-            artist: track.artist,
-            album: track.album,
-            duration: track.duration,
-            thumbnail: track.thumbnail,
-            alreadyHave: existing.has(`${track.artist}::${track.title}`.toLowerCase()),
-          })
-        }
-      }
-
-      if (urls.length > 1) kind = 'playlist'
-      return { kind, playlistTitle, items }
-    }),
+    route({ body: ImportPreviewRequestSchema }, ({ body }): Promise<ImportPreview> =>
+      buildImportPreview(container, body.url),
+    ),
   )
 
   router.post(
     '/import/enqueue',
-    route({ body: ImportEnqueueSchema }, ({ body }) => {
+    route({ body: ImportEnqueueSchema }, ({ body }): ImportEnqueueResult => {
       const tagIds = container.tags.exists(body.tagIds)
+      const playlist = resolveImportPlaylist(container.playlists, body)
+      const result = enqueueFresh(body.items, tagIds, playlist?.id ?? null)
+      // A playlist may have just been created; let clients refetch the list.
+      if (playlist && body.playlistId === null) container.bumpLibraryVersion()
+      return result
+    }),
+  )
 
-      if (body.playlistId !== null) {
-        const playlist = container.playlists.byId(body.playlistId)
-        if (!playlist) throw HttpError.notFound('no such playlist')
-        if (playlist.kind === 'smart') {
-          throw HttpError.badRequest('imports cannot be added to a smart playlist')
+  /**
+   * Share-sheet import: probe and enqueue in one request.
+   *
+   * iOS has no Web Share Target, so a Shortcut posts the shared link here and
+   * gets the created jobs back. The default import tags from settings are
+   * applied so the result matches what the interactive flow would have done.
+   * Mounted at both `/import/share` (this file's convention) and
+   * `/imports/share` (the documented name), since a Shortcut is fiddly to edit.
+   */
+  const share = route(
+    { body: ImportShareRequestSchema },
+    async ({ body }): Promise<ImportShareResult> => {
+      const preview = await buildImportPreview(container, body.url)
+      const items = preview.items.filter(item => !item.alreadyHave)
+      if (items.length === 0) {
+        throw HttpError.conflict('everything in that link is already in your library')
+      }
+
+      const settings = container.settings.get()
+      const tagIds = container.tags.exists([
+        ...new Set([...body.tagIds, ...settings.defaultImportTagIds]),
+      ])
+      const playlist = resolveImportPlaylist(container.playlists, {
+        playlistId: null,
+        createPlaylistName:
+          body.createPlaylist && preview.kind === 'playlist' ? preview.playlistTitle : null,
+      })
+      if (playlist) container.bumpLibraryVersion()
+
+      return {
+        ...enqueueFresh(items, tagIds, playlist?.id ?? null),
+        kind: preview.kind,
+        playlistTitle: preview.playlistTitle,
+      }
+    },
+  )
+  router.post('/import/share', share)
+  router.post('/imports/share', share)
+
+  /**
+   * Does yt-dlp see a signed-in YouTube Music session? Liked Music is private,
+   * so resolving it proves the cookies work end to end.
+   */
+  router.post(
+    '/import/youtube/test',
+    route({}, async (): Promise<YtCookieTest> => {
+      const source = container.settings.get().ytCookieSource
+      try {
+        const probed = await container.ytdlp.probe(YT_LIKED_MUSIC_URL)
+        return {
+          ok: true,
+          source,
+          count: probed.tracks.length,
+          playlistTitle: probed.playlistTitle,
+          error: null,
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          source,
+          count: null,
+          playlistTitle: null,
+          error: error instanceof Error ? error.message : String(error),
         }
       }
-
-      // Skip URLs already queued, so a double tap does not download twice.
-      const fresh = body.items.filter(item => !container.imports.isPending(item.url))
-      if (fresh.length === 0) {
-        throw HttpError.conflict('those tracks are already in the queue')
-      }
-
-      const jobs = container.imports.enqueue(fresh, tagIds, body.playlistId)
-      container.importQueue.kick()
-      return { jobs, skipped: body.items.length - fresh.length }
     }),
   )
 

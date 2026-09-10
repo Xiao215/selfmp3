@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   formatDuration,
   IMPORT_STEP_LABELS,
@@ -8,7 +9,9 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { queryKeys, useImportQueue, useImportTools, useLibrary } from '../lib/queries.js'
+import { SHARE_PARAMS, sharedLinksFromQuery } from '../lib/shareTarget.js'
 import { TagChip } from '../components/TagChip.js'
+import { YouTubeLibraryPanel } from '../components/YouTubeLibraryPanel.js'
 import { Check, CheckCircle, Download, Refresh, X } from '../components/Icons.js'
 
 /**
@@ -28,7 +31,11 @@ export function ImportView() {
   const [chosen, setChosen] = useState<ReadonlySet<number>>(() => new Set())
   const [tagIds, setTagIds] = useState<ReadonlySet<number>>(() => new Set())
   const [playlistId, setPlaylistId] = useState<number | null>(null)
+  /** The source playlist's name, when the link was one — for "also create playlist". */
+  const [playlistTitle, setPlaylistTitle] = useState<string | null>(null)
+  const [createPlaylist, setCreatePlaylist] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const tags = library?.tags ?? []
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
@@ -40,6 +47,8 @@ export function ImportView() {
     mutationFn: (input: string) => api.importPreview(input),
     onSuccess: result => {
       setItems(result.items)
+      setPlaylistTitle(result.kind === 'playlist' ? result.playlistTitle : null)
+      setCreatePlaylist(false)
       // Pre-tick everything except tracks that look like duplicates.
       setChosen(
         new Set(
@@ -53,15 +62,51 @@ export function ImportView() {
 
   const enqueue = useMutation({
     mutationFn: (input: ImportEnqueueItem[]) =>
-      api.importEnqueue({ items: input, tagIds: [...tagIds], playlistId }),
-    onSuccess: () => {
+      api.importEnqueue({
+        items: input,
+        tagIds: [...tagIds],
+        playlistId,
+        createPlaylistName: playlistId === null && createPlaylist ? playlistTitle : null,
+      }),
+    onSuccess: result => {
       setItems(null)
       setUrl('')
       setChosen(new Set())
       void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue })
+      // A playlist may have been created for this import.
+      if (result.playlistId !== null) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+      }
     },
     onError: (err: Error) => setError(err.message),
   })
+
+  /** Prefill the box and fetch, for share sheets and the quick sources below. */
+  const fetchLinks = (links: string): void => {
+    setUrl(links)
+    setItems(null)
+    preview.mutate(links)
+  }
+
+  // Web Share Target: Android/Chrome opens `/import?url=…&text=…` when a link
+  // is shared to the installed app. Read it once, run the probe straight away,
+  // and strip the query so a reload does not fetch it again.
+  const sharedOnce = useRef(false)
+  const shared = sharedLinksFromQuery(searchParams.toString())
+  useEffect(() => {
+    if (!shared || sharedOnce.current) return
+    sharedOnce.current = true
+    fetchLinks(shared)
+    setSearchParams(
+      current => {
+        const next = new URLSearchParams(current)
+        for (const key of SHARE_PARAMS) next.delete(key)
+        return next
+      },
+      { replace: true },
+    )
+    // Only `shared` matters here; the ref guards against a second run anyway.
+  }, [shared])
 
   const selectedItems = useMemo(
     () => (items ?? []).filter((_, index) => chosen.has(index)),
@@ -268,6 +313,20 @@ export function ImportView() {
               </div>
             </div>
 
+            {playlistTitle && playlistId === null && (
+              <label className="import-option import-option-check">
+                <input
+                  type="checkbox"
+                  className="toggle"
+                  checked={createPlaylist}
+                  onChange={event => setCreatePlaylist(event.target.checked)}
+                />
+                <span className="field-label">
+                  Also create playlist <strong>“{playlistTitle}”</strong>
+                </span>
+              </label>
+            )}
+
             {manualPlaylists.length > 0 && (
               <label className="import-option">
                 <span className="field-label">Add to playlist</span>
@@ -305,6 +364,8 @@ export function ImportView() {
           </div>
         </div>
       )}
+
+      <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />
 
       {queue && queue.jobs.length > 0 && (
         <div className="import-queue">

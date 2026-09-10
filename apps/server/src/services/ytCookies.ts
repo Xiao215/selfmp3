@@ -1,0 +1,100 @@
+import type { Settings } from '@selfmp3/shared'
+
+/**
+ * YouTube login cookies for yt-dlp.
+ *
+ * Private playlists and Liked Music only resolve when yt-dlp is signed in,
+ * and it can borrow the browser's own session (`--cookies-from-browser`) or
+ * read a Netscape `cookies.txt`. This module turns the settings into the
+ * right arguments and, when it goes wrong, turns yt-dlp's stderr into
+ * something a person can act on. Pure, so both halves are unit-tested.
+ */
+
+export type YtCookieSettings = Pick<Settings, 'ytCookieSource' | 'ytCookieBrowser' | 'ytCookieFile'>
+
+/** Extra yt-dlp arguments for the configured cookie source. Empty when none. */
+export function cookieArgs(settings: YtCookieSettings): string[] {
+  switch (settings.ytCookieSource) {
+    case 'browser':
+      return ['--cookies-from-browser', settings.ytCookieBrowser]
+    case 'file':
+      return settings.ytCookieFile.trim() ? ['--cookies', settings.ytCookieFile.trim()] : []
+    case 'none':
+      return []
+  }
+}
+
+const BROWSER_LABELS: Record<Settings['ytCookieBrowser'], string> = {
+  chrome: 'Chrome',
+  safari: 'Safari',
+  firefox: 'Firefox',
+  brave: 'Brave',
+  edge: 'Edge',
+  chromium: 'Chromium',
+}
+
+export function browserLabel(browser: Settings['ytCookieBrowser']): string {
+  return BROWSER_LABELS[browser]
+}
+
+/**
+ * Map a yt-dlp failure to an actionable message.
+ *
+ * yt-dlp's own errors are accurate but written for people who already know
+ * what a cookie database is. The cases below are the ones that actually
+ * happen on a Mac; anything else falls through unchanged.
+ */
+export function explainCookieError(message: string, settings: YtCookieSettings): string {
+  const lower = message.toLowerCase()
+  const browser = browserLabel(settings.ytCookieBrowser)
+
+  if (settings.ytCookieSource === 'browser') {
+    if (
+      settings.ytCookieBrowser === 'safari' &&
+      /permission denied|operation not permitted|could not find safari|cookies\.binarycookies/.test(
+        lower,
+      )
+    ) {
+      return `Couldn’t read Safari’s cookies. macOS protects that file: give the process running self.mp3 (Terminal, or node) Full Disk Access in System Settings → Privacy & Security, then try again.`
+    }
+    if (/database is locked|locked by another|being used by another process/.test(lower)) {
+      return `${browser}’s cookie database is locked — it is open in ${browser} right now. Quit ${browser} and try again, or switch to a cookies.txt file.`
+    }
+    if (
+      /could not (find|copy|open).*cookie|cookies? database|no such file|not found.*cookies/.test(
+        lower,
+      )
+    ) {
+      return `Couldn’t find ${browser}’s cookie database. Is ${browser} installed and has it been opened at least once on this Mac?`
+    }
+    if (/failed to decrypt|keyring|keychain|dpapi/.test(lower)) {
+      return `Couldn’t decrypt ${browser}’s cookies. yt-dlp needs to read the browser’s key from the macOS keychain; allow it when prompted, or use a cookies.txt file instead.`
+    }
+    if (/unsupported browser|not supported|browser .* is not/.test(lower)) {
+      return `This version of yt-dlp can’t read cookies from ${browser}. Update it (brew upgrade yt-dlp) or pick another browser.`
+    }
+  }
+
+  if (settings.ytCookieSource === 'file') {
+    if (/no such file|does not exist|not found|cannot open|errno 2/.test(lower)) {
+      return `The cookies file wasn’t found at ${settings.ytCookieFile || '(empty path)'}. Check the path in Settings.`
+    }
+    if (/netscape|invalid cookies?|not a valid|does not look like/.test(lower)) {
+      return `That file isn’t in Netscape cookies.txt format. Export it with a “Get cookies.txt” browser extension.`
+    }
+  }
+
+  if (
+    /sign in|login required|log in|private|does not exist|not available|unavailable|cookies/.test(
+      lower,
+    )
+  ) {
+    return settings.ytCookieSource === 'none'
+      ? 'YouTube says that needs a signed-in account. Set up YouTube cookies in Settings → Importing first.'
+      : `YouTube didn’t accept the cookies as a signed-in session. Make sure ${
+          settings.ytCookieSource === 'browser' ? browser : 'the browser you exported from'
+        } is logged in to YouTube Music, then try again. (${message})`
+  }
+
+  return message
+}

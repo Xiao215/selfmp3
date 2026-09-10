@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process'
+import fsp from 'node:fs/promises'
+import { constants as fsConstants } from 'node:fs'
 import type { ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
 
 /**
  * A typed wrapper around the `yt-dlp` command line.
@@ -135,12 +138,46 @@ interface YtDlpJson {
   playlist_title?: string
 }
 
+const NO_COOKIES: YtCookieSettings = { ytCookieSource: 'none', ytCookieBrowser: 'chrome', ytCookieFile: '' }
+
 export class YtDlpService {
   readonly #logger: Logger
+  readonly #cookies: () => YtCookieSettings
   #cachedStatus: ToolStatus | null = null
 
-  constructor(logger: Logger) {
+  /**
+   * `cookies` is read on every call rather than once, so changing the cookie
+   * settings takes effect on the next probe without a restart.
+   */
+  constructor(logger: Logger, cookies: () => YtCookieSettings = () => NO_COOKIES) {
     this.#logger = logger.child('yt-dlp')
+    this.#cookies = cookies
+  }
+
+  /**
+   * The cookie arguments for the current settings.
+   *
+   * A missing cookies.txt is checked here because yt-dlp itself does not
+   * complain about one — it silently runs signed-out, which is exactly the
+   * confusing failure this setting exists to prevent.
+   */
+  async #cookieArgs(): Promise<string[]> {
+    const settings = this.#cookies()
+    if (settings.ytCookieSource === 'file' && settings.ytCookieFile.trim()) {
+      const file = settings.ytCookieFile.trim()
+      const readable = await fsp.access(file, fsConstants.R_OK).then(
+        () => true,
+        () => false,
+      )
+      if (!readable) {
+        throw new Error(this.#explain(`[Errno 2] No such file or directory: '${file}'`))
+      }
+    }
+    return cookieArgs(settings)
+  }
+
+  #explain(message: string): string {
+    return explainCookieError(message, this.#cookies())
   }
 
   /** Whether yt-dlp and ffmpeg are installed. Cached after the first success. */
@@ -176,12 +213,19 @@ export class YtDlpService {
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
     const result = await run(
       'yt-dlp',
-      ['--dump-single-json', '--flat-playlist', '--no-warnings', '--', url],
+      [
+        '--dump-single-json',
+        '--flat-playlist',
+        '--no-warnings',
+        ...(await this.#cookieArgs()),
+        '--',
+        url,
+      ],
       { timeoutMs: 90_000, ...(signal ? { signal } : {}) },
     )
 
     if (result.code !== 0) {
-      throw new Error(summarizeError(result.stderr, 'could not read that link'))
+      throw new Error(this.#explain(summarizeError(result.stderr, 'could not read that link')))
     }
 
     let parsed: YtDlpJson
@@ -265,7 +309,7 @@ export class YtDlpService {
       args.push('--embed-metadata', '--embed-thumbnail')
     }
 
-    args.push('--', input.url)
+    args.push(...(await this.#cookieArgs()), '--', input.url)
 
     const result = await run('yt-dlp', args, {
       timeoutMs: 20 * 60 * 1000,
@@ -282,7 +326,7 @@ export class YtDlpService {
 
     if (result.timedOut) throw new Error('download timed out')
     if (result.code !== 0) {
-      throw new Error(summarizeError(result.stderr + result.stdout, 'download failed'))
+      throw new Error(this.#explain(summarizeError(result.stderr + result.stdout, 'download failed')))
     }
 
     this.#logger.debug('download finished', { url: input.url })

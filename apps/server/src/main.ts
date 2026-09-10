@@ -34,6 +34,8 @@ function main(): void {
   server.requestTimeout = 0
 
   container.importQueue.start()
+  // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
+  container.libraryWatcher.apply()
 
   if (config.scanOnBoot) {
     // Deliberately not awaited: the API is already serving, and a first scan of
@@ -76,6 +78,7 @@ function main(): void {
     logger.info(`received ${signal}, shutting down`)
 
     if (scanTimer) clearInterval(scanTimer)
+    container.libraryWatcher.stop()
     container.importQueue.stop()
 
     server.close(() => {

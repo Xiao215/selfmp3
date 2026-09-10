@@ -312,6 +312,104 @@ export function SettingsView() {
               </select>
             </span>
           </label>
+
+          {/* ---- import suite: folder watching + YouTube cookies ---- */}
+
+          <label className="setting-row setting-row-toggle">
+            <span className="setting-label">
+              Watch the library folder
+              <span className="setting-hint">
+                Rescan the moment a file is added, removed or renamed — drag something into
+                the folder in Finder and it shows up here. No timer needed.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={settings.watchLibrary}
+              onChange={event => set('watchLibrary', event.target.checked)}
+            />
+          </label>
+
+          <label className="setting-row" id="youtube">
+            <span className="setting-label">
+              YouTube login cookies
+              <span className="setting-hint">
+                Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login
+                from a browser on this Mac; “File” reads a Netscape cookies.txt.
+              </span>
+            </span>
+            <span className="setting-control">
+              <select
+                className="select"
+                value={settings.ytCookieSource}
+                onChange={event =>
+                  set('ytCookieSource', event.target.value as Settings['ytCookieSource'])
+                }
+              >
+                <option value="none">Off</option>
+                <option value="browser">From a browser</option>
+                <option value="file">From a cookies.txt file</option>
+              </select>
+            </span>
+          </label>
+
+          {settings.ytCookieSource === 'browser' && (
+            <label className="setting-row">
+              <span className="setting-label">
+                Browser
+                <span className="setting-hint">
+                  Must be signed in to YouTube Music.
+                  {settings.ytCookieBrowser === 'safari' &&
+                    ' Safari’s cookie file is protected by macOS: give the process running self.mp3 (Terminal or node) Full Disk Access in System Settings → Privacy & Security.'}
+                  {settings.ytCookieBrowser !== 'safari' &&
+                    ' Chromium browsers may ask for keychain access the first time; Firefox needs to be closed while cookies are read.'}
+                </span>
+              </span>
+              <span className="setting-control">
+                <select
+                  className="select"
+                  value={settings.ytCookieBrowser}
+                  onChange={event =>
+                    set('ytCookieBrowser', event.target.value as Settings['ytCookieBrowser'])
+                  }
+                >
+                  <option value="chrome">Chrome</option>
+                  <option value="safari">Safari</option>
+                  <option value="firefox">Firefox</option>
+                  <option value="brave">Brave</option>
+                  <option value="edge">Edge</option>
+                  <option value="chromium">Chromium</option>
+                </select>
+              </span>
+            </label>
+          )}
+
+          {settings.ytCookieSource === 'file' && (
+            <label className="setting-row">
+              <span className="setting-label">
+                Cookies file
+                <span className="setting-hint">
+                  Full path to a Netscape-format cookies.txt exported from a browser where you
+                  are logged in to YouTube Music.
+                </span>
+              </span>
+              <span className="setting-control">
+                <input
+                  key={settings.ytCookieFile}
+                  className="input setting-input-path"
+                  defaultValue={settings.ytCookieFile}
+                  placeholder="/Users/you/cookies.txt"
+                  spellCheck={false}
+                  onBlur={event => {
+                    if (event.target.value.trim() !== settings.ytCookieFile) {
+                      set('ytCookieFile', event.target.value.trim())
+                    }
+                  }}
+                />
+              </span>
+            </label>
+          )}
         </section>
       )}
 

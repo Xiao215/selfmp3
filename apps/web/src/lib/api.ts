@@ -1,8 +1,10 @@
 import {
   HealthSchema,
+  ImportEnqueueResultSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
-  ImportJobSchema,
+  ImportShareResultSchema,
+  YtCookieTestSchema,
   LibrarySchema,
   LyricsResponseSchema,
   PlaylistSchema,
@@ -17,6 +19,7 @@ import {
   type BulkTag,
   type CreatePlaylist,
   type ImportEnqueue,
+  type ImportShareRequest,
   type PlayEvent,
   type SmartRules,
   type SongPatch,
@@ -235,12 +238,12 @@ export const api = {
     request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
 
   importEnqueue: (input: ImportEnqueue) =>
-    request(
-      'POST',
-      '/api/import/enqueue',
-      z.object({ jobs: z.array(ImportJobSchema), skipped: z.number() }),
-      input,
-    ),
+    request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
+
+  importShare: (input: ImportShareRequest) =>
+    request('POST', '/api/import/share', ImportShareResultSchema, input),
+
+  ytCookieTest: () => request('POST', '/api/import/youtube/test', YtCookieTestSchema),
 
   importQueue: () => request('GET', '/api/import/queue', ImportQueueSchema),
 

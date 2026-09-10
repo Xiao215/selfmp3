@@ -20,6 +20,7 @@ export * from './schemas/settings.js'
 export * from './format.js'
 export * from './lrc.js'
 export * from './fuzzy.js'
+export * from './links.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

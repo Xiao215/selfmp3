@@ -22,6 +22,19 @@ export const SettingsSchema = z.object({
   defaultImportTagIds: z.array(z.number().int().positive()).max(20).default([]),
   /** Rescan the library folder on a timer, in minutes. Zero disables it. */
   autoScanMinutes: z.number().int().min(0).max(1440).default(0),
+  /** Watch the library folder and rescan when files change, no timer needed. */
+  watchLibrary: z.boolean().default(true),
+  /**
+   * Where yt-dlp gets YouTube login cookies from, so private playlists and
+   * Liked Music resolve. 'browser' reads the browser's own cookie store;
+   * 'file' reads a Netscape-format cookies.txt.
+   */
+  ytCookieSource: z.enum(['none', 'browser', 'file']).default('none'),
+  ytCookieBrowser: z
+    .enum(['chrome', 'safari', 'firefox', 'brave', 'edge', 'chromium'])
+    .default('chrome'),
+  /** Absolute path to a cookies.txt, used when ytCookieSource is 'file'. */
+  ytCookieFile: z.string().trim().max(1000).default(''),
   theme: z.enum(['dark', 'light', 'system']).default('dark'),
   /** Accent hue for the whole UI. */
   accentHue: z.number().int().min(0).max(359).default(268),

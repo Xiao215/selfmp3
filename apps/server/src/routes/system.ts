@@ -40,6 +40,8 @@ export function systemRoutes(container: Container): Router {
       const updated = container.settings.update(body)
       // Concurrency may have changed; let the queue pick up the new limit.
       container.importQueue.kick()
+      // Folder watching switches on or off immediately, no restart needed.
+      container.libraryWatcher.apply()
       return updated
     }),
   )

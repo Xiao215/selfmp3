@@ -95,8 +95,56 @@ export const ImportEnqueueSchema = z.object({
   tagIds: z.array(IdSchema).max(50).default([]),
   /** Optionally drop every imported track into this playlist. */
   playlistId: IdSchema.nullable().default(null),
+  /**
+   * Or create (or reuse) a manual playlist with this name and drop the tracks
+   * in there — what "also create playlist" does when importing a whole
+   * playlist. Ignored when playlistId is set.
+   */
+  createPlaylistName: z.string().trim().min(1).max(200).nullable().default(null),
 })
 export type ImportEnqueue = z.infer<typeof ImportEnqueueSchema>
+
+export const ImportEnqueueResultSchema = z.object({
+  jobs: z.array(ImportJobSchema),
+  /** Tracks left out because they were already queued. */
+  skipped: z.number().int().nonnegative(),
+  /** The playlist the tracks will land in, when there is one. */
+  playlistId: IdSchema.nullable(),
+})
+export type ImportEnqueueResult = z.infer<typeof ImportEnqueueResultSchema>
+
+/**
+ * One-shot import for share sheets: probe and enqueue in a single request,
+ * with the default import tags applied. This is what an iOS Shortcut posts,
+ * since iOS has no Web Share Target.
+ */
+export const ImportShareRequestSchema = z.object({
+  /** One URL, or free text containing URLs (the share sheet often sends both). */
+  url: z.string().trim().min(1).max(20_000),
+  tagIds: z.array(IdSchema).max(50).default([]),
+  /** Create a playlist with the source playlist's name when the link is one. */
+  createPlaylist: z.boolean().default(false),
+})
+export type ImportShareRequest = z.infer<typeof ImportShareRequestSchema>
+
+export const ImportShareResultSchema = ImportEnqueueResultSchema.extend({
+  kind: z.enum(['single', 'playlist']),
+  playlistTitle: z.string().nullable(),
+})
+export type ImportShareResult = z.infer<typeof ImportShareResultSchema>
+
+/** Result of probing YouTube Music with the configured cookies. */
+export const YtCookieTestSchema = z.object({
+  ok: z.boolean(),
+  /** How cookies are configured, echoed back so the UI can explain itself. */
+  source: z.enum(['none', 'browser', 'file']),
+  /** Tracks found in Liked Music when the probe worked. */
+  count: z.number().int().nonnegative().nullable(),
+  playlistTitle: z.string().nullable(),
+  /** An actionable explanation when it did not. */
+  error: z.string().nullable(),
+})
+export type YtCookieTest = z.infer<typeof YtCookieTestSchema>
 
 export const ImportQueueSchema = z.object({
   jobs: z.array(ImportJobSchema),

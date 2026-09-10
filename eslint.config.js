@@ -50,6 +50,10 @@ export default tseslint.config(
     // Config files and scripts run outside the type-checked project graph.
     files: ['**/*.config.js', '**/*.config.ts', 'scripts/**/*.js', 'scripts/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      // Plain node scripts: no tsconfig to read globals from, so name them.
+      globals: { console: 'readonly', process: 'readonly', fetch: 'readonly', URL: 'readonly' },
+    },
     rules: { 'no-console': 'off' },
   },
   {

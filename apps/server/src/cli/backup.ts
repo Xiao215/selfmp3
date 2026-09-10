@@ -105,7 +105,9 @@ export async function backupTree(
     const dest = path.join(destDir, relative)
     await fs.promises.mkdir(path.dirname(dest), { recursive: true })
     await backupDatabase(src, dest)
-    const size = (await stampOf(src))?.size ?? 0
+    // Measure the copy, not the source: a live database keeps most of its bytes
+    // in the -wal file, so the source can be 4 KB while the real content is not.
+    const size = (await stampOf(dest))?.size ?? 0
     summary.files += 1
     summary.bytes += size
     summary.copied += 1

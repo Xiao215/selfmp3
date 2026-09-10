@@ -1,0 +1,116 @@
+# Install and ops
+
+Everything for getting self.mp3 running and keeping it running: a one-command Mac setup, a
+health check, a `selfmp3` command, a Docker image, and a migration from the old hum
+database. The user-facing walkthrough is **[docs/INSTALL.md](../INSTALL.md)**; this file is
+what the pieces are and why they are shaped that way.
+
+## `scripts/setup-mac.sh`
+
+Idempotent by construction — it can be the "I just pulled" command as well as the "I just
+cloned" one. Checks Node ≥ 22, installs `yt-dlp` and `ffmpeg` through Homebrew when they are
+missing (and gives the brew.sh link rather than failing when Homebrew itself is absent),
+runs `npm install` and `npm run build`, creates `library/` and `data/`, then hands the
+launchd step to the existing `scripts/install-service.sh` rather than duplicating the plist.
+
+`--yes` answers every prompt, `--no-service` skips launchd. A closed stdin counts as "no",
+so piping it somewhere never hangs waiting for an answer.
+
+## `scripts/doctor.sh`
+
+The five things that are usually wrong, one line each, plus the last five log lines. Pure
+shell and `curl` on purpose: it has to work when the build is broken or Node is the problem,
+which rules out anything that needs the app to run. Exits non-zero when something is wrong,
+so it is usable from a cron job.
+
+macOS-specific parts (launchd, `~/Library/Logs`) are guarded by `uname`, so it degrades to
+the useful subset on Linux.
+
+## The `selfmp3` command
+
+`apps/server/src/cli.ts`, wired as the `bin` of `@selfmp3/server` and as `npm run cli` at
+the root. Built with `apps/server`, so `dist/cli.js` appears with the rest of the build.
+
+```
+start                 run the server in the foreground
+scan                  rescan the library folder
+import <url...>       queue links for download
+backup <dest-dir>     incremental copy of data/ and library/
+doctor                node, yt-dlp, ffmpeg, server, folders
+--version
+```
+
+Two rules shape it:
+
+- **No dependencies.** Argument parsing is node's own `util.parseArgs`
+  (`cli/args.ts`, pure and unit-tested); HTTP is `fetch`.
+- **Everything goes through the running server's API** (`cli/api.ts`), never the database.
+  One code path for scanning, importing and tagging, and no way for the CLI to corrupt a
+  database the server has open. Commands that need the server say so and print how to start
+  it instead of failing with a connection error. `--url` and `--token` reach a server
+  elsewhere.
+
+`backup` (`cli/backup.ts`) is the exception that touches files directly. A file is copied
+when the destination is missing, a different size, or meaningfully older — size plus mtime,
+no hashing, because a music library is large and almost entirely immutable. SQLite databases
+are copied through better-sqlite3's `backup()` instead, so the copy is consistent while the
+server is writing, and `-wal` / `-shm` files are skipped. Nothing is ever deleted from the
+destination.
+
+`doctor` (`cli/doctor.ts`) is the same set of checks as the shell script, but it runs
+anywhere Node does — including inside the container, where there is no Homebrew and no
+launchd.
+
+## Docker
+
+Multi-stage. The build stage is `node:22-alpine` plus `python3 make g++`, because
+better-sqlite3 compiles from source when no prebuilt binary matches (musl on arm64, for
+one); it installs, builds, then `npm prune --omit=dev --omit=optional`. The runtime stage is
+a clean `node:22-alpine` with `ffmpeg`, `yt-dlp` and `tini`, and copies only the pruned
+`node_modules` plus the three `dist/` folders and their `package.json` files. The layout
+mirrors the repo so `config.ts`'s `REPO_ROOT` still resolves to `/app` and the workspace
+symlinks in `node_modules` still point somewhere real.
+
+- Runs as `node`, not root; `/app/library` and `/app/data` are volumes, chowned in the image
+  so a fresh bind mount is writable.
+- `HEALTHCHECK` hits `/api/health` with busybox `wget`. That route is exempt from bearer
+  auth, so the check works with `SELFMP3_AUTH_TOKEN` set.
+- `tini` as entrypoint, because `yt-dlp` and `ffmpeg` subprocesses would otherwise leave
+  zombies and `SIGTERM` would not reach node.
+
+`docker-compose.yml` bind-mounts `./library` and `./data` so the backup story is unchanged,
+and binds the port to `127.0.0.1` so Tailscale (or another reverse proxy) is the only way in.
+
+## `scripts/migrate-from-hum.mjs`
+
+```
+node scripts/migrate-from-hum.mjs <old-hum-dir> [--url …] [--token …] [--dry-run] [--no-plays]
+```
+
+Copies audio and `.lrc` / `.txt` sidecars into the new library folder (skipping anything
+already there), asks the server to rescan, recreates the old tags by name, links them to
+songs, and carries play counts over.
+
+The old schema is inspected with `PRAGMA table_info` and only the columns that exist are
+migrated — `play_count` in particular is optional. The new side is only ever touched through
+the API: `POST /library/scan`, `POST /api/tags`, `POST /api/tags/bulk`,
+`POST /api/songs/:id/played`. No SQL outside `repositories/`, and no chance of writing to a
+database the server has open, which is why it insists the server is running and says how to
+start it when it is not.
+
+Idempotent in both directions: the old `hum.db` is opened read-only, existing files are
+skipped, tag names are matched case-insensitively against the tags already there, links
+already present are counted and skipped, and play counts are only applied to songs that have
+never been played on the new side. `--dry-run` reports exactly what the real run would do —
+including songs that will only match once their files are copied — and writes nothing.
+
+Play counts arrive stamped as of now: hum stored a counter, not per-play rows, so the totals
+are right but the history charts start on migration day. `--no-plays` skips them.
+
+## Also changed
+
+`http/middleware.ts` — the bearer-auth health exemption compared `req.path` against
+`/api/health`, but the middleware is mounted at `/api`, so express had already stripped the
+prefix and the exemption never fired. `/api/health` returned 401 whenever a token was set,
+which would have broken the container's `HEALTHCHECK`, `scripts/doctor.sh` and any monitor.
+It now accepts both spellings.

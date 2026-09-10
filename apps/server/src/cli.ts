@@ -82,7 +82,9 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
           out(`queued ${result.jobs.length} from ${what}${skipped}: ${url}`)
         } catch (error) {
           failures += 1
-          console.error(`failed: ${url}\n    ${error instanceof Error ? error.message : String(error)}`)
+          console.error(
+            `failed: ${url}\n    ${error instanceof Error ? error.message : String(error)}`,
+          )
         }
       }
       if (failures === 0) out(`watch progress at ${baseUrl}/import`)

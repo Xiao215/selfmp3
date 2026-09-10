@@ -71,7 +71,9 @@ async function api(method, route, body) {
   })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(`${method} ${route} → ${response.status}: ${payload?.error ?? response.statusText}`)
+    throw new Error(
+      `${method} ${route} → ${response.status}: ${payload?.error ?? response.statusText}`,
+    )
   }
   return payload
 }
@@ -82,7 +84,12 @@ function fail(message) {
 }
 
 function columnsOf(db, table) {
-  return new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name))
+  return new Set(
+    db
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map(column => column.name),
+  )
 }
 
 const normalise = name => name.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -93,7 +100,8 @@ const oldRoot = path.resolve(oldDir)
 const oldDb = path.join(oldRoot, 'data', 'hum.db')
 const oldLibrary = path.join(oldRoot, 'library')
 
-if (!fs.existsSync(oldDb)) fail(`no database at ${oldDb} — is ${oldRoot} really the old hum folder?`)
+if (!fs.existsSync(oldDb))
+  fail(`no database at ${oldDb} — is ${oldRoot} really the old hum folder?`)
 if (!fs.existsSync(oldLibrary)) fail(`no library folder at ${oldLibrary}`)
 
 let health
@@ -107,7 +115,9 @@ try {
   )
 }
 if (health.storageDriver !== 'local') {
-  fail(`the server uses the "${health.storageDriver}" storage driver; this script only copies to a local library folder`)
+  fail(
+    `the server uses the "${health.storageDriver}" storage driver; this script only copies to a local library folder`,
+  )
 }
 
 const newLibrary = health.libraryPath
@@ -119,7 +129,8 @@ console.log()
 const db = new Database(oldDb, { readonly: true, fileMustExist: true })
 const songColumns = columnsOf(db, 'songs')
 for (const required of ['id', 'path']) {
-  if (!songColumns.has(required)) fail(`old songs table has no "${required}" column; cannot migrate`)
+  if (!songColumns.has(required))
+    fail(`old songs table has no "${required}" column; cannot migrate`)
 }
 const hasPlayCount = songColumns.has('play_count') && !values['no-plays']
 
@@ -129,6 +140,9 @@ console.log('files')
 let copied = 0
 let skipped = 0
 let bytes = 0
+// Audio file names that are in the new library, or about to be. On a dry run
+// this is what lets the report say "will match" instead of "missing".
+const willArrive = new Set()
 for (const entry of fs.readdirSync(oldLibrary, { withFileTypes: true, recursive: true })) {
   if (!entry.isFile()) continue
   const ext = path.extname(entry.name).toLowerCase()
@@ -138,6 +152,7 @@ for (const entry of fs.readdirSync(oldLibrary, { withFileTypes: true, recursive:
   const src = path.join(entry.parentPath, entry.name)
   const relative = path.relative(oldLibrary, src)
   const dest = path.join(newLibrary, relative)
+  if (AUDIO.has(ext)) willArrive.add(entry.name)
 
   if (fs.existsSync(dest)) {
     skipped += 1
@@ -177,14 +192,26 @@ for (const song of library.songs) {
 
 const oldSongs = db.prepare('SELECT * FROM songs').all()
 const songMap = new Map() // old id → new song
+/** Old songs whose file is only going to exist after a real run. */
+const pending = []
+const pendingIds = new Set()
 const unmatched = []
 for (const old of oldSongs) {
-  const match = byPath.get(old.path) ?? byName.get(path.basename(old.path)) ?? null
+  const name = path.basename(old.path)
+  const match = byPath.get(old.path) ?? byName.get(name) ?? null
   if (match) songMap.set(old.id, match)
-  else unmatched.push(old.path)
+  else if (dryRun && willArrive.has(name)) {
+    pending.push(old.path)
+    pendingIds.add(old.id)
+  } else unmatched.push(old.path)
 }
-console.log(`songs: ${songMap.size} of ${oldSongs.length} matched`)
-for (const missing of unmatched) console.log(`  ? ${missing}  (not in the new library; is the file there?)`)
+console.log(
+  dryRun
+    ? `songs: ${songMap.size + pending.length} of ${oldSongs.length} will match (${pending.length} once the files are copied)`
+    : `songs: ${songMap.size} of ${oldSongs.length} matched`,
+)
+for (const missing of unmatched)
+  console.log(`  ? ${missing}  (not in the new library; is the file there?)`)
 console.log()
 
 // --- 4. tags ----------------------------------------------------------------
@@ -192,19 +219,27 @@ console.log()
 console.log('tags')
 const existingTags = new Map(library.tags.map(tag => [normalise(tag.name), tag]))
 const tagMap = new Map() // old id → new id
+const plannedTags = new Set() // old ids a real run would create (dry run only)
 let createdTags = 0
+let reusedTags = 0
 for (const old of db.prepare('SELECT id, name FROM tags').all()) {
   const name = old.name.trim().replace(/\s+/g, ' ')
   if (!name) continue
   const existing = existingTags.get(normalise(name))
   if (existing) {
+    reusedTags += 1
     tagMap.set(old.id, existing.id)
     console.log(`  = ${name}`)
     continue
   }
   createdTags += 1
   console.log(`  + ${name}`)
-  if (dryRun) continue
+  // On a dry run there is no new id to map to, so remember the old one instead
+  // and let the link count below treat it as resolvable.
+  if (dryRun) {
+    plannedTags.add(old.id)
+    continue
+  }
   const created = await api('POST', '/tags', { name })
   existingTags.set(normalise(name), created)
   tagMap.set(old.id, created.id)
@@ -217,11 +252,19 @@ const perTag = new Map() // new tag id → new song ids
 for (const link of songTags) {
   const song = songMap.get(link.song_id)
   const tagId = tagMap.get(link.tag_id)
-  if (!song || tagId === undefined) {
-    linksSkipped += 1
+
+  if (dryRun) {
+    // Nothing has been copied or created yet, so judge on intent.
+    const resolvable =
+      (song !== undefined || pendingIds.has(link.song_id)) &&
+      (tagId !== undefined || plannedTags.has(link.tag_id))
+    if (!resolvable || (song && tagId !== undefined && song.tagIds.includes(tagId)))
+      linksSkipped += 1
+    else links += 1
     continue
   }
-  if (song.tagIds.includes(tagId)) {
+
+  if (!song || tagId === undefined || song.tagIds.includes(tagId)) {
     linksSkipped += 1
     continue
   }
@@ -234,7 +277,10 @@ if (!dryRun) {
     await api('POST', '/tags/bulk', { tagId, songIds, action: 'add' })
   }
 }
-console.log(`  ${createdTags} created, ${tagMap.size - createdTags} reused; ${links} links added, ${linksSkipped} already present or unmatched`)
+console.log(
+  `  ${createdTags} created, ${reusedTags} reused; ${links} links ${dryRun ? 'to add' : 'added'}, ` +
+    `${linksSkipped} already present or unmatched`,
+)
 console.log()
 
 // --- 5. play counts ---------------------------------------------------------
@@ -246,9 +292,19 @@ if (hasPlayCount) {
   for (const old of oldSongs) {
     const song = songMap.get(old.id)
     const count = Number(old.play_count) || 0
+    if (count <= 0) continue
+    // A song that is only going to exist after a real run still counts towards
+    // the dry-run total; it just has nothing to post to yet.
+    if (dryRun && !song) {
+      if (pendingIds.has(old.id)) {
+        songsWithPlays += 1
+        plays += count
+      }
+      continue
+    }
     // Only when the new side has never been played: a second run, or a library
     // that was already in use, must not double up.
-    if (!song || count <= 0 || song.playCount > 0) continue
+    if (!song || song.playCount > 0) continue
     songsWithPlays += 1
     plays += count
     if (dryRun) continue
@@ -257,12 +313,18 @@ if (hasPlayCount) {
       await api('POST', `/songs/${song.id}/played`, { msPlayed, completed: true })
     }
   }
-  console.log(`  ${plays} plays carried over on ${songsWithPlays} songs`)
-  console.log('  (recorded as of now — hum did not keep per-play timestamps, so history charts start today)')
+  console.log(
+    `  ${plays} plays ${dryRun ? 'to carry over' : 'carried over'} on ${songsWithPlays} songs`,
+  )
+  console.log(
+    '  (recorded as of now — hum did not keep per-play timestamps, so history charts start today)',
+  )
   console.log()
 } else if (!values['no-plays']) {
   console.log('play counts: the old database has none; skipped\n')
 }
 
 db.close()
-console.log(dryRun ? 'dry run finished; nothing was changed.' : 'done. Open the app and hit refresh.')
+console.log(
+  dryRun ? 'dry run finished; nothing was changed.' : 'done. Open the app and hit refresh.',
+)

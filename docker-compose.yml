@@ -7,12 +7,17 @@
 # library/ and data/ next to this file are bind-mounted in, so a backup is
 # still "copy those two folders" — see docs/INSTALL.md.
 
+name: selfmp3
+
 services:
   selfmp3:
     build: .
     image: selfmp3:latest
     container_name: selfmp3
     restart: unless-stopped
+    # The image runs as uid 1000. If your host account is a different uid, either
+    # `sudo chown -R 1000:1000 library data` once, or uncomment this line.
+    # user: '1000:1000'
     ports:
       # Bind to localhost only when Tailscale (or a reverse proxy) sits in
       # front; drop the 127.0.0.1: prefix to expose it on every interface.

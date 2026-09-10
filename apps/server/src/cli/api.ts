@@ -35,7 +35,7 @@ export function createClient(baseUrl: string, token: string | null): ServerClien
     if (!response.ok) {
       const message =
         payload && typeof payload === 'object' && 'error' in payload
-          ? String((payload as { error: unknown }).error)
+          ? String(payload.error)
           : response.statusText
       throw new ApiError(response.status, message)
     }

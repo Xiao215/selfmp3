@@ -77,9 +77,11 @@ HAVE_BREW=0
 command -v brew >/dev/null 2>&1 && HAVE_BREW=1
 
 install_tool() {
-  local name="$1" formula="$2" why="$3"
+  # ffmpeg wants a single dash and prints its banner on stdout only that way,
+  # so the version flag is passed in rather than assumed.
+  local name="$1" formula="$2" version_flag="$3" why="$4"
   if command -v "$name" >/dev/null 2>&1; then
-    ok "$name $("$name" --version 2>/dev/null | head -n1 | sed 's/^ffmpeg version //; s/ Copyright.*//')"
+    ok "$name $("$name" "$version_flag" 2>/dev/null | head -n1 | sed 's/^ffmpeg version //; s/ Copyright.*//')"
     return
   fi
   if (( HAVE_BREW )); then
@@ -92,8 +94,8 @@ install_tool() {
   fi
 }
 
-install_tool yt-dlp yt-dlp "yt-dlp downloads audio from links"
-install_tool ffmpeg ffmpeg "ffmpeg embeds artwork and tags"
+install_tool yt-dlp yt-dlp --version "yt-dlp downloads audio from links"
+install_tool ffmpeg ffmpeg -version "ffmpeg embeds artwork and tags"
 
 # --- build ------------------------------------------------------------------
 

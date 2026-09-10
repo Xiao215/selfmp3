@@ -93,5 +93,10 @@ describe('backupTree', () => {
     const copy = new Database(path.join(dest, 'selfmp3.db'), { readonly: true })
     expect(copy.prepare('select n from t').get()).toEqual({ n: 42 })
     copy.close()
+
+    // The database is measured after the copy: a live one keeps most of its
+    // bytes in -wal, so the source size would under-report by a wide margin.
+    const dbSize = fs.statSync(path.join(dest, 'selfmp3.db')).size
+    expect(summary.bytes).toBe(6 + dbSize)
   })
 })

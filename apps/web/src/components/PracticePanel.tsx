@@ -8,7 +8,7 @@ import {
 } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { countInMs, PRACTICE_SPEEDS } from '../player/practice.js'
-import { X } from './Icons.js'
+import { ChevronDown, ChevronRight, Metronome, X } from './Icons.js'
 
 /**
  * The practice panel: loop, speed and key, in one place.
@@ -24,6 +24,18 @@ import { X } from './Icons.js'
 
 /** Which groups start open. Loop is the reason people open this panel. */
 const INITIAL_OPEN = { loop: true, speed: true, key: false }
+
+/**
+ * The affordance the group headers were missing: without it there is nothing to
+ * say that "Transpose · 0" is a row you can open rather than a read-only line.
+ */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <span className="practice-group-chevron" aria-hidden="true">
+      {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+    </span>
+  )
+}
 
 export function PracticePanel({ onClose }: { onClose: () => void }) {
   const player = usePlayer()
@@ -55,21 +67,36 @@ export function PracticePanel({ onClose }: { onClose: () => void }) {
           <div className="side-panel-sub">
             {song ? song.title : 'Nothing playing'}
             {bpm !== null && ` · ${Math.round(bpm)} BPM`}
+            {key !== null && ` · ${key}`}
           </div>
         </div>
         <div className="side-panel-actions">
           <button
             type="button"
-            className="icon-button"
+            className="icon-button side-panel-close"
             onClick={onClose}
             aria-label="Close practice"
+            title="Close"
           >
             <X size={17} />
           </button>
         </div>
       </header>
 
-      <div className="practice-body">
+      {!song && (
+        <div className="panel-empty">
+          <span className="panel-empty-icon">
+            <Metronome size={20} />
+          </span>
+          <span className="panel-empty-title">Start a song</span>
+          <p>
+            Then you can loop a phrase, slow it down without the pitch drifting, or read its key
+            transposed.
+          </p>
+        </div>
+      )}
+
+      <div className="practice-body" hidden={!song}>
         <section className="practice-group">
           <button
             type="button"
@@ -77,6 +104,7 @@ export function PracticePanel({ onClose }: { onClose: () => void }) {
             onClick={() => toggleGroup('loop')}
             aria-expanded={open.loop}
           >
+            <Chevron open={open.loop} />
             <span>A–B loop</span>
             <span className="practice-group-state">
               {loopReady
@@ -154,6 +182,7 @@ export function PracticePanel({ onClose }: { onClose: () => void }) {
             onClick={() => toggleGroup('speed')}
             aria-expanded={open.speed}
           >
+            <Chevron open={open.speed} />
             <span>Speed</span>
             <span className="practice-group-state">{player.rate}×</span>
           </button>
@@ -204,6 +233,7 @@ export function PracticePanel({ onClose }: { onClose: () => void }) {
             onClick={() => toggleGroup('key')}
             aria-expanded={open.key}
           >
+            <Chevron open={open.key} />
             <span>Transpose</span>
             <span className="practice-group-state">{formatSemitones(semitones)}</span>
           </button>

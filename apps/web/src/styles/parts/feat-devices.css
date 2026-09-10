@@ -13,7 +13,7 @@
   gap: 5px;
   max-width: 190px;
   padding: 4px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-secondary);
@@ -73,6 +73,12 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* Registered but not open: readable, obviously out of reach, no actions. */
+.device-row.is-offline .device-name {
+  color: var(--text-muted);
+  font-weight: 550;
+}
+
 .device-row + .device-row {
   margin-top: 3px;
   border-top: 1px solid var(--border);
@@ -83,7 +89,7 @@
 .device-row-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -100,27 +106,63 @@
 
 .device-tag {
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-3);
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 500;
+  flex-shrink: 0;
+}
+
+.device-tag.is-accent {
+  background: var(--accent-dim);
+  color: var(--text-primary);
 }
 
 .device-sub {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   font-size: 12px;
   color: var(--text-muted);
+  min-width: 0;
+}
+
+/*
+ * "Playing here" / "Playing there" / "Paused" / "Offline" — the state comes
+ * first and in its own colour, so the two questions this list answers (which
+ * device, and is the music on it?) are both answered before the song title.
+ */
+.device-state {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.device-state.is-here {
+  color: var(--accent);
+}
+
+.device-state.is-there {
+  color: var(--good);
+}
+
+.device-what {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .device-at {
+  flex-shrink: 0;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* The equalizer sits on the text baseline row, not above it. */
+.device-sub .equalizer {
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .device-row-actions {
@@ -137,10 +179,16 @@
 .device-remote {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
   cursor: pointer;
+}
+
+.device-remote > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .device-remote input:disabled + span {
@@ -187,8 +235,8 @@
   align-items: baseline;
   gap: 8px;
   min-width: 0;
-  padding: 5px 10px;
-  border-radius: 999px;
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
   color: var(--text-primary);
 }
@@ -214,6 +262,26 @@
   color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* Dismissing a toast on a phone was a 24px target inside a rounded pill. */
+.resume-toast-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .resume-toast-close {
+    width: 40px;
+    height: 40px;
+  }
+
+  .resume-toast-main {
+    padding-block: 10px;
+  }
 }
 
 /* --- settings ------------------------------------------------------------ */
@@ -286,8 +354,9 @@
 }
 
 /* A narrow desktop bar has no room for the chip's words; the accented icon
-   still says something is happening elsewhere. */
-@media (max-width: 1100px) {
+   still says something is happening elsewhere. Same breakpoint the player bar
+   uses to fold its volume slider away, so the row reflows once, not twice. */
+@media (max-width: 1160px) {
   .device-chip span {
     display: none;
   }

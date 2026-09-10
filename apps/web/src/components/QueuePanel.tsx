@@ -3,7 +3,10 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { useDragReorder } from '../lib/hooks.js'
 import { Cover } from './Cover.js'
 import { FeatureBadges } from './FeatureBadges.js'
-import { Equalizer, Grip, Trash, X } from './Icons.js'
+import { Equalizer, Grip, Queue, Trash, X } from './Icons.js'
+
+const AUTOMIX_HINT =
+  "Reorder what's coming up into a smooth path and pick a crossfade for each transition"
 
 /**
  * Up next.
@@ -25,29 +28,13 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
         <div className="side-panel-titles">
           <div className="side-panel-title">Up next</div>
           <div className="side-panel-sub">
-            {upcoming.length === 0
-              ? 'Nothing queued'
-              : `${upcoming.length} songs · ${formatLongDuration(remainingSeconds)} left`}
+            {player.queueSongs.length === 0
+              ? 'Nothing playing'
+              : upcoming.length === 0
+                ? 'Nothing after this one'
+                : `${upcoming.length} ${upcoming.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(remainingSeconds)} left`}
           </div>
         </div>
-        <label
-          className="automix-toggle"
-          title="Reorder what's coming up into a smooth path and pick a crossfade for each transition"
-        >
-          <span className="automix-toggle-row">
-            <span>Auto-mix</span>
-            <input
-              type="checkbox"
-              className="toggle toggle-small"
-              checked={player.autoMix}
-              onChange={event => player.setAutoMix(event.target.checked)}
-              aria-label="Auto-mix"
-            />
-          </span>
-          {player.autoMix && upcoming.length > 0 && (
-            <span className="automix-fade">next fade {player.nextCrossfadeSeconds}s</span>
-          )}
-        </label>
         <div className="side-panel-actions">
           {player.queueSongs.length > 0 && (
             <button
@@ -57,20 +44,57 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
               aria-label="Clear queue"
               title="Clear queue"
             >
-              <Trash size={16} />
+              <Trash size={17} />
             </button>
           )}
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close queue">
-            <X size={16} />
+          <button
+            type="button"
+            className="icon-button side-panel-close"
+            onClick={onClose}
+            aria-label="Close queue"
+            title="Close"
+          >
+            <X size={17} />
           </button>
         </div>
       </header>
 
+      {/*
+        Auto-mix used to sit inside the header, between the title and the close
+        button, where it had no room for its own label. Its own row gives it the
+        space to say what it is doing.
+      */}
+      <div className="queue-toolbar">
+        <label className="automix-toggle" title={AUTOMIX_HINT}>
+          <input
+            type="checkbox"
+            className="toggle toggle-small"
+            checked={player.autoMix}
+            onChange={event => player.setAutoMix(event.target.checked)}
+            aria-label="Auto-mix"
+          />
+          <span className="automix-label">Auto-mix</span>
+        </label>
+        <span className="automix-fade">
+          {player.autoMix
+            ? upcoming.length > 0
+              ? `next crossfade ${player.nextCrossfadeSeconds}s`
+              : 'nothing to mix yet'
+            : 'plays in queue order'}
+        </span>
+      </div>
+
       <div className="queue-list" onPointerUp={end} onPointerCancel={end}>
         {player.queueSongs.length === 0 && (
-          <p className="empty-hint">
-            Play something, or use <strong>Add to queue</strong> on any song.
-          </p>
+          <div className="panel-empty">
+            <span className="panel-empty-icon">
+              <Queue size={20} />
+            </span>
+            <span className="panel-empty-title">Nothing queued</span>
+            <p>
+              Play a song to start a queue, or use <strong>Add to queue</strong> on any song.
+            </p>
+          </div>
         )}
 
         {player.queueSongs.map((song, index) => {
@@ -109,7 +133,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 aria-label={`Play ${song.title}`}
               >
                 {isCurrent ? (
-                  <span className="queue-marker">
+                  <span className="queue-marker" title="Playing now">
                     <Equalizer />
                   </span>
                 ) : (
@@ -118,7 +142,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 <span className="queue-meta">
                   <span className="queue-title">{song.title}</span>
                   <span className="queue-artist">
-                    {song.artist || 'Unknown artist'}
+                    <span className="queue-artist-name">{song.artist || 'Unknown artist'}</span>
                     {player.autoMix && <FeatureBadges features={song.features} />}
                   </span>
                 </span>
@@ -127,9 +151,10 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
 
               <button
                 type="button"
-                className="icon-button"
+                className="icon-button queue-remove"
                 onClick={() => player.removeFromQueue(index)}
                 aria-label={`Remove ${song.title} from queue`}
+                title="Remove from queue"
               >
                 <X size={15} />
               </button>

@@ -6,7 +6,7 @@ import { api, ApiError } from '../lib/api.js'
 import { useLocalStorage } from '../lib/hooks.js'
 import { useSettings, useUpdateSettings } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
-import { Clock, Refresh, Romanize, Translate, X } from './Icons.js'
+import { Clock, Mic, Refresh, Romanize, Translate, X } from './Icons.js'
 import { LyricsSyncEditor } from './LyricsSyncEditor.js'
 
 /**
@@ -205,8 +205,14 @@ export function LyricsPanel({ onClose }: { onClose: () => void }) {
               </button>
             </>
           )}
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close lyrics">
-            <X size={16} />
+          <button
+            type="button"
+            className="icon-button side-panel-close"
+            onClick={onClose}
+            aria-label="Close lyrics"
+            title="Close"
+          >
+            <X size={17} />
           </button>
         </div>
       </header>
@@ -220,7 +226,7 @@ export function LyricsPanel({ onClose }: { onClose: () => void }) {
         />
       ) : (
         <div
-          className="lyrics-body"
+          className={`lyrics-body ${romanLines || transLines ? 'has-extras' : ''}`}
           ref={listRef}
           onWheel={() => {
             lastManualScroll.current = Date.now()
@@ -229,25 +235,42 @@ export function LyricsPanel({ onClose }: { onClose: () => void }) {
             lastManualScroll.current = Date.now()
           }}
         >
-          {!song && <p className="empty-hint">Play something first.</p>}
+          {!song && (
+            <div className="panel-empty">
+              <span className="panel-empty-icon">
+                <Mic size={20} />
+              </span>
+              <span className="panel-empty-title">Nothing playing</span>
+              <p>Start a song and its lyrics turn up here, timed to the music where they can be.</p>
+            </div>
+          )}
 
-          {song && isLoading && <p className="empty-hint">Looking for lyrics…</p>}
+          {song && isLoading && (
+            <p className="lyrics-loading">
+              <span className="spinner" /> Looking for lyrics…
+            </p>
+          )}
 
           {song && error && (
-            <div className="empty-hint">
+            <div className="panel-empty">
+              <span className="panel-empty-icon">
+                <Mic size={20} />
+              </span>
+              <span className="panel-empty-title">
+                {error instanceof ApiError && error.isOffline
+                  ? 'Lyrics need your library'
+                  : 'No lyrics for this song'}
+              </span>
               <p>
                 {error instanceof ApiError && error.isOffline
-                  ? 'Lyrics need a connection to your library.'
-                  : 'No lyrics found for this track.'}
+                  ? 'Reconnect and they will be looked up again.'
+                  : 'Drop a .lrc file next to the audio in your library folder, look again, or write them yourself.'}
               </p>
-              <p className="hint">
-                You can drop a <code>.lrc</code> file next to the audio in your library folder,
-                try looking again, or{' '}
+              {!(error instanceof ApiError && error.isOffline) && (
                 <button type="button" className="link-button" onClick={() => setSyncing(true)}>
-                  type and sync them yourself
+                  Type and sync them yourself
                 </button>
-                .
-              </p>
+              )}
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatDuration,
   IMPORT_STEP_LABELS,
@@ -12,7 +12,15 @@ import { queryKeys, useImportQueue, useImportTools, useLibrary } from '../lib/qu
 import { SHARE_PARAMS, sharedLinksFromQuery } from '../lib/shareTarget.js'
 import { TagChip } from '../components/TagChip.js'
 import { YouTubeLibraryPanel } from '../components/YouTubeLibraryPanel.js'
-import { Check, CheckCircle, Download, Refresh, X } from '../components/Icons.js'
+import {
+  Check,
+  CheckCircle,
+  ChevronRight,
+  Download,
+  ListMusic,
+  Refresh,
+  X,
+} from '../components/Icons.js'
 
 /**
  * Importing.
@@ -176,7 +184,9 @@ export function ImportView() {
           className="import-input"
           value={url}
           onChange={event => setUrl(event.target.value)}
-          placeholder={'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…'}
+          placeholder={
+            'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…'
+          }
           rows={3}
           spellCheck={false}
         />
@@ -190,9 +200,23 @@ export function ImportView() {
       </form>
 
       <p className="hint">
-        Links from <strong>music.youtube.com</strong> carry proper track, artist and album
-        metadata. Regular youtube.com links usually just have a video title.
+        Links from <strong>music.youtube.com</strong> carry proper track, artist and album metadata.
+        Regular youtube.com links usually just have a video title.
       </p>
+
+      <Link to="/import/migrate" className="migrate-card">
+        <span className="migrate-card-icon">
+          <ListMusic size={18} />
+        </span>
+        <span className="migrate-card-text">
+          <span className="migrate-card-title">Migrate a playlist from another app</span>
+          <span className="migrate-card-sub">
+            Paste a Spotify link, a CSV export or a list of songs; each one is matched to a YouTube
+            upload for you to check before importing.
+          </span>
+        </span>
+        <ChevronRight size={16} />
+      </Link>
 
       {error && (
         <div className="notice notice-error">
@@ -309,7 +333,9 @@ export function ImportView() {
                     }
                   />
                 ))}
-                {tags.length === 0 && <span className="hint">Create tags in the sidebar first</span>}
+                {tags.length === 0 && (
+                  <span className="hint">Create tags in the sidebar first</span>
+                )}
               </div>
             </div>
 

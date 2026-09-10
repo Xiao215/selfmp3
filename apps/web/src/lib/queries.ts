@@ -12,6 +12,7 @@ import type {
   StatsRange,
   ImportQueue,
   ToolStatus,
+  MigrateMatchJob,
 } from '@selfmp3/shared'
 import { api, ApiError } from './api.js'
 import { saveLibrarySnapshot, loadLibrarySnapshot } from '../offline/mirror.js'
@@ -30,6 +31,7 @@ export const queryKeys = {
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
   importTools: ['import', 'tools'] as const,
+  migrateJob: (id: string) => ['migrate', id] as const,
   stats: (range: StatsRange) => ['stats', range] as const,
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
@@ -173,15 +175,13 @@ export const useSetSongTags = () =>
   )
 
 export const useBulkTag = () =>
-  useLibraryMutation(
-    (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
-      api.bulkTag(input),
+  useLibraryMutation((input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
+    api.bulkTag(input),
   )
 
 export const usePatchSong = () =>
-  useLibraryMutation(
-    ({ id, patch }: { id: number; patch: Parameters<typeof api.patchSong>[1] }) =>
-      api.patchSong(id, patch),
+  useLibraryMutation(({ id, patch }: { id: number; patch: Parameters<typeof api.patchSong>[1] }) =>
+    api.patchSong(id, patch),
   )
 
 export const useDeleteSong = () =>
@@ -192,9 +192,7 @@ export const useDeleteSong = () =>
 export const useScanLibrary = () => useVoidLibraryMutation(() => api.scan())
 
 export const useCreatePlaylist = () =>
-  useLibraryMutation((input: Parameters<typeof api.createPlaylist>[0]) =>
-    api.createPlaylist(input),
-  )
+  useLibraryMutation((input: Parameters<typeof api.createPlaylist>[0]) => api.createPlaylist(input))
 
 export const useUpdatePlaylist = () =>
   useLibraryMutation(
@@ -283,5 +281,15 @@ export function usePlaylistSongIds(playlistId: number | null) {
     },
     enabled: playlistId !== null,
     staleTime: 15_000,
+  })
+}
+
+/** A playlist-migration match job, polled while it is still searching. */
+export function useMigrateJob(id: string | null): UseQueryResult<MigrateMatchJob, Error> {
+  return useQuery({
+    queryKey: queryKeys.migrateJob(id ?? ''),
+    queryFn: () => api.migrateJob(id ?? ''),
+    enabled: id !== null,
+    refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
   })
 }

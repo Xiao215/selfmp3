@@ -15,6 +15,7 @@ import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
+import { MigrateService } from './services/migrate.js'
 
 /**
  * Composition root.
@@ -45,6 +46,7 @@ export interface Container {
   readonly ytdlp: YtDlpService
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
+  readonly migrate: MigrateService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -101,6 +103,8 @@ export function createContainer(config: Config): Container {
     logger,
   })
 
+  const migrate = new MigrateService({ songs, logger })
+
   let version = 1
 
   const libraryWatcher = new LibraryWatcherService({
@@ -131,6 +135,7 @@ export function createContainer(config: Config): Container {
     ytdlp,
     importQueue,
     libraryWatcher,
+    migrate,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++
@@ -138,6 +143,7 @@ export function createContainer(config: Config): Container {
     close: () => {
       libraryWatcher.stop()
       importQueue.stop()
+      migrate.stop()
       db.close()
     },
   }

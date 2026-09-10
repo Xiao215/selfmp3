@@ -4,23 +4,30 @@
       <stop offset="0%" stop-color="#1a1526" />
       <stop offset="100%" stop-color="#0c0b10" />
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a78bfa" />
+    <linearGradient id="accent" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#b9a4ff" />
       <stop offset="100%" stop-color="#6d5ce7" />
     </linearGradient>
   </defs>
 
   <rect width="512" height="512" rx="114" fill="url(#bg)" />
 
-  <!-- A waveform: the app is about sound, and the shape reads at 16px. -->
+  <!--
+    A beamed pair of eighth notes (音符). Everything sits inside the middle
+    ~62% of the canvas so the same artwork survives a maskable icon's crop.
+    The heads are ellipses rotated the way an engraved notehead leans; the
+    stems are plain rounded rects so the shape stays crisp down to 16px.
+  -->
   <g fill="url(#accent)">
-    <rect x="118" y="228" width="26" height="56"  rx="13" />
-    <rect x="164" y="196" width="26" height="120" rx="13" />
-    <rect x="210" y="150" width="26" height="212" rx="13" />
-    <rect x="256" y="182" width="26" height="148" rx="13" />
-    <rect x="302" y="126" width="26" height="260" rx="13" />
-    <rect x="348" y="206" width="26" height="100" rx="13" />
-  </g>
+    <!-- beam, slanting up to the right like the stems it joins -->
+    <path d="M186 168 L370 130 L370 190 L186 228 Z" />
 
-  <circle cx="394" cy="256" r="14" fill="#f4f1ff" opacity="0.9" />
+    <!-- stems -->
+    <rect x="186" y="168" width="26" height="180" rx="13" />
+    <rect x="344" y="130" width="26" height="180" rx="13" />
+
+    <!-- noteheads -->
+    <ellipse cx="152" cy="348" rx="52" ry="39" transform="rotate(-22 152 348)" />
+    <ellipse cx="310" cy="310" rx="52" ry="39" transform="rotate(-22 310 310)" />
+  </g>
 </svg>

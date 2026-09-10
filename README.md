@@ -8,18 +8,25 @@ your metadata is one SQLite file next to it. Copy those two things anywhere and 
 complete backup.
 
 ```
-your Mac                         your phone
-┌──────────────────────┐        ┌──────────────────────┐
-│  library/  *.m4a     │        │  self.mp3 (PWA)      │
-│  data/selfmp3.db     │◄──────►│  cached audio        │
-│  self.mp3 server     │  Tail  │  cached metadata     │
-└──────────────────────┘  scale └──────────────────────┘
+your Mac                         your phone                    your car
+┌──────────────────────┐        ┌──────────────────────┐      ┌──────────────┐
+│  library/  *.m4a     │        │  self.mp3 (PWA or    │      │  CarPlay /   │
+│  data/selfmp3.db     │◄──────►│  native app)         │◄────►│  Android     │
+│  self.mp3 server     │  Tail  │  downloaded audio    │      │  Auto        │
+└──────────────────────┘  scale └──────────────────────┘      └──────────────┘
                                  plays with the Mac asleep
 ```
 
 ---
 
 ## Quick start
+
+```bash
+./scripts/setup-mac.sh         # checks Node, installs yt-dlp and ffmpeg, builds, offers
+                               # to start self.mp3 at login
+```
+
+Or by hand:
 
 ```bash
 npm install
@@ -38,53 +45,88 @@ npm run dev                    # api on :4600, web on :4601
 
 To reach it from your phone anywhere in the world, see **[docs/SETUP.md](docs/SETUP.md)** —
 it walks through Tailscale, HTTPS, and running the server in the background.
+**[docs/INSTALL.md](docs/INSTALL.md)** covers Docker, backups, updating, and migrating from
+the old `hum` app. Every feature has a page under
+**[docs/features/](docs/features)**.
 
 ---
 
 ## What it does
 
-**Library.** Drop audio files into `library/` and hit rescan, or import them from a link.
-Everything is filtered, sorted and searched client-side, so it stays instant and works with
-no connection.
+**Library.** Drop audio files into `library/` and they appear — the folder is watched, so a
+drag into Finder is enough. Or import them from a link. Everything is filtered, sorted and
+searched client-side, so it stays instant and works with no connection.
 
 **Tags instead of folders.** One flat vocabulary you define. Combine them with AND —
 `chinese` + `chill` — to slice the library any way you want.
 
 **Playlists, manual and smart.** Manual ones you drag into order. Smart ones build
-themselves from rules ("tagged chill, played more than 5 times, added in the last 90 days")
-and stay correct as the library grows. The rule builder shows the live match count as you
-type.
+themselves from rules ("tagged chill, played more than 5 times, added in the last 90 days",
+or "between 120 and 130 BPM in a key that mixes with 8A") and stay correct as the library
+grows. The rule builder shows the live match count as you type.
 
 **Importing.** Paste one link or twenty, or a whole playlist. Metadata is fetched first so
 you can correct it and untick duplicates before anything downloads. A persistent queue
 handles the rest, with progress, retries, and cancel — and it survives a server restart.
 
+**Share straight from your phone.** Share a track from the YouTube Music app and it queues
+on the Mac. On Android that is a share target the app registers; on iOS it is a one-step
+Shortcut, described in [docs/features/share-to-import.md](docs/features/share-to-import.md).
+
+**Bring your existing library.** Point yt-dlp at your browser's YouTube cookies and your
+Liked Music and private playlists import like any other link. Playlists from Spotify and
+Apple Music come in through a paste box — a link, a CSV export, or just a list of song
+names — and each track is matched to a YouTube upload, scored, and shown to you with
+alternatives before anything downloads.
+
+**Metadata that fixes itself.** Look a song up on iTunes or MusicBrainz, see the candidates
+side by side with your current values, and apply only the fields you want. Missing cover art
+can be filled in across the whole library in one pass.
+
 **Offline on your phone.** Install it to your home screen and download your whole library.
 Cached songs play with the Mac asleep, in the background, with lock-screen controls and
-artwork.
+artwork. There is also a native iOS and Android app — see
+[docs/MOBILE.md](docs/MOBILE.md) — which adds CarPlay and Android Auto.
 
 **Playback.** Gapless and crossfade via a dual-element engine, a reorderable up-next queue,
 playback speed, and a sleep timer that fades out rather than cutting off.
 
+**Every device knows about the others.** The Mac and the phone see what each other is
+playing. Hand a song over mid-track in either direction, use the phone as a remote for the
+Mac, or pick up where you left off on the other device when you open the app.
+
 **Lyrics.** Synced `.lrc` lyrics with karaoke-style highlighting, click a line to jump
 there. Resolved from a sidecar file, the audio file's own tags, or lrclib.net — and cached
-to disk so they work offline afterwards.
+to disk so they work offline afterwards. Chinese lyrics can show pinyin and Japanese romaji
+underneath, offline; with an API key of your own, a translation line as well. Songs with no
+timings can be synced by tapping along, and you can find any song by a line you remember.
 
-**Stats.** Plays over time, when you listen, top artists and tags, listening streaks, and
-how many songs you have never played once. All derived from stored play events, so the
-questions can change later.
+**Audio it has actually listened to.** Every song is analysed locally for tempo, musical
+key, energy and loudness. That feeds smart playlists, a "similar songs" pick, and an
+auto-mix mode that orders the queue into a smooth path and sets each crossfade to suit the
+transition.
 
-**⌘K.** One box that searches songs, playlists and tags and runs commands.
+**Practice.** An A–B loop for the bar you keep missing, speed changes that hold pitch, and
+a transpose readout.
+
+**Stats, and Wrapped whenever you want it.** Plays over time, when you listen, top artists
+and tags, listening streaks, and how many songs you have never played once. A Wrapped view
+for any range — week, month, year, all time — that you can export as a square image.
+Forgotten gems resurfaces things you loved and stopped playing.
+
+**⌘K.** One box that searches songs, playlists, tags and lyrics, and runs commands.
 
 ---
 
 ## How it is put together
 
 ```
-packages/shared     zod schemas — the single source of truth for the API contract,
-                    imported by both the server and the web app
+packages/shared     zod schemas — the single source of truth for the API contract —
+                    plus the pure helpers every client needs: queue mechanics, LRC
+                    parsing, fuzzy search, feature distances
 apps/server         Express 5 + better-sqlite3, layered: routes → services → repositories
 apps/web            React 19 + Vite + TanStack Query, plus a hand-written service worker
+apps/mobile         Expo / React Native — iOS and Android, CarPlay and Android Auto
 ```
 
 A few decisions worth knowing about:
@@ -107,6 +149,15 @@ recomputed or asked new questions of later.
 **The import queue lives in SQLite.** Forty queued downloads survive a restart, and your
 phone can open the import screen cold and see exactly what is happening.
 
+**Analysis is local and cached.** Tempo, key and loudness are computed from the audio with
+ffmpeg and plain TypeScript maths — no service, no upload, no key. Results live in their own
+table with a version number, so improving the algorithm later means re-running it, not
+losing anything.
+
+**Devices talk over one SSE stream.** Presence, remote commands and library-changed pings
+share `GET /api/events`. Polling stays as the fallback, so a dropped stream degrades to what
+the app did before rather than breaking.
+
 ---
 
 ## Commands
@@ -120,6 +171,8 @@ phone can open the import screen cold and see exactly what is happening.
 | `npm test` | Unit tests |
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
+| `npm run check:mobile` | Typecheck + lint the native app |
+| `npm run cli -- <command>` | The `selfmp3` CLI (`scan`, `import`, `backup`, `doctor`) |
 
 ---
 
@@ -137,6 +190,10 @@ Everything is optional; the defaults work.
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
 | `SELFMP3_SCAN_ON_BOOT` | `true` | Scan the library folder at startup |
+
+Most day-to-day behaviour — crossfade, watched folder, YouTube cookies, romanization,
+translation provider — lives in Settings in the app rather than in environment variables, so
+the Mac and the phone agree on it.
 
 For S3-compatible storage, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
 `SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`, and
@@ -160,13 +217,14 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 | `R` | Repeat |
 | `L` | Lyrics |
 | `Q` | Queue |
+| `P` | Practice panel |
 
 ---
 
 ## Backing up
 
 ```bash
-cp -r library/ data/ /Volumes/Backup/selfmp3/
+npm run cli -- backup /Volumes/Backup/selfmp3     # or just: cp -r library/ data/ …
 ```
 
 That is the whole thing. `library/` is your audio and lyric sidecars; `data/selfmp3.db`

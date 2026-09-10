@@ -80,24 +80,6 @@ function Shell() {
 
   const clearTags = useCallback(() => setSelectedTags(new Set()), [])
 
-  useHotkeys({
-    'meta+k': () => setPaletteOpen(true),
-    'ctrl+k': () => setPaletteOpen(true),
-    ' ': () => player.toggle(),
-    ArrowRight: () => player.seekBy(5),
-    ArrowLeft: () => player.seekBy(-5),
-    'shift+ArrowRight': () => player.next(),
-    'shift+ArrowLeft': () => player.previous(),
-    s: () => player.toggleShuffle(),
-    r: () => player.cycleRepeatMode(),
-    l: () => setLyricsOpen(open => !open),
-    q: () => setQueueOpen(open => !open),
-    Escape: () => {
-      setPaletteOpen(false)
-      setNowPlayingOpen(false)
-    },
-  })
-
   // Only one side panel at a time — two at once leaves no room for the library.
   const openLyrics = useCallback(() => {
     setLyricsOpen(open => !open)
@@ -116,6 +98,27 @@ function Shell() {
     setLyricsOpen(false)
     setQueueOpen(false)
   }, [])
+
+  // Declared after the panel callbacks so the shortcuts go through the same
+  // one-panel-at-a-time rule the buttons use, rather than a second copy of it.
+  useHotkeys({
+    'meta+k': () => setPaletteOpen(true),
+    'ctrl+k': () => setPaletteOpen(true),
+    ' ': () => player.toggle(),
+    ArrowRight: () => player.seekBy(5),
+    ArrowLeft: () => player.seekBy(-5),
+    'shift+ArrowRight': () => player.next(),
+    'shift+ArrowLeft': () => player.previous(),
+    s: () => player.toggleShuffle(),
+    r: () => player.cycleRepeatMode(),
+    l: openLyrics,
+    q: openQueue,
+    p: openPractice,
+    Escape: () => {
+      setPaletteOpen(false)
+      setNowPlayingOpen(false)
+    },
+  })
 
   return (
     <div className={`app ${isMobile ? 'is-mobile' : ''}`}>

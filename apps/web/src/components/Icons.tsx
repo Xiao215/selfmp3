@@ -359,3 +359,26 @@ export const Metronome = (p: IconProps) => (
     <path d="M12 15 16.5 6.5" />
   </Icon>
 )
+
+/* ---- brand ---- */
+
+/**
+ * The app mark: the same beamed pair of eighth notes as the app icon, drawn
+ * as filled shapes rather than strokes so it stays solid next to the wordmark.
+ */
+export const BrandMark = ({ size = 22 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 512 512"
+    fill="currentColor"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path d="M186 168 L370 130 L370 190 L186 228 Z" />
+    <rect x="186" y="168" width="26" height="180" rx="13" />
+    <rect x="344" y="130" width="26" height="180" rx="13" />
+    <ellipse cx="152" cy="348" rx="52" ry="39" transform="rotate(-22 152 348)" />
+    <ellipse cx="310" cy="310" rx="52" ry="39" transform="rotate(-22 310 310)" />
+  </svg>
+)

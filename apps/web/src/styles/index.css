@@ -299,10 +299,18 @@ pre.code-block {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.03em;
   padding: 0 10px 16px;
+}
+
+.brand svg {
+  color: var(--accent);
+  flex: none;
 }
 
 .brand-dot {
@@ -900,7 +908,10 @@ textarea:focus {
 
 input[type='range'] {
   appearance: none;
-  height: 4px;
+  /* 4px of visible track (the content box) inside a 20px hit area. The height
+     must include the padding below, because everything here is border-box —
+     setting it to 4px collapses the content box and the track disappears. */
+  height: 20px;
   border-radius: 2px;
   background: linear-gradient(
     to right,

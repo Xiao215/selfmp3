@@ -15,6 +15,7 @@ import {
   Sparkles,
   WifiOff,
   X,
+  BrandMark,
 } from './Icons.js'
 
 /**
@@ -73,7 +74,10 @@ export function Sidebar({
   return (
     <nav className="sidebar" aria-label="Main navigation">
       <div className="brand">
-        self<span className="brand-dot">.</span>mp3
+        <BrandMark />
+        <span>
+          self<span className="brand-dot">.</span>mp3
+        </span>
       </div>
 
       {!offline.serverReachable && (

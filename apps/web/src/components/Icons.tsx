@@ -348,3 +348,14 @@ export const Remote = (p: IconProps) => (
     <path d="M19.5 5.5a9 9 0 0 1 0 13" />
   </Icon>
 )
+
+/* ---- Practice ---- */
+
+/** A metronome — the practice panel. */
+export const Metronome = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9.5 3h5l4 18h-13z" />
+    <path d="M6.2 16h11.6" />
+    <path d="M12 15 16.5 6.5" />
+  </Icon>
+)

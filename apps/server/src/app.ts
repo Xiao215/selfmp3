@@ -16,6 +16,8 @@ import { systemRoutes } from './routes/system.js'
 import { metadataRoutes } from './routes/metadata.js'
 import { lyricsRoutes } from './routes/lyrics.js'
 import { deviceRoutes } from './routes/devices.js'
+import { wrappedRoutes } from './routes/wrapped.js'
+import { gemsRoutes } from './routes/gems.js'
 
 /**
  * Wire the HTTP layer.
@@ -64,6 +66,8 @@ export function createApp(container: Container): Express {
   api.use(metadataRoutes(container))
   api.use(lyricsRoutes(container))
   api.use(deviceRoutes(container))
+  api.use(wrappedRoutes(container))
+  api.use(gemsRoutes(container))
   app.use('/api', api)
 
   app.use('/api', notFoundHandler)

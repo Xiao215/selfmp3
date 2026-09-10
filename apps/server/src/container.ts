@@ -7,6 +7,8 @@ import { TagRepository } from './repositories/tags.js'
 import { PlaylistRepository } from './repositories/playlists.js'
 import { SettingsRepository } from './repositories/settings.js'
 import { StatsRepository } from './repositories/stats.js'
+import { WrappedRepository } from './repositories/wrapped.js'
+import { GemsRepository } from './repositories/gems.js'
 import { ImportRepository } from './repositories/imports.js'
 import { FeaturesRepository } from './repositories/features.js'
 import { MetadataService } from './services/metadata.js'
@@ -50,6 +52,8 @@ export interface Container {
   readonly playlists: PlaylistRepository
   readonly settings: SettingsRepository
   readonly stats: StatsRepository
+  readonly wrapped: WrappedRepository
+  readonly gems: GemsRepository
   readonly imports: ImportRepository
   readonly secrets: SecretsRepository
   readonly lyricsSearch: LyricsSearchRepository
@@ -95,6 +99,8 @@ export function createContainer(config: Config): Container {
   const playlists = new PlaylistRepository(db)
   const settings = new SettingsRepository(db)
   const stats = new StatsRepository(db)
+  const wrapped = new WrappedRepository(db)
+  const gems = new GemsRepository(db)
   const imports = new ImportRepository(db)
   const secrets = new SecretsRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
@@ -212,6 +218,8 @@ export function createContainer(config: Config): Container {
     playlists,
     settings,
     stats,
+    wrapped,
+    gems,
     imports,
     secrets,
     lyricsSearch,

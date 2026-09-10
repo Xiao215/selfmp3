@@ -4,13 +4,16 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { useSimilar, useToggleLoved } from '../lib/queries.js'
 import { DevicesButton } from '../devices/DevicesButton.js'
 import { useTransport } from '../devices/useTransport.js'
+import { loopRegionPercent } from '../player/practice.js'
 import { Cover } from './Cover.js'
 import { FeatureBadges } from './FeatureBadges.js'
 import { LyricsPanel } from './LyricsPanel.js'
 import { QueuePanel } from './QueuePanel.js'
+import { PracticePanel } from './PracticePanel.js'
 import {
   ChevronDown,
   Heart,
+  Metronome,
   Mic,
   Moon,
   Next,
@@ -34,7 +37,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
   const player = usePlayer()
   const transport = useTransport()
   const toggleLoved = useToggleLoved()
-  const [panel, setPanel] = useState<'none' | 'lyrics' | 'queue'>('none')
+  const [panel, setPanel] = useState<'none' | 'lyrics' | 'queue' | 'practice'>('none')
   const [scrubbing, setScrubbing] = useState<number | null>(null)
 
   const song = transport.song
@@ -44,6 +47,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
   const displayTime = scrubbing ?? transport.currentTime
   const duration = transport.duration || song.duration || 0
   const percent = duration > 0 ? (displayTime / duration) * 100 : 0
+  const loopRegion = loopRegionPercent(player.loopA, player.loopB, duration)
 
   return (
     <div className="now-playing">
@@ -94,21 +98,30 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="now-playing-progress">
-            <input
-              className="scrubber scrubber-large"
-              type="range"
-              min={0}
-              max={duration || 1}
-              step={0.1}
-              value={Math.min(displayTime, duration || 1)}
-              style={{ '--progress': `${percent}%` } as React.CSSProperties}
-              aria-label="Seek"
-              onChange={event => setScrubbing(Number(event.target.value))}
-              onPointerUp={() => {
-                if (scrubbing !== null) transport.seek(scrubbing)
-                setScrubbing(null)
-              }}
-            />
+            <div className="scrubber-wrap">
+              {loopRegion && (
+                <div
+                  className="loop-region loop-region-large"
+                  style={{ left: `${loopRegion.left}%`, width: `${loopRegion.width}%` }}
+                  aria-hidden="true"
+                />
+              )}
+              <input
+                className="scrubber scrubber-large"
+                type="range"
+                min={0}
+                max={duration || 1}
+                step={0.1}
+                value={Math.min(displayTime, duration || 1)}
+                style={{ '--progress': `${percent}%` } as React.CSSProperties}
+                aria-label="Seek"
+                onChange={event => setScrubbing(Number(event.target.value))}
+                onPointerUp={() => {
+                  if (scrubbing !== null) transport.seek(scrubbing)
+                  setScrubbing(null)
+                }}
+              />
+            </div>
             <div className="now-playing-times">
               <span>{formatDuration(displayTime)}</span>
               <span>-{formatDuration(Math.max(0, duration - displayTime))}</span>
@@ -197,6 +210,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
 
       {panel === 'lyrics' && <LyricsPanel onClose={() => setPanel('none')} />}
       {panel === 'queue' && <QueuePanel onClose={() => setPanel('none')} />}
+      {panel === 'practice' && <PracticePanel onClose={() => setPanel('none')} />}
 
       <footer className="now-playing-foot">
         <button
@@ -206,6 +220,14 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
           aria-label="Lyrics"
         >
           <Mic size={20} />
+        </button>
+        <button
+          type="button"
+          className={`icon-button ${panel === 'practice' || player.loopB !== null ? 'is-accent' : ''}`}
+          onClick={() => setPanel(current => (current === 'practice' ? 'none' : 'practice'))}
+          aria-label="Practice tools"
+        >
+          <Metronome size={20} />
         </button>
         <button
           type="button"

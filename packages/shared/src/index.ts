@@ -21,6 +21,8 @@ export * from './schemas/metadata.js'
 export * from './schemas/lyrics.js'
 export * from './schemas/features.js'
 export * from './schemas/devices.js'
+export * from './schemas/wrapped.js'
+export * from './schemas/gems.js'
 
 export * from './format.js'
 export * from './lrc.js'
@@ -30,6 +32,8 @@ export * from './script.js'
 export * from './lrcBuild.js'
 export * from './features.js'
 export * from './devices.js'
+export * from './personality.js'
+export * from './transpose.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

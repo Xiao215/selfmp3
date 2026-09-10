@@ -326,3 +326,25 @@ export const Translate = (p: IconProps) => (
     <path d="m13 21 4-9 4 9M14.3 18h5.4" />
   </Icon>
 )
+
+/* ---- devices and handoff ---- */
+
+/** A laptop with a phone beside it — the devices / handoff button. */
+export const Devices = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h10A1.5 1.5 0 0 1 15 6.5V14" />
+    <path d="M1 17h15" />
+    <rect x="17" y="8" width="6" height="11" rx="1.4" />
+    <path d="M19.6 16.6h.8" />
+  </Icon>
+)
+
+/** A phone with waves coming off it — remote control is on. */
+export const Remote = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="10" height="18" rx="2" />
+    <path d="M7.6 17.6h.8" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+    <path d="M19.5 5.5a9 9 0 0 1 0 13" />
+  </Icon>
+)

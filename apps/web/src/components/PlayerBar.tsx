@@ -3,6 +3,9 @@ import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useToggleLoved } from '../lib/queries.js'
 import { useIsMobile } from '../lib/hooks.js'
+import { DevicesButton } from '../devices/DevicesButton.js'
+import { useDeviceContext } from '../devices/DevicesProvider.js'
+import { useTransport } from '../devices/useTransport.js'
 import { Cover } from './Cover.js'
 import {
   Heart,
@@ -42,17 +45,20 @@ export function PlayerBar({
   queueOpen: boolean
 }) {
   const player = usePlayer()
+  // Local unless remote control is on, in which case the same controls drive
+  // another device and show its progress instead.
+  const transport = useTransport()
   const toggleLoved = useToggleLoved()
   const isMobile = useIsMobile()
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
 
-  const song = player.current
+  const song = transport.song
   // While dragging, show the handle position rather than the playhead, or the
   // thumb fights the user for control.
-  const displayTime = scrubbing ?? player.currentTime
-  const duration = player.duration || song?.duration || 0
+  const displayTime = scrubbing ?? transport.currentTime
+  const duration = transport.duration || song?.duration || 0
   const percent = duration > 0 ? (displayTime / duration) * 100 : 0
 
   if (isMobile) {
@@ -108,7 +114,7 @@ export function PlayerBar({
           <button
             type="button"
             className="icon-button"
-            onClick={player.previous}
+            onClick={transport.previous}
             aria-label="Previous"
             disabled={!song}
           >
@@ -118,17 +124,17 @@ export function PlayerBar({
           <button
             type="button"
             className="play-button"
-            onClick={player.toggle}
-            aria-label={player.playing ? 'Pause' : 'Play'}
+            onClick={transport.toggle}
+            aria-label={transport.playing ? 'Pause' : 'Play'}
             disabled={!song}
           >
-            {player.playing ? <Pause size={20} /> : <Play size={20} />}
+            {transport.playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
 
           <button
             type="button"
             className="icon-button"
-            onClick={player.next}
+            onClick={transport.next}
             aria-label="Next"
             disabled={!song}
           >
@@ -160,11 +166,11 @@ export function PlayerBar({
             aria-label="Seek"
             onChange={event => setScrubbing(Number(event.target.value))}
             onPointerUp={() => {
-              if (scrubbing !== null) player.seek(scrubbing)
+              if (scrubbing !== null) transport.seek(scrubbing)
               setScrubbing(null)
             }}
             onKeyUp={() => {
-              if (scrubbing !== null) player.seek(scrubbing)
+              if (scrubbing !== null) transport.seek(scrubbing)
               setScrubbing(null)
             }}
           />
@@ -174,6 +180,8 @@ export function PlayerBar({
 
       <div className="player-right">
         {player.stalled && <span className="spinner" aria-label="Buffering" />}
+
+        <DevicesButton />
 
         <button
           type="button"
@@ -235,6 +243,7 @@ export function PlayerBar({
           className="icon-button"
           onClick={player.toggleMute}
           aria-label={player.muted ? 'Unmute' : 'Mute'}
+          disabled={transport.remote !== null}
         >
           {player.muted || player.volume === 0 ? <VolumeMute size={17} /> : <Volume size={17} />}
         </button>
@@ -245,10 +254,10 @@ export function PlayerBar({
           min={0}
           max={1}
           step={0.01}
-          value={player.muted ? 0 : player.volume}
-          style={{ '--progress': `${(player.muted ? 0 : player.volume) * 100}%` } as React.CSSProperties}
+          value={transport.volume}
+          style={{ '--progress': `${transport.volume * 100}%` } as React.CSSProperties}
           aria-label="Volume"
-          onChange={event => player.setVolume(Number(event.target.value))}
+          onChange={event => transport.setVolume(Number(event.target.value))}
         />
       </div>
     </footer>
@@ -264,10 +273,12 @@ export function PlayerBar({
  * button underneath instead.
  */
 function MiniPlayer({ onOpen, percent }: { onOpen: () => void; percent: number }) {
-  const player = usePlayer()
-  const song = player.current
+  const transport = useTransport()
+  const song = transport.song
 
-  if (!song) return null
+  // Nothing here, but the Mac is playing: a one-line strip is the only way to
+  // reach handoff from a phone that is otherwise idle.
+  if (!song) return <RemoteOnlyStrip />
 
   return (
     <div className="mini-player">
@@ -283,26 +294,44 @@ function MiniPlayer({ onOpen, percent }: { onOpen: () => void; percent: number }
       <Cover song={song} size={40} />
       <div className="mini-meta">
         <div className="mini-title">{song.title}</div>
-        <div className="mini-artist">{song.artist || 'Unknown artist'}</div>
+        <div className="mini-artist">
+          {transport.remote ? `on ${transport.remote.name}` : song.artist || 'Unknown artist'}
+        </div>
+      </div>
+
+      <div className="mini-devices">
+        <DevicesButton showChip={false} />
       </div>
 
       <button
         type="button"
         className="icon-button mini-play"
-        onClick={player.toggle}
-        aria-label={player.playing ? 'Pause' : 'Play'}
+        onClick={transport.toggle}
+        aria-label={transport.playing ? 'Pause' : 'Play'}
       >
-        {player.playing ? <Pause size={22} /> : <Play size={22} />}
+        {transport.playing ? <Pause size={22} /> : <Play size={22} />}
       </button>
 
       <button
         type="button"
         className="icon-button mini-next"
-        onClick={player.next}
+        onClick={transport.next}
         aria-label="Next"
       >
         <Next size={20} />
       </button>
+    </div>
+  )
+}
+
+/** Shown on a phone that has nothing loaded while another device is playing. */
+function RemoteOnlyStrip() {
+  const { playingElsewhere } = useDeviceContext()
+  if (!playingElsewhere) return null
+
+  return (
+    <div className="mini-player mini-player-remote">
+      <DevicesButton />
     </div>
   )
 }

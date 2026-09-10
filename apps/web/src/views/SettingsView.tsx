@@ -15,6 +15,7 @@ import { useOffline } from '../offline/OfflineProvider.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../components/Icons.js'
 import { LyricsSettings } from '../components/LyricsSettings.js'
+import { DevicesSettings } from '../devices/DevicesSettings.js'
 
 /**
  * Settings.
@@ -271,6 +272,10 @@ export function SettingsView() {
       {/* ---------------- lyrics+ ---------------- */}
 
       {settings && <LyricsSettings settings={settings} onSet={set} />}
+
+      {/* ---------------- devices ---------------- */}
+
+      <DevicesSettings />
 
       {/* ---------------- importing ---------------- */}
 

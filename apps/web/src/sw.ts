@@ -71,6 +71,16 @@ self.addEventListener('fetch', event => {
   // Never touch cross-origin requests (album art from a thumbnail host, etc).
   if (url.origin !== self.location.origin) return
 
+  /*
+   * The event stream is never intercepted.
+   *
+   * It is an infinite response: the network-first handler below would await
+   * `fetch()` and then hold a response that never completes, and any attempt
+   * to cache it would buffer forever. Falling through to the browser lets
+   * EventSource own the connection, including its own reconnect.
+   */
+  if (url.pathname === '/api/events') return
+
   if (url.pathname.startsWith('/api/stream/')) {
     event.respondWith(handleAudio(request, url))
     return

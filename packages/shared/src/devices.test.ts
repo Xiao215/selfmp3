@@ -28,7 +28,11 @@ function state(patch: Partial<PlaybackState> = {}): PlaybackState {
   }
 }
 
-function device(id: string, patch: Partial<Device> = {}, statePatch: Partial<PlaybackState> = {}): Device {
+function device(
+  id: string,
+  patch: Partial<Device> = {},
+  statePatch: Partial<PlaybackState> = {},
+): Device {
   return {
     id,
     name: id,
@@ -55,7 +59,11 @@ describe('isDeviceOnline', () => {
 describe('pickResumeState', () => {
   it('skips this device and devices with nothing loaded', () => {
     const picked = pickResumeState(
-      [device('me'), device('empty', {}, { songId: null }), device('phone', { lastSeenAt: NOW - 60_000 })],
+      [
+        device('me'),
+        device('empty', {}, { songId: null }),
+        device('phone', { lastSeenAt: NOW - 60_000 }),
+      ],
       { thisDeviceId: 'me', now: NOW },
     )
     expect(picked?.id).toBe('phone')
@@ -103,8 +111,19 @@ describe('extrapolatePosition', () => {
 describe('playbackStateChanged', () => {
   it('ignores normal progress but notices a seek', () => {
     const before = state({ playing: true })
-    expect(playbackStateChanged(before, state({ playing: true, position: 35, updatedAt: NOW + 5_000 }))).toBe(false)
-    expect(playbackStateChanged(before, state({ playing: true, position: 90, updatedAt: NOW + 5_000 }))).toBe(true)
+    expect(
+      playbackStateChanged(before, state({ playing: true, position: 35, updatedAt: NOW + 5_000 })),
+    ).toBe(false)
+    expect(
+      playbackStateChanged(before, state({ playing: true, position: 90, updatedAt: NOW + 5_000 })),
+    ).toBe(true)
+  })
+
+  it('stays quiet while a paused state simply sits there', () => {
+    const before = state({ playing: false })
+    expect(playbackStateChanged(before, state({ playing: false, updatedAt: NOW + 60_000 }))).toBe(
+      false,
+    )
   })
 
   it('notices play/pause and track changes', () => {
@@ -139,10 +158,16 @@ describe('schemas', () => {
     expect(DeviceCommandSchema.safeParse({ type: 'seek' }).success).toBe(false)
     expect(DeviceCommandSchema.safeParse({ type: 'setVolume', volume: 2 }).success).toBe(false)
     expect(
-      DeviceCommandSchema.safeParse({ type: 'playSong', songId: 3, queueIds: [3, 4], queueIndex: 0 })
-        .success,
+      DeviceCommandSchema.safeParse({
+        type: 'playSong',
+        songId: 3,
+        queueIds: [3, 4],
+        queueIndex: 0,
+      }).success,
     ).toBe(true)
-    expect(DeviceCommandSchema.safeParse({ type: 'transfer', fromDeviceId: 'abcdefghij' }).success).toBe(true)
+    expect(
+      DeviceCommandSchema.safeParse({ type: 'transfer', fromDeviceId: 'abcdefghij' }).success,
+    ).toBe(true)
     expect(DeviceCommandSchema.safeParse({ type: 'dance' }).success).toBe(false)
   })
 })

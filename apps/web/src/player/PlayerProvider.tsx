@@ -281,7 +281,11 @@ export function PlayerProvider({
 
   // Restore the saved volume once, on mount.
   useEffect(() => {
-    const stored = Number(localStorage.getItem(VOLUME_STORAGE_KEY))
+    const raw = localStorage.getItem(VOLUME_STORAGE_KEY)
+    // `Number(null)` is 0, so an unguarded read starts every fresh browser
+    // silent — and with the slider at zero it is not obvious why.
+    if (raw === null) return
+    const stored = Number(raw)
     if (Number.isFinite(stored) && stored >= 0 && stored <= 1) engine.setVolume(stored)
   }, [engine])
 

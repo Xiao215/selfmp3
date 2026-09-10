@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useSimilar, useToggleLoved } from '../lib/queries.js'
+import { DevicesButton } from '../devices/DevicesButton.js'
+import { useTransport } from '../devices/useTransport.js'
 import { Cover } from './Cover.js'
 import { FeatureBadges } from './FeatureBadges.js'
 import { LyricsPanel } from './LyricsPanel.js'
@@ -30,16 +32,17 @@ import {
  */
 export function NowPlaying({ onClose }: { onClose: () => void }) {
   const player = usePlayer()
+  const transport = useTransport()
   const toggleLoved = useToggleLoved()
   const [panel, setPanel] = useState<'none' | 'lyrics' | 'queue'>('none')
   const [scrubbing, setScrubbing] = useState<number | null>(null)
 
-  const song = player.current
+  const song = transport.song
   const similar = useSimilar(song?.id ?? null, 10)
   if (!song) return null
 
-  const displayTime = scrubbing ?? player.currentTime
-  const duration = player.duration || song.duration || 0
+  const displayTime = scrubbing ?? transport.currentTime
+  const duration = transport.duration || song.duration || 0
   const percent = duration > 0 ? (displayTime / duration) * 100 : 0
 
   return (
@@ -54,8 +57,14 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
           <ChevronDown size={24} />
         </button>
         <span className="now-playing-context">
-          {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
-          {player.queue.items.length}
+          {transport.remote ? (
+            <>Controlling {transport.remote.name}</>
+          ) : (
+            <>
+              {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
+              {player.queue.items.length}
+            </>
+          )}
         </span>
         <button
           type="button"
@@ -96,7 +105,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
               aria-label="Seek"
               onChange={event => setScrubbing(Number(event.target.value))}
               onPointerUp={() => {
-                if (scrubbing !== null) player.seek(scrubbing)
+                if (scrubbing !== null) transport.seek(scrubbing)
                 setScrubbing(null)
               }}
             />
@@ -118,7 +127,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className="icon-button icon-button-large"
-              onClick={player.previous}
+              onClick={transport.previous}
               aria-label="Previous"
             >
               <Prev size={30} />
@@ -126,15 +135,15 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className="play-button play-button-large"
-              onClick={player.toggle}
-              aria-label={player.playing ? 'Pause' : 'Play'}
+              onClick={transport.toggle}
+              aria-label={transport.playing ? 'Pause' : 'Play'}
             >
-              {player.playing ? <Pause size={30} /> : <Play size={30} />}
+              {transport.playing ? <Pause size={30} /> : <Play size={30} />}
             </button>
             <button
               type="button"
               className="icon-button icon-button-large"
-              onClick={player.next}
+              onClick={transport.next}
               aria-label="Next"
             >
               <Next size={30} />
@@ -207,6 +216,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
         >
           <Moon size={20} />
         </button>
+        <DevicesButton />
         <button
           type="button"
           className={`icon-button ${panel === 'queue' ? 'is-accent' : ''}`}

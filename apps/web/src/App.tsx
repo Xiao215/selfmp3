@@ -11,6 +11,8 @@ import { LyricsPanel } from './components/LyricsPanel.js'
 import { QueuePanel } from './components/QueuePanel.js'
 import { NowPlaying } from './components/NowPlaying.js'
 import { CommandPalette } from './components/CommandPalette.js'
+import { DevicesProvider } from './devices/DevicesProvider.js'
+import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
 import { PlaylistsView } from './views/PlaylistsView.js'
 import { PlaylistDetailView } from './views/PlaylistDetailView.js'
@@ -45,7 +47,10 @@ function AppWithLibrary() {
       gapless={settings?.gapless ?? true}
       playThreshold={settings?.playThreshold ?? 0.5}
     >
-      <Shell />
+      {/* Inside the player: presence reads it, and remote commands drive it. */}
+      <DevicesProvider>
+        <Shell />
+      </DevicesProvider>
     </PlayerProvider>
   )
 }
@@ -156,6 +161,8 @@ function Shell() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
       />
+
+      <ResumeToast />
     </div>
   )
 }

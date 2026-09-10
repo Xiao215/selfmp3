@@ -15,7 +15,11 @@ export const DEVICE_HEARTBEAT_MS = 10_000
 /** A state older than this is not worth offering to resume. */
 export const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
-export function isDeviceOnline(lastSeenAt: number, now: number, windowMs = DEVICE_ONLINE_MS): boolean {
+export function isDeviceOnline(
+  lastSeenAt: number,
+  now: number,
+  windowMs = DEVICE_ONLINE_MS,
+): boolean {
   const age = now - lastSeenAt
   // A heartbeat from the "future" is a clock skew, not a ghost; treat it as fresh.
   return age <= windowMs
@@ -65,17 +69,31 @@ export function extrapolatePosition(state: PlaybackState, now: number, duration?
   return duration !== undefined && duration > 0 ? Math.min(position, duration) : position
 }
 
-/** True when two states describe the same moment closely enough to skip a heartbeat. */
+/**
+ * True when `b` differs from `a` in a way other devices should hear about now
+ * rather than at the next scheduled heartbeat.
+ *
+ * The point of this is to let a client re-check on every render and send only
+ * when something real happened — a play, a pause, a track change, a seek —
+ * without maintaining a list of fields by hand somewhere else.
+ */
 export function playbackStateChanged(a: PlaybackState | null, b: PlaybackState): boolean {
   if (a === null) return true
-  return (
+  if (
     a.songId !== b.songId ||
     a.playing !== b.playing ||
     a.queueIndex !== b.queueIndex ||
     a.shuffle !== b.shuffle ||
     a.repeat !== b.repeat ||
-    a.queueIds.length !== b.queueIds.length ||
-    // A seek is a jump larger than the time that actually passed.
-    Math.abs(b.position - a.position - (b.updatedAt - a.updatedAt) / 1000) > 2
-  )
+    a.queueIds.length !== b.queueIds.length
+  ) {
+    return true
+  }
+
+  // A seek is the position moving by more than the time that actually passed.
+  // Only meaningful while playing: a paused position does not move on its own,
+  // so comparing it against elapsed wall-clock would report a "seek" every
+  // couple of seconds that nothing at all was happening.
+  const expected = b.playing ? (b.updatedAt - a.updatedAt) / 1000 : 0
+  return Math.abs(b.position - a.position - expected) > 2
 }

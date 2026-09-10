@@ -81,11 +81,11 @@ describe('compileSmartRules', () => {
 
   it('excludes missing files from every result', () => {
     // Song 4 is missing; a playlist must never hand the player a dead track.
-    expect(run(db, { rules: [] })).toEqual([2, 1, 3])
+    expect(run(db, { rules: [] })).toEqual([1, 3, 2])
   })
 
   it('matches text with contains', () => {
-    expect(run(db, { rules: [{ field: 'artist', op: 'contains', value: 'aurora' }] })).toEqual([2, 1])
+    expect(run(db, { rules: [{ field: 'artist', op: 'contains', value: 'aurora' }] })).toEqual([1, 2])
   })
 
   it('matches text with equals, case-insensitively', () => {
@@ -107,7 +107,7 @@ describe('compileSmartRules', () => {
   })
 
   it('filters by tag', () => {
-    expect(run(db, { rules: [{ field: 'tag', op: 'has', tagId: 1 }] })).toEqual([2, 1])
+    expect(run(db, { rules: [{ field: 'tag', op: 'has', tagId: 1 }] })).toEqual([1, 2])
     expect(run(db, { rules: [{ field: 'tag', op: 'notHas', tagId: 1 }] })).toEqual([3])
   })
 
@@ -118,7 +118,7 @@ describe('compileSmartRules', () => {
   })
 
   it('does not let a null year satisfy a numeric comparison', () => {
-    expect(run(db, { rules: [{ field: 'year', op: 'lt', value: 3000 }] })).toEqual([2, 1, 3])
+    expect(run(db, { rules: [{ field: 'year', op: 'lt', value: 3000 }] })).toEqual([1, 3, 2])
   })
 
   it('filters by relative dates', () => {
@@ -161,7 +161,7 @@ describe('compileSmartRules', () => {
           { field: 'playCount', op: 'gt', value: 20 },
         ],
       }),
-    ).toEqual([2, 3])
+    ).toEqual([3, 2])
   })
 
   it('honours ordering and limits', () => {

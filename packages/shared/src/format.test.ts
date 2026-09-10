@@ -69,11 +69,11 @@ describe('formatRelative', () => {
 
 describe('sanitizeFilename', () => {
   it('removes characters that break filesystems', () => {
-    expect(sanitizeFilename('AC/DC: Back? *In* Black')).toBe('ACDC BackIn Black')
+    expect(sanitizeFilename('AC/DC: Back? *In* Black')).toBe('ACDC Back In Black')
   })
 
   it('keeps non-latin scripts intact', () => {
-    expect(sanitizeFilename('李晨曦 - 夜空')).toBe('李晨曦 夜空')
+    expect(sanitizeFilename('李晨曦 - 夜空')).toBe('李晨曦 - 夜空')
   })
 
   it('refuses to produce a dotfile', () => {

@@ -26,6 +26,9 @@ import { RomanizationService } from './services/romanization.js'
 import { TranslationService } from './services/translation.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
+import { DeviceRepository } from './repositories/devices.js'
+import { EventHub } from './services/events.js'
+import { DeviceService } from './services/devices.js'
 
 /**
  * Composition root.
@@ -51,6 +54,7 @@ export interface Container {
   readonly secrets: SecretsRepository
   readonly lyricsSearch: LyricsSearchRepository
   readonly features: FeaturesRepository
+  readonly deviceRepo: DeviceRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -67,6 +71,8 @@ export interface Container {
   readonly translation: TranslationService
   readonly lyricsIndex: LyricsIndexService
   readonly analysis: AnalysisService
+  readonly events: EventHub
+  readonly devices: DeviceService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -93,6 +99,7 @@ export function createContainer(config: Config): Container {
   const secrets = new SecretsRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const features = new FeaturesRepository(db)
+  const deviceRepo = new DeviceRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger)
@@ -184,6 +191,17 @@ export function createContainer(config: Config): Container {
   }
   scanner.onScanComplete = () => analysis.kick()
 
+  // Presence and remote control. The version watch reads `version` through the
+  // closure, so every bump above reaches the event stream without each caller
+  // having to know it exists.
+  const events = new EventHub(logger.child('events'))
+  const devices = new DeviceService({
+    devices: deviceRepo,
+    hub: events,
+    logger: logger.child('devices'),
+    libraryVersion: () => version,
+  })
+
   return {
     config,
     logger,
@@ -198,6 +216,7 @@ export function createContainer(config: Config): Container {
     secrets,
     lyricsSearch,
     features,
+    deviceRepo,
     metadata,
     lyrics,
     covers,
@@ -213,12 +232,15 @@ export function createContainer(config: Config): Container {
     translation,
     lyricsIndex,
     analysis,
+    events,
+    devices,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++
     },
     close: () => {
       libraryWatcher.stop()
+      devices.stop()
       analysis.stop()
       importQueue.stop()
       migrate.stop()

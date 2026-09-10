@@ -34,6 +34,8 @@ function main(): void {
   server.requestTimeout = 0
 
   container.importQueue.start()
+  // Presence sweep and library-version watch for the event stream.
+  container.devices.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
   container.libraryWatcher.apply()
   // Lyrics+: the Japanese dictionary takes a second or two; load it now, not on first tap.

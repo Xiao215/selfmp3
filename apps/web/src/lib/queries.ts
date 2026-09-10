@@ -9,6 +9,7 @@ import type {
   ApplyMetadata,
   FixCoversStatus,
   AnalysisStatus,
+  DeviceList,
   Library,
   Settings,
   Stats,
@@ -46,6 +47,7 @@ export const queryKeys = {
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
   similar: (id: number) => ['similar', id] as const,
   analysis: ['analysis'] as const,
+  devices: ['devices'] as const,
 }
 
 /**
@@ -379,5 +381,23 @@ export function useStartAnalysis() {
     onSuccess: status => {
       client.setQueryData(queryKeys.analysis, status)
     },
+  })
+}
+
+// --- devices ----------------------------------------------------------------
+
+/**
+ * Other devices and what they are playing. The event stream keeps this fresh
+ * by writing into the same cache entry; the interval is only the fallback for
+ * when the stream is down, and it stops entirely in a hidden tab.
+ */
+export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList, Error> {
+  return useQuery({
+    queryKey: queryKeys.devices,
+    queryFn: () => api.devices(),
+    staleTime: 10_000,
+    refetchInterval: streamConnected ? false : 15_000,
+    refetchIntervalInBackground: false,
+    retry: false,
   })
 }

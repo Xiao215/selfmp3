@@ -15,6 +15,7 @@ import { migrateRoutes } from './routes/migrate.js'
 import { systemRoutes } from './routes/system.js'
 import { metadataRoutes } from './routes/metadata.js'
 import { lyricsRoutes } from './routes/lyrics.js'
+import { deviceRoutes } from './routes/devices.js'
 
 /**
  * Wire the HTTP layer.
@@ -41,6 +42,8 @@ export function createApp(container: Container): Express {
     compression({
       filter: (req, res) => {
         if (req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')) return false
+        // An event stream must reach the client unbuffered, or nothing is live.
+        if (req.path === '/api/events') return false
         return compression.filter(req, res)
       },
     }),
@@ -60,6 +63,7 @@ export function createApp(container: Container): Express {
   api.use(systemRoutes(container))
   api.use(metadataRoutes(container))
   api.use(lyricsRoutes(container))
+  api.use(deviceRoutes(container))
   app.use('/api', api)
 
   app.use('/api', notFoundHandler)

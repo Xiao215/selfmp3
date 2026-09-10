@@ -1,5 +1,7 @@
 import {
   AnalysisStatusSchema,
+  DeviceCommandResultSchema,
+  DeviceListSchema,
   HealthSchema,
   ImportEnqueueResultSchema,
   ImportPreviewSchema,
@@ -31,6 +33,8 @@ import {
   type ApplyMetadata,
   type BulkTag,
   type CreatePlaylist,
+  type DeviceCommand,
+  type DeviceHeartbeat,
   type ImportEnqueue,
   type ImportShareRequest,
   type MigrateEnqueue,
@@ -323,6 +327,26 @@ export const api = {
   migrateEnqueue: (input: MigrateEnqueue) =>
     request('POST', '/api/migrate/enqueue', MigrateEnqueueResultSchema, input),
 
+  // --- devices ------------------------------------------------------------
+
+  devices: () => request('GET', '/api/devices', DeviceListSchema),
+
+  heartbeat: (input: DeviceHeartbeat) =>
+    request('POST', '/api/devices/heartbeat', DeviceListSchema, input),
+
+  deviceCommand: (deviceId: string, command: DeviceCommand, fromDeviceId?: string) =>
+    request(
+      'POST',
+      `/api/devices/${encodeURIComponent(deviceId)}/command${
+        fromDeviceId ? `?from=${encodeURIComponent(fromDeviceId)}` : ''
+      }`,
+      DeviceCommandResultSchema,
+      command,
+    ),
+
+  forgetDevice: (deviceId: string) =>
+    request('DELETE', `/api/devices/${encodeURIComponent(deviceId)}`, OkSchema),
+
   // --- system -------------------------------------------------------------
 
   health: () => request('GET', '/api/health', HealthSchema),
@@ -357,4 +381,6 @@ export const api = {
 export const mediaUrl = {
   stream: (songId: number) => `/api/stream/${songId}`,
   art: (songId: number) => `/api/art/${songId}`,
+  /** The live event stream; `deviceId` lets commands be addressed to this tab. */
+  events: (deviceId: string) => `/api/events?deviceId=${encodeURIComponent(deviceId)}`,
 }

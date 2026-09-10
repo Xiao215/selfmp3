@@ -58,6 +58,14 @@ interface PlayerContextValue extends EngineState {
   readonly playFrom: (songs: readonly Song[], index: number) => void
   readonly playSong: (song: Song) => void
   readonly toggle: () => void
+  readonly play: () => void
+  readonly pause: () => void
+  /**
+   * Replace the queue and load a position, playing or paused — the hook that
+   * device handoff, remote commands and "continue from your phone" use.
+   * Resolves once the track is loaded, so a follow-up seek lands.
+   */
+  readonly playQueue: (songIds: readonly number[], index: number, options?: PlayQueueOptions) => Promise<void>
   readonly next: () => void
   readonly previous: () => void
   readonly seek: (seconds: number) => void
@@ -75,6 +83,13 @@ interface PlayerContextValue extends EngineState {
   readonly clearQueue: () => void
   readonly setSleepTimer: (minutes: number | null) => void
   readonly setAutoMix: (on: boolean) => void
+}
+
+export interface PlayQueueOptions {
+  readonly position?: number
+  readonly autoplay?: boolean
+  readonly shuffle?: boolean
+  readonly repeat?: QueueState['repeat']
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -323,6 +338,34 @@ export function PlayerProvider({
   )
 
   const toggle = useCallback(() => void engine.toggle(), [engine])
+  const play = useCallback(() => void engine.play(), [engine])
+  const pause = useCallback(() => engine.pause(), [engine])
+
+  const playQueue = useCallback(
+    async (songIds: readonly number[], index: number, options: PlayQueueOptions = {}) => {
+      // Another device may know songs this one has not synced yet; keep what
+      // resolves and land on the intended song if it is among them.
+      const items = songIds.filter(id => songByIdRef.current.has(id))
+      if (items.length === 0) return
+      const wanted = songIds[index]
+      const safeIndex = wanted === undefined ? 0 : Math.max(0, items.indexOf(wanted))
+      const next: QueueState = {
+        items,
+        index: safeIndex,
+        original: items,
+        shuffle: options.shuffle ?? queueRef.current.shuffle,
+        repeat: options.repeat ?? queueRef.current.repeat,
+      }
+      // The ref is updated eagerly so a heartbeat sent before the next render
+      // already reports the new queue.
+      queueRef.current = next
+      setQueue(next)
+      const songId = items[safeIndex]
+      if (songId === undefined) return
+      await engine.load(songId, { autoplay: options.autoplay ?? true, startAt: options.position ?? 0 })
+    },
+    [engine],
+  )
 
   const next = useCallback(() => {
     const currentId = queueRef.current.items[queueRef.current.index]
@@ -562,6 +605,9 @@ export function PlayerProvider({
       playFrom,
       playSong,
       toggle,
+      play,
+      pause,
+      playQueue,
       next,
       previous,
       seek,
@@ -593,6 +639,9 @@ export function PlayerProvider({
       playFrom,
       playSong,
       toggle,
+      play,
+      pause,
+      playQueue,
       next,
       previous,
       seek,

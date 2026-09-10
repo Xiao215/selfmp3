@@ -213,6 +213,24 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_song_features_camelot ON song_features(camelot);
     `,
   },
+  {
+    name: 'devices: presence and last playback state',
+    sql: `
+      -- One row per client that has ever heartbeated. \`state\` is the last
+      -- PlaybackState as JSON, kept so "continue where you left off" works
+      -- across a restart and from a device that is now asleep.
+      CREATE TABLE devices (
+        id           TEXT    PRIMARY KEY,
+        name         TEXT    NOT NULL,
+        kind         TEXT    NOT NULL DEFAULT 'other' CHECK (kind IN ('phone','desktop','other')),
+        state        TEXT    NOT NULL,
+        last_seen_at INTEGER NOT NULL,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX idx_devices_seen ON devices(last_seen_at DESC);
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

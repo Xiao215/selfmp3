@@ -11,6 +11,7 @@ import { mediaRoutes } from './routes/media.js'
 import { tagRoutes } from './routes/tags.js'
 import { playlistRoutes } from './routes/playlists.js'
 import { importRoutes } from './routes/imports.js'
+import { migrateRoutes } from './routes/migrate.js'
 import { systemRoutes } from './routes/system.js'
 
 /**
@@ -53,6 +54,7 @@ export function createApp(container: Container): Express {
   api.use(tagRoutes(container))
   api.use(playlistRoutes(container))
   api.use(importRoutes(container))
+  api.use(migrateRoutes(container))
   api.use(systemRoutes(container))
   app.use('/api', api)
 

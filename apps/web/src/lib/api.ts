@@ -5,6 +5,9 @@ import {
   ImportJobSchema,
   LibrarySchema,
   LyricsResponseSchema,
+  MigrateEnqueueResultSchema,
+  MigrateMatchJobSchema,
+  MigrateParseResultSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
   ScanResultSchema,
@@ -17,6 +20,8 @@ import {
   type BulkTag,
   type CreatePlaylist,
   type ImportEnqueue,
+  type MigrateEnqueue,
+  type MigrateSourceTrack,
   type PlayEvent,
   type SmartRules,
   type SongPatch,
@@ -162,11 +167,7 @@ export const api = {
     request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds }),
 
   lyrics: (id: number, refresh = false) =>
-    request(
-      'GET',
-      `/api/songs/${id}/lyrics${refresh ? '?refresh=1' : ''}`,
-      LyricsResponseSchema,
-    ),
+    request('GET', `/api/songs/${id}/lyrics${refresh ? '?refresh=1' : ''}`, LyricsResponseSchema),
 
   saveLyrics: (id: number, text: string) =>
     request('PUT', `/api/songs/${id}/lyrics`, OkSchema, { text }),
@@ -178,8 +179,7 @@ export const api = {
 
   createTag: (name: string) => request('POST', '/api/tags', TagSchema, { name }),
 
-  renameTag: (id: number, name: string) =>
-    request('PATCH', `/api/tags/${id}`, TagSchema, { name }),
+  renameTag: (id: number, name: string) => request('PATCH', `/api/tags/${id}`, TagSchema, { name }),
 
   setTagHue: (id: number, hue: number) => request('PATCH', `/api/tags/${id}`, TagSchema, { hue }),
 
@@ -198,8 +198,7 @@ export const api = {
 
   deletePlaylist: (id: number) => request('DELETE', `/api/playlists/${id}`, OkSchema),
 
-  playlistSongs: (id: number) =>
-    request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
+  playlistSongs: (id: number) => request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 
   addToPlaylist: (id: number, input: AddToPlaylist) =>
     request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, input),
@@ -248,8 +247,22 @@ export const api = {
 
   retryImport: (id: string) => request('POST', `/api/import/jobs/${id}/retry`, OkSchema),
 
-  clearImports: () =>
-    request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
+  clearImports: () => request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
+
+  // --- migrate ------------------------------------------------------------
+
+  migrateParse: (text: string) =>
+    request('POST', '/api/migrate/parse', MigrateParseResultSchema, { text }),
+
+  migrateMatch: (tracks: MigrateSourceTrack[]) =>
+    request('POST', '/api/migrate/match', MigrateMatchJobSchema, { tracks }),
+
+  migrateJob: (id: string) => request('GET', `/api/migrate/match/${id}`, MigrateMatchJobSchema),
+
+  cancelMigrateJob: (id: string) => request('POST', `/api/migrate/match/${id}/cancel`, OkSchema),
+
+  migrateEnqueue: (input: MigrateEnqueue) =>
+    request('POST', '/api/migrate/enqueue', MigrateEnqueueResultSchema, input),
 
   // --- system -------------------------------------------------------------
 

@@ -15,6 +15,7 @@ import { LibraryView } from './views/LibraryView.js'
 import { PlaylistsView } from './views/PlaylistsView.js'
 import { PlaylistDetailView } from './views/PlaylistDetailView.js'
 import { ImportView } from './views/ImportView.js'
+import { MigrateView } from './views/MigrateView.js'
 import { StatsView } from './views/StatsView.js'
 import { SettingsView } from './views/SettingsView.js'
 
@@ -127,6 +128,7 @@ function Shell() {
             <Route path="/playlists" element={<PlaylistsView />} />
             <Route path="/playlists/:id" element={<PlaylistDetailView />} />
             <Route path="/import" element={<ImportView />} />
+            <Route path="/import/migrate" element={<MigrateView />} />
             <Route path="/stats" element={<StatsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -208,15 +208,39 @@
   padding: 6px 8px;
   color: var(--text-muted);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 
-.tag-row:hover .tag-row-delete {
+/* Revealed for the keyboard as well as the mouse: an opacity-0 button is
+   still in the tab order, and one you cannot see is one you cannot use. */
+.tag-row:hover .tag-row-delete,
+.tag-row:focus-within .tag-row-delete {
   opacity: 1;
 }
 
 .tag-row-delete:hover {
   color: var(--danger);
+}
+
+/*
+ * No tags yet. The sidebar's tallest, emptiest area should look like an
+ * invitation rather than like something that failed to load, so it says what
+ * tags are for and offers the one action that fixes it.
+ */
+.tag-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 10px;
+  margin-top: 2px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+
+.tag-empty .hint {
+  margin: 0;
 }
 
 .tag-form {
@@ -306,6 +330,20 @@
   padding-bottom: 10px;
   margin-bottom: 8px;
   scrollbar-width: none;
+  /* The strip runs to the edge of the screen so the last chip is clearly cut
+     off rather than looking like the end of the list. */
+  margin-inline: -16px;
+  padding-inline: 16px;
+}
+
+/* A chip is a filter control on a phone, not a label: give it a tap target. */
+.mobile-tag-strip .tag-chip.is-small {
+  font-size: 12px;
+  flex: none;
+}
+
+.mobile-tag-strip .tag-chip.is-small .tag-chip-label {
+  padding: 8px 12px;
 }
 
 .mobile-tag-strip::-webkit-scrollbar {

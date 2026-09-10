@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatLongDuration,
   fuzzyRank,
@@ -7,14 +7,14 @@ import {
   type SongSortField,
   type Tag,
 } from '@selfmp3/shared'
-import { useBulkTag, useLibrary } from '../lib/queries.js'
+import { useBulkTag, useLibrary, useScanLibrary } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useDebounced, useIsMobile } from '../lib/hooks.js'
 import { SongRow } from '../components/SongRow.js'
 import { TagChip } from '../components/TagChip.js'
 import { GemsRow } from '../components/GemsRow.js'
 import { Select } from '../components/Select.js'
-import { Play, Search, Shuffle, X } from '../components/Icons.js'
+import { Download, Play, Refresh, Search, Shuffle, X } from '../components/Icons.js'
 
 /**
  * The library.
@@ -48,6 +48,7 @@ export function LibraryView({
   const player = usePlayer()
   const isMobile = useIsMobile()
   const bulkTag = useBulkTag()
+  const scan = useScanLibrary()
   const [searchParams] = useSearchParams()
 
   const [query, setQuery] = useState('')
@@ -163,8 +164,14 @@ export function LibraryView({
           </p>
         </div>
 
-        <div className="view-actions">
-          <div className="search-box">
+        {/*
+          Three groups rather than five loose controls: find, order, play. On a
+          phone the search takes a line of its own and the other two share the
+          next one, which is the difference between two comfortable rows and
+          three cramped ones.
+        */}
+        <div className="view-actions library-actions">
+          <div className="search-box library-search">
             <Search size={15} />
             <input
               value={query}
@@ -185,31 +192,48 @@ export function LibraryView({
             )}
           </div>
 
-          <Select<SongSortField>
-            value={sort}
-            onChange={setSort}
-            options={SORT_OPTIONS}
-            label="Sort by"
-            align="end"
-          />
+          <div className="library-order">
+            <Select<SongSortField>
+              value={sort}
+              onChange={setSort}
+              options={SORT_OPTIONS}
+              label="Sort by"
+              align="end"
+              className="library-sort"
+            />
 
-          <button
-            type="button"
-            className="button"
-            onClick={() => setDescending(value => !value)}
-            aria-label={descending ? 'Sort ascending' : 'Sort descending'}
-            title={descending ? 'Descending' : 'Ascending'}
-          >
-            {descending ? '↓' : '↑'}
-          </button>
+            <button
+              type="button"
+              className="button library-direction"
+              onClick={() => setDescending(value => !value)}
+              aria-label={descending ? 'Sort ascending' : 'Sort descending'}
+              title={descending ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+            >
+              <span aria-hidden="true">{descending ? '↓' : '↑'}</span>
+            </button>
+          </div>
 
-          <button type="button" className="button button-primary" onClick={playAll}>
-            <Play size={15} /> Play
-          </button>
+          <div className="library-transport">
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={playAll}
+              disabled={filtered.length === 0}
+            >
+              <Play size={15} /> <span className="button-label">Play</span>
+            </button>
 
-          <button type="button" className="button" onClick={shuffleAll}>
-            <Shuffle size={15} /> Shuffle
-          </button>
+            <button
+              type="button"
+              className="button library-shuffle"
+              onClick={shuffleAll}
+              disabled={filtered.length === 0}
+              aria-label="Shuffle"
+              title="Shuffle"
+            >
+              <Shuffle size={15} /> <span className="button-label">Shuffle</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -263,22 +287,63 @@ export function LibraryView({
       )}
 
       {filtered.length === 0 ? (
-        <div className="empty-state">
-          <p className="empty-emoji">🎧</p>
-          <h2>{songs.length === 0 ? 'Nothing here yet' : 'No matches'}</h2>
-          <p className="hint">
-            {songs.length === 0 ? (
-              <>
-                Drop audio files into your <code>library/</code> folder and hit Rescan, or use{' '}
-                <strong>Import</strong> to pull a song in from a link.
-              </>
-            ) : (
-              'Try a different search, or clear your tag filters.'
-            )}
-          </p>
-        </div>
+        isLoading && !library ? (
+          // Not an empty library — one we have not heard back about yet. The
+          // "drop files in and rescan" pitch would be wrong here.
+          <p className="empty-hint">Loading your library…</p>
+        ) : songs.length === 0 ? (
+          <div className="empty-state">
+            <p className="empty-emoji">🎧</p>
+            <h2>Nothing here yet</h2>
+            <p className="hint">
+              Drop audio files into your <code>library/</code> folder and rescan, or import a
+              song straight from a link.
+            </p>
+            <div className="empty-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => scan.mutate()}
+                disabled={scan.isPending}
+              >
+                <Refresh size={15} /> {scan.isPending ? 'Scanning…' : 'Rescan library'}
+              </button>
+              <Link className="button button-primary" to="/import">
+                <Download size={15} /> Import a song
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p className="empty-emoji">🔍</p>
+            <h2>No matches</h2>
+            <p className="hint">
+              {debouncedQuery.trim() ? (
+                <>
+                  Nothing in your {songs.length} songs matches{' '}
+                  <strong>“{debouncedQuery.trim()}”</strong>
+                  {effectiveTags.size > 0 ? ' with these tags' : ''}.
+                </>
+              ) : (
+                'No song carries every one of these tags at once.'
+              )}
+            </p>
+            <div className="empty-actions">
+              {query && (
+                <button type="button" className="button" onClick={() => setQuery('')}>
+                  Clear search
+                </button>
+              )}
+              {effectiveTags.size > 0 && (
+                <button type="button" className="button" onClick={onClearTags}>
+                  Clear tags
+                </button>
+              )}
+            </div>
+          </div>
+        )
       ) : (
-        <div className="song-list" role="table">
+        <div className="song-list" role="table" aria-label={`${heading} songs`}>
           {filtered.map((song, index) => (
             <SongRow
               key={song.id}

@@ -8,30 +8,30 @@ import { BarChart, Download, ListMusic, Music, Settings } from './Icons.js'
  * `env(safe-area-inset-bottom)`. Tags are reachable from the library header
  * rather than living here — on a phone a filter belongs next to the thing it
  * filters, not in global navigation.
+ *
+ * The current tab is marked by a filled pill behind its icon as well as by
+ * the accent colour, because colour alone is a weak signal at this size and
+ * no signal at all to anyone who cannot separate these two hues.
  */
+const TABS = [
+  { to: '/', end: true, label: 'Library', Icon: Music },
+  { to: '/playlists', end: false, label: 'Playlists', Icon: ListMusic },
+  { to: '/import', end: false, label: 'Import', Icon: Download },
+  { to: '/stats', end: false, label: 'Stats', Icon: BarChart },
+  { to: '/settings', end: false, label: 'Settings', Icon: Settings },
+] as const
+
 export function MobileNav() {
   return (
     <nav className="mobile-nav" aria-label="Main navigation">
-      <NavLink to="/" end className="mobile-nav-item">
-        <Music size={20} />
-        <span>Library</span>
-      </NavLink>
-      <NavLink to="/playlists" className="mobile-nav-item">
-        <ListMusic size={20} />
-        <span>Playlists</span>
-      </NavLink>
-      <NavLink to="/import" className="mobile-nav-item">
-        <Download size={20} />
-        <span>Import</span>
-      </NavLink>
-      <NavLink to="/stats" className="mobile-nav-item">
-        <BarChart size={20} />
-        <span>Stats</span>
-      </NavLink>
-      <NavLink to="/settings" className="mobile-nav-item">
-        <Settings size={20} />
-        <span>Settings</span>
-      </NavLink>
+      {TABS.map(({ to, end, label, Icon }) => (
+        <NavLink key={to} to={to} end={end} className="mobile-nav-item">
+          <span className="mobile-nav-icon">
+            <Icon size={20} />
+          </span>
+          <span className="mobile-nav-label">{label}</span>
+        </NavLink>
+      ))}
     </nav>
   )
 }

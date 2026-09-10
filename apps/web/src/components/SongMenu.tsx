@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import type { Song } from '@selfmp3/shared'
+import type { Song, Tag } from '@selfmp3/shared'
 import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
-import { CloudDownload, ListMusic, Queue, Sparkles, Trash, X } from './Icons.js'
+import { CloudDownload, ListMusic, Queue, Sparkles, Tag as TagIcon, Trash, X } from './Icons.js'
 import { MetadataDialog } from './MetadataDialog.js'
+import { TagPicker } from './TagPicker.js'
 import { Popover } from './Menu.js'
 
 /**
@@ -14,16 +15,24 @@ import { Popover } from './Menu.js'
  * Destructive actions are separated visually and the file-deleting one asks
  * for confirmation — "remove from library" and "delete the actual file" are
  * very different intentions and must never be one mis-tap apart.
+ *
+ * At phone width this is the row's only set of actions — the tag column and
+ * the hover controls are not there — so everything the row can do has to be
+ * reachable from here, tagging included. It presents as a bottom sheet, with
+ * the song's name at the top so a menu opened by holding a row still says
+ * which row it came from.
  */
 export function SongMenu({
   anchorRef,
   song,
+  tagById,
   onClose,
   onPlayNext,
   onAddToQueue,
 }: {
   anchorRef: React.RefObject<HTMLElement | null>
   song: Song
+  tagById: ReadonlyMap<number, Tag>
   onClose: () => void
   onPlayNext: () => void
   onAddToQueue: () => void
@@ -31,6 +40,7 @@ export function SongMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [playlistOpen, setPlaylistOpen] = useState(false)
   const [metadataOpen, setMetadataOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
 
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
@@ -47,9 +57,20 @@ export function SongMenu({
     onClose()
   }
 
-  // The dialog replaces the menu rather than stacking on it: the menu's
+  // A dialog replaces the menu rather than stacking on it: the menu's
   // click-outside handler would otherwise close both on the first click.
   if (metadataOpen) return <MetadataDialog song={song} onClose={onClose} />
+  if (tagsOpen) {
+    return (
+      <TagPicker
+        anchorRef={anchorRef}
+        song={song}
+        allTags={[...tagById.values()]}
+        onClose={onClose}
+      />
+    )
+  }
+
   /** Nearest neighbours from the server; the seed song leads the list. */
   const withSimilar = (fn: (songs: Song[]) => void): void => {
     void api
@@ -67,6 +88,13 @@ export function SongMenu({
       sheet
       roving
     >
+      {/* Only shown once the menu is a sheet: on the desktop it hangs off the
+          row it belongs to and does not need to name it. */}
+      <div className="song-menu-head" aria-hidden="true">
+        <span className="song-menu-head-title">{song.title}</span>
+        <span className="song-menu-head-artist">{song.artist || 'Unknown artist'}</span>
+      </div>
+
       <button
         type="button"
         role="menuitem"
@@ -106,6 +134,15 @@ export function SongMenu({
       </button>
 
       <div className="popover-divider" />
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => setTagsOpen(true)}
+      >
+        <TagIcon size={15} /> Edit tags…
+      </button>
 
       <button
         type="button"

@@ -13,6 +13,7 @@ import {
   Refresh,
   Settings,
   Sparkles,
+  Tag,
   WifiOff,
   X,
   BrandMark,
@@ -213,7 +214,15 @@ export function Sidebar({
           ))}
 
           {tags.length === 0 && !adding && (
-            <p className="hint">No tags yet. Tags are how you find things later — try “chill”.</p>
+            <div className="tag-empty">
+              <Tag size={16} />
+              <p className="hint">
+                No tags yet. Tags are how you find things later — try “chill”.
+              </p>
+              <button type="button" className="link-button" onClick={() => setAdding(true)}>
+                Add your first tag
+              </button>
+            </div>
           )}
         </div>
       </div>

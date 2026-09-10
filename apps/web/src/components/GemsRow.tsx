@@ -24,8 +24,16 @@ export function GemsRow() {
 
   if (isError || !data || data.songs.length === 0) return null
 
+  /*
+   * A shelf of posters is the right shape for a dozen songs and the wrong one
+   * for one: a single 90px card marooned in a full-width box reads as a
+   * layout that failed. Below four, the same cards lie down and share the
+   * width instead.
+   */
+  const few = data.songs.length <= 3
+
   return (
-    <section className="gems-row" aria-label="Forgotten gems">
+    <section className={`gems-row ${few ? 'is-few' : ''}`} aria-label="Forgotten gems">
       <header className="gems-head">
         <button
           type="button"
@@ -71,11 +79,13 @@ export function GemsRow() {
               onClick={() => player.playFrom(data.songs, index)}
               title={`${song.title} — ${song.artist || 'Unknown artist'}`}
             >
-              <Cover song={song} size={76} />
-              <span className="gem-card-title">{song.title}</span>
-              <span className="gem-card-artist">{song.artist || 'Unknown artist'}</span>
-              <span className="gem-card-when">
-                {song.lastPlayedAt ? formatRelative(song.lastPlayedAt) : 'never played'}
+              <Cover song={song} size={few ? 44 : 64} className="gem-card-art" />
+              <span className="gem-card-text">
+                <span className="gem-card-title">{song.title}</span>
+                <span className="gem-card-artist">{song.artist || 'Unknown artist'}</span>
+                <span className="gem-card-when">
+                  {song.lastPlayedAt ? formatRelative(song.lastPlayedAt) : 'never played'}
+                </span>
               </span>
             </button>
           ))}

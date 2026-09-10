@@ -11,18 +11,47 @@
 
 .mobile-nav-item {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   font-size: 10px;
   color: var(--text-muted);
   text-decoration: none;
+  transition: color var(--dur-fast);
+}
+
+/*
+ * The current tab is marked twice: the accent colour, and a filled pill behind
+ * the icon. Colour alone is a weak signal at 20px and no signal at all to
+ * anyone who cannot separate the accent from the muted grey next to it.
+ */
+.mobile-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.mobile-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mobile-nav-item.active {
   color: var(--accent);
+  font-weight: 550;
+}
+
+.mobile-nav-item.active .mobile-nav-icon {
+  background: oklch(0.45 0.13 var(--accent-hue) / 0.26);
 }
 
 .mini-player {
@@ -244,17 +273,18 @@
     width: 100%;
   }
 
-  /* On a phone, tags are the row's second line rather than a right column. */
+  /* No room for a tag column; tagging moves into the row's ⋯ menu. */
   .song-row {
-    padding: 9px 6px;
+    padding: 5px 4px;
+    gap: 10px;
   }
 
   .song-tags {
     display: none;
   }
 
-  .song-actions .icon-button:not(.is-loved) {
-    display: none;
+  .song-duration {
+    min-width: 34px;
   }
 
   .stats-panels {

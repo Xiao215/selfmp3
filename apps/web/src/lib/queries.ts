@@ -6,6 +6,8 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query'
 import type {
+  ApplyMetadata,
+  FixCoversStatus,
   Library,
   Settings,
   Stats,
@@ -36,6 +38,8 @@ export const queryKeys = {
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
   health: ['health'] as const,
+  metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
+  fixCovers: ['metadata', 'fix-covers'] as const,
 }
 
 /**
@@ -291,5 +295,42 @@ export function useMigrateJob(id: string | null): UseQueryResult<MigrateMatchJob
     queryFn: () => api.migrateJob(id ?? ''),
     enabled: id !== null,
     refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
+  })
+}
+// --- metadata polish --------------------------------------------------------
+
+/** Candidates for one song. Cached client-side too; the server caches for a day. */
+export function useMetadataLookup(songId: number) {
+  return useQuery({
+    queryKey: queryKeys.metadataLookup(songId),
+    queryFn: () => api.lookupMetadata(songId),
+    staleTime: 10 * 60_000,
+    retry: false,
+  })
+}
+
+export const useApplyMetadata = () =>
+  useLibraryMutation(({ id, input }: { id: number; input: ApplyMetadata }) =>
+    api.applyMetadata(id, input),
+  )
+
+/** The cover-art pass, polled only while it runs (same idea as the import queue). */
+export function useFixCoversStatus(): UseQueryResult<FixCoversStatus, Error> {
+  return useQuery({
+    queryKey: queryKeys.fixCovers,
+    queryFn: () => api.fixCoversStatus(),
+    refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
+  })
+}
+
+export function useFixCovers() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (action: 'start' | 'cancel') =>
+      action === 'start' ? api.fixCoversStart() : api.fixCoversCancel(),
+    onSuccess: status => {
+      client.setQueryData(queryKeys.fixCovers, status)
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
   })
 }

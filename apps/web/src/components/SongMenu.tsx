@@ -3,7 +3,8 @@ import type { Song } from '@selfmp3/shared'
 import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { useClickOutside } from '../lib/hooks.js'
-import { CloudDownload, ListMusic, Queue, Trash, X } from './Icons.js'
+import { CloudDownload, ListMusic, Queue, Sparkles, Trash, X } from './Icons.js'
+import { MetadataDialog } from './MetadataDialog.js'
 
 /**
  * The per-song action menu.
@@ -25,6 +26,7 @@ export function SongMenu({
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [playlistOpen, setPlaylistOpen] = useState(false)
+  const [metadataOpen, setMetadataOpen] = useState(false)
 
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
@@ -40,6 +42,10 @@ export function SongMenu({
     fn()
     onClose()
   }
+
+  // The dialog replaces the menu rather than stacking on it: the menu's
+  // click-outside handler would otherwise close both on the first click.
+  if (metadataOpen) return <MetadataDialog song={song} onClose={onClose} />
 
   return (
     <>
@@ -81,6 +87,10 @@ export function SongMenu({
         )}
 
         <div className="popover-divider" />
+
+        <button type="button" className="popover-item" onClick={() => setMetadataOpen(true)}>
+          <Sparkles size={15} /> Fix metadata…
+        </button>
 
         <button
           type="button"

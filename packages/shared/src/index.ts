@@ -17,6 +17,7 @@ export * from './schemas/stats.js'
 export * from './schemas/library.js'
 export * from './schemas/settings.js'
 export * from './schemas/migrate.js'
+export * from './schemas/metadata.js'
 
 export * from './format.js'
 export * from './lrc.js'

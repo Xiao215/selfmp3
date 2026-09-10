@@ -6,6 +6,9 @@ import {
   ImportShareResultSchema,
   YtCookieTestSchema,
   LibrarySchema,
+  ApplyMetadataResultSchema,
+  FixCoversStatusSchema,
+  MetadataLookupResponseSchema,
   LyricsResponseSchema,
   MigrateEnqueueResultSchema,
   MigrateMatchJobSchema,
@@ -19,6 +22,7 @@ import {
   SyncManifestSchema,
   TagSchema,
   type AddToPlaylist,
+  type ApplyMetadata,
   type BulkTag,
   type CreatePlaylist,
   type ImportEnqueue,
@@ -177,6 +181,20 @@ export const api = {
 
   deleteSong: (id: number, deleteFile: boolean) =>
     request('DELETE', `/api/songs/${id}?deleteFile=${deleteFile ? 1 : 0}`, OkSchema),
+
+  // --- metadata polish ------------------------------------------------------
+
+  lookupMetadata: (id: number) =>
+    request('GET', `/api/songs/${id}/lookup`, MetadataLookupResponseSchema),
+
+  applyMetadata: (id: number, input: ApplyMetadata) =>
+    request('POST', `/api/songs/${id}/apply-metadata`, ApplyMetadataResultSchema, input),
+
+  fixCoversStart: () => request('POST', '/api/library/fix-covers', FixCoversStatusSchema),
+
+  fixCoversStatus: () => request('GET', '/api/library/fix-covers', FixCoversStatusSchema),
+
+  fixCoversCancel: () => request('POST', '/api/library/fix-covers/cancel', FixCoversStatusSchema),
 
   // --- tags ---------------------------------------------------------------
 

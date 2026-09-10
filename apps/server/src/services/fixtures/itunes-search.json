@@ -1,0 +1,62 @@
+{
+  "resultCount": 3,
+  "results": [
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 3296287,
+      "collectionId": 1440806041,
+      "trackId": 1440806768,
+      "artistName": "Queen",
+      "collectionName": "A Night at the Opera (Deluxe Edition)",
+      "trackName": "Bohemian Rhapsody",
+      "collectionCensoredName": "A Night at the Opera (Deluxe Edition)",
+      "trackCensoredName": "Bohemian Rhapsody",
+      "artworkUrl30": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/ab/cd/ef/abcdef00-0000-0000-0000-000000000000/source/30x30bb.jpg",
+      "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/ab/cd/ef/abcdef00-0000-0000-0000-000000000000/source/60x60bb.jpg",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/ab/cd/ef/abcdef00-0000-0000-0000-000000000000/source/100x100bb.jpg",
+      "collectionPrice": 9.99,
+      "trackPrice": 1.29,
+      "releaseDate": "1975-10-31T08:00:00Z",
+      "collectionExplicitness": "notExplicit",
+      "trackExplicitness": "notExplicit",
+      "discCount": 2,
+      "discNumber": 1,
+      "trackCount": 12,
+      "trackNumber": 11,
+      "trackTimeMillis": 354320,
+      "country": "USA",
+      "currency": "USD",
+      "primaryGenreName": "Rock",
+      "isStreamable": true
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 3296287,
+      "collectionId": 1440650428,
+      "trackId": 1440650711,
+      "artistName": "Queen",
+      "collectionName": "Live at Wembley Stadium",
+      "trackName": "Bohemian Rhapsody (Live at Wembley Stadium, July 1986)",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/11/22/33/11223300-0000-0000-0000-000000000000/source/100x100bb.jpg",
+      "releaseDate": "1992-05-26T07:00:00Z",
+      "discCount": 2,
+      "discNumber": 1,
+      "trackCount": 12,
+      "trackNumber": 9,
+      "trackTimeMillis": 359000,
+      "country": "USA",
+      "currency": "USD",
+      "primaryGenreName": "Rock"
+    },
+    {
+      "wrapperType": "audiobook",
+      "artistName": "Somebody Else",
+      "collectionName": "Bohemian Rhapsody: The Audiobook",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Books/v4/aa/bb/cc/source/100x100bb.jpg",
+      "releaseDate": "2019-01-01T00:00:00Z"
+    },
+    { "this": "is not a track at all" }
+  ]
+}

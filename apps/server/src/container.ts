@@ -16,6 +16,8 @@ import { YtDlpService } from './services/ytdlp.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MigrateService } from './services/migrate.js'
+import { MetadataLookupService } from './services/lookup.js'
+import { FixCoversService } from './services/fixCovers.js'
 
 /**
  * Composition root.
@@ -47,6 +49,8 @@ export interface Container {
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
   readonly migrate: MigrateService
+  readonly lookup: MetadataLookupService
+  readonly fixCovers: FixCoversService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -117,6 +121,17 @@ export function createContainer(config: Config): Container {
     logger,
   })
 
+  const lookup = new MetadataLookupService(logger)
+  const fixCovers = new FixCoversService({
+    songs,
+    covers,
+    lookup,
+    logger,
+    onChange: () => {
+      version++
+    },
+  })
+
   return {
     config,
     logger,
@@ -136,6 +151,8 @@ export function createContainer(config: Config): Container {
     importQueue,
     libraryWatcher,
     migrate,
+    lookup,
+    fixCovers,
     libraryVersion: () => version,
     bumpLibraryVersion: () => {
       version++

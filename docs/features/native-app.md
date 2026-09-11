@@ -12,7 +12,7 @@ has not been verified. This page is the short version.
 ## Using it
 
 First launch asks for the server address — the Tailscale name, so it keeps
-working away from home (`mac-mini.tail1234.ts.net:4173`) — and a bearer token
+working away from home (`mac-mini.tail1234.ts.net`) — and a bearer token
 if the server has one. Both go in the device keychain. The address is tested
 before it is saved, and a bad token is reported differently from a bad address.
 

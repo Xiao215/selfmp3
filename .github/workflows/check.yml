@@ -1,0 +1,70 @@
+# Typecheck, lint and test, on every push and every pull request.
+#
+# The repository has roughly eighty test files — the server's, the doorman's,
+# the shared rules every device runs, and the web app's — and until this
+# existed none of them ran anywhere but on whoever's laptop remembered.
+#
+# Two jobs rather than one, because `apps/mobile` is deliberately outside the
+# root TypeScript project and the root ESLint config: React Native's globals
+# and the DOM's contradict each other, so sharing a project graph leaks one
+# into the other (docs/MOBILE.md). They are checked side by side instead.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to the same branch makes an older run pointless.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # typecheck + lint + test, as defined in the root package.json, so this
+      # runs exactly what a person runs before pushing.
+      - run: npm run check
+
+  mobile:
+    name: mobile typecheck and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Builds @selfmp3/shared first, then tsc --noEmit, then eslint. No
+      # native toolchain is involved, so this is as far as CI can check the
+      # phone app — compiling it needs a Mac or an Android SDK.
+      - run: npm run check:mobile

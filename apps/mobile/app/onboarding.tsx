@@ -38,7 +38,7 @@ export default function OnboardingScreen(): ReactNode {
   const save = (): void => {
     const baseUrl = normaliseBaseUrl(address)
     if (!baseUrl) {
-      setError('That does not look like an address. Try mac-mini.tail1234.ts.net:4173')
+      setError('That does not look like an address. Try mac-mini.tail1234.ts.net')
       return
     }
 
@@ -91,7 +91,7 @@ export default function OnboardingScreen(): ReactNode {
             style={styles.input}
             value={address}
             onChangeText={setAddress}
-            placeholder="mac-mini.tail1234.ts.net:4173"
+            placeholder="mac-mini.tail1234.ts.net"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}

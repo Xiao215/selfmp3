@@ -10,7 +10,7 @@ import * as SecureStore from 'expo-secure-store'
  */
 
 export interface ServerConnection {
-  /** Origin with no trailing slash, e.g. `http://mac-mini.tail1234.ts.net:4173`. */
+  /** Origin with no trailing slash, e.g. `https://mac-mini.tail1234.ts.net`. */
   readonly baseUrl: string
   /** Optional bearer token, when the server has one configured. */
   readonly token: string | null
@@ -20,15 +20,23 @@ const BASE_URL_KEY = 'selfmp3.baseUrl'
 const TOKEN_KEY = 'selfmp3.token'
 
 /**
- * Accept what someone would actually type — `mac-mini.tail1234.ts.net:4173`,
- * with or without a scheme, with or without a trailing slash — and return a
- * usable origin, or null when it cannot be salvaged.
+ * Accept what someone would actually type — `mac-mini.tail1234.ts.net`, with
+ * or without a scheme, with or without a trailing slash — and return a usable
+ * origin, or null when it cannot be salvaged.
+ *
+ * A missing scheme is guessed from whether a port was named, because the two
+ * ways of reaching the Mac differ in exactly that. `tailscale serve --bg 4600`
+ * (docs/SETUP.md) puts the server behind Tailscale's own HTTPS on 443, so a
+ * bare hostname is `https://`. A port typed out is someone reaching the server
+ * directly, which is plain HTTP. Guessing `http://` for both — which is what
+ * this did — makes the address the setup guide produces impossible to enter.
  */
 export function normaliseBaseUrl(input: string): string | null {
   const trimmed = input.trim()
   if (trimmed.length === 0) return null
 
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`
+  const scheme = /:\d+(?:\/|$)/.test(trimmed) ? 'http' : 'https'
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `${scheme}://${trimmed}`
 
   let url: URL
   try {

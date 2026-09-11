@@ -84,7 +84,7 @@ After the first build, `npm run start --workspace @selfmp3/mobile` (or
 enough for day-to-day work.
 
 On first launch the app asks for the server address. Use the Tailscale name so
-it keeps working away from home — `mac-mini.tail1234.ts.net:4173` — and the
+it keeps working away from home — `mac-mini.tail1234.ts.net` — and the
 bearer token only if `SELFMP3_AUTH_TOKEN` is set on the server. Both are stored
 in the iOS keychain / Android keystore, not in plain storage. The address is
 tested before it is saved: `/api/health` proves the address, and a second

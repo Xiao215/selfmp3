@@ -17,6 +17,11 @@ const config = {
   newArchEnabled: true,
   backgroundColor: '#14121a',
 
+  // Rendered from apps/web/public/icons/icon.svg, so the phone and the web app
+  // wear the same mark. Square and opaque, because iOS rounds and masks it
+  // itself and rejects an icon with an alpha channel.
+  icon: './assets/icon.png',
+
   ios: {
     bundleIdentifier: 'com.selfmp3.app',
     supportsTablet: true,
@@ -34,6 +39,12 @@ const config = {
 
   android: {
     package: 'com.selfmp3.app',
+    // The same mark with its background dropped: Android masks the foreground
+    // to whatever shape the launcher uses and paints this colour behind it.
+    adaptiveIcon: {
+      foregroundImage: './assets/adaptive-icon.png',
+      backgroundColor: '#14121a',
+    },
     // FOREGROUND_SERVICE* come from react-native-track-player's own manifest;
     // these two are ours: network access and the wake lock the player holds
     // while the screen is off.
@@ -52,9 +63,15 @@ const config = {
     ],
     // Adds the CarPlay entitlement, the CarPlay scene manifest and the scene
     // delegate that hands control to react-native-carplay. See
-    // plugins/withCarPlay.js and docs/MOBILE.md — Apple must grant the
-    // entitlement before a build using it will install on a real device.
-    './plugins/withCarPlay',
+    // plugins/withCarPlay.js and docs/MOBILE.md.
+    //
+    // Off unless SELFMP3_CARPLAY is set, because `carplay-audio` is an
+    // entitlement Apple grants on request and only to a paid team. Left on,
+    // the first build signed for a device fails on a provisioning error about
+    // an entitlement the developer never asked for — a confusing way to
+    // discover a policy. src/car/carplay.ts already does nothing when the
+    // native module is absent, so the app is unaffected either way.
+    ...(process.env.SELFMP3_CARPLAY ? ['./plugins/withCarPlay'] : []),
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',

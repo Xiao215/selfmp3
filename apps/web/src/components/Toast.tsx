@@ -4,9 +4,8 @@ import { X } from './Icons.js'
 /**
  * Transient messages, in the app shell's toast row.
  *
- * Toasts here are not an overlay: `.toast-layer` is a real row between the
- * content and the player bar, so a message can never cover a song row or the
- * transport.
+ * Toasts here are not an overlay: `.toast-layer` is a real row under the
+ * content column, so a message can never cover a song row or the transport.
  *
  * The queue lives in a module-level store rather than in a component, and for
  * a specific reason: almost everything worth announcing is the *result* of an

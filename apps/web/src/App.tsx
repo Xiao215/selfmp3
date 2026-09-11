@@ -222,44 +222,51 @@ function Shell() {
           come back. Side panels stay beside it: practice next to the lyrics is
           exactly where it is wanted.
         */}
-        <div className="app-content">
-          <div className="app-content-base" inert={pageOpen}>
-            {!isMobile && (
-              <Sidebar
-                library={library}
-                selectedTags={selectedTags}
-                excludedTags={excludedTags}
-                onToggleTag={toggleTag}
-                onExcludeTag={excludeTag}
-                onClearTags={clearTags}
-              />
-            )}
+        <div className={`app-content ${pageOpen ? 'has-page' : ''}`}>
+          {!isMobile && (
+            <Sidebar
+              inert={pageOpen}
+              library={library}
+              selectedTags={selectedTags}
+              excludedTags={excludedTags}
+              onToggleTag={toggleTag}
+              onExcludeTag={excludeTag}
+              onClearTags={clearTags}
+            />
+          )}
 
-            <main className="app-main">
-              <Routes>
-                <Route
-                  path="/"
-                  element={
-                    <LibraryView
-                      selectedTags={selectedTags}
-                      excludedTags={excludedTags}
-                      onToggleTag={toggleTag}
-                      onExcludeTag={excludeTag}
-                      onClearTags={clearTags}
-                    />
-                  }
-                />
-                <Route path="/inbox" element={<TagInboxView />} />
-                <Route path="/playlists" element={<PlaylistsView />} />
-                <Route path="/playlists/:id" element={<PlaylistDetailView />} />
-                <Route path="/import" element={<ImportView />} />
-                <Route path="/import/migrate" element={<MigrateView />} />
-                <Route path="/stats" element={<StatsView />} />
-                <Route path="/stats/wrapped" element={<WrappedView />} />
-                <Route path="/settings" element={<SettingsView />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
+          <main className="app-main" inert={pageOpen}>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <LibraryView
+                    selectedTags={selectedTags}
+                    excludedTags={excludedTags}
+                    onToggleTag={toggleTag}
+                    onExcludeTag={excludeTag}
+                    onClearTags={clearTags}
+                  />
+                }
+              />
+              <Route path="/inbox" element={<TagInboxView />} />
+              <Route path="/playlists" element={<PlaylistsView />} />
+              <Route path="/playlists/:id" element={<PlaylistDetailView />} />
+              <Route path="/import" element={<ImportView />} />
+              <Route path="/import/migrate" element={<MigrateView />} />
+              <Route path="/stats" element={<StatsView />} />
+              <Route path="/stats/wrapped" element={<WrappedView />} />
+              <Route path="/settings" element={<SettingsView />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+
+          {/* Toasts are a real row under what they would otherwise cover: the
+              library, or the page when it is open. Never under the sidebar,
+              which would lift its foot off the bottom of the window. */}
+          <div className="toast-layer">
+            <ResumeToast />
+            <ToastHost />
           </div>
 
           {!isMobile && page !== null && (
@@ -276,13 +283,6 @@ function Shell() {
 
         {!isMobile && queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
         {!isMobile && practiceOpen && <PracticePanel onClose={() => setPracticeOpen(false)} />}
-      </div>
-
-      {/* Toasts live between the content and the transport: they announce
-          themselves without covering a song row or the player. */}
-      <div className="toast-layer">
-        <ResumeToast />
-        <ToastHost />
       </div>
 
       <PlayerBar

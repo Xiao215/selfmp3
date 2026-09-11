@@ -17,18 +17,43 @@
   initial-value: 28px;
 }
 
-/* The page lies over the library view; both live in this one box. */
+/*
+ * The page lies over the library view; both live in this one box, with the
+ * toast row under them. Closed, the sidebar runs the full height and the row
+ * sits under the library alone. Open, the page covers sidebar and library, so
+ * the row runs the full width under the page instead — and the page keeps
+ * clear of a toast rather than hiding its own controls behind one.
+ */
 .app-content {
   position: relative;
   flex: 1;
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
-.app-content-base {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+.app-content > .sidebar {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.app-content > .app-main {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.app-content > .toast-layer {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.app-content.has-page > .sidebar {
+  grid-row: 1;
+}
+
+.app-content.has-page > .toast-layer {
+  grid-column: 1 / -1;
 }
 
 /* Focus with the mouse still: the bar folds away under the page, and the
@@ -54,8 +79,12 @@
   --np-cover: max(180px, min(400px, 34cqw, 100cqh - 290px));
   --np-glow: 0.5;
 
+  /* Absolute, but against its grid area: the top row, above any toast. Both
+     lines are needed — an absolute item's `auto` line is the container edge. */
   position: absolute;
   inset: 0;
+  grid-column: 1 / -1;
+  grid-row: 1 / 2;
   z-index: var(--z-panel);
   container-type: size;
   overflow: hidden;

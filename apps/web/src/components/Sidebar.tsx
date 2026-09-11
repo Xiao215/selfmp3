@@ -31,6 +31,7 @@ import {
  * with one flat vocabulary you define.
  */
 export function Sidebar({
+  inert,
   library,
   selectedTags,
   excludedTags,
@@ -38,6 +39,8 @@ export function Sidebar({
   onExcludeTag,
   onClearTags,
 }: {
+  /** While the song's page lies over it. */
+  inert: boolean
   library: Library | undefined
   selectedTags: ReadonlySet<number>
   excludedTags: ReadonlySet<number>
@@ -83,7 +86,7 @@ export function Sidebar({
   }
 
   return (
-    <nav className="sidebar" aria-label="Main navigation">
+    <nav className="sidebar" aria-label="Main navigation" inert={inert}>
       <div className="brand">
         <BrandMark />
         <span>

@@ -3,10 +3,12 @@
 /*
  * The toast row.
  *
- * Transient messages sit in their own row of the app shell rather than on top
- * of it: a toast that covers the last song in the list, or the play button, is
- * worse than no toast. The layer never takes pointer events itself, so an
- * empty or animating one can never swallow a click.
+ * Transient messages sit in their own row under the content rather than on
+ * top of it: a toast that covers the last song in the list, or the play
+ * button, is worse than no toast. The row is placed by `.app-content`'s grid:
+ * never under the sidebar or the side panels, so they keep their full height.
+ * The layer never takes pointer events itself, so an empty or animating one
+ * can never swallow a click.
  */
 .toast-layer {
   display: flex;

@@ -35,6 +35,7 @@ export * from './devices.js'
 export * from './personality.js'
 export * from './transpose.js'
 export * from './queue.js'
+export * from './outbox.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

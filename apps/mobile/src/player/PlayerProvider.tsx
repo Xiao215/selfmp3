@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { AppState } from 'react-native'
+import { useQueryClient } from '@tanstack/react-query'
 import TrackPlayer, {
   Event,
   RepeatMode,
@@ -22,9 +24,9 @@ import {
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
-import { api } from '../api/client'
 import { useLibrary } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
+import { flushListens, recordListen } from '../offline/listenOutbox'
 import { useConnection } from '../server/ConnectionProvider'
 import { ensurePlayer } from './setup'
 import { songIdOf, toTrack } from './tracks'
@@ -150,21 +152,38 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const flushPlay = useCallback((completed: boolean) => {
     const tracking = trackingRef.current
     const songId = tracking.songId
-    const server = connectionRef.current
-    if (songId === null || server === null || tracking.counted) return
+    if (songId === null || tracking.counted) return
 
     const song = songsRef.current.get(songId)
     const needed = Math.min((song?.duration ?? 0) * PLAY_THRESHOLD, PLAY_THRESHOLD_CAP_SECONDS)
     if (!completed && tracking.listenedSeconds < needed) return
 
     tracking.counted = true
-    void api
-      .recordPlay(server, songId, {
-        msPlayed: Math.round(tracking.listenedSeconds * 1000),
-        completed,
-      })
-      .catch(() => undefined)
+    // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
+    void recordListen(
+      connectionRef.current,
+      songId,
+      Math.round(tracking.listenedSeconds * 1000),
+      completed,
+    )
   }, [])
+
+  // Plays made offline go the moment there is a server to send them to, and
+  // again each time the app comes back to the foreground — the phone's nearest
+  // thing to "the Mac might be awake now". Counts on screen refresh after.
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    const flush = (): void => {
+      void flushListens(connectionRef.current).then(sent => {
+        if (sent > 0) void queryClient.invalidateQueries()
+      })
+    }
+    flush()
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') flush()
+    })
+    return () => subscription.remove()
+  }, [connection, queryClient])
 
   // Accumulate listening time. `useProgress` polls, so the delta is derived
   // from the reported position rather than from a wall clock, which keeps

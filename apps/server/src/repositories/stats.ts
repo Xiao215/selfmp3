@@ -17,6 +17,21 @@ const RANGE_DAYS: Record<StatsRange, number | null> = {
   all: null,
 }
 
+/**
+ * A client's ISO 8601 timestamp as SQLite's UTC `YYYY-MM-DD HH:MM:SS`, the
+ * format `datetime('now')` writes and every range query compares against.
+ *
+ * Null means "use now": for no timestamp, an unreadable one, and one in the
+ * future. A phone whose clock runs ahead must not put a play in the future,
+ * where it would top every "recently played" list until the future arrived.
+ */
+export function sqliteTime(iso: string | undefined, now = Date.now()): string | null {
+  if (!iso) return null
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms) || ms > now) return null
+  return new Date(ms).toISOString().slice(0, 19).replace('T', ' ')
+}
+
 export class StatsRepository {
   readonly #db: Db
 
@@ -24,10 +39,27 @@ export class StatsRepository {
     this.#db = db
   }
 
-  record(songId: number, msPlayed: number, completed: boolean): void {
-    this.#db
-      .prepare('INSERT INTO play_events (song_id, ms_played, completed) VALUES (?, ?, ?)')
-      .run(songId, msPlayed, completed ? 1 : 0)
+  /**
+   * Store one play.
+   *
+   * `playedAt` is SQLite's own UTC `YYYY-MM-DD HH:MM:SS` (see `sqliteTime`),
+   * or null for now. Returns false when `clientId` was already recorded — a
+   * resend of a play the server has — so the caller does not count it twice.
+   */
+  record(
+    songId: number,
+    msPlayed: number,
+    completed: boolean,
+    playedAt: string | null = null,
+    clientId: string | null = null,
+  ): boolean {
+    const result = this.#db
+      .prepare(
+        `INSERT OR IGNORE INTO play_events (song_id, ms_played, completed, played_at, client_id)
+         VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?)`,
+      )
+      .run(songId, msPlayed, completed ? 1 : 0, playedAt, clientId)
+    return result.changes > 0
   }
 
   /** SQL fragment plus params limiting events to the requested window. */

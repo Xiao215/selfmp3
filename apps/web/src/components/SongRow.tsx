@@ -8,7 +8,9 @@ import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
 import { SongMenu } from './SongMenu.js'
 import { FeatureBadges } from './FeatureBadges.js'
-import { Check, CheckCircle, Equalizer, Heart, More, Play, Plus } from './Icons.js'
+import { OfflineMark } from '../offline/OfflineStatus.js'
+import { showToast } from './Toast.js'
+import { Check, Equalizer, Heart, More, Play, Plus } from './Icons.js'
 
 /** How long a finger has to rest on a row before it opens the song menu. */
 const LONG_PRESS_MS = 450
@@ -145,6 +147,17 @@ export const SongRow = memo(function SongRow({
     }
   }
 
+  // With the Mac out of reach, only what is on this device can play. Saying so
+  // beats starting a song that fails half a second later.
+  const unavailable = !offline.serverReachable && !offline.isCached(song.id)
+  const play = (): void => {
+    if (unavailable) {
+      showToast(`“${song.title}” isn’t downloaded — it plays once your Mac is reachable.`, 'info', 3500)
+      return
+    }
+    onPlay()
+  }
+
   const onClick = (event: React.MouseEvent): void => {
     // The click that ends a long press must not also do the tap's job.
     if (pressWasLong.current) {
@@ -159,7 +172,7 @@ export const SongRow = memo(function SongRow({
     }
     // A finger has no double-click and no hover: one tap plays.
     if (pointerType.current === 'touch' && !modified) {
-      onPlay()
+      play()
       return
     }
     onSelect?.(event)
@@ -179,7 +192,7 @@ export const SongRow = memo(function SongRow({
         event.preventDefault()
         onToggleSelect?.()
       } else {
-        onPlay()
+        play()
       }
     }
   }
@@ -189,6 +202,7 @@ export const SongRow = memo(function SongRow({
     isCurrent ? 'is-current' : '',
     selected ? 'is-selected' : '',
     song.missing ? 'is-missing' : '',
+    unavailable ? 'is-unavailable' : '',
     pressing ? 'is-pressing' : '',
     menuOpen || pickerOpen ? 'is-menu-open' : '',
   ]
@@ -198,7 +212,7 @@ export const SongRow = memo(function SongRow({
   return (
     <div
       className={className}
-      onDoubleClick={onPlay}
+      onDoubleClick={play}
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -256,7 +270,7 @@ export const SongRow = memo(function SongRow({
                 className="song-index-play"
                 onClick={event => {
                   event.stopPropagation()
-                  onPlay()
+                  play()
                 }}
                 aria-label={`Play ${song.title}`}
               >
@@ -277,6 +291,7 @@ export const SongRow = memo(function SongRow({
           {song.missing && <span className="badge badge-warn">file missing</span>}
         </div>
         <div className="song-sub">
+          <OfflineMark songId={song.id} />
           <span className="song-artist">{song.artist || 'Unknown artist'}</span>
           {song.album && <span className="song-album">{song.album}</span>}
           <FeatureBadges features={song.features} />
@@ -328,12 +343,6 @@ export const SongRow = memo(function SongRow({
         role="cell"
         onClick={event => event.stopPropagation()}
       >
-        {offline.isCached(song.id) && (
-          <span className="offline-badge" title="Available offline">
-            <CheckCircle size={14} />
-          </span>
-        )}
-
         <button
           type="button"
           className={`icon-button song-love ${song.loved ? 'is-loved' : ''}`}

@@ -44,6 +44,7 @@ import {
   type ImportShareRequest,
   type MigrateEnqueue,
   type MigrateSourceTrack,
+  type OfflineScope,
   type PlayEvent,
   type SecretProvider,
   type SmartRules,
@@ -164,7 +165,8 @@ export const api = {
   purgeMissing: () =>
     request('POST', '/api/library/purge-missing', z.object({ purged: z.number() })),
 
-  manifest: () => request('GET', '/api/library/manifest', SyncManifestSchema),
+  manifest: (scope: OfflineScope = 'library') =>
+    request('GET', `/api/library/manifest?scope=${scope}`, SyncManifestSchema),
 
   analyze: (force = false) =>
     request('POST', '/api/library/analyze', AnalysisStatusSchema, { force }),

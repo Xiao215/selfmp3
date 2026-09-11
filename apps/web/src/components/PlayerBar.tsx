@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
-import { useToggleLoved } from '../lib/queries.js'
+import { useLibrary, useToggleLoved } from '../lib/queries.js'
 import { useIsMobile } from '../lib/hooks.js'
+import { TagPicker } from './TagPicker.js'
 import { DevicesButton } from '../devices/DevicesButton.js'
 import { useDeviceContext } from '../devices/DevicesProvider.js'
 import { useTransport } from '../devices/useTransport.js'
@@ -22,6 +23,7 @@ import {
   RepeatOne,
   Shuffle,
   Speed,
+  TagPlus,
   Volume,
   VolumeMute,
 } from './Icons.js'
@@ -49,6 +51,8 @@ export function PlayerBar({
   lyricsOpen,
   queueOpen,
   practiceOpen,
+  tagsOpen,
+  onToggleTags,
 }: {
   onOpenLyrics: () => void
   onOpenQueue: () => void
@@ -57,8 +61,13 @@ export function PlayerBar({
   lyricsOpen: boolean
   queueOpen: boolean
   practiceOpen: boolean
+  /** The tag picker for what is playing, opened here or with T. */
+  tagsOpen: boolean
+  onToggleTags: () => void
 }) {
   const player = usePlayer()
+  const { data: library } = useLibrary()
+  const tagsRef = useRef<HTMLButtonElement>(null)
   // Local unless remote control is on, in which case the same controls drive
   // another device and show its progress instead.
   const transport = useTransport()
@@ -81,6 +90,11 @@ export function PlayerBar({
   const duration = transport.duration || song?.duration || 0
   const percent = duration > 0 ? (displayTime / duration) * 100 : 0
   const loopRegion = loopRegionPercent(player.loopA, player.loopB, duration)
+  const tagNames = (ids: readonly number[]): string =>
+    ids
+      .map(id => library?.tags.find(tag => tag.id === id)?.name)
+      .filter(Boolean)
+      .join(', ')
 
   if (isMobile) {
     return <MiniPlayer onOpen={onOpenNowPlaying} percent={percent} />
@@ -108,6 +122,34 @@ export function PlayerBar({
             >
               <Heart size={17} filled={song.loved} />
             </button>
+            <button
+              ref={tagsRef}
+              type="button"
+              className={`icon-button player-tags ${tagsOpen ? 'is-accent' : ''}`}
+              onClick={onToggleTags}
+              aria-label={`Tags for ${song.title}`}
+              aria-haspopup="dialog"
+              aria-expanded={tagsOpen}
+              title={
+                song.tagIds.length > 0 ? `Tags: ${tagNames(song.tagIds)} (T)` : 'Tag this song (T)'
+              }
+            >
+              <TagPlus size={17} />
+              {song.tagIds.length > 0 && (
+                <span className="player-tags-count" aria-hidden="true">
+                  {song.tagIds.length}
+                </span>
+              )}
+            </button>
+            {tagsOpen && (
+              <TagPicker
+                anchorRef={tagsRef}
+                song={song}
+                allTags={library?.tags ?? []}
+                placement="above"
+                onClose={onToggleTags}
+              />
+            )}
           </>
         ) : (
           <div className="player-meta">

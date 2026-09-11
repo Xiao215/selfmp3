@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
-import { useSimilar, useToggleLoved } from '../lib/queries.js'
+import { useLibrary, useSimilar, useToggleLoved } from '../lib/queries.js'
+import { TagChip } from './TagChip.js'
+import { TagPicker } from './TagPicker.js'
 import { DevicesButton } from '../devices/DevicesButton.js'
 import { useTransport } from '../devices/useTransport.js'
 import { loopRegionPercent } from '../player/practice.js'
@@ -25,6 +27,7 @@ import {
   Repeat,
   RepeatOne,
   Shuffle,
+  TagPlus,
 } from './Icons.js'
 
 type Panel = 'none' | 'lyrics' | 'queue' | 'practice'
@@ -48,10 +51,16 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [sleepOpen, setSleepOpen] = useState(false)
   const sleepRef = useRef<HTMLButtonElement>(null)
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const tagsRef = useRef<HTMLButtonElement>(null)
+  const { data: library } = useLibrary()
 
   const song = transport.song
   const similar = useSimilar(song?.id ?? null, 10)
   if (!song) return null
+
+  const allTags = library?.tags ?? []
+  const songTags = song.tagIds.flatMap(id => allTags.filter(tag => tag.id === id))
 
   const displayTime = scrubbing ?? transport.currentTime
   const duration = transport.duration || song.duration || 0
@@ -107,6 +116,32 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
                 <FeatureBadges features={song.features} size="large" />
               </p>
             )}
+
+            {/* The song's tags, and the way to change them without leaving
+                the song: how it feels is clearest while it is playing. */}
+            <div className="now-playing-tags">
+              {songTags.map(tag => (
+                <TagChip key={tag.id} tag={tag} size="small" />
+              ))}
+              <button
+                ref={tagsRef}
+                type="button"
+                className="np-tag-button"
+                onClick={() => setTagsOpen(open => !open)}
+                aria-haspopup="dialog"
+                aria-expanded={tagsOpen}
+              >
+                <TagPlus size={14} /> {songTags.length > 0 ? 'Edit tags' : 'Add tags'}
+              </button>
+              {tagsOpen && (
+                <TagPicker
+                  anchorRef={tagsRef}
+                  song={song}
+                  allTags={allTags}
+                  onClose={() => setTagsOpen(false)}
+                />
+              )}
+            </div>
           </div>
 
           <div className="now-playing-progress">

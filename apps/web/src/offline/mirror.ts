@@ -57,6 +57,34 @@ async function get<T>(key: string): Promise<T | null> {
 }
 
 /**
+ * Read, change and write one key in a single transaction.
+ *
+ * IndexedDB runs read-write transactions on a store one at a time, across
+ * every tab of the origin — so two tabs appending to the same list cannot
+ * each read the old list and overwrite the other's addition.
+ */
+export async function updateStored<T>(key: string, change: (current: unknown) => T): Promise<T> {
+  const db = await openDb()
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    let next: T
+    const request = store.get(key)
+    request.onsuccess = () => {
+      next = change(request.result)
+      store.put(next, key)
+    }
+    tx.oncomplete = () => resolve(next)
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB update failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB update aborted'))
+  })
+}
+
+export async function readStored(key: string): Promise<unknown> {
+  return get<unknown>(key)
+}
+
+/**
  * Store the library for offline use.
  *
  * Failures are swallowed on purpose. Private browsing, a full disk or a

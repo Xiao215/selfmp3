@@ -240,6 +240,17 @@ const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE songs ADD COLUMN art_rev INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    name: 'play events: client ids for plays reported late',
+    sql: `
+      -- A play made with the server out of reach is sent later, and sent again
+      -- if the first response goes missing. The id the client gave it is how
+      -- the second copy is recognised and ignored. Live plays have none.
+      ALTER TABLE play_events ADD COLUMN client_id TEXT;
+      CREATE UNIQUE INDEX idx_play_events_client
+        ON play_events(client_id) WHERE client_id IS NOT NULL;
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

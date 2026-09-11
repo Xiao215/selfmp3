@@ -127,6 +127,42 @@ export const CloudDownload = (p: IconProps) => (
   </Icon>
 )
 
+/** On this device: a solid disc with the arrow knocked out of it. */
+export const Downloaded = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" />
+    <path
+      d="M12 7v8.5M8.5 12.5 12 16l3.5-3.5"
+      stroke="var(--icon-knockout, #000)"
+      strokeWidth={2.2}
+    />
+  </Icon>
+)
+
+/** Not on this device yet: the same circle, only outlined and broken. */
+export const NotDownloaded = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="8.5" strokeDasharray="3.4 3" />
+  </Icon>
+)
+
+/** Tag pen: tagging what is playing. */
+export const TagPlus = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 12.2V4.5A1.5 1.5 0 0 1 4.5 3h7.7l8.3 8.3a1.7 1.7 0 0 1 0 2.4l-6.8 6.8a1.7 1.7 0 0 1-2.4 0z" />
+    <circle cx="8" cy="8" r="1.3" fill="currentColor" stroke="none" />
+    <path d="M17.5 3v5M15 5.5h5" />
+  </Icon>
+)
+
+/** Inbox tray, for songs that still need tagging. */
+export const Inbox = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 13.5 6.3 5.6A2 2 0 0 1 8.2 4h7.6a2 2 0 0 1 1.9 1.6L20 13.5" />
+    <path d="M4 13.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5h-4.5l-1.5 2.5h-4l-1.5-2.5z" />
+  </Icon>
+)
+
 export const CheckCircle = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="9" />

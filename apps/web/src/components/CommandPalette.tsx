@@ -7,7 +7,17 @@ import { useDebounced } from '../lib/hooks.js'
 import { queryKeys } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { Cover } from './Cover.js'
-import { BarChart, ListMusic, Mic, Music, Search, Settings, Shuffle, Tag } from './Icons.js'
+import {
+  BarChart,
+  Inbox,
+  ListMusic,
+  Mic,
+  Music,
+  Search,
+  Settings,
+  Shuffle,
+  Tag,
+} from './Icons.js'
 
 /**
  * The ⌘K palette.
@@ -88,6 +98,13 @@ export function CommandPalette({
         label: 'Settings',
         icon: <Settings size={16} />,
         run: () => void navigate('/settings'),
+      },
+      {
+        id: 'nav-inbox',
+        label: 'Tag untagged songs',
+        hint: `${songs.filter(song => song.tagIds.length === 0 && !song.missing).length} untagged`,
+        icon: <Inbox size={16} />,
+        run: () => void navigate('/inbox'),
       },
       {
         id: 'shuffle-all',

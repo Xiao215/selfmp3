@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatBytes, type Settings } from '@selfmp3/shared'
+import { formatBytes, type OfflineScope, type Settings } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
 import {
   queryKeys,
@@ -12,6 +12,8 @@ import {
 } from '../lib/queries.js'
 import { FixCoversPanel } from '../components/FixCoversPanel.js'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { OfflineAutoStatus } from '../offline/OfflineStatus.js'
+import { connectionKind, isServerMachine } from '../offline/autoDownload.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../components/Icons.js'
 import { LyricsSettings } from '../components/LyricsSettings.js'
@@ -220,8 +222,88 @@ export function SettingsView() {
 
             <p className="panel-lead">
               Downloaded songs play with no connection at all — which is the point, since your Mac
-              won&rsquo;t always be awake. Everything else needs the server.
+              won&rsquo;t always be awake. New songs download on their own; plays you make offline
+              are kept here and sent to your Mac when it&rsquo;s back.
             </p>
+
+            {!offline.supported && (
+              <p className="notice notice-warn">
+                This browser can&rsquo;t keep songs offline here. Open self.mp3 over HTTPS — the
+                Tailscale address from the setup guide — and add it to your home screen.
+              </p>
+            )}
+
+            <label className="setting-row setting-row-toggle">
+              <span className="setting-label">
+                Download automatically
+                <span className="setting-hint">
+                  {isServerMachine()
+                    ? 'Off by default on this Mac — its songs are already on this disk.'
+                    : 'Keeps this device in step with your library whenever your Mac is reachable. A song you remove by hand stays removed.'}
+                </span>
+              </span>
+              <span className="setting-control">
+                <input
+                  type="checkbox"
+                  className="toggle"
+                  checked={offline.prefs.auto}
+                  disabled={!offline.supported}
+                  onChange={event => offline.setPrefs({ auto: event.target.checked })}
+                />
+              </span>
+            </label>
+
+            <label className="setting-row setting-row-toggle">
+              <span className="setting-label">
+                Only on Wi-Fi
+                <span className="setting-hint">
+                  {connectionKind() === 'unknown'
+                    ? 'This browser can’t tell Wi-Fi from mobile data, so it asks before downloading.'
+                    : 'Waits for Wi-Fi rather than using mobile data.'}
+                </span>
+              </span>
+              <span className="setting-control">
+                <input
+                  type="checkbox"
+                  className="toggle"
+                  checked={offline.prefs.wifiOnly}
+                  disabled={!offline.supported || !offline.prefs.auto}
+                  onChange={event => offline.setPrefs({ wifiOnly: event.target.checked })}
+                />
+              </span>
+            </label>
+
+            <div className="setting-row">
+              <span className="setting-label">
+                Keep offline
+                <span className="setting-hint">
+                  Only songs in a playlist, if this device is short on space.
+                </span>
+              </span>
+              <span className="setting-control">
+                <Select<OfflineScope>
+                  value={offline.prefs.scope}
+                  onChange={scope => offline.setPrefs({ scope })}
+                  options={[
+                    { value: 'library', label: 'Every song' },
+                    { value: 'playlists', label: 'Songs in playlists' },
+                  ]}
+                  label="Keep offline"
+                  align="end"
+                />
+              </span>
+            </div>
+
+            <OfflineAutoStatus />
+
+            {offline.pendingListens > 0 && (
+              <p className="hint">
+                {offline.pendingListens === 1
+                  ? '1 play from while you were offline is'
+                  : `${offline.pendingListens} plays from while you were offline are`}{' '}
+                waiting to be sent to your Mac.
+              </p>
+            )}
 
             <div className="offline-summary">
               <div className="offline-stat">
@@ -279,9 +361,10 @@ export function SettingsView() {
               </div>
             )}
 
-            {offline.sync.status === 'done' && (
+            {offline.sync.status === 'done' && offline.sync.progress.total > 0 && (
               <p className="notice notice-good">
-                <CheckCircle size={15} /> Downloaded {offline.sync.progress.done} songs.
+                <CheckCircle size={15} /> Downloaded {offline.sync.progress.done}{' '}
+                {offline.sync.progress.done === 1 ? 'song' : 'songs'}.
                 {offline.sync.progress.failed > 0 && ` ${offline.sync.progress.failed} failed.`}
               </p>
             )}
@@ -299,8 +382,8 @@ export function SettingsView() {
                 <button
                   type="button"
                   className="button button-primary"
-                  onClick={() => void offline.syncAll(songs)}
-                  disabled={!offline.serverReachable || songs.length === 0}
+                  onClick={() => void offline.downloadNow()}
+                  disabled={!offline.supported || !offline.serverReachable || songs.length === 0}
                 >
                   <CloudDownload size={15} />
                   {cachedCount === 0 ? 'Download everything' : 'Download what’s missing'}
@@ -312,7 +395,13 @@ export function SettingsView() {
                   type="button"
                   className="button button-danger"
                   onClick={() => {
-                    if (window.confirm('Remove all downloaded songs from this device?')) {
+                    if (
+                      window.confirm(
+                        offline.prefs.auto
+                          ? 'Remove all downloaded songs from this device? Automatic downloads will be turned off too, or they would just come back.'
+                          : 'Remove all downloaded songs from this device?',
+                      )
+                    ) {
                       void offline.clearAll()
                     }
                   }}
@@ -695,6 +784,12 @@ export function SettingsView() {
                   <kbd>S</kbd>
                 </dt>
                 <dd>Shuffle</dd>
+              </div>
+              <div>
+                <dt>
+                  <kbd>T</kbd>
+                </dt>
+                <dd>Tag the song that is playing</dd>
               </div>
               <div>
                 <dt>

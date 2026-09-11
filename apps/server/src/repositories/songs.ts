@@ -104,12 +104,20 @@ export class SongRepository {
     this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
     this.#deleteById = db.prepare('DELETE FROM songs WHERE id = ?')
 
+    // `last_played_at` only moves forward: a play from last Tuesday, sent
+    // today by a phone that was offline, must not overwrite one from an hour
+    // ago. Both sides are SQLite's own UTC format, so they compare as text.
     this.#recordPlay = db.prepare(`
       UPDATE songs
          SET play_count     = play_count + 1,
-             last_played_at = datetime('now'),
+             last_played_at = CASE
+               WHEN last_played_at IS NULL
+                 OR last_played_at < COALESCE(@at, datetime('now'))
+               THEN COALESCE(@at, datetime('now'))
+               ELSE last_played_at
+             END,
              updated_at     = datetime('now')
-       WHERE id = ?
+       WHERE id = @id
     `)
 
     this.#recordSkip = db.prepare('UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?')
@@ -279,8 +287,9 @@ export class SongRepository {
     return run([...new Set(ids)])
   }
 
-  recordPlay(id: number): void {
-    this.#recordPlay.run(id)
+  /** `playedAt` in SQLite's UTC format, or null for now (see `sqliteTime`). */
+  recordPlay(id: number, playedAt: string | null = null): void {
+    this.#recordPlay.run({ id, at: playedAt })
   }
 
   recordSkip(id: number): void {

@@ -1,0 +1,596 @@
+/*
+ * Offline sync and tagging.
+ *
+ * The downloaded mark on every row, the status pill under a list's title,
+ * excluded ("not") tags, the tag editor, tagging what is playing, and the
+ * Untagged inbox with its one-song-at-a-time mode.
+ */
+
+/* ---------------- the downloaded mark ---------------- */
+
+/*
+ * Sits before the artist, the way a downloaded track is marked in every music
+ * app people already know. Downloaded takes the accent; not downloaded is a
+ * faint broken outline, present so the two states read as a pair but quiet
+ * enough that a list of them is not noise.
+ */
+.offline-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+}
+
+.offline-mark.is-cached {
+  color: var(--accent);
+  /* The arrow is cut out of the disc in the row's own colour. */
+  --icon-knockout: var(--surface-0);
+}
+
+.song-row:hover .offline-mark.is-cached,
+.song-row.is-selected .offline-mark.is-cached {
+  --icon-knockout: var(--surface-1);
+}
+
+.offline-mark.is-missing {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.offline-mark-ring {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-dim);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+/* With the Mac out of reach, a song that is not on this device cannot play. */
+.song-row.is-unavailable .song-main,
+.song-row.is-unavailable .song-art,
+.song-row.is-unavailable .song-album-cell {
+  opacity: 0.42;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offline-mark-ring {
+    animation-duration: 2.4s;
+  }
+}
+
+/* ---------------- the status pill ---------------- */
+
+.view-sub:has(.offline-pill) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.offline-pill:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.offline-pill .link-button {
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.offline-pill.is-busy {
+  color: var(--text-primary);
+}
+
+.offline-pill.is-warn {
+  color: var(--warning);
+}
+
+.offline-pill.is-offline {
+  color: var(--text-secondary);
+  background: oklch(0.3 0.04 78 / 0.35);
+}
+
+.spinner.spinner-tiny {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+}
+
+/* ---------------- excluded tags ---------------- */
+
+/*
+ * "Everything but this": the tag's colour drained, the name struck through,
+ * and the word "not" in front, so the state is legible without colour.
+ */
+.tag-chip.is-excluded {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  box-shadow: inset 0 0 0 1px oklch(0.5 0.1 var(--tag-hue, 268) / 0.55);
+}
+
+.tag-chip.is-excluded:hover {
+  background: var(--surface-3);
+}
+
+.tag-chip-not {
+  font-size: 0.85em;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--danger);
+  margin-right: 5px;
+}
+
+.tag-row.is-excluded {
+  background: var(--surface-2);
+}
+
+.tag-row.is-excluded .tag-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px oklch(0.68 0.15 var(--tag-hue, 268));
+}
+
+.tag-row.is-excluded .tag-row-name {
+  color: var(--text-secondary);
+}
+
+.tag-row-not {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.tag-row-exclude.is-on {
+  color: var(--danger);
+}
+
+/* The inbox link at the head of the tag list reads as a tag row, not a tag. */
+.tag-row-inbox {
+  text-decoration: none;
+}
+
+.tag-row-inbox .tag-row-main {
+  color: var(--text-secondary);
+}
+
+.tag-row-inbox.active {
+  background: var(--surface-2);
+}
+
+.tag-row-inbox.active .tag-row-main {
+  color: var(--text-primary);
+  font-weight: 550;
+}
+
+.tag-chip-inbox {
+  flex: none;
+  text-decoration: none;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.tag-chip-inbox .tag-chip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mobile-tag-chip {
+  display: inline-flex;
+  flex: none;
+  /* A hold is the gesture here; the OS text-selection callout would fight it. */
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* ---------------- the tag editor ---------------- */
+
+.tag-editor {
+  width: 290px;
+}
+
+.tag-editor .popover-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-editor-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 6px 4px 8px;
+}
+
+.tag-editor-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tag-editor-filter:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.tag-editor-filter.is-on {
+  background: oklch(0.45 0.12 var(--accent-hue) / 0.35);
+  border-color: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.tag-editor-filter.is-on.is-exclude {
+  background: oklch(0.4 0.12 22 / 0.3);
+  border-color: oklch(0.5 0.14 22 / 0.6);
+}
+
+.tag-editor-name,
+.tag-editor-colours {
+  padding: 4px 4px 8px;
+}
+
+.tag-editor .field-label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.tag-editor-name-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-editor-name-row .popover-input {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.field-error {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.tag-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+  gap: 6px;
+}
+
+.tag-swatch {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(0.62 0.15 var(--tag-hue));
+  color: oklch(0.18 0.03 var(--tag-hue));
+  transition: transform var(--dur-fast);
+}
+
+.tag-swatch:hover {
+  transform: scale(1.1);
+}
+
+.tag-swatch.is-on {
+  box-shadow:
+    0 0 0 2px var(--surface-2),
+    0 0 0 4px oklch(0.75 0.14 var(--tag-hue));
+}
+
+@media (max-width: 720px) {
+  .tag-editor {
+    width: auto;
+  }
+
+  .tag-swatch {
+    min-height: 34px;
+  }
+}
+
+/* ---------------- tagging what is playing ---------------- */
+
+.player-tags {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.player-tags-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-playing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.np-tag-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  min-height: 30px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.np-tag-button:hover,
+.np-tag-button[aria-expanded='true'] {
+  color: var(--text-primary);
+  border-style: solid;
+}
+
+/* ---------------- the Untagged inbox ---------------- */
+
+.inbox-lead {
+  margin: -4px 0 14px;
+}
+
+.triage-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 760px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.triage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.triage-count {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.triage-play-along {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.triage-progress {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-top: -8px;
+}
+
+.triage-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.triage-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.triage-card .cover {
+  flex: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+
+.triage-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.triage-title {
+  font-size: clamp(20px, 3.2vw, 26px);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.triage-artist {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.triage-album {
+  color: var(--text-muted);
+}
+
+.triage-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.triage-tags > .hint {
+  width: 100%;
+}
+
+.triage-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 6px 14px 6px 8px;
+  border-radius: var(--radius-pill);
+  background: oklch(0.3 0.05 var(--tag-hue) / 0.35);
+  color: oklch(0.86 0.08 var(--tag-hue));
+  border: 1px solid oklch(0.45 0.08 var(--tag-hue) / 0.45);
+  font-size: 14px;
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.triage-tag:hover {
+  background: oklch(0.38 0.08 var(--tag-hue) / 0.45);
+}
+
+.triage-tag.is-on {
+  background: oklch(0.55 0.14 var(--tag-hue) / 0.7);
+  border-color: oklch(0.72 0.14 var(--tag-hue));
+  color: oklch(0.98 0.02 var(--tag-hue));
+  font-weight: 600;
+}
+
+.triage-tag kbd {
+  min-width: 20px;
+  text-align: center;
+  background: oklch(0.2 0.02 var(--tag-hue) / 0.6);
+  border-color: oklch(0.45 0.06 var(--tag-hue) / 0.6);
+  color: inherit;
+}
+
+.triage-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+}
+
+.triage-new:focus-within {
+  border-style: solid;
+  border-color: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.triage-new input {
+  width: 120px;
+  background: none;
+  border: none;
+  font-size: 14px;
+}
+
+.triage-new input:focus {
+  outline: none;
+}
+
+.triage-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.triage-keys {
+  font-size: 12px;
+}
+
+.triage-foot-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -8px;
+  font-size: 12px;
+}
+
+/* A phone: the card stacks, and the two buttons that move you on sit at the
+   bottom where a thumb already is. */
+@media (max-width: 720px) {
+  .triage-view {
+    gap: 14px;
+  }
+
+  .triage-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .triage-meta {
+    align-items: center;
+  }
+
+  .triage-tags {
+    justify-content: center;
+  }
+
+  .triage-tag {
+    min-height: var(--hit-target);
+    padding-left: 12px;
+  }
+
+  .triage-foot {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-0);
+    padding-block: 10px;
+    z-index: var(--z-sticky);
+  }
+
+  .triage-foot .button {
+    flex: 1;
+    justify-content: center;
+    min-height: var(--hit-target);
+  }
+}

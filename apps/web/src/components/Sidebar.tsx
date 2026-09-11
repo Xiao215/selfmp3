@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { fuzzyRank, type Library } from '@selfmp3/shared'
-import { useCreateTag, useDeleteTag, useScanLibrary } from '../lib/queries.js'
+import { fuzzyRank, type Library, type Tag as TagType } from '@selfmp3/shared'
+import { useCreateTag, useScanLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { TagEditor, type TagFilterState } from './TagEditor.js'
 import {
   BarChart,
   CloudDownload,
   Download,
+  Inbox,
   ListMusic,
+  Minus,
+  More,
   Music,
   Plus,
   Refresh,
@@ -29,12 +33,16 @@ import {
 export function Sidebar({
   library,
   selectedTags,
+  excludedTags,
   onToggleTag,
+  onExcludeTag,
   onClearTags,
 }: {
   library: Library | undefined
   selectedTags: ReadonlySet<number>
+  excludedTags: ReadonlySet<number>
   onToggleTag: (tagId: number) => void
+  onExcludeTag: (tagId: number) => void
   onClearTags: () => void
 }) {
   const [adding, setAdding] = useState(false)
@@ -42,13 +50,15 @@ export function Sidebar({
   const navigate = useNavigate()
 
   const createTag = useCreateTag()
-  const deleteTag = useDeleteTag()
   const scan = useScanLibrary()
   const offline = useOffline()
 
   const tags = library?.tags ?? []
   const playlists = library?.playlists ?? []
   const pinned = playlists.filter(list => list.pinned)
+  const untaggedCount = (library?.songs ?? []).filter(
+    song => song.tagIds.length === 0 && !song.missing,
+  ).length
 
   const suggestions = name.trim() ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
   const exact = suggestions.find(match => match.exact)
@@ -128,7 +138,7 @@ export function Sidebar({
         <div className="nav-group-title">
           <span>Tags</span>
           <div className="nav-group-actions">
-            {selectedTags.size > 0 && (
+            {selectedTags.size + excludedTags.size > 0 && (
               <button
                 type="button"
                 className="icon-button icon-button-tiny"
@@ -186,31 +196,30 @@ export function Sidebar({
         )}
 
         <div className="tag-list">
+          {untaggedCount > 0 && (
+            <NavLink to="/inbox" className="tag-row tag-row-inbox">
+              <span className="tag-row-main">
+                <Inbox size={14} />
+                <span className="tag-row-name">Untagged</span>
+                <span className="tag-row-count">{untaggedCount}</span>
+              </span>
+            </NavLink>
+          )}
+
           {tags.map(tag => (
-            <div
+            <SidebarTagRow
               key={tag.id}
-              className={`tag-row ${selectedTags.has(tag.id) ? 'is-active' : ''}`}
-              style={{ '--tag-hue': tag.hue } as React.CSSProperties}
-            >
-              <button type="button" className="tag-row-main" onClick={() => onToggleTag(tag.id)}>
-                <span className="tag-dot" />
-                <span className="tag-row-name">{tag.name}</span>
-                <span className="tag-row-count">{tag.songCount}</span>
-              </button>
-              <button
-                type="button"
-                className="tag-row-delete"
-                onClick={() => {
-                  if (window.confirm(`Delete the tag "${tag.name}"? Your songs are kept.`)) {
-                    if (selectedTags.has(tag.id)) onToggleTag(tag.id)
-                    deleteTag.mutate(tag.id)
-                  }
-                }}
-                aria-label={`Delete tag ${tag.name}`}
-              >
-                <X size={13} />
-              </button>
-            </div>
+              tag={tag}
+              filter={
+                selectedTags.has(tag.id)
+                  ? 'include'
+                  : excludedTags.has(tag.id)
+                    ? 'exclude'
+                    : 'off'
+              }
+              onInclude={() => onToggleTag(tag.id)}
+              onExclude={() => onExcludeTag(tag.id)}
+            />
           ))}
 
           {tags.length === 0 && !adding && (
@@ -260,5 +269,91 @@ export function Sidebar({
         </button>
       </div>
     </nav>
+  )
+}
+
+/**
+ * One tag in the sidebar.
+ *
+ * A click filters to it, as it always has. The two controls that appear on
+ * hover are the other things a tag is for: hiding it ("everything but
+ * instrumental") and editing it. ⌥-click is the shortcut for hiding.
+ */
+function SidebarTagRow({
+  tag,
+  filter,
+  onInclude,
+  onExclude,
+}: {
+  tag: TagType
+  filter: TagFilterState
+  onInclude: () => void
+  onExclude: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <div
+      className={`tag-row ${filter === 'include' ? 'is-active' : ''} ${
+        filter === 'exclude' ? 'is-excluded' : ''
+      } ${editing ? 'is-editing' : ''}`}
+      style={{ '--tag-hue': tag.hue } as React.CSSProperties}
+    >
+      <button
+        type="button"
+        className="tag-row-main"
+        onClick={event => (event.altKey ? onExclude() : onInclude())}
+        aria-pressed={filter === 'include'}
+        title={
+          filter === 'exclude'
+            ? `Hiding songs tagged ${tag.name} — click to show only them`
+            : `Show songs tagged ${tag.name} (⌥-click to hide them)`
+        }
+      >
+        <span className="tag-dot" />
+        <span className="tag-row-name">
+          {filter === 'exclude' && <span className="tag-row-not">not </span>}
+          {tag.name}
+        </span>
+        <span className="tag-row-count">{tag.songCount}</span>
+      </button>
+      <button
+        type="button"
+        className={`tag-row-action tag-row-exclude ${filter === 'exclude' ? 'is-on' : ''}`}
+        onClick={onExclude}
+        aria-pressed={filter === 'exclude'}
+        aria-label={filter === 'exclude' ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
+        title={filter === 'exclude' ? 'Stop hiding' : 'Hide these songs'}
+      >
+        <Minus size={13} />
+      </button>
+      <button
+        ref={moreRef}
+        type="button"
+        className="tag-row-action tag-row-more"
+        onClick={() => setEditing(open => !open)}
+        aria-haspopup="dialog"
+        aria-expanded={editing}
+        aria-label={`Edit tag ${tag.name}`}
+        title="Rename, recolour or delete"
+      >
+        <More size={13} />
+      </button>
+      {editing && (
+        <TagEditor
+          anchorRef={moreRef}
+          tag={tag}
+          filter={filter}
+          onInclude={onInclude}
+          onExclude={onExclude}
+          onDeleted={() => {
+            if (filter === 'include') onInclude()
+            if (filter === 'exclude') onExclude()
+          }}
+          onClose={() => setEditing(false)}
+        />
+      )}
+    </div>
   )
 }

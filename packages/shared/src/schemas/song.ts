@@ -123,8 +123,26 @@ export const PlayEventSchema = z.object({
   msPlayed: z.number().int().nonnegative().max(24 * 60 * 60 * 1000),
   /** True when the track ran to its natural end. */
   completed: z.boolean(),
+  /**
+   * When the play happened, for one reported late. A phone on a train holds
+   * its plays and sends them once the Mac is reachable, and the server must
+   * not stamp them with the time they arrived. Absent means "just now".
+   */
+  playedAt: z.string().datetime({ offset: true }).optional(),
+  /**
+   * Unique per play on the device that made it. A send whose response was
+   * lost gets retried, and the same id arriving twice is recorded once.
+   */
+  clientId: z.string().min(8).max(64).optional(),
 })
 export type PlayEvent = z.infer<typeof PlayEventSchema>
+
+export const PlayRecordedSchema = z.object({
+  ok: z.literal(true),
+  /** True when this `clientId` was already recorded, so nothing changed. */
+  duplicate: z.boolean(),
+})
+export type PlayRecorded = z.infer<typeof PlayRecordedSchema>
 
 export const SkipEventSchema = z.object({
   atSeconds: z.number().nonnegative(),

@@ -23,6 +23,7 @@ import { MigrateView } from './views/MigrateView.js'
 import { StatsView } from './views/StatsView.js'
 import { WrappedView } from './views/WrappedView.js'
 import { SettingsView } from './views/SettingsView.js'
+import { TagInboxView } from './views/TagInboxView.js'
 
 /**
  * App shell.
@@ -72,12 +73,16 @@ function Shell() {
   const isMobile = useIsMobile()
 
   const [selectedTags, setSelectedTags] = useState<ReadonlySet<number>>(() => new Set())
+  const [excludedTags, setExcludedTags] = useState<ReadonlySet<number>>(() => new Set())
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const [queueOpen, setQueueOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
   const [practiceOpen, setPracticeOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
 
+  // A tag filters one of two ways — "only these" or "none of these" — never
+  // both, so moving it to one side takes it off the other.
   const toggleTag = useCallback((tagId: number) => {
     setSelectedTags(current => {
       const next = new Set(current)
@@ -85,9 +90,33 @@ function Shell() {
       else next.add(tagId)
       return next
     })
+    setExcludedTags(current => {
+      if (!current.has(tagId)) return current
+      const next = new Set(current)
+      next.delete(tagId)
+      return next
+    })
   }, [])
 
-  const clearTags = useCallback(() => setSelectedTags(new Set()), [])
+  const excludeTag = useCallback((tagId: number) => {
+    setExcludedTags(current => {
+      const next = new Set(current)
+      if (next.has(tagId)) next.delete(tagId)
+      else next.add(tagId)
+      return next
+    })
+    setSelectedTags(current => {
+      if (!current.has(tagId)) return current
+      const next = new Set(current)
+      next.delete(tagId)
+      return next
+    })
+  }, [])
+
+  const clearTags = useCallback(() => {
+    setSelectedTags(new Set())
+    setExcludedTags(new Set())
+  }, [])
 
   // Only one side panel at a time — two at once leaves no room for the library.
   const openLyrics = useCallback(() => {
@@ -123,6 +152,10 @@ function Shell() {
     l: openLyrics,
     q: openQueue,
     p: openPractice,
+    // Tag what is playing: you know how a song feels while you are hearing it.
+    t: () => {
+      if (player.current) setTagsOpen(open => !open)
+    },
     Escape: () => {
       setPaletteOpen(false)
       setNowPlayingOpen(false)
@@ -136,7 +169,9 @@ function Shell() {
           <Sidebar
             library={library}
             selectedTags={selectedTags}
+            excludedTags={excludedTags}
             onToggleTag={toggleTag}
+            onExcludeTag={excludeTag}
             onClearTags={clearTags}
           />
         )}
@@ -148,11 +183,14 @@ function Shell() {
               element={
                 <LibraryView
                   selectedTags={selectedTags}
+                  excludedTags={excludedTags}
                   onToggleTag={toggleTag}
+                  onExcludeTag={excludeTag}
                   onClearTags={clearTags}
                 />
               }
             />
+            <Route path="/inbox" element={<TagInboxView />} />
             <Route path="/playlists" element={<PlaylistsView />} />
             <Route path="/playlists/:id" element={<PlaylistDetailView />} />
             <Route path="/import" element={<ImportView />} />
@@ -184,6 +222,8 @@ function Shell() {
         lyricsOpen={lyricsOpen}
         queueOpen={queueOpen}
         practiceOpen={practiceOpen}
+        tagsOpen={tagsOpen}
+        onToggleTags={() => setTagsOpen(open => !open)}
       />
 
       {isMobile && <MobileNav />}

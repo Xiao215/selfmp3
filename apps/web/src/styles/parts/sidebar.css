@@ -204,22 +204,30 @@
   font-variant-numeric: tabular-nums;
 }
 
-.tag-row-delete {
-  padding: 6px 8px;
+/* The row's hover controls — hide, and ⋯ for the editor. Revealed for the
+   keyboard as well as the mouse: an opacity-0 button is still in the tab
+   order, and one you cannot see is one you cannot use. */
+.tag-row-action {
+  display: flex;
+  padding: 6px 5px;
   color: var(--text-muted);
   opacity: 0;
-  transition: opacity var(--dur-fast);
+  transition: opacity var(--dur-fast), color var(--dur-fast);
 }
 
-/* Revealed for the keyboard as well as the mouse: an opacity-0 button is
-   still in the tab order, and one you cannot see is one you cannot use. */
-.tag-row:hover .tag-row-delete,
-.tag-row:focus-within .tag-row-delete {
+.tag-row-action:last-of-type {
+  padding-right: 8px;
+}
+
+.tag-row:hover .tag-row-action,
+.tag-row:focus-within .tag-row-action,
+.tag-row.is-editing .tag-row-action,
+.tag-row-action.is-on {
   opacity: 1;
 }
 
-.tag-row-delete:hover {
-  color: var(--danger);
+.tag-row-action:hover {
+  color: var(--text-primary);
 }
 
 /*

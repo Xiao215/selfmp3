@@ -1,0 +1,62 @@
+# Tagging
+
+Tags are the only way this library is browsed, so they have to be easy to put on, easy to
+change, and able to say "everything but".
+
+Before this, a tag's name and colour were fixed the day it was made (the API could change both;
+nothing in the app did), delete was the only change on offer, tags could only be combined with
+AND, and there was nowhere to see which songs had none — every import quietly added songs you
+would only ever find by searching.
+
+Files:
+
+| What | Where |
+|---|---|
+| Rename, recolour, filter, delete | `apps/web/src/components/TagEditor.tsx` |
+| Sidebar rows, hide button, ⋯ | `apps/web/src/components/Sidebar.tsx` |
+| Excluded filter, phone strip | `apps/web/src/views/LibraryView.tsx`, `App.tsx` |
+| Tagging what is playing | `apps/web/src/components/PlayerBar.tsx`, `NowPlaying.tsx` |
+| Untagged inbox and quick tagging | `apps/web/src/views/TagInboxView.tsx` |
+| Styles | `apps/web/src/styles/parts/feat-offline-tagging.css` |
+
+## Hiding a tag
+
+A tag filters one of two ways: **only songs with it**, or **none of them**. Combined, that is
+"chill, but not instrumental".
+
+- In the sidebar, click a tag as before to show only it. The **−** that appears on hover hides
+  it instead; ⌥-click does the same.
+- Under the title, a hidden tag's chip reads **NOT instrumental**. Clicking a chip flips it
+  between the two; × takes it off.
+- The title follows: "chill · not instrumental", or "Library · not instrumental".
+
+## Editing a tag
+
+The **⋯** on a sidebar row — or, on a phone, **holding a chip** in the tag strip — opens one
+editor: show only / hide, rename, colour, delete. A tag made before the palette existed keeps
+its own colour as the first swatch. Delete says how many songs carry the tag and that they
+stay in the library.
+
+## Tagging what is playing
+
+How a song feels is clearest while it is playing. The tag button beside the heart in the player
+bar opens the tag picker for the current song, and so does **T**. On a phone, Now Playing shows
+the song's tags under its title with **Add tags** / **Edit tags**.
+
+## Untagged
+
+The sidebar (and, on a phone, the start of the tag strip) shows **Untagged** with a count
+whenever any song has no tag. The page lists them newest first.
+
+**Start tagging** goes through them one at a time:
+
+- the song plays (switch off **Play along** to tag in silence);
+- **1–9** toggle your tags, numbered most-used first and in the same order for the whole
+  session, so "chill" is the same key on the fortieth song as on the first;
+- **→** or Enter moves on, **←** goes back, **N** creates a new tag and puts it on this song,
+  **Esc** stops;
+- when a song ends by itself and the next one starts, the card follows.
+
+The list is fixed when you start, so a song you tag does not vanish from under you, and one you
+skip stays in Untagged for next time. The keys are taken in the capture phase, ahead of the
+app-wide shortcuts — → is "skip five seconds" everywhere else.

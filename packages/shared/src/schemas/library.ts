@@ -54,6 +54,18 @@ export const SyncManifestSchema = z.object({
 })
 export type SyncManifest = z.infer<typeof SyncManifestSchema>
 
+/**
+ * Which songs a device keeps offline: the whole library, or only songs that
+ * are in at least one playlist. Chosen per device — a phone short on space and
+ * a laptop with plenty can differ.
+ */
+export const OfflineScopeSchema = z.enum(['library', 'playlists'])
+export type OfflineScope = z.infer<typeof OfflineScopeSchema>
+
+export const SyncManifestQuerySchema = z.object({
+  scope: OfflineScopeSchema.default('library'),
+})
+
 /** Nearest neighbours of one song, closest first. */
 export const SimilarSongsSchema = z.object({
   songId: IdSchema,

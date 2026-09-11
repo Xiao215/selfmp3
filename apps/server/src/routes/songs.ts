@@ -12,12 +12,14 @@ import {
   type BulkDeleteFailure,
   type BulkDeleteResult,
   type LyricsResponse,
+  type PlayRecorded,
   type SimilarSongs,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { transact } from '../db/index.js'
+import { sqliteTime } from '../repositories/stats.js'
 import { similarSongs } from '../services/similar.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
@@ -155,13 +157,23 @@ export function songRoutes(container: Container): Router {
    */
   router.post(
     '/songs/:id/played',
-    route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }): PlayRecorded => {
       requireSong(params.id)
-      transact(container.db, () => {
-        container.stats.record(params.id, body.msPlayed, body.completed)
-        container.songs.recordPlay(params.id)
+      // A play sent late carries when it happened; one sent twice carries the
+      // same client id both times, and the second changes nothing.
+      const playedAt = sqliteTime(body.playedAt)
+      const recorded = transact(container.db, () => {
+        const inserted = container.stats.record(
+          params.id,
+          body.msPlayed,
+          body.completed,
+          playedAt,
+          body.clientId ?? null,
+        )
+        if (inserted) container.songs.recordPlay(params.id, playedAt)
+        return inserted
       })
-      return { ok: true as const }
+      return { ok: true as const, duplicate: !recorded }
     }),
   )
 

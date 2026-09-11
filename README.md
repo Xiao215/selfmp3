@@ -58,7 +58,10 @@ drag into Finder is enough. Or import them from a link. Everything is filtered, 
 searched client-side, so it stays instant and works with no connection.
 
 **Tags instead of folders.** One flat vocabulary you define. Combine them with AND —
-`chinese` + `chill` — to slice the library any way you want.
+`chinese` + `chill` — or leave one out: `chill`, but not `instrumental`. Rename and recolour
+them in place, tag the song that is playing with `T`, and work through everything untagged
+one song at a time with the number keys. See
+[docs/features/tagging.md](docs/features/tagging.md).
 
 **Playlists, manual and smart.** Manual ones you drag into order. Smart ones build
 themselves from rules ("tagged chill, played more than 5 times, added in the last 90 days",
@@ -83,9 +86,13 @@ alternatives before anything downloads.
 side by side with your current values, and apply only the fields you want. Missing cover art
 can be filled in across the whole library in one pass.
 
-**Offline on your phone.** Install it to your home screen and download your whole library.
-Cached songs play with the Mac asleep, in the background, with lock-screen controls and
-artwork. There is also a native iOS and Android app — see
+**Offline on your phone.** Install it to your home screen and it downloads your library on
+its own — on Wi-Fi, whenever the Mac is reachable, until the phone is nearly full — with a mark
+on every song that says whether it is there. Cached songs play with the Mac asleep, in the
+background, with lock-screen controls and artwork, and the plays you make offline are sent to
+the Mac when it wakes, dated when they happened. See
+[docs/features/offline-sync.md](docs/features/offline-sync.md). There is also a native iOS and
+Android app — see
 [docs/MOBILE.md](docs/MOBILE.md) — which adds CarPlay and Android Auto.
 
 **Playback.** Gapless and crossfade via a dual-element engine, a reorderable up-next queue,
@@ -218,6 +225,7 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 | `L` | Lyrics |
 | `Q` | Queue |
 | `P` | Practice panel |
+| `T` | Tag the song that is playing |
 
 ---
 

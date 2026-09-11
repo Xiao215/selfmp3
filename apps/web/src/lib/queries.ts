@@ -212,6 +212,34 @@ export const useDeleteTag = () => useLibraryMutation((id: number) => api.deleteT
 export const useRenameTag = () =>
   useLibraryMutation(({ id, name }: { id: number; name: string }) => api.renameTag(id, name))
 
+/**
+ * Recolour a tag, applied optimistically — a swatch that waits a round trip
+ * before the chips change feels like it did not take.
+ */
+export function useSetTagHue() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, hue }: { id: number; hue: number }) => api.setTagHue(id, hue),
+    onMutate: async ({ id, hue }) => {
+      await client.cancelQueries({ queryKey: queryKeys.library })
+      const previous = client.getQueryData<Library>(queryKeys.library)
+      if (previous) {
+        client.setQueryData<Library>(queryKeys.library, {
+          ...previous,
+          tags: previous.tags.map(tag => (tag.id === id ? { ...tag, hue } : tag)),
+        })
+      }
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
+  })
+}
+
 export const useSetSongTags = () =>
   useLibraryMutation(({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
     api.setSongTags(songId, tagIds),

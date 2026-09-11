@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { api, mediaUrl } from '../lib/api.js'
+import { mediaUrl } from '../lib/api.js'
 import { AudioEngine, type EngineState } from './engine.js'
 import {
   advance,
@@ -27,6 +27,7 @@ import {
   type QueueState,
 } from './queue.js'
 import { autoMixCrossfade, autoMixOrder } from './autoMix.js'
+import { recordListen, recordSkipListen } from '../offline/playOutbox.js'
 import { countInMs, tapLoop } from './practice.js'
 
 /**
@@ -211,12 +212,9 @@ export function PlayerProvider({
       const needed = Math.min(duration * playThreshold, 240)
       if (tracking.listenedSeconds >= needed) {
         tracking.counted = true
-        void api
-          .recordPlay(currentId, {
-            msPlayed: Math.round(tracking.listenedSeconds * 1000),
-            completed: false,
-          })
-          .catch(() => undefined)
+        // Through the outbox, not straight to the server: with the Mac asleep
+        // the play is kept on the device and sent when it wakes up.
+        recordListen(currentId, Math.round(tracking.listenedSeconds * 1000), false)
       }
     }
   }, [engine, playThreshold])
@@ -240,12 +238,7 @@ export function PlayerProvider({
       const tracking = playTrackingRef.current
       const finishedId = queueRef.current.items[queueRef.current.index]
       if (finishedId !== undefined && !tracking.counted) {
-        void api
-          .recordPlay(finishedId, {
-            msPlayed: Math.round(tracking.listenedSeconds * 1000),
-            completed: true,
-          })
-          .catch(() => undefined)
+        recordListen(finishedId, Math.round(tracking.listenedSeconds * 1000), true)
         tracking.counted = true
       }
 
@@ -391,7 +384,7 @@ export function PlayerProvider({
     // A manual skip past the halfway point is a signal about the song, so it
     // is recorded — that is what makes "songs I always skip" possible.
     if (currentId !== undefined && !playTrackingRef.current.counted) {
-      void api.recordSkip(currentId, engine.state.currentTime).catch(() => undefined)
+      recordSkipListen(currentId, engine.state.currentTime)
     }
 
     const { state, stop } = advance(queueRef.current, false)

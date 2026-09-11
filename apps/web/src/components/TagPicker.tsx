@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
 import { useCreateTag, useSetSongTags } from '../lib/queries.js'
 import { Check, Plus } from './Icons.js'
-import { Popover } from './Menu.js'
+import { Popover, type LayerPlacement } from './Menu.js'
 
 /**
  * Attach tags to a song.
@@ -18,11 +18,14 @@ export function TagPicker({
   song,
   allTags,
   onClose,
+  placement,
 }: {
   anchorRef: React.RefObject<HTMLElement | null>
   song: Song
   allTags: readonly Tag[]
   onClose: () => void
+  /** `above` for a trigger at the bottom of the screen, like the player bar. */
+  placement?: LayerPlacement
 }) {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const [query, setQuery] = useState('')
@@ -75,6 +78,7 @@ export function TagPicker({
       label="Edit tags"
       className="tag-picker"
       focus="trap"
+      placement={placement}
       sheet
     >
       <div className="popover-title">

@@ -26,6 +26,8 @@ export interface SyncProgress {
   readonly bytesDone: number
   readonly bytesTotal: number
   readonly currentTitle: string
+  /** The song being fetched right now, so its row can say so. */
+  readonly activeSongId: number | null
   readonly failed: number
 }
 
@@ -41,6 +43,14 @@ export interface StorageUsage {
 
 function cachesAvailable(): boolean {
   return typeof caches !== 'undefined'
+}
+
+/**
+ * Whether this browser can keep songs at all. The Cache API only exists in a
+ * secure context, so a phone on plain `http://192.168…` has none of this.
+ */
+export function offlineStorageAvailable(): boolean {
+  return cachesAvailable()
 }
 
 /** Ids of every song currently held offline. */
@@ -135,79 +145,128 @@ export async function clearAudioCache(): Promise<void> {
   await caches.delete(AUDIO_CACHE)
 }
 
+export type ManifestEntry = SyncManifest['entries'][number]
+
 /**
- * Bring the offline cache in line with the manifest.
+ * The manifest entries this device does not hold yet.
  *
- * Downloads sequentially rather than in parallel: on a phone, four concurrent
- * multi-megabyte downloads make every one of them slower and make progress
- * reporting meaningless. One at a time is both faster in practice and
- * interruptible at a sensible granularity.
+ * Not cached, or cached as a different file than the one the id names now —
+ * an entry stored without a length is given the benefit of the doubt. `skip`
+ * is the songs the user took off this device by hand, which automatic
+ * downloads must not quietly put back.
  */
-export async function syncLibrary(
+export async function missingEntries(
   manifest: SyncManifest,
-  options: {
-    titleFor: (songId: number) => string
-    onProgress: (progress: SyncProgress) => void
-    signal: AbortSignal
-    /** Remove cached songs that are no longer in the library. */
-    prune?: boolean
-  },
-): Promise<SyncProgress> {
+  skip: ReadonlySet<number> = new Set(),
+): Promise<ManifestEntry[]> {
   const cachedSize = await cachedSizes()
-  const wanted = new Set(manifest.entries.map(entry => entry.id))
-
-  if (options.prune !== false) {
-    for (const songId of cachedSize.keys()) {
-      if (!wanted.has(songId)) await uncacheSong(songId)
-    }
-  }
-
-  // Not cached, or cached as a different file than the one the id names now.
-  // An entry stored without a length is given the benefit of the doubt.
-  const missing = manifest.entries.filter(entry => {
+  return manifest.entries.filter(entry => {
+    if (skip.has(entry.id)) return false
     if (!cachedSize.has(entry.id)) return true
     const size = cachedSize.get(entry.id)
     return size != null && size !== entry.sizeBytes
   })
+}
 
+/** Drop cached songs that are no longer in the library. Returns how many went. */
+export async function pruneCache(keep: ReadonlySet<number>): Promise<number> {
+  let removed = 0
+  for (const songId of await cachedSongIds()) {
+    if (keep.has(songId)) continue
+    await uncacheSong(songId)
+    removed++
+  }
+  return removed
+}
+
+/**
+ * Leave this much of the browser's quota free. Filling it to the last byte
+ * gets the whole origin's storage evicted on some browsers, which would take
+ * every download with it.
+ */
+const STORAGE_CEILING = 0.9
+
+async function hasRoomFor(bytes: number): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return true
+  try {
+    const { usage, quota } = await navigator.storage.estimate()
+    if (!quota) return true
+    return (usage ?? 0) + bytes <= quota * STORAGE_CEILING
+  } catch {
+    return true
+  }
+}
+
+function isQuotaError(error: unknown): boolean {
+  return error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22)
+}
+
+/** Why a sync stopped: it finished, it was cancelled, or the device is full. */
+export type SyncStop = 'complete' | 'aborted' | 'storage'
+
+/**
+ * Download a list of manifest entries into the cache.
+ *
+ * Sequential rather than parallel: on a phone, four concurrent multi-megabyte
+ * downloads make every one of them slower and make progress reporting
+ * meaningless. One at a time is both faster in practice and interruptible at
+ * a sensible granularity.
+ *
+ * Storage is checked before each song, not only when a write fails: a failed
+ * write can come after the browser has already started evicting.
+ */
+export async function syncLibrary(
+  entries: readonly ManifestEntry[],
+  options: {
+    titleFor: (songId: number) => string
+    onProgress: (progress: SyncProgress) => void
+    /** Each song as it lands, so the list can mark it without waiting for the end. */
+    onCached?: (songId: number) => void
+    signal: AbortSignal
+  },
+): Promise<{ progress: SyncProgress; stop: SyncStop }> {
   let done = 0
   let failed = 0
   let bytesDone = 0
-  const bytesTotal = missing.reduce((sum, entry) => sum + entry.sizeBytes, 0)
+  const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0)
 
-  const report = (currentTitle: string): void => {
-    options.onProgress({
-      total: missing.length,
-      done,
-      bytesDone,
-      bytesTotal,
-      currentTitle,
-      failed,
-    })
-  }
+  const snapshot = (currentTitle: string, activeSongId: number | null): SyncProgress => ({
+    total: entries.length,
+    done,
+    bytesDone,
+    bytesTotal,
+    currentTitle,
+    activeSongId,
+    failed,
+  })
 
-  report('')
+  options.onProgress(snapshot('', null))
 
-  for (const entry of missing) {
-    if (options.signal.aborted) break
+  for (const entry of entries) {
+    if (options.signal.aborted) return { progress: snapshot('', null), stop: 'aborted' }
+    if (!(await hasRoomFor(entry.sizeBytes)))
+      return { progress: snapshot('', null), stop: 'storage' }
+
     const title = options.titleFor(entry.id)
-    report(title)
+    options.onProgress(snapshot(title, entry.id))
 
     try {
       await cacheSong(entry.id, options.signal)
       bytesDone += entry.sizeBytes
+      options.onCached?.(entry.id)
     } catch (error) {
-      if (options.signal.aborted) break
+      if (options.signal.aborted) return { progress: snapshot('', null), stop: 'aborted' }
+      if (isQuotaError(error)) return { progress: snapshot('', null), stop: 'storage' }
       // One bad file should not abandon the other 400.
       failed++
       console.warn(`could not cache song ${entry.id}`, error)
     }
 
     done++
-    report(title)
+    options.onProgress(snapshot(title, null))
   }
 
-  return { total: missing.length, done, bytesDone, bytesTotal, currentTitle: '', failed }
+  return { progress: snapshot('', null), stop: 'complete' }
 }
 
 /** How much space the offline library is taking up. */

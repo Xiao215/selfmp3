@@ -8,26 +8,50 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Song } from '@selfmp3/shared'
+import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
+import { queryKeys, useLibrary } from '../lib/queries.js'
 import {
   cachedSongIds,
   cacheSong,
   clearAudioCache,
+  missingEntries,
+  offlineStorageAvailable,
+  pruneCache,
   requestPersistentStorage,
   storageUsage,
   syncLibrary,
   uncacheSong,
+  type ManifestEntry,
   type StorageUsage,
   type SyncProgress,
+  type SyncStop,
 } from './audioCache.js'
+import {
+  connectionKind,
+  loadExcluded,
+  loadPrefs,
+  onConnectionChange,
+  saveExcluded,
+  savePrefs,
+  type OfflinePrefs,
+} from './autoDownload.js'
+import { flushListens, loadPendingListens, subscribePendingListens } from './playOutbox.js'
 
 /**
  * Offline state for the whole app.
  *
- * This is the feature that makes the app usable when the Mac is asleep, so it
- * is deliberately explicit rather than magical: nothing is cached without the
- * user asking, and what *is* cached is always visible and countable.
+ * This is the feature that makes the app usable when the Mac is asleep. Three
+ * jobs live here:
+ *
+ * - **Downloads.** By default this device keeps every song — or every song in
+ *   a playlist — without being asked: on Wi-Fi, whenever the Mac is reachable,
+ *   until the device is nearly full. What is cached is always visible and
+ *   countable, and anything can be turned off.
+ * - **Plays made offline.** Held on the device (`playOutbox.ts`) and sent the
+ *   moment the Mac answers again.
+ * - **Reachability.** `navigator.onLine` knows about the network, not about
+ *   whether the Mac at the other end is awake, so the server is probed too.
  */
 
 export type SyncState =
@@ -36,20 +60,45 @@ export type SyncState =
   | { readonly status: 'done'; readonly progress: SyncProgress }
   | { readonly status: 'error'; readonly message: string }
 
+/** Why automatic downloads are, or are not, doing anything right now. */
+export type AutoState =
+  | { readonly kind: 'off' }
+  /** No Cache API: an insecure origin, or a browser without it. */
+  | { readonly kind: 'unsupported' }
+  | { readonly kind: 'up-to-date' }
+  | {
+      readonly kind: 'waiting'
+      /** `metered`: on cellular. `unknown-connection`: the browser will not say. */
+      readonly reason: 'metered' | 'unknown-connection'
+      readonly missing: number
+    }
+  | { readonly kind: 'storage-full'; readonly missing: number }
+
 interface OfflineContextValue {
   /** True when the browser thinks it has a connection. */
   readonly online: boolean
   /** True when the server actually answered recently. */
   readonly serverReachable: boolean
+  /** False where the browser cannot keep songs at all. */
+  readonly supported: boolean
   readonly cachedIds: ReadonlySet<number>
   readonly usage: StorageUsage | null
   readonly sync: SyncState
   readonly persistent: boolean
   readonly isCached: (songId: number) => boolean
+  /** The song downloading this moment, if any. */
+  readonly activeSongId: number | null
+
+  readonly prefs: OfflinePrefs
+  readonly auto: AutoState
+  /** Plays and skips made on this device that the server has not heard about. */
+  readonly pendingListens: number
 
   // Property-arrow rather than method shorthand: these get passed directly to
   // JSX handlers, where method shorthand reads as a detached `this`.
-  readonly syncAll: (songs: readonly Song[]) => Promise<void>
+  readonly setPrefs: (patch: Partial<OfflinePrefs>) => void
+  /** Download what is missing now, whatever the connection. */
+  readonly downloadNow: () => Promise<void>
   readonly cancelSync: () => void
   readonly downloadOne: (songId: number) => Promise<void>
   readonly removeOne: (songId: number) => Promise<void>
@@ -65,15 +114,48 @@ export function useOffline(): OfflineContextValue {
   return context
 }
 
+/**
+ * Settle for this long after something changes before checking. An import of
+ * twenty songs bumps the library twenty times; one check afterwards is enough.
+ */
+const AUTO_DELAY_MS = 1500
+
 export function OfflineProvider({ children }: { children: ReactNode }): ReactNode {
+  const queryClient = useQueryClient()
+  const { data: library } = useLibrary()
+
   const [online, setOnline] = useState(() => navigator.onLine)
   const [serverReachable, setServerReachable] = useState(true)
   const [cachedIds, setCachedIds] = useState<ReadonlySet<number>>(() => new Set())
   const [usage, setUsage] = useState<StorageUsage | null>(null)
   const [sync, setSync] = useState<SyncState>({ status: 'idle' })
   const [persistent, setPersistent] = useState(false)
+  const [prefs, setPrefsState] = useState<OfflinePrefs>(() => loadPrefs())
+  const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => loadExcluded())
+  const [auto, setAuto] = useState<AutoState>({ kind: 'up-to-date' })
+  const [pendingListens, setPendingListens] = useState(0)
+  const [connectionTick, setConnectionTick] = useState(0)
 
+  const supported = offlineStorageAvailable()
+
+  // Refs for the async passes, which must read the latest values without
+  // being re-created (and re-scheduled) by every render.
   const abortRef = useRef<AbortController | null>(null)
+  const runningRef = useRef(false)
+  const rerunRef = useRef(false)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
+  const excludedRef = useRef(excluded)
+  excludedRef.current = excluded
+  const titlesRef = useRef(new Map<number, string>())
+  titlesRef.current = useMemo(
+    () => new Map((library?.songs ?? []).map(song => [song.id, song.title])),
+    [library],
+  )
+  const libraryIdsRef = useRef<readonly number[]>([])
+  libraryIdsRef.current = useMemo(() => (library?.songs ?? []).map(song => song.id), [library])
+  /** What the last pass found nothing to do about, so an unrelated bump can skip the work. */
+  const settledRef = useRef<string | null>(null)
 
   const refreshCached = useCallback(async () => {
     setCachedIds(await cachedSongIds())
@@ -89,8 +171,45 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     void requestPersistentStorage().then(setPersistent)
   }, [refreshCached, refreshUsage])
 
-  // `navigator.onLine` only knows about the network interface, not whether the
-  // Mac at the other end is awake, so the server is probed separately.
+  const setPrefs = useCallback((patch: Partial<OfflinePrefs>) => {
+    setPrefsState(current => {
+      const next = { ...current, ...patch }
+      savePrefs(next)
+      return next
+    })
+    settledRef.current = null
+  }, [])
+
+  const updateExcluded = useCallback((change: (ids: Set<number>) => void) => {
+    setExcluded(current => {
+      const next = new Set(current)
+      change(next)
+      saveExcluded(next)
+      return next
+    })
+    settledRef.current = null
+  }, [])
+
+  // --- plays made offline ----------------------------------------------------
+
+  useEffect(() => subscribePendingListens(setPendingListens), [])
+  useEffect(() => {
+    void loadPendingListens()
+  }, [])
+
+  /** Send the backlog; if anything went, the counts on screen are stale. */
+  const flushBacklog = useCallback(async () => {
+    const sent = await flushListens()
+    if (sent > 0) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+      void queryClient.invalidateQueries({ queryKey: ['stats'] })
+    }
+  }, [queryClient])
+  const flushBacklogRef = useRef(flushBacklog)
+  flushBacklogRef.current = flushBacklog
+
+  // --- reachability ----------------------------------------------------------
+
   useEffect(() => {
     const goOnline = (): void => setOnline(true)
     const goOffline = (): void => {
@@ -99,9 +218,11 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
+    const stopWatching = onConnectionChange(() => setConnectionTick(tick => tick + 1))
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
+      stopWatching()
     }
   }, [])
 
@@ -115,7 +236,11 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       }
       try {
         await api.health()
-        if (!cancelled) setServerReachable(true)
+        if (cancelled) return
+        setServerReachable(true)
+        // Already reachable means no state change to react to, so the backlog
+        // is nudged from here too — a play that failed a minute ago goes now.
+        void flushBacklogRef.current()
       } catch {
         if (!cancelled) setServerReachable(false)
       }
@@ -137,40 +262,167 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     }
   }, [])
 
-  const syncAll = useCallback(
-    async (songs: readonly Song[]) => {
+  // --- downloads -------------------------------------------------------------
+
+  const runDownloads = useCallback(
+    async (entries: readonly ManifestEntry[]): Promise<{ stop: SyncStop; done: number }> => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
 
       try {
-        const manifest = await api.manifest()
-        const titles = new Map(songs.map(song => [song.id, song.title]))
-
-        const progress = await syncLibrary(manifest, {
-          titleFor: id => titles.get(id) ?? `Song ${id}`,
+        const { progress, stop } = await syncLibrary(entries, {
+          titleFor: id => titlesRef.current.get(id) ?? `Song ${id}`,
           onProgress: next => setSync({ status: 'syncing', progress: next }),
+          onCached: id => setCachedIds(previous => new Set(previous).add(id)),
           signal: controller.signal,
         })
-
-        setSync({ status: 'done', progress })
-        await refreshCached()
-        await refreshUsage()
+        setSync(stop === 'aborted' ? { status: 'idle' } : { status: 'done', progress })
+        return { stop, done: progress.done }
       } catch (error) {
-        if (controller.signal.aborted) {
-          setSync({ status: 'idle' })
-          return
-        }
         setSync({
           status: 'error',
-          message: error instanceof Error ? error.message : 'sync failed',
+          message: error instanceof Error ? error.message : 'download failed',
         })
+        return { stop: 'aborted', done: 0 }
       } finally {
         if (abortRef.current === controller) abortRef.current = null
+        await refreshCached()
+        await refreshUsage()
       }
     },
     [refreshCached, refreshUsage],
   )
+
+  /**
+   * Work out what this device is missing, and tidy up on the way.
+   *
+   * Songs that have left the library are dropped from the cache here — only
+   * ever against a fresh answer from the server, and never a song the library
+   * still has, even one whose file is missing on the Mac today.
+   */
+  const plan = useCallback(async (): Promise<{ missing: ManifestEntry[]; signature: string }> => {
+    const { scope } = prefsRef.current
+    const manifest = await api.manifest(scope)
+    const whole = scope === 'library' ? manifest : await api.manifest('library')
+
+    // Most library bumps are a tag or a rename, which change no file. When the
+    // files are exactly what the last pass found fully downloaded, skip
+    // reading every cache entry's size again.
+    const signature = [
+      scope,
+      whole.entries.map(entry => `${entry.id}:${entry.sizeBytes}`).join(','),
+      manifest.entries.length,
+      [...excludedRef.current].join(','),
+    ].join('|')
+    if (settledRef.current === signature) return { missing: [], signature }
+
+    const keep = new Set([...whole.entries.map(entry => entry.id), ...libraryIdsRef.current])
+    if ((await pruneCache(keep)) > 0) await refreshCached()
+
+    return { missing: await missingEntries(manifest, excludedRef.current), signature }
+  }, [refreshCached])
+
+  const autoPass = useCallback(async (): Promise<void> => {
+    if (runningRef.current) {
+      rerunRef.current = true
+      return
+    }
+    runningRef.current = true
+
+    try {
+      const { missing, signature } = await plan()
+      if (missing.length === 0) {
+        settledRef.current = signature
+        setAuto({ kind: 'up-to-date' })
+        return
+      }
+
+      const connection = connectionKind()
+      if (prefsRef.current.wifiOnly && connection !== 'unmetered') {
+        setAuto({
+          kind: 'waiting',
+          reason: connection === 'metered' ? 'metered' : 'unknown-connection',
+          missing: missing.length,
+        })
+        return
+      }
+
+      setAuto({ kind: 'up-to-date' })
+      const { stop, done } = await runDownloads(missing)
+      if (stop === 'storage') setAuto({ kind: 'storage-full', missing: missing.length - done })
+    } catch {
+      // The Mac went away mid-check. The next moment it is reachable tries again.
+    } finally {
+      runningRef.current = false
+      if (rerunRef.current) {
+        rerunRef.current = false
+        if (prefsRef.current.auto) window.setTimeout(() => void autoPassRef.current(), 0)
+      }
+    }
+  }, [plan, runDownloads])
+  const autoPassRef = useRef(autoPass)
+  autoPassRef.current = autoPass
+
+  const libraryVersion = library?.version
+  useEffect(() => {
+    if (!supported) {
+      setAuto({ kind: 'unsupported' })
+      return
+    }
+    if (!prefs.auto) {
+      setAuto({ kind: 'off' })
+      return
+    }
+    if (!serverReachable) return
+    const timer = window.setTimeout(() => void autoPass(), AUTO_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [
+    supported,
+    prefs.auto,
+    prefs.scope,
+    prefs.wifiOnly,
+    serverReachable,
+    libraryVersion,
+    connectionTick,
+    excluded,
+    autoPass,
+  ])
+
+  const downloadNow = useCallback(async () => {
+    if (runningRef.current) return
+    runningRef.current = true
+    try {
+      const { missing, signature } = await plan()
+      if (missing.length === 0) {
+        settledRef.current = signature
+        setSync({
+          status: 'done',
+          progress: {
+            total: 0,
+            done: 0,
+            bytesDone: 0,
+            bytesTotal: 0,
+            currentTitle: '',
+            activeSongId: null,
+            failed: 0,
+          },
+        })
+        if (prefsRef.current.auto) setAuto({ kind: 'up-to-date' })
+        return
+      }
+      const { stop, done } = await runDownloads(missing)
+      if (stop === 'storage') setAuto({ kind: 'storage-full', missing: missing.length - done })
+      else if (prefsRef.current.auto) setAuto({ kind: 'up-to-date' })
+    } catch (error) {
+      setSync({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'could not reach your library',
+      })
+    } finally {
+      runningRef.current = false
+    }
+  }, [plan, runDownloads])
 
   const cancelSync = useCallback(() => {
     abortRef.current?.abort()
@@ -179,16 +431,20 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
 
   const downloadOne = useCallback(
     async (songId: number) => {
+      // Asking for a song by hand undoes having removed it by hand.
+      if (excludedRef.current.has(songId)) updateExcluded(ids => ids.delete(songId))
       await cacheSong(songId)
       setCachedIds(previous => new Set(previous).add(songId))
       void refreshUsage()
     },
-    [refreshUsage],
+    [refreshUsage, updateExcluded],
   )
 
   const removeOne = useCallback(
     async (songId: number) => {
       await uncacheSong(songId)
+      // Remembered, so the next automatic pass does not put it straight back.
+      updateExcluded(ids => ids.add(songId))
       setCachedIds(previous => {
         const next = new Set(previous)
         next.delete(songId)
@@ -196,7 +452,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       })
       void refreshUsage()
     },
-    [refreshUsage],
+    [refreshUsage, updateExcluded],
   )
 
   const clearAll = useCallback(async () => {
@@ -204,21 +460,31 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     await clearAudioCache()
     setCachedIds(new Set())
     setSync({ status: 'idle' })
+    // With automatic downloads on, an emptied cache would simply fill again —
+    // clearing it is a decision to stop, so it is taken as one.
+    setPrefs({ auto: false })
     await refreshUsage()
-  }, [refreshUsage])
+  }, [refreshUsage, setPrefs])
 
   const isCached = useCallback((songId: number) => cachedIds.has(songId), [cachedIds])
+  const activeSongId = sync.status === 'syncing' ? sync.progress.activeSongId : null
 
   const value = useMemo<OfflineContextValue>(
     () => ({
       online,
       serverReachable,
+      supported,
       cachedIds,
       usage,
       sync,
       persistent,
       isCached,
-      syncAll,
+      activeSongId,
+      prefs,
+      auto,
+      pendingListens,
+      setPrefs,
+      downloadNow,
       cancelSync,
       downloadOne,
       removeOne,
@@ -228,12 +494,18 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     [
       online,
       serverReachable,
+      supported,
       cachedIds,
       usage,
       sync,
       persistent,
       isCached,
-      syncAll,
+      activeSongId,
+      prefs,
+      auto,
+      pendingListens,
+      setPrefs,
+      downloadNow,
       cancelSync,
       downloadOne,
       removeOne,

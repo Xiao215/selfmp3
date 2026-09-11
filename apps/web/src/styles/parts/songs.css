@@ -251,11 +251,6 @@
   }
 }
 
-.offline-badge {
-  color: var(--good);
-  display: flex;
-}
-
 .badge {
   font-size: 10px;
   text-transform: uppercase;

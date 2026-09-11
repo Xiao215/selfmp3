@@ -1,6 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import type { AnalysisStatus, Library, ScanResult, SyncManifest } from '@selfmp3/shared'
+import {
+  SyncManifestQuerySchema,
+  type AnalysisStatus,
+  type Library,
+  type ScanResult,
+  type SyncManifest,
+} from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
@@ -86,11 +92,22 @@ export function libraryRoutes(container: Container): Router {
    *
    * The etag per entry lets the service worker skip files it already holds and
    * re-download only ones whose underlying file actually changed.
+   *
+   * `scope=playlists` narrows it to songs that are in at least one playlist,
+   * smart ones resolved as they stand now — for a phone told to keep only
+   * those. The default is everything.
    */
   router.get(
     '/library/manifest',
-    route({}, (): SyncManifest => {
-      const entries = container.songs.manifest()
+    route({ query: SyncManifestQuerySchema }, ({ query }): SyncManifest => {
+      let entries = container.songs.manifest()
+      if (query.scope === 'playlists') {
+        const inPlaylists = new Set<number>()
+        for (const playlist of container.playlists.all()) {
+          for (const id of container.playlists.songIds(playlist)) inPlaylists.add(id)
+        }
+        entries = entries.filter(entry => inPlaylists.has(entry.id))
+      }
       return {
         version: container.libraryVersion(),
         songCount: entries.length,

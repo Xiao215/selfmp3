@@ -345,6 +345,7 @@ function isRetryable(message: string): boolean {
     'sign in to confirm',
     'removed by the uploader',
     'not installed',
+    'upgrade yt-dlp',
     'no title',
     'copyright',
   ]

@@ -66,6 +66,12 @@ describe('explainCookieError', () => {
     )
   })
 
+  it('blames a refused download on an outdated yt-dlp', () => {
+    expect(
+      explainCookieError('unable to download video data: HTTP Error 403: Forbidden', none),
+    ).toMatch(/brew upgrade yt-dlp/)
+  })
+
   it('leaves unrelated errors alone', () => {
     expect(explainCookieError('HTTP Error 429: Too Many Requests', chrome)).toBe(
       'HTTP Error 429: Too Many Requests',

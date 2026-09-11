@@ -96,5 +96,11 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
         } is logged in to YouTube Music, then try again. (${message})`
   }
 
+  // The link resolved but the audio itself was refused: YouTube changed how
+  // it hands out media URLs and the installed yt-dlp predates the change.
+  if (/http error 403/.test(lower)) {
+    return `YouTube refused the download (HTTP 403). This almost always means yt-dlp is out of date — run: brew upgrade yt-dlp, then retry.`
+  }
+
   return message
 }

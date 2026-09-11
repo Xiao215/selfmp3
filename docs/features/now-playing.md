@@ -8,14 +8,14 @@ lyrics — or, for a song with no words, something to look at instead.
 | From | Does |
 |---|---|
 | The artwork, title and artist in the player bar | Opens **Stage**; again closes it |
-| `L`, or the mic button in the bar | Opens straight into **Focus**; again closes it |
-| `F`, or the **Focus** / **Stage** button | Switches between the two |
-| `Esc` or the ⌄ in the corner | Steps back one level: Focus → Stage → closed |
-| `Q` or the queue button, with the page open | Shows the page's **Up next** tab |
+| The mic button in the bar | Opens straight into **Focus**; again closes it |
+| ⤢ on the lyrics' top-right corner, ⤡ in Focus | Switches between the two |
+| The ⌄ in the corner | Steps back one level: Focus → Stage → closed |
+| The queue button, with the page open | Shows the page's **Up next** tab |
 
 The page covers the library, not the player bar, so play and pause never move under your
 hand. The view underneath stays mounted — its scroll position, search and filters are
-where you left them when you close the page. The practice panel (`P`) opens beside it.
+where you left them when you close the page. The practice panel opens beside it.
 
 ## Stage and Focus
 

@@ -157,7 +157,7 @@ function PageForSong({
           className="icon-button np-close"
           onClick={focus ? () => onModeChange('stage') : onClose}
           aria-label={focus ? 'Back to the full page' : 'Close now playing'}
-          title={focus ? 'Back (Esc)' : 'Close (Esc)'}
+          title={focus ? 'Back to the full page' : 'Close'}
         >
           <ChevronDown size={22} />
         </button>
@@ -293,15 +293,21 @@ function PageForSong({
               <Refresh size={14} /> {lyrics.refreshing ? 'Looking…' : 'Look again'}
             </button>
           )}
-          <button
-            type="button"
-            className="np-tool is-mode"
-            onClick={toggleFocus}
-            title={focus ? 'Back to the full page (F)' : 'Only the words (F)'}
-          >
-            {focus ? <Collapse size={14} /> : <Expand size={14} />} {focus ? 'Stage' : 'Focus'}
-          </button>
         </div>
+      )}
+
+      {/* On the words themselves, the way a video has its fullscreen button:
+          where the eye already is, and clear of the lines a click jumps to. */}
+      {shownTab === 'lyrics' && !syncing && (
+        <button
+          type="button"
+          className="np-expand"
+          onClick={toggleFocus}
+          aria-label={focus ? 'Back to the full page' : 'Show only the words'}
+          title={focus ? 'Back to the full page' : 'Only the words, big'}
+        >
+          {focus ? <Collapse size={18} /> : <Expand size={18} />}
+        </button>
       )}
 
       {!transport.remote && <UpNextCard />}

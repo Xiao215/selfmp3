@@ -9,7 +9,7 @@ same order, same count, same timestamps — so the lyrics view just renders
 
 ## Romanization (offline)
 
-Open the song's page (`L`, the mic button, or the artwork in the player bar) and press
+Open the song's page (the mic button, or the artwork in the player bar) and press
 **Romaji** / **Pinyin** — on a phone, the **Aa** button over the lyrics.
 Chinese lines get pinyin with tone marks under them; Japanese lines get Hepburn
 romaji. It is generated on the server with pure-JS libraries — nothing leaves

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useLibrary, useSettings } from './lib/queries.js'
-import { PlayerProvider, usePlayer } from './player/PlayerProvider.js'
+import { PlayerProvider } from './player/PlayerProvider.js'
 import { OfflineProvider } from './offline/OfflineProvider.js'
 import { useHotkeys, useIsMobile } from './lib/hooks.js'
 import { Sidebar } from './components/Sidebar.js'
@@ -73,7 +73,6 @@ function AppWithLibrary() {
 
 function Shell() {
   const { data: library } = useLibrary()
-  const player = usePlayer()
   const isMobile = useIsMobile()
 
   const [selectedTags, setSelectedTags] = useState<ReadonlySet<number>>(() => new Set())
@@ -156,7 +155,7 @@ function Shell() {
     setPageTab('lyrics')
   }, [isMobile])
 
-  /** L and the mic: straight to the words, and the same again to put them away. */
+  /** The mic: straight to the words, and the same again to put them away. */
   const toggleLyrics = useCallback(() => {
     if (isMobile) {
       setNowPlayingOpen(true)
@@ -166,47 +165,13 @@ function Shell() {
     setPageTab('lyrics')
   }, [isMobile])
 
-  const toggleFocus = useCallback(() => {
-    setPage(current => (current === 'focus' ? 'stage' : current === 'stage' ? 'focus' : current))
-  }, [])
-
-  // Escape steps back one level: Focus, then Stage, then closed.
-  const stepBack = useCallback(() => {
-    setPage(current => (current === 'focus' ? 'stage' : null))
-  }, [])
-
   const closePage = useCallback(() => setPage(null), [])
 
-  // Declared after the panel callbacks so the shortcuts go through the same
-  // one-panel-at-a-time rule the buttons use, rather than a second copy of it.
+  // Everything is done with the mouse for now. ⌘K stays: it is the only way
+  // into the search palette, which closes itself on Escape.
   useHotkeys({
     'meta+k': () => setPaletteOpen(true),
     'ctrl+k': () => setPaletteOpen(true),
-    ' ': () => player.toggle(),
-    ArrowRight: () => player.seekBy(5),
-    ArrowLeft: () => player.seekBy(-5),
-    'shift+ArrowRight': () => player.next(),
-    'shift+ArrowLeft': () => player.previous(),
-    s: () => player.toggleShuffle(),
-    r: () => player.cycleRepeatMode(),
-    l: toggleLyrics,
-    f: () => {
-      if (pageOpen) toggleFocus()
-    },
-    q: openQueue,
-    p: openPractice,
-    // Tag what is playing: you know how a song feels while you are hearing it.
-    t: () => {
-      if (player.current) setTagsOpen(open => !open)
-    },
-    Escape: () => {
-      if (paletteOpen) {
-        setPaletteOpen(false)
-        return
-      }
-      setNowPlayingOpen(false)
-      stepBack()
-    },
   })
 
   const classes = ['app']

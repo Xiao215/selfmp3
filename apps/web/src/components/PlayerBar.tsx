@@ -61,7 +61,7 @@ export function PlayerBar({
   tagsOpen,
   onToggleTags,
 }: {
-  /** The mic, or L: the page in Focus, and again to put it away. */
+  /** The mic: the page in Focus, and again to put it away. */
   onToggleLyrics: () => void
   onOpenQueue: () => void
   onOpenPractice: () => void
@@ -71,7 +71,7 @@ export function PlayerBar({
   page: PageMode | null
   queueOpen: boolean
   practiceOpen: boolean
-  /** The tag picker for what is playing, opened here or with T. */
+  /** The tag picker for what is playing. */
   tagsOpen: boolean
   onToggleTags: () => void
 }) {
@@ -127,7 +127,7 @@ export function PlayerBar({
               onClick={onTogglePage}
               aria-expanded={page !== null}
               aria-label={page ? 'Close now playing' : `Open now playing: ${song.title}`}
-              title={page ? 'Close (Esc)' : 'Open the song: lyrics, up next, details'}
+              title={page ? 'Close' : 'Open the song: lyrics, up next, details'}
             >
               <span className="player-open-art">
                 <Cover song={song} size={54} />
@@ -161,9 +161,7 @@ export function PlayerBar({
               aria-label={`Tags for ${song.title}`}
               aria-haspopup="dialog"
               aria-expanded={tagsOpen}
-              title={
-                song.tagIds.length > 0 ? `Tags: ${tagNames(song.tagIds)} (T)` : 'Tag this song (T)'
-              }
+              title={song.tagIds.length > 0 ? `Tags: ${tagNames(song.tagIds)}` : 'Tag this song'}
             >
               <TagPlus size={17} />
               {song.tagIds.length > 0 && (
@@ -197,7 +195,7 @@ export function PlayerBar({
             onClick={player.toggleShuffle}
             aria-label="Shuffle"
             aria-pressed={player.queue.shuffle}
-            title={`Shuffle ${player.queue.shuffle ? 'on' : 'off'} (S)`}
+            title={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
           >
             <Shuffle size={17} />
           </button>
@@ -207,7 +205,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.previous}
             aria-label="Previous"
-            title="Previous (⇧←)"
+            title="Previous"
             disabled={!song}
           >
             <Prev size={20} />
@@ -219,7 +217,7 @@ export function PlayerBar({
             onClick={transport.toggle}
             aria-busy={player.stalled}
             aria-label={transport.playing ? 'Pause' : 'Play'}
-            title={`${transport.playing ? 'Pause' : 'Play'} (space)`}
+            title={transport.playing ? 'Pause' : 'Play'}
             disabled={!song}
           >
             {transport.playing ? <Pause size={20} /> : <Play size={20} />}
@@ -230,7 +228,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.next}
             aria-label="Next"
-            title="Next (⇧→)"
+            title="Next"
             disabled={!song}
           >
             <Next size={20} />
@@ -241,7 +239,7 @@ export function PlayerBar({
             className={`icon-button ${player.queue.repeat !== 'off' ? 'is-accent' : ''}`}
             onClick={player.cycleRepeatMode}
             aria-label={REPEAT_LABEL[player.queue.repeat]}
-            title={`${REPEAT_LABEL[player.queue.repeat]} (R)`}
+            title={REPEAT_LABEL[player.queue.repeat]}
           >
             {player.queue.repeat === 'one' ? <RepeatOne size={17} /> : <Repeat size={17} />}
           </button>
@@ -295,7 +293,7 @@ export function PlayerBar({
             onClick={onToggleLyrics}
             aria-label="Lyrics"
             aria-pressed={page === 'focus'}
-            title="Lyrics, full size (L)"
+            title="Lyrics, full size"
           >
             <Mic size={17} />
           </button>
@@ -306,7 +304,7 @@ export function PlayerBar({
             onClick={onOpenQueue}
             aria-label="Queue"
             aria-pressed={queueOpen}
-            title="Up next (Q)"
+            title="Up next"
           >
             <Queue size={17} />
           </button>
@@ -317,7 +315,7 @@ export function PlayerBar({
             onClick={onOpenPractice}
             aria-label="Practice tools"
             aria-pressed={practiceOpen}
-            title="Practice: A–B loop, speed, transpose (P)"
+            title="Practice: A–B loop, speed, transpose"
           >
             <Metronome size={17} />
           </button>

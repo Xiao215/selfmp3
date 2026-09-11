@@ -60,8 +60,8 @@ searched client-side, so it stays instant and works with no connection.
 
 **Tags instead of folders.** One flat vocabulary you define. Combine them with AND —
 `chinese` + `chill` — or leave one out: `chill`, but not `instrumental`. Rename and recolour
-them in place, tag the song that is playing with `T`, and work through everything untagged
-one song at a time with the number keys. See
+them in place, tag the song that is playing from the player bar, and work through
+everything untagged one song at a time with the number keys. See
 [docs/features/tagging.md](docs/features/tagging.md).
 
 **Playlists, manual and smart.** Manual ones you drag into order. Smart ones build
@@ -105,8 +105,9 @@ Mac, or pick up where you left off on the other device when you open the app.
 
 **A page for the song that is playing.** Click the artwork in the player bar and the song
 opens into its own page: the artwork and what the app knows about it beside its synced
-lyrics. Press `F` and the page turns into Focus — the words alone, big, each line filling
-in as it is sung, and the controls fading away while you just listen. A song with no words
+lyrics. Click ⤢ on the lyrics, or the mic in the bar, and the page turns into Focus — the
+words alone, big, each line filling in as it is sung, and the controls fading away while
+you just listen. A song with no words
 gets a visual drawn from its own tempo, energy and cover colours instead, picked to suit
 it: a slow aurora for a nocturne, a live spectrum for a big-band chase. See
 [docs/features/now-playing.md](docs/features/now-playing.md).
@@ -223,20 +224,8 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 
 ## Keyboard shortcuts
 
-| Key | Action |
-|---|---|
-| `⌘K` | Search everything |
-| `Space` | Play / pause |
-| `←` `→` | Skip 5 seconds |
-| `⇧←` `⇧→` | Previous / next track |
-| `S` | Shuffle |
-| `R` | Repeat |
-| `L` | Lyrics, full size (again to close) |
-| `F` | Switch the song's page between Stage and Focus |
-| `Esc` | Step back: Focus → Stage → closed |
-| `Q` | Queue |
-| `P` | Practice panel |
-| `T` | Tag the song that is playing |
+Everything is done with the mouse for now. The one key is `⌘K` (`Ctrl+K`), to search
+everything.
 
 ---
 

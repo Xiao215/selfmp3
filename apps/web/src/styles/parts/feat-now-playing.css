@@ -450,8 +450,52 @@
     opacity 400ms var(--ease-out);
 }
 
+/* In Focus they join the top row, left of the way back to Stage. */
 .is-focus .np-tools {
   top: 15px;
+  right: 66px;
+}
+
+/*
+ * Stage ⇄ Focus. Pinned to the words' top-right corner in Stage, as a video
+ * has its fullscreen button; in Focus, where the words fill the page, the
+ * same corner of the page. Out past the lines, so it is never a line that
+ * gets clicked instead.
+ */
+.np-expand {
+  position: absolute;
+  z-index: 4;
+  right: var(--np-right);
+  top: 68px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: color-mix(in oklch, var(--text-primary) 8%, transparent);
+  backdrop-filter: blur(8px);
+  transition:
+    top var(--np-move),
+    right var(--np-move),
+    background var(--dur-fast),
+    color var(--dur-fast),
+    opacity 400ms var(--ease-out);
+}
+
+.np-expand:hover {
+  color: var(--text-primary);
+  background: color-mix(in oklch, var(--text-primary) 14%, transparent);
+}
+
+/* A song with no words: inside the corner of the visual's frame. */
+.np-page.has-visual .np-expand {
+  top: 88px;
+  right: calc(var(--np-right) + 12px);
+}
+
+.np-page.is-focus .np-expand {
+  top: 12px;
   right: 20px;
 }
 
@@ -499,6 +543,7 @@
 /* Everything that is chrome, gone while the mouse is still in Focus. */
 .np-page.is-idle .np-head,
 .np-page.is-idle .np-tools,
+.np-page.is-idle .np-expand,
 .np-page.is-idle .np-cover,
 .np-page.is-idle .song-words-status {
   opacity: 0;

@@ -774,60 +774,13 @@ export function SettingsView() {
               <h2>Keyboard shortcuts</h2>
               <span className="hint">on a Mac</span>
             </header>
+            <p className="hint">Everything else is done with the mouse.</p>
             <dl className="shortcut-list">
               <div>
                 <dt>
                   <kbd>⌘</kbd> <kbd>K</kbd>
                 </dt>
                 <dd>Search everything</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>Space</kbd>
-                </dt>
-                <dd>Play / pause</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>←</kbd> <kbd>→</kbd>
-                </dt>
-                <dd>Skip back / forward 5 seconds</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>⇧</kbd> <kbd>←</kbd> / <kbd>→</kbd>
-                </dt>
-                <dd>Previous / next track</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>S</kbd>
-                </dt>
-                <dd>Shuffle</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>T</kbd>
-                </dt>
-                <dd>Tag the song that is playing</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>R</kbd>
-                </dt>
-                <dd>Repeat</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>L</kbd>
-                </dt>
-                <dd>Lyrics</dd>
-              </div>
-              <div>
-                <dt>
-                  <kbd>Q</kbd>
-                </dt>
-                <dd>Queue</dd>
               </div>
             </dl>
           </section>

@@ -54,21 +54,29 @@ export const SongSchema = z.object({
 })
 export type Song = z.infer<typeof SongSchema>
 
-/** Fields a user may edit by hand. Everything else is derived from the file. */
-export const SongPatchSchema = z
-  .object({
-    title: NameSchema,
-    artist: OptionalTextSchema,
-    album: OptionalTextSchema,
-    albumArtist: OptionalTextSchema,
-    year: z.number().int().min(0).max(9999).nullable(),
-    trackNo: z.number().int().min(0).max(9999).nullable(),
-    loved: z.boolean(),
-    /** Mark or unmark a song as having no words, so no lyrics are looked up. */
-    instrumental: z.boolean(),
-  })
-  .partial()
-  .refine(patch => Object.keys(patch).length > 0, { message: 'no fields to update' })
+/**
+ * Fields a user may edit by hand. Everything else is derived from the file.
+ * An edit on any device is a change to some of these (schemas/sync.ts).
+ */
+export const SongFieldsSchema = z.object({
+  title: NameSchema,
+  artist: OptionalTextSchema,
+  album: OptionalTextSchema,
+  albumArtist: OptionalTextSchema,
+  year: z.number().int().min(0).max(9999).nullable(),
+  trackNo: z.number().int().min(0).max(9999).nullable(),
+  loved: z.boolean(),
+  /** Mark or unmark a song as having no words, so no lyrics are looked up. */
+  instrumental: z.boolean(),
+})
+export type SongFields = z.infer<typeof SongFieldsSchema>
+
+export const SONG_FIELDS = SongFieldsSchema.keyof().options
+
+export const SongPatchSchema = SongFieldsSchema.partial().refine(
+  patch => Object.keys(patch).length > 0,
+  { message: 'no fields to update' },
+)
 export type SongPatch = z.infer<typeof SongPatchSchema>
 
 export const SetSongTagsSchema = z.object({

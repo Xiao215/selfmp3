@@ -1,21 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import {
   MISSING_TAG_UID,
+  UNKNOWN_TAG_ID,
   audioKey,
   cleanExtension,
   coverKey,
+  fromCloudRules,
   isCloudFileKey,
   isCloudListPrefix,
   isDeletableCloudKey,
+  logKey,
   lyricsKey,
   newCloudDeviceId,
   newUid,
   newestSnapshotKey,
   parseEndpoint,
+  parseLogKey,
   parseSnapshotKey,
   snapshotKey,
   snapshotsToPrune,
   toCloudRules,
+  unfoldedLogKeys,
 } from './cloud.js'
 import { CloudSnapshotSchema, CloudSongSchema, UidSchema } from './schemas/cloud.js'
 import type { SmartRules } from './schemas/smart.js'
@@ -97,6 +102,41 @@ describe('snapshots', () => {
     const shuffled = [mine[3], theirs, mine[0], mine[4], mine[1], mine[2]] as string[]
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 3)).toEqual([mine[0], mine[1]])
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 10)).toEqual([])
+  })
+})
+
+describe('log files', () => {
+  it('are numbered in fixed width, so a listing gives them in order', () => {
+    expect(logKey('iphone-0b7d44a1', 42)).toBe('log/iphone-0b7d44a1/000000000042.json')
+    expect(isCloudFileKey(logKey('iphone-0b7d44a1', 42))).toBe(true)
+    expect(isDeletableCloudKey(logKey('iphone-0b7d44a1', 42))).toBe(true)
+    expect(parseLogKey('log/iphone-0b7d44a1/000000000042.json')).toEqual({
+      deviceId: 'iphone-0b7d44a1',
+      seq: 42,
+    })
+  })
+
+  it('are told apart from anything else in the log folder', () => {
+    expect(parseLogKey('log/iphone-0b7d44a1/42.json')).toBeNull()
+    expect(parseLogKey('log/iphone-0b7d44a1/000000000000.json')).toBeNull()
+    expect(parseLogKey('log/iphone-0b7d44a1/000000000042.json.tmp')).toBeNull()
+    expect(parseLogKey('snapshots/000000000042.json')).toBeNull()
+  })
+
+  it('still to be folded in are the ones after where a snapshot got to, in order', () => {
+    const keys = [
+      logKey('web-bbbb', 3),
+      logKey('mac-aaaa', 1),
+      logKey('web-bbbb', 1),
+      logKey('web-bbbb', 2),
+      logKey('web-cccc', 1),
+      'log/web-bbbb/notes.txt',
+    ]
+    expect(unfoldedLogKeys(keys, { 'web-bbbb': 1, 'web-cccc': 1 })).toEqual([
+      logKey('mac-aaaa', 1),
+      logKey('web-bbbb', 2),
+      logKey('web-bbbb', 3),
+    ])
   })
 })
 
@@ -216,6 +256,32 @@ describe('toCloudRules', () => {
   it('keeps a rule about a deleted tag meaning what it meant', () => {
     const cloud = toCloudRules(rules, () => null)
     expect(cloud.rules[1]).toEqual({ field: 'tag', op: 'notHas', tagUid: MISSING_TAG_UID })
+  })
+})
+
+describe('fromCloudRules', () => {
+  it("names tags by this device's ids again, and a tag it does not have by none", () => {
+    const known = 'f'.repeat(32)
+    const local = fromCloudRules(
+      {
+        match: 'any',
+        rules: [
+          { field: 'tag', op: 'has', tagUid: known },
+          { field: 'tag', op: 'has', tagUid: MISSING_TAG_UID },
+          { field: 'loved', op: 'is', value: true },
+        ],
+        orderBy: 'title',
+        order: 'asc',
+        limit: null,
+      },
+      uid => (uid === known ? 7 : null),
+    )
+    expect(local.rules).toEqual([
+      { field: 'tag', op: 'has', tagId: 7 },
+      { field: 'tag', op: 'has', tagId: UNKNOWN_TAG_ID },
+      { field: 'loved', op: 'is', value: true },
+    ])
+    expect(local).toMatchObject({ match: 'any', orderBy: 'title', order: 'asc', limit: null })
   })
 })
 

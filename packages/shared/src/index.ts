@@ -25,6 +25,7 @@ export * from './schemas/wrapped.js'
 export * from './schemas/gems.js'
 export * from './schemas/cloud.js'
 export * from './schemas/doorman.js'
+export * from './schemas/sync.js'
 
 export * from './format.js'
 export * from './lrc.js'
@@ -39,6 +40,9 @@ export * from './transpose.js'
 export * from './queue.js'
 export * from './outbox.js'
 export * from './cloud.js'
+export * from './hlc.js'
+export * from './sync.js'
+export * from './smartRules.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

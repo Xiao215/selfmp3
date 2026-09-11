@@ -111,6 +111,42 @@ export function snapshotsToPrune(keys: readonly string[], deviceId: string, keep
   return mine.slice(0, Math.max(0, mine.length - keep)).map(entry => entry.key)
 }
 
+export const LOG_FOLDER = 'log/'
+
+/**
+ * `log/iphone-0b7d44a1/000000000042.json`: a device's 42nd batch of changes.
+ * Fixed-width, so a listing gives a device's files in order.
+ */
+export function logKey(deviceId: string, seq: number): string {
+  return `${LOG_FOLDER}${deviceId}/${String(seq).padStart(12, '0')}.json`
+}
+
+const LOG_KEY = /^log\/([a-z0-9][a-z0-9-]{2,62})\/(\d{12})\.json$/
+
+export function parseLogKey(key: string): { deviceId: string; seq: number } | null {
+  const match = LOG_KEY.exec(key)
+  if (!match?.[1] || !match[2]) return null
+  const seq = Number(match[2])
+  return seq > 0 ? { deviceId: match[1], seq } : null
+}
+
+/**
+ * The log files a snapshot has not folded in yet, each device's in order.
+ * Keys that are not log files are ignored.
+ */
+export function unfoldedLogKeys(
+  keys: readonly string[],
+  upTo: Readonly<Record<string, number>>,
+): string[] {
+  return keys
+    .flatMap(key => {
+      const parsed = parseLogKey(key)
+      return parsed && parsed.seq > (upTo[parsed.deviceId] ?? 0) ? [{ key, ...parsed }] : []
+    })
+    .sort((a, b) => a.deviceId.localeCompare(b.deviceId) || a.seq - b.seq)
+    .map(entry => entry.key)
+}
+
 /**
  * Every key a device may read or write through the doorman, and nothing else:
  * the format marker, snapshots, a device's change log, and files named by
@@ -137,7 +173,7 @@ export function isCloudFileKey(key: string): boolean {
 
 /** Snapshots and change logs are rewritten and pruned; files named by their hash never are. */
 export function isDeletableCloudKey(key: string): boolean {
-  return isCloudFileKey(key) && (key.startsWith(SNAPSHOTS_FOLDER) || key.startsWith('log/'))
+  return isCloudFileKey(key) && (key.startsWith(SNAPSHOTS_FOLDER) || key.startsWith(LOG_FOLDER))
 }
 
 /** The folders a device may list: one of the library's own, or one device's log. */
@@ -197,6 +233,30 @@ export function toCloudRules(
     rules: rules.rules.map(rule =>
       rule.field === 'tag'
         ? { field: 'tag', op: rule.op, tagUid: tagUid(rule.tagId) ?? MISSING_TAG_UID }
+        : rule,
+    ),
+    orderBy: rules.orderBy,
+    order: rules.order,
+    limit: rules.limit,
+  }
+}
+
+/**
+ * Stands in, on a device, for a tag a smart rule names that the device does
+ * not have. No tag has this id, so the rule matches as a deleted tag's would.
+ */
+export const UNKNOWN_TAG_ID = Number.MAX_SAFE_INTEGER
+
+/** Smart rules with each tag named by this device's id again. */
+export function fromCloudRules(
+  rules: CloudSmartRules,
+  tagId: (tagUid: string) => number | null,
+): SmartRules {
+  return {
+    match: rules.match,
+    rules: rules.rules.map(rule =>
+      rule.field === 'tag'
+        ? { field: 'tag', op: rule.op, tagId: tagId(rule.tagUid) ?? UNKNOWN_TAG_ID }
         : rule,
     ),
     orderBy: rules.orderBy,

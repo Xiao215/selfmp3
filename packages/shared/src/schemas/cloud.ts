@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { HLC_PATTERN } from '../hlc.js'
 import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SongFeaturesSchema } from './features.js'
 import { PlaylistKindSchema } from './playlist.js'
@@ -30,6 +31,17 @@ export type Uid = z.infer<typeof UidSchema>
 
 /** Who wrote a snapshot or a log: `mac-3f9a1c2e`, `iphone-0b7d44a1`. */
 export const CloudDeviceIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{2,62}$/, 'not a device id')
+
+/** When a change was made, from a hybrid logical clock (hlc.ts). */
+export const HlcSchema = z.string().regex(HLC_PATTERN, 'not a clock stamp')
+
+/**
+ * For each field some change has set, the stamp of the change that set it
+ * last (docs/SYNC.md). A change whose stamp is later replaces the value; an
+ * earlier one arriving late loses. Only fields a change ever touched have one,
+ * so most things carry none at all.
+ */
+const StampsSchema = z.record(z.string(), HlcSchema)
 
 /** `format.json`, at the top of the bucket. */
 export const CloudFormatSchema = z.object({
@@ -90,6 +102,10 @@ export const CloudSongSchema = z.object({
   sourceUrl: z.string().nullable(),
   tagUids: z.array(UidSchema),
   features: SongFeaturesSchema.nullable(),
+  /** Per field: title, artist, loved, … */
+  stamps: StampsSchema.optional(),
+  /** Per tag, whether it was last put on the song or taken off. */
+  tagStamps: StampsSchema.optional(),
 })
 export type CloudSong = z.infer<typeof CloudSongSchema>
 
@@ -97,6 +113,8 @@ export const CloudTagSchema = z.object({
   uid: UidSchema,
   name: z.string(),
   hue: z.number().int().min(0).max(359),
+  /** Per field: name, hue. */
+  stamps: StampsSchema.optional(),
 })
 export type CloudTag = z.infer<typeof CloudTagSchema>
 
@@ -148,6 +166,10 @@ export const CloudPlaylistSchema = z.object({
   songUids: z.array(UidSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Per field: name, description, rules, pinned, and `order` for the last reorder. */
+  stamps: StampsSchema.optional(),
+  /** Per song, whether it was last added to the playlist or taken out. */
+  songStamps: StampsSchema.optional(),
 })
 export type CloudPlaylist = z.infer<typeof CloudPlaylistSchema>
 
@@ -162,13 +184,19 @@ export const CloudSnapshotSchema = z.object({
   writtenAt: z.string(),
   writtenBy: CloudDeviceIdSchema,
   /**
-   * For each device, the last log entry already folded into this snapshot.
-   * Empty until the change log exists (milestone 2).
+   * For each device, the last of its log files already folded into this
+   * snapshot. A device reading it replays only the files after these.
    */
   upTo: z.record(z.string(), z.number().int().nonnegative()).default({}),
   songs: z.array(CloudSongSchema),
   tags: z.array(CloudTagSchema),
   playlists: z.array(CloudPlaylistSchema),
+  /**
+   * Tags made twice under one name, on two devices before either heard of
+   * the other: the second uid, and the tag it was folded into. A late change
+   * that names the second uid still finds its tag.
+   */
+  aliases: z.record(UidSchema, UidSchema).optional(),
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 

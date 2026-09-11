@@ -1,5 +1,10 @@
 import { Router } from 'express'
-import { CloudConnectSchema, CloudSignInSchema, type CloudStatus } from '@selfmp3/shared'
+import {
+  CloudConnectSchema,
+  CloudSignInCodeSchema,
+  CloudSignInSchema,
+  type CloudStatus,
+} from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { CloudError } from '../cloud/store.js'
 import { HttpError } from '../http/errors.js'
@@ -61,6 +66,14 @@ export function cloudRoutes(container: Container): Router {
   router.delete(
     '/cloud/signin',
     route({}, (): CloudStatus => container.cloudSync.cancelSignIn()),
+  )
+
+  /** The code Google's sign-in ended with, to claim the session with. */
+  router.post(
+    '/cloud/signin/code',
+    route({ body: CloudSignInCodeSchema }, ({ body }): Promise<CloudStatus> =>
+      explain(() => container.cloudSync.enterSignInCode(body.code)),
+    ),
   )
 
   /** Connect a bucket to the signed-in Google account, through the doorman. */

@@ -377,6 +377,10 @@ export const api = {
 
   cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
 
+  /** The code Google's sign-in ended with, which claims the session. */
+  cloudSignInCode: (code: string) =>
+    request('POST', '/api/cloud/signin/code', CloudStatusSchema, { code }),
+
   cloudConnectStorage: (input: CloudConnect) =>
     request('PUT', '/api/cloud/storage', CloudStatusSchema, input),
 

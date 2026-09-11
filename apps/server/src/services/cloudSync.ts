@@ -146,7 +146,7 @@ export class CloudSyncService {
   /** Signed in through the doorman: the session, and what it last said about the account. */
   #session: DoormanSession | null = null
   /** A sign-in started from this Mac that Google has not finished yet. */
-  #signIn: { attempt: string; until: number } | null = null
+  #signIn: { attempt: string; until: number; needsCode: boolean } | null = null
   #signInTimer: NodeJS.Timeout | null = null
   /** Bumped on every connect and disconnect, so a pass for an old bucket stops. */
   #generation = 0
@@ -321,7 +321,11 @@ export class CloudSyncService {
       throw new CloudError('other', 'No doorman is set up for this Mac to sign in through.')
     }
     this.#stopSignIn()
-    this.#signIn = { attempt, until: this.#now().getTime() + SIGN_IN_TIMEOUT_MS }
+    this.#signIn = {
+      attempt,
+      until: this.#now().getTime() + SIGN_IN_TIMEOUT_MS,
+      needsCode: false,
+    }
     this.#scheduleSignInPoll(0)
     return this.status()
   }
@@ -329,6 +333,33 @@ export class CloudSyncService {
   cancelSignIn(): CloudStatus {
     this.#stopSignIn()
     return this.status()
+  }
+
+  /**
+   * The code the doorman showed once Google had signed you in: what turns
+   * the attempt into a session (packages/shared/src/schemas/doorman.ts). A
+   * wrong one ends the attempt, and signing in starts again. Throws
+   * `CloudError`.
+   */
+  async enterSignInCode(code: string): Promise<CloudStatus> {
+    const signIn = this.#signIn
+    if (!signIn || !this.#doorman) {
+      throw new CloudError('other', 'That sign-in is over. Start it again.')
+    }
+    try {
+      const result = await this.#doorman.claim(signIn.attempt, code)
+      if (result.status !== 'signed-in') {
+        throw new CloudError('other', 'Google has not finished signing you in yet.')
+      }
+      if (this.#signIn === signIn) this.#stopSignIn()
+      this.#logger.info('signed in to the cloud', { account: result.me.email })
+      this.#adoptAccount(result.token, result.me)
+      return this.status()
+    } catch (error) {
+      // The doorman forgets an attempt a wrong code was tried against.
+      if (this.#signIn === signIn) this.#stopSignIn()
+      throw error
+    }
   }
 
   /** Wait for a sign-in to finish or give up. For tests. */
@@ -366,10 +397,18 @@ export class CloudSyncService {
       this.#signIn = null
       return
     }
+    // Google has finished and the code is on its way: nothing to ask until it comes.
+    if (signIn.needsCode) {
+      this.#scheduleSignInPoll(this.#signInPollMs)
+      return
+    }
     try {
       const result = await this.#doorman.claim(signIn.attempt)
       if (this.#signIn !== signIn) return
-      if (result.status === 'signed-in') {
+      if (result.status === 'code') {
+        this.#signIn = { ...signIn, needsCode: true }
+      } else if (result.status === 'signed-in') {
+        // A doorman from before sign-in codes.
         this.#signIn = null
         this.#logger.info('signed in to the cloud', { account: result.me.email })
         this.#adoptAccount(result.token, result.me)
@@ -379,7 +418,7 @@ export class CloudSyncService {
       // Google takes its time and networks drop: keep asking until the deadline.
       this.#logger.debug('sign-in not claimed yet', { message: message(error) })
     }
-    if (this.#signIn === signIn) this.#scheduleSignInPoll(this.#signInPollMs)
+    if (this.#signIn?.attempt === signIn.attempt) this.#scheduleSignInPoll(this.#signInPollMs)
   }
 
   #stopSignIn(): void {
@@ -461,6 +500,7 @@ export class CloudSyncService {
         ? { email: session.email, name: session.name, picture: session.picture }
         : null,
       signingIn: this.#signIn !== null,
+      signInNeedsCode: this.#signIn?.needsCode ?? false,
       connected: store !== null,
       target: store ? this.#target : null,
       deviceId: store ? this.#deviceId() : null,

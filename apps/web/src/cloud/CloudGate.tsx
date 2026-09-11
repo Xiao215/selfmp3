@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { CloudConnect } from '@selfmp3/shared'
+import { SignInCodeSchema, formatSignInCode, type CloudConnect } from '@selfmp3/shared'
 import { BrandMark, X } from '../components/Icons.js'
 import { DOORMAN_URL } from '../lib/platform.js'
 import { queryKeys } from '../lib/queries.js'
@@ -43,8 +43,11 @@ import { BucketFields } from './BucketFields.js'
  * depends on the device: the same tab on a computer; on an iPhone home-screen
  * app, a sheet that opened over the app, with storage of its own. So the app
  * remembers the attempt before it leaves, and asks the doorman about it when
- * it loads and whenever it comes back to the front — and a page that lands
- * back here without remembering it (the sheet) just says to go back.
+ * it loads and whenever it comes back to the front. What claims the session
+ * is the code the doorman shows once Google is done — never the attempt
+ * alone, so a sign-in link someone else sent you gets them nothing. Coming
+ * back to the page that started it, the code is in the address and nothing
+ * needs typing; the sheet shows the code to take back to the app instead.
  */
 
 type Gate =
@@ -52,7 +55,8 @@ type Gate =
   | { readonly kind: 'no-doorman' }
   | { readonly kind: 'signed-out'; readonly message: string | null }
   | { readonly kind: 'waiting' }
-  | { readonly kind: 'returned-elsewhere' }
+  | { readonly kind: 'enter-code'; readonly error: string | null }
+  | { readonly kind: 'returned-elsewhere'; readonly code: string | null }
   | { readonly kind: 'needs-storage'; readonly session: CloudSession }
   | { readonly kind: 'ready'; readonly session: CloudSession }
 
@@ -71,12 +75,47 @@ export function useCloudAccount(): CloudAccount | null {
 
 const POLL_MS = 2_000
 
+const WRONG_CODE = 'That wasn’t the code shown after signing in. Sign in again.'
+
 function gateFor(session: CloudSession): Gate {
   return session.me.storage ? { kind: 'ready', session } : { kind: 'needs-storage', session }
 }
 
+/** The code the doorman put in the address on the way back, if it did. */
+function returnedCode(hash: string): string | null {
+  const raw = /(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(hash)?.[1]
+  if (raw === undefined) return null
+  const parsed = SignInCodeSchema.safeParse(raw)
+  return parsed.success ? parsed.data : null
+}
+
 export function CloudGate({ children }: { children: ReactNode }) {
   const [gate, setGate] = useState<Gate>({ kind: 'loading' })
+
+  /** Claim the session with the code, or say why not. */
+  const claimWith = useCallback(async (code: string): Promise<void> => {
+    const pending = pendingSignIn()
+    if (!pending) {
+      setGate({ kind: 'signed-out', message: 'The sign-in took too long. Try again.' })
+      return
+    }
+    try {
+      const outcome = await claimSignIn(pending.attempt, code)
+      if (outcome.status === 'signed-in') setGate(gateFor(outcome.session))
+      else
+        setGate({ kind: 'enter-code', error: 'Google hasn’t finished yet. Try again in a moment.' })
+    } catch (error) {
+      if (error instanceof DoormanError && error.code === 'wrong_code') {
+        clearPendingSignIn()
+        setGate({ kind: 'signed-out', message: WRONG_CODE })
+      } else {
+        setGate({
+          kind: 'enter-code',
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  }, [])
 
   // Where things stand on arrival: signed in, coming back from Google, or not.
   useEffect(() => {
@@ -84,8 +123,10 @@ export function CloudGate({ children }: { children: ReactNode }) {
       setGate({ kind: 'no-doorman' })
       return
     }
-    const returned = /(?:^|[#&])signin=([0-9a-f]{32})/.exec(window.location.hash)?.[1] ?? null
-    if (returned) {
+    const hash = window.location.hash
+    const code = returnedCode(hash)
+    const cameBack = /(?:^|[#&])signin-code=/.test(hash)
+    if (cameBack) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
     let cancelled = false
@@ -108,14 +149,15 @@ export function CloudGate({ children }: { children: ReactNode }) {
         return
       }
       const pending = pendingSignIn()
-      if (pending) setGate({ kind: 'waiting' })
-      else if (returned) setGate({ kind: 'returned-elsewhere' })
+      if (pending && code) await claimWith(code)
+      else if (pending) setGate({ kind: 'waiting' })
+      else if (cameBack) setGate({ kind: 'returned-elsewhere', code })
       else setGate({ kind: 'signed-out', message: null })
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [claimWith])
 
   // Waiting for Google: ask now, every couple of seconds, and on coming back.
   useEffect(() => {
@@ -130,8 +172,10 @@ export function CloudGate({ children }: { children: ReactNode }) {
         return
       }
       try {
-        const session = await claimSignIn(pending.attempt)
-        if (session && !cancelled) setGate(gateFor(session))
+        const outcome = await claimSignIn(pending.attempt)
+        if (cancelled) return
+        if (outcome.status === 'code') setGate({ kind: 'enter-code', error: null })
+        else if (outcome.status === 'signed-in') setGate(gateFor(outcome.session))
       } catch {
         // Offline or the doorman is busy: the next check will tell.
       }
@@ -180,6 +224,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
           gate={gate}
           onConnected={session => setGate(gateFor(session))}
           onSignOut={() => void signOut()}
+          onCode={code => void claimWith(code)}
           onCancel={() => {
             clearPendingSignIn()
             setGate({ kind: 'signed-out', message: null })
@@ -194,11 +239,13 @@ function GateBody({
   gate,
   onConnected,
   onSignOut,
+  onCode,
   onCancel,
 }: {
   gate: Gate
   onConnected: (session: CloudSession) => void
   onSignOut: () => void
+  onCode: (code: string) => void
   onCancel: () => void
 }) {
   switch (gate.kind) {
@@ -215,9 +262,16 @@ function GateBody({
       )
 
     case 'returned-elsewhere':
-      return (
+      return gate.code ? (
+        <>
+          <p className="panel-lead">
+            You&rsquo;re signed in with Google. Go back to self.mp3 and enter this code:
+          </p>
+          <p className="cloud-gate-code">{formatSignInCode(gate.code)}</p>
+        </>
+      ) : (
         <p className="panel-lead">
-          You&rsquo;re signed in. Go back to self.mp3 — it picks the sign-in up from here.
+          You&rsquo;re signed in with Google. Go back to self.mp3 and enter the code it asks for.
         </p>
       )
 
@@ -235,6 +289,9 @@ function GateBody({
           </div>
         </>
       )
+
+    case 'enter-code':
+      return <EnterCode error={gate.error} onCode={onCode} onCancel={onCancel} />
 
     case 'signed-out':
       return (
@@ -261,6 +318,69 @@ function GateBody({
         <ConnectStorage session={gate.session} onConnected={onConnected} onSignOut={onSignOut} />
       )
   }
+}
+
+/** Google finished somewhere else: the code it ended with, typed in here. */
+function EnterCode({
+  error,
+  onCode,
+  onCancel,
+}: {
+  error: string | null
+  onCode: (code: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState('')
+  const [sending, setSending] = useState(false)
+  const parsed = SignInCodeSchema.safeParse(value)
+
+  useEffect(() => setSending(false), [error])
+
+  return (
+    <form
+      className="cloud-gate-form"
+      onSubmit={event => {
+        event.preventDefault()
+        if (!parsed.success) return
+        setSending(true)
+        onCode(parsed.data)
+      }}
+    >
+      <p className="panel-lead">
+        Signed in with Google. Enter the code it showed when it finished — it proves this is the
+        device you signed in for.
+      </p>
+      <input
+        className="input cloud-gate-code-input"
+        aria-label="Sign-in code"
+        placeholder="XXXX-XXXX"
+        autoComplete="one-time-code"
+        autoCapitalize="characters"
+        spellCheck={false}
+        maxLength={12}
+        value={value}
+        onChange={event => setValue(event.target.value)}
+        autoFocus
+      />
+      {error && (
+        <p className="notice notice-error" role="alert">
+          <span>{error}</span>
+        </p>
+      )}
+      <div className="cloud-gate-actions">
+        <button
+          type="submit"
+          className="button button-primary"
+          disabled={!parsed.success || sending}
+        >
+          Sign in
+        </button>
+        <button type="button" className="button" onClick={onCancel}>
+          <X size={15} /> Cancel
+        </button>
+      </div>
+    </form>
+  )
 }
 
 function ConnectStorage({

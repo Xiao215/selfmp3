@@ -526,6 +526,7 @@ export function useCloudActions() {
     disconnect: useMutation({ mutationFn: () => api.cloudDisconnect(), onSuccess }),
     signIn: useMutation({ mutationFn: (attempt: string) => api.cloudSignIn(attempt), onSuccess }),
     cancelSignIn: useMutation({ mutationFn: () => api.cloudCancelSignIn(), onSuccess }),
+    enterCode: useMutation({ mutationFn: (code: string) => api.cloudSignInCode(code), onSuccess }),
     connectStorage: useMutation({
       mutationFn: (input: CloudConnect) => api.cloudConnectStorage(input),
       onSuccess,

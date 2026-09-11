@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { HLC_PATTERN } from '../hlc.js'
 import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
+import { SignInCodeSchema } from './doorman.js'
 import { SongFeaturesSchema } from './features.js'
 import { PlaylistKindSchema } from './playlist.js'
 import {
@@ -241,6 +242,10 @@ export const CloudSignInSchema = z.object({
 })
 export type CloudSignIn = z.infer<typeof CloudSignInSchema>
 
+/** The code the doorman showed once Google signed you in (doorman.ts): what claims the session. */
+export const CloudSignInCodeSchema = z.object({ code: SignInCodeSchema })
+export type CloudSignInCode = z.infer<typeof CloudSignInCodeSchema>
+
 export const CloudAccountSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
@@ -258,6 +263,8 @@ export const CloudStatusSchema = z.object({
   account: CloudAccountSchema.nullable(),
   /** Waiting for Google to finish a sign-in started from this Mac. */
   signingIn: z.boolean(),
+  /** Google has finished; the code it showed is wanted, to claim the session. */
+  signInNeedsCode: z.boolean().default(false),
   /** A bucket is in use: connected directly, or belonging to the signed-in account. */
   connected: z.boolean(),
   /** Where it is connected to. The key itself is never sent back. */

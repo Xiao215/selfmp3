@@ -79,6 +79,20 @@ describe('DoormanClient', () => {
     })
   })
 
+  it('claims with the code Google’s sign-in ended with, and passes a refusal on', async () => {
+    let tries = 0
+    const { client, calls } = stand(() => {
+      tries++
+      if (tries === 1) return json({ status: 'code' })
+      if (tries === 2) return json({ status: 'signed-in', token: 't'.repeat(43), me: ME })
+      return json({ error: 'That isn’t the code shown after signing in.', code: 'wrong_code' }, 403)
+    })
+    expect(await client.claim('b'.repeat(32))).toEqual({ status: 'code' })
+    expect((await client.claim('b'.repeat(32), '4F7K2QXM')).status).toBe('signed-in')
+    expect(calls[1]?.body).toBe(JSON.stringify({ attempt: 'b'.repeat(32), code: '4F7K2QXM' }))
+    await expect(client.claim('b'.repeat(32), 'AAAAAAAA')).rejects.toThrow(/isn’t the code/)
+  })
+
   it('sends the session with every signed-in request', async () => {
     const { client, calls } = stand(() => json(ME))
     await client.me('session-token')

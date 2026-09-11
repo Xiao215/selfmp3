@@ -19,8 +19,9 @@ import { BASE, DOORMAN_URL } from '../platform.js'
  * Signing in leaves the app for Google's page and comes back. An iPhone
  * home-screen app opens that page in a sheet of its own, whose storage is
  * not the app's — so the attempt is remembered here before leaving, and only
- * the app that remembers it claims the session. The sheet, landing back on
- * the app's address, just says to go back.
+ * the app that remembers it claims the session. What claims it is the code
+ * the doorman shows once Google has signed you in: read from the address on
+ * coming back, or typed in where the page opened somewhere else.
  */
 
 export const SESSION_KEY = 'cloud-session'
@@ -105,7 +106,9 @@ export function clearPendingSignIn(): void {
  * is brought back to the front, if the page opened somewhere else.
  */
 export function beginSignIn(): void {
-  const attempt = newUid()
+  // Only ever from the platform's cryptographic source: an attempt someone
+  // could guess is a session someone could claim.
+  const attempt = newUid(bytes => crypto.getRandomValues(bytes))
   const pending: PendingSignIn = { attempt, until: Date.now() + ATTEMPT_LIFETIME_MS }
   try {
     localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
@@ -116,21 +119,27 @@ export function beginSignIn(): void {
   window.location.assign(`${DOORMAN_URL}/v1/auth/start?${params.toString()}`)
 }
 
+export type ClaimOutcome =
+  | { readonly status: 'pending' }
+  | { readonly status: 'code' }
+  | { readonly status: 'signed-in'; readonly session: CloudSession }
+
 /**
- * Ask the doorman whether Google has finished. Resolves to the session once
- * it has — keeping it — or null while it has not.
+ * Ask the doorman how a sign-in stands — `pending` until Google has finished,
+ * then `code` — or, with the code it showed, claim the session and keep it.
+ * A wrong code throws (`wrong_code`), and the attempt is over.
  */
-export async function claimSignIn(attempt: string): Promise<CloudSession | null> {
+export async function claimSignIn(attempt: string, code?: string): Promise<ClaimOutcome> {
   const response = await doormanFetch(null, '/v1/auth/claim', {
     method: 'POST',
-    json: { attempt },
+    json: code === undefined ? { attempt } : { attempt, code },
   })
   const result = DoormanClaimResultSchema.parse(await response.json())
-  if (result.status === 'pending') return null
+  if (result.status !== 'signed-in') return result
   const session: CloudSession = { doormanUrl: DOORMAN_URL, token: result.token, me: result.me }
   await saveSession(session)
   clearPendingSignIn()
-  return session
+  return { status: 'signed-in', session }
 }
 
 /** What the doorman says about the account now; the stored session follows it. */

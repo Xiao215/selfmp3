@@ -780,17 +780,36 @@ describe('CloudSyncService', () => {
       readonly finished = new Map<string, string>()
       readonly accounts = new Map<string, DoormanMe>()
       readonly signedOut: string[] = []
+      /** attempt → the code shown once Google finished, for a doorman that asks for one. */
+      readonly codes = new Map<string, string>()
       meFailure: CloudError | null = null
 
-      finish(attempt: string, token: string, storage: DoormanMe['storage'] = null): void {
+      finish(
+        attempt: string,
+        token: string,
+        storage: DoormanMe['storage'] = null,
+        code?: string,
+      ): void {
         this.accounts.set(token, { email: 'me@example.com', name: 'Me', picture: null, storage })
         this.finished.set(attempt, token)
+        if (code) this.codes.set(attempt, code)
       }
 
-      claim(attempt: string): Promise<DoormanClaimResult> {
+      claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
         const token = this.finished.get(attempt)
         const me = token ? this.accounts.get(token) : undefined
-        if (!token || !me) return Promise.resolve({ status: 'pending' })
+        if (!token || !me) {
+          return code === undefined
+            ? Promise.resolve({ status: 'pending' })
+            : Promise.reject(new CloudError('other', 'wrong code'))
+        }
+        const wanted = this.codes.get(attempt)
+        if (wanted !== undefined && code === undefined) return Promise.resolve({ status: 'code' })
+        if (wanted !== undefined && code !== wanted) {
+          // A wrong code ends the attempt.
+          this.finished.delete(attempt)
+          return Promise.reject(new CloudError('other', 'That isn’t the code. Start again.'))
+        }
         this.finished.delete(attempt)
         return Promise.resolve({ status: 'signed-in', token, me })
       }
@@ -880,6 +899,47 @@ describe('CloudSyncService', () => {
       await service.whenSignedIn()
       await service.whenIdle()
     }
+
+    it('asks for the code Google’s sign-in ended with, and claims the session with it', async () => {
+      const doorman = new FakeDoorman()
+      const service = withDoorman(doorman)
+
+      service.beginSignIn(ATTEMPT)
+      doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
+      for (let tries = 0; tries < 100 && !service.status().signInNeedsCode; tries++) {
+        await new Promise(resolve => setTimeout(resolve, 2))
+      }
+      // Starting the attempt was not enough: without the code, no session.
+      expect(service.status()).toMatchObject({
+        signingIn: true,
+        signInNeedsCode: true,
+        account: null,
+      })
+
+      await service.enterSignInCode('4F7K2QXM')
+      await service.whenIdle()
+      expect(service.status()).toMatchObject({
+        signingIn: false,
+        signInNeedsCode: false,
+        account: { email: 'me@example.com' },
+        connected: true,
+      })
+    })
+
+    it('ends the sign-in on a wrong code, and says so', async () => {
+      const doorman = new FakeDoorman()
+      const service = withDoorman(doorman)
+
+      service.beginSignIn(ATTEMPT)
+      doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
+      for (let tries = 0; tries < 100 && !service.status().signInNeedsCode; tries++) {
+        await new Promise(resolve => setTimeout(resolve, 2))
+      }
+      await expect(service.enterSignInCode('AAAAAAAA')).rejects.toThrow(/isn’t the code/)
+      expect(service.status()).toMatchObject({ signingIn: false, account: null, connected: false })
+      // And the right code afterwards finds nothing to claim.
+      await expect(service.enterSignInCode('4F7K2QXM')).rejects.toThrow(/Start it again/)
+    })
 
     it('waits for Google, then publishes to the bucket that belongs to the account', async () => {
       addSong('A - One', 'one')

@@ -42,3 +42,27 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The code Google's sign-in ended with: read off one screen, typed into another. */
+.cloud-gate-code {
+  margin: 0.25rem 0 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-align: center;
+  user-select: all;
+}
+
+.cloud-gate-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cloud-gate-code-input {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}

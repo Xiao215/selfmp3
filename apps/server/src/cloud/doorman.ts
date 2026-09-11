@@ -45,8 +45,14 @@ export class DoormanClient {
     return `${this.url}/v1/auth/start?${params.toString()}`
   }
 
-  async claim(attempt: string): Promise<DoormanClaimResult> {
-    const response = await this.request('POST', '/v1/auth/claim', { json: { attempt } })
+  /**
+   * How a sign-in stands, or with the code the doorman showed, the session.
+   * A wrong code throws, and the doorman forgets the attempt.
+   */
+  async claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
+    const response = await this.request('POST', '/v1/auth/claim', {
+      json: code === undefined ? { attempt } : { attempt, code },
+    })
     return DoormanClaimResultSchema.parse(await response.json())
   }
 

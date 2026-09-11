@@ -23,6 +23,12 @@ import {
   unfoldedLogKeys,
 } from './cloud.js'
 import { CloudSnapshotSchema, CloudSongSchema, UidSchema } from './schemas/cloud.js'
+import {
+  DoormanClaimRequestSchema,
+  SignInCodeSchema,
+  formatSignInCode,
+  normalizeSignInCode,
+} from './schemas/doorman.js'
 import type { SmartRules } from './schemas/smart.js'
 
 const SHA = 'ab'.repeat(32)
@@ -137,6 +143,32 @@ describe('log files', () => {
       logKey('web-bbbb', 2),
       logKey('web-bbbb', 3),
     ])
+  })
+})
+
+describe('sign-in codes', () => {
+  it('read back however they are typed', () => {
+    for (const typed of ['4F7K2QXM', '4f7k-2qxm', ' 4F7K 2QXM ']) {
+      expect(SignInCodeSchema.parse(typed)).toBe('4F7K2QXM')
+    }
+    // I and L are 1, O is 0: the letters Crockford's alphabet leaves out.
+    expect(normalizeSignInCode('ilo0-abcd')).toBe('1100ABCD')
+    expect(formatSignInCode('4f7k2qxm')).toBe('4F7K-2QXM')
+  })
+
+  it('are refused when they cannot be one', () => {
+    for (const typed of ['', '4F7K2QX', '4F7K2QXMM', '4F7K2QXU', '4F7K#QXM']) {
+      expect(SignInCodeSchema.safeParse(typed).success).toBe(false)
+    }
+  })
+
+  it('go with a claim only when there is one', () => {
+    expect(DoormanClaimRequestSchema.parse({ attempt: 'a'.repeat(32) })).toEqual({
+      attempt: 'a'.repeat(32),
+    })
+    expect(DoormanClaimRequestSchema.parse({ attempt: 'a'.repeat(32), code: '4f7k-2qxm' })).toEqual(
+      { attempt: 'a'.repeat(32), code: '4F7K2QXM' },
+    )
   })
 })
 

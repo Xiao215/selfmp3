@@ -1,5 +1,12 @@
-import { useState } from 'react'
-import { formatBytes, formatRelative, newUid, type CloudStatus } from '@selfmp3/shared'
+import { useEffect, useState } from 'react'
+import {
+  SignInCodeSchema,
+  formatBytes,
+  formatRelative,
+  formatSignInCode,
+  newUid,
+  type CloudStatus,
+} from '@selfmp3/shared'
 import { useCloudActions, useCloudStatus } from '../lib/queries.js'
 import { appPath } from '../lib/platform.js'
 import { Refresh, Trash, X } from '../components/Icons.js'
@@ -61,13 +68,15 @@ export function CloudSettings() {
         <h2>Cloud</h2>
         <span className="hint">{status ? stateLabel(status) : ''}</span>
       </header>
+      <SignInReturn />
       {body}
     </section>
   )
 }
 
 function stateLabel(status: CloudStatus): string {
-  if (status.signingIn) return 'waiting for Google'
+  if (status.signingIn)
+    return status.signInNeedsCode ? 'waiting for the code' : 'waiting for Google'
   switch (status.state) {
     case 'off':
       return status.account ? 'no bucket yet' : 'off'
@@ -87,17 +96,68 @@ function stateLabel(status: CloudStatus): string {
  * the Mac is told to wait for Google to finish.
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }) {
-  const { signIn, cancelSignIn } = useCloudActions()
+  const { signIn, cancelSignIn, enterCode } = useCloudActions()
+  const [code, setCode] = useState('')
+  const parsedCode = SignInCodeSchema.safeParse(code)
 
   const start = (): void => {
     if (!status.doormanUrl) return
-    const attempt = newUid()
+    const attempt = newUid(bytes => crypto.getRandomValues(bytes))
+    // Google's sign-in comes back to this page, in the tab it opened, with
+    // the code that claims the session in the address (see SignInReturn).
     const params = new URLSearchParams({
       attempt,
-      return: `${window.location.origin}${appPath('settings')}#cloud`,
+      return: `${window.location.origin}${appPath('settings')}`,
     })
     window.open(`${status.doormanUrl}/v1/auth/start?${params.toString()}`, '_blank', 'noopener')
     signIn.mutate(attempt)
+  }
+
+  if (status.signingIn && status.signInNeedsCode) {
+    return (
+      <form
+        className="setting-row"
+        onSubmit={event => {
+          event.preventDefault()
+          if (parsedCode.success) enterCode.mutate(parsedCode.data)
+        }}
+      >
+        <span className="setting-label">
+          Enter the sign-in code
+          <span className="setting-hint">
+            Google showed it when it finished. It proves this Mac is the one you signed in for.
+          </span>
+          {enterCode.error && (
+            <span className="notice notice-error" role="alert">
+              <span>{enterCode.error.message}</span>
+            </span>
+          )}
+        </span>
+        <span className="setting-control">
+          <input
+            className="input input-small cloud-code-input"
+            aria-label="Sign-in code"
+            placeholder="XXXX-XXXX"
+            autoComplete="one-time-code"
+            spellCheck={false}
+            maxLength={12}
+            value={code}
+            onChange={event => setCode(event.target.value)}
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="button button-primary"
+            disabled={!parsedCode.success || enterCode.isPending}
+          >
+            Sign in
+          </button>
+          <button type="button" className="button" onClick={() => cancelSignIn.mutate()}>
+            <X size={15} /> Cancel
+          </button>
+        </span>
+      </form>
+    )
   }
 
   if (status.signingIn) {
@@ -147,12 +207,52 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
           </button>
         </span>
       </div>
-      {signIn.error && (
+      {(signIn.error ?? enterCode.error) && (
         <p className="notice notice-error" role="alert">
-          <span>{signIn.error.message}</span>
+          <span>{(signIn.error ?? enterCode.error)?.message}</span>
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * The tab Google's sign-in opened, landing back on this page with the code
+ * that claims the session: hand it to the Mac, which has been waiting for it,
+ * and say this tab is done with. The settings page in the first tab sees the
+ * account appear by itself.
+ */
+function SignInReturn() {
+  const { enterCode } = useCloudActions()
+  const [code] = useState(() => {
+    const raw = /(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(window.location.hash)?.[1]
+    const parsed = raw === undefined ? null : SignInCodeSchema.safeParse(raw)
+    return parsed?.success ? parsed.data : null
+  })
+
+  useEffect(() => {
+    if (!code) return
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    enterCode.mutate(code, {
+      onSuccess: () => {
+        // Closes a tab a script opened; elsewhere the note below says what to do.
+        window.setTimeout(() => window.close(), 1500)
+      },
+    })
+    // Once, on arrival: `code` is read once and never changes.
+  }, [code])
+
+  if (!code) return null
+  return (
+    <p className={`notice ${enterCode.isError ? 'notice-error' : 'notice-good'}`} role="status">
+      <span>
+        {enterCode.isError
+          ? `Signing in didn’t work: ${enterCode.error.message}`
+          : enterCode.isSuccess
+            ? 'Signed in. You can close this tab.'
+            : `Signing in with code ${formatSignInCode(code)}…`}
+      </span>
+    </p>
   )
 }
 

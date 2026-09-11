@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
-import { RomanizationService, toLyricLines } from './romanization.js'
+import { exportedClass, RomanizationService, toLyricLines } from './romanization.js'
 
 /**
  * Alignment is what matters here: every output line must sit under exactly
@@ -37,7 +37,7 @@ describe('toLyricLines', () => {
 
 describe('RomanizationService.romanize', () => {
   it('routes a Chinese song through pinyin, line by line, keeping timestamps', async () => {
-    const result = await service().romanize(
+    const { lyrics: result } = await service().romanize(
       '[ti:夜空]\n[00:01.00]夜空慢慢暗下来\n[00:05.00]oh yeah\n[00:09.00]晚安 夜空',
     )
     expect(result.language).toBe('zh')
@@ -50,7 +50,9 @@ describe('RomanizationService.romanize', () => {
   })
 
   it('routes a Japanese song through romaji — kanji-only lines included, never pinyin', async () => {
-    const result = await service().romanize('桜の風が吹くとき\n遠い記憶\n\nEnglish line')
+    const { lyrics: result } = await service().romanize(
+      '桜の風が吹くとき\n遠い記憶\n\nEnglish line',
+    )
     expect(result.language).toBe('ja')
     expect(result.synced).toBe(false)
     expect(result.lines.map(line => line.romanized)).toEqual([
@@ -68,9 +70,28 @@ describe('RomanizationService.romanize', () => {
   })
 
   it('leaves a Latin song alone with the same number of lines', async () => {
-    const result = await service().romanize('just words\nmore words')
+    const { lyrics: result } = await service().romanize('just words\nmore words')
     expect(result.language).toBe('none')
     expect(result.lines).toHaveLength(2)
     expect(result.lines.every(line => line.romanized === '')).toBe(true)
+  })
+})
+
+describe('RomanizationService completeness', () => {
+  it('is complete when every engine a line needed was there', async () => {
+    expect((await service().romanize('桜の風が吹くとき')).complete).toBe(true)
+    expect((await service().romanize('just words')).complete).toBe(true)
+  })
+})
+
+describe('exportedClass', () => {
+  class Engine {}
+
+  it('takes the class from how plain Node loads a Babel-built package', () => {
+    expect(exportedClass({ default: { default: Engine } })).toBe(Engine)
+  })
+
+  it('takes the class from how tsx loads the same package', () => {
+    expect(exportedClass({ default: Engine })).toBe(Engine)
   })
 })

@@ -71,9 +71,11 @@ export function lyricsRoutes(container: Container): Router {
       const cached = await container.lyricsCache.read<RomanizedLyrics>(song.id, 'romanized', hash)
       if (cached) return cached
 
-      const result = await container.romanization.romanize(text)
-      await container.lyricsCache.write(song.id, 'romanized', hash, result)
-      return result
+      const { lyrics, complete } = await container.romanization.romanize(text)
+      // A dictionary that failed to load would otherwise be remembered as
+      // "this song has no romaji" for as long as its lyrics stay the same.
+      if (complete) await container.lyricsCache.write(song.id, 'romanized', hash, lyrics)
+      return lyrics
     }),
   )
 

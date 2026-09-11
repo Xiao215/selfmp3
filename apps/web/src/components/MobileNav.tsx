@@ -17,12 +17,12 @@ import { CLOUD } from '../lib/platform.js'
 const TABS = [
   { to: '/', end: true, label: 'Library', Icon: Music, needsMac: false },
   { to: '/playlists', end: false, label: 'Playlists', Icon: ListMusic, needsMac: false },
-  { to: '/import', end: false, label: 'Import', Icon: Download, needsMac: true },
+  { to: '/import', end: false, label: 'Import', Icon: Download, needsMac: false },
   { to: '/stats', end: false, label: 'Stats', Icon: BarChart, needsMac: true },
   { to: '/settings', end: false, label: 'Settings', Icon: Settings, needsMac: false },
 ] as const
 
-/** Built for the web there is no Mac to import on or count plays: those tabs wait. */
+/** Built for the web there is no Mac to count plays on: that tab waits. */
 const SHOWN_TABS = TABS.filter(tab => !CLOUD || !tab.needsMac)
 
 export function MobileNav() {

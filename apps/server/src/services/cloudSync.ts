@@ -41,6 +41,7 @@ import type { TagRepository } from '../repositories/tags.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { ImportRepository } from '../repositories/imports.js'
 import type { SyncRepository } from '../repositories/sync.js'
+import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
@@ -113,6 +114,8 @@ export interface CloudSyncDeps {
   /** Other devices' changes: where this Mac keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
+  /** Links other devices asked to import: how each is going goes in every snapshot. */
+  readonly importRequests?: ImportRequestRepository
   /** How a bucket client is made for a connection. Tests hand in a memory bucket. */
   readonly openStore?: (connection: CloudConnection) => CloudStore
   /** The doorman to sign in through; empty or absent for none. */
@@ -911,14 +914,17 @@ export class CloudSyncService {
 
   /** Write a snapshot, unless it would say exactly what the last one did. */
   async #publishNow(store: CloudStore): Promise<void> {
-    const { cloud, songs, tags, playlists, sync } = this.#deps
+    const { cloud, songs, tags, playlists, sync, importRequests } = this.#deps
     const deviceId = this.#deviceId()
     const writtenAt = this.#now()
+    // A request whose songs have all finished says so from now on.
+    importRequests?.settle()
 
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
       upTo: sync?.cursors() ?? {},
+      imports: importRequests?.recent() ?? [],
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),

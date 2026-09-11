@@ -66,3 +66,55 @@
   text-align: center;
   text-transform: uppercase;
 }
+
+/* Importing from the web app: a link box, and what became of each link. */
+.cloud-import-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.cloud-import-form .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.cloud-imports {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cloud-import {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+}
+
+.cloud-import-titles {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.cloud-import-titles strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-import-titles span {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.cloud-import.is-failed .cloud-import-titles span {
+  color: var(--danger, #f87171);
+  opacity: 1;
+}

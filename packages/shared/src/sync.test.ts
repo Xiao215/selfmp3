@@ -431,6 +431,55 @@ describe('playlists', () => {
   })
 })
 
+describe('asking for a link to be imported', () => {
+  const REQUEST = uid(0xe1)
+  const asked: Change = {
+    type: 'importRequested',
+    hlc: at(1, 'iphone-0b7d44a1'),
+    uid: REQUEST,
+    url: 'https://music.youtube.com/watch?v=abc',
+    tagUids: [],
+    playlistUid: null,
+  }
+
+  it('waits for a device that can fetch it, saying who asked and when', () => {
+    const library = replay([asked, { ...asked, hlc: at(5, 'iphone-0b7d44a1') }])
+    expect([...library.imports.values()]).toEqual([
+      {
+        uid: REQUEST,
+        url: 'https://music.youtube.com/watch?v=abc',
+        requestedBy: 'iphone-0b7d44a1',
+        requestedAt: toSqliteTime(1_789_000_001_000),
+        state: 'waiting',
+        title: null,
+        songUids: [],
+        error: null,
+        updatedAt: toSqliteTime(1_789_000_001_000),
+      },
+    ])
+  })
+
+  it('can be called off until it is done', () => {
+    const cancelled = replay([asked, { type: 'importCancelled', hlc: at(2), uid: REQUEST }])
+    expect(cancelled.imports.get(REQUEST)?.state).toBe('cancelled')
+
+    // Once the Mac has said it is done, calling it off changes nothing.
+    const done = replay([asked], {
+      ...snapshot(),
+      imports: [
+        {
+          ...replay([asked]).imports.get(REQUEST)!,
+          state: 'done',
+          songUids: [SONG_A],
+          title: 'A song',
+        },
+      ],
+    })
+    expect(applyChange(done, { type: 'importCancelled', hlc: at(3), uid: REQUEST })).toBe(false)
+    expect(done.imports.get(REQUEST)?.state).toBe('done')
+  })
+})
+
 describe('reordering', () => {
   it('puts named songs first and keeps the rest in their order, ignoring strangers', () => {
     expect(reordered(['a', 'b', 'c', 'd'], ['c', 'x', 'a', 'c'])).toEqual(['c', 'a', 'b', 'd'])

@@ -10,6 +10,7 @@ import {
   type Tag,
 } from '@selfmp3/shared'
 import type { CloudSongState } from '../repositories/cloud.js'
+import type { ImportRequest } from '../repositories/importRequests.js'
 import type { StampRow } from '../repositories/sync.js'
 
 /**
@@ -38,6 +39,8 @@ export interface SnapshotInput {
   readonly aliases?: ReadonlyMap<string, string>
   /** How far into each device's log this library has read. */
   readonly upTo?: Readonly<Record<string, number>>
+  /** Links other devices asked to import lately, and how each went. */
+  readonly imports?: readonly ImportRequest[]
 }
 
 type Stamps = Record<string, string>
@@ -157,6 +160,21 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
     }),
     playlists,
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
+    ...(input.imports && input.imports.length > 0
+      ? {
+          imports: input.imports.map(request => ({
+            uid: request.uid,
+            url: request.url,
+            requestedBy: request.requestedBy,
+            requestedAt: request.requestedAt,
+            state: request.state,
+            title: request.title,
+            songUids: [...request.songUids],
+            error: request.error,
+            updatedAt: request.updatedAt,
+          })),
+        }
+      : {}),
   })
 }
 

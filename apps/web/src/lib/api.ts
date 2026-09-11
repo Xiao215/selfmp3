@@ -56,6 +56,11 @@ import {
 import { z } from 'zod'
 import { CLOUD, appPath } from './platform.js'
 import { CloudRouteError, cloudRequest } from './cloud/routes.js'
+import {
+  ImportRequestListSchema,
+  ImportRequestViewSchema,
+  type CloudImportRequest,
+} from './cloud/schemas.js'
 
 /**
  * The typed API client.
@@ -376,6 +381,14 @@ export const api = {
     request('POST', '/api/cloud/signin', CloudStatusSchema, { attempt }),
 
   cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
+
+  /** Links asked of the Mac, through the bucket: the web app's own imports (lib/cloud). */
+  cloudImports: () => request('GET', '/api/cloud/imports', ImportRequestListSchema),
+
+  requestCloudImport: (input: CloudImportRequest) =>
+    request('POST', '/api/cloud/imports', ImportRequestViewSchema, input),
+
+  cancelCloudImport: (uid: string) => request('DELETE', `/api/cloud/imports/${uid}`, OkSchema),
 
   /** The code Google's sign-in ended with, which claims the session. */
   cloudSignInCode: (code: string) =>

@@ -175,6 +175,31 @@ export const CloudPlaylistSchema = z.object({
 export type CloudPlaylist = z.infer<typeof CloudPlaylistSchema>
 
 /**
+ * A link some device asked to import, and how it went (docs/SYNC.md). Only a
+ * device that can fetch — the Mac, with yt-dlp — works on it; what it says
+ * here is how every device, the one that asked included, finds out.
+ */
+export const CloudImportSchema = z.object({
+  uid: UidSchema,
+  url: z.string(),
+  /** The device that asked, and when. */
+  requestedBy: z.string(),
+  requestedAt: z.string(),
+  /**
+   * `waiting` until a device that can fetch has looked at it, `working` while
+   * its songs download, then `done` (with the songs it added), `failed` (with
+   * why) or `cancelled`.
+   */
+  state: z.enum(['waiting', 'working', 'done', 'failed', 'cancelled']),
+  /** What the link turned out to be: a song's title, or a playlist's. */
+  title: z.string().nullable(),
+  songUids: z.array(UidSchema),
+  error: z.string().nullable(),
+  updatedAt: z.string(),
+})
+export type CloudImport = z.infer<typeof CloudImportSchema>
+
+/**
  * The whole library at one moment: `snapshots/<time>-<device>.json`.
  *
  * Lists only songs whose audio is in the bucket. A song still uploading is not
@@ -198,6 +223,8 @@ export const CloudSnapshotSchema = z.object({
    * that names the second uid still finds its tag.
    */
   aliases: z.record(UidSchema, UidSchema).optional(),
+  /** Links asked for from any device in the last week, and how each went. */
+  imports: z.array(CloudImportSchema).optional(),
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 

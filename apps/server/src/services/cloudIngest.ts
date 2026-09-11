@@ -4,6 +4,7 @@ import {
   fromCloudRules,
   hlcTime,
   hlcWins,
+  parseHlc,
   toSqliteTime,
   type Change,
   type CloudSmartRules,
@@ -12,6 +13,7 @@ import {
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import type { Logger } from '../logger.js'
+import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { StatsRepository } from '../repositories/stats.js'
@@ -36,6 +38,8 @@ export interface IngestResult {
   readonly applied: number
   /** Songs another device removed. Their files go too, once the rows have. */
   readonly removed: readonly { readonly id: number; readonly path: string }[]
+  /** Links other devices asked this Mac to import, seen for the first time. */
+  readonly requested: number
 }
 
 export class CloudIngest {
@@ -45,6 +49,7 @@ export class CloudIngest {
   readonly #playlists: PlaylistRepository
   readonly #stats: StatsRepository
   readonly #sync: SyncRepository
+  readonly #requests: ImportRequestRepository | null
   readonly #clock: SyncClock
   readonly #logger: Logger
 
@@ -55,6 +60,8 @@ export class CloudIngest {
     playlists: PlaylistRepository
     stats: StatsRepository
     sync: SyncRepository
+    /** Where link requests go; without it they are left for a Mac that has one. */
+    requests?: ImportRequestRepository
     clock: SyncClock
     logger: Logger
   }) {
@@ -64,6 +71,7 @@ export class CloudIngest {
     this.#playlists = deps.playlists
     this.#stats = deps.stats
     this.#sync = deps.sync
+    this.#requests = deps.requests ?? null
     this.#clock = deps.clock
     this.#logger = deps.logger.child('ingest')
   }
@@ -81,12 +89,16 @@ export class CloudIngest {
   apply(changes: readonly Change[], alongside: () => void = () => undefined): IngestResult {
     const removed: { id: number; path: string }[] = []
     let applied = 0
+    let requested = 0
     this.#db.transaction(() => {
       for (const change of [...changes].sort(compareChanges)) {
         this.#clock.observe(change.hlc)
         try {
           // Nested, so a change that fails rolls back to here and no further.
-          if (this.#db.transaction(() => this.#applyOne(change, removed))()) applied++
+          if (this.#db.transaction(() => this.#applyOne(change, removed))()) {
+            applied++
+            if (change.type === 'importRequested') requested++
+          }
         } catch (error) {
           this.#logger.warn(`could not apply a ${change.type} change from another device`, {
             uid: change.uid,
@@ -96,7 +108,7 @@ export class CloudIngest {
       }
       alongside()
     })()
-    return { applied, removed }
+    return { applied, removed, requested }
   }
 
   #applyOne(change: Change, removed: { id: number; path: string }[]): boolean {
@@ -255,6 +267,21 @@ export class CloudIngest {
         this.#dated(playlist, change.hlc)
         return true
       }
+
+      case 'importRequested': {
+        if (!this.#requests) return false
+        return this.#requests.record({
+          uid: change.uid,
+          url: change.url,
+          tagUids: change.tagUids,
+          playlistUid: change.playlistUid,
+          requestedBy: parseHlc(change.hlc)?.device ?? 'unknown',
+          requestedAt: toSqliteTime(hlcTime(change.hlc)),
+        })
+      }
+
+      case 'importCancelled':
+        return this.#requests?.cancel(change.uid, toSqliteTime(hlcTime(change.hlc))) ?? false
 
       case 'playlistOrdered': {
         const playlist = this.#sync.playlist(change.uid)

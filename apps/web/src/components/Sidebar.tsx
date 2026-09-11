@@ -114,11 +114,9 @@ export function Sidebar({
           <ListMusic size={17} /> Playlists
         </NavLink>
         {/* Built for the web there is no Mac to import on or count plays. */}
-        {!CLOUD && (
-          <NavLink to="/import" className="nav-item">
-            <Download size={17} /> Import
-          </NavLink>
-        )}
+        <NavLink to="/import" className="nav-item">
+          <Download size={17} /> Import
+        </NavLink>
         {!CLOUD && (
           <NavLink to="/stats" className="nav-item">
             <BarChart size={17} /> Stats
@@ -224,11 +222,7 @@ export function Sidebar({
               key={tag.id}
               tag={tag}
               filter={
-                selectedTags.has(tag.id)
-                  ? 'include'
-                  : excludedTags.has(tag.id)
-                    ? 'exclude'
-                    : 'off'
+                selectedTags.has(tag.id) ? 'include' : excludedTags.has(tag.id) ? 'exclude' : 'off'
               }
               onInclude={() => onToggleTag(tag.id)}
               onExclude={() => onExcludeTag(tag.id)}
@@ -238,9 +232,7 @@ export function Sidebar({
           {tags.length === 0 && !adding && (
             <div className="tag-empty">
               <Tag size={16} />
-              <p className="hint">
-                No tags yet. Tags are how you find things later — try “chill”.
-              </p>
+              <p className="hint">No tags yet. Tags are how you find things later — try “chill”.</p>
               <button type="button" className="link-button" onClick={() => setAdding(true)}>
                 Add your first tag
               </button>
@@ -354,7 +346,9 @@ function SidebarTagRow({
         className={`tag-row-action tag-row-exclude ${filter === 'exclude' ? 'is-on' : ''}`}
         onClick={onExclude}
         aria-pressed={filter === 'exclude'}
-        aria-label={filter === 'exclude' ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
+        aria-label={
+          filter === 'exclude' ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`
+        }
         data-tip={filter === 'exclude' ? 'Stop hiding' : 'Hide these songs'}
       >
         <Minus size={13} />

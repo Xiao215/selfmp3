@@ -37,6 +37,8 @@ export interface ImportUploader {
   readonly connected: boolean
   /** Put the song in the bucket and publish a snapshot that has it. */
   uploadSong(songId: number): Promise<void>
+  /** A job has finished, one way or another: the next snapshot says how. */
+  kick(): void
 }
 
 /**
@@ -197,9 +199,11 @@ export class ImportQueueService {
         error: null,
       })
       this.#logger.info('imported', { songId, title: job.title })
+      this.#cloud.kick()
     } catch (error) {
       if (controller.signal.aborted) {
         this.#imports.update(job.id, { status: 'cancelled', step: 'finished', error: null })
+        this.#cloud.kick()
         return
       }
 
@@ -229,6 +233,7 @@ export class ImportQueueService {
 
       this.#logger.error('import failed', { message, url: job.url })
       this.#imports.update(job.id, { status: 'error', step: 'finished', error: message })
+      this.#cloud.kick()
     }
   }
 

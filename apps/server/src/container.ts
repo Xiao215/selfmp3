@@ -36,6 +36,9 @@ import { CloudRepository } from './repositories/cloud.js'
 import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
 import { CloudIngest } from './services/cloudIngest.js'
+import { CloudImportService } from './services/cloudImports.js'
+import { ImportRequestRepository } from './repositories/importRequests.js'
+import { buildImportPreview } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { removeFolderIfEmpty } from './services/libraryLayout.js'
 
@@ -89,6 +92,8 @@ export interface Container {
   readonly cloudSync: CloudSyncService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
   readonly edits: LocalEdits
+  /** Links other devices asked this Mac to import. */
+  readonly cloudImports: CloudImportService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -120,6 +125,7 @@ export function createContainer(config: Config): Container {
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
+  const importRequests = new ImportRequestRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
@@ -138,6 +144,7 @@ export function createContainer(config: Config): Container {
     playlists,
     stats,
     sync: syncRepo,
+    requests: importRequests,
     clock,
     logger,
   })
@@ -155,6 +162,7 @@ export function createContainer(config: Config): Container {
     logger,
     sync: syncRepo,
     ingest,
+    importRequests,
     doormanUrl: config.doormanUrl,
   })
 
@@ -192,6 +200,16 @@ export function createContainer(config: Config): Container {
     covers,
     ytdlp,
     cloud: cloudSync,
+    logger,
+  })
+
+  const cloudImports = new CloudImportService({
+    requests: importRequests,
+    imports,
+    sync: syncRepo,
+    resolve: url => buildImportPreview({ ytdlp, songs, youtubeMusicArtists }, url),
+    kickQueue: () => importQueue.kick(),
+    changed: () => cloudSync.kick(),
     logger,
   })
 
@@ -250,8 +268,9 @@ export function createContainer(config: Config): Container {
   // what they changed itself, so this only moves the version clients watch —
   // and takes away the files of songs removed elsewhere. Left in the library
   // folder, the next scan would add them back as new songs.
-  cloudSync.onIngested = async ({ removed }) => {
+  cloudSync.onIngested = async ({ removed, requested }) => {
     version++
+    if (requested > 0) void cloudImports.process()
     for (const song of removed) {
       try {
         await storage.delete(song.path).catch(() => undefined)
@@ -318,6 +337,7 @@ export function createContainer(config: Config): Container {
     devices,
     cloudSync,
     edits,
+    cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
     close: () => {

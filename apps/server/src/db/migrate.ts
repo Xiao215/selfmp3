@@ -402,6 +402,33 @@ const MIGRATIONS: readonly Migration[] = [
       ) WITHOUT ROWID;
     `,
   },
+  {
+    name: 'sync: links other devices ask to import',
+    sql: `
+      -- A link a device that cannot fetch asked this Mac to import, and how
+      -- it went: every device reads that in the snapshot (docs/SYNC.md). Its
+      -- import jobs point back at it, and once they are all finished the
+      -- outcome is kept here, so clearing the jobs does not lose it.
+      CREATE TABLE import_requests (
+        uid          TEXT PRIMARY KEY,
+        url          TEXT NOT NULL,
+        tag_uids     TEXT NOT NULL DEFAULT '[]',
+        playlist_uid TEXT,
+        requested_by TEXT NOT NULL,
+        requested_at TEXT NOT NULL,
+        state        TEXT NOT NULL DEFAULT 'waiting'
+                     CHECK (state IN ('waiting','working','done','failed','cancelled')),
+        title        TEXT,
+        song_uids    TEXT NOT NULL DEFAULT '[]',
+        error        TEXT,
+        updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_import_requests_time ON import_requests(requested_at);
+
+      ALTER TABLE import_jobs ADD COLUMN request_uid TEXT;
+      CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
+    `,
+  },
 ]
 
 /**

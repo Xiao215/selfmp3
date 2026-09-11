@@ -257,6 +257,56 @@ describe('editing playlists', () => {
   })
 })
 
+describe('importing', () => {
+  it('asks the Mac for a link, with its tags and playlist, and shows it waiting', () => {
+    const d = device()
+    const made = edits.requestImport(d.ctx(), {
+      url: 'https://music.youtube.com/watch?v=abc',
+      tagIds: [d.idOf('tags', '2')],
+      playlistId: d.idOf('playlists', '7'),
+    })
+    expect(made.changes).toEqual([
+      {
+        type: 'importRequested',
+        hlc: expect.any(String),
+        uid: made.uid,
+        url: 'https://music.youtube.com/watch?v=abc',
+        tagUids: [uid('2')],
+        playlistUid: uid('7'),
+      },
+    ])
+    const view = d.apply(made.changes)
+    expect(view.imports).toEqual([
+      expect.objectContaining({ uid: made.uid, state: 'waiting', requestedBy: 'iphone-0b7d44a1' }),
+    ])
+  })
+
+  it('calls a link off, but not one that has finished', () => {
+    const d = device()
+    const made = edits.requestImport(d.ctx(), {
+      url: 'https://youtu.be/x',
+      tagIds: [],
+      playlistId: null,
+    })
+    d.apply(made.changes)
+    const view = d.apply(edits.cancelImport(d.ctx(), made.uid))
+    expect(view.imports[0]?.state).toBe('cancelled')
+    expect(() => edits.cancelImport(d.ctx(), made.uid)).toThrow(/finished already/)
+    expect(() => edits.cancelImport(d.ctx(), 'f'.repeat(32))).toThrow(CloudRouteError)
+  })
+
+  it('will not put imports into a smart playlist', () => {
+    const d = device()
+    expect(() =>
+      edits.requestImport(d.ctx(), {
+        url: 'https://youtu.be/x',
+        tagIds: [],
+        playlistId: d.idOf('playlists', '8'),
+      }),
+    ).toThrow(/manual playlist/)
+  })
+})
+
 describe('replaying', () => {
   it('puts this device’s changes on top of other devices’, in stamp order', () => {
     const early = new HlcClock('web-3f9a2c1d', { now: () => 1_000 }).tick()

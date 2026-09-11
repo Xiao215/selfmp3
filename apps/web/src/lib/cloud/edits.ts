@@ -317,6 +317,49 @@ export function removeFromPlaylist(
   })
 }
 
+// --- Importing -------------------------------------------------------------------
+
+/**
+ * A link for the Mac to import — this device cannot download it — with the
+ * tags and the manual playlist to put what it brings in.
+ */
+export function requestImport(
+  ctx: EditContext,
+  input: { url: string; tagIds: readonly number[]; playlistId: number | null },
+): { changes: Change[]; uid: string } {
+  const playlistUid =
+    input.playlistId === null
+      ? null
+      : manual(ctx, input.playlistId, 'imported songs go into a manual playlist').uid
+  const uid = make(ctx)
+  return {
+    changes: [
+      {
+        type: 'importRequested',
+        hlc: ctx.stamp(),
+        uid,
+        url: input.url,
+        tagUids: input.tagIds.flatMap(id => {
+          const tag = ctx.view.uids.tags.get(id)
+          return tag ? [tag] : []
+        }),
+        playlistUid,
+      },
+    ],
+    uid,
+  }
+}
+
+/** Called off, while it is still waiting for the Mac or downloading there. */
+export function cancelImport(ctx: EditContext, uid: string): Change[] {
+  const request = ctx.view.imports.find(item => item.uid === uid)
+  if (!request) throw notFound('import')
+  if (request.state !== 'waiting' && request.state !== 'working') {
+    throw new CloudRouteError(409, 'that import has finished already', 'conflict')
+  }
+  return [{ type: 'importCancelled', hlc: ctx.stamp(), uid }]
+}
+
 export function reorderPlaylist(
   ctx: EditContext,
   id: number,

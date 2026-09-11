@@ -58,17 +58,14 @@ function main(): void {
   const autoScanMinutes = container.settings.get().autoScanMinutes
   let scanTimer: NodeJS.Timeout | null = null
   if (autoScanMinutes > 0) {
-    scanTimer = setInterval(
-      () => {
-        void container.scanner
-          .scan()
-          .then(result => {
-            if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
-          })
-          .catch(() => undefined)
-      },
-      autoScanMinutes * 60_000,
-    )
+    scanTimer = setInterval(() => {
+      void container.scanner
+        .scan()
+        .then(result => {
+          if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
+        })
+        .catch(() => undefined)
+    }, autoScanMinutes * 60_000)
     // Do not hold the process open just for the timer.
     scanTimer.unref()
     logger.info('automatic rescan enabled', { everyMinutes: autoScanMinutes })
@@ -119,9 +116,15 @@ function startLibrary(container: Container): void {
   container.importQueue.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
   container.libraryWatcher.apply()
+  // Publishing, and any links other devices asked for while this Mac was off.
+  const startCloud = (): void => {
+    container.cloudSync.start()
+    void container.cloudImports.process()
+  }
+
   if (!config.scanOnBoot) {
     void container.lyricsIndex.backfill()
-    container.cloudSync.start()
+    startCloud()
   }
 
   if (config.scanOnBoot) {
@@ -140,7 +143,7 @@ function startLibrary(container: Container): void {
         })
       })
       // Publishing reads what the scan found, so it waits for it — however it went.
-      .finally(() => container.cloudSync.start())
+      .finally(startCloud)
   }
 }
 

@@ -122,6 +122,28 @@ export const PlaylistOrderedSchema = z.object({
   songUids: z.array(UidSchema).max(5000),
 })
 
+/**
+ * A link to import, from a device that cannot fetch it itself — an iPhone,
+ * a browser. The Mac picks it up, downloads it with yt-dlp, and says how it
+ * went in its next snapshot's `imports`.
+ */
+export const ImportRequestedSchema = z.object({
+  type: z.literal('importRequested'),
+  ...at,
+  url: z
+    .string()
+    .trim()
+    .url()
+    .max(2000)
+    .refine(url => /^https?:\/\//i.test(url), 'not a web address'),
+  /** Tags to put on what it imports, and a manual playlist to add it to. */
+  tagUids: z.array(UidSchema).max(50).default([]),
+  playlistUid: UidSchema.nullable().default(null),
+})
+
+/** Asked for, then thought better of, before the Mac got to it. */
+export const ImportCancelledSchema = z.object({ type: z.literal('importCancelled'), ...at })
+
 export const ChangeSchema = z.discriminatedUnion('type', [
   SongEditedSchema,
   SongTaggedSchema,
@@ -136,6 +158,8 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   PlaylistRemovedSchema,
   PlaylistSongSchema,
   PlaylistOrderedSchema,
+  ImportRequestedSchema,
+  ImportCancelledSchema,
 ])
 export type Change = z.infer<typeof ChangeSchema>
 export type ChangeType = Change['type']

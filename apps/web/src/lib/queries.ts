@@ -25,6 +25,7 @@ import type {
   MigrateMatchJob,
 } from '@selfmp3/shared'
 import { api, ApiError } from './api.js'
+import type { CloudImportRequest, ImportRequestList } from './cloud/schemas.js'
 import { saveLibrarySnapshot, loadLibrarySnapshot } from '../offline/mirror.js'
 
 /**
@@ -37,6 +38,7 @@ import { saveLibrarySnapshot, loadLibrarySnapshot } from '../offline/mirror.js'
  */
 
 export const queryKeys = {
+  cloudImports: ['cloud-imports'] as const,
   library: ['library'] as const,
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
@@ -531,5 +533,34 @@ export function useCloudActions() {
       mutationFn: (input: CloudConnect) => api.cloudConnectStorage(input),
       onSuccess,
     }),
+  }
+}
+
+/**
+ * The web app's imports: links asked of the Mac through the bucket. Looked at
+ * again every half minute while one is still waiting or downloading.
+ */
+export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
+  return useQuery({
+    queryKey: queryKeys.cloudImports,
+    queryFn: () => api.cloudImports(),
+    refetchInterval: query =>
+      query.state.data?.imports.some(item => item.state === 'waiting' || item.state === 'working')
+        ? 30_000
+        : false,
+  })
+}
+
+export function useCloudImportActions() {
+  const queryClient = useQueryClient()
+  const onSuccess = (): void => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.cloudImports })
+  }
+  return {
+    request: useMutation({
+      mutationFn: (input: CloudImportRequest) => api.requestCloudImport(input),
+      onSuccess,
+    }),
+    cancel: useMutation({ mutationFn: (uid: string) => api.cancelCloudImport(uid), onSuccess }),
   }
 }

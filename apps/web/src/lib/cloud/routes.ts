@@ -17,6 +17,7 @@ import {
   SongPatchSchema,
   UpdatePlaylistSchema,
   describeSmartRules,
+  extractUrls,
   similarSongs,
   smartPlaylistSongs,
   toCloudRules,
@@ -35,6 +36,7 @@ import {
   recordChanges,
 } from './library.js'
 import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
+import { CloudImportRequestSchema } from './schemas.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
 
 export { CloudRouteError } from './errors.js'
@@ -61,7 +63,7 @@ type Handler = (input: {
   body: unknown
 }) => Promise<unknown>
 
-/** Routes as `METHOD /path`, `:id` for a number. */
+/** Routes as `METHOD /path`: `:id` for a number, `:uid` for a uid. */
 const ROUTES: ReadonlyArray<readonly [string, string, Handler]> = [
   ['GET', '/api/library', async ({ session }) => (await loadCloudLibrary(session)).library],
   ['GET', '/api/library/version', ({ session }) => cloudLibraryVersion(session)],
@@ -335,6 +337,46 @@ const ROUTES: ReadonlyArray<readonly [string, string, Handler]> = [
       }))
     },
   ],
+  // --- Importing, by asking the Mac --------------------------------------------------
+
+  [
+    'GET',
+    '/api/cloud/imports',
+    async ({ session }) => ({ imports: (await loadCloudLibrary(session)).imports }),
+  ],
+  [
+    'POST',
+    '/api/cloud/imports',
+    ({ session, body }) => {
+      const input = CloudImportRequestSchema.parse(body)
+      // A share sheet sends the link inside other text; the first one is it.
+      const url = extractUrls(input.url).find(link => /^https?:\/\//i.test(link))
+      if (!url || url.length > 2000) {
+        throw new CloudRouteError(400, 'That doesn’t look like a link.', 'bad_request')
+      }
+      return recordChanges(session, ctx => {
+        const { changes, uid } = edits.requestImport(ctx, { ...input, url })
+        return {
+          changes,
+          answer: view => {
+            const made = view.imports.find(item => item.uid === uid)
+            if (!made) throw notFound('import')
+            return made
+          },
+        }
+      })
+    },
+  ],
+  [
+    'DELETE',
+    '/api/cloud/imports/:uid',
+    ({ session, params }) =>
+      recordChanges(session, ctx => ({
+        changes: edits.cancelImport(ctx, params[0] ?? ''),
+        answer: () => ({ ok: true }),
+      })),
+  ],
+
   [
     'POST',
     '/api/playlists/preview',
@@ -404,8 +446,9 @@ function match(pattern: string, pathname: string): string[] | null {
   if (want.length !== have.length) return null
   const params: string[] = []
   for (let i = 0; i < want.length; i++) {
-    if (want[i] === ':id') {
-      if (!/^\d+$/.test(have[i] ?? '')) return null
+    if (want[i] === ':id' || want[i] === ':uid') {
+      const pattern = want[i] === ':id' ? /^\d+$/ : /^[0-9a-f]{32}$/
+      if (!pattern.test(have[i] ?? '')) return null
       params.push(have[i] ?? '')
     } else if (want[i] !== have[i]) {
       return null

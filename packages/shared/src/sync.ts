@@ -1,7 +1,13 @@
 import { MISSING_TAG_UID } from './cloud.js'
-import { hlcTime, hlcWins } from './hlc.js'
+import { hlcTime, hlcWins, parseHlc } from './hlc.js'
 import { CLOUD_FORMAT } from './schemas/cloud.js'
-import type { CloudPlaylist, CloudSnapshot, CloudSong, CloudTag } from './schemas/cloud.js'
+import type {
+  CloudImport,
+  CloudPlaylist,
+  CloudSnapshot,
+  CloudSong,
+  CloudTag,
+} from './schemas/cloud.js'
 import { SONG_FIELDS } from './schemas/song.js'
 import {
   ChangeSchema,
@@ -37,6 +43,8 @@ export interface SyncLibrary {
   readonly playlists: Map<string, CloudPlaylist>
   /** A tag made twice under one name: the second uid, and the tag it was folded into. */
   readonly aliases: Map<string, string>
+  /** Links asked to be imported, and how each went. */
+  readonly imports: Map<string, CloudImport>
   /** Plays and skips counted during this replay, by id. */
   readonly counted: Set<string>
 }
@@ -47,6 +55,7 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     tags: new Map(snapshot?.tags.map(tag => [tag.uid, tag])),
     playlists: new Map(snapshot?.playlists.map(playlist => [playlist.uid, playlist])),
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
+    imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     counted: new Set(),
   }
 }
@@ -58,6 +67,7 @@ export function copySyncLibrary(library: SyncLibrary): SyncLibrary {
     tags: new Map(library.tags),
     playlists: new Map(library.playlists),
     aliases: new Map(library.aliases),
+    imports: new Map(library.imports),
     counted: new Set(library.counted),
   }
 }
@@ -75,6 +85,7 @@ export function snapshotOf(
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
+    ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }
 }
 
@@ -293,6 +304,34 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
           : playlist.songUids.filter(uid => uid !== change.songUid),
         songStamps: { ...playlist.songStamps, [change.songUid]: change.hlc },
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
+      })
+      return true
+    }
+
+    case 'importRequested': {
+      if (library.imports.has(change.uid)) return false
+      const when = toSqliteTime(hlcTime(change.hlc))
+      library.imports.set(change.uid, {
+        uid: change.uid,
+        url: change.url,
+        requestedBy: parseHlc(change.hlc)?.device ?? 'unknown',
+        requestedAt: when,
+        state: 'waiting',
+        title: null,
+        songUids: [],
+        error: null,
+        updatedAt: when,
+      })
+      return true
+    }
+
+    case 'importCancelled': {
+      const request = library.imports.get(change.uid)
+      if (!request || (request.state !== 'waiting' && request.state !== 'working')) return false
+      library.imports.set(request.uid, {
+        ...request,
+        state: 'cancelled',
+        updatedAt: laterTime(request.updatedAt, change.hlc),
       })
       return true
     }

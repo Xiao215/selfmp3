@@ -20,6 +20,7 @@ import { ToastHost } from './components/Toast.js'
 import { TooltipHost } from './components/Tooltip.js'
 import { DevicesProvider, LoneDevicesProvider } from './devices/DevicesProvider.js'
 import { CloudGate } from './cloud/CloudGate.js'
+import { CloudImportView } from './cloud/CloudImportView.js'
 import { CLOUD } from './lib/platform.js'
 import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
@@ -232,7 +233,7 @@ function Shell() {
               <Route path="/settings" element={<SettingsView />} />
               {/* These need the Mac: built for the web, they are not there yet. */}
               {!CLOUD && <Route path="/inbox" element={<TagInboxView />} />}
-              {!CLOUD && <Route path="/import" element={<ImportView />} />}
+              <Route path="/import" element={CLOUD ? <CloudImportView /> : <ImportView />} />
               {!CLOUD && <Route path="/import/migrate" element={<MigrateView />} />}
               {!CLOUD && <Route path="/stats" element={<StatsView />} />}
               {!CLOUD && <Route path="/stats/wrapped" element={<WrappedView />} />}

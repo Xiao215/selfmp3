@@ -9,7 +9,7 @@ lyrics — or, for a song with no words, something to look at instead.
 |---|---|
 | The artwork, title and artist in the player bar | Opens **Stage**; again closes it |
 | `L`, or the mic button in the bar | Opens straight into **Focus**; again closes it |
-| `F`, the **Focus** / **Stage** button, or double-clicking the lyrics or the visual | Switches between the two |
+| `F`, or the **Focus** / **Stage** button | Switches between the two |
 | `Esc` or the ⌄ in the corner | Steps back one level: Focus → Stage → closed |
 | `Q` or the queue button, with the page open | Shows the page's **Up next** tab |
 

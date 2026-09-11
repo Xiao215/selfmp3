@@ -12,9 +12,6 @@ import type { useSongLyrics } from './useSongLyrics.js'
  * line under it saying why: an instrumental just says so; a song whose
  * lyrics were not found offers to look again, to write them, or to mark it
  * instrumental so it stops asking. A song never opens onto an empty page.
- *
- * Double-clicking the lyrics or the visual toggles Focus, wherever this is
- * shown with a Focus to go to.
  */
 export function SongWords({
   song,
@@ -22,14 +19,12 @@ export function SongWords({
   mode,
   syncing,
   onSyncingChange,
-  onToggleFocus,
 }: {
   song: Song
   lyrics: ReturnType<typeof useSongLyrics>
   mode: 'stage' | 'focus' | 'phone'
   syncing: boolean
   onSyncingChange: (syncing: boolean) => void
-  onToggleFocus?: () => void
 }) {
   const visual = useVisualKind(song)
   const patchSong = usePatchSong()
@@ -65,7 +60,6 @@ export function SongWords({
           parsed={words.parsed}
           roman={words.roman}
           mode={mode}
-          onDoubleClick={onToggleFocus}
           onSync={() => onSyncingChange(true)}
         />
       </div>
@@ -74,12 +68,7 @@ export function SongWords({
 
   return (
     <div className={`song-words is-${mode} has-visual`}>
-      <SongVisual
-        song={song}
-        kind={visual.kind}
-        className="song-words-visual"
-        onDoubleClick={onToggleFocus}
-      />
+      <SongVisual song={song} kind={visual.kind} className="song-words-visual" />
       <div className="song-words-status">
         {words.status === 'instrumental' ? (
           <span className="song-words-reason">

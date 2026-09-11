@@ -245,7 +245,6 @@ function PageForSong({
             mode={focus ? 'focus' : 'stage'}
             syncing={syncing}
             onSyncingChange={setSyncing}
-            onToggleFocus={toggleFocus}
           />
         )}
         {shownTab === 'queue' && <QueuePanel onClose={() => onTabChange('lyrics')} />}

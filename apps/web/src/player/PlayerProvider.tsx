@@ -357,8 +357,29 @@ export function PlayerProvider({
     [playFrom],
   )
 
-  const toggle = useCallback(() => void engine.toggle(), [engine])
-  const play = useCallback(() => void engine.play(), [engine])
+  /**
+   * Load the queue's current song if the audio element does not hold it.
+   *
+   * After a reload the queue comes back from storage and the player bar shows
+   * its song, but nothing is in the audio element yet. A bare play() on an
+   * empty element fires "play" and then "waiting" forever — the bar showed a
+   * pause button and a buffering spinner and never made a sound, while the
+   * row's own play button (which loads first) worked. Returns true when it
+   * started a load, which also starts playback.
+   */
+  const loadCurrentIfNeeded = useCallback((): boolean => {
+    const songId = queueRef.current.items[queueRef.current.index]
+    if (songId === undefined || engine.currentSongId === songId) return false
+    void engine.load(songId, { autoplay: true })
+    return true
+  }, [engine])
+
+  const toggle = useCallback(() => {
+    if (!loadCurrentIfNeeded()) void engine.toggle()
+  }, [engine, loadCurrentIfNeeded])
+  const play = useCallback(() => {
+    if (!loadCurrentIfNeeded()) void engine.play()
+  }, [engine, loadCurrentIfNeeded])
   const pause = useCallback(() => engine.pause(), [engine])
 
   const playQueue = useCallback(
@@ -614,7 +635,8 @@ export function PlayerProvider({
     navigator.mediaSession.playbackState = engineState.playing ? 'playing' : 'paused'
 
     const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
-      ['play', () => void engine.play()],
+      // The lock screen's play resumes a restored queue the same way the bar does.
+      ['play', () => play()],
       ['pause', () => engine.pause()],
       ['previoustrack', () => previous()],
       ['nexttrack', () => next()],
@@ -646,7 +668,7 @@ export function PlayerProvider({
         }
       }
     }
-  }, [current, engineState.playing, engine, next, previous, seek, seekBy])
+  }, [current, engineState.playing, engine, next, previous, seek, seekBy, play])
 
   // Keep the lock-screen scrubber in sync with real playback position.
   useEffect(() => {

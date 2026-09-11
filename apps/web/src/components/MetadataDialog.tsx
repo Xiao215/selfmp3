@@ -29,7 +29,9 @@ const FIELD_LABELS: Record<Field, string> = {
   albumArtist: 'Album artist',
   year: 'Year',
   trackNo: 'Track №',
-  artwork: 'Artwork',
+  // The picture, not a word: "Artwork" next to struck-through text read as
+  // one more text field.
+  artwork: 'Cover',
 }
 
 const SOURCE_LABELS: Record<MetadataCandidate['source'], string> = {
@@ -65,15 +67,30 @@ function diffFields(song: Song, candidate: MetadataCandidate): Diff[] {
   push('albumArtist', song.albumArtist, candidate.albumArtist)
   push('year', song.year, candidate.year)
   push('trackNo', song.trackNo, candidate.trackNo)
+  // Offered whenever the candidate has one: whether it is the same picture as
+  // the song's current cover cannot be known from here, so the row shows both
+  // and lets the eye decide (see `CoverChange`).
   if (candidate.artworkUrl) {
     diffs.push({
       field: 'artwork',
-      current: song.hasArt ? 'has art' : 'none',
-      proposed: SOURCE_LABELS[candidate.source],
+      current: song.hasArt ? 'current cover' : '—',
+      proposed: `cover from ${SOURCE_LABELS[candidate.source]}`,
       value: candidate.artworkUrl,
     })
   }
   return diffs
+}
+
+/**
+ * What starts ticked: every text field the candidate corrects, and the cover
+ * only when the song has none. Replacing a cover that is already there is a
+ * choice to make by looking, not a default — otherwise the same "change" was
+ * offered, ticked, every time the dialog opened.
+ */
+function defaultTicked(song: Song, diffs: readonly Diff[]): Set<Field> {
+  return new Set(
+    diffs.filter(diff => diff.field !== 'artwork' || !song.hasArt).map(diff => diff.field),
+  )
 }
 
 export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => void }) {
@@ -86,12 +103,12 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
 
   const diffs = useMemo(() => (selected ? diffFields(song, selected) : []), [song, selected])
 
-  // Everything a candidate offers starts ticked; the user unticks what they
-  // do not trust. Re-seeded whenever a different candidate is picked.
+  // What a candidate corrects starts ticked; the user unticks what they do
+  // not trust. Re-seeded whenever a different candidate is picked.
   const [ticked, setTicked] = useState<ReadonlySet<Field>>(new Set())
   useEffect(() => {
-    setTicked(new Set(diffs.map(diff => diff.field)))
-  }, [diffs])
+    setTicked(defaultTicked(song, diffs))
+  }, [song, diffs])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -254,9 +271,13 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
                         key={diff.field}
                         role="checkbox"
                         aria-checked={ticked.has(diff.field)}
-                        aria-label={`Apply ${FIELD_LABELS[diff.field].toLowerCase()}: ${
-                          diff.current === '—' ? 'nothing' : diff.current
-                        } becomes ${diff.proposed}`}
+                        aria-label={
+                          diff.field === 'artwork'
+                            ? `${song.hasArt ? 'Replace the cover with the' : 'Add the'} ${diff.proposed}`
+                            : `Apply ${FIELD_LABELS[diff.field].toLowerCase()}: ${
+                                diff.current === '—' ? 'nothing' : diff.current
+                              } becomes ${diff.proposed}`
+                        }
                         className="meta-diff-row"
                         onClick={() => toggle(diff.field)}
                       >
@@ -264,18 +285,26 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
                           {ticked.has(diff.field) && <Check size={12} />}
                         </span>
                         <span className="meta-diff-label">{FIELD_LABELS[diff.field]}</span>
-                        <span className="meta-diff-values">
-                          {diff.current !== '—' && (
-                            <>
-                              <s className="meta-diff-old">{diff.current}</s>
-                              {/* Which way round the change goes, said once. */}
-                              <span className="meta-diff-arrow" aria-hidden="true">
-                                →
-                              </span>
-                            </>
-                          )}
-                          <span className="meta-diff-new">{diff.proposed}</span>
-                        </span>
+                        {diff.field === 'artwork' ? (
+                          <CoverChange
+                            song={song}
+                            url={String(diff.value)}
+                            source={diff.proposed}
+                          />
+                        ) : (
+                          <span className="meta-diff-values">
+                            {diff.current !== '—' && (
+                              <>
+                                <s className="meta-diff-old">{diff.current}</s>
+                                {/* Which way round the change goes, said once. */}
+                                <span className="meta-diff-arrow" aria-hidden="true">
+                                  →
+                                </span>
+                              </>
+                            )}
+                            <span className="meta-diff-new">{diff.proposed}</span>
+                          </span>
+                        )}
                       </button>
                     ))}
                   </>
@@ -287,9 +316,9 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
 
         <footer className="meta-foot">
           {apply.isError && <span className="hint meta-error">{apply.error.message}</span>}
-          {apply.data && !apply.data.artworkSaved && (
+          {apply.data && apply.variables?.input.artworkUrl && !apply.data.artworkSaved && (
             <span className="hint meta-error">
-              Fields saved, but the artwork couldn’t be fetched.
+              Fields saved, but the cover couldn’t be fetched.
             </span>
           )}
           <button type="button" className="button" onClick={onClose}>
@@ -315,13 +344,42 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
   )
 }
 
+/**
+ * The cover change, as pictures: the song's cover now, an arrow, the one on
+ * offer. Two pictures side by side answer "is this even different?" at a
+ * glance, which no label could. Both at full strength — the arrow says which
+ * way the change goes, and a dimmed current cover just looked washed out.
+ */
+function CoverChange({ song, url, source }: { song: Song; url: string; source: string }) {
+  return (
+    <span className="meta-cover-change">
+      {song.hasArt ? (
+        <Cover song={song} size={44} className="meta-cover-thumb" />
+      ) : (
+        <span className="meta-cover-none">No cover</span>
+      )}
+      <span className="meta-diff-arrow" aria-hidden="true">
+        →
+      </span>
+      <CandidateArt url={url} className="meta-cover-thumb" />
+      <span className="meta-cover-source">{source}</span>
+    </span>
+  )
+}
+
 /** A thumbnail that quietly disappears when the remote image is missing. */
-function CandidateArt({ url }: { url: string | undefined }) {
+function CandidateArt({
+  url,
+  className = 'meta-candidate-art',
+}: {
+  url: string | undefined
+  className?: string
+}) {
   const [failed, setFailed] = useState(false)
-  if (!url || failed) return <span className="meta-candidate-art meta-candidate-art-empty" />
+  if (!url || failed) return <span className={`${className} meta-candidate-art-empty`} />
   return (
     <img
-      className="meta-candidate-art"
+      className={className}
       src={url}
       alt=""
       loading="lazy"

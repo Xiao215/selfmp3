@@ -162,7 +162,7 @@
 }
 
 .playlist-row:hover,
-.playlist-row:focus-within {
+.playlist-row:is(:focus-visible, :has(:focus-visible)) {
   background: var(--surface-1);
 }
 

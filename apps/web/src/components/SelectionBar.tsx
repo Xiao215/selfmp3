@@ -10,7 +10,6 @@ import {
 } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useOffline } from '../offline/OfflineProvider.js'
-import { isServerMachine } from '../offline/autoDownload.js'
 import { Popover } from './Menu.js'
 import { Select } from './Select.js'
 import { showToast } from './Toast.js'
@@ -460,9 +459,9 @@ export function SelectionBar({
 
           <div className="popover-divider" />
 
-          {/* Not on the Mac that runs self.mp3: its songs are already on disk,
-              and a browser copy would only double them. */}
-          {cachedCount < count && !isServerMachine() && (
+          {/* Not where the library lives: every song there is already on the
+              device, as a file, and a browser copy would only double it. */}
+          {cachedCount < count && !offline.holdsLibrary && (
             <button
               type="button"
               role="menuitem"
@@ -474,7 +473,7 @@ export function SelectionBar({
             </button>
           )}
 
-          {cachedCount > 0 && (
+          {cachedCount > 0 && !offline.holdsLibrary && (
             <button
               type="button"
               role="menuitem"

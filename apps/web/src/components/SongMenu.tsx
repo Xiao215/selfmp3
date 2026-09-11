@@ -5,7 +5,6 @@ import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
 import { fileManagerName, showInFileManager } from '../lib/fileManager.js'
-import { isServerMachine } from '../offline/autoDownload.js'
 import { showToast } from './Toast.js'
 import {
   CheckSquare,
@@ -74,7 +73,7 @@ export function SongMenu({
   const player = usePlayer()
 
   const cached = offline.isCached(song.id)
-  const onServerMachine = isServerMachine()
+  const onServerMachine = offline.holdsLibrary
 
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
 
@@ -261,9 +260,9 @@ export function SongMenu({
         <Music size={15} /> {song.instrumental ? 'Has lyrics after all' : 'Mark as instrumental'}
       </button>
 
-      {/* Downloading is for devices away from the Mac. On the Mac itself only
-          "Remove download" stays, to clear out a copy made before. */}
-      {(cached || !onServerMachine) && (
+      {/* Downloading is for devices away from the library. Where it lives,
+          every song is already on this device, as a file. */}
+      {!offline.holdsLibrary && (
         <button
           type="button"
           role="menuitem"

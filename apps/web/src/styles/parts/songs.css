@@ -29,28 +29,32 @@
 }
 
 /*
- * Now playing. Hover is already a surface change, so the current row needs a
- * mark hover cannot make: an accent bar down its leading edge, plus the accent
- * title. Both stay while the row is only cued up and not sounding, so the row
- * still says "this is the one" when the transport is paused.
+ * Now playing, in the song's own colour.
+ *
+ * The colour comes from the cover (`--song-color`, set on the row by
+ * useCoverColor) and washes in from the right, where the row is empty — the
+ * cover already fills the left. The equaliser in the number column and the
+ * title take the light version (`--song-tint`). Until the cover has been
+ * read, or for a cover with no colour in it, the app's accent stands in.
+ * All of it stays while the song is paused, so the row still says "this is
+ * the one".
  */
 .song-row.is-current {
-  background: oklch(0.3 0.045 var(--accent-hue) / 0.55);
+  --wash: linear-gradient(
+    270deg,
+    color-mix(in oklch, var(--song-color, var(--accent)) 38%, transparent) 0%,
+    color-mix(in oklch, var(--song-color, var(--accent)) 15%, transparent) 38%,
+    transparent 66%
+  );
+  background: var(--wash);
 }
 
-.song-row.is-current::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  bottom: 5px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
+.song-row.is-current:hover {
+  background: var(--wash), var(--surface-1);
 }
 
 .song-row.is-current .song-title {
-  color: var(--accent);
+  color: var(--song-tint, var(--accent));
 }
 
 .song-row.is-selected {
@@ -93,13 +97,20 @@
   border-radius: var(--radius-sm);
 }
 
+/*
+ * Revealed for the pointer, and for keyboard focus on the row or anything in
+ * it — `:focus-visible`, not `:focus-within`. A clicked button keeps focus
+ * until something else is clicked, so `:focus-within` left the last row you
+ * clicked showing its play button and checkbox long after the pointer left.
+ * The same rule holds for every row's hover controls below.
+ */
 .song-row:hover .song-index-number,
-.song-row:focus-within .song-index-number {
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-index-number {
   display: none;
 }
 
 .song-row:hover .song-index-play,
-.song-row:focus-within .song-index-play {
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-index-play {
   display: flex;
 }
 
@@ -214,7 +225,7 @@
 /*
  * Hover-only controls. An unloved heart, the tag button and the ⋯ are actions,
  * not information — six songs' worth of them turns the list into a grid of
- * grey icons. They fade in for the pointer, for the keyboard (`:focus-within`)
+ * grey icons. They fade in for the pointer, for keyboard focus (see above)
  * and while their own menu is open, and they keep their space in the layout
  * either way so nothing shifts under the cursor.
  */
@@ -228,9 +239,9 @@
 .song-row:hover .song-tag-add,
 .song-row:hover .song-more,
 .song-row:hover .song-love,
-.song-row:focus-within .song-tag-add,
-.song-row:focus-within .song-more,
-.song-row:focus-within .song-love,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-tag-add,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-more,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-love,
 .song-row.is-menu-open .song-tag-add,
 .song-row.is-menu-open .song-more {
   opacity: 1;
@@ -515,8 +526,30 @@
 .equalizer span {
   width: 2.5px;
   border-radius: 1px;
-  background: var(--accent);
+  /* The playing song's own colour where a row or bar has set one. */
+  background: var(--song-tint, var(--accent));
   animation: eq 0.9s ease-in-out infinite;
+}
+
+/* Paused: the bars hold still, low, rather than vanish. */
+.equalizer.is-paused span {
+  animation: none;
+  transform: scaleY(0.45);
+}
+
+/* On a phone, where there is no number column, the bars sit on the cover. */
+.song-art {
+  position: relative;
+}
+
+.song-art-playing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: oklch(0.12 0.02 var(--accent-hue) / 0.55);
+  pointer-events: none;
 }
 
 .equalizer span:nth-child(1) {

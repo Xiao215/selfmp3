@@ -113,8 +113,8 @@ it: a slow aurora for a nocturne, a live spectrum for a big-band chase. See
 [docs/features/now-playing.md](docs/features/now-playing.md).
 
 **Lyrics.** Synced `.lrc` lyrics, click a line to jump there, right-click it to loop it.
-Resolved from a sidecar file, the audio file's own tags, or lrclib.net — and cached to disk
-so they work offline afterwards. Chinese lyrics can show pinyin and Japanese romaji
+Resolved from a sidecar file, the audio file's own tags, YouTube Music's timed lyrics, or
+lrclib.net — and cached to disk so they work offline afterwards. Chinese lyrics can show pinyin and Japanese romaji
 underneath, offline. Songs with no timings can be synced by tapping along, instrumentals
 are remembered as instrumentals, and you can find any song by a line you remember.
 

@@ -1,7 +1,8 @@
 # Lyrics+
 
 Romanization, a timing editor, and search inside lyrics. Everything
-builds on the lyrics the app already resolves (sidecar → embedded tag → lrclib),
+builds on the lyrics the app already resolves (sidecar → embedded tag → YouTube Music →
+lrclib),
 and every derived form comes back **aligned 1:1** with the original lines —
 same order, same count, same timestamps — so the lyrics view just renders
 "line N, then its extras". The lyrics themselves are shown on the song's page; see
@@ -99,7 +100,8 @@ GET /api/songs/:id/lyrics
 - A flagged song with no local lyrics answers `404 instrumental` without
   touching the network. When lrclib is the one saying so, the flag is set first.
   `GET /api/songs/:id/lyrics/romanized` behaves the same way.
-- `?refresh=1` ("look again") always asks lrclib: lyrics found are written as a
+- `?refresh=1` ("look again") always asks online — YouTube Music's timed lyrics, then
+  lrclib: lyrics found are written as a
   sidecar and clear the flag; an instrumental answer sets it and returns
   `404 instrumental`; nothing at all is the usual `404 not_found`.
 - Only lrclib's exact match is believed about a track being instrumental. The

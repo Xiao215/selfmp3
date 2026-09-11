@@ -50,7 +50,7 @@ the same hue as its placeholder cover.
   set from that line's timestamp to the next one's.
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
   only; see [lyrics-plus.md](lyrics-plus.md)). **Sync** opens the timing editor in place,
-  and **Look again** asks lrclib afresh.
+  and **Look again** asks YouTube Music and lrclib afresh.
 - While the page is closed, the current line of a song with timed lyrics rides under the
   artist in the player bar. It only uses lyrics the app already has — it never causes a
   lookup.

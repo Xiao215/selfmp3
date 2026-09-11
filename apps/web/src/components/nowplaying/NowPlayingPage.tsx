@@ -319,7 +319,7 @@ function PageForSong({
             ? 'from your library folder'
             : lyrics.words.data.source === 'embedded'
               ? 'from the file’s tags'
-              : 'from lrclib.net'}
+              : 'found online'}
         </p>
       )}
     </section>

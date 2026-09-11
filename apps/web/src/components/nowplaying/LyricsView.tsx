@@ -12,6 +12,13 @@ const MANUAL_SCROLL_MS = 4_000
 const ANCHOR = 0.4
 /** Matches `activeLineIndex`: a line lights up a moment before it is sung. */
 const LEAD = 0.25
+/**
+ * How long a click on a line waits to find out whether it is the first half
+ * of a double-click, which changes the page rather than the song.
+ */
+const DOUBLE_CLICK_WAIT_MS = 250
+/** A double-click slower than the wait still counts, up to this long after its first click. */
+const SLOW_DOUBLE_CLICK_MS = 600
 
 /**
  * The lyrics themselves, at any of the page's sizes.
@@ -23,8 +30,10 @@ const LEAD = 0.25
  * properties set here, so Stage and Focus share one component and one list,
  * and the change between them is only a class.
  *
- * Right-click a line to loop it: the Practice A–B loop, set from the line's
- * own timestamps.
+ * Click a line to jump to it; right-click it to loop it: the Practice A–B
+ * loop, set from the line's own timestamps. Where a double-click changes the
+ * page, a click waits a moment before jumping, so double-clicking the words
+ * — the natural place to do it — never moves the song.
  */
 export function LyricsView({
   parsed,
@@ -49,6 +58,10 @@ export function LyricsView({
   const [active, setActive] = useState(-1)
   const [menu, setMenu] = useState<number | null>(null)
   const menuAnchor = useRef<HTMLElement | null>(null)
+  // A click waiting to see if a second one follows, and the last jump made,
+  // with where the song was before it, for a double-click slower than the wait.
+  const pendingJump = useRef<number | null>(null)
+  const lastJump = useRef<{ at: number; from: number } | null>(null)
 
   const synced = parsed.synced ? parsed.lines : null
   const clockRef = useRef(clock)
@@ -109,6 +122,43 @@ export function LyricsView({
     lastManualScroll.current = Date.now()
   }
 
+  const cancelPendingJump = (): void => {
+    if (pendingJump.current !== null) window.clearTimeout(pendingJump.current)
+    pendingJump.current = null
+  }
+  useEffect(() => cancelPendingJump, [])
+
+  const jumpTo = (time: number, event: React.MouseEvent): void => {
+    lastManualScroll.current = 0
+    // A keyboard press (detail 0), or nothing a double-click would do.
+    if (!onDoubleClick || event.detail === 0) {
+      transport.seek(time)
+      return
+    }
+    // The second click of a double-click: the double-click handles it.
+    if (event.detail > 1) {
+      cancelPendingJump()
+      return
+    }
+    const clickedAt = Date.now()
+    const from = transport.currentTime
+    cancelPendingJump()
+    pendingJump.current = window.setTimeout(() => {
+      pendingJump.current = null
+      lastJump.current = { at: clickedAt, from }
+      transport.seek(time)
+    }, DOUBLE_CLICK_WAIT_MS)
+  }
+
+  const handleDoubleClick = (): void => {
+    cancelPendingJump()
+    // Slower than the wait, the first click has already jumped: put it back.
+    const jump = lastJump.current
+    if (jump && Date.now() - jump.at < SLOW_DOUBLE_CLICK_MS) transport.seek(jump.from)
+    lastJump.current = null
+    onDoubleClick?.()
+  }
+
   const loopA = player.loopA
   const loopB = player.loopB
   const local = transport.remote === null
@@ -131,7 +181,7 @@ export function LyricsView({
       className={`lyrics-view is-${mode} ${synced ? '' : 'is-untimed'}`}
       onWheel={markManual}
       onTouchMove={markManual}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={onDoubleClick ? handleDoubleClick : undefined}
     >
       <div className="lyrics-view-track">
         {!synced && onSync && (
@@ -188,9 +238,8 @@ export function LyricsView({
               ref={element => {
                 lineRefs.current[index] = element
               }}
-              onClick={() => {
-                lastManualScroll.current = 0
-                if (time !== undefined) transport.seek(time)
+              onClick={event => {
+                if (time !== undefined) jumpTo(time, event)
               }}
               onContextMenu={event => {
                 if (!local) return

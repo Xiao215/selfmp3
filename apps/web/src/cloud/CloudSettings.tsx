@@ -1,14 +1,9 @@
-import { useState, type FormEvent } from 'react'
-import {
-  formatBytes,
-  formatRelative,
-  newUid,
-  parseEndpoint,
-  type CloudConnect,
-  type CloudStatus,
-} from '@selfmp3/shared'
+import { useState } from 'react'
+import { formatBytes, formatRelative, newUid, type CloudStatus } from '@selfmp3/shared'
 import { useCloudActions, useCloudStatus } from '../lib/queries.js'
-import { CloudUpload, Refresh, Trash, X } from '../components/Icons.js'
+import { appPath } from '../lib/platform.js'
+import { Refresh, Trash, X } from '../components/Icons.js'
+import { BucketFields } from './BucketFields.js'
 
 /**
  * The cloud section of Settings (docs/SYNC.md).
@@ -99,7 +94,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
     const attempt = newUid()
     const params = new URLSearchParams({
       attempt,
-      return: `${window.location.origin}/settings#cloud`,
+      return: `${window.location.origin}${appPath('settings')}#cloud`,
     })
     window.open(`${status.doormanUrl}/v1/auth/start?${params.toString()}`, '_blank', 'noopener')
     signIn.mutate(attempt)
@@ -270,41 +265,12 @@ function BucketForm({
   const { connect, connectStorage, disconnect } = useCloudActions()
   const account = status.account
   const action = account ? connectStorage : connect
-  const target = status.target
-  const [endpoint, setEndpoint] = useState(target?.endpoint.replace(/^https:\/\//, '') ?? '')
-  const [region, setRegion] = useState(target?.region ?? '')
-  const [bucket, setBucket] = useState(target?.bucket ?? '')
-  const [prefix, setPrefix] = useState(target?.prefix ?? 'selfmp3')
-  const [keyId, setKeyId] = useState('')
-  const [applicationKey, setApplicationKey] = useState('')
-
-  const parsed = endpoint.trim() ? parseEndpoint(endpoint) : null
-  const needsRegion = parsed !== null && parsed.region === null
-  const complete =
-    parsed !== null &&
-    bucket.trim() !== '' &&
-    keyId.trim() !== '' &&
-    applicationKey.trim() !== '' &&
-    (!needsRegion || region.trim() !== '')
-
-  const submit = (event: FormEvent): void => {
-    event.preventDefault()
-    if (!complete || action.isPending) return
-    const input: CloudConnect = {
-      endpoint,
-      bucket,
-      prefix,
-      keyId,
-      applicationKey,
-      ...(needsRegion ? { region } : {}),
-    }
-    action.mutate(input, { onSuccess: onDone })
-  }
 
   return (
-    <form onSubmit={submit}>
-      <p className="panel-lead">
-        {account ? (
+    <BucketFields
+      initial={status.target}
+      lead={
+        account ? (
           <>
             Signed in as <strong>{account.email}</strong>. Now the bucket that belongs to this
             account — Backblaze B2 is free up to 10 GB: a private bucket, and an application key for
@@ -317,126 +283,18 @@ function BucketForm({
             and edits while this Mac is asleep. Backblaze B2 is free up to 10 GB: create a private
             bucket, then an application key for it with read and write access.
           </>
-        )}
-      </p>
-
-      <label className="setting-row">
-        <span className="setting-label">
-          Endpoint
-          <span className="setting-hint">On the bucket&rsquo;s page in B2.</span>
-        </span>
-        <input
-          className="input setting-input-path"
-          value={endpoint}
-          onChange={event => setEndpoint(event.target.value)}
-          placeholder="s3.us-west-004.backblazeb2.com"
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-          aria-invalid={endpoint.trim() !== '' && parsed === null}
-        />
-      </label>
-
-      {needsRegion && (
-        <label className="setting-row">
-          <span className="setting-label">
-            Region
-            <span className="setting-hint">
-              As your provider names it. For Cloudflare R2 it is <code>auto</code>.
-            </span>
-          </span>
-          <input
-            className="input setting-input-path"
-            value={region}
-            onChange={event => setRegion(event.target.value)}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoComplete="off"
-          />
-        </label>
-      )}
-
-      <label className="setting-row">
-        <span className="setting-label">
-          Bucket
-          <span className="setting-hint">Its name, not its ID.</span>
-        </span>
-        <input
-          className="input setting-input-path"
-          value={bucket}
-          onChange={event => setBucket(event.target.value)}
-          placeholder="selfmp3-yourname"
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-        />
-      </label>
-
-      <label className="setting-row">
-        <span className="setting-label">
-          Folder
-          <span className="setting-hint">Everything goes under this folder in the bucket.</span>
-        </span>
-        <input
-          className="input setting-input-path"
-          value={prefix}
-          onChange={event => setPrefix(event.target.value)}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-        />
-      </label>
-
-      <label className="setting-row">
-        <span className="setting-label">
-          Key ID
-          <span className="setting-hint">
-            {target
-              ? `Currently ${target.keyIdHint} — enter it again, or a new one.`
-              : 'From Application Keys, once you have added one.'}
-          </span>
-        </span>
-        <input
-          className="input setting-input-path"
-          value={keyId}
-          onChange={event => setKeyId(event.target.value)}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-        />
-      </label>
-
-      <label className="setting-row">
-        <span className="setting-label">
-          Application key
-          <span className="setting-hint">
-            {account
-              ? 'B2 shows it once, when the key is made. It goes to the doorman, sealed.'
-              : 'B2 shows it once, when the key is made. It stays on this Mac.'}
-          </span>
-        </span>
-        <input
-          className="input setting-input-path"
-          type="password"
-          value={applicationKey}
-          onChange={event => setApplicationKey(event.target.value)}
-          autoComplete="off"
-        />
-      </label>
-
-      {action.error && (
-        <p className="notice notice-error" role="alert">
-          <span>{action.error.message}</span>
-        </p>
-      )}
-
-      <div className="setting-row">
-        <span className="setting-label">
-          <span className="setting-hint">
-            The key is tried before anything is saved: listed, written to and read back.
-          </span>
-        </span>
-        <span className="setting-control">
+        )
+      }
+      keyNote={
+        account
+          ? 'B2 shows it once, when the key is made. It goes to the doorman, sealed.'
+          : 'B2 shows it once, when the key is made. It stays on this Mac.'
+      }
+      pending={action.isPending}
+      error={action.error?.message ?? null}
+      onSubmit={input => action.mutate(input, { onSuccess: onDone })}
+      actions={
+        <>
           {account && !onCancel && (
             <button
               type="button"
@@ -452,15 +310,8 @@ function BucketForm({
               <X size={15} /> Cancel
             </button>
           )}
-          <button
-            type="submit"
-            className="button button-primary"
-            disabled={!complete || action.isPending}
-          >
-            <CloudUpload size={15} /> {action.isPending ? 'Checking the bucket…' : 'Connect'}
-          </button>
-        </span>
-      </div>
-    </form>
+        </>
+      }
+    />
   )
 }

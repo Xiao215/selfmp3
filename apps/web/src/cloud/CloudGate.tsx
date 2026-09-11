@@ -1,0 +1,362 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import type { CloudConnect } from '@selfmp3/shared'
+import { BrandMark, X } from '../components/Icons.js'
+import { DOORMAN_URL } from '../lib/platform.js'
+import { queryKeys } from '../lib/queries.js'
+import {
+  beginSignIn,
+  claimSignIn,
+  clearPendingSignIn,
+  connectStorage,
+  DoormanError,
+  loadSession,
+  pendingSignIn,
+  refreshSession,
+  signOut as endSession,
+  type CloudSession,
+} from '../lib/cloud/session.js'
+import { forgetCloudLibrary } from '../lib/cloud/library.js'
+import { clearAudioCache } from '../offline/audioCache.js'
+import { clearSnapshot } from '../offline/mirror.js'
+import { BucketFields } from './BucketFields.js'
+
+/**
+ * The web app's front door (docs/SYNC.md): built for the web, there is no Mac
+ * behind it, so nothing else shows until you are signed in with Google and
+ * your account has its bucket.
+ *
+ * Signing in leaves for Google's page and comes back. Where it comes back to
+ * depends on the device: the same tab on a computer; on an iPhone home-screen
+ * app, a sheet that opened over the app, with storage of its own. So the app
+ * remembers the attempt before it leaves, and asks the doorman about it when
+ * it loads and whenever it comes back to the front — and a page that lands
+ * back here without remembering it (the sheet) just says to go back.
+ */
+
+type Gate =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'no-doorman' }
+  | { readonly kind: 'signed-out'; readonly message: string | null }
+  | { readonly kind: 'waiting' }
+  | { readonly kind: 'returned-elsewhere' }
+  | { readonly kind: 'needs-storage'; readonly session: CloudSession }
+  | { readonly kind: 'ready'; readonly session: CloudSession }
+
+interface CloudAccount {
+  readonly session: CloudSession
+  /** Sign out, and forget everything this device kept for the account. */
+  readonly signOut: () => Promise<void>
+}
+
+const CloudAccountContext = createContext<CloudAccount | null>(null)
+
+/** The signed-in account, inside the gate; null anywhere else. */
+export function useCloudAccount(): CloudAccount | null {
+  return useContext(CloudAccountContext)
+}
+
+const POLL_MS = 2_000
+
+function gateFor(session: CloudSession): Gate {
+  return session.me.storage ? { kind: 'ready', session } : { kind: 'needs-storage', session }
+}
+
+export function CloudGate({ children }: { children: ReactNode }) {
+  const [gate, setGate] = useState<Gate>({ kind: 'loading' })
+
+  // Where things stand on arrival: signed in, coming back from Google, or not.
+  useEffect(() => {
+    if (!DOORMAN_URL) {
+      setGate({ kind: 'no-doorman' })
+      return
+    }
+    const returned = /(?:^|[#&])signin=([0-9a-f]{32})/.exec(window.location.hash)?.[1] ?? null
+    if (returned) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+    let cancelled = false
+    void (async () => {
+      const session = await loadSession()
+      if (cancelled) return
+      if (session) {
+        setGate(gateFor(session))
+        // What the doorman says now: a bucket connected elsewhere, or a
+        // session it no longer knows.
+        try {
+          const fresh = await refreshSession(session)
+          if (!cancelled) setGate(gateFor(fresh))
+        } catch (error) {
+          if (!cancelled && error instanceof DoormanError && error.status === 401) {
+            await endSession(session)
+            setGate({ kind: 'signed-out', message: 'Your sign-in expired. Sign in again.' })
+          }
+        }
+        return
+      }
+      const pending = pendingSignIn()
+      if (pending) setGate({ kind: 'waiting' })
+      else if (returned) setGate({ kind: 'returned-elsewhere' })
+      else setGate({ kind: 'signed-out', message: null })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Waiting for Google: ask now, every couple of seconds, and on coming back.
+  useEffect(() => {
+    if (gate.kind !== 'waiting') return
+    let cancelled = false
+    const check = async (): Promise<void> => {
+      const pending = pendingSignIn()
+      if (!pending) {
+        if (!cancelled) {
+          setGate({ kind: 'signed-out', message: 'The sign-in took too long. Try again.' })
+        }
+        return
+      }
+      try {
+        const session = await claimSignIn(pending.attempt)
+        if (session && !cancelled) setGate(gateFor(session))
+      } catch {
+        // Offline or the doorman is busy: the next check will tell.
+      }
+    }
+    void check()
+    const timer = setInterval(() => void check(), POLL_MS)
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') void check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [gate.kind])
+
+  const signOut = useCallback(async (): Promise<void> => {
+    if (gate.kind !== 'ready' && gate.kind !== 'needs-storage') return
+    await endSession(gate.session)
+    // Songs are cached under this device's ids for this account's library;
+    // another account's library would give the same ids to other songs.
+    await Promise.allSettled([clearAudioCache(), clearSnapshot(), forgetCloudLibrary()])
+    window.location.reload()
+  }, [gate])
+
+  const account = useMemo<CloudAccount | null>(
+    () => (gate.kind === 'ready' ? { session: gate.session, signOut } : null),
+    [gate, signOut],
+  )
+
+  if (gate.kind === 'ready' && account) {
+    return <CloudAccountContext.Provider value={account}>{children}</CloudAccountContext.Provider>
+  }
+
+  return (
+    <div className="cloud-gate">
+      <section className="panel cloud-gate-card">
+        <header className="cloud-gate-head">
+          <BrandMark size={34} />
+          <h1>self.mp3</h1>
+        </header>
+        <GateBody
+          gate={gate}
+          onConnected={session => setGate(gateFor(session))}
+          onSignOut={() => void signOut()}
+          onCancel={() => {
+            clearPendingSignIn()
+            setGate({ kind: 'signed-out', message: null })
+          }}
+        />
+      </section>
+    </div>
+  )
+}
+
+function GateBody({
+  gate,
+  onConnected,
+  onSignOut,
+  onCancel,
+}: {
+  gate: Gate
+  onConnected: (session: CloudSession) => void
+  onSignOut: () => void
+  onCancel: () => void
+}) {
+  switch (gate.kind) {
+    case 'loading':
+    case 'ready':
+      return <p className="panel-lead">Loading…</p>
+
+    case 'no-doorman':
+      return (
+        <p className="panel-lead">
+          This copy of the web app is not connected to a doorman yet, so there is no way to sign in.
+          See docs/SYNC.md to set one up.
+        </p>
+      )
+
+    case 'returned-elsewhere':
+      return (
+        <p className="panel-lead">
+          You&rsquo;re signed in. Go back to self.mp3 — it picks the sign-in up from here.
+        </p>
+      )
+
+    case 'waiting':
+      return (
+        <>
+          <p className="panel-lead">
+            Finish signing in with Google. If it opened somewhere else, come back here afterwards.
+          </p>
+          <div className="cloud-gate-actions">
+            <span className="spinner" />
+            <button type="button" className="button" onClick={onCancel}>
+              <X size={15} /> Cancel
+            </button>
+          </div>
+        </>
+      )
+
+    case 'signed-out':
+      return (
+        <>
+          <p className="panel-lead">
+            Your music, from the bucket that belongs to your Google account — on this device,
+            offline, with or without your Mac.
+          </p>
+          {gate.message && (
+            <p className="notice notice-warn">
+              <span>{gate.message}</span>
+            </p>
+          )}
+          <div className="cloud-gate-actions">
+            <button type="button" className="button button-primary" onClick={beginSignIn}>
+              Sign in with Google
+            </button>
+          </div>
+        </>
+      )
+
+    case 'needs-storage':
+      return (
+        <ConnectStorage session={gate.session} onConnected={onConnected} onSignOut={onSignOut} />
+      )
+  }
+}
+
+function ConnectStorage({
+  session,
+  onConnected,
+  onSignOut,
+}: {
+  session: CloudSession
+  onConnected: (session: CloudSession) => void
+  onSignOut: () => void
+}) {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const submit = (input: CloudConnect): void => {
+    setPending(true)
+    setError(null)
+    connectStorage(session, input)
+      .then(next => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+        onConnected(next)
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      })
+      .finally(() => setPending(false))
+  }
+
+  return (
+    <BucketFields
+      lead={
+        <>
+          Signed in as <strong>{session.me.email}</strong>. Connect the bucket that belongs to this
+          account — once, from any device. If your Mac is signed in to the same account, it is the
+          bucket it publishes to.
+        </>
+      }
+      keyNote="B2 shows it once, when the key is made. It goes to the doorman, sealed; no device sees it again."
+      pending={pending}
+      error={error}
+      onSubmit={submit}
+      actions={
+        <button type="button" className="button" onClick={onSignOut}>
+          Sign out
+        </button>
+      }
+    />
+  )
+}
+
+/** Settings → Cloud, in the web build: who is signed in, and where the music comes from. */
+export function CloudAccountSettings() {
+  const account = useCloudAccount()
+  const queryClient = useQueryClient()
+  if (!account) return null
+  const storage = account.session.me.storage
+  const folder = storage
+    ? storage.prefix
+      ? `${storage.bucket}/${storage.prefix}`
+      : storage.bucket
+    : ''
+
+  return (
+    <section className="panel" id="cloud">
+      <header className="panel-head">
+        <h2>Cloud</h2>
+        <span className="hint">signed in</span>
+      </header>
+      <p className="panel-lead">
+        Your library comes from <code>{folder}</code>, the bucket that belongs to your Google
+        account. Your Mac publishes to it; this device reads it and keeps what you download.
+      </p>
+      <div className="setting-row">
+        <span className="setting-label">
+          Google account
+          <span className="setting-hint">Signed in as {account.session.me.email}</span>
+        </span>
+        <span className="setting-control">
+          <button
+            type="button"
+            className="button"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: queryKeys.library })}
+          >
+            Check for new songs
+          </button>
+          <button
+            type="button"
+            className="button button-danger"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Sign out? Songs downloaded to this device are removed; your music stays in the bucket.',
+                )
+              ) {
+                void account.signOut()
+              }
+            }}
+          >
+            Sign out
+          </button>
+        </span>
+      </div>
+    </section>
+  )
+}

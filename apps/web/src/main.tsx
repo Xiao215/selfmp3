@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.js'
+import { BASE, CLOUD, appPath } from './lib/platform.js'
 import './styles/index.css'
 
 /**
@@ -34,7 +35,8 @@ if (!container) throw new Error('#root is missing from index.html')
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* Under /selfmp3/ on GitHub Pages; the router's paths start after it. */}
+      <BrowserRouter basename={BASE.replace(/\/$/, '') || '/'}>
         <App />
       </BrowserRouter>
     </QueryClientProvider>
@@ -51,7 +53,9 @@ createRoot(container).render(
  */
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+    // The web build tells its worker so: only it fetches songs from the bucket.
+    const script = appPath(CLOUD ? 'sw.js?cloud=1' : 'sw.js')
+    navigator.serviceWorker.register(script, { scope: BASE }).catch((error: unknown) => {
       console.warn('service worker registration failed', error)
     })
   })

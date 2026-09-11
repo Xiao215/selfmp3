@@ -18,7 +18,9 @@ import {
 import { CommandPalette } from './components/CommandPalette.js'
 import { ToastHost } from './components/Toast.js'
 import { TooltipHost } from './components/Tooltip.js'
-import { DevicesProvider } from './devices/DevicesProvider.js'
+import { DevicesProvider, LoneDevicesProvider } from './devices/DevicesProvider.js'
+import { CloudGate } from './cloud/CloudGate.js'
+import { CLOUD } from './lib/platform.js'
 import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
 import { PlaylistsView } from './views/PlaylistsView.js'
@@ -38,12 +40,17 @@ import { TagInboxView } from './views/TagInboxView.js'
  * can start playback).
  */
 export default function App() {
-  return (
+  const app = (
     <OfflineProvider>
       <AppWithLibrary />
     </OfflineProvider>
   )
+  // Built for the web, nothing shows until you are signed in and have a bucket.
+  return CLOUD ? <CloudGate>{app}</CloudGate> : app
 }
+
+/** Presence and handoff travel through the Mac; with no Mac, this device is alone. */
+const Devices = CLOUD ? LoneDevicesProvider : DevicesProvider
 
 function AppWithLibrary() {
   const { data: library } = useLibrary()
@@ -65,9 +72,9 @@ function AppWithLibrary() {
       playThreshold={settings?.playThreshold ?? 0.5}
     >
       {/* Inside the player: presence reads it, and remote commands drive it. */}
-      <DevicesProvider>
+      <Devices>
         <Shell />
-      </DevicesProvider>
+      </Devices>
     </PlayerProvider>
   )
 }
@@ -220,14 +227,15 @@ function Shell() {
                   />
                 }
               />
-              <Route path="/inbox" element={<TagInboxView />} />
               <Route path="/playlists" element={<PlaylistsView />} />
               <Route path="/playlists/:id" element={<PlaylistDetailView />} />
-              <Route path="/import" element={<ImportView />} />
-              <Route path="/import/migrate" element={<MigrateView />} />
-              <Route path="/stats" element={<StatsView />} />
-              <Route path="/stats/wrapped" element={<WrappedView />} />
               <Route path="/settings" element={<SettingsView />} />
+              {/* These need the Mac: built for the web, they are not there yet. */}
+              {!CLOUD && <Route path="/inbox" element={<TagInboxView />} />}
+              {!CLOUD && <Route path="/import" element={<ImportView />} />}
+              {!CLOUD && <Route path="/import/migrate" element={<MigrateView />} />}
+              {!CLOUD && <Route path="/stats" element={<StatsView />} />}
+              {!CLOUD && <Route path="/stats/wrapped" element={<WrappedView />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

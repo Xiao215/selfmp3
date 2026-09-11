@@ -6,6 +6,8 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      // The web app built for GitHub Pages, when built locally to try it.
+      '**/dist-pages/**',
       // Emitted declaration files from `tsc --build`; nothing to lint.
       '**/dist-types/**',
       '**/node_modules/**',

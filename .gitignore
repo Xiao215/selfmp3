@@ -43,3 +43,6 @@ npm-debug.log*
 
 # Superseded v1 files, kept until you delete them
 _to_delete/
+
+# A local build of the web app for GitHub Pages
+apps/web/dist-pages/

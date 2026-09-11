@@ -1,4 +1,5 @@
 import { OfflineScopeSchema, type OfflineScope } from '@selfmp3/shared'
+import { CLOUD } from '../lib/platform.js'
 
 /**
  * Automatic downloads: the per-device preferences, and what the connection
@@ -29,6 +30,8 @@ const EXCLUDED_KEY = 'selfmp3:offline-excluded'
  * start off here; everywhere else they start on.
  */
 export function isServerMachine(): boolean {
+  // Built for the web, no machine holds the library: it is all in the bucket.
+  if (CLOUD) return false
   if (typeof location === 'undefined') return false
   return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname)
 }

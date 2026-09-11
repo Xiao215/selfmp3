@@ -13,6 +13,7 @@ import { LibrarySchema, type Library } from '@selfmp3/shared'
  */
 
 const DB_NAME = 'selfmp3'
+/** sw.ts opens the same database with the same version and upgrade — change both together. */
 const DB_VERSION = 1
 const STORE = 'kv'
 const LIBRARY_KEY = 'library-snapshot'
@@ -82,6 +83,20 @@ export async function updateStored<T>(key: string, change: (current: unknown) =>
 
 export async function readStored(key: string): Promise<unknown> {
   return get<unknown>(key)
+}
+
+export async function writeStored(key: string, value: unknown): Promise<void> {
+  await put(key, value)
+}
+
+export async function deleteStored(key: string): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).delete(key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
+  })
 }
 
 /**

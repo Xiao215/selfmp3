@@ -1,0 +1,44 @@
+/* ----------------------------------------------------------- cloud ---- */
+
+/*
+ * The web app's front door (cloud/CloudGate.tsx): one card, centred, until
+ * you are signed in and your account has its bucket. The form inside is the
+ * same row anatomy as Settings, so it reads as the same app.
+ */
+.cloud-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background: var(--surface-0);
+}
+
+.cloud-gate-card {
+  width: min(560px, 100%);
+}
+
+.cloud-gate-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cloud-gate-head h1 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.cloud-gate-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+@media (max-width: 819px) {
+  /* On a phone the fields take the whole width, as they do in Settings. */
+  .cloud-gate .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

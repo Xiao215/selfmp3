@@ -1,4 +1,5 @@
 import type { SyncManifest } from '@selfmp3/shared'
+import { appPath } from '../lib/platform.js'
 
 /**
  * Offline audio storage.
@@ -17,7 +18,13 @@ export const AUDIO_CACHE = 'selfmp3-audio-v1'
 
 /** Cache keys are the stream URLs themselves, so the SW can match on request. */
 export function audioCacheKey(songId: number): string {
-  return `/api/stream/${songId}`
+  return appPath(`api/stream/${songId}`)
+}
+
+/** The song id a cache key names, or null for anything else. */
+function songIdOfKey(url: string): number | null {
+  const match = /\/api\/stream\/(\d+)$/.exec(new URL(url).pathname)
+  return match?.[1] ? Number(match[1]) : null
 }
 
 export interface SyncProgress {
@@ -61,8 +68,8 @@ export async function cachedSongIds(): Promise<Set<number>> {
     const keys = await cache.keys()
     const ids = new Set<number>()
     for (const request of keys) {
-      const match = /\/api\/stream\/(\d+)/.exec(new URL(request.url).pathname)
-      if (match?.[1]) ids.add(Number(match[1]))
+      const songId = songIdOfKey(request.url)
+      if (songId !== null) ids.add(songId)
     }
     return ids
   } catch {
@@ -84,11 +91,11 @@ async function cachedSizes(): Promise<Map<number, number | null>> {
   try {
     const cache = await caches.open(AUDIO_CACHE)
     for (const request of await cache.keys()) {
-      const match = /\/api\/stream\/(\d+)/.exec(new URL(request.url).pathname)
-      if (!match?.[1]) continue
+      const songId = songIdOfKey(request.url)
+      if (songId === null) continue
       const response = await cache.match(request)
       const length = Number(response?.headers.get('content-length') ?? Number.NaN)
-      sizes.set(Number(match[1]), Number.isFinite(length) ? length : null)
+      sizes.set(songId, Number.isFinite(length) ? length : null)
     }
   } catch {
     // Treat an unreadable cache as empty; the sync will fill it again.

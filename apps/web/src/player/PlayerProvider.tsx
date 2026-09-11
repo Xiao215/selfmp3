@@ -11,6 +11,7 @@ import {
 } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { mediaUrl } from '../lib/api.js'
+import { appPath } from '../lib/platform.js'
 import { AudioEngine, type EngineState } from './engine.js'
 import {
   advance,
@@ -628,7 +629,7 @@ export function PlayerProvider({
               { src: mediaUrl.art(current.id, current.rev), sizes: '512x512', type: 'image/jpeg' },
               { src: mediaUrl.art(current.id, current.rev), sizes: '192x192', type: 'image/jpeg' },
             ]
-          : [{ src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
+          : [{ src: appPath('icons/icon-512.png'), sizes: '512x512', type: 'image/png' }],
       })
     }
 

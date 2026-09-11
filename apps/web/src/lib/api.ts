@@ -54,6 +54,8 @@ import {
   type UpdateSettings,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { CLOUD, appPath } from './platform.js'
+import { CloudRouteError, cloudRequest } from './cloud/routes.js'
 
 /**
  * The typed API client.
@@ -107,9 +109,12 @@ async function request<S extends z.ZodTypeAny>(
   body?: unknown,
   init?: RequestInit,
 ): Promise<z.output<S>> {
+  // Built for the web there is no Mac to ask: the bucket answers what it can.
+  if (CLOUD) return cloudResponse(method, path, schema, body)
+
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(appPath(path), {
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -410,6 +415,33 @@ export const api = {
     ),
 }
 
+/** `request()` for the web build: the same schemas, answered by cloud/routes.ts. */
+async function cloudResponse<S extends z.ZodTypeAny>(
+  method: string,
+  path: string,
+  schema: S,
+  body: unknown,
+): Promise<z.output<S>> {
+  let payload: unknown
+  try {
+    payload = await cloudRequest(method, path, body)
+  } catch (error) {
+    if (error instanceof CloudRouteError) {
+      throw new ApiError(error.code === 'offline' ? 0 : error.status, error.message, error.code)
+    }
+    throw new ApiError(0, error instanceof Error ? error.message : 'network unavailable', 'offline')
+  }
+  const parsed = schema.safeParse(payload)
+  if (!parsed.success) {
+    throw new ApiError(
+      500,
+      `Unexpected answer for ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
+      'contract_mismatch',
+    )
+  }
+  return parsed.data as z.output<S>
+}
+
 /**
  * URLs for media. Kept here so nothing else has to know the route shape.
  *
@@ -421,8 +453,8 @@ const withRev = (url: string, rev: string | undefined): string =>
   rev ? `${url}?v=${encodeURIComponent(rev)}` : url
 
 export const mediaUrl = {
-  stream: (songId: number, rev?: string) => withRev(`/api/stream/${songId}`, rev),
-  art: (songId: number, rev?: string) => withRev(`/api/art/${songId}`, rev),
+  stream: (songId: number, rev?: string) => withRev(appPath(`api/stream/${songId}`), rev),
+  art: (songId: number, rev?: string) => withRev(appPath(`api/art/${songId}`), rev),
   /** The live event stream; `deviceId` lets commands be addressed to this tab. */
-  events: (deviceId: string) => `/api/events?deviceId=${encodeURIComponent(deviceId)}`,
+  events: (deviceId: string) => appPath(`api/events?deviceId=${encodeURIComponent(deviceId)}`),
 }

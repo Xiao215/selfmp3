@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { BarChart, Download, ListMusic, Music, Settings } from './Icons.js'
+import { CLOUD } from '../lib/platform.js'
 
 /**
  * The phone tab bar.
@@ -14,17 +15,20 @@ import { BarChart, Download, ListMusic, Music, Settings } from './Icons.js'
  * no signal at all to anyone who cannot separate these two hues.
  */
 const TABS = [
-  { to: '/', end: true, label: 'Library', Icon: Music },
-  { to: '/playlists', end: false, label: 'Playlists', Icon: ListMusic },
-  { to: '/import', end: false, label: 'Import', Icon: Download },
-  { to: '/stats', end: false, label: 'Stats', Icon: BarChart },
-  { to: '/settings', end: false, label: 'Settings', Icon: Settings },
+  { to: '/', end: true, label: 'Library', Icon: Music, needsMac: false },
+  { to: '/playlists', end: false, label: 'Playlists', Icon: ListMusic, needsMac: false },
+  { to: '/import', end: false, label: 'Import', Icon: Download, needsMac: true },
+  { to: '/stats', end: false, label: 'Stats', Icon: BarChart, needsMac: true },
+  { to: '/settings', end: false, label: 'Settings', Icon: Settings, needsMac: false },
 ] as const
+
+/** Built for the web there is no Mac to import on or count plays: those tabs wait. */
+const SHOWN_TABS = TABS.filter(tab => !CLOUD || !tab.needsMac)
 
 export function MobileNav() {
   return (
     <nav className="mobile-nav" aria-label="Main navigation">
-      {TABS.map(({ to, end, label, Icon }) => (
+      {SHOWN_TABS.map(({ to, end, label, Icon }) => (
         <NavLink key={to} to={to} end={end} className="mobile-nav-item">
           <span className="mobile-nav-icon">
             <Icon size={20} />

@@ -298,3 +298,39 @@ function snapshot(player: ReturnType<typeof usePlayer>): PlaybackState {
     updatedAt: Date.now(),
   }
 }
+
+const NOTHING = (): void => undefined
+
+/**
+ * Devices without a Mac: this one, alone.
+ *
+ * Presence and handoff travel through the Mac's event stream, and the web
+ * build has no Mac behind it — so it gets a context with this device in it and
+ * nothing to hand off to, and every control that would reach for another
+ * device finds none and stays out of the way.
+ */
+export function LoneDevicesProvider({ children }: { children: ReactNode }): ReactNode {
+  const [deviceId] = useState(getDeviceId)
+  const [name, setName] = useState(getDeviceName)
+  const rename = useCallback((next: string): void => setName(setDeviceName(next)), [])
+
+  const value = useMemo<DevicesContextValue>(
+    () => ({
+      deviceId,
+      name,
+      rename,
+      devices: [],
+      others: [],
+      connected: false,
+      playingElsewhere: null,
+      remote: null,
+      setRemoteId: NOTHING,
+      send: NOTHING,
+      playHere: NOTHING,
+      playOn: NOTHING,
+    }),
+    [deviceId, name, rename],
+  )
+
+  return <DevicesContext.Provider value={value}>{children}</DevicesContext.Provider>
+}

@@ -8,6 +8,12 @@ import react from '@vitejs/plugin-react'
  * at all.
  */
 export default defineConfig({
+  /*
+   * Where the app lives: the root when the Mac serves it, `/selfmp3/` for
+   * GitHub Pages (VITE_BASE, set by the Pages workflow). Every URL the app
+   * makes goes through lib/platform.ts's appPath, so this is the only switch.
+   */
+  base: process.env['VITE_BASE'] ?? '/',
   plugins: [react()],
   server: {
     port: 4601,

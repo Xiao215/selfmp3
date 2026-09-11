@@ -21,6 +21,8 @@ import { LyricsSettings } from '../components/LyricsSettings.js'
 import { Select } from '../components/Select.js'
 import { DevicesSettings } from '../devices/DevicesSettings.js'
 import { CloudSettings } from '../cloud/CloudSettings.js'
+import { CloudAccountSettings } from '../cloud/CloudGate.js'
+import { CLOUD } from '../lib/platform.js'
 
 /**
  * Settings.
@@ -37,18 +39,19 @@ import { CloudSettings } from '../cloud/CloudSettings.js'
  * same anatomy — name, one quiet line of explanation, control on the right.
  */
 
-/** The index, in page order. */
-const SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+/** The index, in page order. `mac`: the section acts on the Mac, so the web build has none. */
+const ALL_SECTIONS: ReadonlyArray<{ id: string; label: string; mac?: boolean }> = [
   { id: 'playback', label: 'Playback' },
   { id: 'offline', label: 'Offline music' },
-  { id: 'importing', label: 'Importing' },
-  { id: 'library', label: 'Library' },
+  { id: 'importing', label: 'Importing', mac: true },
+  { id: 'library', label: 'Library', mac: true },
   { id: 'cloud', label: 'Cloud' },
-  { id: 'lyrics', label: 'Lyrics' },
-  { id: 'devices', label: 'Devices' },
+  { id: 'lyrics', label: 'Lyrics', mac: true },
+  { id: 'devices', label: 'Devices', mac: true },
   { id: 'appearance', label: 'Appearance' },
   { id: 'shortcuts', label: 'Shortcuts' },
 ]
+const SECTIONS = ALL_SECTIONS.filter(section => !CLOUD || !section.mac)
 
 /** A starting point for the accent, so the slider is not the only way in. */
 const ACCENT_PRESETS: ReadonlyArray<{ hue: number; name: string }> = [
@@ -443,7 +446,7 @@ export function SettingsView() {
 
           {/* ---------------- importing ---------------- */}
 
-          {settings && (
+          {settings && !CLOUD && (
             <section className="panel" id="importing">
               <header className="panel-head">
                 <h2>Importing</h2>
@@ -596,7 +599,7 @@ export function SettingsView() {
 
           {/* ---------------- library ---------------- */}
 
-          <section className="panel" id="library">
+          {!CLOUD && <section className="panel" id="library">
             <header className="panel-head">
               <h2>Library</h2>
               <span className="hint">{songs.length} songs</span>
@@ -710,19 +713,19 @@ export function SettingsView() {
                 </span>
               </div>
             )}
-          </section>
+          </section>}
 
           {/* ---------------- cloud ---------------- */}
 
-          <CloudSettings />
+          {CLOUD ? <CloudAccountSettings /> : <CloudSettings />}
 
           {/* ---------------- lyrics+ ---------------- */}
 
-          {settings && <LyricsSettings settings={settings} onSet={set} />}
+          {settings && !CLOUD && <LyricsSettings settings={settings} onSet={set} />}
 
           {/* ---------------- devices ---------------- */}
 
-          <DevicesSettings />
+          {!CLOUD && <DevicesSettings />}
 
           {/* ---------------- appearance ---------------- */}
 

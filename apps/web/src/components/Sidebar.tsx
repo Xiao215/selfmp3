@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { fuzzyRank, type Library, type Tag as TagType } from '@selfmp3/shared'
-import { useCreateTag, useScanLibrary } from '../lib/queries.js'
+import { useIsFetching, useQueryClient } from '@tanstack/react-query'
+import { queryKeys, useCreateTag, useScanLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { CLOUD } from '../lib/platform.js'
 import { TagEditor, type TagFilterState } from './TagEditor.js'
 import {
   BarChart,
@@ -54,6 +56,8 @@ export function Sidebar({
 
   const createTag = useCreateTag()
   const scan = useScanLibrary()
+  const queryClient = useQueryClient()
+  const libraryFetching = useIsFetching({ queryKey: queryKeys.library }) > 0
   const offline = useOffline()
 
   const tags = library?.tags ?? []
@@ -108,12 +112,17 @@ export function Sidebar({
         <NavLink to="/playlists" className="nav-item">
           <ListMusic size={17} /> Playlists
         </NavLink>
-        <NavLink to="/import" className="nav-item">
-          <Download size={17} /> Import
-        </NavLink>
-        <NavLink to="/stats" className="nav-item">
-          <BarChart size={17} /> Stats
-        </NavLink>
+        {/* Built for the web there is no Mac to import on or count plays. */}
+        {!CLOUD && (
+          <NavLink to="/import" className="nav-item">
+            <Download size={17} /> Import
+          </NavLink>
+        )}
+        {!CLOUD && (
+          <NavLink to="/stats" className="nav-item">
+            <BarChart size={17} /> Stats
+          </NavLink>
+        )}
         <NavLink to="/settings" className="nav-item">
           <Settings size={17} /> Settings
         </NavLink>
@@ -199,7 +208,7 @@ export function Sidebar({
         )}
 
         <div className="tag-list">
-          {untaggedCount > 0 && (
+          {untaggedCount > 0 && !CLOUD && (
             <NavLink to="/inbox" className="tag-row tag-row-inbox">
               <span className="tag-row-main">
                 <Inbox size={14} />
@@ -259,17 +268,32 @@ export function Sidebar({
           <span className="nav-item-count">{offline.cachedIds.size}</span>
         </button>
 
-        <button
-          type="button"
-          className="nav-item nav-item-small"
-          onClick={() => scan.mutate()}
-          disabled={scan.isPending}
-        >
-          <Refresh size={15} />
-          <span className="nav-item-label">
-            {scan.isPending ? 'Scanning…' : 'Rescan library'}
-          </span>
-        </button>
+        {CLOUD ? (
+          // No folder to scan on the web: look for a newer snapshot instead.
+          <button
+            type="button"
+            className="nav-item nav-item-small"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: queryKeys.library })}
+            disabled={libraryFetching}
+          >
+            <Refresh size={15} />
+            <span className="nav-item-label">
+              {libraryFetching ? 'Checking…' : 'Check for new songs'}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="nav-item nav-item-small"
+            onClick={() => scan.mutate()}
+            disabled={scan.isPending}
+          >
+            <Refresh size={15} />
+            <span className="nav-item-label">
+              {scan.isPending ? 'Scanning…' : 'Rescan library'}
+            </span>
+          </button>
+        )}
       </div>
     </nav>
   )

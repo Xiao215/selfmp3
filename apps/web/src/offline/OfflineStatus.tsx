@@ -21,15 +21,17 @@ export function OfflineMark({ songId }: { songId: number }) {
   const offline = useOffline()
   if (!offline.supported) return null
 
-  if (offline.activeSongId === songId) {
+  const progress = offline.progressOf(songId)
+  if (progress !== undefined) {
+    const percent = progress === null ? null : Math.round(progress * 100)
     return (
       <span
         className="offline-mark is-downloading"
-        title="Downloading to this device"
+        title={percent === null ? 'Downloading' : `Downloading · ${percent}%`}
         role="img"
-        aria-label="Downloading"
+        aria-label={percent === null ? 'Downloading' : `Downloading, ${percent}%`}
       >
-        <span className="offline-mark-ring" aria-hidden="true" />
+        <ProgressRing fraction={progress} />
       </span>
     )
   }
@@ -48,6 +50,35 @@ export function OfflineMark({ songId }: { songId: number }) {
   }
 
   return null
+}
+
+/** Circumference of the ring below, for the dash that draws the filled part. */
+const RING = 2 * Math.PI * 8.5
+
+/**
+ * A ring that fills clockwise as the bytes arrive, the same size as the disc
+ * it turns into. With no size to measure against, a quarter arc spins.
+ */
+export function ProgressRing({ fraction }: { fraction: number | null }) {
+  return (
+    <svg
+      className={`progress-ring ${fraction === null ? 'is-indeterminate' : ''}`}
+      viewBox="0 0 24 24"
+      width={13}
+      height={13}
+      aria-hidden="true"
+    >
+      <circle className="progress-ring-track" cx="12" cy="12" r="8.5" />
+      <circle
+        className="progress-ring-fill"
+        cx="12"
+        cy="12"
+        r="8.5"
+        strokeDasharray={`${(fraction ?? 0.25) * RING} ${RING}`}
+        transform="rotate(-90 12 12)"
+      />
+    </svg>
+  )
 }
 
 /**

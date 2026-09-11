@@ -75,9 +75,15 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
 
 ## What you see
 
-- **A mark before the artist on a downloaded song**: a solid accent disc, or a spinning ring
-  while it downloads. A song that is not on the device carries no mark, the way other music
-  apps do it; Song details (in the ⋯ menu) says what will happen to it.
+- **A mark before the artist on a downloaded song**: a solid accent disc, or a ring that fills
+  as the bytes arrive while it downloads — for a single song asked for by hand as well as
+  during an automatic pass. A song that is not on the device carries no mark, the way other
+  music apps do it; Song details (in the ⋯ menu) says what will happen to it.
+- **On the Mac that runs self.mp3**, the song menu offers **Show in Finder** instead of
+  "Download for offline": the song is already a file on that disk, and a browser copy would
+  only double it. The server opens Finder only for a request made on that machine
+  (`services/reveal.ts`) — loopback *and* a loopback Host, since `tailscale serve` also
+  connects from loopback.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for

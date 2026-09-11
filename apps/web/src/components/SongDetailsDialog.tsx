@@ -2,9 +2,12 @@ import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { ProgressRing } from '../offline/OfflineStatus.js'
+import { isServerMachine } from '../offline/autoDownload.js'
+import { fileManagerName, showInFileManager } from '../lib/fileManager.js'
 import { Cover } from './Cover.js'
 import { EnergyWave, tempoMark } from './FeatureBadges.js'
-import { X } from './Icons.js'
+import { Folder, X } from './Icons.js'
 
 /**
  * Everything the app knows about one song, in plain words.
@@ -31,7 +34,8 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
 
   const features = song.features
   const cached = offline.isCached(song.id)
-  const downloading = offline.activeSongId === song.id
+  const progress = offline.progressOf(song.id)
+  const onServerMachine = isServerMachine()
   const byline = [song.artist || 'Unknown artist', song.album, song.year]
     .filter(Boolean)
     .join(' · ')
@@ -108,49 +112,83 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
             )}
           </section>
 
-          <section className="details-group" aria-label="On this device">
-            <h3>On this device</h3>
-            <dl className="details-facts">
-              <div>
-                <dt>Offline</dt>
-                <dd>
-                  {!offline.supported ? (
-                    <>
-                      <strong>Not available here</strong>
-                      <span>This browser can’t keep songs offline.</span>
-                    </>
-                  ) : downloading ? (
-                    <strong>Downloading…</strong>
-                  ) : cached ? (
-                    <>
-                      <strong>Downloaded · {formatBytes(song.sizeBytes)}</strong>
-                      <span>Plays with no connection.</span>
+          {onServerMachine ? (
+            // The Mac that runs self.mp3: the song is a file on this disk, and
+            // "offline" does not apply.
+            <section className="details-group" aria-label="On this Mac">
+              <h3>On this Mac</h3>
+              <dl className="details-facts">
+                <div>
+                  <dt>File</dt>
+                  <dd>
+                    <strong>
+                      {song.missing ? 'Missing' : 'In your library folder'} ·{' '}
+                      {formatBytes(song.sizeBytes)}
+                    </strong>
+                    <span className="details-path">{song.path}</span>
+                    {!song.missing && (
                       <button
                         type="button"
                         className="button button-small details-action"
-                        onClick={() => void offline.removeOne(song.id)}
+                        onClick={() => showInFileManager(song.id)}
                       >
-                        Remove download
+                        <Folder size={13} /> Show in {fileManagerName()}
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Only on your Mac · {formatBytes(song.sizeBytes)}</strong>
-                      <span>{notDownloadedNote(offline, song.id)}</span>
-                      <button
-                        type="button"
-                        className="button button-small details-action"
-                        onClick={() => void offline.downloadOne(song.id)}
-                        disabled={!offline.serverReachable}
-                      >
-                        Download now
-                      </button>
-                    </>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </section>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          ) : (
+            <section className="details-group" aria-label="On this device">
+              <h3>On this device</h3>
+              <dl className="details-facts">
+                <div>
+                  <dt>Offline</dt>
+                  <dd>
+                    {!offline.supported ? (
+                      <>
+                        <strong>Not available here</strong>
+                        <span>This browser can’t keep songs offline.</span>
+                      </>
+                    ) : progress !== undefined ? (
+                      <strong className="details-downloading">
+                        <ProgressRing fraction={progress} />
+                        {progress === null
+                          ? 'Downloading…'
+                          : `Downloading · ${Math.round(progress * 100)}%`}
+                      </strong>
+                    ) : cached ? (
+                      <>
+                        <strong>Downloaded · {formatBytes(song.sizeBytes)}</strong>
+                        <span>Plays with no connection.</span>
+                        <button
+                          type="button"
+                          className="button button-small details-action"
+                          onClick={() => void offline.removeOne(song.id)}
+                        >
+                          Remove download
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Only on your Mac · {formatBytes(song.sizeBytes)}</strong>
+                        <span>{notDownloadedNote(offline, song.id)}</span>
+                        <button
+                          type="button"
+                          className="button button-small details-action"
+                          onClick={() => void offline.downloadOne(song.id).catch(() => undefined)}
+                          disabled={!offline.serverReachable}
+                        >
+                          Download now
+                        </button>
+                      </>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
           <section className="details-group" aria-label="History">
             <h3>History</h3>

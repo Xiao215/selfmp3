@@ -30,6 +30,10 @@ export class HttpError extends Error {
     return new HttpError(401, message, 'unauthorized')
   }
 
+  static forbidden(message: string): HttpError {
+    return new HttpError(403, message, 'forbidden')
+  }
+
   static notFound(message = 'not found'): HttpError {
     return new HttpError(404, message, 'not_found')
   }

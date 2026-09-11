@@ -197,6 +197,9 @@ export const api = {
   recordSkip: (id: number, atSeconds: number) =>
     request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds }),
 
+  /** Open Finder on the server's own machine with the song's file selected. */
+  revealSong: (id: number) => request('POST', `/api/songs/${id}/reveal`, OkSchema),
+
   lyrics: (id: number, refresh = false) =>
     request('GET', `/api/songs/${id}/lyrics${refresh ? '?refresh=1' : ''}`, LyricsResponseSchema),
 

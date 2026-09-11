@@ -22,6 +22,7 @@ import {
   storageUsage,
   syncLibrary,
   uncacheSong,
+  type DownloadFraction,
   type ManifestEntry,
   type StorageUsage,
   type SyncProgress,
@@ -88,8 +89,11 @@ interface OfflineContextValue {
   readonly isCached: (songId: number) => boolean
   /** Taken off this device by hand, so automatic downloads leave it alone. */
   readonly isExcluded: (songId: number) => boolean
-  /** The song downloading this moment, if any. */
-  readonly activeSongId: number | null
+  /**
+   * How far a song's download has got: 0–1, null while the size is unknown,
+   * or undefined when it is not downloading at all.
+   */
+  readonly progressOf: (songId: number) => DownloadFraction | undefined
 
   readonly prefs: OfflinePrefs
   readonly auto: AutoState
@@ -137,6 +141,31 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   const [auto, setAuto] = useState<AutoState>({ kind: 'up-to-date' })
   const [pendingListens, setPendingListens] = useState(0)
   const [connectionTick, setConnectionTick] = useState(0)
+  const [downloading, setDownloading] = useState<ReadonlyMap<number, DownloadFraction>>(
+    () => new Map(),
+  )
+
+  /**
+   * Per-song progress, for the ring on its row. A chunk arrives every few
+   * kilobytes; re-rendering the list for each would be wasteful, so progress
+   * is only passed on in 2% steps.
+   */
+  const lastStepRef = useRef(new Map<number, number>())
+  const reportProgress = useCallback((songId: number, fraction: DownloadFraction) => {
+    const step = fraction === null ? -1 : Math.floor(fraction * 50)
+    if (lastStepRef.current.get(songId) === step) return
+    lastStepRef.current.set(songId, step)
+    setDownloading(previous => new Map(previous).set(songId, fraction))
+  }, [])
+  const finishProgress = useCallback((songId: number) => {
+    lastStepRef.current.delete(songId)
+    setDownloading(previous => {
+      if (!previous.has(songId)) return previous
+      const next = new Map(previous)
+      next.delete(songId)
+      return next
+    })
+  }, [])
 
   const supported = offlineStorageAvailable()
 
@@ -276,7 +305,11 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
         const { progress, stop } = await syncLibrary(entries, {
           titleFor: id => titlesRef.current.get(id) ?? `Song ${id}`,
           onProgress: next => setSync({ status: 'syncing', progress: next }),
-          onCached: id => setCachedIds(previous => new Set(previous).add(id)),
+          onSongProgress: reportProgress,
+          onCached: id => {
+            finishProgress(id)
+            setCachedIds(previous => new Set(previous).add(id))
+          },
           signal: controller.signal,
         })
         setSync(stop === 'aborted' ? { status: 'idle' } : { status: 'done', progress })
@@ -289,11 +322,13 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
         return { stop: 'aborted', done: 0 }
       } finally {
         if (abortRef.current === controller) abortRef.current = null
+        // A song that failed or was cancelled leaves no ring behind.
+        for (const entry of entries) finishProgress(entry.id)
         await refreshCached()
         await refreshUsage()
       }
     },
-    [refreshCached, refreshUsage],
+    [refreshCached, refreshUsage, reportProgress, finishProgress],
   )
 
   /**
@@ -435,11 +470,17 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     async (songId: number) => {
       // Asking for a song by hand undoes having removed it by hand.
       if (excludedRef.current.has(songId)) updateExcluded(ids => ids.delete(songId))
-      await cacheSong(songId)
-      setCachedIds(previous => new Set(previous).add(songId))
+      // The ring appears the moment it is asked for, before the first byte.
+      reportProgress(songId, 0)
+      try {
+        await cacheSong(songId, undefined, fraction => reportProgress(songId, fraction))
+        setCachedIds(previous => new Set(previous).add(songId))
+      } finally {
+        finishProgress(songId)
+      }
       void refreshUsage()
     },
-    [refreshUsage, updateExcluded],
+    [refreshUsage, updateExcluded, reportProgress, finishProgress],
   )
 
   const removeOne = useCallback(
@@ -470,7 +511,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
 
   const isCached = useCallback((songId: number) => cachedIds.has(songId), [cachedIds])
   const isExcluded = useCallback((songId: number) => excluded.has(songId), [excluded])
-  const activeSongId = sync.status === 'syncing' ? sync.progress.activeSongId : null
+  const progressOf = useCallback((songId: number) => downloading.get(songId), [downloading])
 
   const value = useMemo<OfflineContextValue>(
     () => ({
@@ -483,7 +524,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       persistent,
       isCached,
       isExcluded,
-      activeSongId,
+      progressOf,
       prefs,
       auto,
       pendingListens,
@@ -505,7 +546,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       persistent,
       isCached,
       isExcluded,
-      activeSongId,
+      progressOf,
       prefs,
       auto,
       pendingListens,

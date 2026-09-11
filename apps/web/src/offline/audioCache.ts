@@ -107,14 +107,28 @@ export async function isCached(songId: number): Promise<boolean> {
 }
 
 /**
+ * How far through a download is, from 0 to 1 — or null when the server did
+ * not say how big the file is, and only "still going" can be shown.
+ */
+export type DownloadFraction = number | null
+
+/**
  * Download one song into the cache.
  *
  * `cache: 'reload'` bypasses the HTTP cache so a re-download after a file
  * changed on the Mac actually fetches fresh bytes. The response is only stored
  * if it is a complete 200 — caching a partial 206 would poison the cache with
  * a fragment that plays for four seconds and stops.
+ *
+ * With `onProgress`, the body is passed through a counter on its way into the
+ * cache: the bytes still stream straight to disk rather than being held in
+ * memory, and the row's ring fills as they actually arrive.
  */
-export async function cacheSong(songId: number, signal?: AbortSignal): Promise<number> {
+export async function cacheSong(
+  songId: number,
+  signal?: AbortSignal,
+  onProgress?: (fraction: DownloadFraction) => void,
+): Promise<number> {
   if (!cachesAvailable()) throw new Error('offline storage is not available in this browser')
 
   const cache = await caches.open(AUDIO_CACHE)
@@ -130,8 +144,36 @@ export async function cacheSong(songId: number, signal?: AbortSignal): Promise<n
   }
 
   const size = Number(response.headers.get('content-length') ?? 0)
-  await cache.put(url, response.clone())
-  return Number.isFinite(size) ? size : 0
+  const total = Number.isFinite(size) && size > 0 ? size : null
+
+  if (!onProgress || !response.body) {
+    await cache.put(url, response.clone())
+    return total ?? 0
+  }
+
+  onProgress(total === null ? null : 0)
+  let received = 0
+  const counted = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        received += chunk.byteLength
+        onProgress(total === null ? null : Math.min(1, received / total))
+        controller.enqueue(chunk)
+      },
+    }),
+  )
+
+  // Same status and headers — content-length included, which is what the
+  // sync compares later to tell a stale copy from a current one.
+  await cache.put(
+    url,
+    new Response(counted, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    }),
+  )
+  return total ?? received
 }
 
 export async function uncacheSong(songId: number): Promise<void> {
@@ -222,6 +264,8 @@ export async function syncLibrary(
     onProgress: (progress: SyncProgress) => void
     /** Each song as it lands, so the list can mark it without waiting for the end. */
     onCached?: (songId: number) => void
+    /** How far through the current song is, for its row's ring. */
+    onSongProgress?: (songId: number, fraction: DownloadFraction) => void
     signal: AbortSignal
   },
 ): Promise<{ progress: SyncProgress; stop: SyncStop }> {
@@ -251,7 +295,12 @@ export async function syncLibrary(
     options.onProgress(snapshot(title, entry.id))
 
     try {
-      await cacheSong(entry.id, options.signal)
+      const report = options.onSongProgress
+      await cacheSong(
+        entry.id,
+        options.signal,
+        report ? fraction => report(entry.id, fraction) : undefined,
+      )
       bytesDone += entry.sizeBytes
       options.onCached?.(entry.id)
     } catch (error) {

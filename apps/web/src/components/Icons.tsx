@@ -165,6 +165,13 @@ export const Inbox = (p: IconProps) => (
   </Icon>
 )
 
+/** A folder, for showing a song's file where it lives on disk. */
+export const Folder = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+  </Icon>
+)
+
 export const CheckCircle = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="9" />

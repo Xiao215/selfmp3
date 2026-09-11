@@ -34,12 +34,29 @@
   --icon-knockout: var(--surface-1);
 }
 
-.offline-mark-ring {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid var(--accent-dim);
-  border-top-color: var(--accent);
+/* The download ring: a track, and an arc that fills as the bytes arrive. */
+.progress-ring {
+  display: block;
+  overflow: visible;
+}
+
+.progress-ring circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.progress-ring-track {
+  stroke: var(--surface-3);
+}
+
+.progress-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--dur) linear;
+}
+
+/* No size to measure against: a quarter arc goes round instead. */
+.progress-ring.is-indeterminate {
   animation: spin 0.8s linear infinite;
 }
 
@@ -51,7 +68,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .offline-mark-ring {
+  .progress-ring.is-indeterminate {
     animation-duration: 2.4s;
   }
 }

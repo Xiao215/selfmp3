@@ -4,9 +4,13 @@ import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
+import { fileManagerName, showInFileManager } from '../lib/fileManager.js'
+import { isServerMachine } from '../offline/autoDownload.js'
+import { showToast } from './Toast.js'
 import {
   CheckSquare,
   CloudDownload,
+  Folder,
   Info,
   ListMusic,
   Queue,
@@ -68,6 +72,7 @@ export function SongMenu({
   const player = usePlayer()
 
   const cached = offline.isCached(song.id)
+  const onServerMachine = isServerMachine()
 
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
 
@@ -219,6 +224,19 @@ export function SongMenu({
         <Info size={15} /> Song details
       </button>
 
+      {/* On the Mac that runs self.mp3 the song is a real file in a real
+          folder, and that is more use than a second copy in the browser. */}
+      {onServerMachine && !song.missing && (
+        <button
+          type="button"
+          role="menuitem"
+          className="popover-item"
+          onClick={() => act(() => showInFileManager(song.id))}
+        >
+          <Folder size={15} /> Show in {fileManagerName()}
+        </button>
+      )}
+
       <button
         type="button"
         role="menuitem"
@@ -228,19 +246,30 @@ export function SongMenu({
         <Sparkles size={15} /> Fix metadata…
       </button>
 
-      <button
-        type="button"
-        role="menuitem"
-        className="popover-item"
-        onClick={() =>
-          act(() => {
-            void (cached ? offline.removeOne(song.id) : offline.downloadOne(song.id))
-          })
-        }
-      >
-        {cached ? <X size={15} /> : <CloudDownload size={15} />}
-        {cached ? 'Remove download' : 'Download for offline'}
-      </button>
+      {/* Downloading is for devices away from the Mac. On the Mac itself only
+          "Remove download" stays, to clear out a copy made before. */}
+      {(cached || !onServerMachine) && (
+        <button
+          type="button"
+          role="menuitem"
+          className="popover-item"
+          onClick={() =>
+            act(() => {
+              const change = cached ? offline.removeOne(song.id) : offline.downloadOne(song.id)
+              change.catch(() =>
+                showToast(
+                  `Couldn’t download “${song.title}”. Is your Mac reachable?`,
+                  'error',
+                  5000,
+                ),
+              )
+            })
+          }
+        >
+          {cached ? <X size={15} /> : <CloudDownload size={15} />}
+          {cached ? 'Remove download' : 'Download for offline'}
+        </button>
+      )}
 
       <div className="popover-divider" />
 

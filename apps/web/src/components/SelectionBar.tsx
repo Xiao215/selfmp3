@@ -10,6 +10,7 @@ import {
 } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useOffline } from '../offline/OfflineProvider.js'
+import { isServerMachine } from '../offline/autoDownload.js'
 import { Popover } from './Menu.js'
 import { Select } from './Select.js'
 import { showToast } from './Toast.js'
@@ -459,7 +460,9 @@ export function SelectionBar({
 
           <div className="popover-divider" />
 
-          {cachedCount < count && (
+          {/* Not on the Mac that runs self.mp3: its songs are already on disk,
+              and a browser copy would only double them. */}
+          {cachedCount < count && !isServerMachine() && (
             <button
               type="button"
               role="menuitem"

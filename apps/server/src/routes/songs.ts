@@ -21,6 +21,7 @@ import { HttpError } from '../http/errors.js'
 import { transact } from '../db/index.js'
 import { sqliteTime } from '../repositories/stats.js'
 import { similarSongs } from '../services/similar.js'
+import { isLocalRequest, revealInFileManager } from '../services/reveal.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -182,6 +183,31 @@ export function songRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: SkipEventSchema }, ({ params }) => {
       requireSong(params.id)
       container.songs.recordSkip(params.id)
+      return { ok: true as const }
+    }),
+  )
+
+  /**
+   * Show the song's file in Finder, on the computer running self.mp3.
+   *
+   * Refused for anything but the browser on that computer — see
+   * `isLocalRequest` for why loopback alone is not enough.
+   */
+  router.post(
+    '/songs/:id/reveal',
+    route({ params: ParamsWithId }, async ({ params, req }) => {
+      const song = requireSong(params.id)
+      if (!isLocalRequest(req)) {
+        throw HttpError.forbidden('Show in Finder only works on the computer that runs self.mp3')
+      }
+      const absolute = container.storage.localPath(song.path)
+      if (!absolute) {
+        throw HttpError.conflict('your library is in cloud storage, so there is no folder to show')
+      }
+      if (song.missing || !(await container.storage.exists(song.path))) {
+        throw HttpError.notFound('the file is missing from your library folder')
+      }
+      await revealInFileManager(absolute)
       return { ok: true as const }
     }),
   )

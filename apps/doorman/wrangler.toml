@@ -33,7 +33,7 @@ APP_ORIGINS = "https://xiao215.github.io"
 # and replace the id below with the one it prints.
 [[kv_namespaces]]
 binding = "KV"
-id = "replace-with-the-id-from-wrangler-kv-namespace-create"
+id = "ac00b5cff3df480fabc0df100615d071"
 
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console

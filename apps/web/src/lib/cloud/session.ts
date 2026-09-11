@@ -130,6 +130,25 @@ export type ClaimOutcome =
  * A wrong code throws (`wrong_code`), and the attempt is over.
  */
 export async function claimSignIn(attempt: string, code?: string): Promise<ClaimOutcome> {
+  // Asking how it stands costs nothing and may be repeated.
+  if (code === undefined) return claim(attempt)
+  // A code may be spent once, so two goes at the same one are the same go:
+  // React runs an effect twice in development, and a page may be opened again.
+  const key = `${attempt}:${code}`
+  const already = spending.get(key)
+  if (already) return already
+  const spend = claim(attempt, code).catch((error: unknown) => {
+    // A refusal is final either way; no answer at all is worth another try.
+    if (!(error instanceof DoormanError) || error.status === 0) spending.delete(key)
+    throw error
+  })
+  spending.set(key, spend)
+  return spend
+}
+
+const spending = new Map<string, Promise<ClaimOutcome>>()
+
+async function claim(attempt: string, code?: string): Promise<ClaimOutcome> {
   const response = await doormanFetch(null, '/v1/auth/claim', {
     method: 'POST',
     json: code === undefined ? { attempt } : { attempt, code },

@@ -222,8 +222,11 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
  * and say this tab is done with. The settings page in the first tab sees the
  * account appear by itself.
  */
+const sentCodes = new Set<string>()
+
 function SignInReturn() {
   const { enterCode } = useCloudActions()
+  const { data: status } = useCloudStatus()
   const [code] = useState(() => {
     const raw = /(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(window.location.hash)?.[1]
     const parsed = raw === undefined ? null : SignInCodeSchema.safeParse(raw)
@@ -231,7 +234,9 @@ function SignInReturn() {
   })
 
   useEffect(() => {
-    if (!code) return
+    // A code may be spent once, and React runs this twice in development.
+    if (!code || sentCodes.has(code)) return
+    sentCodes.add(code)
     window.history.replaceState(null, '', window.location.pathname + window.location.search)
     enterCode.mutate(code, {
       onSuccess: () => {
@@ -243,12 +248,14 @@ function SignInReturn() {
   }, [code])
 
   if (!code) return null
+  // Signed in is signed in, whatever this page's own attempt came back with.
+  const failed = enterCode.isError && !status?.account
   return (
-    <p className={`notice ${enterCode.isError ? 'notice-error' : 'notice-good'}`} role="status">
+    <p className={`notice ${failed ? 'notice-error' : 'notice-good'}`} role="status">
       <span>
-        {enterCode.isError
-          ? `Signing in didn’t work: ${enterCode.error.message}`
-          : enterCode.isSuccess
+        {failed
+          ? `Signing in didn’t work: ${enterCode.error?.message ?? 'try again'}`
+          : enterCode.isSuccess || status?.account
             ? 'Signed in. You can close this tab.'
             : `Signing in with code ${formatSignInCode(code)}…`}
       </span>

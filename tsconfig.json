@@ -6,10 +6,15 @@
    * global declarations (a different `fetch`, `setTimeout` returning a number,
    * no DOM) would conflict with the web app's if the two shared a project
    * graph. It is type-checked on its own with `npm run typecheck:mobile`.
+   *
+   * `apps/doorman` runs on Cloudflare Workers, another runtime with its own
+   * globals, but it can be here: its tsconfig names its types explicitly and
+   * loads no DOM, so its `fetch` and `Request` stay inside its own project.
    */
   "references": [
     { "path": "./packages/shared" },
     { "path": "./apps/server" },
-    { "path": "./apps/web" }
+    { "path": "./apps/web" },
+    { "path": "./apps/doorman" }
   ]
 }

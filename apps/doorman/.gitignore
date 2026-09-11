@@ -1,0 +1,4 @@
+# Wrangler's local state and bundles, from `wrangler dev` and `wrangler deploy`.
+.wrangler/
+# Secrets for `wrangler dev`. Never committed (the root .gitignore says so too).
+.dev.vars

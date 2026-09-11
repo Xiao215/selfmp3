@@ -1,0 +1,38 @@
+# The doorman: a Cloudflare Worker between your devices and your bucket.
+# README.md in this folder says how to deploy it; docs/SYNC.md says why it exists.
+#
+# This repository is public. Nothing secret goes in this file: the three
+# secrets are set with `npx wrangler secret put` (see below and README.md).
+
+name = "selfmp3-doorman"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# @selfmp3/shared is TypeScript that is built to dist/ before anything can
+# import it, so Wrangler builds it first, before every `dev` and `deploy`.
+# `wrangler dev` rebuilds when either the doorman or the shared package changes.
+[build]
+command = "npm run build --workspace @selfmp3/shared"
+cwd = "../.."
+watch_dir = ["src", "../../packages/shared/src"]
+
+[vars]
+# The client ID of your OAuth client in the Google Cloud console. It is public:
+# it appears in every Google sign-in link. See README.md.
+GOOGLE_CLIENT_ID = ""
+# The web app's addresses, comma-separated, without a trailing slash. Browsers
+# on these may call the doorman, and a sign-in may send you back to them.
+APP_ORIGINS = "https://xiao215.github.io,http://localhost:4600,http://localhost:4601"
+
+# Sessions, sign-ins in progress, and each Google account's sealed bucket.
+# Create the namespace with
+#   npx wrangler kv namespace create KV
+# and replace the id below with the one it prints.
+[[kv_namespaces]]
+binding = "KV"
+id = "replace-with-the-id-from-wrangler-kv-namespace-create"
+
+# Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
+#   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
+#   SEAL_KEY              `openssl rand -base64 32`; seals each bucket's key in KV
+#   ALLOWED_EMAILS        the Google addresses that may sign in, comma-separated

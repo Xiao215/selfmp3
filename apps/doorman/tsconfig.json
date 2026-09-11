@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+
+    /*
+     * The Workers runtime's globals and nothing else: no DOM, no Node. The
+     * types list is explicit, so no @types package in node_modules can leak
+     * a second `fetch` or `Request` into the Worker's world.
+     */
+    "lib": ["ES2023"],
+    "types": ["@cloudflare/workers-types"],
+
+    /* Wrangler bundles the Worker; tsc is here only as a type checker. */
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../../packages/shared" }]
+}

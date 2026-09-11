@@ -117,6 +117,11 @@ export class AudioEngine {
     return this.#state
   }
 
+  /** The song in the audio element, or null before anything has been loaded. */
+  get currentSongId(): number | null {
+    return this.#currentId
+  }
+
   #update(patch: Partial<EngineState>): void {
     // Skip the notify entirely when nothing actually changed; this runs on
     // every timeupdate tick and would otherwise re-render constantly.

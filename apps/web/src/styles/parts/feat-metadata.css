@@ -291,11 +291,6 @@
   box-shadow: var(--shadow-1);
 }
 
-/* The one being replaced sits back a little, as struck-through text does. */
-.meta-cover-thumb.is-old {
-  opacity: 0.7;
-}
-
 .meta-cover-none {
   font-size: 12px;
   color: var(--text-muted);

@@ -344,17 +344,17 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
   )
 }
 
-/** A thumbnail that quietly disappears when the remote image is missing. */
 /**
  * The cover change, as pictures: the song's cover now, an arrow, the one on
  * offer. Two pictures side by side answer "is this even different?" at a
- * glance, which no label could.
+ * glance, which no label could. Both at full strength — the arrow says which
+ * way the change goes, and a dimmed current cover just looked washed out.
  */
 function CoverChange({ song, url, source }: { song: Song; url: string; source: string }) {
   return (
     <span className="meta-cover-change">
       {song.hasArt ? (
-        <Cover song={song} size={44} className="meta-cover-thumb is-old" />
+        <Cover song={song} size={44} className="meta-cover-thumb" />
       ) : (
         <span className="meta-cover-none">No cover</span>
       )}
@@ -367,6 +367,7 @@ function CoverChange({ song, url, source }: { song: Song; url: string; source: s
   )
 }
 
+/** A thumbnail that quietly disappears when the remote image is missing. */
 function CandidateArt({
   url,
   className = 'meta-candidate-art',

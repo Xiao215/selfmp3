@@ -11,7 +11,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { queryKeys, useImportQueue, useImportTools, useLibrary } from '../lib/queries.js'
 import { SHARE_PARAMS, sharedLinksFromQuery } from '../lib/shareTarget.js'
-import { TagChip } from '../components/TagChip.js'
+import { TagChooser } from '../components/TagChooser.js'
 import { YouTubeLibraryPanel } from '../components/YouTubeLibraryPanel.js'
 import {
   Check,
@@ -368,26 +368,7 @@ export function ImportView() {
           <div className="import-options">
             <div className="import-option">
               <span className="field-label">Tag these as</span>
-              <div className="tag-row-inline">
-                {tags.map(tag => (
-                  <TagChip
-                    key={tag.id}
-                    tag={tag}
-                    active={tagIds.has(tag.id)}
-                    onClick={() =>
-                      setTagIds(current => {
-                        const next = new Set(current)
-                        if (next.has(tag.id)) next.delete(tag.id)
-                        else next.add(tag.id)
-                        return next
-                      })
-                    }
-                  />
-                ))}
-                {tags.length === 0 && (
-                  <span className="hint">Create tags in the sidebar first</span>
-                )}
-              </div>
+              <TagChooser tags={tags} selected={tagIds} onChange={setTagIds} />
             </div>
 
             {playlistTitle && playlistId === null && (

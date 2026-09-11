@@ -277,6 +277,7 @@ export class ImportQueueService {
           title,
           album,
           duration: realDuration,
+          sourceUrl: job.url,
         })
         if (remote === 'instrumental') {
           instrumental = true
@@ -299,6 +300,7 @@ export class ImportQueueService {
         artist: artist.trim(),
         album: album.trim(),
       })
+      this.#songs.setSourceUrl(songId, job.url)
       if (instrumental) this.#songs.setInstrumental(songId, true)
 
       const song = this.#songs.byId(songId)

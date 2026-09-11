@@ -267,6 +267,7 @@ export function songRoutes(container: Container): Router {
           title: song.title,
           album: song.album,
           duration: song.duration,
+          sourceUrl: song.sourceUrl,
         }
 
         if (query.refresh) {

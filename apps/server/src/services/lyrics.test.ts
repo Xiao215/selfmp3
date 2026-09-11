@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
 import { LocalStorageDriver } from '../storage/local.js'
 import { LyricsService } from './lyrics.js'
+import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 
 /**
  * lrclib lookups against a fake network, with a real library folder on disk.
@@ -130,6 +131,53 @@ describe('LyricsService', () => {
         text: '[00:01.00]first',
         synced: true,
       })
+    })
+  })
+
+  describe('with YouTube Music', () => {
+    const youtubeMusic = (lrc: string | null) => {
+      const asked: unknown[] = []
+      const fake = {
+        find: (input: unknown) => {
+          asked.push(input)
+          return Promise.resolve(lrc)
+        },
+      } as unknown as YouTubeMusicLyrics
+      return { fake, asked }
+    }
+
+    it('takes its timed lyrics before asking lrclib, by the video the song came from', async () => {
+      const { fake, asked } = youtubeMusic('[00:01.00]from youtube')
+      const lrclib = fakeLrclib({ get: { syncedLyrics: '[00:01.00]from lrclib' } })
+      const lyrics = new LyricsService(storage, createLogger('silent'), lrclib.fetchImpl, fake)
+
+      expect(
+        await lyrics.fetchRemote({ ...song, sourceUrl: 'https://youtu.be/fCh0qfxElm8' }),
+      ).toEqual({ text: '[00:01.00]from youtube', synced: true })
+      expect(asked).toEqual([
+        { videoId: 'fCh0qfxElm8', artist: song.artist, title: song.title, duration: 254 },
+      ])
+      expect(lrclib.calls).toEqual([])
+    })
+
+    it('falls back to lrclib when YouTube Music has nothing', async () => {
+      const { fake } = youtubeMusic(null)
+      const lrclib = fakeLrclib({ get: { syncedLyrics: '[00:01.00]from lrclib' } })
+      const lyrics = new LyricsService(storage, createLogger('silent'), lrclib.fetchImpl, fake)
+      expect(await lyrics.fetchRemote(song)).toEqual({
+        text: '[00:01.00]from lrclib',
+        synced: true,
+      })
+    })
+  })
+
+  describe('writeSidecar', () => {
+    it('replaces plain lyrics with timed ones, leaving one file', async () => {
+      await storage.write('Midnight Drive.txt', Buffer.from('words'))
+      const { lyrics } = service({})
+      await lyrics.writeSidecar('Midnight Drive.mp3', '[00:01.00]words', true)
+      expect(await storage.exists('Midnight Drive.lrc')).toBe(true)
+      expect(await storage.exists('Midnight Drive.txt')).toBe(false)
     })
   })
 

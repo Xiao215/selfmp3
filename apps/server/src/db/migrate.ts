@@ -261,6 +261,23 @@ const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE songs ADD COLUMN instrumental INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    name: 'songs: remember where imported songs came from',
+    sql: `
+      -- The column was there from the start but the importer never filled it.
+      -- A song's YouTube link is how its own timed lyrics are found, so take
+      -- it from the import job for every song whose job is still on record.
+      UPDATE songs
+         SET source_url = (
+           SELECT url FROM import_jobs
+            WHERE import_jobs.song_id = songs.id
+            ORDER BY updated_at DESC
+            LIMIT 1
+         )
+       WHERE source_url IS NULL
+         AND EXISTS (SELECT 1 FROM import_jobs WHERE import_jobs.song_id = songs.id);
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

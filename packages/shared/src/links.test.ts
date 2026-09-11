@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractUrls, isYouTubeUrl } from './links.js'
+import { extractUrls, isYouTubeUrl, youtubeVideoId } from './links.js'
 
 describe('extractUrls', () => {
   it('finds one link per line', () => {
@@ -37,5 +37,23 @@ describe('isYouTubeUrl', () => {
     expect(isYouTubeUrl('https://youtu.be/x')).toBe(true)
     expect(isYouTubeUrl('https://soundcloud.com/x')).toBe(false)
     expect(isYouTubeUrl('nope')).toBe(false)
+  })
+})
+
+describe('youtubeVideoId', () => {
+  it('reads the id from every form of a video link', () => {
+    expect(youtubeVideoId('https://www.youtube.com/watch?v=fCh0qfxElm8')).toBe('fCh0qfxElm8')
+    expect(youtubeVideoId('https://music.youtube.com/watch?v=fCh0qfxElm8&list=RD')).toBe(
+      'fCh0qfxElm8',
+    )
+    expect(youtubeVideoId('https://youtu.be/fCh0qfxElm8?si=abc')).toBe('fCh0qfxElm8')
+    expect(youtubeVideoId('https://www.youtube.com/shorts/fCh0qfxElm8')).toBe('fCh0qfxElm8')
+  })
+
+  it('has nothing for links that are not one video', () => {
+    expect(youtubeVideoId('https://music.youtube.com/playlist?list=LM')).toBeNull()
+    expect(youtubeVideoId('https://soundcloud.com/x?v=fCh0qfxElm8')).toBeNull()
+    expect(youtubeVideoId('https://www.youtube.com/watch?v=short')).toBeNull()
+    expect(youtubeVideoId(null)).toBeNull()
   })
 })

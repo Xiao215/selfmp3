@@ -9,6 +9,31 @@ import { SongRepository } from './songs.js'
  * so the column, the row mapping and the patch allow-list are checked together.
  */
 
+describe('backfilling where imported songs came from', () => {
+  it('takes each song’s link from its import job, and leaves the rest', () => {
+    const db = new Database(':memory:')
+    const logger = createLogger('silent')
+    migrate(db, logger)
+    // Step back one migration, as a database from before it would be.
+    const latest = db.pragma('user_version', { simple: true }) as number
+    db.pragma(`user_version = ${latest - 1}`)
+    db.exec(`
+      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B'), (3, 'c.m4a', 'C');
+      UPDATE songs SET source_url = 'https://kept.example' WHERE id = 3;
+      INSERT INTO import_jobs (id, url, status, song_id) VALUES
+        ('j1', 'https://www.youtube.com/watch?v=fCh0qfxElm8', 'done', 1),
+        ('j3', 'https://www.youtube.com/watch?v=dGZqpVCJP3k', 'done', 3);
+    `)
+
+    migrate(db, logger)
+
+    const songs = new SongRepository(db)
+    expect(songs.byId(1)?.sourceUrl).toBe('https://www.youtube.com/watch?v=fCh0qfxElm8')
+    expect(songs.byId(2)?.sourceUrl).toBeNull()
+    expect(songs.byId(3)?.sourceUrl).toBe('https://kept.example')
+  })
+})
+
 describe('SongRepository instrumental flag', () => {
   let db: Database.Database
   let songs: SongRepository

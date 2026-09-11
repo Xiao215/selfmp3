@@ -1,9 +1,10 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { isSynced, LYRIC_EXTENSIONS, type LyricsKind } from '@selfmp3/shared'
+import { isSynced, LYRIC_EXTENSIONS, youtubeVideoId, type LyricsKind } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 import { APP_VERSION } from '../config.js'
+import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 
 /**
  * Lyrics come from three places, in order of trust:
@@ -11,8 +12,9 @@ import { APP_VERSION } from '../config.js'
  *  1. A sidecar file next to the audio (`Artist - Title.lrc`). Yours, editable,
  *     wins over everything.
  *  2. Tags embedded in the audio file itself.
- *  3. lrclib.net, a community database, fetched once and then written to disk
- *     as a sidecar so it is available offline afterwards.
+ *  3. The network, fetched once and then written to disk as a sidecar so it
+ *     is available offline afterwards: YouTube Music's timed lyrics first
+ *     (see youtubeMusic.ts), then lrclib.net, a community database.
  */
 
 const USER_AGENT = `self.mp3/${APP_VERSION} (personal music library; https://github.com/)`
@@ -25,7 +27,17 @@ export interface LyricsResult {
   readonly text: string
 }
 
-/** Lyrics as lrclib has them, before they are written to disk. */
+/** What a song is looked up by. */
+export interface LyricsLookup {
+  readonly artist: string
+  readonly title: string
+  readonly album: string
+  readonly duration: number
+  /** Where it was imported from; a YouTube link finds its own lyrics. */
+  readonly sourceUrl?: string | null
+}
+
+/** Lyrics as found online, before they are written to disk. */
 export interface RemoteLyrics {
   readonly text: string
   readonly synced: boolean
@@ -60,11 +72,18 @@ export class LyricsService {
   readonly #storage: StorageDriver
   readonly #logger: Logger
   readonly #fetch: FetchLike
+  readonly #youtubeMusic: YouTubeMusicLyrics | null
 
-  constructor(storage: StorageDriver, logger: Logger, fetchImpl: FetchLike = fetch) {
+  constructor(
+    storage: StorageDriver,
+    logger: Logger,
+    fetchImpl: FetchLike = fetch,
+    youtubeMusic: YouTubeMusicLyrics | null = null,
+  ) {
     this.#storage = storage
     this.#logger = logger.child('lyrics')
     this.#fetch = fetchImpl
+    this.#youtubeMusic = youtubeMusic
   }
 
   /** Path of an existing sidecar for this audio key, or null. */
@@ -89,17 +108,26 @@ export class LyricsService {
     }
   }
 
-  /** Write lyrics next to the audio file so they survive and work offline. */
+  /**
+   * Write lyrics next to the audio file so they survive and work offline.
+   * Timed lyrics replace plain ones outright: the `.txt` would never be read
+   * again, and a song's folder should say what it has.
+   */
   async writeSidecar(audioKey: string, text: string, synced: boolean): Promise<void> {
     const stem = audioKey.replace(/\.[^.]+$/, '')
     const key = stem + (synced ? '.lrc' : '.txt')
     await this.#storage.write(key, Buffer.from(text, 'utf8'))
+    if (synced) await this.#storage.delete(`${stem}.txt`).catch(() => undefined)
   }
 
   /**
-   * Look a track up on lrclib.
+   * Look a track up online: YouTube Music, then lrclib.
    *
-   * Tries the exact endpoint first (artist + title + album + duration, which
+   * YouTube Music's timed lyrics win whenever it has them for this recording
+   * — professionally timed, and for a song imported from YouTube, timed
+   * against the very track that was downloaded.
+   *
+   * On lrclib, tries the exact endpoint first (artist + title + album + duration, which
    * lets the service pick the right version of a song). Timed lyrics from it
    * are taken as they are. Anything less — plain words only, or no match —
    * goes on to the fuzzy search for timed lyrics whose recording is within a
@@ -114,13 +142,16 @@ export class LyricsService {
    * words, and remembering the original as instrumental would stop it from
    * ever being looked up again.
    */
-  async fetchRemote(input: {
-    artist: string
-    title: string
-    album: string
-    duration: number
-  }): Promise<RemoteLyrics | Instrumental | null> {
+  async fetchRemote(input: LyricsLookup): Promise<RemoteLyrics | Instrumental | null> {
     if (!input.title.trim()) return null
+
+    const fromYouTube = await this.#youtubeMusic?.find({
+      videoId: youtubeVideoId(input.sourceUrl),
+      artist: input.artist,
+      title: input.title,
+      duration: input.duration,
+    })
+    if (fromYouTube) return { text: fromYouTube, synced: true }
 
     const exact = await this.#exactMatch(input)
     if (exact && hasSynced(exact) && isCloseEnough(exact, input.duration, true)) {
@@ -202,7 +233,7 @@ export class LyricsService {
   async resolve(
     audioKey: string,
     embedded: string | null,
-    remoteInput: { artist: string; title: string; album: string; duration: number } | null,
+    remoteInput: LyricsLookup | null,
   ): Promise<LyricsResult | Instrumental | null> {
     const sidecar = await this.readSidecar(audioKey)
     if (sidecar) return sidecar

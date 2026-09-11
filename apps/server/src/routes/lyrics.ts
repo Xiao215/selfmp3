@@ -41,7 +41,13 @@ export function lyricsRoutes(container: Container): Router {
       metadata.embeddedLyrics,
       song.instrumental
         ? null
-        : { artist: song.artist, title: song.title, album: song.album, duration: song.duration },
+        : {
+            artist: song.artist,
+            title: song.title,
+            album: song.album,
+            duration: song.duration,
+            sourceUrl: song.sourceUrl,
+          },
     )
     if (resolved === 'instrumental') {
       container.songs.setInstrumental(song.id, true)

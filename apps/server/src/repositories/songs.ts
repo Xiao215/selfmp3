@@ -59,6 +59,7 @@ export class SongRepository {
   readonly #markMissing
   readonly #clearMissing
   readonly #setPath
+  readonly #setSourceUrl
   readonly #deleteById
   readonly #recordPlay
   readonly #recordSkip
@@ -105,6 +106,7 @@ export class SongRepository {
     this.#markMissing = db.prepare('UPDATE songs SET missing = 1 WHERE path = ?')
     this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
     this.#setPath = db.prepare('UPDATE songs SET path = ? WHERE id = ?')
+    this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
     this.#deleteById = db.prepare('DELETE FROM songs WHERE id = ?')
 
     // `last_played_at` only moves forward: a play from last Tuesday, sent
@@ -234,6 +236,11 @@ export class SongRepository {
    */
   setPath(id: number, path: string): void {
     this.#setPath.run(path, id)
+  }
+
+  /** Where an imported song came from: how its own lyrics are found later. */
+  setSourceUrl(id: number, url: string): void {
+    this.#setSourceUrl.run(url, id)
   }
 
   delete(id: number): void {

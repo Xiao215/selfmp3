@@ -13,6 +13,7 @@ import { ImportRepository } from './repositories/imports.js'
 import { FeaturesRepository } from './repositories/features.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
+import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
@@ -103,7 +104,7 @@ export function createContainer(config: Config): Container {
   const deviceRepo = new DeviceRepository(db)
 
   const metadata = new MetadataService(storage, logger)
-  const lyrics = new LyricsService(storage, logger)
+  const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
   const covers = new CoverService(config, songs, logger)
 
   const scanner = new ScannerService({

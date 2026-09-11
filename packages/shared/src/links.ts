@@ -46,3 +46,23 @@ export function isYouTubeUrl(url: string): boolean {
     return false
   }
 }
+
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
+
+/**
+ * The video id in a link to one YouTube video, or null: `watch?v=`, the
+ * `youtu.be/` short form, `/shorts/` and `/embed/`, on either host.
+ */
+export function youtubeVideoId(url: string | null | undefined): string | null {
+  if (!url || !isYouTubeUrl(url)) return null
+  const parsed = new URL(url)
+  const host = parsed.hostname.toLowerCase()
+  const segments = parsed.pathname.split('/').filter(Boolean)
+  const candidate =
+    host === 'youtu.be'
+      ? segments[0]
+      : segments[0] === 'shorts' || segments[0] === 'embed'
+        ? segments[1]
+        : parsed.searchParams.get('v')
+  return candidate && VIDEO_ID.test(candidate) ? candidate : null
+}

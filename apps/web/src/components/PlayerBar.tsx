@@ -3,6 +3,7 @@ import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useLibrary, useToggleLoved } from '../lib/queries.js'
 import { useIsMobile } from '../lib/hooks.js'
+import { coverColorStyle, useCoverColor } from '../lib/useCoverColor.js'
 import { TagPicker } from './TagPicker.js'
 import { DevicesButton } from '../devices/DevicesButton.js'
 import { useDeviceContext } from '../devices/DevicesProvider.js'
@@ -84,6 +85,8 @@ export function PlayerBar({
   const sleepRef = useRef<HTMLButtonElement>(null)
 
   const song = transport.song
+  // The phone's mini player reads its own; this is the desktop bar's.
+  const coverColor = useCoverColor(song, !isMobile)
   // While dragging, show the handle position rather than the playhead, or the
   // thumb fights the user for control.
   const displayTime = scrubbing ?? transport.currentTime
@@ -101,7 +104,11 @@ export function PlayerBar({
   }
 
   return (
-    <footer className="player-bar">
+    <footer
+      className={`player-bar ${song ? 'has-song' : ''}`}
+      // The progress wash: the song's colour fills the bar up to where it has got.
+      style={{ ...coverColorStyle(coverColor), '--played': `${percent}%` } as React.CSSProperties}
+    >
       <div className="player-left">
         {song ? (
           <>
@@ -448,13 +455,15 @@ function VolumeControl({ compact }: { compact: boolean }) {
 function MiniPlayer({ onOpen, percent }: { onOpen: () => void; percent: number }) {
   const transport = useTransport()
   const song = transport.song
+  const coverColor = useCoverColor(song)
 
   // Nothing here, but the Mac is playing: a one-line strip is the only way to
   // reach handoff from a phone that is otherwise idle.
   if (!song) return <RemoteOnlyStrip />
 
   return (
-    <div className="mini-player">
+    <div className="mini-player" style={coverColorStyle(coverColor)}>
+      {/* The progress wash: the song's colour fills the card as it plays. */}
       <div className="mini-progress" style={{ width: `${percent}%` }} />
 
       <button

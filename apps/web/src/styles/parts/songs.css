@@ -29,28 +29,32 @@
 }
 
 /*
- * Now playing. Hover is already a surface change, so the current row needs a
- * mark hover cannot make: an accent bar down its leading edge, plus the accent
- * title. Both stay while the row is only cued up and not sounding, so the row
- * still says "this is the one" when the transport is paused.
+ * Now playing, in the song's own colour.
+ *
+ * The colour comes from the cover (`--song-color`, set on the row by
+ * useCoverColor) and washes in from the right, where the row is empty — the
+ * cover already fills the left. The equaliser in the number column and the
+ * title take the light version (`--song-tint`). Until the cover has been
+ * read, or for a cover with no colour in it, the app's accent stands in.
+ * All of it stays while the song is paused, so the row still says "this is
+ * the one".
  */
 .song-row.is-current {
-  background: oklch(0.3 0.045 var(--accent-hue) / 0.55);
+  --wash: linear-gradient(
+    270deg,
+    color-mix(in oklch, var(--song-color, var(--accent)) 38%, transparent) 0%,
+    color-mix(in oklch, var(--song-color, var(--accent)) 15%, transparent) 38%,
+    transparent 66%
+  );
+  background: var(--wash);
 }
 
-.song-row.is-current::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  bottom: 5px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
+.song-row.is-current:hover {
+  background: var(--wash), var(--surface-1);
 }
 
 .song-row.is-current .song-title {
-  color: var(--accent);
+  color: var(--song-tint, var(--accent));
 }
 
 .song-row.is-selected {
@@ -515,8 +519,30 @@
 .equalizer span {
   width: 2.5px;
   border-radius: 1px;
-  background: var(--accent);
+  /* The playing song's own colour where a row or bar has set one. */
+  background: var(--song-tint, var(--accent));
   animation: eq 0.9s ease-in-out infinite;
+}
+
+/* Paused: the bars hold still, low, rather than vanish. */
+.equalizer.is-paused span {
+  animation: none;
+  transform: scaleY(0.45);
+}
+
+/* On a phone, where there is no number column, the bars sit on the cover. */
+.song-art {
+  position: relative;
+}
+
+.song-art-playing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: oklch(0.12 0.02 var(--accent-hue) / 0.55);
+  pointer-events: none;
 }
 
 .equalizer span:nth-child(1) {

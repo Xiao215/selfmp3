@@ -66,16 +66,24 @@
   text-align: left;
   overflow: hidden;
   flex-shrink: 0;
+  isolation: isolate;
 }
 
+/* The progress wash, as on the desktop bar: the cover's colour fills the
+   card as the song plays, with a thin line along its foot. */
 .mini-progress {
   position: absolute;
-  top: 0;
-  left: 0;
-  height: 2px;
-  background: var(--accent);
+  inset: 0 auto 0 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    var(--song-color, var(--accent)) 0 2px,
+    color-mix(in oklch, var(--song-color, var(--accent)) 26%, transparent) 2px
+  );
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
   transition: width 0.25s linear;
-  z-index: 2;
+  pointer-events: none;
 }
 
 /* An invisible full-bleed button so tapping anywhere but the transport

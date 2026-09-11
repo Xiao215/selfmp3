@@ -358,9 +358,15 @@ export const Tag = (p: IconProps) => (
   </Icon>
 )
 
-/** The three animated bars shown next to whatever is currently playing. */
-export const Equalizer = () => (
-  <span className="equalizer" aria-label="Now playing">
+/**
+ * The three bars shown next to whatever is currently playing. Paused, they
+ * hold still rather than disappear, so the loaded song stays marked.
+ */
+export const Equalizer = ({ paused = false }: { paused?: boolean }) => (
+  <span
+    className={`equalizer ${paused ? 'is-paused' : ''}`}
+    aria-label={paused ? 'Paused' : 'Now playing'}
+  >
     <span />
     <span />
     <span />

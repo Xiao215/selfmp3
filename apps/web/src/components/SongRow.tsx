@@ -3,6 +3,7 @@ import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { useToggleLoved } from '../lib/queries.js'
+import { coverColorStyle, useCoverColor } from '../lib/useCoverColor.js'
 import { Cover } from './Cover.js'
 import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
@@ -95,6 +96,8 @@ export const SongRow = memo(function SongRow({
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const player = usePlayer()
   const offline = useOffline()
+  // Only the playing row is tinted, so only it reads its cover.
+  const coverColor = useCoverColor(song, isCurrent)
   const toggleLoved = useToggleLoved()
 
   // Long press. The timer, the point the finger went down and the "that click
@@ -230,6 +233,7 @@ export const SongRow = memo(function SongRow({
       role="row"
       tabIndex={0}
       onKeyDown={onKeyDown}
+      style={coverColorStyle(coverColor)}
     >
       {/*
         A real focusable checkbox rather than a decorative one the row toggles:
@@ -264,7 +268,11 @@ export const SongRow = memo(function SongRow({
             <Equalizer />
           ) : (
             <>
-              <span className="song-index-number">{index + 1}</span>
+              {/* Paused, the bars stay — still, and still in the song's
+                  colour — so the row keeps saying which song is loaded. */}
+              <span className="song-index-number">
+                {isCurrent ? <Equalizer paused /> : index + 1}
+              </span>
               <button
                 type="button"
                 className="song-index-play"
@@ -283,6 +291,12 @@ export const SongRow = memo(function SongRow({
 
       <div className="song-cell song-art" role="cell">
         <Cover song={song} size={40} />
+        {/* A phone has no number column, so the bars sit on the cover. */}
+        {isCurrent && !showIndex && (
+          <span className="song-art-playing">
+            <Equalizer paused={!isPlaying} />
+          </span>
+        )}
       </div>
 
       <div className="song-cell song-main" role="cell">

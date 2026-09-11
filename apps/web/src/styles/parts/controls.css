@@ -320,10 +320,12 @@ input[type='range'] {
      setting it to 4px collapses the content box and the track disappears. */
   height: 20px;
   border-radius: 2px;
+  /* `--range-fill` lets a slider take another colour — the player's scrubber
+     takes the playing song's. */
   background: linear-gradient(
     to right,
-    var(--accent) 0%,
-    var(--accent) var(--progress, 0%),
+    var(--range-fill, var(--accent)) 0%,
+    var(--range-fill, var(--accent)) var(--progress, 0%),
     var(--surface-3) var(--progress, 0%),
     var(--surface-3) 100%
   );

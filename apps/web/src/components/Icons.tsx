@@ -127,6 +127,15 @@ export const CloudDownload = (p: IconProps) => (
   </Icon>
 )
 
+/** The same cloud, the arrow going up into it. */
+export const CloudUpload = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 17a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 17" />
+    <path d="M12 20v-8" />
+    <path d="m8.5 15.5 3.5-3.5 3.5 3.5" />
+  </Icon>
+)
+
 /** On this device: a solid disc with the arrow knocked out of it. */
 export const Downloaded = (p: IconProps) => (
   <Icon {...p}>

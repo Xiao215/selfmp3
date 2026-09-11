@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
-import { migrate } from '../db/migrate.js'
+import { migrate, migrationVersion } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from './songs.js'
 
@@ -13,10 +13,8 @@ describe('backfilling where imported songs came from', () => {
   it('takes each song’s link from its import job, and leaves the rest', () => {
     const db = new Database(':memory:')
     const logger = createLogger('silent')
-    migrate(db, logger)
-    // Step back one migration, as a database from before it would be.
-    const latest = db.pragma('user_version', { simple: true }) as number
-    db.pragma(`user_version = ${latest - 1}`)
+    // A database from just before the backfill, which then runs as an upgrade would.
+    migrate(db, logger, migrationVersion('songs: remember where imported songs came from') - 1)
     db.exec(`
       INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B'), (3, 'c.m4a', 'C');
       UPDATE songs SET source_url = 'https://kept.example' WHERE id = 3;

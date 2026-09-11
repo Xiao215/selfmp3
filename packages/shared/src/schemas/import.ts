@@ -19,6 +19,13 @@ export const ImportStepSchema = z.enum([
   'converting',
   'lyrics',
   'saving',
+  /**
+   * Only with a cloud bucket connected: the song is in the library on this
+   * Mac and the job is not done until it is in the bucket too. A job that
+   * failed here keeps this step, so it can be told apart and finished later
+   * without downloading the song again.
+   */
+  'uploading',
   'finished',
 ])
 export type ImportStep = z.infer<typeof ImportStepSchema>
@@ -30,6 +37,7 @@ export const IMPORT_STEP_LABELS: Record<ImportStep, string> = {
   converting: 'Processing audio',
   lyrics: 'Looking for lyrics',
   saving: 'Adding to library',
+  uploading: 'Uploading to the cloud',
   finished: 'Done',
 }
 

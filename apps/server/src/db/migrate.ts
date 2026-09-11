@@ -278,9 +278,85 @@ const MIGRATIONS: readonly Migration[] = [
          AND EXISTS (SELECT 1 FROM import_jobs WHERE import_jobs.song_id = songs.id);
     `,
   },
+  {
+    name: 'cloud: stable ids, and what has been uploaded',
+    sql: `
+      -- A uid is how a song, tag or playlist is known outside this database
+      -- (docs/SYNC.md). Integer ids stay as local handles: SQLite reuses them
+      -- after a delete, and another device would hand out the same numbers.
+      -- ALTER TABLE cannot give a column a random default, so every existing
+      -- row is filled here and every new one by trigger — unless it arrives
+      -- with a uid of its own, as a song made on another device will.
+      --
+      -- The search index's update trigger first becomes one for the columns
+      -- it indexes. As it was, any update to a song rewrote its search entry —
+      -- every play did — and the uid trigger below would fire it for a song
+      -- whose entry the insert trigger had not written yet, and FTS5 corrupts
+      -- itself deleting an entry it does not have.
+      DROP TRIGGER songs_fts_update;
+      CREATE TRIGGER songs_fts_update AFTER UPDATE OF title, artist, album ON songs BEGIN
+        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
+        VALUES ('delete', old.id, old.title, old.artist, old.album);
+        INSERT INTO songs_fts(rowid, title, artist, album)
+        VALUES (new.id, new.title, new.artist, new.album);
+      END;
+
+      ALTER TABLE songs ADD COLUMN uid TEXT;
+      UPDATE songs SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
+      CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
+      CREATE TRIGGER songs_uid AFTER INSERT ON songs WHEN new.uid IS NULL BEGIN
+        UPDATE songs SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+      END;
+
+      ALTER TABLE tags ADD COLUMN uid TEXT;
+      UPDATE tags SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
+      CREATE UNIQUE INDEX idx_tags_uid ON tags(uid);
+      CREATE TRIGGER tags_uid AFTER INSERT ON tags WHEN new.uid IS NULL BEGIN
+        UPDATE tags SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+      END;
+
+      ALTER TABLE playlists ADD COLUMN uid TEXT;
+      UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
+      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+      CREATE TRIGGER playlists_uid AFTER INSERT ON playlists WHEN new.uid IS NULL BEGIN
+        UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+      END;
+
+      -- What was uploaded for each song, and from which state of it: the audio
+      -- file's size and mtime, the cover's revision, the lyric sidecar's size
+      -- and mtime. A song whose signatures still match is not read again, so a
+      -- rescan or a restart does not re-hash the whole library.
+      CREATE TABLE cloud_songs (
+        song_id     INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        audio_key   TEXT    NOT NULL,
+        audio_size  INTEGER NOT NULL,
+        audio_sig   TEXT    NOT NULL,
+        cover_key   TEXT,
+        cover_size  INTEGER,
+        cover_sig   TEXT    NOT NULL,
+        lyrics_key  TEXT,
+        lyrics_size INTEGER,
+        lyrics_kind TEXT,
+        lyrics_sig  TEXT    NOT NULL,
+        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+
+      -- Every file known to be in the bucket. Files are named by their hash
+      -- and never change, so "is it there?" is asked of the bucket once.
+      CREATE TABLE cloud_files (
+        key         TEXT    PRIMARY KEY,
+        size        INTEGER NOT NULL,
+        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ]
 
-export function migrate(db: Database, logger: Logger): void {
+/**
+ * Bring the schema up to `target` — the latest, unless a test wants a
+ * database as it was before some migration, to watch that migration run.
+ */
+export function migrate(db: Database, logger: Logger, target = MIGRATIONS.length): void {
   const currentVersion = db.pragma('user_version', { simple: true }) as number
 
   if (currentVersion > MIGRATIONS.length) {
@@ -290,12 +366,13 @@ export function migrate(db: Database, logger: Logger): void {
     )
   }
 
-  if (currentVersion === MIGRATIONS.length) {
+  const goal = Math.min(target, MIGRATIONS.length)
+  if (currentVersion >= goal) {
     logger.debug('schema up to date', { version: currentVersion })
     return
   }
 
-  for (let version = currentVersion; version < MIGRATIONS.length; version++) {
+  for (let version = currentVersion; version < goal; version++) {
     const migration = MIGRATIONS[version]
     if (!migration) continue
     const nextVersion = version + 1
@@ -317,7 +394,14 @@ export function migrate(db: Database, logger: Logger): void {
     }
   }
 
-  logger.info('schema migrated', { to: MIGRATIONS.length })
+  logger.info('schema migrated', { to: goal })
 }
 
 export const SCHEMA_VERSION = MIGRATIONS.length
+
+/** The version a migration brings the schema to, found by its name. */
+export function migrationVersion(name: string): number {
+  const index = MIGRATIONS.findIndex(migration => migration.name === name)
+  if (index === -1) throw new Error(`no migration called ${JSON.stringify(name)}`)
+  return index + 1
+}

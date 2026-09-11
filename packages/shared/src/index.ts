@@ -23,6 +23,7 @@ export * from './schemas/features.js'
 export * from './schemas/devices.js'
 export * from './schemas/wrapped.js'
 export * from './schemas/gems.js'
+export * from './schemas/cloud.js'
 
 export * from './format.js'
 export * from './lrc.js'
@@ -36,6 +37,7 @@ export * from './personality.js'
 export * from './transpose.js'
 export * from './queue.js'
 export * from './outbox.js'
+export * from './cloud.js'
 
 /** Bumped when the wire format changes in a way old clients cannot handle. */
 export const API_VERSION = 1

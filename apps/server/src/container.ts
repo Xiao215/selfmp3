@@ -30,6 +30,8 @@ import { AnalysisService } from './services/analysis.js'
 import { DeviceRepository } from './repositories/devices.js'
 import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
+import { CloudRepository } from './repositories/cloud.js'
+import { CloudSyncService } from './services/cloudSync.js'
 
 /**
  * Composition root.
@@ -57,6 +59,7 @@ export interface Container {
   readonly lyricsSearch: LyricsSearchRepository
   readonly features: FeaturesRepository
   readonly deviceRepo: DeviceRepository
+  readonly cloudRepo: CloudRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -74,11 +77,13 @@ export interface Container {
   readonly analysis: AnalysisService
   readonly events: EventHub
   readonly devices: DeviceService
+  readonly cloudSync: CloudSyncService
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
    * to decide whether a refetch is worth doing — which is what lets the phone
-   * poll cheaply while it is awake without re-downloading the library.
+   * poll cheaply while it is awake without re-downloading the library. Every
+   * bump also tells the cloud sync that there may be something to publish.
    */
   libraryVersion(): number
   bumpLibraryVersion(): void
@@ -102,10 +107,30 @@ export function createContainer(config: Config): Container {
   const lyricsSearch = new LyricsSearchRepository(db)
   const features = new FeaturesRepository(db)
   const deviceRepo = new DeviceRepository(db)
+  const cloudRepo = new CloudRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
   const covers = new CoverService(config, songs, logger)
+
+  const cloudSync = new CloudSyncService({
+    cloud: cloudRepo,
+    songs,
+    tags,
+    playlists,
+    imports,
+    storage,
+    covers,
+    lyrics,
+    metadata,
+    logger,
+  })
+
+  let version = 1
+  const bump = (): void => {
+    version++
+    cloudSync.kick()
+  }
 
   const scanner = new ScannerService({
     config,
@@ -132,6 +157,7 @@ export function createContainer(config: Config): Container {
     lyrics,
     covers,
     ytdlp,
+    cloud: cloudSync,
     logger,
   })
 
@@ -146,15 +172,11 @@ export function createContainer(config: Config): Container {
     logger,
   })
 
-  let version = 1
-
   const libraryWatcher = new LibraryWatcherService({
     config,
     settings,
     scanner,
-    onChanged: () => {
-      version++
-    },
+    onChanged: bump,
     logger,
   })
 
@@ -164,9 +186,7 @@ export function createContainer(config: Config): Container {
     covers,
     lookup,
     logger,
-    onChange: () => {
-      version++
-    },
+    onChange: bump,
   })
   const analysis = new AnalysisService({
     config,
@@ -180,7 +200,7 @@ export function createContainer(config: Config): Container {
     // end, so a long first run does not have every phone re-downloading the
     // library after each song.
     onProgress: (done, finished) => {
-      if (finished || done % 25 === 0) version++
+      if (finished || done % 25 === 0) bump()
     },
   })
 
@@ -219,6 +239,7 @@ export function createContainer(config: Config): Container {
     lyricsSearch,
     features,
     deviceRepo,
+    cloudRepo,
     metadata,
     lyrics,
     covers,
@@ -235,15 +256,15 @@ export function createContainer(config: Config): Container {
     analysis,
     events,
     devices,
+    cloudSync,
     libraryVersion: () => version,
-    bumpLibraryVersion: () => {
-      version++
-    },
+    bumpLibraryVersion: bump,
     close: () => {
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()
       importQueue.stop()
+      cloudSync.stop()
       migrate.stop()
       db.close()
     },

@@ -9,6 +9,8 @@ import type {
   ApplyMetadata,
   FixCoversStatus,
   AnalysisStatus,
+  CloudConnect,
+  CloudStatus,
   DeviceList,
   Library,
   Settings,
@@ -52,6 +54,7 @@ export const queryKeys = {
   similar: (id: number) => ['similar', id] as const,
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
+  cloud: ['cloud'] as const,
 }
 
 /**
@@ -486,4 +489,34 @@ export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList,
     refetchIntervalInBackground: false,
     retry: false,
   })
+}
+
+/**
+ * This Mac's connection to the cloud bucket. Polled quickly while a pass is
+ * uploading, so the progress bar moves, and slowly otherwise, so a pass the
+ * server starts by itself after an import still shows up.
+ */
+export function useCloudStatus(): UseQueryResult<CloudStatus, Error> {
+  return useQuery({
+    queryKey: queryKeys.cloud,
+    queryFn: () => api.cloudStatus(),
+    refetchInterval: query => (query.state.data?.state === 'syncing' ? 1_000 : 10_000),
+    refetchIntervalInBackground: false,
+  })
+}
+
+/** Connect, publish now, or disconnect — each answers with the new status. */
+export function useCloudActions() {
+  const client = useQueryClient()
+  const onSuccess = (status: CloudStatus): void => {
+    client.setQueryData(queryKeys.cloud, status)
+  }
+  return {
+    connect: useMutation({
+      mutationFn: (input: CloudConnect) => api.cloudConnect(input),
+      onSuccess,
+    }),
+    sync: useMutation({ mutationFn: () => api.cloudSync(), onSuccess }),
+    disconnect: useMutation({ mutationFn: () => api.cloudDisconnect(), onSuccess }),
+  }
 }

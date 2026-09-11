@@ -39,6 +39,7 @@ const STEPS = new Set<ImportStep>([
   'converting',
   'lyrics',
   'saving',
+  'uploading',
   'finished',
 ])
 
@@ -275,6 +276,24 @@ export class ImportRepository {
   /** Housekeeping so the table cannot grow without bound. */
   pruneOlderThanDays(days: number): number {
     return this.#deleteFinished.run(`-${days} days`).changes
+  }
+
+  /**
+   * Finish jobs that gave up at the upload step and whose songs have since
+   * reached the bucket after all. Call it once a snapshot is published: the
+   * song was already in the library on this Mac, and now every other device
+   * can see it too.
+   */
+  finishUploaded(): number {
+    return this.#db
+      .prepare(
+        `UPDATE import_jobs
+            SET status = 'done', step = 'finished', progress = 100, error = NULL,
+                updated_at = datetime('now')
+          WHERE status = 'error' AND step = 'uploading'
+            AND song_id IN (SELECT song_id FROM cloud_songs)`,
+      )
+      .run().changes
   }
 
   /** True when this URL is already queued or running, to avoid duplicates. */

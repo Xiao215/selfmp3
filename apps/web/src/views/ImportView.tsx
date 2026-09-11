@@ -17,6 +17,7 @@ import {
   Check,
   CheckCircle,
   ChevronRight,
+  Clock,
   Download,
   ListMusic,
   Refresh,
@@ -31,6 +32,18 @@ const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
   done: 'Done',
   error: 'Failed',
   cancelled: 'Cancelled',
+}
+
+/**
+ * In the library on the Mac but not yet in the cloud bucket: not a failure,
+ * and the cloud sync finishes the job by itself (docs/SYNC.md).
+ */
+function waitingToUpload(job: ImportJob): boolean {
+  return job.status === 'error' && job.step === 'uploading'
+}
+
+function jobLabel(job: ImportJob): string {
+  return waitingToUpload(job) ? 'Waiting to upload' : JOB_STATUS_LABELS[job.status]
 }
 
 /**
@@ -468,14 +481,18 @@ export function ImportView() {
 
           <div className="job-list" aria-live="polite">
             {queue.jobs.map(job => (
-              <div key={job.id} className={`job-row is-${job.status}`}>
-                <span className="job-status" title={JOB_STATUS_LABELS[job.status]}>
+              <div
+                key={job.id}
+                className={`job-row is-${waitingToUpload(job) ? 'waiting' : job.status}`}
+              >
+                <span className="job-status" title={jobLabel(job)}>
                   {job.status === 'running' && <span className="spinner" />}
                   {job.status === 'done' && <CheckCircle size={16} />}
-                  {job.status === 'error' && <X size={16} />}
+                  {job.status === 'error' &&
+                    (waitingToUpload(job) ? <Clock size={16} /> : <X size={16} />)}
                   {job.status === 'cancelled' && <X size={16} />}
                   {job.status === 'queued' && <span className="job-dot" />}
-                  <span className="visually-hidden">{JOB_STATUS_LABELS[job.status]}</span>
+                  <span className="visually-hidden">{jobLabel(job)}</span>
                 </span>
 
                 <span className="job-meta">
@@ -544,7 +561,7 @@ export function ImportView() {
                     }}
                     aria-label={`Retry ${job.title || 'this import'}`}
                   >
-                    <Refresh size={13} /> Retry
+                    <Refresh size={13} /> {waitingToUpload(job) ? 'Try now' : 'Retry'}
                   </button>
                 )}
               </div>

@@ -201,7 +201,7 @@ export class YouTubeMusicLyrics {
         signal: controller.signal,
       })
       if (!response.ok) return null
-      return (await response.json()) as unknown
+      return await response.json()
     } catch (error) {
       this.#logger.debug('lookup failed', {
         endpoint,

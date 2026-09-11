@@ -82,6 +82,7 @@ function main(): void {
     if (scanTimer) clearInterval(scanTimer)
     container.libraryWatcher.stop()
     container.importQueue.stop()
+    container.cloudSync.stop()
 
     server.close(() => {
       container.close()
@@ -118,7 +119,10 @@ function startLibrary(container: Container): void {
   container.importQueue.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
   container.libraryWatcher.apply()
-  if (!config.scanOnBoot) void container.lyricsIndex.backfill()
+  if (!config.scanOnBoot) {
+    void container.lyricsIndex.backfill()
+    container.cloudSync.start()
+  }
 
   if (config.scanOnBoot) {
     // Deliberately not awaited: the API is already serving, and a first scan of
@@ -135,6 +139,8 @@ function startLibrary(container: Container): void {
           message: error instanceof Error ? error.message : String(error),
         })
       })
+      // Publishing reads what the scan found, so it waits for it — however it went.
+      .finally(() => container.cloudSync.start())
   }
 }
 

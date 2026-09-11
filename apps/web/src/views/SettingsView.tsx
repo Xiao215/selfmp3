@@ -20,6 +20,7 @@ import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../comp
 import { LyricsSettings } from '../components/LyricsSettings.js'
 import { Select } from '../components/Select.js'
 import { DevicesSettings } from '../devices/DevicesSettings.js'
+import { CloudSettings } from '../cloud/CloudSettings.js'
 
 /**
  * Settings.
@@ -42,6 +43,7 @@ const SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'offline', label: 'Offline music' },
   { id: 'importing', label: 'Importing' },
   { id: 'library', label: 'Library' },
+  { id: 'cloud', label: 'Cloud' },
   { id: 'lyrics', label: 'Lyrics' },
   { id: 'devices', label: 'Devices' },
   { id: 'appearance', label: 'Appearance' },
@@ -709,6 +711,10 @@ export function SettingsView() {
               </div>
             )}
           </section>
+
+          {/* ---------------- cloud ---------------- */}
+
+          <CloudSettings />
 
           {/* ---------------- lyrics+ ---------------- */}
 

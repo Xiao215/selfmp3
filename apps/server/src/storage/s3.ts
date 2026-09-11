@@ -16,11 +16,11 @@ import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
  *   SELFMP3_STORAGE_DRIVER=s3 SELFMP3_S3_BUCKET=... npm start
  */
 
-type S3ClientLike = {
+export type S3ClientLike = {
   send(command: unknown): Promise<Record<string, unknown>>
 }
 
-interface S3Module {
+export interface S3Module {
   S3Client: new (options: Record<string, unknown>) => S3ClientLike
   GetObjectCommand: new (input: Record<string, unknown>) => unknown
   PutObjectCommand: new (input: Record<string, unknown>) => unknown
@@ -30,7 +30,7 @@ interface S3Module {
   ListObjectsV2Command: new (input: Record<string, unknown>) => unknown
 }
 
-interface PresignerModule {
+export interface PresignerModule {
   getSignedUrl: (
     client: unknown,
     command: unknown,
@@ -38,7 +38,8 @@ interface PresignerModule {
   ) => Promise<string>
 }
 
-async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModule }> {
+/** Also used by the cloud bucket client, `cloud/store.ts`. */
+export async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModule }> {
   try {
     const [s3, presigner] = await Promise.all([
       import('@aws-sdk/client-s3') as Promise<unknown>,
@@ -227,7 +228,7 @@ export class S3StorageDriver implements StorageDriver {
   }
 }
 
-async function streamToBuffer(body: unknown): Promise<Buffer> {
+export async function streamToBuffer(body: unknown): Promise<Buffer> {
   if (Buffer.isBuffer(body)) return body
   if (body instanceof Uint8Array) return Buffer.from(body)
   if (body instanceof Readable) {

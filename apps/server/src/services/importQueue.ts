@@ -32,6 +32,25 @@ import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 const MAX_ATTEMPTS = 3
 const RETRY_DELAY_MS = 5_000
 
+/** The part of the cloud sync an import needs: see services/cloudSync.ts. */
+export interface ImportUploader {
+  readonly connected: boolean
+  /** Put the song in the bucket and publish a snapshot that has it. */
+  uploadSong(songId: number): Promise<void>
+}
+
+/**
+ * The song is in the library on this Mac, but not yet in the bucket. Kept
+ * apart from other failures because retrying it must not download the song
+ * again, and because the background sync can still finish the job later.
+ */
+class UploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UploadError'
+  }
+}
+
 export class ImportQueueService {
   readonly #config: Config
   readonly #storage: StorageDriver
@@ -44,6 +63,7 @@ export class ImportQueueService {
   readonly #lyrics: LyricsService
   readonly #covers: CoverService
   readonly #ytdlp: YtDlpService
+  readonly #cloud: ImportUploader
   readonly #logger: Logger
 
   /** Abort controllers for in-flight jobs, so cancel can actually stop them. */
@@ -66,6 +86,7 @@ export class ImportQueueService {
     lyrics: LyricsService
     covers: CoverService
     ytdlp: YtDlpService
+    cloud: ImportUploader
     logger: Logger
   }) {
     this.#config = deps.config
@@ -79,6 +100,7 @@ export class ImportQueueService {
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
     this.#ytdlp = deps.ytdlp
+    this.#cloud = deps.cloud
     this.#logger = deps.logger.child('import')
   }
 
@@ -184,11 +206,24 @@ export class ImportQueueService {
       const message = error instanceof Error ? error.message : String(error)
       const current = this.#imports.byId(job.id)
       const attempts = current?.attempts ?? job.attempts
+      const uploading = error instanceof UploadError
 
-      if (attempts < MAX_ATTEMPTS && isRetryable(message)) {
+      if (attempts < MAX_ATTEMPTS && (uploading || isRetryable(message))) {
         this.#logger.warn('import failed, will retry', { message, attempt: attempts })
         this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: message })
         setTimeout(() => this.kick(), RETRY_DELAY_MS)
+        return
+      }
+
+      if (uploading) {
+        // Not a failed import: the song is in the library here. The cloud
+        // sync keeps trying, and marks this job done once the song is up.
+        this.#logger.warn('imported, but not uploaded yet', { message, songId: current?.songId })
+        this.#imports.update(job.id, {
+          status: 'error',
+          step: 'uploading',
+          error: `Saved on this Mac, but not uploaded yet: ${message} It will upload by itself once the bucket can be reached.`,
+        })
         return
       }
 
@@ -198,6 +233,13 @@ export class ImportQueueService {
   }
 
   async #runJob(job: ImportJob, settings: Settings, signal: AbortSignal): Promise<number> {
+    // A job that already added its song and only failed to upload it picks
+    // up where it stopped: downloading the song again would be a second copy.
+    if (job.songId !== null && this.#songs.byId(job.songId)) {
+      await this.#upload(job.id, job.songId)
+      return job.songId
+    }
+
     const tools = await this.#ytdlp.status()
     if (!tools.ytdlp) {
       throw new Error('yt-dlp is not installed — run: brew install yt-dlp ffmpeg')
@@ -319,11 +361,27 @@ export class ImportQueueService {
         this.#playlists.add(playlistId, [songId])
       }
 
+      await this.#upload(job.id, songId)
       return songId
     } finally {
       await fsp.rm(stagedPath, { force: true }).catch(() => undefined)
       // Written by now, or given up on: either way the disk has the last word.
       if (libraryKey) this.#claimedFolders.delete(path.posix.dirname(libraryKey))
+    }
+  }
+
+  /**
+   * With a bucket connected, the job is done once the song is in it: until
+   * then no other device can see it (docs/SYNC.md). The song id is written to
+   * the job first, which is what lets a retry skip straight back to here.
+   */
+  async #upload(jobId: string, songId: number): Promise<void> {
+    if (!this.#cloud.connected) return
+    this.#imports.update(jobId, { step: 'uploading', progress: null, songId })
+    try {
+      await this.#cloud.uploadSong(songId)
+    } catch (error) {
+      throw new UploadError(error instanceof Error ? error.message : String(error))
     }
   }
 

@@ -197,6 +197,16 @@
   color: var(--danger);
 }
 
+/* Imported, not yet in the cloud: it will finish by itself, so amber, not red. */
+.job-row.is-waiting {
+  border-color: oklch(0.45 0.1 78 / 0.7);
+}
+
+.job-row.is-waiting .job-status,
+.job-row.is-waiting .job-sub {
+  color: var(--warning);
+}
+
 .job-status {
   display: flex;
   width: 20px;

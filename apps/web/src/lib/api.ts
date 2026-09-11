@@ -30,7 +30,9 @@ import {
   SyncManifestSchema,
   TagSchema,
   BulkDeleteResultSchema,
+  CloudStatusSchema,
   type AddToPlaylist,
+  type CloudConnect,
   type ApplyMetadata,
   type BulkDeleteSongs,
   type BulkLoved,
@@ -358,6 +360,16 @@ export const api = {
 
   forgetDevice: (deviceId: string) =>
     request('DELETE', `/api/devices/${encodeURIComponent(deviceId)}`, OkSchema),
+
+  // --- cloud --------------------------------------------------------------
+
+  cloudStatus: () => request('GET', '/api/cloud', CloudStatusSchema),
+
+  cloudConnect: (input: CloudConnect) => request('PUT', '/api/cloud', CloudStatusSchema, input),
+
+  cloudDisconnect: () => request('DELETE', '/api/cloud', CloudStatusSchema),
+
+  cloudSync: () => request('POST', '/api/cloud/sync', CloudStatusSchema),
 
   // --- system -------------------------------------------------------------
 

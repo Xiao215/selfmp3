@@ -97,13 +97,20 @@
   border-radius: var(--radius-sm);
 }
 
+/*
+ * Revealed for the pointer, and for keyboard focus on the row or anything in
+ * it — `:focus-visible`, not `:focus-within`. A clicked button keeps focus
+ * until something else is clicked, so `:focus-within` left the last row you
+ * clicked showing its play button and checkbox long after the pointer left.
+ * The same rule holds for every row's hover controls below.
+ */
 .song-row:hover .song-index-number,
-.song-row:focus-within .song-index-number {
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-index-number {
   display: none;
 }
 
 .song-row:hover .song-index-play,
-.song-row:focus-within .song-index-play {
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-index-play {
   display: flex;
 }
 
@@ -218,7 +225,7 @@
 /*
  * Hover-only controls. An unloved heart, the tag button and the ⋯ are actions,
  * not information — six songs' worth of them turns the list into a grid of
- * grey icons. They fade in for the pointer, for the keyboard (`:focus-within`)
+ * grey icons. They fade in for the pointer, for keyboard focus (see above)
  * and while their own menu is open, and they keep their space in the layout
  * either way so nothing shifts under the cursor.
  */
@@ -232,9 +239,9 @@
 .song-row:hover .song-tag-add,
 .song-row:hover .song-more,
 .song-row:hover .song-love,
-.song-row:focus-within .song-tag-add,
-.song-row:focus-within .song-more,
-.song-row:focus-within .song-love,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-tag-add,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-more,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-love,
 .song-row.is-menu-open .song-tag-add,
 .song-row.is-menu-open .song-more {
   opacity: 1;

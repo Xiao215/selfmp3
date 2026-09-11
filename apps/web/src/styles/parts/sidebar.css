@@ -220,7 +220,7 @@
 }
 
 .tag-row:hover .tag-row-action,
-.tag-row:focus-within .tag-row-action,
+.tag-row:is(:focus-visible, :has(:focus-visible)) .tag-row-action,
 .tag-row.is-editing .tag-row-action,
 .tag-row-action.is-on {
   opacity: 1;

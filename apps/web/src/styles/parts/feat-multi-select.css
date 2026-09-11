@@ -44,7 +44,7 @@
  * whether it is ticked too, or the list is lying about its own state.
  */
 .song-row:hover .song-select-box,
-.song-row:focus-within .song-select-box,
+.song-row:is(:focus-visible, :has(:focus-visible)) .song-select-box,
 .song-row.is-selected .song-select-box,
 .song-list.is-selecting .song-select-box,
 .song-select-box:focus-visible {
@@ -108,7 +108,7 @@
 
 .playlist-song-list.is-selecting .playlist-row-select .song-select-box,
 .playlist-row:hover .playlist-row-select .song-select-box,
-.playlist-row:focus-within .playlist-row-select .song-select-box,
+.playlist-row:is(:focus-visible, :has(:focus-visible)) .playlist-row-select .song-select-box,
 .playlist-row.is-selected .playlist-row-select .song-select-box {
   opacity: 1;
 }

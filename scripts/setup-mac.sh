@@ -5,7 +5,7 @@
 #   ./scripts/setup-mac.sh
 #
 # Checks Node, installs yt-dlp and ffmpeg through Homebrew if they are missing,
-# builds the app, creates the library/ and data/ folders, and offers to install
+# builds the app, creates the library and data folders, and offers to install
 # the background service. Safe to run again at any time: every step is a
 # no-op when it has already been done.
 
@@ -112,9 +112,11 @@ ok "built apps/server/dist and apps/web/dist"
 # --- folders ----------------------------------------------------------------
 
 step "Folders"
-mkdir -p "$PROJECT_DIR/library" "$PROJECT_DIR/data"
-ok "library/  ${DIM}(your audio files go here)${RESET}"
-ok "data/     ${DIM}(database and cover cache)${RESET}"
+# shellcheck source=./_dirs.sh
+source "$PROJECT_DIR/scripts/_dirs.sh"
+mkdir -p "$LIBRARY_DIR" "$DATA_DIR"
+ok "library  ${DIM}$LIBRARY_DIR${RESET}"
+ok "data     ${DIM}$DATA_DIR${RESET}"
 
 # --- background service -----------------------------------------------------
 

@@ -11,8 +11,8 @@ set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${SELFMP3_PORT:-4600}"
-LIBRARY_DIR="${SELFMP3_LIBRARY_DIR:-$PROJECT_DIR/library}"
-DATA_DIR="${SELFMP3_DATA_DIR:-$PROJECT_DIR/data}"
+# shellcheck source=./_dirs.sh
+source "$PROJECT_DIR/scripts/_dirs.sh"
 LABEL="com.selfmp3.server"
 LOG="$HOME/Library/Logs/selfmp3.log"
 ERR_LOG="$HOME/Library/Logs/selfmp3.error.log"

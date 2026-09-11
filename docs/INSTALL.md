@@ -189,6 +189,48 @@ docker compose exec selfmp3 node apps/server/dist/cli.js doctor
 
 ---
 
+## Where your music lives
+
+A fresh install keeps the two folders outside the checkout:
+
+| | Where |
+|---|---|
+| Your music | `~/Music/selfmp3` |
+| The database and cover art | `~/Library/Application Support/selfmp3` |
+
+**If you already have a `library/` in your checkout, it stays there and nothing
+moves.** That is deliberate: a server that quietly relocated your collection at
+boot would be a worse bug than the one this avoids.
+
+It is worth moving anyway, for two reasons. Your music is currently inside the
+folder you `git pull` in. And the location is tied to that one clone, so a
+second checkout — or a git worktree — comes up as an *empty* library rather
+than the same one, which matters now that an empty library can be published to
+your bucket as though it were the truth.
+
+To move it, with the server stopped:
+
+```bash
+mkdir -p ~/Music/selfmp3 "~/Library/Application Support/selfmp3"
+rsync -a --remove-source-files library/ ~/Music/selfmp3/
+rsync -a --remove-source-files data/ "$HOME/Library/Application Support/selfmp3/"
+```
+
+Start it again and it will find them by itself. Check with `./scripts/doctor.sh`,
+which prints both paths.
+
+To keep them somewhere else entirely — an external drive, say — name it and the
+defaults are not consulted at all:
+
+```bash
+export SELFMP3_LIBRARY_DIR=/Volumes/Music/selfmp3
+export SELFMP3_DATA_DIR=/Volumes/Music/selfmp3-data
+```
+
+Docker sets both variables itself, so none of this changes anything there.
+
+---
+
 ## Backing up
 
 ```bash

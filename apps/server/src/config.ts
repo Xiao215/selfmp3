@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
@@ -14,6 +15,53 @@ import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 /** dist/ -> apps/server -> apps -> repo root. Works from source and from build. */
 const REPO_ROOT = path.resolve(HERE, '../../..')
+
+/** A folder name, so not the `self.mp3` of the wordmark: a dot reads as a suffix. */
+const APP_DIR_NAME = 'selfmp3'
+
+/**
+ * Where your music and your database live, when nothing says otherwise.
+ *
+ * They used to default to `library/` and `data/` inside the checkout, which
+ * made a person's entire collection live in the folder they are told to
+ * `git pull` in — and tied it to one clone, so a second checkout or a git
+ * worktree came up as an empty library rather than as the same one. It is
+ * also the reason an installer cannot simply be bolted on: there is no
+ * "the app" to install, only the folder you happened to clone into.
+ *
+ * So the default is now a place of their own, outside any checkout. Two
+ * places, because they are different kinds of thing: the music goes under
+ * `~/Music`, where you can open it in Finder and drag things in — the
+ * watched folder expects exactly that — and the database and the artwork
+ * derived from it go where a Mac keeps application data.
+ *
+ * **An existing checkout keeps its folders.** If `library/` is already there
+ * it is still the library, and nothing moves on its own: a server that
+ * silently relocated forty gigabytes of somebody's music at boot would be a
+ * far worse bug than the one this fixes. `docs/INSTALL.md` says how to move
+ * them deliberately. Docker sets both variables explicitly and is unaffected.
+ */
+export function defaultDirs(
+  repoRoot = REPO_ROOT,
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+  exists: (dir: string) => boolean = fs.existsSync,
+): { libraryDir: string; dataDir: string } {
+  const inRepo = { libraryDir: path.join(repoRoot, 'library'), dataDir: path.join(repoRoot, 'data') }
+  // Only an existing library keeps the old spot. `data/` follows it, so the
+  // database and the music it describes are never split across two homes.
+  if (exists(inRepo.libraryDir)) return inRepo
+
+  return {
+    libraryDir: path.join(home, 'Music', APP_DIR_NAME),
+    dataDir:
+      platform === 'darwin'
+        ? path.join(home, 'Library', 'Application Support', APP_DIR_NAME)
+        : path.join(home, '.local', 'share', APP_DIR_NAME),
+  }
+}
+
+const DEFAULT_DIRS = defaultDirs()
 
 const BooleanFromEnv = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0', 'yes', 'no'])])
@@ -33,10 +81,10 @@ const ConfigSchema = z.object({
   host: z.string().default('0.0.0.0'),
 
   /** Where the audio files live. */
-  libraryDir: z.string().default(path.join(REPO_ROOT, 'library')),
+  libraryDir: z.string().default(DEFAULT_DIRS.libraryDir),
 
   /** Where the database and derived assets (cover art) live. */
-  dataDir: z.string().default(path.join(REPO_ROOT, 'data')),
+  dataDir: z.string().default(DEFAULT_DIRS.dataDir),
 
   /** Serve the built web app from the API process (what you want in production). */
   serveWeb: BooleanFromEnv.default(true),

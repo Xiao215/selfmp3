@@ -528,14 +528,26 @@
     color var(--dur-fast);
 }
 
-.np-tool:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: color-mix(in oklch, var(--text-primary) 14%, transparent);
-}
-
 .np-tool.is-on {
   background: var(--text-primary);
   color: var(--surface-0);
+}
+
+/*
+ * Hover brightens a pill that is off. One that is on stays on, a shade
+ * softer — pointing at it must never look like it has been turned off.
+ * Guarded, or a phone's sticky hover would leave a pill just tapped on
+ * looking off until the next tap somewhere else.
+ */
+@media (hover: hover) {
+  .np-tool:hover:not(:disabled, .is-on) {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--text-primary) 14%, transparent);
+  }
+
+  .np-tool.is-on:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--text-primary) 82%, transparent);
+  }
 }
 
 .np-tool:disabled {

@@ -15,7 +15,7 @@ export function Cover({
   size = 40,
   className = '',
 }: {
-  song: Pick<Song, 'id' | 'title' | 'hasArt'>
+  song: Pick<Song, 'id' | 'title' | 'hasArt' | 'rev'>
   size?: number
   className?: string
 }) {
@@ -26,7 +26,7 @@ export function Cover({
       <img
         className={`cover ${className}`}
         style={{ width: size, height: size }}
-        src={mediaUrl.art(song.id)}
+        src={mediaUrl.art(song.id, song.rev)}
         alt=""
         loading="lazy"
         decoding="async"

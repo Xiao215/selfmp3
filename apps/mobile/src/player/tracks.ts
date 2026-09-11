@@ -26,13 +26,13 @@ export function toTrack(
     // A stable id lets the native side dedupe; RNTP passes unknown keys
     // through untouched.
     id: String(song.id),
-    url: localUri ?? mediaUrl.stream(connection, song.id),
+    url: localUri ?? mediaUrl.stream(connection, song.id, song.rev),
     title: song.title,
     artist: song.artist,
     album: song.album,
     // Art always comes from the server: it is small, cached by the OS image
     // loader, and not worth a second offline store.
-    artwork: song.hasArt ? mediaUrl.art(connection, song.id) : undefined,
+    artwork: song.hasArt ? mediaUrl.art(connection, song.id, song.rev) : undefined,
     duration: song.duration > 0 ? song.duration : undefined,
     contentType: song.mime,
     isLiveStream: false,

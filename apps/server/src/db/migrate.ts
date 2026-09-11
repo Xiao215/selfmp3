@@ -231,6 +231,15 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_devices_seen ON devices(last_seen_at DESC);
     `,
   },
+  {
+    name: 'songs: art revision for cache-busting cover URLs',
+    sql: `
+      -- Bumped whenever a song's cover is written. Cover URLs carry it, so a
+      -- replaced cover is fetched fresh instead of served from a cache that
+      -- treats /api/art/<id> as forever.
+      ALTER TABLE songs ADD COLUMN art_rev INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

@@ -87,7 +87,7 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.pathname.startsWith('/api/art/')) {
-    event.respondWith(cacheFirst(request, API_CACHE))
+    event.respondWith(cacheFirst(request, API_CACHE, { replaceOtherVersions: true }))
     return
   }
 
@@ -210,13 +210,27 @@ async function networkFirst(request: Request): Promise<Response> {
   }
 }
 
-async function cacheFirst(request: Request, cacheName: string): Promise<Response> {
+/**
+ * Cache-first, keyed on the full URL including `?v=`.
+ *
+ * With `replaceOtherVersions`, storing a response first drops every other
+ * version of the same path, so a cover that changes does not leave the old
+ * one behind forever.
+ */
+async function cacheFirst(
+  request: Request,
+  cacheName: string,
+  options: { replaceOtherVersions?: boolean } = {},
+): Promise<Response> {
   const cached = await caches.match(request)
   if (cached) return cached
   try {
     const response = await fetch(request)
     if (response.ok) {
       const cache = await caches.open(cacheName)
+      if (options.replaceOtherVersions) {
+        await cache.delete(new URL(request.url).pathname, { ignoreSearch: true })
+      }
       await cache.put(request, response.clone())
     }
     return response

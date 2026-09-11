@@ -403,10 +403,19 @@ export const api = {
     ),
 }
 
-/** URLs for media. Kept here so nothing else has to know the route shape. */
+/**
+ * URLs for media. Kept here so nothing else has to know the route shape.
+ *
+ * Pass the song's `rev` whenever it is known: streams are cached as immutable
+ * and covers cache-first, so without it a reused song id plays and shows the
+ * old song's file.
+ */
+const withRev = (url: string, rev: string | undefined): string =>
+  rev ? `${url}?v=${encodeURIComponent(rev)}` : url
+
 export const mediaUrl = {
-  stream: (songId: number) => `/api/stream/${songId}`,
-  art: (songId: number) => `/api/art/${songId}`,
+  stream: (songId: number, rev?: string) => withRev(`/api/stream/${songId}`, rev),
+  art: (songId: number, rev?: string) => withRev(`/api/art/${songId}`, rev),
   /** The live event stream; `deviceId` lets commands be addressed to this tab. */
   events: (deviceId: string) => `/api/events?deviceId=${encodeURIComponent(deviceId)}`,
 }

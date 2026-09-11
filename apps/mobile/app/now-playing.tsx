@@ -77,7 +77,7 @@ export default function NowPlayingScreen(): ReactNode {
         <>
           <View style={styles.art}>
             <Cover
-              uri={song.hasArt && connection ? mediaUrl.art(connection, song.id) : null}
+              uri={song.hasArt && connection ? mediaUrl.art(connection, song.id, song.rev) : null}
               title={song.album || song.title}
               size={artSize}
             />

@@ -25,6 +25,7 @@ export interface SongRow {
   mtime_ms: number
   has_art: number
   art_ext: string | null
+  art_rev: number
   lyrics_kind: string
   play_count: number
   skip_count: number
@@ -111,6 +112,7 @@ export function toSong(row: SongRow): Song {
     sizeBytes: row.size_bytes,
     mime: row.mime,
     hasArt: row.has_art === 1,
+    rev: songRev(row),
     lyricsKind: toLyricsKind(row.lyrics_kind),
     playCount: row.play_count,
     skipCount: row.skip_count,
@@ -122,6 +124,18 @@ export function toSong(row: SongRow): Song {
     tagIds: parseIdList(row.tag_ids),
     features: featuresFromSongRow(row),
   }
+}
+
+/**
+ * A token that changes whenever the song's audio or cover changes.
+ *
+ * Media URLs carry it because song ids are not forever: SQLite hands a
+ * deleted row's id to the next insert, and a reset library starts again at 1.
+ * Without it, a browser that cached `/api/stream/1` as immutable keeps playing
+ * whatever song 1 used to be.
+ */
+export function songRev(row: Pick<SongRow, 'size_bytes' | 'mtime_ms' | 'art_rev'>): string {
+  return `${row.size_bytes.toString(36)}.${Math.floor(row.mtime_ms).toString(36)}.${row.art_rev}`
 }
 
 /** The joined feature columns, or null when the song has no features row. */

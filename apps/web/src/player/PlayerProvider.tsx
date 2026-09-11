@@ -234,6 +234,7 @@ export function PlayerProvider({
 
   useEffect(() => {
     engine.nextTrackId = () => peekNext(queueRef.current)
+    engine.streamUrl = songId => mediaUrl.stream(songId, songByIdRef.current.get(songId)?.rev)
 
     engine.onTrackEnd = () => {
       const tracking = playTrackingRef.current
@@ -266,6 +267,7 @@ export function PlayerProvider({
 
     return () => {
       engine.nextTrackId = null
+      engine.streamUrl = null
       engine.onTrackEnd = null
     }
   }, [engine, loadIndex])
@@ -598,8 +600,8 @@ export function PlayerProvider({
         album: current.album,
         artwork: current.hasArt
           ? [
-              { src: mediaUrl.art(current.id), sizes: '512x512', type: 'image/jpeg' },
-              { src: mediaUrl.art(current.id), sizes: '192x192', type: 'image/jpeg' },
+              { src: mediaUrl.art(current.id, current.rev), sizes: '512x512', type: 'image/jpeg' },
+              { src: mediaUrl.art(current.id, current.rev), sizes: '192x192', type: 'image/jpeg' },
             ]
           : [{ src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
       })

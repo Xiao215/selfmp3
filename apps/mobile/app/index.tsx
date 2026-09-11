@@ -52,7 +52,7 @@ export default function LibraryScreen(): ReactNode {
     ({ item, index }: { item: Song; index: number }) => (
       <SongRow
         song={item}
-        artUri={item.hasArt && connection ? mediaUrl.art(connection, item.id) : null}
+        artUri={item.hasArt && connection ? mediaUrl.art(connection, item.id, item.rev) : null}
         active={player.current?.id === item.id}
         downloaded={downloaded(item.id)}
         onPress={() => player.playFrom(songIds, index)}

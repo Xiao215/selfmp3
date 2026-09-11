@@ -114,7 +114,9 @@ export class SongRepository {
 
     this.#recordSkip = db.prepare('UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?')
 
-    this.#setArt = db.prepare('UPDATE songs SET has_art = ?, art_ext = ? WHERE id = ?')
+    this.#setArt = db.prepare(
+      'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
+    )
     this.#setLyricsKind = db.prepare('UPDATE songs SET lyrics_kind = ? WHERE id = ?')
 
     // FTS5 with a bm25 ranking. Column weights bias toward title matches,

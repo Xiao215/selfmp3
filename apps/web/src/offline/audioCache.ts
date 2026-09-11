@@ -60,6 +60,32 @@ export async function cachedSongIds(): Promise<Set<number>> {
   }
 }
 
+/**
+ * The byte size of each cached song, by id (null when the entry has none).
+ *
+ * Ids get reused after a song is deleted or the library is reset, so "id 7 is
+ * cached" does not mean "the current song 7 is cached". Size is compared
+ * rather than ETag because an object-storage ETag never matches the
+ * manifest's; a different file of exactly the same size is not a real case.
+ */
+async function cachedSizes(): Promise<Map<number, number | null>> {
+  const sizes = new Map<number, number | null>()
+  if (!cachesAvailable()) return sizes
+  try {
+    const cache = await caches.open(AUDIO_CACHE)
+    for (const request of await cache.keys()) {
+      const match = /\/api\/stream\/(\d+)/.exec(new URL(request.url).pathname)
+      if (!match?.[1]) continue
+      const response = await cache.match(request)
+      const length = Number(response?.headers.get('content-length') ?? Number.NaN)
+      sizes.set(Number(match[1]), Number.isFinite(length) ? length : null)
+    }
+  } catch {
+    // Treat an unreadable cache as empty; the sync will fill it again.
+  }
+  return sizes
+}
+
 export async function isCached(songId: number): Promise<boolean> {
   if (!cachesAvailable()) return false
   try {
@@ -127,16 +153,22 @@ export async function syncLibrary(
     prune?: boolean
   },
 ): Promise<SyncProgress> {
-  const alreadyCached = await cachedSongIds()
+  const cachedSize = await cachedSizes()
   const wanted = new Set(manifest.entries.map(entry => entry.id))
 
   if (options.prune !== false) {
-    for (const songId of alreadyCached) {
+    for (const songId of cachedSize.keys()) {
       if (!wanted.has(songId)) await uncacheSong(songId)
     }
   }
 
-  const missing = manifest.entries.filter(entry => !alreadyCached.has(entry.id))
+  // Not cached, or cached as a different file than the one the id names now.
+  // An entry stored without a length is given the benefit of the doubt.
+  const missing = manifest.entries.filter(entry => {
+    if (!cachedSize.has(entry.id)) return true
+    const size = cachedSize.get(entry.id)
+    return size != null && size !== entry.sizeBytes
+  })
 
   let done = 0
   let failed = 0

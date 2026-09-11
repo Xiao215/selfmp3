@@ -30,7 +30,7 @@ export function MiniPlayer(): ReactNode {
 
       <View style={styles.content}>
         <Cover
-          uri={song.hasArt && connection ? mediaUrl.art(connection, song.id) : null}
+          uri={song.hasArt && connection ? mediaUrl.art(connection, song.id, song.rev) : null}
           title={song.album || song.title}
           size={38}
         />

@@ -94,6 +94,8 @@ export class AudioEngine {
   onTrackEnd: (() => void) | null = null
   /** Called when the engine needs to know what to preload. */
   nextTrackId: (() => number | null) | null = null
+  /** Where a song's audio lives; the provider knows each song's `rev`. */
+  streamUrl: ((songId: number) => string) | null = null
   /** Called on every meaningful position change, for play-count tracking. */
   onProgress: ((currentTime: number, duration: number) => void) | null = null
 
@@ -160,7 +162,7 @@ export class AudioEngine {
     if (this.#preloadedId === songId && startAt === 0) {
       this.#swap()
     } else {
-      this.#primary.src = mediaUrl.stream(songId)
+      this.#primary.src = this.streamUrl?.(songId) ?? mediaUrl.stream(songId)
       this.#primary.load()
       if (startAt > 0) {
         // Seeking before metadata is ready is ignored, so wait for it.
@@ -449,7 +451,7 @@ export class AudioEngine {
     if (nextId === null || nextId === this.#currentId) return
 
     this.#preloadedId = nextId
-    this.#secondary.src = mediaUrl.stream(nextId)
+    this.#secondary.src = this.streamUrl?.(nextId) ?? mediaUrl.stream(nextId)
     this.#secondary.volume = 0
     this.#secondary.playbackRate = this.#state.rate
     // `preload="auto"` plus an explicit load() is what actually warms the

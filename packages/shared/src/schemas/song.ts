@@ -27,6 +27,12 @@ export const SongSchema = z.object({
   sizeBytes: z.number().int().nonnegative(),
   mime: z.string(),
   hasArt: z.boolean(),
+  /**
+   * Changes whenever the audio file or the cover changes. Media URLs carry it
+   * so caches never serve an old file under a reused id. Optional because
+   * older servers do not send it.
+   */
+  rev: z.string().optional(),
   lyricsKind: LyricsKindSchema,
   playCount: z.number().int().nonnegative(),
   skipCount: z.number().int().nonnegative(),

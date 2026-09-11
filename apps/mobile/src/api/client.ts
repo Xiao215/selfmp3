@@ -187,15 +187,20 @@ export const api = {
  * are handed to the native audio player and to CarPlay's image loader, neither
  * of which lets us attach headers. The server accepts it there for exactly
  * this reason (see `bearerAuth` in apps/server/src/http/middleware.ts).
+ *
+ * Pass the song's `rev` when it is known: song ids get reused, and an image or
+ * audio cache keyed on the bare URL would keep serving the old song's file.
  */
 export const mediaUrl = {
-  stream: (connection: ServerConnection, songId: number) =>
-    withToken(`${connection.baseUrl}/api/stream/${songId}`, connection.token),
-  art: (connection: ServerConnection, songId: number) =>
-    withToken(`${connection.baseUrl}/api/art/${songId}`, connection.token),
+  stream: (connection: ServerConnection, songId: number, rev?: string) =>
+    withQuery(`${connection.baseUrl}/api/stream/${songId}`, connection.token, rev),
+  art: (connection: ServerConnection, songId: number, rev?: string) =>
+    withQuery(`${connection.baseUrl}/api/art/${songId}`, connection.token, rev),
 }
 
-function withToken(url: string, token: string | null): string {
-  if (!token) return url
-  return `${url}?token=${encodeURIComponent(token)}`
+function withQuery(url: string, token: string | null, rev: string | undefined): string {
+  const params: string[] = []
+  if (rev) params.push(`v=${encodeURIComponent(rev)}`)
+  if (token) params.push(`token=${encodeURIComponent(token)}`)
+  return params.length > 0 ? `${url}?${params.join('&')}` : url
 }

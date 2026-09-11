@@ -25,6 +25,7 @@ import { MigrateService } from './services/migrate.js'
 import { MetadataLookupService } from './services/lookup.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
+import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
@@ -83,6 +84,7 @@ export interface Container {
   readonly migrate: MigrateService
   readonly lookup: MetadataLookupService
   readonly fixCovers: FixCoversService
+  readonly keepAwake: KeepAwakeService
   readonly lyricsCache: LyricsCache
   readonly romanization: RomanizationService
   readonly lyricsIndex: LyricsIndexService
@@ -187,6 +189,10 @@ export function createContainer(config: Config): Container {
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const listen = new ListenService(ytdlp)
 
+  // Held while a song is streaming or an import is running, so the Mac does
+  // not idle-sleep out from under whoever is listening (services/keepAwake.ts).
+  const keepAwake = createKeepAwake(logger)
+
   const importQueue = new ImportQueueService({
     config,
     storage,
@@ -200,6 +206,7 @@ export function createContainer(config: Config): Container {
     covers,
     ytdlp,
     cloud: cloudSync,
+    keepAwake,
     logger,
   })
 
@@ -329,6 +336,7 @@ export function createContainer(config: Config): Container {
     migrate,
     lookup,
     fixCovers,
+    keepAwake,
     lyricsCache,
     romanization,
     lyricsIndex,

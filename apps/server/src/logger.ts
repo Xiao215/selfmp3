@@ -97,8 +97,15 @@ export function createLogger(level: LogLevel, scope = ''): Logger {
       : `${time} ${tag}`
     const where = scope ? (useColor ? `${DIM}[${scope}]${RESET} ` : `[${scope}] `) : ''
     const line = `${prefix} ${where}${message}${formatFields(fields)}`
+    // Trouble to stderr, everything else to stdout. Not a formality: the
+    // launchd job sends the two to different files (scripts/install-service.sh
+    // — selfmp3.log and selfmp3.error.log), and sending both to stderr, which
+    // `console.warn` does, left the first empty and filled the second with
+    // routine successes. The `no-console` rule allows only warn and error,
+    // which is how that happened; here stdout is the point.
+    // eslint-disable-next-line no-console
     if (lineLevel === 'error' || lineLevel === 'warn') console.error(line)
-    else console.warn(line)
+    else console.log(line)
   }
 
   return {

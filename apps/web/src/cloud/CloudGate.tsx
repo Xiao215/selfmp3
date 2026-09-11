@@ -31,6 +31,7 @@ import {
   pendingCloudChanges,
 } from '../lib/cloud/library.js'
 import { clearAudioCache } from '../offline/audioCache.js'
+import { clearRecent } from '../offline/recentCache.js'
 import { clearSnapshot } from '../offline/mirror.js'
 import { BucketFields } from './BucketFields.js'
 
@@ -199,7 +200,10 @@ export function CloudGate({ children }: { children: ReactNode }) {
     await flushCloudChanges().catch(() => undefined)
     await endSession(gate.session)
     // Songs are cached under this device's ids for this account's library;
-    // another account's library would give the same ids to other songs.
+    // another account's library would give the same ids to other songs. The
+    // list of which of those copies were kept for having been played goes
+    // with them, or it would name ids the next account hands to other songs.
+    clearRecent()
     await Promise.allSettled([clearAudioCache(), clearSnapshot(), forgetCloudLibrary()])
     window.location.reload()
   }, [gate])

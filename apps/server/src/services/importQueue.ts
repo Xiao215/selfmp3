@@ -2,6 +2,7 @@ import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
 import type { Config } from '../config.js'
+import type { KeepAwakeService } from './keepAwake.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { ImportRepository } from '../repositories/imports.js'
@@ -66,6 +67,7 @@ export class ImportQueueService {
   readonly #covers: CoverService
   readonly #ytdlp: YtDlpService
   readonly #cloud: ImportUploader
+  readonly #keepAwake: KeepAwakeService
   readonly #logger: Logger
 
   /** Abort controllers for in-flight jobs, so cancel can actually stop them. */
@@ -89,6 +91,7 @@ export class ImportQueueService {
     covers: CoverService
     ytdlp: YtDlpService
     cloud: ImportUploader
+    keepAwake: KeepAwakeService
     logger: Logger
   }) {
     this.#config = deps.config
@@ -103,6 +106,7 @@ export class ImportQueueService {
     this.#covers = deps.covers
     this.#ytdlp = deps.ytdlp
     this.#cloud = deps.cloud
+    this.#keepAwake = deps.keepAwake
     this.#logger = deps.logger.child('import')
   }
 
@@ -163,6 +167,9 @@ export class ImportQueueService {
         if (!job) break
 
         this.#activeCount++
+        // A download is the server doing real work for someone; do not let the
+        // machine idle out from under it halfway through.
+        const awake = this.#keepAwake.hold()
         void this.#process(job)
           .catch(error => {
             this.#logger.error('job crashed', {
@@ -171,6 +178,7 @@ export class ImportQueueService {
             })
           })
           .finally(() => {
+            awake()
             this.#activeCount--
             this.#inFlight.delete(job.id)
             // Look for more work once this slot frees up.

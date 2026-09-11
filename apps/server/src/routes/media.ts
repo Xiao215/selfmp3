@@ -47,6 +47,12 @@ export function mediaRoutes(container: Container): Router {
         throw HttpError.notFound('the audio file for this song is missing')
       }
 
+      // Somebody is listening right now, which macOS has no way of knowing
+      // from an open socket. Held until this response is done however it
+      // ends — finished, aborted, or the phone walking out of range.
+      const awake = container.keepAwake.hold()
+      res.on('close', awake)
+
       await sendRange(req, res, source)
       return undefined
     },

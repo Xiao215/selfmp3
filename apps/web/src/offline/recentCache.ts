@@ -26,8 +26,18 @@ import { loadExcluded, loadPrefs } from './autoDownload.js'
 
 const RECENT_KEY = 'selfmp3:recent-audio'
 
-/** At most this much, however roomy the device: a cache, not a second library. */
-export const RECENT_BUDGET_BYTES = 500 * 1024 * 1024
+/**
+ * At most this much, however roomy the device: a cache, not a second library.
+ *
+ * Every song this holds is a song not fetched again, and B2 bills egress at
+ * three times what you store each month, so the ceiling wants to be generous
+ * — a few hundred songs rather than a few dozen. It is not the real guard
+ * against filling a device; the share below is, because it scales to what the
+ * browser actually has. This only stops a desktop with tens of gigabytes free
+ * from quietly mirroring the whole library, which is what this file exists to
+ * prevent.
+ */
+export const RECENT_BUDGET_BYTES = 2 * 1024 * 1024 * 1024
 
 /** And at most this share of what the browser will give the origin in total. */
 const RECENT_SHARE = 0.25

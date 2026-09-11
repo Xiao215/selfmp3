@@ -80,6 +80,8 @@ function main(): void {
     container.libraryWatcher.stop()
     container.importQueue.stop()
     container.cloudSync.stop()
+    // Let the machine sleep again even if a stream is still winding down.
+    container.keepAwake.stop()
 
     server.close(() => {
       container.close()

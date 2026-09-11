@@ -199,11 +199,7 @@ export const api = {
   /** Open Finder on the server's own machine with the song's file selected. */
   revealSong: (id: number) => request('POST', `/api/songs/${id}/reveal`, OkSchema),
 
-  lyrics: (id: number, refresh = false) =>
-    request('GET', `/api/songs/${id}/lyrics${refresh ? '?refresh=1' : ''}`, LyricsResponseSchema),
-
-  saveLyrics: (id: number, text: string) =>
-    request('PUT', `/api/songs/${id}/lyrics`, OkSchema, { text }),
+  lyrics: (id: number) => request('GET', `/api/songs/${id}/lyrics`, LyricsResponseSchema),
 
   // --- lyrics+ ------------------------------------------------------------
 

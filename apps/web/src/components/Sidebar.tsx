@@ -147,7 +147,7 @@ export function Sidebar({
                 className="icon-button icon-button-tiny"
                 onClick={onClearTags}
                 aria-label="Clear tag filters"
-                title="Clear filters"
+                data-tip="Clear filters"
               >
                 <X size={13} />
               </button>
@@ -157,7 +157,7 @@ export function Sidebar({
               className="icon-button icon-button-tiny"
               onClick={() => setAdding(open => !open)}
               aria-label="New tag"
-              title="New tag"
+              data-tip="New tag"
             >
               <Plus size={14} />
             </button>
@@ -308,7 +308,7 @@ function SidebarTagRow({
         className="tag-row-main"
         onClick={event => (event.altKey ? onExclude() : onInclude())}
         aria-pressed={filter === 'include'}
-        title={
+        data-tip={
           filter === 'exclude'
             ? `Hiding songs tagged ${tag.name} — click to show only them`
             : `Show songs tagged ${tag.name} (⌥-click to hide them)`
@@ -327,7 +327,7 @@ function SidebarTagRow({
         onClick={onExclude}
         aria-pressed={filter === 'exclude'}
         aria-label={filter === 'exclude' ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
-        title={filter === 'exclude' ? 'Stop hiding' : 'Hide these songs'}
+        data-tip={filter === 'exclude' ? 'Stop hiding' : 'Hide these songs'}
       >
         <Minus size={13} />
       </button>
@@ -339,7 +339,7 @@ function SidebarTagRow({
         aria-haspopup="dialog"
         aria-expanded={editing}
         aria-label={`Edit tag ${tag.name}`}
-        title="Rename, recolour or delete"
+        data-tip="Rename, recolour or delete"
       >
         <More size={13} />
       </button>

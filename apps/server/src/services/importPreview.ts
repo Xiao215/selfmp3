@@ -1,5 +1,6 @@
 import {
   extractUrls,
+  youtubeChannel,
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
@@ -7,17 +8,23 @@ import {
 import { HttpError } from '../http/errors.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
-import type { YtDlpService } from './ytdlp.js'
+import type { ProbedTrack, YtDlpService } from './ytdlp.js'
+import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
+
+type PreviewDeps = {
+  ytdlp: Pick<YtDlpService, 'status' | 'probe'>
+  songs: Pick<SongRepository, 'all'>
+  youtubeMusicArtists: Pick<YouTubeMusicArtists, 'topSongs'>
+}
+
+type Probed = { kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }
 
 /**
  * The "read metadata before downloading" half of importing, pulled out of the
  * route so the interactive preview and the one-shot share endpoint resolve
  * links in exactly the same way.
  */
-export async function buildImportPreview(
-  deps: { ytdlp: YtDlpService; songs: SongRepository },
-  text: string,
-): Promise<ImportPreview> {
+export async function buildImportPreview(deps: PreviewDeps, text: string): Promise<ImportPreview> {
   const tools = await deps.ytdlp.status()
   if (!tools.ytdlp) {
     throw HttpError.failedDependency(
@@ -38,12 +45,7 @@ export async function buildImportPreview(
   let playlistTitle: string | null = null
 
   for (const url of urls) {
-    // A link yt-dlp cannot read is the caller's problem to fix (wrong link,
-    // private, not signed in), not a server fault — so 422 with the reason,
-    // rather than a 500 that hides it behind "internal error".
-    const probed = await deps.ytdlp.probe(url).catch((error: unknown) => {
-      throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
-    })
+    const probed = await probeLink(deps, url)
     if (probed.kind === 'playlist') {
       kind = 'playlist'
       playlistTitle ??= probed.playlistTitle
@@ -63,6 +65,36 @@ export async function buildImportPreview(
 
   if (urls.length > 1) kind = 'playlist'
   return { kind, playlistTitle, items }
+}
+
+/**
+ * One link's tracks. An artist's channel means their songs, not the channel's
+ * tabs: the "Top songs" list from YouTube Music, read by yt-dlp as the
+ * playlist it is, and named after the artist.
+ */
+async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
+  const channel = youtubeChannel(url)
+  if (!channel) return probeWithYtDlp(deps, url)
+
+  const artist = await deps.youtubeMusicArtists.topSongs(channel)
+  if (!artist) {
+    throw HttpError.unprocessable(
+      'That channel has no songs on YouTube Music. Paste its Videos tab (…/videos), a playlist or a video instead.',
+    )
+  }
+  const tracks = artist.playlistUrl
+    ? (await probeWithYtDlp(deps, artist.playlistUrl)).tracks
+    : [...artist.tracks]
+  return { kind: 'playlist', playlistTitle: artist.artist || null, tracks }
+}
+
+async function probeWithYtDlp(deps: PreviewDeps, url: string): Promise<Probed> {
+  // A link yt-dlp cannot read is the caller's problem to fix (wrong link,
+  // private, not signed in), not a server fault — so 422 with the reason,
+  // rather than a 500 that hides it behind "internal error".
+  return deps.ytdlp.probe(url).catch((error: unknown) => {
+    throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+  })
 }
 
 /**

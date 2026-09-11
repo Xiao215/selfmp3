@@ -42,7 +42,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
               className="icon-button"
               onClick={player.clearQueue}
               aria-label="Clear queue"
-              title="Clear queue"
+              data-tip="Clear queue"
             >
               <Trash size={17} />
             </button>
@@ -52,7 +52,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
             className="icon-button side-panel-close"
             onClick={onClose}
             aria-label="Close queue"
-            title="Close"
+            data-tip="Close"
           >
             <X size={17} />
           </button>
@@ -65,7 +65,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
         space to say what it is doing.
       */}
       <div className="queue-toolbar">
-        <label className="automix-toggle" title={AUTOMIX_HINT}>
+        <label className="automix-toggle" data-tip={AUTOMIX_HINT}>
           <input
             type="checkbox"
             className="toggle toggle-small"
@@ -121,7 +121,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 className="queue-grip"
                 onPointerDown={event => start(index, event)}
                 aria-label={`Reorder ${song.title}`}
-                title="Drag to reorder"
+                data-tip="Drag to reorder"
               >
                 <Grip size={16} />
               </button>
@@ -133,7 +133,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 aria-label={`Play ${song.title}`}
               >
                 {isCurrent ? (
-                  <span className="queue-marker" title="Playing now">
+                  <span className="queue-marker" data-tip="Playing now">
                     <Equalizer />
                   </span>
                 ) : (
@@ -156,7 +156,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                 className="icon-button queue-remove"
                 onClick={() => player.removeFromQueue(index)}
                 aria-label={`Remove ${song.title} from queue`}
-                title="Remove from queue"
+                data-tip="Remove from queue"
               >
                 <X size={15} />
               </button>

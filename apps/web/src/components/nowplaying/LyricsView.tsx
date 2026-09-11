@@ -23,22 +23,18 @@ const LEAD = 0.25
  * properties set here, so Stage and Focus share one component and one list,
  * and the change between them is only a class.
  *
- * Right-click a line to loop it: the Practice A–B loop, set from the line's
- * own timestamps.
+ * Click a line to jump to it. Right-click it to loop it: the Practice A–B
+ * loop, set from the line's own timestamps. Nothing here reacts to a
+ * double-click — it would only ever be two jumps.
  */
 export function LyricsView({
   parsed,
   roman,
   mode,
-  onDoubleClick,
-  onSync,
 }: {
   parsed: ParsedLyrics
   roman: readonly string[] | null
   mode: 'stage' | 'focus' | 'phone'
-  onDoubleClick?: () => void
-  /** Offered on plain lyrics: time them to the music. */
-  onSync?: () => void
 }) {
   const player = usePlayer()
   const transport = useTransport()
@@ -131,18 +127,8 @@ export function LyricsView({
       className={`lyrics-view is-${mode} ${synced ? '' : 'is-untimed'}`}
       onWheel={markManual}
       onTouchMove={markManual}
-      onDoubleClick={onDoubleClick}
     >
       <div className="lyrics-view-track">
-        {!synced && onSync && (
-          <p className="lyrics-view-note">
-            These lyrics aren’t timed to the music yet.{' '}
-            <button type="button" className="link-button" onClick={onSync}>
-              Sync them
-            </button>
-          </p>
-        )}
-
         {lines.map((text, index) => {
           const time = synced?.[index]?.time
           const sub = roman?.[index]
@@ -198,6 +184,8 @@ export function LyricsView({
                 menuAnchor.current = event.currentTarget
                 setMenu(index)
               }}
+              // A native title, not data-tip: a caption here would cover the next
+              // lines and hop from line to line as they scroll under a resting pointer.
               title="Jump to this line · right-click to loop it"
             >
               {content}

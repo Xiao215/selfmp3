@@ -11,7 +11,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { queryKeys, useImportQueue, useImportTools, useLibrary } from '../lib/queries.js'
 import { SHARE_PARAMS, sharedLinksFromQuery } from '../lib/shareTarget.js'
-import { TagChip } from '../components/TagChip.js'
+import { TagChooser } from '../components/TagChooser.js'
+import { canListen, ListenBar, ListenButton, useListen } from '../components/ImportListen.js'
 import { YouTubeLibraryPanel } from '../components/YouTubeLibraryPanel.js'
 import {
   Check,
@@ -71,6 +72,14 @@ export function ImportView() {
 
   const tags = library?.tags ?? []
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
+
+  const listen = useListen()
+  // A preview whose track has left the review — cancelled, imported, or a new
+  // link fetched — stops with it. Editing a row keeps its url, so it plays on.
+  const listeningUrl = listen.listening?.track.url
+  useEffect(() => {
+    if (listeningUrl && !items?.some(item => item.url === listeningUrl)) listen.close()
+  }, [items, listeningUrl])
 
   const { data: queue } = useImportQueue(true)
   const hasActivity = (queue?.active ?? 0) + (queue?.queued ?? 0) > 0
@@ -180,7 +189,8 @@ export function ImportView() {
         <div className="view-titles">
           <h1>Import</h1>
           <p className="view-sub">
-            Paste one or more links, one per line. A playlist link expands into its tracks.
+            Paste one or more links, one per line. A playlist expands into its tracks, and an
+            artist’s page into their top songs.
           </p>
         </div>
       </header>
@@ -218,7 +228,7 @@ export function ImportView() {
           value={url}
           onChange={event => setUrl(event.target.value)}
           placeholder={
-            'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…'
+            'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…\nhttps://music.youtube.com/@artist'
           }
           rows={3}
           spellCheck={false}
@@ -336,7 +346,13 @@ export function ImportView() {
                   {chosen.has(index) && <Check size={12} />}
                 </button>
 
-                {item.thumbnail ? (
+                {canListen(item) ? (
+                  <ListenButton
+                    item={item}
+                    listening={listen.listening}
+                    onToggle={() => listen.toggle(item)}
+                  />
+                ) : item.thumbnail ? (
                   <img className="import-thumb" src={item.thumbnail} alt="" loading="lazy" />
                 ) : (
                   <div className="import-thumb import-thumb-placeholder" />
@@ -366,40 +382,30 @@ export function ImportView() {
 
                 <span className="import-col-side">
                   {item.alreadyHave ? (
-                    <span className="import-dup" title="A song with this title and artist is already in your library">
+                    <span className="import-dup" data-tip="A song with this title and artist is already in your library">
                       <CheckCircle size={12} /> Have it
                     </span>
-                  ) : (
+                  ) : item.duration > 0 ? (
                     <span className="hint">{formatDuration(item.duration)}</span>
-                  )}
+                  ) : null}
                 </span>
               </div>
             ))}
           </div>
 
+          {listen.listening && (
+            <ListenBar
+              listening={listen.listening}
+              onToggle={() => listen.listening && listen.toggle(listen.listening.track)}
+              onSeek={listen.seek}
+              onClose={listen.close}
+            />
+          )}
+
           <div className="import-options">
             <div className="import-option">
               <span className="field-label">Tag these as</span>
-              <div className="tag-row-inline">
-                {tags.map(tag => (
-                  <TagChip
-                    key={tag.id}
-                    tag={tag}
-                    active={tagIds.has(tag.id)}
-                    onClick={() =>
-                      setTagIds(current => {
-                        const next = new Set(current)
-                        if (next.has(tag.id)) next.delete(tag.id)
-                        else next.add(tag.id)
-                        return next
-                      })
-                    }
-                  />
-                ))}
-                {tags.length === 0 && (
-                  <span className="hint">Create tags in the sidebar first</span>
-                )}
-              </div>
+              <TagChooser tags={tags} selected={tagIds} onChange={setTagIds} />
             </div>
 
             {playlistTitle && playlistId === null && (
@@ -485,7 +491,7 @@ export function ImportView() {
                 key={job.id}
                 className={`job-row is-${waitingToUpload(job) ? 'waiting' : job.status}`}
               >
-                <span className="job-status" title={jobLabel(job)}>
+                <span className="job-status" data-tip={jobLabel(job)}>
                   {job.status === 'running' && <span className="spinner" />}
                   {job.status === 'done' && <CheckCircle size={16} />}
                   {job.status === 'error' &&
@@ -544,7 +550,7 @@ export function ImportView() {
                       })
                     }}
                     aria-label={`Cancel ${job.title || 'this import'}`}
-                    title="Cancel"
+                    data-tip="Cancel"
                   >
                     <X size={15} />
                   </button>

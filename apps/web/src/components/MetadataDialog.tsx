@@ -225,7 +225,7 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
                       <span className={`badge meta-source meta-source-${candidate.source}`}>
                         {SOURCE_LABELS[candidate.source]}
                       </span>
-                      <span className="meta-score" title="Match confidence">
+                      <span className="meta-score" data-tip="Match confidence">
                         {Math.round(candidate.score * 100)}%
                       </span>
                     </span>

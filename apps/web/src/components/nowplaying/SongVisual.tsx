@@ -57,12 +57,10 @@ export function SongVisual({
   song,
   kind,
   className = '',
-  onDoubleClick,
 }: {
   song: Song
   kind: VisualKind
   className?: string
-  onDoubleClick?: () => void
 }) {
   const player = usePlayer()
   const clock = useSongClock()
@@ -135,14 +133,7 @@ export function SongVisual({
     return () => cancelAnimationFrame(frame)
   }, [kind, player])
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className={`song-visual ${className}`}
-      onDoubleClick={onDoubleClick}
-      aria-hidden="true"
-    />
-  )
+  return <canvas ref={canvasRef} className={`song-visual ${className}`} aria-hidden="true" />
 }
 
 /**
@@ -174,7 +165,7 @@ export function VisualPicker({
         onClick={() => setOpen(value => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Choose a visual for this song"
+        data-tip="Choose a visual for this song"
       >
         {VISUAL_NAMES[visual.kind]} <ChevronDown size={13} />
       </button>

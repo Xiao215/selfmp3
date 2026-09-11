@@ -104,6 +104,19 @@
   }
 }
 
+/* Closing, it sinks back the way it came and fades onto the library. Held at
+   the end until it unmounts, so it never flashes back in between. */
+.np-page.is-leaving {
+  animation: np-sink var(--dur-slow) var(--ease-in) forwards;
+}
+
+@keyframes np-sink {
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
 /* The cover's own colours, blurred into light behind everything. */
 .np-glow {
   position: absolute;
@@ -450,8 +463,52 @@
     opacity 400ms var(--ease-out);
 }
 
+/* In Focus they join the top row, left of the way back to Stage. */
 .is-focus .np-tools {
   top: 15px;
+  right: 66px;
+}
+
+/*
+ * Stage ⇄ Focus. Pinned to the words' top-right corner in Stage, as a video
+ * has its fullscreen button; in Focus, where the words fill the page, the
+ * same corner of the page. Out past the lines, so it is never a line that
+ * gets clicked instead.
+ */
+.np-expand {
+  position: absolute;
+  z-index: 4;
+  right: var(--np-right);
+  top: 68px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: color-mix(in oklch, var(--text-primary) 8%, transparent);
+  backdrop-filter: blur(8px);
+  transition:
+    top var(--np-move),
+    right var(--np-move),
+    background var(--dur-fast),
+    color var(--dur-fast),
+    opacity 400ms var(--ease-out);
+}
+
+.np-expand:hover {
+  color: var(--text-primary);
+  background: color-mix(in oklch, var(--text-primary) 14%, transparent);
+}
+
+/* A song with no words: inside the corner of the visual's frame. */
+.np-page.has-visual .np-expand {
+  top: 88px;
+  right: calc(var(--np-right) + 12px);
+}
+
+.np-page.is-focus .np-expand {
+  top: 12px;
   right: 20px;
 }
 
@@ -471,34 +528,36 @@
     color var(--dur-fast);
 }
 
-.np-tool:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: color-mix(in oklch, var(--text-primary) 14%, transparent);
-}
-
 .np-tool.is-on {
   background: var(--text-primary);
   color: var(--surface-0);
+}
+
+/*
+ * Hover brightens a pill that is off. One that is on stays on, a shade
+ * softer — pointing at it must never look like it has been turned off.
+ * Guarded, or a phone's sticky hover would leave a pill just tapped on
+ * looking off until the next tap somewhere else.
+ */
+@media (hover: hover) {
+  .np-tool:hover:not(:disabled, .is-on) {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--text-primary) 14%, transparent);
+  }
+
+  .np-tool.is-on:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--text-primary) 82%, transparent);
+  }
 }
 
 .np-tool:disabled {
   opacity: 0.5;
 }
 
-.np-source {
-  position: absolute;
-  z-index: 2;
-  left: calc(var(--np-pad) + var(--np-cover) + var(--np-gutter));
-  bottom: 20px;
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
 /* Everything that is chrome, gone while the mouse is still in Focus. */
 .np-page.is-idle .np-head,
 .np-page.is-idle .np-tools,
+.np-page.is-idle .np-expand,
 .np-page.is-idle .np-cover,
 .np-page.is-idle .song-words-status {
   opacity: 0;
@@ -628,14 +687,9 @@
   padding-top: 14cqh;
 }
 
+/* The whole width of the phone to fill, and read at arm's length. */
 .lyrics-view.is-phone {
-  --np-lyric-size: 19px;
-}
-
-.lyrics-view-note {
-  margin: 0 0 18px;
-  font-size: 13px;
-  color: var(--text-muted);
+  --np-lyric-size: clamp(22px, 6.4vw, 28px);
 }
 
 .lyric {
@@ -690,7 +744,7 @@
 .lyric-roman-line {
   display: block;
   margin-top: 0.15em;
-  font-size: 0.5em;
+  font-size: 0.7em;
   font-weight: 500;
   font-style: italic;
   letter-spacing: 0.01em;
@@ -906,55 +960,123 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-height: 100%;
 }
 
-.np-phone-words {
-  position: relative;
-  width: min(100%, 80vw, 340px);
-  aspect-ratio: 1;
-  max-height: 100%;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: color-mix(in oklch, var(--surface-2) 55%, transparent);
+/*
+ * The lyrics' page. A phone has no room for a box of words beside everything
+ * else, so they take all of it down to the scrubber, under one line that is
+ * the song: its cover (tap to go back), its name, and romanization.
+ */
+.np-phone-lyrics {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
 }
 
-.np-phone-thumb {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 2;
+.np-phone-lyrics-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 6px 0 2px;
+}
+
+.np-phone-lyrics-song {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--hit-target);
+  text-align: left;
+}
+
+.np-phone-lyrics-song .cover {
+  flex-shrink: 0;
   border-radius: 6px;
-  overflow: hidden;
   box-shadow: var(--shadow-2);
 }
 
-.np-phone-thumb .cover {
-  display: block;
-}
-
-.np-phone-roman {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  z-index: 2;
-  width: 34px;
-  height: 34px;
+.np-phone-lyrics-titles {
   display: grid;
-  place-items: center;
-  border-radius: 50%;
+  min-width: 0;
+}
+
+.np-phone-lyrics-titles strong,
+.np-phone-lyrics-titles span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-phone-lyrics-titles strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.np-phone-lyrics-titles span {
+  font-size: 13px;
   color: var(--text-secondary);
-  background: color-mix(in oklch, var(--surface-3) 80%, transparent);
 }
 
-.np-phone-roman.is-on {
-  background: var(--text-primary);
-  color: var(--surface-0);
+/* The desktop page's pill, at a size for a thumb. */
+.np-phone-lyrics-head .np-tool {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
 }
 
-.np-phone-words .song-words-status {
+.np-phone-lyrics-words {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scrolling the words is theirs; a sideways stroke still turns the page. */
+.np-phone-lyrics .lyrics-view {
+  touch-action: pan-y;
+}
+
+/* A song with no words: its visual, framed, in the same space. */
+.np-phone-lyrics .song-words.has-visual {
+  margin: 8px 0 12px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.np-phone-lyrics .song-words-status {
   left: 12px;
   right: 12px;
   bottom: 10px;
   font-size: 11.5px;
+}
+
+/*
+ * The words sit to the right of the artwork, like two pages: swipe left for
+ * them, right to go back. Whichever way it happens — a swipe, a tap, the
+ * Lyrics button — the new page comes in from its own side.
+ */
+.np-phone-front.is-sliding {
+  animation: np-page-from-left 260ms var(--ease-out);
+}
+
+.np-phone-lyrics.is-sliding {
+  animation: np-page-from-right 260ms var(--ease-out);
+}
+
+@keyframes np-page-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes np-page-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
 }

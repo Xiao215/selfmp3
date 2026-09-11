@@ -15,7 +15,7 @@ export function TagChip({
   onClick,
   onRemove,
   size = 'normal',
-  title,
+  tip,
 }: {
   tag: Pick<Tag, 'id' | 'name' | 'hue'>
   active?: boolean
@@ -24,7 +24,8 @@ export function TagChip({
   onClick?: () => void
   onRemove?: () => void
   size?: 'normal' | 'small'
-  title?: string
+  /** Hover caption. */
+  tip?: string
 }) {
   const style = {
     '--tag-hue': String(tag.hue),
@@ -48,7 +49,7 @@ export function TagChip({
 
   if (!onClick && !onRemove) {
     return (
-      <span className={className} style={style} title={title}>
+      <span className={className} style={style} data-tip={tip}>
         {label}
       </span>
     )
@@ -61,7 +62,7 @@ export function TagChip({
         className="tag-chip-label"
         onClick={onClick}
         aria-pressed={onClick ? active || excluded : undefined}
-        title={title}
+        data-tip={tip}
       >
         {label}
       </button>

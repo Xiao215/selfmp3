@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
+import { exitProps } from '../lib/hooks.js'
 import { useLibrary, useSimilar, useToggleLoved } from '../lib/queries.js'
 import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
@@ -33,28 +34,44 @@ import {
 } from './Icons.js'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
-type Panel = 'none' | 'queue' | 'practice' | 'sync'
+type Panel = 'none' | 'queue' | 'practice'
+
+/** How far a finger has to go sideways to turn the page, in pixels. */
+const SWIPE_PX = 48
 
 /**
  * The full-screen phone player.
  *
  * Large artwork, thumb-reachable controls, and a scrubber with a hit area big
- * enough to actually grab while walking. Lyrics take the artwork's place —
- * tap the artwork, or Lyrics below — so the title, scrubber and buttons never
- * move and you can read along and still skip. A song with no words shows its
- * visual there instead. Queue and practice slide over the stage, so getting
- * back is always one tap.
+ * enough to actually grab while walking. The lyrics are the other page of the
+ * same screen — swipe the artwork left, tap it, or Lyrics below; swipe right
+ * or tap the little cover to go back. A phone has no room to spare, so they
+ * take everything above the scrubber, with the song shrunk to one line over
+ * them; the scrubber and buttons stay, so you can read along and still skip.
+ * A song with no words shows its visual there instead. Queue and practice
+ * slide over the stage, so getting back is always one tap.
  *
  * The screen has a fixed head and foot with one flexible stage between them —
  * the artwork is the part that gives way on a short phone, so nothing below it
  * can ever be pushed off the bottom.
  */
-export function NowPlaying({ onClose }: { onClose: () => void }) {
+export function NowPlaying({
+  leaving,
+  onClose,
+  onExited,
+}: {
+  /** Closed, and on its way out: it slides down, then calls `onExited`. */
+  leaving: boolean
+  onClose: () => void
+  onExited: () => void
+}) {
   const player = usePlayer()
   const transport = useTransport()
   const toggleLoved = useToggleLoved()
   const [panel, setPanel] = useState<Panel>('none')
   const [showWords, setShowWords] = useState(false)
+  // True while the face that just came in is still sliding into place.
+  const [sliding, setSliding] = useState(false)
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [sleepOpen, setSleepOpen] = useState(false)
   const sleepRef = useRef<HTMLButtonElement>(null)
@@ -64,7 +81,20 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
 
   const song = transport.song
   const similar = useSimilar(song?.id ?? null, 10)
-  const lyrics = useSongLyrics(song, { enabled: showWords || panel === 'sync' })
+  const lyrics = useSongLyrics(song, { enabled: showWords })
+
+  const showFace = (words: boolean): void => {
+    if (words === showWords) return
+    setShowWords(words)
+    setSliding(true)
+  }
+  const swipe = useSwipe(direction => showFace(direction === 'left'))
+  const slideProps = {
+    onAnimationEnd: (event: React.AnimationEvent) => {
+      if (event.target === event.currentTarget) setSliding(false)
+    },
+  }
+
   if (!song) return null
 
   const allTags = library?.tags ?? []
@@ -78,7 +108,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
     setPanel(current => (current === which ? 'none' : which))
 
   return (
-    <div className="now-playing">
+    <div className={`now-playing ${leaving ? 'is-leaving' : ''}`} {...exitProps(leaving, onExited)}>
       <header className="now-playing-head">
         <button
           type="button"
@@ -110,89 +140,96 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
       </header>
 
       {panel === 'none' && (
-        <div className="now-playing-stage">
-          <div className="now-playing-art">
-            {showWords ? (
-              <div className="np-phone-words">
-                <SongWords
-                  song={song}
-                  lyrics={lyrics}
-                  mode="phone"
-                  syncing={false}
-                  onSyncingChange={on => on && setPanel('sync')}
-                />
-                {lyrics.words.status === 'lyrics' && (
-                  <>
-                    {lyrics.language !== 'none' && (
-                      <button
-                        type="button"
-                        className={`np-phone-roman ${lyrics.romanizationOn ? 'is-on' : ''}`}
-                        onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
-                        aria-pressed={lyrics.romanizationOn}
-                        aria-label={lyrics.language === 'ja' ? 'Romaji' : 'Pinyin'}
-                      >
-                        <Romanize size={15} />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="np-phone-thumb"
-                      onClick={() => setShowWords(false)}
-                      aria-label="Show the artwork"
-                    >
-                      <Cover song={song} size={38} />
-                    </button>
-                  </>
+        <div className={`now-playing-stage ${showWords ? 'is-words' : ''}`}>
+          {showWords ? (
+            <div
+              className={`np-phone-lyrics ${sliding ? 'is-sliding' : ''}`}
+              {...swipe}
+              {...slideProps}
+            >
+              <div className="np-phone-lyrics-head">
+                <button
+                  type="button"
+                  className="np-phone-lyrics-song"
+                  onClick={() => showFace(false)}
+                  aria-label="Show the artwork"
+                >
+                  <Cover song={song} size={44} />
+                  <span className="np-phone-lyrics-titles">
+                    <strong>{song.title}</strong>
+                    <span>{song.artist || 'Unknown artist'}</span>
+                  </span>
+                </button>
+                {lyrics.words.status === 'lyrics' && lyrics.language !== 'none' && (
+                  <button
+                    type="button"
+                    className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
+                    onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
+                    aria-pressed={lyrics.romanizationOn}
+                  >
+                    <Romanize size={15} /> {lyrics.language === 'ja' ? 'Romaji' : 'Pinyin'}
+                  </button>
                 )}
               </div>
-            ) : (
-              <button
-                type="button"
-                className="now-playing-art-button"
-                onClick={() => setShowWords(true)}
-                aria-label="Show the lyrics"
-              >
-                <Cover song={song} size={340} className="now-playing-cover" />
-              </button>
-            )}
-          </div>
-
-          <div className="now-playing-meta">
-            <h1 className="now-playing-title">{song.title}</h1>
-            <p className="now-playing-artist">{song.artist || 'Unknown artist'}</p>
-            {song.album && <p className="now-playing-album">{song.album}</p>}
-            {song.features && (
-              <p className="now-playing-features">
-                <FeatureBadges features={song.features} size="large" />
-              </p>
-            )}
-
-            {/* The song's tags, and the way to change them without leaving
-                the song: how it feels is clearest while it is playing. */}
-            <div className="now-playing-tags">
-              {songTags.map(tag => (
-                <TagChip key={tag.id} tag={tag} size="small" />
-              ))}
-              <button
-                ref={tagsRef}
-                type="button"
-                className="np-tag-button"
-                onClick={() => setTagsOpen(open => !open)}
-                aria-haspopup="dialog"
-                aria-expanded={tagsOpen}
-              >
-                <TagPlus size={14} /> {songTags.length > 0 ? 'Edit tags' : 'Add tags'}
-              </button>
-              {tagsOpen && (
-                <TagPicker
-                  anchorRef={tagsRef}
-                  song={song}
-                  allTags={allTags}
-                  onClose={() => setTagsOpen(false)}
-                />
-              )}
+              <div className="np-phone-lyrics-words">
+                <SongWords song={song} lyrics={lyrics} mode="phone" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className={`np-phone-front ${sliding ? 'is-sliding' : ''}`}
+              {...swipe}
+              {...slideProps}
+            >
+              <div className="now-playing-art">
+                <button
+                  type="button"
+                  className="now-playing-art-button"
+                  onClick={() => showFace(true)}
+                  aria-label="Show the lyrics"
+                >
+                  <Cover song={song} size={340} className="now-playing-cover" />
+                </button>
+              </div>
+
+              <div className="now-playing-meta">
+                <h1 className="now-playing-title">{song.title}</h1>
+                <p className="now-playing-artist">{song.artist || 'Unknown artist'}</p>
+                {song.album && <p className="now-playing-album">{song.album}</p>}
+                {song.features && (
+                  <p className="now-playing-features">
+                    <FeatureBadges features={song.features} size="large" />
+                  </p>
+                )}
+
+                {/* The song's tags, and the way to change them without leaving
+                the song: how it feels is clearest while it is playing. */}
+                <div className="now-playing-tags">
+                  {songTags.map(tag => (
+                    <TagChip key={tag.id} tag={tag} size="small" />
+                  ))}
+                  <button
+                    ref={tagsRef}
+                    type="button"
+                    className="np-tag-button"
+                    onClick={() => setTagsOpen(open => !open)}
+                    aria-haspopup="dialog"
+                    aria-expanded={tagsOpen}
+                  >
+                    <TagPlus size={14} /> {songTags.length > 0 ? 'Edit tags' : 'Add tags'}
+                  </button>
+                  {tagsOpen && (
+                    <TagPicker
+                      anchorRef={tagsRef}
+                      song={song}
+                      allTags={allTags}
+                      onClose={() => setTagsOpen(false)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="now-playing-progress">
             <div className="scrubber-wrap">
@@ -275,7 +312,8 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {similar.data && similar.data.songs.length > 0 && (
+          {/* Under the lyrics the words have the room; the shelf is for the art. */}
+          {!showWords && similar.data && similar.data.songs.length > 0 && (
             <section className="similar-strip" aria-labelledby="similar-heading">
               <div className="similar-strip-head">
                 <h2 id="similar-heading">Similar songs</h2>
@@ -306,7 +344,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
                       )
                     }
                     aria-label={`Play ${item.title} by ${item.artist || 'Unknown artist'}`}
-                    title={`${item.title} — ${item.artist || 'Unknown artist'}`}
+                    data-tip={`${item.title} — ${item.artist || 'Unknown artist'}`}
                   >
                     <Cover song={item} size={104} />
                     <span className="similar-card-title">{item.title}</span>
@@ -319,15 +357,6 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {panel === 'sync' && (
-        <SongWords
-          song={song}
-          lyrics={lyrics}
-          mode="phone"
-          syncing
-          onSyncingChange={on => !on && setPanel('none')}
-        />
-      )}
       {panel === 'queue' && <QueuePanel onClose={() => setPanel('none')} />}
       {panel === 'practice' && <PracticePanel onClose={() => setPanel('none')} />}
 
@@ -341,7 +370,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
           className={`np-action ${showWords && panel === 'none' ? 'is-active' : ''}`}
           onClick={() => {
             setPanel('none')
-            setShowWords(show => panel !== 'none' || !show)
+            showFace(panel !== 'none' || !showWords)
           }}
           aria-pressed={showWords && panel === 'none'}
         >
@@ -382,4 +411,43 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
       </footer>
     </div>
   )
+}
+
+/**
+ * A sideways swipe, told apart from a tap and from scrolling the lyrics.
+ *
+ * Vertical movement is left to the browser (`touch-action: pan-y` on the
+ * artwork), which cancels the pointer when it takes over to scroll — so only
+ * a clearly sideways stroke gets as far as `pointerup` and counts.
+ */
+function useSwipe(onSwipe: (direction: 'left' | 'right') => void) {
+  const start = useRef<{ id: number; x: number; y: number } | null>(null)
+  const swiped = useRef(false)
+
+  return {
+    onPointerDown: (event: React.PointerEvent) => {
+      start.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
+      swiped.current = false
+    },
+    onPointerUp: (event: React.PointerEvent) => {
+      const from = start.current
+      start.current = null
+      if (!from || from.id !== event.pointerId) return
+      const dx = event.clientX - from.x
+      const dy = event.clientY - from.y
+      if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return
+      swiped.current = true
+      onSwipe(dx < 0 ? 'left' : 'right')
+    },
+    onPointerCancel: () => {
+      start.current = null
+    },
+    // A swipe that starts and ends on the artwork is not also a tap on it.
+    onClickCapture: (event: React.MouseEvent) => {
+      if (!swiped.current) return
+      swiped.current = false
+      event.preventDefault()
+      event.stopPropagation()
+    },
+  }
 }

@@ -1,7 +1,10 @@
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { Router } from 'express'
 import { z } from 'zod'
 import {
   BooleanQuerySchema,
+  isYouTubeUrl,
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
   ImportShareRequestSchema,
@@ -19,6 +22,10 @@ import { HttpError } from '../http/errors.js'
 import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
+const ListenQuery = z.object({ url: z.string().url().max(2_000) })
+
+/** What a range response from YouTube has to say that the browser needs to hear. */
+const FORWARDED_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges']
 
 /**
  * Importing.
@@ -58,6 +65,67 @@ export function importRoutes(container: Container): Router {
     route({ body: ImportPreviewRequestSchema }, ({ body }): Promise<ImportPreview> =>
       buildImportPreview(container, body.url),
     ),
+  )
+
+  /**
+   * Listen to a track before importing it (services/listen.ts). Range
+   * requests go straight through, so the player can seek anywhere, and a
+   * link YouTube has stopped honouring is looked up again once.
+   */
+  router.get(
+    '/import/listen',
+    route({ query: ListenQuery }, async ({ query, req, res }) => {
+      if (!isYouTubeUrl(query.url)) throw HttpError.badRequest('only YouTube links can be played')
+
+      const controller = new AbortController()
+      res.on('close', () => {
+        if (!res.writableFinished) controller.abort()
+      })
+
+      const open = async (): Promise<Response> => {
+        const source = await container.listen.source(query.url).catch((error: unknown) => {
+          throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+        })
+        return fetch(source, {
+          headers: req.headers.range ? { Range: req.headers.range } : {},
+          signal: controller.signal,
+        })
+      }
+
+      let upstream: Response
+      try {
+        upstream = await open()
+        if (upstream.status === 403 || upstream.status === 410) {
+          container.listen.forget(query.url)
+          upstream = await open()
+        }
+      } catch (error) {
+        // Gone before YouTube answered: a seek, or another track picked.
+        if (controller.signal.aborted) return undefined
+        throw error
+      }
+      if (!upstream.ok) {
+        throw HttpError.unprocessable(`YouTube would not play this one (${upstream.status})`)
+      }
+
+      res.status(upstream.status)
+      for (const name of FORWARDED_HEADERS) {
+        const value = upstream.headers.get(name)
+        if (value) res.setHeader(name, value)
+      }
+      res.setHeader('Cache-Control', 'no-store')
+      if (!upstream.body) {
+        res.end()
+        return undefined
+      }
+
+      // A seek closes this response half-way; that is the listener moving on,
+      // not a failure worth reporting.
+      await pipeline(Readable.fromWeb(upstream.body), res).catch(() => {
+        controller.abort()
+      })
+      return undefined
+    }),
   )
 
   router.post(

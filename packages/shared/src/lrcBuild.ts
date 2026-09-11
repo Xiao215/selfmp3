@@ -1,14 +1,14 @@
 /**
  * LRC writing — the other half of `lrc.ts`.
  *
- * Used by the timing editor: the user taps a time for each line, and this
- * turns those taps into a file the parser (and every other player) reads back
- * identically. Times are written as `[mm:ss.xx]`, the most widely understood
- * form.
+ * Used for timed lyrics from YouTube Music, which come as lines with start
+ * times: this turns them into a file the parser (and every other player)
+ * reads back identically. Times are written as `[mm:ss.xx]`, the most widely
+ * understood form.
  */
 
 export interface TimedLine {
-  /** Seconds, or null for a line the user has not tapped yet. */
+  /** Seconds, or null for a line with no time, which is left out. */
   readonly time: number | null
   readonly text: string
 }
@@ -26,13 +26,12 @@ export function formatLrcTimestamp(seconds: number): string {
 }
 
 /**
- * Build an LRC document from tapped lines.
+ * Build an LRC document from timed lines.
  *
  * Lines without a time are dropped — an untimed line in a synced file would
- * either be silently lost by most players or shown at the wrong moment, and
- * the editor makes untimed lines visible before saving. Lines are emitted in
- * time order regardless of the order they were tapped in, and blank lines are
- * kept when timed (a deliberate pause in the display).
+ * either be silently lost by most players or shown at the wrong moment. Lines
+ * are emitted in time order regardless of the order they came in, and blank
+ * lines are kept when timed (a deliberate pause in the display).
  */
 export function buildLrc(
   lines: readonly TimedLine[],
@@ -49,19 +48,4 @@ export function buildLrc(
     .map(line => `${formatLrcTimestamp(line.time)}${line.text.trim()}`)
 
   return [...header, ...timed].join('\n') + (timed.length > 0 ? '\n' : '')
-}
-
-/** Split pasted text into editable lines, dropping any existing timestamps. */
-export function splitPlainLyrics(text: string): string[] {
-  const lines = text
-    .split(/\r?\n/)
-    .map(line => line.replace(/\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]/g, '').trim())
-    .filter((line, index, all) => {
-      // Collapse runs of blank lines; one blank between verses is plenty.
-      if (line !== '') return true
-      return index > 0 && all[index - 1] !== ''
-    })
-  // A trailing blank is just the file's final newline, not a pause.
-  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
-  return lines
 }

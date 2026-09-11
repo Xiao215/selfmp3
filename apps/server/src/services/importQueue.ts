@@ -280,12 +280,19 @@ export class ImportQueueService {
 
     const before = new Set(await safeReaddir(stagingDir))
 
+    // yt-dlp reports every chunk; a write per whole percent is plenty.
+    let shown = 0
     await this.#ytdlp.download({
       url: job.url,
       outputTemplate: path.join(stagingDir, `${baseName}.%(ext)s`),
       hasFfmpeg: tools.ffmpeg,
       signal,
-      onProgress: percent => this.#imports.update(job.id, { progress: percent }),
+      onProgress: percent => {
+        const whole = Math.floor(percent)
+        if (whole === shown) return
+        shown = whole
+        this.#imports.update(job.id, { progress: whole })
+      },
     })
 
     const after = await safeReaddir(stagingDir)

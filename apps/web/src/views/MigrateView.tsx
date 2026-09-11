@@ -9,7 +9,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { queryKeys, useImportTools, useLibrary, useMigrateJob } from '../lib/queries.js'
-import { TagChip } from '../components/TagChip.js'
+import { TagChooser } from '../components/TagChooser.js'
 import { Check, Download, X } from '../components/Icons.js'
 import { Select } from '../components/Select.js'
 
@@ -349,26 +349,7 @@ export function MigrateView() {
               <div className="import-options">
                 <div className="import-option">
                   <span className="field-label">Tag these as</span>
-                  <div className="tag-row-inline">
-                    {tags.map(tag => (
-                      <TagChip
-                        key={tag.id}
-                        tag={tag}
-                        active={tagIds.has(tag.id)}
-                        onClick={() =>
-                          setTagIds(current => {
-                            const next = new Set(current)
-                            if (next.has(tag.id)) next.delete(tag.id)
-                            else next.add(tag.id)
-                            return next
-                          })
-                        }
-                      />
-                    ))}
-                    {tags.length === 0 && (
-                      <span className="hint">Create tags in the sidebar first</span>
-                    )}
-                  </div>
+                  <TagChooser tags={tags} selected={tagIds} onChange={setTagIds} />
                 </div>
 
                 <label className="import-option">
@@ -509,7 +490,7 @@ function MigrateRow({
         {match && (
           <span
             className={`migrate-confidence ${level.className}`}
-            title={`${level.word} match \u2014 ${Math.round(match.confidence * 100)}% confident`}
+            data-tip={`${level.word} match \u2014 ${Math.round(match.confidence * 100)}% confident`}
           >
             <span className="migrate-confidence-mark" aria-hidden="true">
               {level.mark}

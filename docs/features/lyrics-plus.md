@@ -1,15 +1,15 @@
 # Lyrics+
 
-Romanization, a timing editor, and search inside lyrics. Everything
-builds on the lyrics the app already resolves (sidecar → embedded tag → lrclib),
-and every derived form comes back **aligned 1:1** with the original lines —
+Romanization and search inside lyrics. Both build on the lyrics the app
+already resolves (sidecar → embedded tag → YouTube Music → lrclib), and every
+derived form comes back **aligned 1:1** with the original lines —
 same order, same count, same timestamps — so the lyrics view just renders
 "line N, then its extras". The lyrics themselves are shown on the song's page; see
 [now-playing.md](now-playing.md).
 
 ## Romanization (offline)
 
-Open the song's page (`L`, the mic button, or the artwork in the player bar) and press
+Open the song's page (the mic button, or the artwork in the player bar) and press
 **Romaji** / **Pinyin** — on a phone, the **Aa** button over the lyrics.
 Chinese lines get pinyin with tone marks under them; Japanese lines get Hepburn
 romaji. It is generated on the server with pure-JS libraries — nothing leaves
@@ -36,27 +36,6 @@ folder is disposable.
 GET /api/songs/:id/lyrics/romanized
 → { language: 'zh'|'ja'|'none', synced, lines: [{ time, text, romanized }] }
 ```
-
-## Lyric timing editor
-
-For songs with plain (unsynced) lyrics or none at all, press **Sync** on the
-song's page (or **Write them** under a song whose lyrics were not found). It works in two steps and is built for a thumb as much as a keyboard:
-
-1. **Text.** Paste or edit the lyrics, one line per row. If the song already has
-   plain lyrics they are pre-filled. Pasting a whole `.lrc` works too — its
-   times come along.
-2. **Timing.** Play the song and tap **Tap** (or **Space** on a keyboard) as
-   each line begins. Each line shows its stamp; **−/+** nudge it by 0.1 s,
-   **×** clears it so it can be re-tapped, **●** stamps it right now, and
-   tapping the timestamp seeks the player there to check it by ear. Tapping a
-   line's text makes it the next one to stamp.
-
-**Save .lrc** writes the file next to the audio through the storage driver
-(`PUT /api/songs/:id/lyrics`, the same sidecar the app reads), removes any old
-`.txt`, and updates `lyrics_kind`. Untimed lines are left out of the file; if
-nothing was timed the button becomes **Save text** and writes a `.txt` instead.
-The LRC writer lives in `packages/shared/src/lrcBuild.ts` and round-trips
-through the parser in its tests.
 
 ## Search by lyric
 
@@ -99,8 +78,9 @@ GET /api/songs/:id/lyrics
 - A flagged song with no local lyrics answers `404 instrumental` without
   touching the network. When lrclib is the one saying so, the flag is set first.
   `GET /api/songs/:id/lyrics/romanized` behaves the same way.
-- `?refresh=1` ("look again") always asks lrclib: lyrics found are written as a
-  sidecar and clear the flag; an instrumental answer sets it and returns
+- `?refresh=1` skips the sidecar and always asks online — YouTube Music's timed
+  lyrics, then lrclib: lyrics found are written as a sidecar and clear the flag
+  (no screen in the app asks for this any more); an instrumental answer sets it and returns
   `404 instrumental`; nothing at all is the usual `404 not_found`.
 - Only lrclib's exact match is believed about a track being instrumental. The
   fuzzy search fallback readily returns the karaoke version of a song with
@@ -118,7 +98,7 @@ Older servers do not send the field; the schema defaults it to `false`.
 | Area | Where |
 |---|---|
 | Contract | `packages/shared/src/schemas/lyrics.ts`, settings keys in `schemas/settings.ts` |
-| Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests) |
+| Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests; used for YouTube Music's lyrics) |
 | Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index` (its `secrets` table belonged to a since-removed translation feature and is unused); later `songs.instrumental` |
 | Server | `services/lyrics.ts` (lrclib, instrumental), `romanization.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
-| Web | `components/nowplaying/` (see [now-playing.md](now-playing.md)), `LyricsSyncEditor.tsx`, `LyricsSettings.tsx`; Lyrics group in `CommandPalette.tsx` |
+| Web | `components/nowplaying/` (see [now-playing.md](now-playing.md)), `LyricsSettings.tsx`; Lyrics group in `CommandPalette.tsx` |

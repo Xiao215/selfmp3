@@ -116,6 +116,42 @@ export function useClickOutside<T extends HTMLElement>(
   return ref
 }
 
+/**
+ * Something that animates out as well as in.
+ *
+ * `value` is what should be showing, or null for nothing. When it goes null,
+ * `shown` keeps the last value and `leaving` turns true, so the element can
+ * stay mounted and play its way out; it calls `exited` when that is done.
+ * Opening it again part-way out just brings it back.
+ */
+export function usePresence<T>(value: T | null): {
+  shown: T | null
+  leaving: boolean
+  exited: () => void
+} {
+  const [last, setLast] = useState(value)
+  // Adjusted during render rather than in an effect, so an opening element
+  // mounts in the same frame instead of one behind.
+  if (value !== null && value !== last) setLast(value)
+  const exited = useCallback(() => setLast(null), [])
+  return { shown: value ?? last, leaving: value === null && last !== null, exited }
+}
+
+/**
+ * For the root of something `usePresence` keeps up. On the way out it takes
+ * no clicks or focus, so what is under it is usable at once, and it reports
+ * when its own exit animation ends — not one of its children's, which bubble
+ * up to it too.
+ */
+export function exitProps(leaving: boolean, onExited: () => void) {
+  return {
+    inert: leaving,
+    onAnimationEnd: (event: React.AnimationEvent<HTMLElement>) => {
+      if (leaving && event.target === event.currentTarget) onExited()
+    },
+  }
+}
+
 /** True when the viewport is phone-sized. Drives the mobile layout switch. */
 export function useIsMobile(breakpoint = 820): boolean {
   const [isMobile, setIsMobile] = useState(

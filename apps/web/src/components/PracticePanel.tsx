@@ -76,7 +76,7 @@ export function PracticePanel({ onClose }: { onClose: () => void }) {
             className="icon-button side-panel-close"
             onClick={onClose}
             aria-label="Close practice"
-            title="Close"
+            data-tip="Close"
           >
             <X size={17} />
           </button>

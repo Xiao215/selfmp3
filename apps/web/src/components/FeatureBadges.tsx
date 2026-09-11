@@ -31,7 +31,7 @@ export function FeatureBadges({
   if (bpm == null && energy == null && key == null) return null
 
   return (
-    <span className={`feature-badges is-${size}`} title={describeFeatures(features)}>
+    <span className={`feature-badges is-${size}`} data-tip={describeFeatures(features)}>
       {bpm != null && <span className="feature-tempo">{tempoMark(bpm)}</span>}
       {key != null && (
         <span

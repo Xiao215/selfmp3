@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider.js'
 import { useTransport } from '../../devices/useTransport.js'
+import { exitProps } from '../../lib/hooks.js'
 import { useLibrary } from '../../lib/queries.js'
 import { rgba } from '../../lib/visuals.js'
 import { Cover } from '../Cover.js'
 import { FeatureBadges } from '../FeatureBadges.js'
-import { ChevronDown, Clock, Collapse, Expand, Refresh, Romanize, TagPlus } from '../Icons.js'
+import { ChevronDown, Collapse, Expand, Romanize, TagPlus } from '../Icons.js'
 import { QueuePanel } from '../QueuePanel.js'
 import { SongDetailsBody } from '../SongDetailsDialog.js'
 import { TagChip } from '../TagChip.js'
@@ -40,25 +41,35 @@ const IDLE_MS = 3_000
 export function NowPlayingPage({
   mode,
   tab,
+  leaving,
   onModeChange,
   onTabChange,
   onClose,
+  onExited,
   onIdleChange,
 }: {
   mode: PageMode
   tab: StageTab
+  /** Closed, and on its way out: the page slides away, then calls `onExited`. */
+  leaving: boolean
   onModeChange: (mode: PageMode) => void
   onTabChange: (tab: StageTab) => void
   onClose: () => void
+  onExited: () => void
   /** Focus with a still mouse: the shell hides the bar while this is true. */
   onIdleChange: (idle: boolean) => void
 }) {
   const transport = useTransport()
   const song = transport.song
+  const exit = exitProps(leaving, onExited)
 
   if (!song) {
     return (
-      <section className="np-page is-empty" aria-label="Now playing">
+      <section
+        className={`np-page is-empty ${leaving ? 'is-leaving' : ''}`}
+        aria-label="Now playing"
+        {...exit}
+      >
         <header className="np-head">
           <button
             type="button"
@@ -82,6 +93,8 @@ export function NowPlayingPage({
       song={song}
       mode={mode}
       tab={tab}
+      leaving={leaving}
+      exit={exit}
       onModeChange={onModeChange}
       onTabChange={onTabChange}
       onClose={onClose}
@@ -94,6 +107,8 @@ function PageForSong({
   song,
   mode,
   tab,
+  leaving,
+  exit,
   onModeChange,
   onTabChange,
   onClose,
@@ -102,6 +117,8 @@ function PageForSong({
   song: Song
   mode: PageMode
   tab: StageTab
+  leaving: boolean
+  exit: ReturnType<typeof exitProps>
   onModeChange: (mode: PageMode) => void
   onTabChange: (tab: StageTab) => void
   onClose: () => void
@@ -112,15 +129,12 @@ function PageForSong({
   const { data: library } = useLibrary()
   const lyrics = useSongLyrics(song)
   const art = useCoverArt(song)
-  const [syncing, setSyncing] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const tagsRef = useRef<HTMLButtonElement>(null)
-  const idle = useIdle(mode === 'focus' && !syncing)
+  const idle = useIdle(mode === 'focus')
 
   useEffect(() => onIdleChange(idle), [idle, onIdleChange])
   useEffect(() => () => onIdleChange(false), [onIdleChange])
-  // The timing editor is bound to one song.
-  useEffect(() => setSyncing(false), [song.id])
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -134,7 +148,8 @@ function PageForSong({
 
   const classes = ['np-page', `is-${mode}`]
   if (idle) classes.push('is-idle')
-  if (hasVisual && shownTab === 'lyrics' && !syncing) classes.push('has-visual')
+  if (hasVisual && shownTab === 'lyrics') classes.push('has-visual')
+  if (leaving) classes.push('is-leaving')
 
   const [c1, c2, c3] = art.palette
   const style = {
@@ -144,7 +159,12 @@ function PageForSong({
   } as React.CSSProperties
 
   return (
-    <section className={classes.join(' ')} style={style} aria-label={`Now playing: ${song.title}`}>
+    <section
+      className={classes.join(' ')}
+      style={style}
+      aria-label={`Now playing: ${song.title}`}
+      {...exit}
+    >
       <div className="np-glow" aria-hidden="true">
         <i />
         <i />
@@ -157,7 +177,7 @@ function PageForSong({
           className="icon-button np-close"
           onClick={focus ? () => onModeChange('stage') : onClose}
           aria-label={focus ? 'Back to the full page' : 'Close now playing'}
-          title={focus ? 'Back (Esc)' : 'Close (Esc)'}
+          data-tip={focus ? 'Back to the full page' : 'Close'}
         >
           <ChevronDown size={22} />
         </button>
@@ -239,14 +259,7 @@ function PageForSong({
 
       <div className="np-words">
         {shownTab === 'lyrics' && (
-          <SongWords
-            song={song}
-            lyrics={lyrics}
-            mode={focus ? 'focus' : 'stage'}
-            syncing={syncing}
-            onSyncingChange={setSyncing}
-            onToggleFocus={toggleFocus}
-          />
+          <SongWords song={song} lyrics={lyrics} mode={focus ? 'focus' : 'stage'} />
         )}
         {shownTab === 'queue' && <QueuePanel onClose={() => onTabChange('lyrics')} />}
         {shownTab === 'about' && (
@@ -256,67 +269,35 @@ function PageForSong({
         )}
       </div>
 
-      {shownTab === 'lyrics' && !syncing && (
+      {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' && (
         <div className="np-tools">
-          {hasLyrics && lyrics.language !== 'none' && (
-            <button
-              type="button"
-              className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
-              onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
-              aria-pressed={lyrics.romanizationOn}
-              title={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
-            >
-              <Romanize size={14} /> {romanName}
-            </button>
-          )}
-          {hasLyrics && !transport.remote && (
-            <button
-              type="button"
-              className="np-tool"
-              onClick={() => setSyncing(true)}
-              title={
-                lyrics.words.status === 'lyrics' && lyrics.words.data.kind === 'synced'
-                  ? 'Re-time these lyrics'
-                  : 'Time these lyrics to the music'
-              }
-            >
-              <Clock size={14} /> Sync
-            </button>
-          )}
-          {hasLyrics && (
-            <button
-              type="button"
-              className="np-tool"
-              onClick={() => void lyrics.refresh()}
-              disabled={lyrics.refreshing}
-              title="Look the lyrics up again"
-            >
-              <Refresh size={14} /> {lyrics.refreshing ? 'Looking…' : 'Look again'}
-            </button>
-          )}
           <button
             type="button"
-            className="np-tool is-mode"
-            onClick={toggleFocus}
-            title={focus ? 'Back to the full page (F)' : 'Only the words (F)'}
+            className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
+            onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
+            aria-pressed={lyrics.romanizationOn}
+            data-tip={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
           >
-            {focus ? <Collapse size={14} /> : <Expand size={14} />} {focus ? 'Stage' : 'Focus'}
+            <Romanize size={14} /> {romanName}
           </button>
         </div>
       )}
 
-      {!transport.remote && <UpNextCard />}
-
-      {hasLyrics && lyrics.words.status === 'lyrics' && !focus && shownTab === 'lyrics' && (
-        <p className="np-source">
-          {lyrics.words.data.kind === 'synced' ? 'Synced' : 'Not timed'} ·{' '}
-          {lyrics.words.data.source === 'sidecar'
-            ? 'from your library folder'
-            : lyrics.words.data.source === 'embedded'
-              ? 'from the file’s tags'
-              : 'from lrclib.net'}
-        </p>
+      {/* On the words themselves, the way a video has its fullscreen button:
+          where the eye already is, and clear of the lines a click jumps to. */}
+      {shownTab === 'lyrics' && (
+        <button
+          type="button"
+          className="np-expand"
+          onClick={toggleFocus}
+          aria-label={focus ? 'Back to the full page' : 'Show only the words'}
+          data-tip={focus ? 'Back to the full page' : 'Only the words, big'}
+        >
+          {focus ? <Collapse size={18} /> : <Expand size={18} />}
+        </button>
       )}
+
+      {!transport.remote && <UpNextCard />}
     </section>
   )
 }

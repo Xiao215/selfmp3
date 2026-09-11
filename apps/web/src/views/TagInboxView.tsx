@@ -243,8 +243,8 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
     setSongTags.mutate({ songId: song.id, tagIds: [...nextSet] })
   }
 
-  // Keys. Registered in the capture phase so they win over the app-wide ones —
-  // → is "skip five seconds" everywhere else, "next song" here.
+  // Keys, while working through the inbox. Registered in the capture phase so
+  // they reach this view before anything else on the page.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.metaKey || event.ctrlKey || event.altKey) return

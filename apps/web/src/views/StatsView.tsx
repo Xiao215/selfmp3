@@ -55,6 +55,17 @@ export function StatsView() {
     [stats],
   )
 
+  // The history is every play; the list is every song once, at its latest
+  // play. Otherwise one song on repeat fills it.
+  const recentSongs = useMemo(() => {
+    const seen = new Set<number>()
+    return (history?.events ?? []).filter(event => {
+      if (seen.has(event.songId)) return false
+      seen.add(event.songId)
+      return true
+    })
+  }, [history])
+
   const peakHour = useMemo(() => {
     if (!stats || stats.hourly.length === 0) return null
     const best = stats.hourly.reduce((a, b) => (b.plays > a.plays ? b : a))
@@ -238,22 +249,30 @@ export function StatsView() {
               </div>
             </section>
 
-            {history && history.events.length > 0 && (
+            {recentSongs.length > 0 && (
               <section className="panel panel-wide">
                 <header className="panel-head">
                   <h2>Recently played</h2>
                 </header>
                 <div className="history-list is-columns">
-                  {history.events.slice(0, 25).map((event, index) => {
+                  {recentSongs.slice(0, 24).map(event => {
                     const song = songById.get(event.songId)
                     return (
                       <button
-                        key={`${event.songId}-${event.playedAt}-${index}`}
+                        key={event.songId}
                         type="button"
                         className="history-row"
                         onClick={() => song && player.playSong(song)}
                         disabled={!song}
                       >
+                        {song ? (
+                          <Cover song={song} size={34} />
+                        ) : (
+                          <span
+                            className="cover cover-placeholder"
+                            style={{ width: 34, height: 34 }}
+                          />
+                        )}
                         <span className="history-meta">
                           <span className="history-title">{event.title}</span>
                           <span className="history-artist">{event.artist || 'Unknown artist'}</span>

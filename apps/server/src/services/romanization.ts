@@ -22,6 +22,33 @@ export interface Romanizers {
   readonly romaji: (text: string) => Promise<string>
 }
 
+/** A romanization, and whether every engine it needed was there to make it. */
+export interface Romanization {
+  readonly lyrics: RomanizedLyrics
+  /**
+   * False when a line went without because its engine failed to load. Such a
+   * result is still worth showing, but not worth keeping: the next request
+   * should get the chance to do better.
+   */
+  readonly complete: boolean
+}
+
+interface KuroshiroInstance {
+  init(analyzer: unknown): Promise<void>
+  convert(text: string, options: Record<string, string>): Promise<string>
+}
+
+/**
+ * The class a CommonJS package exports, however it arrives. Plain Node hands
+ * kuroshiro's Babel build over as `{ default: { default: Class } }`; tsx, which
+ * runs the dev server, unwraps one level to `{ default: Class }`. Reading only
+ * the first shape left Japanese without romaji under `npm run dev`.
+ */
+export function exportedClass<T>(module: { default?: unknown }): T {
+  const outer = module.default as { default?: unknown } | undefined
+  return (typeof outer === 'function' ? outer : outer?.default) as T
+}
+
 /** Turn a lyrics file into aligned lines, whether it is synced or plain. */
 export function toLyricLines(text: string): { synced: boolean; lines: LyricLine[] } {
   const parsed = parseLyrics(text)
@@ -49,9 +76,7 @@ export class RomanizationService {
       // `nonZh: 'consecutive'` passes Latin words through untouched; the
       // whitespace collapse tidies the double spaces it leaves around them.
       this.#pinyin = text =>
-        pinyin(text, { toneType: 'symbol', nonZh: 'consecutive' })
-          .replace(/\s+/g, ' ')
-          .trim()
+        pinyin(text, { toneType: 'symbol', nonZh: 'consecutive' }).replace(/\s+/g, ' ').trim()
     }
     return this.#pinyin
   }
@@ -62,11 +87,13 @@ export class RomanizationService {
     if (!this.#kuroshiro) {
       const startedAt = Date.now()
       this.#kuroshiro = (async () => {
-        const [{ default: Kuroshiro }, { default: Analyzer }] = await Promise.all([
+        const [kuroshiroModule, analyzerModule] = await Promise.all([
           import('kuroshiro'),
           import('kuroshiro-analyzer-kuromoji'),
         ])
-        const kuroshiro = new Kuroshiro.default()
+        const Kuroshiro = exportedClass<new () => KuroshiroInstance>(kuroshiroModule)
+        const Analyzer = exportedClass<new () => unknown>(analyzerModule)
+        const kuroshiro = new Kuroshiro()
         await kuroshiro.init(new Analyzer())
         this.#logger.info('japanese dictionary loaded', { ms: Date.now() - startedAt })
         return (text: string) =>
@@ -93,7 +120,7 @@ export class RomanizationService {
    * Romanize a whole lyrics text. Output lines are 1:1 with the input lines:
    * same order, same timestamps; lines that need nothing get an empty string.
    */
-  async romanize(text: string): Promise<RomanizedLyrics> {
+  async romanize(text: string): Promise<Romanization> {
     const { synced, lines } = toLyricLines(text)
     const texts = lines.map(line => line.text)
     const language = detectLyricsLanguage(texts)
@@ -121,6 +148,7 @@ export class RomanizationService {
       }),
     )
 
-    return { language, synced, lines: romanized }
+    const complete = !(plan.includes('pinyin') && !pinyin) && !(plan.includes('romaji') && !romaji)
+    return { lyrics: { language, synced, lines: romanized }, complete }
   }
 }

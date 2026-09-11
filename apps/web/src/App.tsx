@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useLibrary, useSettings } from './lib/queries.js'
-import { PlayerProvider, usePlayer } from './player/PlayerProvider.js'
+import { PlayerProvider } from './player/PlayerProvider.js'
 import { OfflineProvider } from './offline/OfflineProvider.js'
-import { useHotkeys, useIsMobile } from './lib/hooks.js'
+import { useHotkeys, useIsMobile, usePresence } from './lib/hooks.js'
 import { Sidebar } from './components/Sidebar.js'
 import { MobileNav } from './components/MobileNav.js'
 import { PlayerBar } from './components/PlayerBar.js'
@@ -17,6 +17,7 @@ import {
 } from './components/nowplaying/NowPlayingPage.js'
 import { CommandPalette } from './components/CommandPalette.js'
 import { ToastHost } from './components/Toast.js'
+import { TooltipHost } from './components/Tooltip.js'
 import { DevicesProvider } from './devices/DevicesProvider.js'
 import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
@@ -73,7 +74,6 @@ function AppWithLibrary() {
 
 function Shell() {
   const { data: library } = useLibrary()
-  const player = usePlayer()
   const isMobile = useIsMobile()
 
   const [selectedTags, setSelectedTags] = useState<ReadonlySet<number>>(() => new Set())
@@ -89,6 +89,11 @@ function Shell() {
   // Focus with a still mouse: the bar steps aside too.
   const [ambient, setAmbient] = useState(false)
   const pageOpen = !isMobile && page !== null
+  // Closed, the page is already gone as far as the rest of the app is
+  // concerned; it only stays on screen, in its last mode, to slide away.
+  const shownPage = usePresence(pageOpen ? page : null)
+  // The phone's player, the same way: it slides back down before it goes.
+  const shownSheet = usePresence(isMobile && nowPlayingOpen ? true : null)
 
   // A tag filters one of two ways — "only these" or "none of these" — never
   // both, so moving it to one side takes it off the other.
@@ -156,7 +161,7 @@ function Shell() {
     setPageTab('lyrics')
   }, [isMobile])
 
-  /** L and the mic: straight to the words, and the same again to put them away. */
+  /** The mic: straight to the words, and the same again to put them away. */
   const toggleLyrics = useCallback(() => {
     if (isMobile) {
       setNowPlayingOpen(true)
@@ -166,47 +171,13 @@ function Shell() {
     setPageTab('lyrics')
   }, [isMobile])
 
-  const toggleFocus = useCallback(() => {
-    setPage(current => (current === 'focus' ? 'stage' : current === 'stage' ? 'focus' : current))
-  }, [])
-
-  // Escape steps back one level: Focus, then Stage, then closed.
-  const stepBack = useCallback(() => {
-    setPage(current => (current === 'focus' ? 'stage' : null))
-  }, [])
-
   const closePage = useCallback(() => setPage(null), [])
 
-  // Declared after the panel callbacks so the shortcuts go through the same
-  // one-panel-at-a-time rule the buttons use, rather than a second copy of it.
+  // Everything is done with the mouse for now. ⌘K stays: it is the only way
+  // into the search palette, which closes itself on Escape.
   useHotkeys({
     'meta+k': () => setPaletteOpen(true),
     'ctrl+k': () => setPaletteOpen(true),
-    ' ': () => player.toggle(),
-    ArrowRight: () => player.seekBy(5),
-    ArrowLeft: () => player.seekBy(-5),
-    'shift+ArrowRight': () => player.next(),
-    'shift+ArrowLeft': () => player.previous(),
-    s: () => player.toggleShuffle(),
-    r: () => player.cycleRepeatMode(),
-    l: toggleLyrics,
-    f: () => {
-      if (pageOpen) toggleFocus()
-    },
-    q: openQueue,
-    p: openPractice,
-    // Tag what is playing: you know how a song feels while you are hearing it.
-    t: () => {
-      if (player.current) setTagsOpen(open => !open)
-    },
-    Escape: () => {
-      if (paletteOpen) {
-        setPaletteOpen(false)
-        return
-      }
-      setNowPlayingOpen(false)
-      stepBack()
-    },
   })
 
   const classes = ['app']
@@ -269,13 +240,15 @@ function Shell() {
             <ToastHost />
           </div>
 
-          {!isMobile && page !== null && (
+          {!isMobile && shownPage.shown !== null && (
             <NowPlayingPage
-              mode={page}
+              mode={shownPage.shown}
               tab={pageTab}
+              leaving={shownPage.leaving}
               onModeChange={setPage}
               onTabChange={setPageTab}
               onClose={closePage}
+              onExited={shownPage.exited}
               onIdleChange={setAmbient}
             />
           )}
@@ -299,9 +272,17 @@ function Shell() {
 
       {isMobile && <MobileNav />}
 
-      {isMobile && nowPlayingOpen && <NowPlaying onClose={() => setNowPlayingOpen(false)} />}
+      {isMobile && shownSheet.shown && (
+        <NowPlaying
+          leaving={shownSheet.leaving}
+          onClose={() => setNowPlayingOpen(false)}
+          onExited={shownSheet.exited}
+        />
+      )}
 
       <CommandPalette library={library} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
+      <TooltipHost />
     </div>
   )
 }

@@ -58,6 +58,8 @@
   --dur: 140ms;
   --dur-slow: 220ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* For things on their way out: they pick up speed as they go. */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
   /* One focus ring for the whole app, so it never has to be re-invented. */
   --focus-ring-width: 2px;
@@ -78,6 +80,8 @@
   --z-toast: 60;
   --z-modal: 100;
   --z-popover: 200;
+  /* A caption belongs to whatever is under the pointer, so it outranks everything. */
+  --z-tooltip: 300;
 
   --player-height: 84px;
   --sidebar-width: 246px;

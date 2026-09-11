@@ -48,7 +48,8 @@ export type SelectProps<T> = {
   size?: 'default' | 'small' | 'inline'
   className?: string
   disabled?: boolean
-  title?: string
+  /** Hover caption. */
+  tip?: string
   id?: string
   align?: LayerAlign
   placement?: LayerPlacement
@@ -78,7 +79,7 @@ export function Select<T>({
   size = 'default',
   className = '',
   disabled = false,
-  title,
+  tip,
   id,
   align = 'start',
   placement = 'auto',
@@ -241,7 +242,7 @@ export function Select<T>({
         aria-labelledby={labelledBy}
         aria-disabled={disabled || undefined}
         disabled={disabled}
-        title={title}
+        data-tip={tip}
         className={`select-trigger select-trigger-${size} ${open ? 'is-open' : ''} ${className}`}
         onClick={() => (open ? close() : openList(selectedIndex))}
         onKeyDown={onKeyDown}

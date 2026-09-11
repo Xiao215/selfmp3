@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractUrls, isYouTubeUrl, youtubeVideoId } from './links.js'
+import { extractUrls, isYouTubeUrl, youtubeChannel, youtubeVideoId } from './links.js'
 
 describe('extractUrls', () => {
   it('finds one link per line', () => {
@@ -55,5 +55,39 @@ describe('youtubeVideoId', () => {
     expect(youtubeVideoId('https://soundcloud.com/x?v=fCh0qfxElm8')).toBeNull()
     expect(youtubeVideoId('https://www.youtube.com/watch?v=short')).toBeNull()
     expect(youtubeVideoId(null)).toBeNull()
+  })
+})
+
+describe('youtubeChannel', () => {
+  it('reads a handle or a channel id from the front page, on either host', () => {
+    expect(youtubeChannel('https://music.youtube.com/@YOASOBI_Official')).toEqual({
+      handle: '@YOASOBI_Official',
+    })
+    expect(youtubeChannel('https://www.youtube.com/@YOASOBI_Official/featured')).toEqual({
+      handle: '@YOASOBI_Official',
+    })
+    expect(youtubeChannel('https://m.youtube.com/@YOASOBI_Official?si=x')).toEqual({
+      handle: '@YOASOBI_Official',
+    })
+    expect(youtubeChannel('https://music.youtube.com/channel/UCvpredjG93ifbCP1Y77JyFA')).toEqual({
+      channelId: 'UCvpredjG93ifbCP1Y77JyFA',
+    })
+  })
+
+  it('decodes a handle written in another script', () => {
+    expect(youtubeChannel('https://www.youtube.com/@%E3%83%A8%E3%82%A2%E3%82%BD%E3%83%93')).toEqual(
+      {
+        handle: '@ヨアソビ',
+      },
+    )
+  })
+
+  it('leaves tabs, videos, playlists and other sites alone', () => {
+    expect(youtubeChannel('https://www.youtube.com/@YOASOBI_Official/videos')).toBeNull()
+    expect(youtubeChannel('https://music.youtube.com/watch?v=x8VYWazR5mE')).toBeNull()
+    expect(youtubeChannel('https://music.youtube.com/playlist?list=OLAK5uy_x')).toBeNull()
+    expect(youtubeChannel('https://www.youtube.com/channel/not-a-channel-id')).toBeNull()
+    expect(youtubeChannel('https://youtu.be/@x')).toBeNull()
+    expect(youtubeChannel('https://soundcloud.com/@someone')).toBeNull()
   })
 })

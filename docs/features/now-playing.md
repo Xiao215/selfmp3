@@ -8,14 +8,14 @@ lyrics — or, for a song with no words, something to look at instead.
 | From | Does |
 |---|---|
 | The artwork, title and artist in the player bar | Opens **Stage**; again closes it |
-| `L`, or the mic button in the bar | Opens straight into **Focus**; again closes it |
-| `F`, the **Focus** / **Stage** button, or double-clicking the lyrics or the visual | Switches between the two |
-| `Esc` or the ⌄ in the corner | Steps back one level: Focus → Stage → closed |
-| `Q` or the queue button, with the page open | Shows the page's **Up next** tab |
+| The mic button in the bar | Opens straight into **Focus**; again closes it |
+| ⤢ on the lyrics' top-right corner, ⤡ in Focus | Switches between the two |
+| The ⌄ in the corner | Steps back one level: Focus → Stage → closed |
+| The queue button, with the page open | Shows the page's **Up next** tab |
 
 The page covers the library, not the player bar, so play and pause never move under your
 hand. The view underneath stays mounted — its scroll position, search and filters are
-where you left them when you close the page. The practice panel (`P`) opens beside it.
+where you left them when you close the page. The practice panel opens beside it.
 
 ## Stage and Focus
 
@@ -49,8 +49,7 @@ the same hue as its placeholder cover.
 - Click a line to jump there. **Right-click a line to loop it** — the Practice A–B loop,
   set from that line's timestamp to the next one's.
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
-  only; see [lyrics-plus.md](lyrics-plus.md)). **Sync** opens the timing editor in place,
-  and **Look again** asks lrclib afresh.
+  only; see [lyrics-plus.md](lyrics-plus.md)).
 - While the page is closed, the current line of a song with timed lyrics rides under the
   artist in the player bar. It only uses lyrics the app already has — it never causes a
   lookup.
@@ -65,7 +64,7 @@ visual drawn from the song itself, with one line under it saying why:
   called "instrumental", or you chose **Mark as instrumental** from its ⋯ menu). No nudge to
   add lyrics. See [lyrics-plus.md](lyrics-plus.md#instrumental-songs) for how the flag is
   kept.
-- **No lyrics found** — offers **Look again**, **Write them**, and **It's instrumental**.
+- **No lyrics found** — offers **It's instrumental**, so the song stops being looked up.
 
 Four visuals, all drawn on a canvas each frame (`components/nowplaying/visualDraw.ts`):
 

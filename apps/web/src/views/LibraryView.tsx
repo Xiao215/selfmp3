@@ -274,7 +274,7 @@ export function LibraryView({
               className="button library-direction"
               onClick={() => setDescending(value => !value)}
               aria-label={descending ? 'Sort ascending' : 'Sort descending'}
-              title={descending ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+              data-tip={descending ? 'Descending — click for ascending' : 'Ascending — click for descending'}
             >
               <span aria-hidden="true">{descending ? '↓' : '↑'}</span>
             </button>
@@ -292,7 +292,7 @@ export function LibraryView({
               onClick={() => (selection.active ? selection.clear() : selection.enter())}
               disabled={filtered.length === 0}
               aria-pressed={selection.active}
-              title={
+              data-tip={
                 selection.active
                   ? 'Done selecting (Esc)'
                   : 'Select songs to act on several at once'
@@ -317,7 +317,7 @@ export function LibraryView({
               onClick={shuffleAll}
               disabled={filtered.length === 0}
               aria-label="Shuffle"
-              title="Shuffle"
+              data-tip="Shuffle"
             >
               <Shuffle size={15} /> <span className="button-label">Shuffle</span>
             </button>
@@ -368,7 +368,7 @@ export function LibraryView({
                 active
                 onClick={() => onExcludeTag(tagId)}
                 onRemove={() => onToggleTag(tagId)}
-                title={`Showing only ${tag.name} — click to hide it instead`}
+                tip={`Showing only ${tag.name} — click to hide it instead`}
               />
             ) : null
           })}
@@ -381,7 +381,7 @@ export function LibraryView({
                 excluded
                 onClick={() => onToggleTag(tagId)}
                 onRemove={() => onExcludeTag(tagId)}
-                title={`Hiding ${tag.name} — click to show only it instead`}
+                tip={`Hiding ${tag.name} — click to show only it instead`}
               />
             ) : null
           })}

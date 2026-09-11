@@ -162,6 +162,18 @@
   }
 }
 
+/* Closing, it slides back down the way it came, and holds there until it
+   unmounts so it never flashes back in between. */
+.now-playing.is-leaving {
+  animation: slide-down var(--dur-slow) var(--ease-in) forwards;
+}
+
+@keyframes slide-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+
 .now-playing-head {
   display: flex;
   align-items: center;
@@ -195,8 +207,39 @@
      shelf goes below the fold instead of squeezing everything above it. */
   overflow: hidden auto;
   overscroll-behavior-y: contain;
+  /* A thumb scrolls it; a bar beside it would only take width from the
+     controls. */
+  scrollbar-width: none;
 }
 
+.now-playing-stage::-webkit-scrollbar {
+  display: none;
+}
+
+/* With the lyrics up nothing overflows: the words scroll themselves. */
+.now-playing-stage.is-words {
+  overflow: hidden;
+}
+
+/*
+ * The artwork's page: the art and what is known about the song. Never smaller
+ * than its content, so the art's floor holds; any spare height goes to the art.
+ * Vertical strokes are the stage's to scroll, sideways ones turn the page.
+ */
+.np-phone-front {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
+/*
+ * A size container, so the square inside can be sized from the room that is
+ * left rather than from the viewport width: on a short phone, or once the
+ * similar strip is on screen, the art shrinks instead of pushing the controls
+ * down or spilling over the title. (`max-height: 100%` cannot do this — the
+ * button between them has no height of its own for a percentage to use.)
+ */
 .now-playing-art {
   flex: 1;
   display: flex;
@@ -204,18 +247,12 @@
   justify-content: center;
   min-height: min(66vw, 300px);
   padding: 10px 0;
+  container-type: size;
 }
 
-/*
- * Sized from the room that is left rather than from the viewport width: on a
- * short phone, or once the similar strip is on screen, the art shrinks instead
- * of pushing the controls down.
- */
 .now-playing-cover {
-  width: min(100%, 80vw, 340px) !important;
-  height: auto !important;
-  max-height: 100%;
-  aspect-ratio: 1;
+  width: min(100cqw, 100cqh, 80vw, 340px) !important;
+  height: min(100cqw, 100cqh, 80vw, 340px) !important;
   object-fit: cover;
   overflow: hidden;
   border-radius: var(--radius-lg);

@@ -276,6 +276,39 @@ export class YtDlpService {
     return { kind: 'single', playlistTitle: null, tracks: [this.#toTrack(parsed, url)] }
   }
 
+  /**
+   * A direct link to a track's audio, for listening before importing it.
+   *
+   * m4a first, as for downloads, and here for a second reason: Safari cannot
+   * play webm. YouTube only honours the link from the machine that asked for
+   * it, and for a few hours.
+   */
+  async audioUrl(url: string, signal?: AbortSignal): Promise<string> {
+    const result = await run(
+      'yt-dlp',
+      [
+        '--format',
+        'bestaudio[ext=m4a]/bestaudio',
+        '--get-url',
+        '--no-playlist',
+        '--no-warnings',
+        ...(await this.#cookieArgs()),
+        '--',
+        url,
+      ],
+      { timeoutMs: 60_000, ...(signal ? { signal } : {}) },
+    )
+    if (result.code !== 0) {
+      throw new Error(this.#explain(summarizeError(result.stderr, 'could not read that link')))
+    }
+    const direct = result.stdout
+      .split('\n')
+      .map(line => line.trim())
+      .find(line => /^https?:\/\//.test(line))
+    if (!direct) throw new Error('yt-dlp found no audio for that link')
+    return direct
+  }
+
   #toTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack {
     // Flat playlist entries carry only an id, so rebuild a watch URL from it.
     const url =

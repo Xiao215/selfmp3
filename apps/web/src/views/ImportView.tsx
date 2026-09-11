@@ -12,6 +12,7 @@ import { api } from '../lib/api.js'
 import { queryKeys, useImportQueue, useImportTools, useLibrary } from '../lib/queries.js'
 import { SHARE_PARAMS, sharedLinksFromQuery } from '../lib/shareTarget.js'
 import { TagChooser } from '../components/TagChooser.js'
+import { canListen, ListenBar, ListenButton, useListen } from '../components/ImportListen.js'
 import { YouTubeLibraryPanel } from '../components/YouTubeLibraryPanel.js'
 import {
   Check,
@@ -58,6 +59,14 @@ export function ImportView() {
 
   const tags = library?.tags ?? []
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
+
+  const listen = useListen()
+  // A preview whose track has left the review — cancelled, imported, or a new
+  // link fetched — stops with it. Editing a row keeps its url, so it plays on.
+  const listeningUrl = listen.listening?.track.url
+  useEffect(() => {
+    if (listeningUrl && !items?.some(item => item.url === listeningUrl)) listen.close()
+  }, [items, listeningUrl])
 
   const { data: queue } = useImportQueue(true)
   const hasActivity = (queue?.active ?? 0) + (queue?.queued ?? 0) > 0
@@ -324,7 +333,13 @@ export function ImportView() {
                   {chosen.has(index) && <Check size={12} />}
                 </button>
 
-                {item.thumbnail ? (
+                {canListen(item) ? (
+                  <ListenButton
+                    item={item}
+                    listening={listen.listening}
+                    onToggle={() => listen.toggle(item)}
+                  />
+                ) : item.thumbnail ? (
                   <img className="import-thumb" src={item.thumbnail} alt="" loading="lazy" />
                 ) : (
                   <div className="import-thumb import-thumb-placeholder" />
@@ -364,6 +379,15 @@ export function ImportView() {
               </div>
             ))}
           </div>
+
+          {listen.listening && (
+            <ListenBar
+              listening={listen.listening}
+              onToggle={() => listen.listening && listen.toggle(listen.listening.track)}
+              onSeek={listen.seek}
+              onClose={listen.close}
+            />
+          )}
 
           <div className="import-options">
             <div className="import-option">

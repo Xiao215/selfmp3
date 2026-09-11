@@ -81,6 +81,10 @@ self.addEventListener('fetch', event => {
    */
   if (url.pathname === '/api/events') return
 
+  // Listening before importing: a range stream proxied from YouTube, never
+  // worth caching, and the browser owns its connection best (a seek drops it).
+  if (url.pathname === '/api/import/listen') return
+
   if (url.pathname.startsWith('/api/stream/')) {
     event.respondWith(handleAudio(request, url))
     return

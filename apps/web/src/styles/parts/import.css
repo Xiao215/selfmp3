@@ -102,6 +102,117 @@
   background: var(--surface-2);
 }
 
+/*
+ * Listening before importing (components/ImportListen.tsx). The thumbnail is
+ * the play button: the obvious thing to reach for, and no wider a row. The
+ * icon shows on hover, and stays while its track is the one previewing.
+ */
+.import-listen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.import-listen img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.import-listen-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: oklch(0.1 0.01 var(--accent-hue) / 0.72);
+  color: oklch(0.98 0 0);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+/* With no picture behind it, the icon is the only thing in the square. */
+.import-listen:not(:has(img)) .import-listen-icon,
+.import-listen:hover .import-listen-icon,
+.import-listen:focus-visible .import-listen-icon,
+.import-listen[class*='is-'] .import-listen-icon {
+  opacity: 1;
+}
+
+.import-listen[class*='is-'] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.listen-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 8px 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-2);
+}
+
+.listen-toggle {
+  flex-shrink: 0;
+}
+
+.listen-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 0 1 220px;
+}
+
+.listen-title,
+.listen-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listen-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.listen-artist {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.listen-artist.is-error {
+  color: var(--danger);
+}
+
+.listen-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.listen-progress .scrubber {
+  flex: 1;
+  min-width: 0;
+}
+
 .import-col-side {
   display: flex;
   align-items: center;
@@ -369,5 +480,29 @@
 
   .job-progress {
     width: 64px;
+  }
+}
+
+/* On a phone the meta takes its own line and the playhead gets the full width. */
+@media (max-width: 819px) {
+  .listen-bar {
+    flex-wrap: wrap;
+    bottom: 8px;
+    gap: 6px 10px;
+  }
+
+  .listen-meta {
+    flex: 1;
+  }
+
+  .listen-progress {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-listen-icon {
+    transition: none;
   }
 }

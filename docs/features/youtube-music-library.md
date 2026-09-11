@@ -69,6 +69,26 @@ This uses the same unofficial API as the timed lyrics (`youtubeMusicApi.ts`) and
 the same way when YouTube changes it; then artist links are refused and everything else
 still works.
 
+## Listen before importing
+
+On the review screen every YouTube track's thumbnail is a play button. It plays in a bar
+under the list with a playhead you can drag anywhere, so you can check it is the right
+version (studio, not live; the full song, not a cut) before downloading anything.
+
+- The audio comes through the server, `GET /api/import/listen?url=…`
+  (`apps/server/src/services/listen.ts`): yt-dlp names where the audio lives on YouTube
+  (`--get-url`, m4a first because Safari cannot play webm), and the server proxies it.
+  YouTube only honours that link from the machine that asked for it, so this is also what
+  makes it work from a phone away from home.
+- Range requests pass straight through, so seeking works. The link is kept until shortly
+  before YouTube says it expires, so a track costs one yt-dlp run (~2.5 s before the
+  first sound) however much you drag; a link YouTube turns down is looked up once more.
+- It is a separate audio element from the player, so the queue is untouched. Whatever
+  was playing pauses while you listen and carries on when you close the bar — unless you
+  pressed play on it yourself meanwhile, which pauses the preview instead.
+- Only YouTube links: the endpoint refuses anything else. The service worker leaves the
+  URL alone, like the event stream.
+
 ## Failure modes
 
 Errors from yt-dlp are translated into actionable messages

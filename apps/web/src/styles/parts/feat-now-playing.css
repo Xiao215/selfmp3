@@ -687,8 +687,9 @@
   padding-top: 14cqh;
 }
 
+/* The whole width of the phone to fill, and read at arm's length. */
 .lyrics-view.is-phone {
-  --np-lyric-size: 19px;
+  --np-lyric-size: clamp(22px, 6.4vw, 28px);
 }
 
 .lyric {
@@ -961,52 +962,121 @@
   width: 100%;
 }
 
-/* The same square as the artwork; see .now-playing-art in mobile.css. */
-.np-phone-words {
-  position: relative;
-  width: min(100cqw, 100cqh, 80vw, 340px);
-  height: min(100cqw, 100cqh, 80vw, 340px);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: color-mix(in oklch, var(--surface-2) 55%, transparent);
+/*
+ * The lyrics' page. A phone has no room for a box of words beside everything
+ * else, so they take all of it down to the scrubber, under one line that is
+ * the song: its cover (tap to go back), its name, and romanization.
+ */
+.np-phone-lyrics {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
 }
 
-.np-phone-thumb {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 2;
+.np-phone-lyrics-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 6px 0 2px;
+}
+
+.np-phone-lyrics-song {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--hit-target);
+  text-align: left;
+}
+
+.np-phone-lyrics-song .cover {
+  flex-shrink: 0;
   border-radius: 6px;
-  overflow: hidden;
   box-shadow: var(--shadow-2);
 }
 
-.np-phone-thumb .cover {
-  display: block;
-}
-
-.np-phone-roman {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  z-index: 2;
-  width: 34px;
-  height: 34px;
+.np-phone-lyrics-titles {
   display: grid;
-  place-items: center;
-  border-radius: 50%;
+  min-width: 0;
+}
+
+.np-phone-lyrics-titles strong,
+.np-phone-lyrics-titles span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-phone-lyrics-titles strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.np-phone-lyrics-titles span {
+  font-size: 13px;
   color: var(--text-secondary);
-  background: color-mix(in oklch, var(--surface-3) 80%, transparent);
 }
 
-.np-phone-roman.is-on {
-  background: var(--text-primary);
-  color: var(--surface-0);
+/* The desktop page's pill, at a size for a thumb. */
+.np-phone-lyrics-head .np-tool {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
 }
 
-.np-phone-words .song-words-status {
+.np-phone-lyrics-words {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scrolling the words is theirs; a sideways stroke still turns the page. */
+.np-phone-lyrics .lyrics-view {
+  touch-action: pan-y;
+}
+
+/* A song with no words: its visual, framed, in the same space. */
+.np-phone-lyrics .song-words.has-visual {
+  margin: 8px 0 12px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.np-phone-lyrics .song-words-status {
   left: 12px;
   right: 12px;
   bottom: 10px;
   font-size: 11.5px;
+}
+
+/*
+ * The words sit to the right of the artwork, like two pages: swipe left for
+ * them, right to go back. Whichever way it happens — a swipe, a tap, the
+ * Lyrics button — the new page comes in from its own side.
+ */
+.np-phone-front.is-sliding {
+  animation: np-page-from-left 260ms var(--ease-out);
+}
+
+.np-phone-lyrics.is-sliding {
+  animation: np-page-from-right 260ms var(--ease-out);
+}
+
+@keyframes np-page-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes np-page-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
 }

@@ -216,6 +216,23 @@
   display: none;
 }
 
+/* With the lyrics up nothing overflows: the words scroll themselves. */
+.now-playing-stage.is-words {
+  overflow: hidden;
+}
+
+/*
+ * The artwork's page: the art and what is known about the song. Never smaller
+ * than its content, so the art's floor holds; any spare height goes to the art.
+ * Vertical strokes are the stage's to scroll, sideways ones turn the page.
+ */
+.np-phone-front {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
 /*
  * A size container, so the square inside can be sized from the room that is
  * left rather than from the viewport width: on a short phone, or once the

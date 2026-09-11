@@ -118,3 +118,9 @@
   color: var(--danger, #f87171);
   opacity: 1;
 }
+
+/* Where a bucket's details come from, above the fields that want them. */
+.bucket-where {
+  margin: -0.25rem 0 1rem;
+  line-height: 1.5;
+}

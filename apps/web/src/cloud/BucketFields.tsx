@@ -62,6 +62,20 @@ export function BucketFields({
     <form onSubmit={submit}>
       <p className="panel-lead">{lead}</p>
 
+      <p className="setting-hint bucket-where">
+        The endpoint and the name are on the bucket&rsquo;s own page, under{' '}
+        <a href="https://secure.backblaze.com/b2_buckets.htm" target="_blank" rel="noreferrer">
+          Buckets
+        </a>
+        . The key is a new one from{' '}
+        <a href="https://secure.backblaze.com/app_keys.htm" target="_blank" rel="noreferrer">
+          Account &rarr; Application Keys
+        </a>
+        : allow access to <em>this bucket only</em>, with <strong>Read and Write</strong>. Not the
+        master key &mdash; a key made for one bucket can reach nothing else. B2 shows the
+        application key once, as you make it.
+      </p>
+
       <label className="setting-row">
         <span className="setting-label">
           Endpoint
@@ -135,7 +149,7 @@ export function BucketFields({
           <span className="setting-hint">
             {initial
               ? `Currently ${initial.keyIdHint} — enter it again, or a new one.`
-              : 'From Application Keys, once you have added one.'}
+              : 'B2 calls it keyID, and shows it beside the key.'}
           </span>
         </span>
         <input

@@ -47,9 +47,9 @@ To reach it from your phone anywhere in the world, see **[docs/SETUP.md](docs/SE
 it walks through Tailscale, HTTPS, and running the server in the background.
 **[docs/INSTALL.md](docs/INSTALL.md)** covers Docker, backups, updating, and migrating from
 the old `hum` app. Every feature has a page under
-**[docs/features/](docs/features)**. **[docs/SYNC.md](docs/SYNC.md)** is the plan for keeping
-every device in step through a storage bucket you own, so the Mac no longer has to be awake,
-and says how much of it is built.
+**[docs/features/](docs/features)**. **[docs/SYNC.md](docs/SYNC.md)** is how every device
+keeps in step through a storage bucket you own — sign in with Google, and your library, your
+edits and your imports reach every device whether or not the Mac is awake.
 
 ---
 

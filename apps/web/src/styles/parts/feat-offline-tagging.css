@@ -9,10 +9,9 @@
 /* ---------------- the downloaded mark ---------------- */
 
 /*
- * Sits before the artist, the way a downloaded track is marked in every music
- * app people already know. Downloaded takes the accent; not downloaded is a
- * faint broken outline, present so the two states read as a pair but quiet
- * enough that a list of them is not noise.
+ * Sits before the artist on a downloaded song, the way every music app people
+ * already know marks one. A song that is not downloaded carries nothing; when
+ * the Mac is out of reach it is dimmed instead (below).
  */
 .offline-mark {
   display: inline-flex;
@@ -33,11 +32,6 @@
 .song-row:hover .offline-mark.is-cached,
 .song-row.is-selected .offline-mark.is-cached {
   --icon-knockout: var(--surface-1);
-}
-
-.offline-mark.is-missing {
-  color: var(--text-muted);
-  opacity: 0.55;
 }
 
 .offline-mark-ring {

@@ -1,20 +1,51 @@
 /* ================================================ audio intelligence ===== */
-/* BPM · key · energy badges, the auto-mix toggle, and the similar strip. */
+/* Tempo and energy after the artist, the auto-mix toggle, and the similar strip. */
 
 .feature-badges {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
+  gap: 7px;
   vertical-align: middle;
-  opacity: 0.7;
+  flex: none;
+  opacity: 0.75;
   transition: opacity 0.12s;
+}
+
+/* On a row the badges continue the artist line: "YOASOBI · ♩ = 130 〰". */
+.feature-badges.is-small {
+  margin-left: 5px;
+}
+
+.feature-badges.is-small::before {
+  content: '·';
+  margin-right: -2px;
 }
 
 .song-row:hover .feature-badges,
 .queue-row:hover .feature-badges,
 .feature-badges.is-large {
   opacity: 1;
+}
+
+/* Tempo as a score marks it. Tabular so a column of rows lines up. */
+.feature-tempo {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The energy waveform: drawn from the analysed value, never stepped. */
+.energy-wave {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.energy-wave path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .feature-badge {
@@ -40,34 +71,16 @@
   color: oklch(0.8 0.1 calc(var(--accent-hue) + 120));
 }
 
-/* A tiny meter rather than a number: energy is a feel, not a figure. */
-.feature-energy {
-  width: 26px;
-  padding: 0;
-  overflow: hidden;
-  background: var(--surface-3);
-}
-
-.feature-energy > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  opacity: 0.75;
-}
-
 .feature-badges.is-large {
-  margin-left: 0;
-  gap: 6px;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .feature-badges.is-large .feature-badge {
   height: 20px;
   padding: 0 8px;
   font-size: 12px;
-}
-
-.feature-badges.is-large .feature-energy {
-  width: 40px;
 }
 
 .now-playing-features {

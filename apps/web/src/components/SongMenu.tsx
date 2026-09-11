@@ -7,6 +7,7 @@ import { api } from '../lib/api.js'
 import {
   CheckSquare,
   CloudDownload,
+  Info,
   ListMusic,
   Queue,
   Sparkles,
@@ -15,6 +16,7 @@ import {
   X,
 } from './Icons.js'
 import { MetadataDialog } from './MetadataDialog.js'
+import { SongDetailsDialog } from './SongDetailsDialog.js'
 import { TagPicker } from './TagPicker.js'
 import { Popover } from './Menu.js'
 
@@ -56,6 +58,7 @@ export function SongMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [playlistOpen, setPlaylistOpen] = useState(false)
   const [metadataOpen, setMetadataOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
 
   const { data: library } = useLibrary()
@@ -76,6 +79,7 @@ export function SongMenu({
   // A dialog replaces the menu rather than stacking on it: the menu's
   // click-outside handler would otherwise close both on the first click.
   if (metadataOpen) return <MetadataDialog song={song} onClose={onClose} />
+  if (detailsOpen) return <SongDetailsDialog song={song} onClose={onClose} />
   if (tagsOpen) {
     return (
       <TagPicker
@@ -205,6 +209,15 @@ export function SongMenu({
       )}
 
       <div className="popover-divider" />
+
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() => setDetailsOpen(true)}
+      >
+        <Info size={15} /> Song details
+      </button>
 
       <button
         type="button"

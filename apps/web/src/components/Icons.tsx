@@ -139,10 +139,12 @@ export const Downloaded = (p: IconProps) => (
   </Icon>
 )
 
-/** Not on this device yet: the same circle, only outlined and broken. */
-export const NotDownloaded = (p: IconProps) => (
+/** Details about a song: a circled i. */
+export const Info = (p: IconProps) => (
   <Icon {...p}>
-    <circle cx="12" cy="12" r="8.5" strokeDasharray="3.4 3" />
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.5" />
+    <circle cx="12" cy="7.8" r="1.1" fill="currentColor" stroke="none" />
   </Icon>
 )
 

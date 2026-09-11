@@ -43,8 +43,12 @@ POST /api/library/analyze          { "force": false }   start / resume
 GET  /api/library/analyze                               progress
 ```
 
-**Song rows** show BPM · Camelot key · an energy meter next to the artist, muted, and in
-full in Now Playing.
+**Song rows** show the tempo and energy after the artist, muted: `♩ = 130`, the way a score
+marks tempo, and a small waveform drawn straight from the 0–1 energy value — taller and
+denser as a song gets more intense, with no steps or level names
+(`apps/web/src/lib/energyWave.ts`). The key stays off the row. It shows in the queue while
+auto-mix is ordering by it, and in **Song details** (the song's ⋯ menu), which spells out
+tempo, energy and key in words alongside download state, play history and the file.
 
 **Smart playlists** gain an "Audio" group in the rule builder: BPM, Key (exactly this
 Camelot code, or "mixes with" — same number in the other letter, or ±1 in the same

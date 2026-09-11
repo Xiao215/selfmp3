@@ -75,8 +75,9 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
 
 ## What you see
 
-- **A mark before the artist on every row.** A solid accent disc: on this device. A faint
-  broken circle: not here. A spinning ring: downloading now.
+- **A mark before the artist on a downloaded song**: a solid accent disc, or a spinning ring
+  while it downloads. A song that is not on the device carries no mark, the way other music
+  apps do it; Song details (in the ⋯ menu) says what will happen to it.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for

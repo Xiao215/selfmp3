@@ -86,6 +86,8 @@ interface OfflineContextValue {
   readonly sync: SyncState
   readonly persistent: boolean
   readonly isCached: (songId: number) => boolean
+  /** Taken off this device by hand, so automatic downloads leave it alone. */
+  readonly isExcluded: (songId: number) => boolean
   /** The song downloading this moment, if any. */
   readonly activeSongId: number | null
 
@@ -467,6 +469,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   }, [refreshUsage, setPrefs])
 
   const isCached = useCallback((songId: number) => cachedIds.has(songId), [cachedIds])
+  const isExcluded = useCallback((songId: number) => excluded.has(songId), [excluded])
   const activeSongId = sync.status === 'syncing' ? sync.progress.activeSongId : null
 
   const value = useMemo<OfflineContextValue>(
@@ -479,6 +482,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       sync,
       persistent,
       isCached,
+      isExcluded,
       activeSongId,
       prefs,
       auto,
@@ -500,6 +504,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       sync,
       persistent,
       isCached,
+      isExcluded,
       activeSongId,
       prefs,
       auto,

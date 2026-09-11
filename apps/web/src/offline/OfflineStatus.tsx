@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useOffline } from './OfflineProvider.js'
-import { CloudDownload, Downloaded, NotDownloaded, WifiOff } from '../components/Icons.js'
+import { CloudDownload, Downloaded, WifiOff } from '../components/Icons.js'
 
 /**
  * How offline state shows up outside the settings page.
@@ -11,11 +11,11 @@ import { CloudDownload, Downloaded, NotDownloaded, WifiOff } from '../components
  */
 
 /**
- * The tiny sign beside each song: on this device, on its way, or not here.
+ * The tiny sign beside each song: on this device, or on its way.
  *
- * Drawn in the row's secondary colour except when downloaded, where it takes
- * the accent — with automatic downloads on, most rows carry the solid mark, so
- * the rare hollow one is the thing that stands out.
+ * A song that is not downloaded carries no mark at all, the way every music
+ * app people already know does it. With the Mac out of reach such a row is
+ * dimmed instead, which is the moment the difference actually matters.
  */
 export function OfflineMark({ songId }: { songId: number }) {
   const offline = useOffline()
@@ -47,16 +47,7 @@ export function OfflineMark({ songId }: { songId: number }) {
     )
   }
 
-  return (
-    <span
-      className="offline-mark is-missing"
-      title="Not downloaded to this device"
-      role="img"
-      aria-label="Not downloaded"
-    >
-      <NotDownloaded size={13} />
-    </span>
-  )
+  return null
 }
 
 /**

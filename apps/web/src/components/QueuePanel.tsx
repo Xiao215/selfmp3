@@ -143,7 +143,9 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
                   <span className="queue-title">{song.title}</span>
                   <span className="queue-artist">
                     <span className="queue-artist-name">{song.artist || 'Unknown artist'}</span>
-                    {player.autoMix && <FeatureBadges features={song.features} />}
+                    {/* Auto-mix orders the queue by tempo and key, so here —
+                        and only here — the key is worth showing. */}
+                    {player.autoMix && <FeatureBadges features={song.features} showKey />}
                   </span>
                 </span>
                 <span className="queue-duration">{formatDuration(song.duration)}</span>

@@ -61,6 +61,7 @@ export function ImportView() {
 
   const { data: queue } = useImportQueue(true)
   const hasActivity = (queue?.active ?? 0) + (queue?.queued ?? 0) > 0
+  const queueRef = useRef<HTMLDivElement>(null)
 
   const preview = useMutation({
     mutationFn: (input: string) => api.importPreview(input),
@@ -91,7 +92,13 @@ export function ImportView() {
       setItems(null)
       setUrl('')
       setChosen(new Set())
-      void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue })
+      // Once the new jobs are rendered, bring them into view: the review card
+      // just collapsed, so whatever was under the pointer is gone.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }).then(() => {
+        requestAnimationFrame(() =>
+          queueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+        )
+      })
       // A playlist may have been created for this import.
       if (result.playlistId !== null) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.library })
@@ -429,10 +436,13 @@ export function ImportView() {
         </div>
       )}
 
-      <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />
-
+      {/*
+        * The queue takes the review card's place, above the library panel:
+        * below it, a just-started import landed off-screen and looked like
+        * the button had done nothing.
+        */}
       {queue && queue.jobs.length > 0 && (
-        <div className="import-queue">
+        <div className="import-queue" ref={queueRef}>
           <div className="import-queue-head">
             <h2>
               Queue
@@ -542,6 +552,8 @@ export function ImportView() {
           </div>
         </div>
       )}
+
+      <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />
     </section>
   )
 }

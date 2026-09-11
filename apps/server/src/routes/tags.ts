@@ -45,6 +45,10 @@ export function tagRoutes(container: Container): Router {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.hue !== undefined ? { hue: body.hue } : {}),
       })
+      container.edits.tag(params.id, [
+        ...(body.name !== undefined ? (['name'] as const) : []),
+        ...(body.hue !== undefined ? (['hue'] as const) : []),
+      ])
       container.bumpLibraryVersion()
       return updated
     }),
@@ -67,6 +71,7 @@ export function tagRoutes(container: Container): Router {
     route({ body: BulkTagSchema }, ({ body }) => {
       if (!container.tags.byId(body.tagId)) throw HttpError.notFound('no such tag')
       const affected = container.tags.bulk(body.songIds, body.tagId, body.action)
+      container.edits.tagOnSongs(body.tagId, body.songIds)
       container.bumpLibraryVersion()
       return { affected }
     }),

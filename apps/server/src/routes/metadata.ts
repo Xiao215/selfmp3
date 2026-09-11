@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   ApplyMetadataSchema,
   IdSchema,
+  SONG_FIELDS,
   type ApplyMetadataResult,
   type FixCoversStatus,
   type MetadataLookupResponse,
@@ -54,7 +55,13 @@ export function metadataRoutes(container: Container): Router {
         const { artworkUrl, ...fields } = body
 
         const patch: SongPatch = fields
-        if (Object.keys(patch).length > 0) container.songs.patch(song.id, patch)
+        if (Object.keys(patch).length > 0) {
+          container.songs.patch(song.id, patch)
+          container.edits.songs(
+            [song.id],
+            SONG_FIELDS.filter(field => patch[field] !== undefined),
+          )
+        }
 
         let artworkSaved = false
         if (artworkUrl) artworkSaved = await container.covers.saveFromUrl(song.id, artworkUrl)

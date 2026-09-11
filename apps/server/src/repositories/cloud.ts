@@ -276,8 +276,9 @@ export class CloudRepository {
     })()
   }
 
+  /** Everything this Mac knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
-    this.#db.exec('DELETE FROM cloud_songs; DELETE FROM cloud_files;')
+    this.#db.exec('DELETE FROM cloud_songs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors;')
   }
 
   /** This Mac's name in the bucket, made the first time it is asked for. */

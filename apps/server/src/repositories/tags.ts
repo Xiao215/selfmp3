@@ -74,6 +74,17 @@ export class TagRepository {
     return created
   }
 
+  /**
+   * A tag made on another device, under the uid it made for it. The caller
+   * has checked the name is free (`SyncRepository.tagNamed`).
+   */
+  insertSynced(uid: string, name: string, hue: number): number {
+    const info = this.#db
+      .prepare('INSERT INTO tags (uid, name, hue) VALUES (?, ?, ?)')
+      .run(uid, name, hue)
+    return Number(info.lastInsertRowid)
+  }
+
   update(id: number, changes: { name?: string; hue?: number }): Tag | null {
     const assignments: string[] = []
     const values: Record<string, unknown> = { id }

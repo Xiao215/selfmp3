@@ -156,6 +156,38 @@ export class PlaylistRepository {
     return created
   }
 
+  /** A playlist made on another device: its uid, and dated by when it was made there. */
+  insertSynced(input: {
+    uid: string
+    name: string
+    description: string
+    kind: 'manual' | 'smart'
+    rules: SmartRules | null
+    pinned: boolean
+    createdAt: string
+  }): number {
+    const info = this.#db
+      .prepare(
+        `INSERT INTO playlists (uid, name, description, kind, rules, pinned, created_at, updated_at)
+         VALUES (@uid, @name, @description, @kind, @rules, @pinned, @createdAt, @createdAt)`,
+      )
+      .run({
+        ...input,
+        rules: input.rules ? JSON.stringify(input.rules) : null,
+        pinned: input.pinned ? 1 : 0,
+      })
+    return Number(info.lastInsertRowid)
+  }
+
+  /**
+   * For an edit from another device, dated by when it was made there rather
+   * than when it arrived. The methods above date an edit "now" themselves;
+   * this comes after them and says otherwise.
+   */
+  setUpdatedAt(id: number, updatedAt: string): void {
+    this.#db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(updatedAt, id)
+  }
+
   update(id: number, patch: UpdatePlaylist): Playlist | null {
     const assignments: string[] = []
     const values: Record<string, unknown> = { id }

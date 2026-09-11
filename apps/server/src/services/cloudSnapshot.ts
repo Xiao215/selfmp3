@@ -10,6 +10,7 @@ import {
   type Tag,
 } from '@selfmp3/shared'
 import type { CloudSongState } from '../repositories/cloud.js'
+import type { StampRow } from '../repositories/sync.js'
 
 /**
  * The library as a snapshot for the bucket (docs/SYNC.md): pure, so what goes
@@ -31,11 +32,43 @@ export interface SnapshotInput {
   readonly playlistSongIds: (playlist: Playlist) => readonly number[]
   readonly deviceId: string
   readonly writtenAt: Date
+  /** When each edited field was last set (docs/SYNC.md), so later changes combine with it. */
+  readonly stamps?: readonly StampRow[]
+  /** Second uids for tags made twice under one name, and the tag each means. */
+  readonly aliases?: ReadonlyMap<string, string>
+  /** How far into each device's log this library has read. */
+  readonly upTo?: Readonly<Record<string, number>>
+}
+
+type Stamps = Record<string, string>
+
+/** Stamps grouped by what they are about: kind, then uid, then field. */
+function groupStamps(rows: readonly StampRow[]): Map<string, Map<string, Stamps>> {
+  const byKind = new Map<string, Map<string, Stamps>>()
+  for (const row of rows) {
+    let byUid = byKind.get(row.kind)
+    if (!byUid) byKind.set(row.kind, (byUid = new Map<string, Stamps>()))
+    let fields = byUid.get(row.uid)
+    if (!fields) byUid.set(row.uid, (fields = {}))
+    fields[row.field] = row.hlc
+  }
+  return byKind
+}
+
+/** Only the entries whose key passes, or nothing at all when none do. */
+function kept(stamps: Stamps | undefined, keep: (key: string) => boolean): Stamps | undefined {
+  if (!stamps) return undefined
+  const entries = Object.entries(stamps).filter(([key]) => keep(key))
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
   const songs: CloudSong[] = []
   const published = new Map<number, string>()
+  const stamps = groupStamps(input.stamps ?? [])
+  const stampsOf = (kind: StampRow['kind'], uid: string): Stamps | undefined =>
+    stamps.get(kind)?.get(uid)
+  const tagUidSet = new Set(input.tagUids.values())
 
   for (const song of input.songs) {
     const state = input.states.get(song.id)
@@ -70,8 +103,14 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
         return tagUid ? [tagUid] : []
       }),
       features: song.features,
+      ...optional('stamps', stampsOf('song', uid)),
+      ...optional(
+        'tagStamps',
+        kept(stampsOf('songTag', uid), tagUid => tagUidSet.has(tagUid)),
+      ),
     })
   }
+  const publishedUids = new Set(published.values())
 
   const tagUid = (id: number): string | null => input.tagUids.get(id) ?? null
 
@@ -93,8 +132,14 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       }),
       createdAt: playlist.createdAt,
       updatedAt: playlist.updatedAt,
+      ...optional('stamps', stampsOf('playlist', uid)),
+      ...optional(
+        'songStamps',
+        kept(stampsOf('playlistSong', uid), songUid => publishedUids.has(songUid)),
+      ),
     })
   }
+  const aliases = [...(input.aliases ?? [])].filter(([, target]) => tagUidSet.has(target))
 
   // Parsed on the way out as well as on the way in: a snapshot another device
   // would reject is a bug here, and it should fail here, loudly.
@@ -102,12 +147,20 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
     format: CLOUD_FORMAT,
     writtenAt: input.writtenAt.toISOString(),
     writtenBy: input.deviceId,
-    upTo: {},
+    upTo: { ...input.upTo },
     songs,
     tags: input.tags.flatMap(tag => {
       const uid = input.tagUids.get(tag.id)
-      return uid ? [{ uid, name: tag.name, hue: tag.hue }] : []
+      return uid
+        ? [{ uid, name: tag.name, hue: tag.hue, ...optional('stamps', stampsOf('tag', uid)) }]
+        : []
     }),
     playlists,
+    ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
   })
+}
+
+/** `{ [key]: value }`, or nothing when there is no value: most things carry no stamps. */
+function optional<K extends string>(key: K, value: Stamps | undefined): { [P in K]?: Stamps } {
+  return (value ? { [key]: value } : {}) as { [P in K]?: Stamps }
 }

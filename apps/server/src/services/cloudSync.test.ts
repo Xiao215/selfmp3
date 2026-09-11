@@ -7,9 +7,13 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   CloudSnapshotSchema,
+  formatHlc,
+  logFile,
+  logKey,
   newestSnapshotKey,
   snapshotKey,
   parseEndpoint,
+  type Change,
   type CloudConnect,
   type CloudSnapshot,
   type DoormanClaimResult,
@@ -24,9 +28,13 @@ import { CloudRepository } from '../repositories/cloud.js'
 import { ImportRepository } from '../repositories/imports.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
+import { StatsRepository } from '../repositories/stats.js'
+import { SyncRepository } from '../repositories/sync.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
+import { CloudIngest } from './cloudIngest.js'
 import { CloudSyncService, type Doorman } from './cloudSync.js'
+import { SyncClock } from './localEdits.js'
 import { CoverService } from './covers.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
@@ -57,6 +65,8 @@ describe('CloudSyncService', () => {
   let playlists: PlaylistRepository
   let imports: ImportRepository
   let cloud: CloudRepository
+  let syncRepo: SyncRepository
+  let ingest: CloudIngest
   let covers: CoverService
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
@@ -76,6 +86,21 @@ describe('CloudSyncService', () => {
     playlists = new PlaylistRepository(db)
     imports = new ImportRepository(db)
     cloud = new CloudRepository(db)
+    syncRepo = new SyncRepository(db)
+    ingest = new CloudIngest({
+      db,
+      songs,
+      tags,
+      playlists,
+      stats: new StatsRepository(db),
+      sync: syncRepo,
+      clock: new SyncClock({
+        deviceId: () => cloud.deviceId('mac'),
+        latest: () => syncRepo.latestStamp(),
+        now: () => clock,
+      }),
+      logger,
+    })
     const storage = new LocalStorageDriver(root)
     covers = new CoverService({ dataDir } as Config, songs, logger)
 
@@ -96,6 +121,8 @@ describe('CloudSyncService', () => {
       lyrics: new LyricsService(storage, logger, () => Promise.reject(new Error('offline'))),
       metadata: new MetadataService(storage, logger),
       logger,
+      sync: syncRepo,
+      ingest,
       openStore: connection => {
         let store = buckets.get(connection.bucket)
         if (!store) {
@@ -463,6 +490,141 @@ describe('CloudSyncService', () => {
       const keys = snapshotKeys()
       expect(keys).toContain(theirs)
       expect(keys.filter(key => key !== theirs)).toHaveLength(3)
+    })
+  })
+
+  describe('changes from other devices', () => {
+    const PHONE = 'iphone-0b7d44a1'
+    const LAPTOP = 'web-3f9a2c1d'
+    const stamp = (seconds: number, device = PHONE): string =>
+      formatHlc({ ms: Date.parse('2026-09-11T09:00:00Z') + seconds * 1000, counter: 0, device })
+
+    const writeLog = (device: string, seq: number, changes: unknown[]): void => {
+      const file = { ...logFile(device, seq, [], new Date('2026-09-11T09:00:00Z')), changes }
+      bucket.objects.set(logKey(device, seq), {
+        body: Buffer.from(JSON.stringify(file)),
+        contentType: 'application/json',
+      })
+    }
+
+    it('folds them in, and the snapshot says how far it read', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      const uid = uidOf(id)
+      writeLog(PHONE, 1, [
+        { type: 'songEdited', hlc: stamp(1), uid, fields: { title: 'Uno', loved: true } },
+      ] satisfies Change[])
+      writeLog(PHONE, 2, [
+        { type: 'tagCreated', hlc: stamp(2), uid: 'a'.repeat(32), name: 'train', hue: 40 },
+        { type: 'songTagged', hlc: stamp(3), uid, tagUid: 'a'.repeat(32), on: true },
+      ] satisfies Change[])
+
+      await pass()
+
+      expect(songs.byId(id)).toMatchObject({ title: 'Uno', loved: true })
+      const snapshot = latest()
+      expect(snapshot.upTo).toEqual({ [PHONE]: 2 })
+      expect(snapshot.tags).toEqual([{ uid: 'a'.repeat(32), name: 'train', hue: 40 }])
+      expect(snapshot.songs[0]).toMatchObject({
+        title: 'Uno',
+        tagUids: ['a'.repeat(32)],
+        stamps: { title: stamp(1), loved: stamp(1) },
+        tagStamps: { ['a'.repeat(32)]: stamp(3) },
+      })
+      expect(sync.status()).toMatchObject({ state: 'idle', lastError: null })
+
+      // Read once: editing here afterwards is not undone by reading them again.
+      songs.patch(id, { title: 'One again' })
+      await pass()
+      expect(songs.byId(id)?.title).toBe('One again')
+    })
+
+    it('stops at a change this build does not know, and still reads the other devices', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      const uid = uidOf(id)
+      writeLog(PHONE, 1, [{ type: 'songEdited', hlc: stamp(1), uid, fields: { title: 'Uno' } }])
+      writeLog(PHONE, 2, [{ type: 'songRated', hlc: stamp(2), uid, stars: 5 }])
+      writeLog(PHONE, 3, [{ type: 'songEdited', hlc: stamp(3), uid, fields: { year: 1999 } }])
+      writeLog(LAPTOP, 1, [
+        { type: 'songEdited', hlc: stamp(4, LAPTOP), uid, fields: { loved: true } },
+      ])
+
+      await pass()
+
+      expect(songs.byId(id)).toMatchObject({ title: 'Uno', loved: true, year: null })
+      expect(latest().upTo).toEqual({ [PHONE]: 1, [LAPTOP]: 1 })
+      expect(sync.status()).toMatchObject({ state: 'error' })
+      expect(sync.status().lastError).toMatch(/Update this Mac/)
+    })
+
+    it('takes a song another device removed out, and says whose files to take away', async () => {
+      const id = addSong('A - One', 'one')
+      addSong('B - Two', 'two')
+      await connect()
+      const removed: unknown[] = []
+      sync.onIngested = result => {
+        removed.push(...result.removed)
+      }
+      writeLog(PHONE, 1, [{ type: 'songRemoved', hlc: stamp(1), uid: uidOf(id) }])
+
+      await pass()
+
+      expect(removed).toEqual([{ id, path: 'A - One/A - One.m4a' }])
+      expect(latest().songs.map(song => song.title)).toEqual(['Two'])
+    })
+
+    it('does not mind a file that went between the listing and reading it', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      writeLog(PHONE, 1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { title: 'Uno' } },
+      ])
+      const read = bucket.get.bind(bucket)
+      bucket.get = key => (key === logKey(PHONE, 1) ? Promise.resolve(null) : read(key))
+
+      await pass()
+
+      expect(songs.byId(id)?.title).toBe('One')
+      expect(sync.status()).toMatchObject({ state: 'idle', lastError: null })
+      expect(latest().upTo).toEqual({})
+    })
+
+    it('notices a change written while the Mac sits idle', async () => {
+      sync.stop()
+      const id = addSong('A - One', 'one')
+      const watcher = new CloudSyncService({
+        cloud,
+        songs,
+        tags,
+        playlists,
+        imports,
+        storage: new LocalStorageDriver(root),
+        covers,
+        lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
+        metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
+        logger: createLogger('silent'),
+        sync: syncRepo,
+        ingest,
+        openStore: () => bucket,
+        debounceMs: 5,
+        logPollMs: 20,
+        now: () => new Date((clock += 1000)),
+      })
+      extras.push(watcher)
+      await watcher.connect(CONNECT)
+      await watcher.whenIdle()
+
+      writeLog(PHONE, 1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+      ])
+      for (let tries = 0; tries < 100 && !songs.byId(id)?.loved; tries++) {
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+      await watcher.whenIdle()
+
+      expect(songs.byId(id)?.loved).toBe(true)
+      expect(latest().upTo).toEqual({ [PHONE]: 1 })
     })
   })
 

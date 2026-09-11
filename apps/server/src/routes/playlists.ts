@@ -64,6 +64,12 @@ export function playlistRoutes(container: Container): Router {
         throw HttpError.badRequest('a manual playlist cannot have rules')
       }
       const updated = container.playlists.update(params.id, body)
+      container.edits.playlist(
+        params.id,
+        (['name', 'description', 'rules', 'pinned'] as const).filter(
+          field => body[field] !== undefined,
+        ),
+      )
       container.bumpLibraryVersion()
       return updated
     }),
@@ -94,6 +100,9 @@ export function playlistRoutes(container: Container): Router {
       if (body.position === undefined) container.playlists.add(params.id, valid)
       else container.playlists.add(params.id, valid, body.position)
 
+      container.edits.playlistSongs(params.id, valid)
+      // Put somewhere other than the end: the order is an edit too.
+      if (body.position !== undefined) container.edits.playlist(params.id, ['order'])
       container.bumpLibraryVersion()
       return container.playlists.byId(params.id)
     }),
@@ -114,6 +123,7 @@ export function playlistRoutes(container: Container): Router {
         throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
       }
       const removed = container.playlists.removeMany(params.id, body.songIds)
+      container.edits.playlistSongs(params.id, body.songIds)
       if (removed > 0) container.bumpLibraryVersion()
       return { removed, playlist: container.playlists.byId(params.id) }
     }),
@@ -127,6 +137,7 @@ export function playlistRoutes(container: Container): Router {
         throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
       }
       container.playlists.remove(params.id, params.songId)
+      container.edits.playlistSongs(params.id, [params.songId])
       container.bumpLibraryVersion()
       return container.playlists.byId(params.id)
     }),
@@ -140,6 +151,7 @@ export function playlistRoutes(container: Container): Router {
         throw HttpError.badRequest('a smart playlist is ordered by its rules')
       }
       container.playlists.reorder(params.id, body.songIds)
+      container.edits.playlist(params.id, ['order'])
       container.bumpLibraryVersion()
       return { ok: true as const }
     }),

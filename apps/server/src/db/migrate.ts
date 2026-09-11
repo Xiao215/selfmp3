@@ -350,6 +350,58 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    name: 'sync: edits from every device',
+    sql: `
+      -- For each field an edit has set, when it was set (docs/SYNC.md): the
+      -- stamp of the change, from a hybrid logical clock. An edit from another
+      -- device that is older than the stamp arrived late, and loses. \`field\`
+      -- is a column's name, or for a tag on a song the tag's uid, and for a
+      -- song in a playlist the song's. A field with no stamp was never edited
+      -- anywhere, and any edit replaces it.
+      CREATE TABLE sync_stamps (
+        kind  TEXT NOT NULL CHECK (kind IN ('song','songTag','tag','playlist','playlistSong')),
+        uid   TEXT NOT NULL,
+        field TEXT NOT NULL,
+        hlc   TEXT NOT NULL,
+        PRIMARY KEY (kind, uid, field)
+      ) WITHOUT ROWID;
+      CREATE INDEX idx_sync_stamps_field ON sync_stamps(kind, field);
+
+      -- A stamp goes with the thing it is about, however that thing is deleted.
+      CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
+      END;
+      CREATE TRIGGER sync_stamps_tag_delete AFTER DELETE ON tags BEGIN
+        DELETE FROM sync_stamps WHERE kind = 'tag' AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'songTag' AND field = old.uid;
+      END;
+      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+      END;
+
+      -- A tag made on two devices under one name, before either had heard of
+      -- the other, is one tag here. The second uid is kept, so a change that
+      -- names it still finds the tag.
+      CREATE TABLE tag_aliases (
+        uid    TEXT    PRIMARY KEY,
+        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE
+      );
+
+      -- How far into each other device's log this Mac has read.
+      CREATE TABLE cloud_log_cursors (
+        device TEXT    PRIMARY KEY,
+        seq    INTEGER NOT NULL
+      );
+
+      -- Skips from other devices already counted. Plays have play_events'
+      -- client ids for the same job.
+      CREATE TABLE counted_skips (
+        id TEXT PRIMARY KEY
+      ) WITHOUT ROWID;
+    `,
+  },
 ]
 
 /**

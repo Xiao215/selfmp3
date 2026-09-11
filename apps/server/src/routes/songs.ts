@@ -6,6 +6,7 @@ import {
   BulkLovedSchema,
   IdSchema,
   PlayEventSchema,
+  SONG_FIELDS,
   SetSongTagsSchema,
   SkipEventSchema,
   SongPatchSchema,
@@ -118,6 +119,7 @@ export function songRoutes(container: Container): Router {
     '/songs/bulk/loved',
     route({ body: BulkLovedSchema }, ({ body }) => {
       const affected = container.songs.setLovedMany(body.songIds, body.loved)
+      container.edits.songs(body.songIds, ['loved'])
       if (affected > 0) container.bumpLibraryVersion()
       return { affected }
     }),
@@ -133,6 +135,10 @@ export function songRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: SongPatchSchema }, ({ params, body }) => {
       requireSong(params.id)
       container.songs.patch(params.id, body)
+      container.edits.songs(
+        [params.id],
+        SONG_FIELDS.filter(field => body[field] !== undefined),
+      )
       container.bumpLibraryVersion()
       return container.songs.byId(params.id)
     }),
@@ -141,11 +147,18 @@ export function songRoutes(container: Container): Router {
   router.put(
     '/songs/:id/tags',
     route({ params: ParamsWithId, body: SetSongTagsSchema }, ({ params, body }) => {
-      requireSong(params.id)
+      const song = requireSong(params.id)
       // Silently drop ids for tags that no longer exist rather than 400ing —
       // a phone working from a stale library should not hit an error wall.
       const valid = container.tags.exists(body.tagIds)
       transact(container.db, () => container.tags.setSongTags(params.id, valid))
+      // Stamped: the tags that went on, and the ones that came off.
+      const before = new Set(song.tagIds)
+      const after = new Set(valid)
+      container.edits.songTags(params.id, [
+        ...valid.filter(id => !before.has(id)),
+        ...song.tagIds.filter(id => !after.has(id)),
+      ])
       container.bumpLibraryVersion()
       return container.songs.byId(params.id)
     }),
@@ -158,6 +171,7 @@ export function songRoutes(container: Container): Router {
       ({ params, body }) => {
         requireSong(params.id)
         container.songs.patch(params.id, { loved: body.loved })
+        container.edits.songs([params.id], ['loved'])
         container.bumpLibraryVersion()
         return container.songs.byId(params.id)
       },
@@ -343,6 +357,7 @@ export function songRoutes(container: Container): Router {
         await container.lyrics.writeSidecar(song.path, body.text, synced)
         container.songs.setLyricsKind(params.id, synced ? 'synced' : 'plain')
         container.songs.setInstrumental(params.id, false)
+        container.edits.songs([params.id], ['instrumental'])
         container.bumpLibraryVersion()
         container.lyricsIndex.index(song.id, body.text)
         return { ok: true as const, kind: synced ? ('synced' as const) : ('plain' as const) }

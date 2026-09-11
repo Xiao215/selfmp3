@@ -7,14 +7,19 @@ import {
   CLOUD_FORMAT,
   CloudFormatSchema,
   FORMAT_KEY,
+  LOG_FOLDER,
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
   isSynced,
   lyricsKey,
   parseEndpoint,
+  parseLogKey,
+  readLogFile,
   snapshotKey,
   snapshotsToPrune,
+  unfoldedLogKeys,
+  type Change,
   type CloudConnect,
   type CloudLyrics,
   type CloudStatus,
@@ -35,19 +40,24 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { TagRepository } from '../repositories/tags.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { ImportRepository } from '../repositories/imports.js'
+import type { SyncRepository } from '../repositories/sync.js'
+import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import { buildSnapshot } from './cloudSnapshot.js'
 
 /**
- * Publishing the library to the cloud bucket — milestone 1 of docs/SYNC.md.
+ * Keeping the library and the cloud bucket in step (docs/SYNC.md).
  *
- * One pass: work out which songs changed since they were last uploaded, upload
- * their audio, cover and lyrics under the SHA-256 of their bytes, then write a
- * snapshot of the whole library. Passes run at startup, a few seconds after
- * anything changes, and on demand; only one runs at a time, and a change
- * during a pass earns exactly one more.
+ * One pass: fold in what other devices have written to their change logs
+ * since the last pass, work out which songs changed since they were last
+ * uploaded, upload their audio, cover and lyrics under the SHA-256 of their
+ * bytes, then write a snapshot of the whole library — which says how far into
+ * each device's log it has read. Passes run at startup, a few seconds after
+ * anything changes, when another device has written something, and on
+ * demand; only one runs at a time, and a change during a pass earns exactly
+ * one more.
  *
  * What was uploaded, and from which state of each song, is kept in
  * `cloud_songs`. A song whose file, cover and lyric sidecar are unchanged is
@@ -63,6 +73,15 @@ const RETRY_DELAYS_MS = [60_000, 120_000, 300_000, 900_000, 1_800_000]
 
 /** Snapshots this Mac keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
+
+/**
+ * How often to look for changes other devices have written. One listing of
+ * the log folder; a pass only follows when there is something new.
+ */
+const LOG_POLL_MS = 3 * 60_000
+
+/** Log files read at once. */
+const LOG_READS_AT_ONCE = 6
 
 /** How often to ask the doorman whether Google has finished, and for how long. */
 const SIGN_IN_POLL_MS = 2_000
@@ -91,6 +110,9 @@ export interface CloudSyncDeps {
   readonly lyrics: LyricsService
   readonly metadata: MetadataService
   readonly logger: Logger
+  /** Other devices' changes: where this Mac keeps how far it has read, and what applies them. */
+  readonly sync?: SyncRepository
+  readonly ingest?: CloudIngest
   /** How a bucket client is made for a connection. Tests hand in a memory bucket. */
   readonly openStore?: (connection: CloudConnection) => CloudStore
   /** The doorman to sign in through; empty or absent for none. */
@@ -99,6 +121,7 @@ export interface CloudSyncDeps {
   readonly debounceMs?: number
   readonly now?: () => Date
   readonly signInPollMs?: number
+  readonly logPollMs?: number
 }
 
 export class CloudSyncService {
@@ -109,6 +132,13 @@ export class CloudSyncService {
   readonly #debounceMs: number
   readonly #now: () => Date
   readonly #signInPollMs: number
+  readonly #logPollMs: number
+
+  /**
+   * Called after a pass has applied other devices' changes, so the library
+   * version moves and the files of songs removed elsewhere go too.
+   */
+  onIngested: ((result: IngestResult) => void | Promise<void>) | null = null
 
   /** Where uploads go, for display and for the bookkeeping's sake. */
   #target: CloudStatus['target'] = null
@@ -129,6 +159,7 @@ export class CloudSyncService {
   #debounce: NodeJS.Timeout | null = null
   #retry: NodeJS.Timeout | null = null
   #retryIndex = 0
+  #logPoll: NodeJS.Timeout | null = null
   #stopped = false
 
   /** Publishing is one at a time: the import step and a pass can both ask. */
@@ -150,6 +181,7 @@ export class CloudSyncService {
     this.#debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
+    this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
   }
 
   get connected(): boolean {
@@ -495,6 +527,11 @@ export class CloudSyncService {
         this.#verified = true
       }
 
+      // Other devices' changes first: a song removed elsewhere is not worth
+      // uploading, and the snapshot at the end should say they are folded in.
+      failed += await this.#readLogs(store, generation)
+      if (generation !== this.#generation || this.#stopped) return
+
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
@@ -568,6 +605,117 @@ export class CloudSyncService {
       this.#retry.unref()
     } finally {
       if (generation === this.#generation) this.#progress = null
+    }
+  }
+
+  /**
+   * Fold in the log files other devices have written since the last pass,
+   * all in one transaction with the cursors that say they have been. Returns
+   * how many devices' logs could not be read to the end — a file this build
+   * does not understand stops that device's log there, rather than skipping
+   * a change for good, until this Mac is updated.
+   */
+  async #readLogs(store: CloudStore, generation: number): Promise<number> {
+    const { sync, ingest } = this.#deps
+    if (!sync || !ingest) return 0
+    const own = this.#deviceId()
+    const keys = (await store.list(LOG_FOLDER)).map(object => object.key)
+    const pending = unfoldedLogKeys(keys, sync.cursors()).filter(
+      key => parseLogKey(key)?.deviceId !== own,
+    )
+    if (pending.length === 0) return 0
+
+    const read = await inBatches(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
+    if (generation !== this.#generation) return 0
+
+    const changes: Change[] = []
+    const reached = new Map<string, number>()
+    const stuck = new Set<string>()
+    let unreadable = 0
+    // In each device's order: past a file that cannot be used, nothing of that device's counts.
+    pending.forEach((key, index) => {
+      const where = parseLogKey(key)
+      const file = read[index]
+      if (!where || stuck.has(where.deviceId)) return
+      if (file === 'gone' || file === 'unreadable') {
+        stuck.add(where.deviceId)
+        if (file === 'unreadable') unreadable++
+        return
+      }
+      changes.push(...(file ?? []))
+      reached.set(where.deviceId, where.seq)
+    })
+
+    const result = ingest.apply(changes, () => {
+      for (const [device, seq] of reached) sync.setCursor(device, seq)
+    })
+    if (result.applied > 0 || result.removed.length > 0) {
+      this.#logger.info('applied changes from other devices', {
+        changes: result.applied,
+        removed: result.removed.length,
+      })
+      await this.onIngested?.(result)
+    }
+    return unreadable
+  }
+
+  /**
+   * One log file's changes. `gone` when it went between the listing and now —
+   * a device tidies its files away once a snapshot has them, so the next pass
+   * simply lists again — and `unreadable`, with the reason kept, when it
+   * cannot be used.
+   */
+  async #readLog(store: CloudStore, key: string): Promise<Change[] | 'gone' | 'unreadable'> {
+    const where = parseLogKey(key)
+    if (!where) return 'unreadable'
+    const data = await store.get(key)
+    if (!data) return 'gone'
+    const read = readLogFile(parseJson(data))
+    if (!read.ok || read.file.device !== where.deviceId || read.file.seq !== where.seq) {
+      this.#lastError =
+        read.ok || read.reason === 'unreadable'
+          ? `A change log from ${where.deviceId} could not be read (${key}).`
+          : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this Mac.`
+      this.#logger.warn('could not use a log file', { key, reason: this.#lastError })
+      return 'unreadable'
+    }
+    if (read.skipped > 0) {
+      this.#lastError = `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this Mac.`
+      this.#logger.warn('a log file has changes this build does not know', {
+        key,
+        skipped: read.skipped,
+      })
+      return 'unreadable'
+    }
+    return [...read.file.changes]
+  }
+
+  /**
+   * While the Mac sits idle, another device may write to its log. A look at
+   * the log folder every few minutes; a pass only when there is something new.
+   */
+  #startLogPoll(): void {
+    if (!this.#deps.sync || !this.#deps.ingest) return
+    this.#logPoll = setInterval(() => void this.#pollLogs(), this.#logPollMs)
+    this.#logPoll.unref()
+  }
+
+  async #pollLogs(): Promise<void> {
+    const store = this.#store
+    const sync = this.#deps.sync
+    if (!store || !sync || this.#running || this.#stopped) return
+    try {
+      const own = this.#deviceId()
+      const keys = (await store.list(LOG_FOLDER)).map(object => object.key)
+      const fresh = unfoldedLogKeys(keys, sync.cursors()).some(
+        key => parseLogKey(key)?.deviceId !== own,
+      )
+      if (fresh) void this.#pass()
+    } catch (error) {
+      // The next look, or the next pass, will say what is wrong.
+      this.#logger.debug('could not look for changes from other devices', {
+        message: message(error),
+      })
     }
   }
 
@@ -723,11 +871,14 @@ export class CloudSyncService {
 
   /** Write a snapshot, unless it would say exactly what the last one did. */
   async #publishNow(store: CloudStore): Promise<void> {
-    const { cloud, songs, tags, playlists } = this.#deps
+    const { cloud, songs, tags, playlists, sync } = this.#deps
     const deviceId = this.#deviceId()
     const writtenAt = this.#now()
 
     const snapshot = buildSnapshot({
+      stamps: sync?.allStamps() ?? [],
+      aliases: sync?.aliases() ?? new Map(),
+      upTo: sync?.cursors() ?? {},
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
@@ -845,6 +996,7 @@ export class CloudSyncService {
     this.#lastError = null
     this.#retryIndex = 0
     this.#state = 'idle'
+    this.#startLogPoll()
   }
 
   /** No bucket in use any more; a pass for the old one stops at its next step. */
@@ -866,9 +1018,24 @@ export class CloudSyncService {
   #clearTimers(): void {
     if (this.#debounce) clearTimeout(this.#debounce)
     if (this.#retry) clearTimeout(this.#retry)
+    if (this.#logPoll) clearInterval(this.#logPoll)
     this.#debounce = null
     this.#retry = null
+    this.#logPoll = null
   }
+}
+
+/** `work` over every item, `limit` at a time, answers in the items' order. */
+async function inBatches<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = []
+  for (let start = 0; start < items.length; start += limit) {
+    results.push(...(await Promise.all(items.slice(start, start + limit).map(work))))
+  }
+  return results
 }
 
 function sha256(data: Buffer): string {

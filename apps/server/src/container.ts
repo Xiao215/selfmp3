@@ -33,7 +33,11 @@ import { DeviceRepository } from './repositories/devices.js'
 import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
+import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
+import { CloudIngest } from './services/cloudIngest.js'
+import { LocalEdits, SyncClock } from './services/localEdits.js'
+import { removeFolderIfEmpty } from './services/libraryLayout.js'
 
 /**
  * Composition root.
@@ -62,6 +66,7 @@ export interface Container {
   readonly features: FeaturesRepository
   readonly deviceRepo: DeviceRepository
   readonly cloudRepo: CloudRepository
+  readonly syncRepo: SyncRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -82,6 +87,8 @@ export interface Container {
   readonly events: EventHub
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
+  /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
+  readonly edits: LocalEdits
 
   /**
    * Incremented on every mutation. Clients compare it against their own copy
@@ -112,10 +119,28 @@ export function createContainer(config: Config): Container {
   const features = new FeaturesRepository(db)
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
+  const syncRepo = new SyncRepository(db)
 
   const metadata = new MetadataService(storage, logger)
   const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
   const covers = new CoverService(config, songs, logger)
+
+  // One clock for everything this Mac stamps, named as it is in the bucket.
+  const clock = new SyncClock({
+    deviceId: () => cloudRepo.deviceId(process.platform === 'darwin' ? 'mac' : process.platform),
+    latest: () => syncRepo.latestStamp(),
+  })
+  const edits = new LocalEdits({ db, sync: syncRepo, clock })
+  const ingest = new CloudIngest({
+    db,
+    songs,
+    tags,
+    playlists,
+    stats,
+    sync: syncRepo,
+    clock,
+    logger,
+  })
 
   const cloudSync = new CloudSyncService({
     cloud: cloudRepo,
@@ -128,6 +153,8 @@ export function createContainer(config: Config): Container {
     lyrics,
     metadata,
     logger,
+    sync: syncRepo,
+    ingest,
     doormanUrl: config.doormanUrl,
   })
 
@@ -219,6 +246,29 @@ export function createContainer(config: Config): Container {
   }
   scanner.onScanComplete = () => analysis.kick()
 
+  // Other devices' changes, applied during a cloud pass. The pass publishes
+  // what they changed itself, so this only moves the version clients watch —
+  // and takes away the files of songs removed elsewhere. Left in the library
+  // folder, the next scan would add them back as new songs.
+  cloudSync.onIngested = async ({ removed }) => {
+    version++
+    for (const song of removed) {
+      try {
+        await storage.delete(song.path).catch(() => undefined)
+        await lyrics.deleteSidecar(song.path)
+        await removeFolderIfEmpty(storage, song.path)
+        await covers.delete(song.id)
+        await lyricsCache.delete(song.id)
+        lyricsIndex.remove(song.id)
+      } catch (error) {
+        logger.warn('could not tidy up a song removed on another device', {
+          path: song.path,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  }
+
   // Presence and remote control. The version watch reads `version` through the
   // closure, so every bump above reaches the event stream without each caller
   // having to know it exists.
@@ -247,6 +297,7 @@ export function createContainer(config: Config): Container {
     features,
     deviceRepo,
     cloudRepo,
+    syncRepo,
     metadata,
     lyrics,
     covers,
@@ -266,6 +317,7 @@ export function createContainer(config: Config): Container {
     events,
     devices,
     cloudSync,
+    edits,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
     close: () => {

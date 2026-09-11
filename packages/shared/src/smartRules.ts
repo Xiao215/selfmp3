@@ -1,6 +1,7 @@
 import { compatibleCamelot } from './features.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
 import type { SongSortField } from './schemas/common.js'
+import type { SmartRules } from './schemas/smart.js'
 import { asciiLower, toSqliteTime } from './sync.js'
 
 /**
@@ -166,4 +167,75 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
     }
   }
   throw new Error(`unsupported smart-playlist rule: ${JSON.stringify(rule)}`)
+}
+
+const COMPARISONS = { gt: '>', lt: '<', eq: '=', gte: '>=', lte: '<=' } as const
+
+/** Human-readable summary of a rule set, for playlist subtitles. */
+export function describeSmartRules(
+  rules: SmartRules,
+  tagNames: ReadonlyMap<number, string>,
+): string {
+  if (rules.rules.length === 0) {
+    return rules.limit === null ? 'Every song' : `${rules.limit} songs`
+  }
+
+  const parts = rules.rules.map(rule => {
+    switch (rule.field) {
+      case 'title':
+      case 'artist':
+      case 'album':
+      case 'albumArtist': {
+        const verb =
+          rule.op === 'contains'
+            ? 'contains'
+            : rule.op === 'notContains'
+              ? 'does not contain'
+              : rule.op === 'equals'
+                ? 'is'
+                : 'starts with'
+        return `${rule.field} ${verb} "${rule.value}"`
+      }
+      case 'tag': {
+        const name = tagNames.get(rule.tagId) ?? `#${rule.tagId}`
+        return rule.op === 'has' ? `tagged ${name}` : `not tagged ${name}`
+      }
+      case 'playCount':
+      case 'skipCount':
+      case 'duration':
+      case 'year': {
+        const symbol = COMPARISONS[rule.op]
+        return `${rule.field} ${symbol} ${rule.value}`
+      }
+      case 'addedAt':
+      case 'lastPlayedAt': {
+        const label = rule.field === 'addedAt' ? 'added' : 'played'
+        if (rule.op === 'never') return `never ${label}`
+        const days = rule.days ?? 30
+        return rule.op === 'inLastDays'
+          ? `${label} in the last ${days} days`
+          : `not ${label} in ${days} days`
+      }
+      case 'loved':
+        return rule.value ? 'loved' : 'not loved'
+      case 'hasLyrics':
+        return rule.value ? 'has lyrics' : 'no lyrics'
+      case 'hasArt':
+        return rule.value ? 'has art' : 'no art'
+      case 'bpm':
+      case 'energy':
+      case 'loudness': {
+        const symbol = COMPARISONS[rule.op]
+        const unit = rule.field === 'loudness' ? ' LUFS' : ''
+        return `${rule.field} ${symbol} ${rule.value}${unit}`
+      }
+      case 'key':
+        return rule.op === 'is'
+          ? `key is ${rule.value.toUpperCase()}`
+          : `key mixes with ${rule.value.toUpperCase()}`
+    }
+  })
+
+  const joined = parts.join(rules.match === 'any' ? ' or ' : ' and ')
+  return rules.limit === null ? joined : `${joined} · first ${rules.limit}`
 }

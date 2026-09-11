@@ -1,72 +1,389 @@
-import { DEFAULT_SETTINGS, SettingsSchema, type Settings } from '@selfmp3/shared'
+import {
+  AddToPlaylistSchema,
+  BulkDeleteSongsSchema,
+  BulkLovedSchema,
+  BulkTagSchema,
+  CreatePlaylistSchema,
+  CreateTagSchema,
+  DEFAULT_SETTINGS,
+  PlayEventSchema,
+  RemoveFromPlaylistSchema,
+  RenameTagSchema,
+  ReorderPlaylistSchema,
+  SetSongTagsSchema,
+  SettingsSchema,
+  SkipEventSchema,
+  SmartRulesSchema,
+  SongPatchSchema,
+  UpdatePlaylistSchema,
+  describeSmartRules,
+  similarSongs,
+  smartPlaylistSongs,
+  toCloudRules,
+  type Settings,
+} from '@selfmp3/shared'
+import { z } from 'zod'
+import * as edits from './edits.js'
+import { CloudRouteError, notFound } from './errors.js'
 import {
   cloudLibraryVersion,
   cloudLyrics,
   cloudManifest,
   cloudPlaylistSongs,
+  currentSongs,
   loadCloudLibrary,
+  recordChanges,
 } from './library.js'
-import { DoormanError, doormanFetch, loadSession } from './session.js'
+import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
+import type { CloudLibrary } from './snapshotLibrary.js'
+
+export { CloudRouteError } from './errors.js'
 
 /**
  * The web app's stand-in for the Mac's API (docs/SYNC.md).
  *
  * Built for the web there is no `/api` to ask, so `request()` in api.ts sends
- * every call here instead. What the bucket can answer — the library, a
- * playlist's songs, lyrics, what to download — is answered from it through
- * the doorman; settings live on this device; everything else still needs the
- * Mac, and says so. Answers are the same JSON the Mac would send, and go
- * through the same schemas.
+ * every call here instead. Reading the library, a playlist, lyrics, what to
+ * download: answered from this device's copy of the library. Editing it —
+ * songs, tags, playlists, plays — is a change recorded here and uploaded to
+ * this device's log, for every other device to replay. Settings live on this
+ * device. The rest still needs the Mac, and says so. Bodies go through the
+ * same schemas the Mac's routes use, and answers are the JSON the Mac would
+ * send.
  */
-
-/** A route that fails: status 0 reads as "offline" to the rest of the app. */
-export class CloudRouteError extends Error {
-  readonly status: number
-  readonly code: string
-
-  constructor(status: number, message: string, code: string) {
-    super(message)
-    this.name = 'CloudRouteError'
-    this.status = status
-    this.code = code
-  }
-}
 
 const SETTINGS_KEY = 'selfmp3.cloud.settings'
 
-export async function cloudRequest(method: string, path: string, body: unknown): Promise<unknown> {
-  const url = new URL(path, 'https://app.invalid')
-  const route = `${method} ${url.pathname}`
+type Handler = (input: {
+  session: CloudSession
+  params: readonly string[]
+  query: URLSearchParams
+  body: unknown
+}) => Promise<unknown>
 
-  try {
-    if (route === 'GET /api/settings') return loadSettings()
-    if (route === 'PATCH /api/settings') return saveSettings(body)
-    if (route === 'GET /api/health') return await health()
-
-    const session = await loadSession()
-    if (!session) throw new CloudRouteError(401, 'Sign in with Google first.', 'unauthorized')
-
-    if (route === 'GET /api/library') return (await loadCloudLibrary(session)).library
-    if (route === 'GET /api/library/version') return await cloudLibraryVersion(session)
-    if (route === 'GET /api/library/manifest') {
+/** Routes as `METHOD /path`, `:id` for a number. */
+const ROUTES: ReadonlyArray<readonly [string, string, Handler]> = [
+  ['GET', '/api/library', async ({ session }) => (await loadCloudLibrary(session)).library],
+  ['GET', '/api/library/version', ({ session }) => cloudLibraryVersion(session)],
+  [
+    'GET',
+    '/api/library/manifest',
+    async ({ session, query }) => {
       await loadCloudLibrary(session)
-      return cloudManifest(url.searchParams.get('scope') === 'playlists' ? 'playlists' : 'library')
-    }
-
-    const playlist = /^GET \/api\/playlists\/(\d+)\/songs$/.exec(route)
-    if (playlist?.[1]) {
-      const playlistId = Number(playlist[1])
-      return { playlistId, songIds: await cloudPlaylistSongs(playlistId) }
-    }
-
-    const lyrics = /^GET \/api\/songs\/(\d+)\/lyrics$/.exec(route)
-    if (lyrics?.[1]) {
-      const found = await cloudLyrics(session, Number(lyrics[1]))
+      return cloudManifest(query.get('scope') === 'playlists' ? 'playlists' : 'library')
+    },
+  ],
+  [
+    'GET',
+    '/api/playlists/:id/songs',
+    async ({ params }) => ({
+      playlistId: id(params),
+      songIds: await cloudPlaylistSongs(id(params)),
+    }),
+  ],
+  [
+    'GET',
+    '/api/songs/:id/similar',
+    async ({ session, params, query }) => {
+      const { library } = await loadCloudLibrary(session)
+      const seed = library.songs.find(song => song.id === id(params))
+      if (!seed) throw notFound('song')
+      const limit = Math.min(Math.max(Number(query.get('limit')) || 20, 1), 100)
+      return { songId: seed.id, songs: similarSongs(seed, library.songs, limit) }
+    },
+  ],
+  [
+    'GET',
+    '/api/songs/:id/lyrics',
+    async ({ session, params }) => {
+      const found = await cloudLyrics(session, id(params))
       if (!found) throw new CloudRouteError(404, 'No lyrics for this song.', 'not_found')
       return { source: 'sidecar', kind: found.kind, text: found.text }
+    },
+  ],
+
+  // --- Songs -----------------------------------------------------------------------
+
+  [
+    'PATCH',
+    '/api/songs/:id',
+    ({ session, params, body }) => {
+      const patch = SongPatchSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.editSong(ctx, id(params), patch),
+        answer: view => songOf(view, id(params)),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/songs/:id/loved',
+    ({ session, params, body }) => {
+      const { loved } = z.object({ loved: z.boolean() }).parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.editSong(ctx, id(params), { loved }),
+        answer: view => songOf(view, id(params)),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/songs/bulk/loved',
+    ({ session, body }) => {
+      const input = BulkLovedSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const affected = ctx.view.library.songs.filter(
+          song => input.songIds.includes(song.id) && song.loved !== input.loved,
+        ).length
+        return {
+          changes: edits.loveSongs(ctx, input.songIds, input.loved),
+          answer: () => ({ affected }),
+        }
+      })
+    },
+  ],
+  [
+    'PUT',
+    '/api/songs/:id/tags',
+    ({ session, params, body }) => {
+      const { tagIds } = SetSongTagsSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.setSongTags(ctx, id(params), tagIds),
+        answer: view => songOf(view, id(params)),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/songs/:id/played',
+    ({ session, params, body }) => {
+      const event = PlayEventSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.playSong(ctx, id(params), event),
+        answer: () => ({ ok: true, duplicate: false }),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/songs/:id/skipped',
+    ({ session, params, body }) => {
+      const { atSeconds } = SkipEventSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.skipSong(ctx, id(params), atSeconds),
+        answer: () => ({ ok: true }),
+      }))
+    },
+  ],
+  [
+    'DELETE',
+    '/api/songs/:id',
+    ({ session, params }) =>
+      recordChanges(session, ctx => {
+        edits.song(ctx, id(params))
+        return {
+          changes: edits.removeSongs(ctx, [id(params)]),
+          answer: () => ({ ok: true, fileDeleted: false }),
+        }
+      }),
+  ],
+  [
+    'POST',
+    '/api/songs/bulk/delete',
+    ({ session, body }) => {
+      const input = BulkDeleteSongsSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const changes = edits.removeSongs(ctx, input.songIds)
+        const failed = [...new Set(input.songIds)]
+          .filter(songId => !ctx.view.uids.songs.has(songId))
+          .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
+        return { changes, answer: () => ({ removed: changes.length, filesDeleted: 0, failed }) }
+      })
+    },
+  ],
+
+  // --- Tags ------------------------------------------------------------------------
+
+  [
+    'POST',
+    '/api/tags',
+    ({ session, body }) => {
+      const input = CreateTagSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const { changes, uid } = edits.createTag(ctx, input.name, input.hue)
+        return { changes, answer: view => tagOf(view, uid) }
+      })
+    },
+  ],
+  [
+    'PATCH',
+    '/api/tags/:id',
+    ({ session, params, body }) => {
+      const input = RenameTagSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const uid = ctx.view.uids.tags.get(id(params))
+        return { changes: edits.editTag(ctx, id(params), input), answer: view => tagOf(view, uid) }
+      })
+    },
+  ],
+  [
+    'DELETE',
+    '/api/tags/:id',
+    ({ session, params }) =>
+      recordChanges(session, ctx => ({
+        changes: edits.removeTag(ctx, id(params)),
+        answer: () => ({ ok: true }),
+      })),
+  ],
+  [
+    'POST',
+    '/api/tags/bulk',
+    ({ session, body }) => {
+      const input = BulkTagSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const on = input.action === 'add'
+        const affected = ctx.view.library.songs.filter(
+          song => input.songIds.includes(song.id) && song.tagIds.includes(input.tagId) !== on,
+        ).length
+        return {
+          changes: edits.tagSongs(ctx, input.tagId, input.songIds, on),
+          answer: () => ({ affected }),
+        }
+      })
+    },
+  ],
+
+  // --- Playlists -------------------------------------------------------------------
+
+  [
+    'POST',
+    '/api/playlists',
+    ({ session, body }) => {
+      const input = CreatePlaylistSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const { changes, uid } = edits.createPlaylist(ctx, input)
+        return { changes, answer: view => playlistOf(view, uid) }
+      })
+    },
+  ],
+  [
+    'PATCH',
+    '/api/playlists/:id',
+    ({ session, params, body }) => {
+      const patch = UpdatePlaylistSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.editPlaylist(ctx, id(params), patch),
+        answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
+      }))
+    },
+  ],
+  [
+    'DELETE',
+    '/api/playlists/:id',
+    ({ session, params }) =>
+      recordChanges(session, ctx => ({
+        changes: edits.removePlaylist(ctx, id(params)),
+        answer: () => ({ ok: true }),
+      })),
+  ],
+  [
+    'POST',
+    '/api/playlists/:id/songs',
+    ({ session, params, body }) => {
+      const input = AddToPlaylistSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.addToPlaylist(ctx, id(params), input.songIds, input.position),
+        answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/playlists/:id/songs/remove',
+    ({ session, params, body }) => {
+      const { songIds } = RemoveFromPlaylistSchema.parse(body)
+      return recordChanges(session, ctx => {
+        const inIt = new Set(ctx.view.playlistSongs[id(params)] ?? [])
+        const removed = [...new Set(songIds)].filter(songId => inIt.has(songId)).length
+        return {
+          changes: edits.removeFromPlaylist(ctx, id(params), songIds),
+          answer: view => ({
+            removed,
+            playlist: playlistOf(view, view.uids.playlists.get(id(params))),
+          }),
+        }
+      })
+    },
+  ],
+  [
+    'DELETE',
+    '/api/playlists/:id/songs/:id',
+    ({ session, params }) =>
+      recordChanges(session, ctx => ({
+        changes: edits.removeFromPlaylist(ctx, id(params), [id(params, 1)]),
+        answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
+      })),
+  ],
+  [
+    'PUT',
+    '/api/playlists/:id/order',
+    ({ session, params, body }) => {
+      const { songIds } = ReorderPlaylistSchema.parse(body)
+      return recordChanges(session, ctx => ({
+        changes: edits.reorderPlaylist(ctx, id(params), songIds),
+        answer: () => ({ ok: true }),
+      }))
+    },
+  ],
+  [
+    'POST',
+    '/api/playlists/preview',
+    async ({ session, body }) => {
+      const { rules } = z.object({ rules: SmartRulesSchema.nullable() }).parse(body)
+      if (!rules) return { songIds: [], description: 'No rules yet' }
+      const view = await loadCloudLibrary(session)
+      const uids = view.uids
+      const songIdOf = new Map([...uids.songs].map(([songId, uid]) => [uid, songId]))
+      const songs = currentSongs()
+      const matched = smartPlaylistSongs(
+        toCloudRules(rules, tagId => uids.tags.get(tagId) ?? null),
+        songs,
+      )
+      return {
+        songIds: matched.flatMap(uid => {
+          const songId = songIdOf.get(uid)
+          return songId === undefined ? [] : [songId]
+        }),
+        description: describeSmartRules(
+          rules,
+          new Map(view.library.tags.map(tag => [tag.id, tag.name])),
+        ),
+      }
+    },
+  ],
+]
+
+export async function cloudRequest(method: string, path: string, body: unknown): Promise<unknown> {
+  const url = new URL(path, 'https://app.invalid')
+
+  try {
+    if (method === 'GET' && url.pathname === '/api/settings') return loadSettings()
+    if (method === 'PATCH' && url.pathname === '/api/settings') return saveSettings(body)
+    if (method === 'GET' && url.pathname === '/api/health') return await health()
+
+    for (const [routeMethod, pattern, handler] of ROUTES) {
+      if (routeMethod !== method) continue
+      const params = match(pattern, url.pathname)
+      if (!params) continue
+      const session = await loadSession()
+      if (!session) throw new CloudRouteError(401, 'Sign in with Google first.', 'unauthorized')
+      return await handler({ session, params, query: url.searchParams, body })
     }
   } catch (error) {
     if (error instanceof CloudRouteError) throw error
+    if (error instanceof z.ZodError) {
+      throw new CloudRouteError(400, error.issues[0]?.message ?? 'bad request', 'bad_request')
+    }
     if (error instanceof DoormanError) {
       throw new CloudRouteError(
         error.status,
@@ -78,6 +395,45 @@ export async function cloudRequest(method: string, path: string, body: unknown):
   }
 
   throw new CloudRouteError(501, 'Not in the web app yet — this still needs your Mac.', 'needs-mac')
+}
+
+/** The numbers standing for `:id` in a path, or null when it is not this route. */
+function match(pattern: string, pathname: string): string[] | null {
+  const want = pattern.split('/')
+  const have = pathname.split('/')
+  if (want.length !== have.length) return null
+  const params: string[] = []
+  for (let i = 0; i < want.length; i++) {
+    if (want[i] === ':id') {
+      if (!/^\d+$/.test(have[i] ?? '')) return null
+      params.push(have[i] ?? '')
+    } else if (want[i] !== have[i]) {
+      return null
+    }
+  }
+  return params
+}
+
+const id = (params: readonly string[], index = 0): number => Number(params[index])
+
+function songOf(view: CloudLibrary, songId: number) {
+  const found = view.library.songs.find(song => song.id === songId)
+  if (!found) throw notFound('song')
+  return found
+}
+
+function tagOf(view: CloudLibrary, uid: string | undefined) {
+  const tagId = uid === undefined ? undefined : view.ids.tags[uid]
+  const found = view.library.tags.find(tag => tag.id === tagId)
+  if (!found) throw notFound('tag')
+  return found
+}
+
+function playlistOf(view: CloudLibrary, uid: string | undefined) {
+  const playlistId = uid === undefined ? undefined : view.ids.playlists[uid]
+  const found = view.library.playlists.find(playlist => playlist.id === playlistId)
+  if (!found) throw notFound('playlist')
+  return found
 }
 
 /** "Reachable" means the doorman answers: the web app's only server. */

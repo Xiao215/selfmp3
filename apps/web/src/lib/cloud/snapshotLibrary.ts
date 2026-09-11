@@ -1,11 +1,10 @@
-import type {
-  CloudSmartRules,
-  CloudSnapshot,
-  Library,
-  Playlist,
-  SmartRules,
-  Song,
-  Tag,
+import {
+  fromCloudRules,
+  type CloudSnapshot,
+  type Library,
+  type Playlist,
+  type Song,
+  type Tag,
 } from '@selfmp3/shared'
 
 /**
@@ -43,10 +42,13 @@ export interface CloudLibrary {
   readonly files: Readonly<Record<number, SongFiles>>
   /** Each playlist's songs, in order — smart ones as the snapshot resolved them. */
   readonly playlistSongs: Readonly<Record<number, readonly number[]>>
+  /** The uid behind each id in this library, for turning an edit into a change. */
+  readonly uids: {
+    readonly songs: ReadonlyMap<number, string>
+    readonly tags: ReadonlyMap<number, string>
+    readonly playlists: ReadonlyMap<number, string>
+  }
 }
-
-/** Stands in for a tag a smart rule names that this library does not have. */
-const UNKNOWN_TAG_ID = Number.MAX_SAFE_INTEGER
 
 export function snapshotToLibrary(
   snapshot: CloudSnapshot,
@@ -135,7 +137,9 @@ export function snapshotToLibrary(
       name: playlist.name,
       description: playlist.description,
       kind: playlist.kind,
-      rules: playlist.rules ? fromCloudRules(playlist.rules, tagIdOf) : null,
+      rules: playlist.rules
+        ? fromCloudRules(playlist.rules, uid => tagIdOf.get(uid) ?? null)
+        : null,
       songCount: songIds.length,
       totalDuration: songIds.reduce((sum, songId) => sum + (durationOf.get(songId) ?? 0), 0),
       pinned: playlist.pinned,
@@ -155,21 +159,13 @@ export function snapshotToLibrary(
     ids: { songs, tags, playlists, next },
     files,
     playlistSongs,
-  }
-}
-
-/** Smart rules with each tag named by this device's id again. */
-function fromCloudRules(rules: CloudSmartRules, tagIdOf: ReadonlyMap<string, number>): SmartRules {
-  return {
-    match: rules.match,
-    rules: rules.rules.map(rule =>
-      rule.field === 'tag'
-        ? { field: 'tag', op: rule.op, tagId: tagIdOf.get(rule.tagUid) ?? UNKNOWN_TAG_ID }
-        : rule,
-    ),
-    orderBy: rules.orderBy,
-    order: rules.order,
-    limit: rules.limit,
+    uids: {
+      songs: new Map(snapshot.songs.map(song => [songs[song.uid] ?? 0, song.uid])),
+      tags: new Map(snapshot.tags.map(tag => [tags[tag.uid] ?? 0, tag.uid])),
+      playlists: new Map(
+        snapshot.playlists.map(playlist => [playlists[playlist.uid] ?? 0, playlist.uid]),
+      ),
+    },
   }
 }
 

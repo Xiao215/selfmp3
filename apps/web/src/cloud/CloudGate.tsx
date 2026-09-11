@@ -24,7 +24,12 @@ import {
   signOut as endSession,
   type CloudSession,
 } from '../lib/cloud/session.js'
-import { forgetCloudLibrary } from '../lib/cloud/library.js'
+import {
+  flushCloudChanges,
+  forgetCloudLibrary,
+  markCloudLibraryStale,
+  pendingCloudChanges,
+} from '../lib/cloud/library.js'
 import { clearAudioCache } from '../offline/audioCache.js'
 import { clearSnapshot } from '../offline/mirror.js'
 import { BucketFields } from './BucketFields.js'
@@ -146,6 +151,8 @@ export function CloudGate({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async (): Promise<void> => {
     if (gate.kind !== 'ready' && gate.kind !== 'needs-storage') return
+    // One last try at sending what this device has not uploaded yet.
+    await flushCloudChanges().catch(() => undefined)
     await endSession(gate.session)
     // Songs are cached under this device's ids for this account's library;
     // another account's library would give the same ids to other songs.
@@ -336,7 +343,10 @@ export function CloudAccountSettings() {
           <button
             type="button"
             className="button"
-            onClick={() => void queryClient.invalidateQueries({ queryKey: queryKeys.library })}
+            onClick={() => {
+              markCloudLibraryStale()
+              void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+            }}
           >
             Check for new songs
           </button>
@@ -344,9 +354,13 @@ export function CloudAccountSettings() {
             type="button"
             className="button button-danger"
             onClick={() => {
+              const waiting = pendingCloudChanges()
               if (
                 window.confirm(
-                  'Sign out? Songs downloaded to this device are removed; your music stays in the bucket.',
+                  'Sign out? Songs downloaded to this device are removed; your music stays in the bucket.' +
+                    (waiting > 0
+                      ? ` ${waiting} change${waiting === 1 ? '' : 's'} made here ${waiting === 1 ? 'has' : 'have'} not reached it yet and will be lost if ${waiting === 1 ? 'it' : 'they'} cannot be sent now.`
+                      : ''),
                 )
               ) {
                 void account.signOut()

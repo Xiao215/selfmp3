@@ -5,6 +5,7 @@ import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
 import { fileManagerName, showInFileManager } from '../lib/fileManager.js'
+import { CLOUD } from '../lib/platform.js'
 import { showToast } from './Toast.js'
 import {
   CheckSquare,
@@ -238,14 +239,17 @@ export function SongMenu({
         </button>
       )}
 
-      <button
-        type="button"
-        role="menuitem"
-        className="popover-item"
-        onClick={() => setMetadataOpen(true)}
-      >
-        <Sparkles size={15} /> Fix metadata…
-      </button>
+      {/* The lookup runs on the Mac, against iTunes and MusicBrainz. */}
+      {!CLOUD && (
+        <button
+          type="button"
+          role="menuitem"
+          className="popover-item"
+          onClick={() => setMetadataOpen(true)}
+        >
+          <Sparkles size={15} /> Fix metadata…
+        </button>
+      )}
 
       {/* An instrumental gets a visual instead of "no lyrics found", and is not
           looked up on lrclib again. Easy to take back: lyrics you add later win. */}

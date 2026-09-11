@@ -4,6 +4,7 @@ import { formatDuration, fuzzyRank, isCjkQuery, type Library, type Song } from '
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api.js'
 import { useDebounced } from '../lib/hooks.js'
+import { CLOUD } from '../lib/platform.js'
 import { queryKeys } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { Cover } from './Cover.js'
@@ -168,7 +169,8 @@ export function CommandPalette({
   const lyricsHits = useQuery({
     queryKey: queryKeys.lyricsSearch(lyricsQuery),
     queryFn: () => api.lyricsSearch(lyricsQuery, 6),
-    enabled: open && lyricsQuery !== '',
+    // The lyrics index is the Mac's; the web app has no words to search.
+    enabled: open && lyricsQuery !== '' && !CLOUD,
     retry: false,
     staleTime: 60_000,
     placeholderData: previous => previous,

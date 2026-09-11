@@ -5,6 +5,7 @@ import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { queryKeys, useCreateTag, useScanLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { CLOUD } from '../lib/platform.js'
+import { markCloudLibraryStale } from '../lib/cloud/library.js'
 import { TagEditor, type TagFilterState } from './TagEditor.js'
 import {
   BarChart,
@@ -273,7 +274,10 @@ export function Sidebar({
           <button
             type="button"
             className="nav-item nav-item-small"
-            onClick={() => void queryClient.invalidateQueries({ queryKey: queryKeys.library })}
+            onClick={() => {
+              markCloudLibraryStale()
+              void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+            }}
             disabled={libraryFetching}
           >
             <Refresh size={15} />

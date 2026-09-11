@@ -9,6 +9,7 @@ import {
   type Song,
 } from '@selfmp3/shared'
 import { api, ApiError } from '../../lib/api.js'
+import { CLOUD } from '../../lib/platform.js'
 import { useLibrary, useSettings, useUpdateSettings } from '../../lib/queries.js'
 
 /**
@@ -63,7 +64,8 @@ export function useSongLyrics(song: Song | null, { enabled = true }: { enabled?:
 
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
   const language: LyricsLanguage = useMemo(() => {
-    if (!parsed) return 'none'
+    // Romaji and pinyin are worked out on the Mac; the web app has none to ask.
+    if (!parsed || CLOUD) return 'none'
     return detectLyricsLanguage(parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines)
   }, [parsed])
 

@@ -47,7 +47,7 @@ export function DevicesButton({
           type="button"
           className="device-chip"
           onClick={() => setOpen(value => !value)}
-          title={hint}
+          data-tip={hint}
         >
           {chip.icon}
           <span>{chip.label}</span>
@@ -66,7 +66,7 @@ export function DevicesButton({
         aria-label={actionLabel ? undefined : 'Devices'}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={hint}
+        data-tip={hint}
       >
         {remote ? (
           <Remote size={actionLabel ? 19 : 17} />

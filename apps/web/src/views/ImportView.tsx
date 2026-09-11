@@ -353,7 +353,7 @@ export function ImportView() {
 
                 <span className="import-col-side">
                   {item.alreadyHave ? (
-                    <span className="import-dup" title="A song with this title and artist is already in your library">
+                    <span className="import-dup" data-tip="A song with this title and artist is already in your library">
                       <CheckCircle size={12} /> Have it
                     </span>
                   ) : (
@@ -469,7 +469,7 @@ export function ImportView() {
           <div className="job-list" aria-live="polite">
             {queue.jobs.map(job => (
               <div key={job.id} className={`job-row is-${job.status}`}>
-                <span className="job-status" title={JOB_STATUS_LABELS[job.status]}>
+                <span className="job-status" data-tip={JOB_STATUS_LABELS[job.status]}>
                   {job.status === 'running' && <span className="spinner" />}
                   {job.status === 'done' && <CheckCircle size={16} />}
                   {job.status === 'error' && <X size={16} />}
@@ -527,7 +527,7 @@ export function ImportView() {
                       })
                     }}
                     aria-label={`Cancel ${job.title || 'this import'}`}
-                    title="Cancel"
+                    data-tip="Cancel"
                   >
                     <X size={15} />
                   </button>

@@ -154,7 +154,7 @@ function PageForSong({
           className="icon-button np-close"
           onClick={focus ? () => onModeChange('stage') : onClose}
           aria-label={focus ? 'Back to the full page' : 'Close now playing'}
-          title={focus ? 'Back to the full page' : 'Close'}
+          data-tip={focus ? 'Back to the full page' : 'Close'}
         >
           <ChevronDown size={22} />
         </button>
@@ -253,7 +253,7 @@ function PageForSong({
             className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
             onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
             aria-pressed={lyrics.romanizationOn}
-            title={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
+            data-tip={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
           >
             <Romanize size={14} /> {romanName}
           </button>
@@ -268,7 +268,7 @@ function PageForSong({
           className="np-expand"
           onClick={toggleFocus}
           aria-label={focus ? 'Back to the full page' : 'Show only the words'}
-          title={focus ? 'Back to the full page' : 'Only the words, big'}
+          data-tip={focus ? 'Back to the full page' : 'Only the words, big'}
         >
           {focus ? <Collapse size={18} /> : <Expand size={18} />}
         </button>

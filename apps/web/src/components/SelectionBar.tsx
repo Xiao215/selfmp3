@@ -236,7 +236,7 @@ export function SelectionBar({
             className="button button-small"
             onClick={() => player.addToQueue(songs)}
             disabled={count === 0}
-            title="Add the selection to the queue"
+            data-tip="Add the selection to the queue"
           >
             <Queue size={13} /> <span className="button-label">Queue</span>
           </button>
@@ -297,7 +297,7 @@ export function SelectionBar({
           className="icon-button selection-done"
           onClick={onDone}
           aria-label="Done selecting"
-          title="Done (Esc)"
+          data-tip="Done (Esc)"
         >
           <X size={16} />
         </button>

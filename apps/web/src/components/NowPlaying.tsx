@@ -300,7 +300,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
                       )
                     }
                     aria-label={`Play ${item.title} by ${item.artist || 'Unknown artist'}`}
-                    title={`${item.title} — ${item.artist || 'Unknown artist'}`}
+                    data-tip={`${item.title} — ${item.artist || 'Unknown artist'}`}
                   >
                     <Cover song={item} size={104} />
                     <span className="similar-card-title">{item.title}</span>

@@ -574,7 +574,7 @@ function RuleRow({
         className="icon-button icon-button-tiny rule-remove"
         onClick={onRemove}
         aria-label="Remove this rule"
-        title="Remove this rule"
+        data-tip="Remove this rule"
       >
         <X size={14} />
       </button>

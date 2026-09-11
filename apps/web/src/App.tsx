@@ -17,6 +17,7 @@ import {
 } from './components/nowplaying/NowPlayingPage.js'
 import { CommandPalette } from './components/CommandPalette.js'
 import { ToastHost } from './components/Toast.js'
+import { TooltipHost } from './components/Tooltip.js'
 import { DevicesProvider } from './devices/DevicesProvider.js'
 import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
@@ -267,6 +268,8 @@ function Shell() {
       {isMobile && nowPlayingOpen && <NowPlaying onClose={() => setNowPlayingOpen(false)} />}
 
       <CommandPalette library={library} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
+      <TooltipHost />
     </div>
   )
 }

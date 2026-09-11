@@ -74,7 +74,7 @@ export function DevicesSettings() {
               className="icon-button icon-button-tiny"
               onClick={() => forget(device.id)}
               aria-label={`Forget ${device.name}`}
-              title="Forget this device"
+              data-tip="Forget this device"
             >
               <Trash size={14} />
             </button>

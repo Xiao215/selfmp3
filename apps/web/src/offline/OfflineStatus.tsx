@@ -27,7 +27,7 @@ export function OfflineMark({ songId }: { songId: number }) {
     return (
       <span
         className="offline-mark is-downloading"
-        title={percent === null ? 'Downloading' : `Downloading · ${percent}%`}
+        data-tip={percent === null ? 'Downloading' : `Downloading · ${percent}%`}
         role="img"
         aria-label={percent === null ? 'Downloading' : `Downloading, ${percent}%`}
       >
@@ -41,7 +41,7 @@ export function OfflineMark({ songId }: { songId: number }) {
     return (
       <span
         className="offline-mark is-cached"
-        title={
+        data-tip={
           offline.holdsLibrary
             ? 'On this device — a file in your library folder'
             : 'On this device — downloaded, plays offline'

@@ -509,7 +509,7 @@ function MigrateRow({
         {match && (
           <span
             className={`migrate-confidence ${level.className}`}
-            title={`${level.word} match \u2014 ${Math.round(match.confidence * 100)}% confident`}
+            data-tip={`${level.word} match \u2014 ${Math.round(match.confidence * 100)}% confident`}
           >
             <span className="migrate-confidence-mark" aria-hidden="true">
               {level.mark}

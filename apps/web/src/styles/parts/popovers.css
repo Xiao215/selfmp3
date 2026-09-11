@@ -211,3 +211,63 @@
     animation: none;
   }
 }
+
+/*
+ * Hover captions (components/Tooltip.tsx). Positioned from JavaScript like the
+ * rest of this file; never takes the pointer, so it cannot sit between the
+ * cursor and the next control along.
+ */
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-tooltip);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 4px 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-2);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  pointer-events: none;
+  animation: tooltip-in var(--dur-fast) var(--ease-out);
+}
+
+.tooltip[data-side='below'] {
+  animation-name: tooltip-in-below;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+@keyframes tooltip-in-below {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.tooltip-key {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 0 5px;
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+  }
+}

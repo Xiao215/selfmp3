@@ -184,6 +184,8 @@ export function LyricsView({
                 menuAnchor.current = event.currentTarget
                 setMenu(index)
               }}
+              // A native title, not data-tip: a caption here would cover the next
+              // lines and hop from line to line as they scroll under a resting pointer.
               title="Jump to this line · right-click to loop it"
             >
               {content}

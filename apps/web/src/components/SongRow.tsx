@@ -338,7 +338,7 @@ export const SongRow = memo(function SongRow({
           aria-label={`Edit tags for ${song.title}`}
           aria-haspopup="dialog"
           aria-expanded={pickerOpen}
-          title="Edit tags"
+          data-tip="Edit tags"
         >
           <Plus size={13} />
         </button>
@@ -363,7 +363,7 @@ export const SongRow = memo(function SongRow({
           onClick={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
           aria-label={song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`}
           aria-pressed={song.loved}
-          title={song.loved ? 'Loved' : 'Love this song'}
+          data-tip={song.loved ? 'Loved' : 'Love this song'}
         >
           <Heart size={16} filled={song.loved} />
         </button>
@@ -378,7 +378,7 @@ export const SongRow = memo(function SongRow({
           aria-label={`More actions for ${song.title}`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          title="More actions"
+          data-tip="More actions"
         >
           <More size={16} />
         </button>

@@ -158,7 +158,7 @@ export function PlaylistDetailView() {
                 className="icon-button icon-button-tiny playlist-rename"
                 onClick={startRenaming}
                 aria-label={`Rename ${playlist.name}`}
-                title="Rename"
+                data-tip="Rename"
               >
                 <Pencil size={13} />
               </button>
@@ -182,7 +182,7 @@ export function PlaylistDetailView() {
             onClick={() => (selection.active ? selection.clear() : selection.enter())}
             disabled={songs.length === 0}
             aria-pressed={selection.active}
-            title={
+            data-tip={
               selection.active ? 'Done selecting (Esc)' : 'Select songs to act on several at once'
             }
           >
@@ -233,7 +233,7 @@ export function PlaylistDetailView() {
               }
             }}
             aria-label={`Delete the playlist ${playlist.name}`}
-            title="Delete playlist"
+            data-tip="Delete playlist"
           >
             <Trash size={15} />
           </button>
@@ -356,7 +356,7 @@ export function PlaylistDetailView() {
                     }
                   }}
                   aria-label={`Move ${song.title}. Use the up and down arrow keys.`}
-                  title="Drag to reorder, or use ↑ and ↓"
+                  data-tip="Drag to reorder, or use ↑ and ↓"
                 >
                   <Grip size={16} />
                 </button>
@@ -394,7 +394,7 @@ export function PlaylistDetailView() {
                     removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id })
                   }
                   aria-label={`Remove ${song.title} from ${playlist.name}`}
-                  title="Remove from this playlist"
+                  data-tip="Remove from this playlist"
                 >
                   <X size={15} />
                 </button>

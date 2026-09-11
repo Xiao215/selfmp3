@@ -653,7 +653,7 @@ export function SettingsView() {
                   <button
                     type="button"
                     className="button"
-                    title="Throw away existing analysis and redo every song"
+                    data-tip="Throw away existing analysis and redo every song"
                     onClick={() => {
                       if (window.confirm('Throw away existing analysis and redo every song?')) {
                         startAnalysis.mutate(true)
@@ -747,7 +747,7 @@ export function SettingsView() {
                         style={{ '--swatch-hue': preset.hue } as React.CSSProperties}
                         aria-label={preset.name}
                         aria-pressed={settings.accentHue === preset.hue}
-                        title={preset.name}
+                        data-tip={preset.name}
                         onClick={() => set('accentHue', preset.hue)}
                       />
                     ))}

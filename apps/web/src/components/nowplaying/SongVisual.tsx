@@ -165,7 +165,7 @@ export function VisualPicker({
         onClick={() => setOpen(value => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Choose a visual for this song"
+        data-tip="Choose a visual for this song"
       >
         {VISUAL_NAMES[visual.kind]} <ChevronDown size={13} />
       </button>

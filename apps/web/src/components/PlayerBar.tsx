@@ -127,7 +127,7 @@ export function PlayerBar({
               onClick={onTogglePage}
               aria-expanded={page !== null}
               aria-label={page ? 'Close now playing' : `Open now playing: ${song.title}`}
-              title={page ? 'Close' : 'Open the song: lyrics, up next, details'}
+              data-tip={page ? 'Close' : 'Open the song: lyrics, up next, details'}
             >
               <span className="player-open-art">
                 <Cover song={song} size={54} />
@@ -149,7 +149,7 @@ export function PlayerBar({
               onClick={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
               aria-label={song.loved ? 'Unlove' : 'Love'}
               aria-pressed={song.loved}
-              title={song.loved ? 'Remove from loved' : 'Love this song'}
+              data-tip={song.loved ? 'Remove from loved' : 'Love this song'}
             >
               <Heart size={17} filled={song.loved} />
             </button>
@@ -161,7 +161,7 @@ export function PlayerBar({
               aria-label={`Tags for ${song.title}`}
               aria-haspopup="dialog"
               aria-expanded={tagsOpen}
-              title={song.tagIds.length > 0 ? `Tags: ${tagNames(song.tagIds)}` : 'Tag this song'}
+              data-tip={song.tagIds.length > 0 ? `Tags: ${tagNames(song.tagIds)}` : 'Tag this song'}
             >
               <TagPlus size={17} />
               {song.tagIds.length > 0 && (
@@ -195,7 +195,7 @@ export function PlayerBar({
             onClick={player.toggleShuffle}
             aria-label="Shuffle"
             aria-pressed={player.queue.shuffle}
-            title={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
+            data-tip={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
           >
             <Shuffle size={17} />
           </button>
@@ -205,7 +205,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.previous}
             aria-label="Previous"
-            title="Previous"
+            data-tip="Previous"
             disabled={!song}
           >
             <Prev size={20} />
@@ -217,7 +217,7 @@ export function PlayerBar({
             onClick={transport.toggle}
             aria-busy={player.stalled}
             aria-label={transport.playing ? 'Pause' : 'Play'}
-            title={transport.playing ? 'Pause' : 'Play'}
+            data-tip={transport.playing ? 'Pause' : 'Play'}
             disabled={!song}
           >
             {transport.playing ? <Pause size={20} /> : <Play size={20} />}
@@ -228,7 +228,7 @@ export function PlayerBar({
             className="icon-button"
             onClick={transport.next}
             aria-label="Next"
-            title="Next"
+            data-tip="Next"
             disabled={!song}
           >
             <Next size={20} />
@@ -239,7 +239,7 @@ export function PlayerBar({
             className={`icon-button ${player.queue.repeat !== 'off' ? 'is-accent' : ''}`}
             onClick={player.cycleRepeatMode}
             aria-label={REPEAT_LABEL[player.queue.repeat]}
-            title={REPEAT_LABEL[player.queue.repeat]}
+            data-tip={REPEAT_LABEL[player.queue.repeat]}
           >
             {player.queue.repeat === 'one' ? <RepeatOne size={17} /> : <Repeat size={17} />}
           </button>
@@ -293,7 +293,7 @@ export function PlayerBar({
             onClick={onToggleLyrics}
             aria-label="Lyrics"
             aria-pressed={page === 'focus'}
-            title="Lyrics, full size"
+            data-tip="Lyrics, full size"
           >
             <Mic size={17} />
           </button>
@@ -304,7 +304,7 @@ export function PlayerBar({
             onClick={onOpenQueue}
             aria-label="Queue"
             aria-pressed={queueOpen}
-            title="Up next"
+            data-tip="Up next"
           >
             <Queue size={17} />
           </button>
@@ -315,7 +315,7 @@ export function PlayerBar({
             onClick={onOpenPractice}
             aria-label="Practice tools"
             aria-pressed={practiceOpen}
-            title="Practice: A–B loop, speed, transpose"
+            data-tip="Practice: A–B loop, speed, transpose"
           >
             <Metronome size={17} />
           </button>
@@ -331,7 +331,7 @@ export function PlayerBar({
               aria-label={`Playback speed: ${player.rate}×`}
               aria-haspopup="menu"
               aria-expanded={speedOpen}
-              title={`Playback speed: ${player.rate}×`}
+              data-tip={`Playback speed: ${player.rate}×`}
             >
               <Speed size={17} />
             </button>
@@ -357,7 +357,7 @@ export function PlayerBar({
               aria-label="Sleep timer"
               aria-haspopup="menu"
               aria-expanded={sleepOpen}
-              title={player.sleepTimerEndsAt ? 'Sleep timer is running' : 'Sleep timer'}
+              data-tip={player.sleepTimerEndsAt ? 'Sleep timer is running' : 'Sleep timer'}
             >
               <Moon size={17} />
             </button>
@@ -445,7 +445,7 @@ function VolumeControl({ compact }: { compact: boolean }) {
       onClick={player.toggleMute}
       aria-label={player.muted ? 'Unmute' : 'Mute'}
       aria-pressed={player.muted}
-      title={player.muted ? 'Unmute' : 'Mute'}
+      data-tip={player.muted ? 'Unmute' : 'Mute'}
       disabled={transport.remote !== null}
     >
       <Icon size={17} />
@@ -471,7 +471,7 @@ function VolumeControl({ compact }: { compact: boolean }) {
         aria-label={`Volume: ${percent}%`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={`Volume: ${percent}%`}
+        data-tip={`Volume: ${percent}%`}
       >
         <Icon size={17} />
       </button>

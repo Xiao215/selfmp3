@@ -143,7 +143,7 @@ export function PlaylistsView() {
                 className="icon-button"
                 onClick={() => void playNow(playlist)}
                 aria-label={`Play ${playlist.name}`}
-                title="Play"
+                data-tip="Play"
                 disabled={playlist.songCount === 0}
               >
                 <Play size={16} />
@@ -159,7 +159,7 @@ export function PlaylistsView() {
                 }
                 aria-pressed={playlist.pinned}
                 aria-label={`Pin ${playlist.name} to the sidebar`}
-                title={playlist.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'}
+                data-tip={playlist.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'}
               >
                 <span aria-hidden="true">★</span>
               </button>

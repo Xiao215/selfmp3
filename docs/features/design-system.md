@@ -10,6 +10,7 @@ Files:
 |---|---|
 | Dropdown | `apps/web/src/components/Select.tsx`, `styles/parts/select.css` |
 | Floating-layer shell | `apps/web/src/components/Menu.tsx`, `styles/parts/popovers.css` |
+| Hover captions | `apps/web/src/components/Tooltip.tsx`, `styles/parts/popovers.css` |
 | Tokens | `apps/web/src/styles/parts/tokens.css` |
 | Control styling | `apps/web/src/styles/parts/controls.css`, `parts/base.css` |
 
@@ -39,7 +40,8 @@ own, following the ARIA select-only combobox pattern.
 | `size` | `default` \| `small` \| `inline` — matching `.button`, `.button-small`, and text-sized for use inside a sentence |
 | `align` | `start` (default) or `end`: which edge lines up with the trigger's |
 | `placement` | `auto` (prefer below) or `above`. Both flip when the preferred side has no room |
-| `className`, `disabled`, `title`, `id` | As you would expect; `className` is for layout (`input-grow`, `migrate-pick`), not for restyling the trigger |
+| `tip` | Hover caption on the trigger (see below) |
+| `className`, `disabled`, `id` | As you would expect; `className` is for layout (`input-grow`, `migrate-pick`), not for restyling the trigger |
 
 Behaviour worth knowing:
 
@@ -104,6 +106,34 @@ Notes for anyone extending it:
   or `dialog`, exactly as they already ignored a focused `<select>` or text field. If you
   build a control with its own keyboard language, give it one of those roles.
 
+## `data-tip` — hover captions
+
+A native `title` is drawn by the operating system, like a native `<select>`: on a Mac it
+waits about a second and a half and then drops a pale system label onto a dark app. So
+nothing uses `title`; a control that wants a caption says `data-tip` instead:
+
+```tsx
+<button aria-label="Queue" data-tip="Up next">…</button>
+```
+
+`TooltipHost`, mounted once in the shell, listens on the document and draws the caption
+above the control (below near the top of the window, clamped at the sides). A trailing
+`(key)` of up to five characters, as in "Done (Esc)", is drawn as a key cap.
+
+- **Timing.** 300ms of rest with a mouse; none when moving straight on from another
+  caption, so running along the transport reads every button; none on keyboard focus.
+  Never on touch.
+- **Dismissal.** Pressing the control, any key, a scroll that moves it, and leaving the
+  window all close it. A pressed control stays quiet until the pointer leaves it.
+- **Live.** If the control's `data-tip` changes while its caption is up, the caption follows;
+  if the control leaves the DOM, the caption goes with it.
+- A caption is not an accessible name. Icon-only controls still need `aria-label`; the host
+  links the caption with `aria-describedby` while it is showing.
+- Text that only repeats what is already fully visible is skipped, so `data-tip` on a
+  truncating title shows only once the title is actually cut off.
+- Captions are for controls. The one native `title` left is on synced lyric lines: a caption
+  there would cover the next lines and hop between them as they scroll under the pointer.
+
 ## Tokens
 
 New ones added alongside the existing colours, radii and sizes:
@@ -131,6 +161,7 @@ inventing a number:
 | `--z-toast` | 60 | the toast row |
 | `--z-modal` | 100 | full-screen overlays: command palette, now playing, dialogs |
 | `--z-popover` | 200 | menus and dropdowns |
+| `--z-tooltip` | 300 | hover captions |
 
 Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog has to sit
 above it.

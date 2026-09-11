@@ -281,7 +281,7 @@ export function BarList({
     <div className="bar-list">
       {data.map(datum => (
         <div key={datum.label} className="bar-row">
-          <span className="bar-label" title={datum.label}>
+          <span className="bar-label" data-tip={datum.label}>
             {datum.label}
           </span>
           <span className="bar-track">

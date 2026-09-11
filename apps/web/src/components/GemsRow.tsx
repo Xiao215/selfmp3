@@ -77,7 +77,7 @@ export function GemsRow() {
               type="button"
               className="gem-card"
               onClick={() => player.playFrom(data.songs, index)}
-              title={`${song.title} — ${song.artist || 'Unknown artist'}`}
+              data-tip={`${song.title} — ${song.artist || 'Unknown artist'}`}
             >
               <Cover song={song} size={few ? 44 : 64} className="gem-card-art" />
               <span className="gem-card-text">
@@ -144,7 +144,7 @@ export function GemsPlaylistCard() {
           className="icon-button"
           onClick={() => player.addToQueue(data.songs)}
           aria-label="Add forgotten gems to the queue"
-          title="Add to queue"
+          data-tip="Add to queue"
         >
           <Queue size={16} />
         </button>

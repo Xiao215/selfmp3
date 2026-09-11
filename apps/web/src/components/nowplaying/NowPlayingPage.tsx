@@ -6,7 +6,7 @@ import { useLibrary } from '../../lib/queries.js'
 import { rgba } from '../../lib/visuals.js'
 import { Cover } from '../Cover.js'
 import { FeatureBadges } from '../FeatureBadges.js'
-import { ChevronDown, Clock, Collapse, Expand, Refresh, Romanize, TagPlus } from '../Icons.js'
+import { ChevronDown, Collapse, Expand, Romanize, TagPlus } from '../Icons.js'
 import { QueuePanel } from '../QueuePanel.js'
 import { SongDetailsBody } from '../SongDetailsDialog.js'
 import { TagChip } from '../TagChip.js'
@@ -112,15 +112,12 @@ function PageForSong({
   const { data: library } = useLibrary()
   const lyrics = useSongLyrics(song)
   const art = useCoverArt(song)
-  const [syncing, setSyncing] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const tagsRef = useRef<HTMLButtonElement>(null)
-  const idle = useIdle(mode === 'focus' && !syncing)
+  const idle = useIdle(mode === 'focus')
 
   useEffect(() => onIdleChange(idle), [idle, onIdleChange])
   useEffect(() => () => onIdleChange(false), [onIdleChange])
-  // The timing editor is bound to one song.
-  useEffect(() => setSyncing(false), [song.id])
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -134,7 +131,7 @@ function PageForSong({
 
   const classes = ['np-page', `is-${mode}`]
   if (idle) classes.push('is-idle')
-  if (hasVisual && shownTab === 'lyrics' && !syncing) classes.push('has-visual')
+  if (hasVisual && shownTab === 'lyrics') classes.push('has-visual')
 
   const [c1, c2, c3] = art.palette
   const style = {
@@ -239,13 +236,7 @@ function PageForSong({
 
       <div className="np-words">
         {shownTab === 'lyrics' && (
-          <SongWords
-            song={song}
-            lyrics={lyrics}
-            mode={focus ? 'focus' : 'stage'}
-            syncing={syncing}
-            onSyncingChange={setSyncing}
-          />
+          <SongWords song={song} lyrics={lyrics} mode={focus ? 'focus' : 'stage'} />
         )}
         {shownTab === 'queue' && <QueuePanel onClose={() => onTabChange('lyrics')} />}
         {shownTab === 'about' && (
@@ -255,50 +246,23 @@ function PageForSong({
         )}
       </div>
 
-      {shownTab === 'lyrics' && !syncing && (
+      {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' && (
         <div className="np-tools">
-          {hasLyrics && lyrics.language !== 'none' && (
-            <button
-              type="button"
-              className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
-              onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
-              aria-pressed={lyrics.romanizationOn}
-              title={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
-            >
-              <Romanize size={14} /> {romanName}
-            </button>
-          )}
-          {hasLyrics && !transport.remote && (
-            <button
-              type="button"
-              className="np-tool"
-              onClick={() => setSyncing(true)}
-              title={
-                lyrics.words.status === 'lyrics' && lyrics.words.data.kind === 'synced'
-                  ? 'Re-time these lyrics'
-                  : 'Time these lyrics to the music'
-              }
-            >
-              <Clock size={14} /> Sync
-            </button>
-          )}
-          {hasLyrics && (
-            <button
-              type="button"
-              className="np-tool"
-              onClick={() => void lyrics.refresh()}
-              disabled={lyrics.refreshing}
-              title="Look the lyrics up again"
-            >
-              <Refresh size={14} /> {lyrics.refreshing ? 'Looking…' : 'Look again'}
-            </button>
-          )}
+          <button
+            type="button"
+            className={`np-tool ${lyrics.romanizationOn ? 'is-on' : ''}`}
+            onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
+            aria-pressed={lyrics.romanizationOn}
+            title={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName.toLowerCase()} under each line`}
+          >
+            <Romanize size={14} /> {romanName}
+          </button>
         </div>
       )}
 
       {/* On the words themselves, the way a video has its fullscreen button:
           where the eye already is, and clear of the lines a click jumps to. */}
-      {shownTab === 'lyrics' && !syncing && (
+      {shownTab === 'lyrics' && (
         <button
           type="button"
           className="np-expand"
@@ -311,17 +275,6 @@ function PageForSong({
       )}
 
       {!transport.remote && <UpNextCard />}
-
-      {hasLyrics && lyrics.words.status === 'lyrics' && !focus && shownTab === 'lyrics' && (
-        <p className="np-source">
-          {lyrics.words.data.kind === 'synced' ? 'Synced' : 'Not timed'} ·{' '}
-          {lyrics.words.data.source === 'sidecar'
-            ? 'from your library folder'
-            : lyrics.words.data.source === 'embedded'
-              ? 'from the file’s tags'
-              : 'found online'}
-        </p>
-      )}
     </section>
   )
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseLyrics } from './lrc.js'
-import { buildLrc, formatLrcTimestamp, splitPlainLyrics } from './lrcBuild.js'
+import { buildLrc, formatLrcTimestamp } from './lrcBuild.js'
 
 describe('formatLrcTimestamp', () => {
   it('writes mm:ss.xx', () => {
@@ -58,21 +58,5 @@ describe('buildLrc', () => {
       { time: 2, text: 'b' },
     ])
     expect(lrc).toBe('[00:02.00]a\n[00:02.00]b\n')
-  })
-})
-
-describe('splitPlainLyrics', () => {
-  it('strips existing timestamps and collapses blank runs', () => {
-    expect(splitPlainLyrics('[00:01.00]one\n\n\n[00:02.00] two \nthree')).toEqual([
-      'one',
-      '',
-      'two',
-      'three',
-    ])
-  })
-
-  it('drops leading and trailing blank lines', () => {
-    expect(splitPlainLyrics('\n\nfirst')).toEqual(['first'])
-    expect(splitPlainLyrics('first\nsecond\n')).toEqual(['first', 'second'])
   })
 })

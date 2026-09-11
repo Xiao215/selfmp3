@@ -529,17 +529,6 @@
   opacity: 0.5;
 }
 
-.np-source {
-  position: absolute;
-  z-index: 2;
-  left: calc(var(--np-pad) + var(--np-cover) + var(--np-gutter));
-  bottom: 20px;
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
 /* Everything that is chrome, gone while the mouse is still in Focus. */
 .np-page.is-idle .np-head,
 .np-page.is-idle .np-tools,
@@ -675,12 +664,6 @@
 
 .lyrics-view.is-phone {
   --np-lyric-size: 19px;
-}
-
-.lyrics-view-note {
-  margin: 0 0 18px;
-  font-size: 13px;
-  color: var(--text-muted);
 }
 
 .lyric {

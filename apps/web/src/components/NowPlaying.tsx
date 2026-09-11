@@ -33,7 +33,7 @@ import {
 } from './Icons.js'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
-type Panel = 'none' | 'queue' | 'practice' | 'sync'
+type Panel = 'none' | 'queue' | 'practice'
 
 /**
  * The full-screen phone player.
@@ -64,7 +64,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
 
   const song = transport.song
   const similar = useSimilar(song?.id ?? null, 10)
-  const lyrics = useSongLyrics(song, { enabled: showWords || panel === 'sync' })
+  const lyrics = useSongLyrics(song, { enabled: showWords })
   if (!song) return null
 
   const allTags = library?.tags ?? []
@@ -114,13 +114,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
           <div className="now-playing-art">
             {showWords ? (
               <div className="np-phone-words">
-                <SongWords
-                  song={song}
-                  lyrics={lyrics}
-                  mode="phone"
-                  syncing={false}
-                  onSyncingChange={on => on && setPanel('sync')}
-                />
+                <SongWords song={song} lyrics={lyrics} mode="phone" />
                 {lyrics.words.status === 'lyrics' && (
                   <>
                     {lyrics.language !== 'none' && (
@@ -319,15 +313,6 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {panel === 'sync' && (
-        <SongWords
-          song={song}
-          lyrics={lyrics}
-          mode="phone"
-          syncing
-          onSyncingChange={on => !on && setPanel('none')}
-        />
-      )}
       {panel === 'queue' && <QueuePanel onClose={() => setPanel('none')} />}
       {panel === 'practice' && <PracticePanel onClose={() => setPanel('none')} />}
 

@@ -49,8 +49,7 @@ the same hue as its placeholder cover.
 - Click a line to jump there. **Right-click a line to loop it** — the Practice A–B loop,
   set from that line's timestamp to the next one's.
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
-  only; see [lyrics-plus.md](lyrics-plus.md)). **Sync** opens the timing editor in place,
-  and **Look again** asks YouTube Music and lrclib afresh.
+  only; see [lyrics-plus.md](lyrics-plus.md)).
 - While the page is closed, the current line of a song with timed lyrics rides under the
   artist in the player bar. It only uses lyrics the app already has — it never causes a
   lookup.
@@ -65,7 +64,7 @@ visual drawn from the song itself, with one line under it saying why:
   called "instrumental", or you chose **Mark as instrumental** from its ⋯ menu). No nudge to
   add lyrics. See [lyrics-plus.md](lyrics-plus.md#instrumental-songs) for how the flag is
   kept.
-- **No lyrics found** — offers **Look again**, **Write them**, and **It's instrumental**.
+- **No lyrics found** — offers **It's instrumental**, so the song stops being looked up.
 
 Four visuals, all drawn on a canvas each frame (`components/nowplaying/visualDraw.ts`):
 

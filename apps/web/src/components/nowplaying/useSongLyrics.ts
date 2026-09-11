@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   detectLyricsLanguage,
   parseLyrics,
@@ -9,7 +9,7 @@ import {
   type Song,
 } from '@selfmp3/shared'
 import { api, ApiError } from '../../lib/api.js'
-import { queryKeys, useLibrary, useSettings, useUpdateSettings } from '../../lib/queries.js'
+import { useLibrary, useSettings, useUpdateSettings } from '../../lib/queries.js'
 
 /**
  * What a song has to read, in one of five states.
@@ -40,19 +40,18 @@ export function lyricsQueryKey(songId: number) {
 
 /**
  * The lyrics for a song, resolved the way the server always has: a file next
- * to the audio, the file's own tags, then lrclib.net — cached on disk after the
- * first lookup, so this works offline once a song has been opened.
+ * to the audio, the file's own tags, then online (YouTube Music, then
+ * lrclib.net) — cached on disk after the first lookup, so this works offline
+ * once a song has been opened.
  *
  * Romanization is the one extra: computed on the server, offline, for Chinese
  * and Japanese. The switch is a synced setting, since it is about the library
  * rather than the device.
  */
 export function useSongLyrics(song: Song | null, { enabled = true }: { enabled?: boolean } = {}) {
-  const client = useQueryClient()
   const { data: library } = useLibrary()
   const { data: settings } = useSettings()
   const updateSettings = useUpdateSettings()
-  const [refreshing, setRefreshing] = useState(false)
 
   const lyrics = useQuery({
     queryKey: lyricsQueryKey(song?.id ?? 0),
@@ -108,25 +107,8 @@ export function useSongLyrics(song: Song | null, { enabled = true }: { enabled?:
     words = { status: 'missing', offline: false }
   }
 
-  /** Ask lrclib again, skipping whatever is cached. Also how an instrumental is un-marked. */
-  const refresh = async (): Promise<void> => {
-    if (!song) return
-    setRefreshing(true)
-    try {
-      await api.lyrics(song.id, true)
-    } catch {
-      // The state below already says what happened.
-    } finally {
-      await client.invalidateQueries({ queryKey: lyricsQueryKey(song.id) })
-      await client.invalidateQueries({ queryKey: queryKeys.library })
-      setRefreshing(false)
-    }
-  }
-
   return {
     words,
-    refresh,
-    refreshing,
     /** 'zh' or 'ja' when romanization can do anything for these lyrics. */
     language,
     romanizationOn,

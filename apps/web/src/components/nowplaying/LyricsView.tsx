@@ -31,13 +31,10 @@ export function LyricsView({
   parsed,
   roman,
   mode,
-  onSync,
 }: {
   parsed: ParsedLyrics
   roman: readonly string[] | null
   mode: 'stage' | 'focus' | 'phone'
-  /** Offered on plain lyrics: time them to the music. */
-  onSync?: () => void
 }) {
   const player = usePlayer()
   const transport = useTransport()
@@ -132,15 +129,6 @@ export function LyricsView({
       onTouchMove={markManual}
     >
       <div className="lyrics-view-track">
-        {!synced && onSync && (
-          <p className="lyrics-view-note">
-            These lyrics aren’t timed to the music yet.{' '}
-            <button type="button" className="link-button" onClick={onSync}>
-              Sync them
-            </button>
-          </p>
-        )}
-
         {lines.map((text, index) => {
           const time = synced?.[index]?.time
           const sub = roman?.[index]

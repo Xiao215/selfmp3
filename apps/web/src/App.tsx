@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useLibrary, useSettings } from './lib/queries.js'
 import { PlayerProvider } from './player/PlayerProvider.js'
 import { OfflineProvider } from './offline/OfflineProvider.js'
-import { useHotkeys, useIsMobile } from './lib/hooks.js'
+import { useHotkeys, useIsMobile, usePresence } from './lib/hooks.js'
 import { Sidebar } from './components/Sidebar.js'
 import { MobileNav } from './components/MobileNav.js'
 import { PlayerBar } from './components/PlayerBar.js'
@@ -89,6 +89,11 @@ function Shell() {
   // Focus with a still mouse: the bar steps aside too.
   const [ambient, setAmbient] = useState(false)
   const pageOpen = !isMobile && page !== null
+  // Closed, the page is already gone as far as the rest of the app is
+  // concerned; it only stays on screen, in its last mode, to slide away.
+  const shownPage = usePresence(pageOpen ? page : null)
+  // The phone's player, the same way: it slides back down before it goes.
+  const shownSheet = usePresence(isMobile && nowPlayingOpen ? true : null)
 
   // A tag filters one of two ways — "only these" or "none of these" — never
   // both, so moving it to one side takes it off the other.
@@ -235,13 +240,15 @@ function Shell() {
             <ToastHost />
           </div>
 
-          {!isMobile && page !== null && (
+          {!isMobile && shownPage.shown !== null && (
             <NowPlayingPage
-              mode={page}
+              mode={shownPage.shown}
               tab={pageTab}
+              leaving={shownPage.leaving}
               onModeChange={setPage}
               onTabChange={setPageTab}
               onClose={closePage}
+              onExited={shownPage.exited}
               onIdleChange={setAmbient}
             />
           )}
@@ -265,7 +272,13 @@ function Shell() {
 
       {isMobile && <MobileNav />}
 
-      {isMobile && nowPlayingOpen && <NowPlaying onClose={() => setNowPlayingOpen(false)} />}
+      {isMobile && shownSheet.shown && (
+        <NowPlaying
+          leaving={shownSheet.leaving}
+          onClose={() => setNowPlayingOpen(false)}
+          onExited={shownSheet.exited}
+        />
+      )}
 
       <CommandPalette library={library} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 

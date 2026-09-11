@@ -104,6 +104,19 @@
   }
 }
 
+/* Closing, it sinks back the way it came and fades onto the library. Held at
+   the end until it unmounts, so it never flashes back in between. */
+.np-page.is-leaving {
+  animation: np-sink var(--dur-slow) var(--ease-in) forwards;
+}
+
+@keyframes np-sink {
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
 /* The cover's own colours, blurred into light behind everything. */
 .np-glow {
   position: absolute;

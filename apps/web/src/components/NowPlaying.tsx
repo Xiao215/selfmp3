@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { formatDuration } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
+import { exitProps } from '../lib/hooks.js'
 import { useLibrary, useSimilar, useToggleLoved } from '../lib/queries.js'
 import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
@@ -49,7 +50,16 @@ type Panel = 'none' | 'queue' | 'practice'
  * the artwork is the part that gives way on a short phone, so nothing below it
  * can ever be pushed off the bottom.
  */
-export function NowPlaying({ onClose }: { onClose: () => void }) {
+export function NowPlaying({
+  leaving,
+  onClose,
+  onExited,
+}: {
+  /** Closed, and on its way out: it slides down, then calls `onExited`. */
+  leaving: boolean
+  onClose: () => void
+  onExited: () => void
+}) {
   const player = usePlayer()
   const transport = useTransport()
   const toggleLoved = useToggleLoved()
@@ -78,7 +88,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
     setPanel(current => (current === which ? 'none' : which))
 
   return (
-    <div className="now-playing">
+    <div className={`now-playing ${leaving ? 'is-leaving' : ''}`} {...exitProps(leaving, onExited)}>
       <header className="now-playing-head">
         <button
           type="button"

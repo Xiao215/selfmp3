@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider.js'
 import { useTransport } from '../../devices/useTransport.js'
+import { exitProps } from '../../lib/hooks.js'
 import { useLibrary } from '../../lib/queries.js'
 import { rgba } from '../../lib/visuals.js'
 import { Cover } from '../Cover.js'
@@ -40,25 +41,35 @@ const IDLE_MS = 3_000
 export function NowPlayingPage({
   mode,
   tab,
+  leaving,
   onModeChange,
   onTabChange,
   onClose,
+  onExited,
   onIdleChange,
 }: {
   mode: PageMode
   tab: StageTab
+  /** Closed, and on its way out: the page slides away, then calls `onExited`. */
+  leaving: boolean
   onModeChange: (mode: PageMode) => void
   onTabChange: (tab: StageTab) => void
   onClose: () => void
+  onExited: () => void
   /** Focus with a still mouse: the shell hides the bar while this is true. */
   onIdleChange: (idle: boolean) => void
 }) {
   const transport = useTransport()
   const song = transport.song
+  const exit = exitProps(leaving, onExited)
 
   if (!song) {
     return (
-      <section className="np-page is-empty" aria-label="Now playing">
+      <section
+        className={`np-page is-empty ${leaving ? 'is-leaving' : ''}`}
+        aria-label="Now playing"
+        {...exit}
+      >
         <header className="np-head">
           <button
             type="button"
@@ -82,6 +93,8 @@ export function NowPlayingPage({
       song={song}
       mode={mode}
       tab={tab}
+      leaving={leaving}
+      exit={exit}
       onModeChange={onModeChange}
       onTabChange={onTabChange}
       onClose={onClose}
@@ -94,6 +107,8 @@ function PageForSong({
   song,
   mode,
   tab,
+  leaving,
+  exit,
   onModeChange,
   onTabChange,
   onClose,
@@ -102,6 +117,8 @@ function PageForSong({
   song: Song
   mode: PageMode
   tab: StageTab
+  leaving: boolean
+  exit: ReturnType<typeof exitProps>
   onModeChange: (mode: PageMode) => void
   onTabChange: (tab: StageTab) => void
   onClose: () => void
@@ -132,6 +149,7 @@ function PageForSong({
   const classes = ['np-page', `is-${mode}`]
   if (idle) classes.push('is-idle')
   if (hasVisual && shownTab === 'lyrics') classes.push('has-visual')
+  if (leaving) classes.push('is-leaving')
 
   const [c1, c2, c3] = art.palette
   const style = {
@@ -141,7 +159,12 @@ function PageForSong({
   } as React.CSSProperties
 
   return (
-    <section className={classes.join(' ')} style={style} aria-label={`Now playing: ${song.title}`}>
+    <section
+      className={classes.join(' ')}
+      style={style}
+      aria-label={`Now playing: ${song.title}`}
+      {...exit}
+    >
       <div className="np-glow" aria-hidden="true">
         <i />
         <i />

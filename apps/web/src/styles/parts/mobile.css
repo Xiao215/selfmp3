@@ -162,6 +162,18 @@
   }
 }
 
+/* Closing, it slides back down the way it came, and holds there until it
+   unmounts so it never flashes back in between. */
+.now-playing.is-leaving {
+  animation: slide-down var(--dur-slow) var(--ease-in) forwards;
+}
+
+@keyframes slide-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+
 .now-playing-head {
   display: flex;
   align-items: center;

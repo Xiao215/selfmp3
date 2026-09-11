@@ -207,8 +207,22 @@
      shelf goes below the fold instead of squeezing everything above it. */
   overflow: hidden auto;
   overscroll-behavior-y: contain;
+  /* A thumb scrolls it; a bar beside it would only take width from the
+     controls. */
+  scrollbar-width: none;
 }
 
+.now-playing-stage::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * A size container, so the square inside can be sized from the room that is
+ * left rather than from the viewport width: on a short phone, or once the
+ * similar strip is on screen, the art shrinks instead of pushing the controls
+ * down or spilling over the title. (`max-height: 100%` cannot do this — the
+ * button between them has no height of its own for a percentage to use.)
+ */
 .now-playing-art {
   flex: 1;
   display: flex;
@@ -216,18 +230,12 @@
   justify-content: center;
   min-height: min(66vw, 300px);
   padding: 10px 0;
+  container-type: size;
 }
 
-/*
- * Sized from the room that is left rather than from the viewport width: on a
- * short phone, or once the similar strip is on screen, the art shrinks instead
- * of pushing the controls down.
- */
 .now-playing-cover {
-  width: min(100%, 80vw, 340px) !important;
-  height: auto !important;
-  max-height: 100%;
-  aspect-ratio: 1;
+  width: min(100cqw, 100cqh, 80vw, 340px) !important;
+  height: min(100cqw, 100cqh, 80vw, 340px) !important;
   object-fit: cover;
   overflow: hidden;
   border-radius: var(--radius-lg);

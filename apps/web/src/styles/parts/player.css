@@ -123,6 +123,35 @@
   gap: 6px;
 }
 
+/*
+ * Buffering is a ring around the play button, not a spinner beside the
+ * controls: anything added to the row widens the `auto` right column and
+ * shoves the whole bar sideways for the moment a song takes to load. The
+ * delay keeps a stall too short to notice from flashing the ring at all.
+ */
+.player-buttons .play-button {
+  position: relative;
+}
+
+.play-button.is-buffering::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--song-tint, var(--accent));
+  animation:
+    spin 0.7s linear infinite,
+    buffering-in var(--dur-slow) ease 0.25s backwards;
+  pointer-events: none;
+}
+
+@keyframes buffering-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .player-progress {
   display: flex;
   align-items: center;

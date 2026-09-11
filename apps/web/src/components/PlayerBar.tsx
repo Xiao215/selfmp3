@@ -215,8 +215,9 @@ export function PlayerBar({
 
           <button
             type="button"
-            className="play-button"
+            className={`play-button ${player.stalled ? 'is-buffering' : ''}`}
             onClick={transport.toggle}
+            aria-busy={player.stalled}
             aria-label={transport.playing ? 'Pause' : 'Play'}
             title={`${transport.playing ? 'Pause' : 'Play'} (space)`}
             disabled={!song}
@@ -287,8 +288,6 @@ export function PlayerBar({
         comes out — so they are three labelled groups with a hairline between.
       */}
       <div className="player-right">
-        {player.stalled && <span className="spinner" aria-label="Buffering" />}
-
         <div className="player-group" role="group" aria-label="Panels">
           <button
             type="button"

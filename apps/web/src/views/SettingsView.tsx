@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatBytes, type OfflineScope, type Settings, type Song } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import {
   queryKeys,
   useAnalysisStatus,
@@ -75,17 +76,21 @@ export function SettingsView() {
   const [purging, setPurging] = useState(false)
   const analysis = useAnalysisStatus(true)
   const startAnalysis = useStartAnalysis()
-  const active = useActiveSection(SECTIONS, settings !== undefined)
+  const { active, go } = useActiveSection(SECTIONS, settings !== undefined)
   const indexRef = useRef<HTMLElement>(null)
 
   // At narrow widths the index is a horizontal chip row, and the chip for the
-  // section you are reading is often scrolled out of it. Nudge it back.
+  // section you are reading is often scrolled out of it. Nudge it back —
+  // sideways only: scrollIntoView would also scroll the page to "reveal" it.
   useEffect(() => {
     const nav = indexRef.current
     if (!active || !nav || nav.scrollWidth <= nav.clientWidth) return
-    nav
-      .querySelector(`[data-section="${active}"]`)
-      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    const chip = nav.querySelector<HTMLElement>(`[data-section="${active}"]`)
+    if (!chip) return
+    nav.scrollTo({
+      left: chip.offsetLeft - (nav.clientWidth - chip.offsetWidth) / 2,
+      behavior: 'smooth',
+    })
   }, [active])
 
   // Depend on the function, not the whole context object. The context identity
@@ -108,18 +113,24 @@ export function SettingsView() {
 
   return (
     <section className="view settings-view">
-      <header className="view-head">
-        <div className="view-titles">
-          <h1>Settings</h1>
-          <p className="view-sub">
-            {health
-              ? `self.mp3 ${health.version} · ${health.songCount} songs · ${health.storageDriver} storage`
-              : 'Not connected to your library right now'}
-          </p>
-        </div>
-      </header>
-
+      {/*
+        The title lives in the layout's right column, beside the index rather
+        than above it, so the index starts at the top of the page and stays
+        there. Above both, the index started lower and slid up the moment the
+        page scrolled — which clicking an entry always does.
+      */}
       <div className="settings-layout">
+        <header className="view-head settings-head">
+          <div className="view-titles">
+            <h1>Settings</h1>
+            <p className="view-sub">
+              {health
+                ? `self.mp3 ${health.version} · ${health.songCount} songs · ${health.storageDriver} storage`
+                : 'Not connected to your library right now'}
+            </p>
+          </div>
+        </header>
+
         <nav className="settings-index" aria-label="Settings sections" ref={indexRef}>
           <span className="settings-index-title">On this page</span>
           {SECTIONS.map(section => (
@@ -128,6 +139,10 @@ export function SettingsView() {
               href={`#${section.id}`}
               data-section={section.id}
               aria-current={active === section.id ? 'true' : undefined}
+              onClick={event => {
+                event.preventDefault()
+                go(section.id)
+              }}
             >
               {section.label}
             </a>
@@ -863,50 +878,135 @@ function LibraryOnThisDevice({ songs }: { songs: readonly Song[] }) {
   )
 }
 
+/** How far below the top of the page a section counts as the one being read. */
+const READING_LINE = 96
+
+/** Keys that scroll the page, when nothing editable has focus. */
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '])
+
+/** The element that actually scrolls: `.app-main`, or the document. */
+function scrollParentOf(element: HTMLElement): HTMLElement {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if (overflowY === 'auto' || overflowY === 'scroll') return node
+  }
+  return document.scrollingElement as HTMLElement
+}
+
 /**
- * Which section the reader is looking at.
+ * Which section the reader is looking at, and a way to go to one.
  *
- * An IntersectionObserver is the trigger rather than the answer: it fires
- * exactly when a section crosses the top of the page, and the answer is then
- * read off the geometry — the last section whose top has passed the header.
- * Taking the first *intersecting* section instead gets it wrong whenever two
- * are on screen at once, which at the top of a scroll is most of the time.
+ * Normally it is the last section whose top has passed a line near the top of
+ * the page. But the last few sections are short, and the page runs out before
+ * their tops ever reach that line — so over the final screenful the line
+ * slides down to the bottom edge, and each of them gets its turn on the way
+ * down instead of the highlight leaping from the middle to the last one.
+ *
+ * Choosing a section in the index sets it outright and holds it there until
+ * the reader scrolls for themselves: the page may not be able to bring a short
+ * last section to the top, and the highlight must not then settle on
+ * whichever section geometry prefers.
  */
 function useActiveSection(
   sections: ReadonlyArray<{ id: string }>,
   ready: boolean,
-): string | null {
+): { active: string | null; go: (id: string) => void } {
   const [active, setActive] = useState<string | null>(null)
+  const pinned = useRef(false)
+  const location = useLocation()
   const ids = sections.map(section => section.id).join(',')
 
   useEffect(() => {
+    // Half the panels only exist once the settings have loaded.
     if (!ready) return
     const elements = ids
       .split(',')
       .map(id => document.getElementById(id))
       .filter((element): element is HTMLElement => element !== null)
-    if (elements.length === 0) return
+    const first = elements[0]
+    if (!first) return
+    const scroller = scrollParentOf(first)
 
     const pick = (): void => {
-      // Just below the sticky chip row at narrow widths.
-      const threshold = 72
-      let current = elements[0]
+      if (pinned.current) return
+      const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top
+      const view = scroller.clientHeight
+      const remaining = scroller.scrollHeight - view - scroller.scrollTop
+      const approach = Math.max(0, Math.min(1, 1 - remaining / view))
+      const line = top + READING_LINE + (view - READING_LINE) * approach
+
+      let current = first
       for (const element of elements) {
-        if (element.getBoundingClientRect().top <= threshold) current = element
+        if (element.getBoundingClientRect().top <= line) current = element
       }
-      if (current) setActive(current.id)
+      setActive(current.id)
     }
 
+    let frame = 0
+    const schedule = (): void => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(pick)
+    }
+    const release = (): void => {
+      if (!pinned.current) return
+      pinned.current = false
+      schedule()
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (SCROLL_KEYS.has(event.key)) release()
+    }
+    // Dragging the scrollbar lands on the scrolling element itself.
+    const onPointer = (event: PointerEvent): void => {
+      if (event.target === scroller) release()
+    }
+
+    const events = scroller === document.scrollingElement ? window : scroller
     pick()
-    const observer = new IntersectionObserver(pick, {
-      rootMargin: '-72px 0px -60% 0px',
-      threshold: [0, 1],
-    })
-    for (const element of elements) observer.observe(element)
-    return () => observer.disconnect()
-    // `ready` matters as much as `ids`: half the panels only exist once the
-    // settings have loaded, and an observer set up before then sees nothing.
+    events.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    window.addEventListener('wheel', release, { passive: true })
+    window.addEventListener('touchmove', release, { passive: true })
+    window.addEventListener('keydown', onKey)
+    scroller.addEventListener('pointerdown', onPointer)
+    return () => {
+      cancelAnimationFrame(frame)
+      events.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('wheel', release)
+      window.removeEventListener('touchmove', release)
+      window.removeEventListener('keydown', onKey)
+      scroller.removeEventListener('pointerdown', onPointer)
+    }
   }, [ids, ready])
 
-  return active
+  const go = (id: string, smooth = true): void => {
+    const element = document.getElementById(id)
+    if (!element) return
+    pinned.current = true
+    setActive(id)
+    // Scroll the one scrolling element by hand: scrollIntoView also nudges
+    // every ancestor that can scroll, even ones that are only overflow-hidden.
+    const scroller = scrollParentOf(element)
+    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top
+    const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    scroller.scrollTo({
+      top: scroller.scrollTop + element.getBoundingClientRect().top - top - margin,
+      behavior: smooth && !reduced ? 'smooth' : 'auto',
+    })
+    history.replaceState(history.state, '', `#${id}`)
+  }
+
+  // Arriving with a section in the address (the offline pill links to
+  // #offline) goes straight to it, once there is something to go to. Keyed on
+  // the navigation rather than the hash, so following the same link twice
+  // still goes there the second time.
+  useEffect(() => {
+    const id = decodeURIComponent(location.hash.slice(1))
+    if (ready && id && ids.split(',').includes(id)) go(id, false)
+  }, [location.key, ready, ids])
+
+  return { active, go }
 }

@@ -8,14 +8,28 @@
  * so the settings themselves scan and the prose recedes behind them.
  */
 
+/*
+ * The title sits in the right column, beside the index, so the index's resting
+ * place is the top of the page — the same place it sticks to once the page
+ * scrolls. Put the title above both and the index starts lower, then jumps up
+ * by the title's height the moment anything scrolls.
+ */
 .settings-layout {
   display: grid;
   grid-template-columns: 172px minmax(0, 1fr);
-  gap: 32px;
+  grid-template-areas:
+    'index head'
+    'index panels';
+  gap: 0 32px;
   align-items: start;
 }
 
+.settings-head {
+  grid-area: head;
+}
+
 .settings-panels {
+  grid-area: panels;
   min-width: 0;
   max-width: 780px;
   display: flex;
@@ -26,8 +40,10 @@
 /* --- the section index --- */
 
 .settings-index {
+  grid-area: index;
   position: sticky;
-  top: 0;
+  /* `.view`'s top padding: where it starts is where it stays. */
+  top: 28px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -76,8 +92,8 @@
   /* The gap on .settings-panels does the spacing now. */
   margin-bottom: 0;
   max-width: 780px;
-  /* Clear the sticky index when an anchor link jumps here. */
-  scroll-margin-top: 12px;
+  /* A section you jump to lines up with the top of the index. */
+  scroll-margin-top: 28px;
 }
 
 .settings-view .panel-head h2 {
@@ -335,7 +351,12 @@ input[type='range'].accent-slider::-webkit-slider-thumb {
 @media (max-width: 1080px) {
   .settings-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'head' 'index' 'panels';
     gap: 14px;
+  }
+
+  .settings-head {
+    margin-bottom: 8px;
   }
 
   /*

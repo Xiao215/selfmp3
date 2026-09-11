@@ -5,3 +5,4 @@ data
 *.md
 package-lock.json
 .claude/
+.wrangler/

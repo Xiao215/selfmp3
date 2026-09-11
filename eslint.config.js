@@ -10,6 +10,8 @@ export default tseslint.config(
       '**/dist-pages/**',
       // Emitted declaration files from `tsc --build`; nothing to lint.
       '**/dist-types/**',
+      // Wrangler's bundles and local state, written while `wrangler dev` runs.
+      '**/.wrangler/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',
       'library/**',

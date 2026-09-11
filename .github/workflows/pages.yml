@@ -1,0 +1,82 @@
+# The web app on its own, with no Mac behind it, published to GitHub Pages
+# (docs/SYNC.md): https://<owner>.github.io/<repo>/.
+#
+# It signs in through the doorman named by DEFAULT_DOORMAN_URL in
+# packages/shared/src/cloud.ts, or by the repository variable DOORMAN_URL if
+# one is set (Settings → Secrets and variables → Actions → Variables).
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - packages/shared/**
+      - package-lock.json
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions: {}
+
+# One deployment at a time. A newer push waits rather than cancelling one
+# that is half published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only what building needs: the build runs the dependencies' code, so it
+    # gets no say over what is published.
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # No install scripts: the web app needs none of them. The native
+      # modules are the server's and the phone app's.
+      - run: npm ci --ignore-scripts
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Build the web app
+        run: |
+          npm run build --workspace @selfmp3/shared
+          npm run build --workspace @selfmp3/web
+        env:
+          VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          VITE_CLOUD: '1'
+          VITE_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+
+      # Pages answers a path it has no file for with 404.html. Make that the
+      # app itself, so a link straight to a page like /selfmp3/settings opens.
+      - run: cp apps/web/dist/index.html apps/web/dist/404.html
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

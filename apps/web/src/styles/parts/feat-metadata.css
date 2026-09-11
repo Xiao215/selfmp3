@@ -271,6 +271,41 @@
   overflow-wrap: anywhere;
 }
 
+/* The cover row shows the change as pictures: the cover now → the one on offer. */
+.meta-cover-change {
+  grid-area: values;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.meta-cover-thumb {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  box-shadow: var(--shadow-1);
+}
+
+/* The one being replaced sits back a little, as struck-through text does. */
+.meta-cover-thumb.is-old {
+  opacity: 0.7;
+}
+
+.meta-cover-none {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.meta-cover-source {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .meta-foot {
   display: flex;
   align-items: center;

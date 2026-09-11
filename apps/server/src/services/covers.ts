@@ -41,6 +41,14 @@ export class CoverService {
     const ext = (EXTENSIONS as readonly string[]).includes(extension) ? extension : '.jpg'
     try {
       await fsp.writeFile(this.#pathFor(songId, ext), data)
+      // A cover in another format stays behind otherwise — and `find` checks
+      // formats in a fixed order, so an old .jpg would keep being served over
+      // a new .png, and the replacement would seem not to have happened.
+      await Promise.all(
+        EXTENSIONS.filter(other => other !== ext).map(other =>
+          fsp.rm(this.#pathFor(songId, other), { force: true }),
+        ),
+      )
       this.#songs.setArt(songId, true, ext)
     } catch (error) {
       // Missing art is cosmetic; a placeholder gradient is shown instead.

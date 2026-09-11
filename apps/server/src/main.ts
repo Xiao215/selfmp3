@@ -1,6 +1,7 @@
 import os from 'node:os'
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
-import { createContainer } from './container.js'
+import { createContainer, type Container } from './container.js'
+import { organizeLegacyImports } from './services/libraryLayout.js'
 import { createApp } from './app.js'
 
 /**
@@ -18,6 +19,7 @@ function main(): void {
   const logger = container.logger
 
   const app = createApp(container)
+  let shuttingDown = false
 
   const server = app.listen(config.port, config.host, () => {
     logger.info(`${APP_NAME} ${APP_VERSION}`)
@@ -33,31 +35,25 @@ function main(): void {
   server.headersTimeout = 70_000
   server.requestTimeout = 0
 
-  container.importQueue.start()
   // Presence sweep and library-version watch for the event stream.
   container.devices.start()
-  // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
-  container.libraryWatcher.apply()
   // Lyrics+: the Japanese dictionary takes a second or two; load it now, not on first tap.
   container.romanization.warmUp()
-  if (!config.scanOnBoot) void container.lyricsIndex.backfill()
 
-  if (config.scanOnBoot) {
-    // Deliberately not awaited: the API is already serving, and a first scan of
-    // a large library should not delay that.
-    void container.scanner
-      .scan()
-      .then(result => {
-        if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
-        // Lyrics+: index lyrics for search once the scan knows which songs have them.
-        void container.lyricsIndex.backfill()
+  // Songs imported before each had a folder move into one first: the scan, the
+  // watcher and new imports all expect to find them there.
+  void organizeLegacyImports(container)
+    .then(moved => {
+      if (moved > 0) container.bumpLibraryVersion()
+    })
+    .catch((error: unknown) => {
+      logger.error('could not move imported songs into their folders', {
+        message: error instanceof Error ? error.message : String(error),
       })
-      .catch((error: unknown) => {
-        logger.error('initial scan failed', {
-          message: error instanceof Error ? error.message : String(error),
-        })
-      })
-  }
+    })
+    .finally(() => {
+      if (!shuttingDown) startLibrary(container)
+    })
 
   const autoScanMinutes = container.settings.get().autoScanMinutes
   let scanTimer: NodeJS.Timeout | null = null
@@ -78,7 +74,6 @@ function main(): void {
     logger.info('automatic rescan enabled', { everyMinutes: autoScanMinutes })
   }
 
-  let shuttingDown = false
   const shutdown = (signal: string): void => {
     if (shuttingDown) return
     shuttingDown = true
@@ -114,6 +109,33 @@ function main(): void {
     logger.error('uncaught exception', { message: error.message, stack: error.stack })
     shutdown('uncaughtException')
   })
+}
+
+/** The work that reads or writes the library folder, once it is in shape. */
+function startLibrary(container: Container): void {
+  const { config, logger } = container
+
+  container.importQueue.start()
+  // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
+  container.libraryWatcher.apply()
+  if (!config.scanOnBoot) void container.lyricsIndex.backfill()
+
+  if (config.scanOnBoot) {
+    // Deliberately not awaited: the API is already serving, and a first scan of
+    // a large library should not delay that.
+    void container.scanner
+      .scan()
+      .then(result => {
+        if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
+        // Lyrics+: index lyrics for search once the scan knows which songs have them.
+        void container.lyricsIndex.backfill()
+      })
+      .catch((error: unknown) => {
+        logger.error('initial scan failed', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      })
+  }
 }
 
 /** Every address this server can actually be reached on, for the boot log. */

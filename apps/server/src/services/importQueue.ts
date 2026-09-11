@@ -13,6 +13,7 @@ import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 import type { YtDlpService } from './ytdlp.js'
+import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
 /**
  * The download worker.
@@ -47,6 +48,8 @@ export class ImportQueueService {
 
   /** Abort controllers for in-flight jobs, so cancel can actually stop them. */
   readonly #inFlight = new Map<string, AbortController>()
+  /** Library folders handed to imports that have not written their file yet. */
+  readonly #claimedFolders = new Set<string>()
   #activeCount = 0
   #draining = false
   #stopped = false
@@ -224,10 +227,8 @@ export class ImportQueueService {
 
     this.#imports.update(job.id, { step: 'downloading', progress: 0 })
 
-    const baseName = uniqueBaseName(
-      sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled',
-      job.id,
-    )
+    const name = sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled'
+    const baseName = uniqueBaseName(name, job.id)
 
     // yt-dlp writes to the real filesystem, so downloads always land in a local
     // staging directory first and are then handed to the storage driver. That
@@ -250,14 +251,14 @@ export class ImportQueueService {
     if (!downloaded) throw new Error('the download finished but no file appeared')
 
     const stagedPath = path.join(stagingDir, downloaded)
+    let libraryKey: string | null = null
 
     try {
       // --- move into the library -------------------------------------------
 
       this.#imports.update(job.id, { step: 'converting', progress: null })
 
-      const extension = path.extname(downloaded)
-      const libraryKey = await this.#uniqueLibraryKey(baseName + extension)
+      libraryKey = await this.#claimLibraryKey(name, path.extname(downloaded))
 
       const data = await fsp.readFile(stagedPath)
       await this.#storage.write(libraryKey, data)
@@ -319,20 +320,25 @@ export class ImportQueueService {
       return songId
     } finally {
       await fsp.rm(stagedPath, { force: true }).catch(() => undefined)
+      // Written by now, or given up on: either way the disk has the last word.
+      if (libraryKey) this.#claimedFolders.delete(path.posix.dirname(libraryKey))
     }
   }
 
-  /** Avoid overwriting an existing file with the same artist and title. */
-  async #uniqueLibraryKey(preferred: string): Promise<string> {
-    if (!(await this.#storage.exists(preferred))) return preferred
-
-    const extension = path.extname(preferred)
-    const stem = preferred.slice(0, -extension.length)
-    for (let n = 2; n < 100; n++) {
-      const candidate = `${stem} (${n})${extension}`
-      if (!(await this.#storage.exists(candidate))) return candidate
+  /**
+   * A folder of the song's own in the library — see libraryLayout.ts. Claimed
+   * before the disk is checked, so two imports of the same song running at
+   * once cannot both be handed the same one.
+   */
+  async #claimLibraryKey(name: string, extension: string): Promise<string> {
+    for (const candidate of songKeyCandidates(name, extension)) {
+      const folder = path.posix.dirname(candidate)
+      if (this.#claimedFolders.has(folder)) continue
+      this.#claimedFolders.add(folder)
+      if (await isFreeOnDisk(this.#storage, candidate)) return candidate
+      this.#claimedFolders.delete(folder)
     }
-    return `${stem} (${Date.now()})${extension}`
+    throw new Error('could not find a free name for this song in the library')
   }
 }
 
@@ -359,7 +365,11 @@ function isRetryable(message: string): boolean {
   return !permanent.some(phrase => lower.includes(phrase))
 }
 
-/** yt-dlp appends its own suffixes; the job id keeps concurrent jobs apart. */
+/**
+ * The download's name while it is staged. yt-dlp appends its own suffixes; the
+ * job id keeps concurrent jobs apart. It does not follow the song into the
+ * library, where the folder does that job.
+ */
 function uniqueBaseName(base: string, jobId: string): string {
   return `${base} [${jobId.slice(0, 8)}]`
 }

@@ -54,7 +54,8 @@ the old `hum` app. Every feature has a page under
 ## What it does
 
 **Library.** Drop audio files into `library/` and they appear — the folder is watched, so a
-drag into Finder is enough. Or import them from a link. Everything is filtered, sorted and
+drag into Finder is enough. Or import them from a link: each import gets a folder of its own,
+`library/Artist - Title/`, with its lyrics beside it. Everything is filtered, sorted and
 searched client-side, so it stays instant and works with no connection.
 
 **Tags instead of folders.** One flat vocabulary you define. Combine them with AND —

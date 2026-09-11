@@ -23,6 +23,7 @@ import { transact } from '../db/index.js'
 import { sqliteTime } from '../repositories/stats.js'
 import { similarSongs } from '../services/similar.js'
 import { isLocalRequest, revealInFileManager } from '../services/reveal.js'
+import { removeFolderIfEmpty } from '../services/libraryLayout.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -91,6 +92,7 @@ export function songRoutes(container: Container): Router {
               })
             }
             await container.lyrics.deleteSidecar(song.path)
+            await removeFolderIfEmpty(container.storage, song.path)
           } catch (error) {
             failed.push({
               songId: song.id,
@@ -367,6 +369,7 @@ export function songRoutes(container: Container): Router {
         if (query.deleteFile) {
           await container.storage.delete(song.path).catch(() => undefined)
           await container.lyrics.deleteSidecar(song.path)
+          await removeFolderIfEmpty(container.storage, song.path)
         }
 
         await container.covers.delete(song.id)

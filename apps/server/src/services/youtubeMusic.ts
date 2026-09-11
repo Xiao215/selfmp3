@@ -1,5 +1,14 @@
 import { buildLrc, type TimedLine } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import {
+  ANDROID_CLIENT,
+  findAll,
+  findKey,
+  runs,
+  WEB_CLIENT,
+  YouTubeMusicApi,
+  type FetchLike,
+} from './youtubeMusicApi.js'
 
 /**
  * Timed lyrics from YouTube Music.
@@ -9,19 +18,15 @@ import type { Logger } from '../logger.js'
  * they belong to the very track that was downloaded, which makes them the
  * best source this app has, ahead of lrclib's community uploads.
  *
- * There is no official API. This speaks the private one the YouTube Music
- * apps use, the way ytmusicapi does: `next` on a video names its lyrics, and
- * `browse` on those, asked as the Android app, returns them with timings (the
- * web client only ever gets plain text). It can change without notice, so
- * every failure here is quiet and lrclib is always tried after it.
+ * Through the private API the YouTube Music apps use (youtubeMusicApi.ts):
+ * `next` on a video names its lyrics, and `browse` on those, asked as the
+ * Android app, returns them with timings (the web client only ever gets plain
+ * text). It can change without notice, so every failure here is quiet and
+ * lrclib is always tried after it.
  */
 
-const API = 'https://music.youtube.com/youtubei/v1/'
-const WEB_CLIENT = { clientName: 'WEB_REMIX', clientVersion: '1.20240101.01.00', hl: 'en' }
-const ANDROID_CLIENT = { clientName: 'ANDROID_MUSIC', clientVersion: '7.21.50', hl: 'en' }
 /** The search's "Songs" filter: studio tracks only, no videos or playlists. */
 const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
-const REQUEST_TIMEOUT_MS = 8_000
 /** Search hits worth asking for lyrics, best first. Each costs two requests. */
 const MAX_CANDIDATES = 2
 
@@ -39,8 +44,6 @@ const AUDIO_TRACK = 'MUSIC_VIDEO_TYPE_ATV'
 /** A title naming another cut of the song, which the song itself does not. */
 const OTHER_VERSION =
   /\b(?:version|ver\.|remix|live|instrumental|inst\.|acoustic|karaoke|off vocal|cover|sped up|slowed)\b/i
-
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 export interface YouTubeMusicLookup {
   /** The video the song was downloaded from, when it was. */
@@ -66,12 +69,10 @@ interface WatchInfo {
 }
 
 export class YouTubeMusicLyrics {
-  readonly #logger: Logger
-  readonly #fetch: FetchLike
+  readonly #api: YouTubeMusicApi
 
-  constructor(logger: Logger, fetchImpl: FetchLike = fetch) {
-    this.#logger = logger.child('youtube-music')
-    this.#fetch = fetchImpl
+  constructor(logger: Logger, fetchImpl?: FetchLike) {
+    this.#api = new YouTubeMusicApi(logger, fetchImpl)
   }
 
   /**
@@ -103,7 +104,7 @@ export class YouTubeMusicLyrics {
     if (!watch?.track || !watch.lyricsId) return null
     if (!watch.track.audioTrack || !fits(watch.track, input.duration)) return null
 
-    const response = await this.#post('browse', { browseId: watch.lyricsId }, ANDROID_CLIENT)
+    const response = await this.#api.post('browse', { browseId: watch.lyricsId }, ANDROID_CLIENT)
     const timed = findKey(response, 'timedLyricsData')
     if (!Array.isArray(timed) || timed.length === 0) return null
 
@@ -131,7 +132,7 @@ export class YouTubeMusicLyrics {
 
   /** The entry YouTube Music plays for a video, and the id of its lyrics. */
   async #watch(videoId: string): Promise<WatchInfo | null> {
-    const response = await this.#post('next', { videoId, isAudioOnly: true }, WEB_CLIENT)
+    const response = await this.#api.post('next', { videoId, isAudioOnly: true }, WEB_CLIENT)
     if (!response) return null
 
     const renderer = findAll(response, 'playlistPanelVideoRenderer').find(
@@ -158,7 +159,7 @@ export class YouTubeMusicLyrics {
   /** Studio tracks that are this song, nearest in length first. */
   async #searchSongs(input: YouTubeMusicLookup): Promise<Track[]> {
     const query = `${input.artist} ${input.title}`.trim()
-    const response = await this.#post('search', { query, params: SONGS_ONLY }, WEB_CLIENT)
+    const response = await this.#api.post('search', { query, params: SONGS_ONLY }, WEB_CLIENT)
     if (!response) return []
 
     const tracks: Track[] = []
@@ -183,34 +184,6 @@ export class YouTubeMusicLyrics {
       .filter(track => track.audioTrack && isSameSong(track, input) && fits(track, input.duration))
       .sort((a, b) => lengthGap(a, input.duration) - lengthGap(b, input.duration))
       .slice(0, MAX_CANDIDATES)
-  }
-
-  async #post(endpoint: string, body: object, client: object): Promise<unknown> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-    try {
-      const response = await this.#fetch(`${API}${endpoint}?prettyPrint=false`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Origin: 'https://music.youtube.com',
-          // Skips the cookie-consent interstitial served to some regions.
-          Cookie: 'SOCS=CAI',
-        },
-        body: JSON.stringify({ ...body, context: { client } }),
-        signal: controller.signal,
-      })
-      if (!response.ok) return null
-      return await response.json()
-    } catch (error) {
-      this.#logger.debug('lookup failed', {
-        endpoint,
-        message: error instanceof Error ? error.message : String(error),
-      })
-      return null
-    } finally {
-      clearTimeout(timer)
-    }
   }
 }
 
@@ -258,28 +231,4 @@ function parseLength(text: string): number | null {
     .trim()
     .split(':')
     .reduce((total, part) => total * 60 + Number(part), 0)
-}
-
-/** The text of a `{ runs: [{ text }] }` block. */
-function runs(value: unknown): string[] {
-  const list = (value as { runs?: unknown } | undefined)?.runs
-  if (!Array.isArray(list)) return []
-  return list.map(run => (run as { text?: unknown }).text).filter(t => typeof t === 'string')
-}
-
-/** Every value under `key`, anywhere in a response. Responses nest deep and move. */
-function findAll(value: unknown, key: string, found: unknown[] = []): unknown[] {
-  if (Array.isArray(value)) {
-    for (const item of value) findAll(item, key, found)
-  } else if (value && typeof value === 'object') {
-    for (const [name, child] of Object.entries(value)) {
-      if (name === key) found.push(child)
-      findAll(child, key, found)
-    }
-  }
-  return found
-}
-
-function findKey(value: unknown, key: string): unknown {
-  return findAll(value, key)[0]
 }

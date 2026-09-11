@@ -66,3 +66,40 @@ export function youtubeVideoId(url: string | null | undefined): string | null {
         : parsed.searchParams.get('v')
   return candidate && VIDEO_ID.test(candidate) ? candidate : null
 }
+
+/** A YouTube channel, by its `@handle` or its `UC…` id. */
+export type YouTubeChannel = { readonly handle: string } | { readonly channelId: string }
+
+const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/
+
+/**
+ * The channel a link opens at its front page — `/@handle` or `/channel/UC…`,
+ * on either host — or null. A link to one of its tabs (`/videos`, `/playlists`)
+ * is a list of its own and is left to yt-dlp, as is everything else.
+ */
+export function youtubeChannel(url: string): YouTubeChannel | null {
+  if (!isYouTubeUrl(url)) return null
+  let segments: string[]
+  try {
+    const parsed = new URL(url)
+    // The short host only ever carries a video.
+    if (parsed.hostname.toLowerCase() === 'youtu.be') return null
+    segments = parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return null
+  }
+
+  const [first = '', second = ''] = segments
+  let channel: YouTubeChannel | null = null
+  let rest: string[] = []
+  if (first.length > 1 && first.startsWith('@')) {
+    channel = { handle: first }
+    rest = segments.slice(1)
+  } else if (first === 'channel' && CHANNEL_ID.test(second)) {
+    channel = { channelId: second }
+    rest = segments.slice(2)
+  }
+
+  const frontPage = rest.length === 0 || (rest.length === 1 && rest[0] === 'featured')
+  return frontPage ? channel : null
+}

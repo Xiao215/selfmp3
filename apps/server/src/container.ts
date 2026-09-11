@@ -14,6 +14,7 @@ import { FeaturesRepository } from './repositories/features.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
+import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
@@ -63,6 +64,7 @@ export interface Container {
   readonly covers: CoverService
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
+  readonly youtubeMusicArtists: YouTubeMusicArtists
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
   readonly migrate: MigrateService
@@ -119,6 +121,7 @@ export function createContainer(config: Config): Container {
 
   // Cookie settings are read per call, so a change applies without a restart.
   const ytdlp = new YtDlpService(logger, () => settings.get())
+  const youtubeMusicArtists = new YouTubeMusicArtists(logger)
 
   const importQueue = new ImportQueueService({
     config,
@@ -224,6 +227,7 @@ export function createContainer(config: Config): Container {
     covers,
     scanner,
     ytdlp,
+    youtubeMusicArtists,
     importQueue,
     libraryWatcher,
     migrate,

@@ -40,9 +40,34 @@ Changes apply to the next yt-dlp call — no restart.
 - **Liked Music** — one tap pushes `list=LM` through the normal probe → review → enqueue
   flow, so you still see and untick tracks before anything downloads.
 - **A playlist of yours** — paste one or more YouTube Music playlist links.
+- **An artist** — paste their page, `music.youtube.com/@YOASOBI_Official` or the same
+  channel on youtube.com (`/@handle` or `/channel/UC…`). You get their **Top songs → See
+  all** list from YouTube Music (71 songs for YOASOBI), named after the artist.
 - On the review screen, tick **Also create playlist "<name>"** to get a manual playlist
   with the same name here. Importing the same playlist again reuses it rather than making
   "Liked Music (2)".
+
+## Artist links
+
+yt-dlp reads a channel link as the channel's tabs — Videos, Live, Shorts — and the Videos
+tab is vlogs and TV appearances as much as songs. So a link to a channel's front page never
+goes to yt-dlp as it is (`apps/server/src/services/youtubeMusicArtist.ts`):
+
+1. A handle is resolved to a channel id with YouTube Music's `navigation/resolve_url`,
+   asked as a music.youtube.com link — the only form it resolves.
+2. The channel's YouTube Music page is fetched (`browse`). Its songs are the page's one
+   list (`musicShelfRenderer`); its "See all" is a playlist, `VL` + the playlist id.
+3. That playlist goes through yt-dlp like any other, so the review screen, duplicates and
+   "Also create playlist" all work as usual. An artist with too few songs for a See all
+   gets the rows on the page itself, without lengths until they download.
+
+YouTube calls almost every channel an artist, so the test is the songs list, not the page
+type: a channel without one is refused with a pointer to its Videos tab, playlists or
+videos. A link to a tab (`/@handle/videos`) is left to yt-dlp as it always was.
+
+This uses the same unofficial API as the timed lyrics (`youtubeMusicApi.ts`) and can break
+the same way when YouTube changes it; then artist links are refused and everything else
+still works.
 
 ## Failure modes
 

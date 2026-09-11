@@ -167,7 +167,8 @@ export function ImportView() {
         <div className="view-titles">
           <h1>Import</h1>
           <p className="view-sub">
-            Paste one or more links, one per line. A playlist link expands into its tracks.
+            Paste one or more links, one per line. A playlist expands into its tracks, and an
+            artist’s page into their top songs.
           </p>
         </div>
       </header>
@@ -205,7 +206,7 @@ export function ImportView() {
           value={url}
           onChange={event => setUrl(event.target.value)}
           placeholder={
-            'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…'
+            'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…\nhttps://music.youtube.com/@artist'
           }
           rows={3}
           spellCheck={false}
@@ -356,9 +357,9 @@ export function ImportView() {
                     <span className="import-dup" data-tip="A song with this title and artist is already in your library">
                       <CheckCircle size={12} /> Have it
                     </span>
-                  ) : (
+                  ) : item.duration > 0 ? (
                     <span className="hint">{formatDuration(item.duration)}</span>
-                  )}
+                  ) : null}
                 </span>
               </div>
             ))}

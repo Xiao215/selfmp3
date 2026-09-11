@@ -4,7 +4,9 @@ import { EMPTY_SMART_RULES } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
-import { resolveImportPlaylist } from './importPreview.js'
+import { buildImportPreview, resolveImportPlaylist } from './importPreview.js'
+import type { ProbedTrack } from './ytdlp.js'
+import type { ArtistSongs } from './youtubeMusicArtist.js'
 
 /** The real schema on an in-memory database, the same way smartPlaylist.test does. */
 function makePlaylists(): PlaylistRepository {
@@ -71,5 +73,94 @@ describe('resolveImportPlaylist', () => {
     expect(() =>
       resolveImportPlaylist(playlists, { playlistId: smart.id, createPlaylistName: null }),
     ).toThrow(/smart playlist/)
+  })
+})
+
+function track(url: string, title: string, duration = 200): ProbedTrack {
+  return { url, title, artist: 'YOASOBI', album: '', duration, thumbnail: null }
+}
+
+/** yt-dlp, the library and YouTube Music, each answering from a table. */
+function previewDeps(options: {
+  playlists?: Record<string, ProbedTrack[]>
+  artist?: ArtistSongs | null
+  have?: { artist: string; title: string }[]
+}) {
+  const probed: string[] = []
+  const deps = {
+    ytdlp: {
+      status: () => Promise.resolve({ ytdlp: true, ffmpeg: true, ytdlpVersion: 'test' }),
+      probe: (url: string) => {
+        probed.push(url)
+        const tracks = options.playlists?.[url]
+        if (!tracks) return Promise.reject(new Error(`yt-dlp cannot read ${url}`))
+        return Promise.resolve({ kind: 'playlist' as const, playlistTitle: 'Top songs', tracks })
+      },
+    },
+    songs: { all: () => options.have ?? [] },
+    youtubeMusicArtists: { topSongs: () => Promise.resolve(options.artist ?? null) },
+  }
+  return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
+}
+
+describe('buildImportPreview with an artist link', () => {
+  const songsList = 'https://music.youtube.com/playlist?list=OLAK5uy_songs'
+
+  it("imports the artist's top songs as a playlist named after them", async () => {
+    const { deps, probed } = previewDeps({
+      artist: { artist: 'YOASOBI', playlistUrl: songsList, tracks: [] },
+      playlists: {
+        [songsList]: [
+          track('https://y.test/1', 'アイドル'),
+          track('https://y.test/2', '夜に駆ける'),
+        ],
+      },
+      have: [{ artist: 'YOASOBI', title: '夜に駆ける' }],
+    })
+
+    const preview = await buildImportPreview(deps, 'https://music.youtube.com/@YOASOBI_Official')
+
+    // The channel link itself never reaches yt-dlp, which would read it as tabs.
+    expect(probed).toEqual([songsList])
+    expect(preview.kind).toBe('playlist')
+    expect(preview.playlistTitle).toBe('YOASOBI')
+    expect(preview.items.map(item => [item.title, item.alreadyHave])).toEqual([
+      ['アイドル', false],
+      ['夜に駆ける', true],
+    ])
+  })
+
+  it('uses the rows from the page when there is no See all', async () => {
+    const { deps, probed } = previewDeps({
+      artist: {
+        artist: 'YOASOBI',
+        playlistUrl: null,
+        tracks: [track('https://y.test/1', 'アイドル', 0)],
+      },
+    })
+
+    const preview = await buildImportPreview(deps, 'https://www.youtube.com/@YOASOBI_Official')
+
+    expect(probed).toEqual([])
+    expect(preview.items).toHaveLength(1)
+    expect(preview.playlistTitle).toBe('YOASOBI')
+  })
+
+  it('explains a channel with no songs instead of listing its tabs', async () => {
+    const { deps } = previewDeps({ artist: null })
+    await expect(buildImportPreview(deps, 'https://www.youtube.com/@mkbhd')).rejects.toThrow(
+      /no songs on YouTube Music/,
+    )
+  })
+
+  it('still hands a channel tab to yt-dlp as it is', async () => {
+    const videos = 'https://www.youtube.com/@YOASOBI_Official/videos'
+    const { deps, probed } = previewDeps({
+      playlists: { [videos]: [track('https://y.test/v', 'MV')] },
+    })
+
+    await buildImportPreview(deps, videos)
+
+    expect(probed).toEqual([videos])
   })
 })

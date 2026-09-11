@@ -1,4 +1,9 @@
-import { newCloudDeviceId, type CloudLyrics } from '@selfmp3/shared'
+import {
+  DoormanStorageSchema,
+  newCloudDeviceId,
+  type CloudLyrics,
+  type DoormanStorage,
+} from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 /**
@@ -48,7 +53,35 @@ export interface SongFileInfo {
   readonly missing: boolean
 }
 
+/**
+ * Signed in through the doorman: a session for your Google account, which the
+ * doorman exchanges for access to the bucket that belongs to it. No bucket
+ * key is held here in this mode.
+ */
+export interface DoormanSession {
+  /** The doorman it was issued by; a session means nothing to any other. */
+  readonly url: string
+  readonly token: string
+  readonly email: string
+  readonly name: string | null
+  readonly picture: string | null
+  /**
+   * The bucket the doorman last said belongs to the account, so a restart
+   * can carry on publishing before the doorman has been asked again.
+   */
+  readonly storage: DoormanStorage | null
+}
+
+/** Which bucket and folder the upload bookkeeping describes. */
+export interface CloudTarget {
+  readonly endpoint: string
+  readonly bucket: string
+  readonly prefix: string
+}
+
 const CONNECTION_SECRET = 'cloud.connection'
+const DOORMAN_SECRET = 'cloud.doorman'
+const TARGET_SECRET = 'cloud.target'
 const DEVICE_SECRET = 'cloud.device'
 
 interface SongFileRow {
@@ -172,29 +205,74 @@ export class CloudRepository {
   }
 
   /**
-   * Save a connection. Pointed at a different bucket or folder than before,
-   * everything remembered about the old one is forgotten, so the next sync
-   * uploads the library to where it now belongs instead of assuming it is
-   * already there. A new key for the same bucket keeps it all.
+   * Save a connection made directly with the bucket's key. It replaces any
+   * doorman sign-in: one way in at a time.
    */
   saveConnection(connection: CloudConnection): void {
     this.#db.transaction(() => {
-      const previous = this.connection()
-      const sameTarget =
-        previous !== null &&
-        previous.endpoint === connection.endpoint &&
-        previous.bucket === connection.bucket &&
-        previous.prefix === connection.prefix
-      if (!sameTarget) this.#forgetUploads()
+      this.adoptTarget(connection)
+      this.#deleteSecret.run(DOORMAN_SECRET)
       this.#setSecret.run(CONNECTION_SECRET, JSON.stringify(connection))
     })()
   }
 
-  /** Disconnect. The bucket itself is left exactly as it is. */
+  /** Stop using the cloud, whichever way in. The bucket itself is left exactly as it is. */
   clearConnection(): void {
     this.#db.transaction(() => {
       this.#deleteSecret.run(CONNECTION_SECRET)
+      this.#deleteSecret.run(DOORMAN_SECRET)
+      this.#deleteSecret.run(TARGET_SECRET)
       this.#forgetUploads()
+    })()
+  }
+
+  doormanSession(): DoormanSession | null {
+    const row = this.#getSecret.get(DOORMAN_SECRET)
+    if (!row) return null
+    try {
+      const parsed = JSON.parse(row.value) as Partial<DoormanSession>
+      if (
+        typeof parsed.url === 'string' &&
+        typeof parsed.token === 'string' &&
+        typeof parsed.email === 'string'
+      ) {
+        const storage = DoormanStorageSchema.safeParse(parsed.storage)
+        return {
+          url: parsed.url,
+          token: parsed.token,
+          email: parsed.email,
+          name: typeof parsed.name === 'string' ? parsed.name : null,
+          picture: typeof parsed.picture === 'string' ? parsed.picture : null,
+          storage: storage.success ? storage.data : null,
+        }
+      }
+    } catch {
+      // As for the connection: corrupt reads as signed out.
+    }
+    return null
+  }
+
+  /** Signed in through the doorman. It replaces a direct connection. */
+  saveDoormanSession(session: DoormanSession): void {
+    this.#db.transaction(() => {
+      this.#deleteSecret.run(CONNECTION_SECRET)
+      this.#setSecret.run(DOORMAN_SECRET, JSON.stringify(session))
+    })()
+  }
+
+  /**
+   * The bucket and folder uploads now go to. Pointed somewhere else than
+   * before, everything remembered about the old one is forgotten, so the next
+   * pass uploads the library to where it now belongs instead of assuming it
+   * is already there. A new key, or a new sign-in, for the same bucket keeps
+   * it all.
+   */
+  adoptTarget(target: CloudTarget): void {
+    const fingerprint = JSON.stringify([target.endpoint, target.bucket, target.prefix])
+    this.#db.transaction(() => {
+      if (this.#getSecret.get(TARGET_SECRET)?.value === fingerprint) return
+      this.#forgetUploads()
+      this.#setSecret.run(TARGET_SECRET, fingerprint)
     })()
   }
 

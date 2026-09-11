@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
 
 /**
  * Configuration is read once, validated once, and frozen.
@@ -74,6 +75,19 @@ const ConfigSchema = z.object({
     })
     .default({}),
 
+  /**
+   * The doorman this Mac signs in to the cloud through (docs/SYNC.md). Empty
+   * means none: the bucket can then only be connected directly, with its key.
+   */
+  doormanUrl: z
+    .string()
+    .trim()
+    .default(DEFAULT_DOORMAN_URL)
+    .refine(value => value === '' || /^https?:\/\/[^/]+\/?$/.test(value), {
+      message: 'must be an address like https://selfmp3-doorman.you.workers.dev',
+    })
+    .transform(value => value.replace(/\/+$/, '')),
+
   logLevel: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
   /** Scan the library folder at boot. Disable for a faster start on huge libraries. */
@@ -102,6 +116,7 @@ function readEnv(): unknown {
       secretAccessKey: env['SELFMP3_S3_SECRET_ACCESS_KEY'] ?? undefined,
       signedUrlTtl: env['SELFMP3_S3_SIGNED_URL_TTL'] ?? undefined,
     },
+    doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
     logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,
     scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] ?? undefined,
   }

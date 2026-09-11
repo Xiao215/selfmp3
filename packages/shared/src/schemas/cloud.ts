@@ -202,7 +202,35 @@ export const CloudConnectSchema = z.object({
 })
 export type CloudConnect = z.infer<typeof CloudConnectSchema>
 
+/**
+ * Start signing this Mac in with Google through the doorman. The browser
+ * makes the attempt id, opens the doorman's sign-in page with it straight
+ * away (a window opened after an await is a popup, and gets blocked), and
+ * tells the Mac, which waits for Google to finish and keeps the session.
+ */
+export const CloudSignInSchema = z.object({
+  attempt: z.string().regex(/^[0-9a-f]{32}$/, 'not a sign-in attempt'),
+})
+export type CloudSignIn = z.infer<typeof CloudSignInSchema>
+
+export const CloudAccountSchema = z.object({
+  email: z.string(),
+  name: z.string().nullable(),
+  picture: z.string().nullable(),
+})
+export type CloudAccount = z.infer<typeof CloudAccountSchema>
+
 export const CloudStatusSchema = z.object({
+  /**
+   * The doorman this Mac signs in through, or null when none is set up — then
+   * the only way in is connecting a bucket directly with its key.
+   */
+  doormanUrl: z.string().nullable(),
+  /** The Google account signed in through the doorman. */
+  account: CloudAccountSchema.nullable(),
+  /** Waiting for Google to finish a sign-in started from this Mac. */
+  signingIn: z.boolean(),
+  /** A bucket is in use: connected directly, or belonging to the signed-in account. */
   connected: z.boolean(),
   /** Where it is connected to. The key itself is never sent back. */
   target: z

@@ -9,13 +9,16 @@ import {
   CloudSnapshotSchema,
   newestSnapshotKey,
   snapshotKey,
+  parseEndpoint,
   type CloudConnect,
   type CloudSnapshot,
+  type DoormanClaimResult,
+  type DoormanMe,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
-import { CloudError } from '../cloud/store.js'
+import { CloudError, type CloudStore } from '../cloud/store.js'
 import { MemoryCloudStore } from '../cloud/memoryStore.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { ImportRepository } from '../repositories/imports.js'
@@ -23,7 +26,7 @@ import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
-import { CloudSyncService } from './cloudSync.js'
+import { CloudSyncService, type Doorman } from './cloudSync.js'
 import { CoverService } from './covers.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
@@ -107,9 +110,14 @@ describe('CloudSyncService', () => {
     })
   })
 
+  /** Services a test made besides `sync`, stopped with it. */
+  const extras: CloudSyncService[] = []
+
   afterEach(async () => {
-    sync.stop()
-    await sync.whenIdle()
+    for (const service of [sync, ...extras.splice(0)]) {
+      service.stop()
+      await service.whenIdle()
+    }
     db.close()
     fs.rmSync(root, { recursive: true, force: true })
     fs.rmSync(dataDir, { recursive: true, force: true })
@@ -595,6 +603,269 @@ describe('CloudSyncService', () => {
       expect(bucket.keys()).toEqual(keys)
       expect(sync.status()).toMatchObject({ connected: false, state: 'off', target: null })
       expect(cloud.connection()).toBeNull()
+    })
+  })
+
+  describe('signing in through the doorman', () => {
+    /**
+     * The doorman as the Mac sees it: Google "finishes" a sign-in when a test
+     * says so, each session belongs to an account, and an account's bucket is
+     * one of the memory buckets above, by name.
+     */
+    class FakeDoorman implements Doorman {
+      readonly url = 'https://doorman.test'
+      /** attempt → the session Google's sign-in produced, once it has. */
+      readonly finished = new Map<string, string>()
+      readonly accounts = new Map<string, DoormanMe>()
+      readonly signedOut: string[] = []
+      meFailure: CloudError | null = null
+
+      finish(attempt: string, token: string, storage: DoormanMe['storage'] = null): void {
+        this.accounts.set(token, { email: 'me@example.com', name: 'Me', picture: null, storage })
+        this.finished.set(attempt, token)
+      }
+
+      claim(attempt: string): Promise<DoormanClaimResult> {
+        const token = this.finished.get(attempt)
+        const me = token ? this.accounts.get(token) : undefined
+        if (!token || !me) return Promise.resolve({ status: 'pending' })
+        this.finished.delete(attempt)
+        return Promise.resolve({ status: 'signed-in', token, me })
+      }
+
+      me(token: string): Promise<DoormanMe> {
+        if (this.meFailure) return Promise.reject(this.meFailure)
+        const me = this.accounts.get(token)
+        return me ? Promise.resolve(me) : Promise.reject(new CloudError('auth', 'signed out'))
+      }
+
+      connectStorage(token: string, input: CloudConnect): Promise<DoormanMe> {
+        const me = this.accounts.get(token)
+        if (!me) return Promise.reject(new CloudError('auth', 'signed out'))
+        const next: DoormanMe = {
+          ...me,
+          storage: {
+            endpoint: parseEndpoint(input.endpoint)?.url ?? input.endpoint,
+            region: 'us-west-004',
+            bucket: input.bucket,
+            prefix: input.prefix,
+            keyIdHint: `${input.keyId.slice(0, 6)}…`,
+          },
+        }
+        this.accounts.set(token, next)
+        return Promise.resolve(next)
+      }
+
+      signOut(token: string): Promise<void> {
+        this.signedOut.push(token)
+        return Promise.resolve()
+      }
+
+      store(token: string): CloudStore {
+        const bucketName = this.accounts.get(token)?.storage?.bucket ?? ''
+        let store = buckets.get(bucketName)
+        if (!store) {
+          store = new MemoryCloudStore()
+          buckets.set(bucketName, store)
+        }
+        return store
+      }
+    }
+
+    const STORAGE: NonNullable<DoormanMe['storage']> = {
+      endpoint: 'https://s3.us-west-004.backblazeb2.com',
+      region: 'us-west-004',
+      bucket: CONNECT.bucket,
+      prefix: 'selfmp3',
+      keyIdHint: '004abc…',
+    }
+    const ATTEMPT = 'c'.repeat(32)
+
+    const withDoorman = (doorman: FakeDoorman, now = () => new Date((clock += 1000))) => {
+      const storage = new LocalStorageDriver(root)
+      const logger = createLogger('silent')
+      const service = new CloudSyncService({
+        cloud,
+        songs,
+        tags,
+        playlists,
+        imports,
+        storage,
+        covers,
+        lyrics: new LyricsService(storage, logger, () => Promise.reject(new Error('offline'))),
+        metadata: new MetadataService(storage, logger),
+        logger,
+        openStore: connection => {
+          let store = buckets.get(connection.bucket)
+          if (!store) {
+            store = new MemoryCloudStore()
+            buckets.set(connection.bucket, store)
+          }
+          return store
+        },
+        doormanUrl: doorman.url,
+        openDoorman: () => doorman,
+        debounceMs: 5,
+        signInPollMs: 1,
+        now,
+      })
+      extras.push(service)
+      return service
+    }
+
+    const signIn = async (service: CloudSyncService): Promise<void> => {
+      service.beginSignIn(ATTEMPT)
+      await service.whenSignedIn()
+      await service.whenIdle()
+    }
+
+    it('waits for Google, then publishes to the bucket that belongs to the account', async () => {
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      const service = withDoorman(doorman)
+
+      service.beginSignIn(ATTEMPT)
+      expect(service.status()).toMatchObject({ signingIn: true, account: null })
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      await service.whenSignedIn()
+      await service.whenIdle()
+
+      expect(service.status()).toMatchObject({
+        doormanUrl: 'https://doorman.test',
+        signingIn: false,
+        account: { email: 'me@example.com' },
+        connected: true,
+        target: { bucket: CONNECT.bucket, prefix: 'selfmp3' },
+        songs: { total: 1, inCloud: 1 },
+      })
+      expect(latest().songs).toHaveLength(1)
+      // The session is kept for the next start, never a bucket key.
+      expect(cloud.doormanSession()).toMatchObject({ token: 'session-1', email: 'me@example.com' })
+      expect(cloud.connection()).toBeNull()
+    })
+
+    it('asks a new account to connect its bucket, then publishes to it', async () => {
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      const service = withDoorman(doorman)
+      doorman.finish(ATTEMPT, 'session-1')
+      await signIn(service)
+      expect(service.status()).toMatchObject({
+        account: { email: 'me@example.com' },
+        connected: false,
+      })
+
+      await service.connectStorage(CONNECT)
+      await service.whenIdle()
+      expect(service.status()).toMatchObject({ connected: true, songs: { inCloud: 1 } })
+      expect(latest().songs).toHaveLength(1)
+    })
+
+    it('carries on after a restart with the account it was signed in to', async () => {
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      await signIn(withDoorman(doorman))
+      const puts = bucket.puts.length
+
+      const again = withDoorman(doorman)
+      again.start()
+      await again.whenIdle()
+      expect(again.status()).toMatchObject({
+        connected: true,
+        account: { email: 'me@example.com' },
+      })
+      // Nothing is sent twice: the bookkeeping belongs to the same bucket.
+      expect(bucket.puts.slice(puts).filter(key => key.startsWith('audio/'))).toEqual([])
+    })
+
+    it('uploads everything again when the account’s bucket has changed', async () => {
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      await signIn(withDoorman(doorman))
+
+      // Swapped for another bucket from another device.
+      doorman.accounts.set('session-1', {
+        email: 'me@example.com',
+        name: 'Me',
+        picture: null,
+        storage: { ...STORAGE, bucket: 'new-bucket' },
+      })
+      const again = withDoorman(doorman)
+      again.start()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      await again.whenIdle()
+      expect(buckets.get('new-bucket')?.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+    })
+
+    it('says so when the doorman no longer knows the session', async () => {
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      await signIn(withDoorman(doorman))
+
+      doorman.meFailure = new CloudError('auth', 'Your Google sign-in has expired.')
+      const again = withDoorman(doorman)
+      again.start()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(again.status()).toMatchObject({ state: 'error', lastError: /expired/ })
+    })
+
+    it('stops publishing, rather than retrying, when the session is refused mid-way', async () => {
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      const service = withDoorman(doorman)
+      await signIn(service)
+
+      bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
+      addSong('B - Two', 'two')
+      await service.syncNow()
+      await service.whenIdle()
+      expect(service.status()).toMatchObject({
+        connected: false,
+        state: 'error',
+        account: { email: 'me@example.com' },
+        lastError: 'Your Google sign-in has expired.',
+      })
+    })
+
+    it('gives up waiting after ten minutes', async () => {
+      let time = Date.parse('2026-09-11T10:00:00Z')
+      const service = withDoorman(new FakeDoorman(), () => new Date(time))
+      service.beginSignIn(ATTEMPT)
+      time += 11 * 60_000
+      await service.whenSignedIn()
+      expect(service.status()).toMatchObject({ signingIn: false, account: null })
+    })
+
+    it('signs out when disconnected, and forgets the session', async () => {
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      const service = withDoorman(doorman)
+      await signIn(service)
+
+      service.disconnect()
+      expect(doorman.signedOut).toEqual(['session-1'])
+      expect(service.status()).toMatchObject({ account: null, connected: false, state: 'off' })
+      expect(cloud.doormanSession()).toBeNull()
+    })
+
+    it('lets a direct connection replace the sign-in', async () => {
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      const service = withDoorman(doorman)
+      await signIn(service)
+
+      await service.connect({ ...CONNECT, bucket: 'direct-bucket' })
+      await service.whenIdle()
+      expect(service.status()).toMatchObject({ account: null, target: { bucket: 'direct-bucket' } })
+      expect(cloud.doormanSession()).toBeNull()
+    })
+
+    it('refuses to sign in with no doorman set up', () => {
+      expect(() => sync.beginSignIn(ATTEMPT)).toThrow(/No doorman/)
+      expect(sync.status().doormanUrl).toBeNull()
     })
   })
 })

@@ -500,12 +500,18 @@ export function useCloudStatus(): UseQueryResult<CloudStatus, Error> {
   return useQuery({
     queryKey: queryKeys.cloud,
     queryFn: () => api.cloudStatus(),
-    refetchInterval: query => (query.state.data?.state === 'syncing' ? 1_000 : 10_000),
+    // Quickly while something is moving — an upload, or Google finishing a
+    // sign-in in another tab — and slowly otherwise.
+    refetchInterval: query =>
+      query.state.data?.state === 'syncing' || query.state.data?.signingIn ? 1_000 : 10_000,
     refetchIntervalInBackground: false,
   })
 }
 
-/** Connect, publish now, or disconnect — each answers with the new status. */
+/**
+ * Connect, sign in, publish now, or disconnect — each answers with the new
+ * status, so the panel moves on without waiting for the next poll.
+ */
 export function useCloudActions() {
   const client = useQueryClient()
   const onSuccess = (status: CloudStatus): void => {
@@ -518,5 +524,11 @@ export function useCloudActions() {
     }),
     sync: useMutation({ mutationFn: () => api.cloudSync(), onSuccess }),
     disconnect: useMutation({ mutationFn: () => api.cloudDisconnect(), onSuccess }),
+    signIn: useMutation({ mutationFn: (attempt: string) => api.cloudSignIn(attempt), onSuccess }),
+    cancelSignIn: useMutation({ mutationFn: () => api.cloudCancelSignIn(), onSuccess }),
+    connectStorage: useMutation({
+      mutationFn: (input: CloudConnect) => api.cloudConnectStorage(input),
+      onSuccess,
+    }),
   }
 }

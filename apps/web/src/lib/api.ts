@@ -367,6 +367,14 @@ export const api = {
 
   cloudSync: () => request('POST', '/api/cloud/sync', CloudStatusSchema),
 
+  cloudSignIn: (attempt: string) =>
+    request('POST', '/api/cloud/signin', CloudStatusSchema, { attempt }),
+
+  cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
+
+  cloudConnectStorage: (input: CloudConnect) =>
+    request('PUT', '/api/cloud/storage', CloudStatusSchema, input),
+
   // --- system -------------------------------------------------------------
 
   health: () => request('GET', '/api/health', HealthSchema),

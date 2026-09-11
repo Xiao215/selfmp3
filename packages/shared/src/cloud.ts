@@ -151,6 +151,14 @@ export function isCloudListPrefix(prefix: string): boolean {
 // --- Connecting -----------------------------------------------------------------
 
 /**
+ * The doorman every device signs in through, unless told otherwise
+ * (SELFMP3_DOORMAN_URL on the Mac, VITE_DOORMAN_URL for a web build). Empty
+ * until the owner's doorman is deployed — and a fork deploys its own and
+ * changes this one line.
+ */
+export const DEFAULT_DOORMAN_URL = ''
+
+/**
  * Tidy an endpoint as it is pasted from a bucket's page, and work out its
  * region where the address says it: `s3.us-west-004.backblazeb2.com` is in
  * `us-west-004`. Other providers need the region given.

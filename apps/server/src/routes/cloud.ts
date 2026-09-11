@@ -1,40 +1,74 @@
 import { Router } from 'express'
-import { CloudConnectSchema, type CloudStatus } from '@selfmp3/shared'
+import { CloudConnectSchema, CloudSignInSchema, type CloudStatus } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { CloudError } from '../cloud/store.js'
 import { HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
 
 /**
- * This Mac's connection to the cloud bucket (docs/SYNC.md): connect, see how
- * publishing is going, publish now, disconnect. The key is accepted here and
- * never sent back.
+ * This Mac's way into the cloud bucket (docs/SYNC.md): sign in with Google
+ * through the doorman and connect the bucket that belongs to that account —
+ * or, with no doorman, connect a bucket directly with its key. Then: see how
+ * publishing is going, publish now, disconnect. A key is accepted here and
+ * never sent back, and the doorman's session never leaves this Mac.
  */
 export function cloudRoutes(container: Container): Router {
   const router = Router()
+
+  /** The bucket's own answer is the useful part — it goes back to the form as it is. */
+  const explain = async <T>(work: () => Promise<T> | T): Promise<T> => {
+    try {
+      return await work()
+    } catch (error) {
+      if (error instanceof CloudError) {
+        throw error.kind === 'auth'
+          ? HttpError.unauthorized(error.message)
+          : HttpError.unprocessable(error.message)
+      }
+      throw error
+    }
+  }
 
   router.get(
     '/cloud',
     route({}, (): CloudStatus => container.cloudSync.status()),
   )
 
+  /** Connect a bucket directly with its key: the way in when there is no doorman. */
   router.put(
     '/cloud',
-    route({ body: CloudConnectSchema }, async ({ body }): Promise<CloudStatus> => {
-      try {
-        return await container.cloudSync.connect(body)
-      } catch (error) {
-        // The bucket's answer is the useful part: which of the key, the address
-        // or the bucket was wrong. It goes back to the form as it is.
-        if (error instanceof CloudError) throw HttpError.unprocessable(error.message)
-        throw error
-      }
-    }),
+    route({ body: CloudConnectSchema }, ({ body }): Promise<CloudStatus> =>
+      explain(() => container.cloudSync.connect(body)),
+    ),
   )
 
   router.delete(
     '/cloud',
     route({}, (): CloudStatus => container.cloudSync.disconnect()),
+  )
+
+  /**
+   * Start waiting for a Google sign-in the browser has just opened with this
+   * attempt id. Answers at once; poll GET for the account appearing.
+   */
+  router.post(
+    '/cloud/signin',
+    route({ body: CloudSignInSchema }, ({ body }): Promise<CloudStatus> =>
+      explain(() => container.cloudSync.beginSignIn(body.attempt)),
+    ),
+  )
+
+  router.delete(
+    '/cloud/signin',
+    route({}, (): CloudStatus => container.cloudSync.cancelSignIn()),
+  )
+
+  /** Connect a bucket to the signed-in Google account, through the doorman. */
+  router.put(
+    '/cloud/storage',
+    route({ body: CloudConnectSchema }, ({ body }): Promise<CloudStatus> =>
+      explain(() => container.cloudSync.connectStorage(body)),
+    ),
   )
 
   /**

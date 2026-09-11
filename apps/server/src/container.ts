@@ -128,6 +128,7 @@ export function createContainer(config: Config): Container {
     lyrics,
     metadata,
     logger,
+    doormanUrl: config.doormanUrl,
   })
 
   let version = 1

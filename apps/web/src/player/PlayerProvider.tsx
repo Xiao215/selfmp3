@@ -29,6 +29,7 @@ import {
 } from './queue.js'
 import { autoMixCrossfade, autoMixOrder } from './autoMix.js'
 import { recordListen, recordSkipListen } from '../offline/playOutbox.js'
+import { keepRecentlyPlayed } from '../offline/recentCache.js'
 import { countInMs, tapLoop } from './practice.js'
 
 /**
@@ -224,6 +225,9 @@ export function PlayerProvider({
         // Through the outbox, not straight to the server: with the Mac asleep
         // the play is kept on the device and sent when it wakes up.
         recordListen(currentId, Math.round(tracking.listenedSeconds * 1000), false)
+        // A song listened to is one worth having on the device, where songs
+        // are streamed rather than downloaded ahead.
+        void keepRecentlyPlayed(currentId)
       }
     }
   }, [engine, playThreshold])

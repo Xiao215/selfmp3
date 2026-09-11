@@ -26,8 +26,7 @@ const EXCLUDED_KEY = 'selfmp3:offline-excluded'
  * The browser running on the Mac that serves the library.
  *
  * Its audio is already on this disk, so copying the whole library into the
- * browser's cache as well would double it for nothing. Automatic downloads
- * start off here; everywhere else they start on.
+ * browser's cache as well would double it for nothing.
  */
 export function isServerMachine(): boolean {
   // Built for the web, no machine holds the library: it is all in the bucket.
@@ -36,8 +35,20 @@ export function isServerMachine(): boolean {
   return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname)
 }
 
+/**
+ * Where automatic downloads start.
+ *
+ * Off in a browser reading the bucket. A tab at an address is not a device
+ * anyone chose to fill: songs stream from the bucket, the ones actually
+ * listened to are kept for a while (recentCache.ts), and copying a library
+ * of a thousand songs into a browser is a thing to ask for, not to assume.
+ *
+ * Off on the Mac too, which has the files already. On for a phone or a laptop
+ * reaching the Mac over Tailscale — there, downloading ahead is the whole
+ * point: the Mac is not always awake.
+ */
 export function defaultPrefs(): OfflinePrefs {
-  return { auto: !isServerMachine(), wifiOnly: true, scope: 'library' }
+  return { auto: !CLOUD && !isServerMachine(), wifiOnly: true, scope: 'library' }
 }
 
 export function loadPrefs(): OfflinePrefs {

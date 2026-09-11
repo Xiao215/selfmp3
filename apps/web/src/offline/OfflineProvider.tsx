@@ -39,6 +39,7 @@ import {
   type OfflinePrefs,
 } from './autoDownload.js'
 import { flushListens, loadPendingListens, subscribePendingListens } from './playOutbox.js'
+import { clearRecent, forgetRecent, recentIds } from './recentCache.js'
 
 /**
  * Offline state for the whole app.
@@ -46,10 +47,12 @@ import { flushListens, loadPendingListens, subscribePendingListens } from './pla
  * This is the feature that makes the app usable when the Mac is asleep. Three
  * jobs live here:
  *
- * - **Downloads.** By default this device keeps every song — or every song in
- *   a playlist — without being asked: on Wi-Fi, whenever the Mac is reachable,
- *   until the device is nearly full. What is cached is always visible and
- *   countable, and anything can be turned off.
+ * - **Downloads.** A device reaching the Mac keeps every song — or every song
+ *   in a playlist — without being asked: on Wi-Fi, whenever the Mac is
+ *   reachable, until the device is nearly full. A browser reading the bucket
+ *   starts the other way round, streaming and keeping only what it is asked
+ *   to keep (`autoDownload.ts`, `recentCache.ts`). Either way, what is held
+ *   is visible and countable, and anything can be turned off.
  * - **Plays made offline.** Held on the device (`playOutbox.ts`) and sent the
  *   moment the Mac answers again.
  * - **Reachability.** `navigator.onLine` knows about the network, not about
@@ -209,7 +212,12 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   const settledRef = useRef<string | null>(null)
 
   const refreshCached = useCallback(async () => {
-    setCachedIds(await cachedSongIds())
+    // Songs held only because they were played are a cache, not downloads:
+    // recentCache.ts may let one go at any moment, and a mark that came and
+    // went on its own would be a lie about what this device keeps.
+    const recent = recentIds()
+    const cached = await cachedSongIds()
+    setCachedIds(new Set([...cached].filter(songId => !recent.has(songId))))
   }, [])
 
   const refreshUsage = useCallback(async () => {
@@ -439,6 +447,17 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     }
     if (!prefs.auto) {
       setAuto({ kind: 'off' })
+      // Nothing downloads on its own here, but a song that has left the
+      // library should not go on taking up room either — the automatic pass
+      // that usually sweeps those up is not running.
+      const keep = new Set(libraryIdsRef.current)
+      if (keep.size > 0) {
+        void pruneCache(keep).then(gone => {
+          if (gone === 0) return
+          void refreshCached()
+          void refreshUsage()
+        })
+      }
       return
     }
     if (!serverReachable) return
@@ -505,6 +524,9 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       reportProgress(songId, 0)
       try {
         await cacheSong(songId, undefined, fraction => reportProgress(songId, fraction))
+        // Asked for by hand, so it stays: no longer a copy the budget for
+        // recently played songs can decide to let go of.
+        forgetRecent(songId)
         setCachedIds(previous => new Set(previous).add(songId))
       } finally {
         finishProgress(songId)
@@ -517,7 +539,9 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   const removeOne = useCallback(
     async (songId: number) => {
       await uncacheSong(songId)
-      // Remembered, so the next automatic pass does not put it straight back.
+      forgetRecent(songId)
+      // Remembered, so neither the next automatic pass nor the next play of
+      // it puts it straight back.
       updateExcluded(ids => ids.add(songId))
       setCachedIds(previous => {
         const next = new Set(previous)
@@ -532,6 +556,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   const clearAll = useCallback(async () => {
     abortRef.current?.abort()
     await clearAudioCache()
+    clearRecent()
     setCachedIds(new Set())
     setSync({ status: 'idle' })
     // With automatic downloads on, an emptied cache would simply fill again —

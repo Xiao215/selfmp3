@@ -244,11 +244,20 @@ export function SettingsView() {
               <LibraryOnThisDevice songs={songs} />
             ) : (
               <>
-            <p className="panel-lead">
-              Downloaded songs play with no connection at all — which is the point, since your Mac
-              won&rsquo;t always be awake. New songs download on their own; plays you make offline
-              are kept here and sent to your Mac when it&rsquo;s back.
-            </p>
+            {CLOUD ? (
+              <p className="panel-lead">
+                Songs stream from your bucket, so nothing is kept here unless you ask for it. One
+                you listen to all the way through is kept for a while — the next play costs
+                nothing, and works with no connection. Downloading a song by hand keeps it for
+                good.
+              </p>
+            ) : (
+              <p className="panel-lead">
+                Downloaded songs play with no connection at all — which is the point, since your
+                Mac won&rsquo;t always be awake. New songs download on their own; plays you make
+                offline are kept here and sent to your Mac when it&rsquo;s back.
+              </p>
+            )}
 
             {!offline.supported && (
               <p className="notice notice-warn">
@@ -260,10 +269,18 @@ export function SettingsView() {
             <label className="setting-row setting-row-toggle">
               <span className="setting-label">
                 Download automatically
-                <span className="setting-hint">
-                  Keeps this device in step with your library whenever your Mac is reachable. A song
-                  you remove by hand stays removed.
-                </span>
+                {CLOUD ? (
+                  <span className="setting-hint">
+                    Keeps a copy of your whole library in this browser. Worth it on a phone with
+                    self.mp3 on its home screen, and a lot of storage anywhere else. A song you
+                    remove by hand stays removed.
+                  </span>
+                ) : (
+                  <span className="setting-hint">
+                    Keeps this device in step with your library whenever your Mac is reachable. A
+                    song you remove by hand stays removed.
+                  </span>
+                )}
               </span>
               <span className="setting-control">
                 <input

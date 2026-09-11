@@ -114,6 +114,28 @@ export async function isCached(songId: number): Promise<boolean> {
 }
 
 /**
+ * How much room each of these songs is taking, by id. A song this device does
+ * not hold is left out, which is how a caller tells the two apart; one stored
+ * without a length counts as nothing rather than as missing.
+ */
+export async function cachedBytes(ids: Iterable<number>): Promise<Map<number, number>> {
+  const bytes = new Map<number, number>()
+  if (!cachesAvailable()) return bytes
+  try {
+    const cache = await caches.open(AUDIO_CACHE)
+    for (const songId of ids) {
+      const response = await cache.match(audioCacheKey(songId))
+      if (!response) continue
+      const length = Number(response.headers.get('content-length') ?? Number.NaN)
+      bytes.set(songId, Number.isFinite(length) ? length : 0)
+    }
+  } catch {
+    // An unreadable cache is holding nothing, as far as a budget is concerned.
+  }
+  return bytes
+}
+
+/**
  * How far through a download is, from 0 to 1 — or null when the server did
  * not say how big the file is, and only "still going" can be shown.
  */

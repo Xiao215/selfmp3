@@ -15,8 +15,9 @@
  *
  * Built for the web (GitHub Pages, docs/SYNC.md) there is no Mac: a song or a
  * cover this device does not have yet is fetched from the bucket through the
- * doorman instead, with the session the app keeps in IndexedDB. For the
- * player, the whole song is fetched and kept before any of it plays.
+ * doorman instead, with the session the app keeps in IndexedDB. The player's
+ * range goes to the bucket as it is, so a song streams rather than having to
+ * arrive whole; only what the page asks to keep is kept.
  *
  * The app may live under a path (`/selfmp3/` on Pages), so every path here is
  * taken relative to the scope this worker was registered with.
@@ -119,11 +120,13 @@ self.addEventListener('fetch', event => {
 })
 
 /**
- * Serve audio, honouring range requests from the cache.
+ * Serve audio: from this device when it is here, from the bucket when it is not.
  *
- * This is the function that makes offline playback actually work. The cache
- * holds a complete 200 response; a player asking for bytes 500-999 gets a
- * correctly-formed 206 slice built here, because the Cache API will not do it.
+ * A downloaded song is a complete 200 in the cache, and a player asking for
+ * bytes 500-999 gets a correctly-formed 206 slice built here, because the
+ * Cache API will not do it. A song that was never downloaded is streamed from
+ * the bucket a range at a time and kept nowhere — a library of a thousand
+ * songs is not something a browser tab should quietly copy.
  */
 async function handleAudio(request: Request, url: URL): Promise<Response> {
   const cache = await caches.open(AUDIO_CACHE)
@@ -136,27 +139,15 @@ async function handleAudio(request: Request, url: URL): Promise<Response> {
     return sliceResponse(cached, range)
   }
 
+  // A download asks for the whole file and the page keeps what comes back;
+  // the player asks for a range and nothing is kept. Either way the bucket
+  // answers the request that was made, through the doorman.
   const fromBucket = await bucketFileFor(url, 'audio')
-  if (fromBucket) {
-    const range = request.headers.get('range')
-    // A download asks for the whole file with no range: pass it straight
-    // through, and the page keeps it as it arrives, counting the bytes.
-    if (!range) return fetchFromBucket(fromBucket)
-    // The player asks for a range. Nothing plays until it is on the device, so
-    // the whole song is fetched and kept first, and the range cut from that.
-    const response = await fetchFromBucket(fromBucket)
-    if (!response.ok) return response
-    const complete = new Response(await response.arrayBuffer(), {
-      status: 200,
-      headers: response.headers,
-    })
-    await cache.put(cacheKey, complete.clone())
-    return sliceResponse(complete, range)
-  }
+  if (fromBucket) return fetchFromBucket(fromBucket, request.headers.get('range'))
 
-  // Not cached — go to the network and do not store it. Songs enter the cache
-  // only through an explicit sync, so casual listening cannot quietly fill up
-  // the phone's storage.
+  // Served by the Mac, and not on this device: go to the network and store
+  // nothing. What this cache holds is the page's decision, never a side
+  // effect of playing something (offline/audioCache.ts, offline/recentCache.ts).
   try {
     return await fetch(request)
   } catch {
@@ -370,16 +361,36 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
   }
 }
 
-/** A file from the bucket, as a plain same-origin response. */
-async function fetchFromBucket(file: BucketFile): Promise<Response> {
+/**
+ * A file from the bucket, as a plain same-origin response.
+ *
+ * A range asked for here is asked of the bucket too, and its answer — a 206,
+ * a `content-range` — comes back as it is, so a song plays and seeks while it
+ * arrives instead of after it. The bytes are passed straight on: the doorman
+ * never holds a body whole, and neither does this.
+ */
+async function fetchFromBucket(file: BucketFile, range?: string | null): Promise<Response> {
   try {
-    const response = await fetch(file.url, { headers: { Authorization: `Bearer ${file.token}` } })
+    const ask = new Headers({ Authorization: `Bearer ${file.token}` })
+    if (range) ask.set('range', range)
+    const response = await fetch(file.url, { headers: ask })
     const headers = new Headers()
-    for (const name of ['content-type', 'content-length', 'etag']) {
+    for (const name of [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'etag',
+    ]) {
       const value = response.headers.get(name)
       if (value) headers.set(name, value)
     }
-    headers.set('Cache-Control', 'private, max-age=31536000, immutable')
+    // A whole file is the one the hash names, forever. A slice of one is the
+    // player's business for as long as it is playing, and no cache's.
+    headers.set(
+      'Cache-Control',
+      response.status === 206 ? 'no-store' : 'private, max-age=31536000, immutable',
+    )
     return new Response(response.body, { status: response.status, headers })
   } catch {
     return new Response('This song is not on this device, and the cloud cannot be reached.', {

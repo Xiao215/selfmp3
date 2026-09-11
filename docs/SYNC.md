@@ -14,8 +14,9 @@ Most of it is built. What is not is marked **Still to come**, at the end.
 
 The music, the covers, the lyrics and everything you do to them live in one cloud bucket
 that belongs to your Google account. Every device keeps its own full copy of the library's
-*metadata*, and downloads the *audio* it wants to keep. Nothing plays until it is on the
-device. Any device can play, edit, tag and ask for an import; each writes what it did to the
+*metadata*, and decides for itself how much of the *audio* to keep: an app on a phone
+downloads ahead so it works with no signal, a browser tab streams and keeps what you play.
+Any device can play, edit, tag and ask for an import; each writes what it did to the
 bucket, and every other device picks it up the next time it syncs. The bucket is plain
 storage — no code runs there — so every rule about how changes combine lives in
 `packages/shared`, and every device runs the same rules.
@@ -31,8 +32,8 @@ storage — no code runs there — so every rule about how changes combine lives
 
 **Why B2.** It speaks the S3 API, which the server already uses for its S3 storage driver. It
 needs no card for the free tier. Uploads, downloads and listings are free API calls. Downloads
-are free up to three times what you store each month, which fits a download-once design
-exactly: each device fetches each song once, ever. And it is not tied to your Google account,
+are free up to three times what you store each month — 30 GB for a full 10 GB library, which
+is a great deal more listening than one person does. And it is not tied to your Google account,
 so nothing that happens to the bucket can touch your email.
 
 Google Drive was considered: more free space (15 GB, shared with Gmail and Photos), but a
@@ -62,8 +63,11 @@ song bytes stream through it without it holding them.
    overwriting it — which matters, because plain storage cannot tell you it happened.
 4. **Done means uploaded.** An import, or an edit, counts once it is in the bucket where other
    devices can see it. Before that it is "on this device, uploading".
-5. **Nothing plays until it is on the device.** Tapping a song that is not downloaded fetches
-   it first, then plays it from the device. Streaming from the bucket is not a thing.
+5. **A device keeps what it will want, not everything there is.** An installed app downloads
+   ahead — the point of it is music with no signal. A browser tab streams from the bucket a
+   range at a time and keeps only the songs you listened to, because a library of a thousand
+   songs is not something a tab should quietly copy. Either way, a song already on the device
+   plays from the device: see `apps/web/src/offline/recentCache.ts`.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The Mac is special only because it can
@@ -166,8 +170,13 @@ something, and on demand. An import is not done until its song is in a snapshot.
 
 The web app builds for GitHub Pages (`VITE_CLOUD=1`, under `/selfmp3/`), with no Mac behind
 it. It signs in with Google, connects the account's bucket if no device has yet, and shows the
-library from the newest snapshot. Songs download into the device — the service worker fetches
-them from the bucket through the doorman — and play from there, offline, as they always have.
+library from the newest snapshot. The service worker (`apps/web/src/sw.ts`) stands between the
+player and the bucket: a song already on the device is served from there, ranges and all, and
+one that is not is streamed from the bucket through the doorman, which passes `Range` straight
+to B2 and its `206` straight back. Nothing is kept on the way past. A song you listen to all
+the way through is then kept, up to a budget, oldest let go first; downloading one by hand
+keeps it for good. Automatic downloads exist here too, but they start off — they are worth
+turning on for a phone with the app on its home screen, and little else.
 
 ### Editing from anywhere
 

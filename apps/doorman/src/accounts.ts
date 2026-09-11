@@ -2,32 +2,30 @@ import type { DoormanMe } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { BucketTarget } from './bucket.js'
 import type { Log } from './context.js'
+import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 import { seal, unseal } from './seal.js'
-import type { Identity } from './sessions.js'
+import type { Session } from './sessions.js'
 
 /**
- * Google accounts, and the one bucket that belongs to each.
+ * What belongs to a Google account beyond its sessions: its one bucket, and
+ * the last time it signed out everywhere.
  *
- * The record is keyed by Google's `sub`, which never changes, and keeps the
- * name, address and picture Google gave at the last sign-in. The bucket —
- * where it is and the key to it — is one sealed string (see seal.ts); it is
- * opened only inside the Worker, to sign requests, and never sent anywhere.
+ *   bucket:<sub>    the bucket's details and key, sealed (see seal.ts)
+ *   signout:<sub>   { sessionsValidAfter }: older sessions are refused
  *
- * Like sessions, accounts are remembered by each Worker instance for a
- * minute, which saves a KV read on nearly every file a device fetches.
- * Connecting or forgetting a bucket updates this instance at once; others
- * catch up within the minute, as KV's own copies elsewhere do.
+ * Each has a key of its own, written only by the one thing that changes it:
+ * connecting or forgetting the bucket, and signing out everywhere. KV is
+ * eventually consistent, so a request that read a record a moment ago and
+ * wrote it back whole could undo a change made meanwhile somewhere else.
+ * With nothing else ever writing these keys, nothing can.
+ *
+ * A bucket is opened only inside the Worker, to sign requests, and never
+ * sent anywhere. Both records are remembered by each Worker instance for a
+ * minute, which saves KV reads on nearly every file a device fetches; a
+ * change is seen at once by the instance that made it, and by others within
+ * the minute, as KV's own copies elsewhere catch up.
  */
-
-export const AccountSchema = z.object({
-  email: z.string(),
-  name: z.string().nullable(),
-  picture: z.string().nullable(),
-  /** `v1:…` — the bucket, sealed. Null until one is connected. */
-  storage: z.string().nullable(),
-})
-export type Account = z.infer<typeof AccountSchema>
 
 /** What is sealed: everything needed to sign a request to the bucket. */
 const StoredBucketSchema = z.object({
@@ -39,69 +37,48 @@ const StoredBucketSchema = z.object({
   applicationKey: z.string(),
 })
 
+const SignOutSchema = z.object({ sessionsValidAfter: z.string().datetime() })
+
 const CACHE_MS = 60_000
 const CACHE_LIMIT = 500
 
+interface Remembered<Value> {
+  readonly value: Value
+  readonly until: number
+}
+
 export interface AccountCache {
-  readonly accounts: Map<string, { account: Account | null; until: number }>
+  /** `bucket:<sub>` as KV had it: the sealed string, or null. */
+  readonly sealed: Map<string, Remembered<string | null>>
   /** Opened buckets, by account and the sealed string they came from. */
-  readonly buckets: Map<string, BucketTarget>
+  readonly opened: Map<string, BucketTarget>
+  /** `signout:<sub>`, in milliseconds, or null for never. */
+  readonly signedOut: Map<string, Remembered<number | null>>
 }
 
 export function newAccountCache(): AccountCache {
-  return { accounts: new Map(), buckets: new Map() }
+  return { sealed: new Map(), opened: new Map(), signedOut: new Map() }
 }
 
 export class Accounts {
   readonly #kv: KvStore
   readonly #now: () => number
   readonly #cache: AccountCache
-  readonly #sealKey: () => Promise<CryptoKey>
+  readonly #keys: () => Promise<DoormanKeys>
   readonly #log: Log
 
   constructor(
     kv: KvStore,
     now: () => number,
     cache: AccountCache,
-    sealKey: () => Promise<CryptoKey>,
+    keys: () => Promise<DoormanKeys>,
     log: Log,
   ) {
     this.#kv = kv
     this.#now = now
     this.#cache = cache
-    this.#sealKey = sealKey
+    this.#keys = keys
     this.#log = log
-  }
-
-  async get(sub: string): Promise<Account | null> {
-    const now = this.#now()
-    const cached = this.#cache.accounts.get(sub)
-    if (cached && cached.until > now) return cached.account
-    const account = await getRecord(this.#kv, accountKey(sub), AccountSchema)
-    this.#remember(sub, account)
-    return account
-  }
-
-  /** Record a sign-in: the latest name and picture, and whatever bucket it already had. */
-  async signedIn(identity: Identity): Promise<Account> {
-    const existing = await getRecord(this.#kv, accountKey(identity.sub), AccountSchema)
-    return this.#save(identity.sub, {
-      email: identity.email,
-      name: identity.name,
-      picture: identity.picture,
-      storage: existing?.storage ?? null,
-    })
-  }
-
-  /** Seal a bucket and make it this account's, replacing any it had. */
-  async connect(sub: string, account: Account, target: BucketTarget): Promise<Account> {
-    const sealed = await seal(JSON.stringify(target), await this.#sealKey(), sealContext(sub))
-    return this.#save(sub, { ...account, storage: sealed })
-  }
-
-  /** Forget the bucket. The bucket and everything in it are left alone. */
-  async disconnect(sub: string, account: Account): Promise<Account> {
-    return this.#save(sub, { ...account, storage: null })
   }
 
   /**
@@ -111,35 +88,67 @@ export class Accounts {
    * was edited — counts as none: the device is asked to connect its bucket
    * again, which replaces it, rather than being stuck with an error.
    */
-  async bucket(sub: string, account: Account): Promise<BucketTarget | null> {
-    if (account.storage === null) return null
+  async bucket(sub: string): Promise<BucketTarget | null> {
+    const sealed = await this.#remembered(this.#cache.sealed, sub, () =>
+      this.#kv.get(bucketKey(sub)),
+    )
+    if (sealed === null) return null
     // Keyed by the account too, so a sealed value copied onto another
     // account's record is still refused here, as unseal would refuse it.
-    const cacheKey = `${sub}\n${account.storage}`
-    const cached = this.#cache.buckets.get(cacheKey)
-    if (cached) return cached
+    const cacheKey = `${sub}\n${sealed}`
+    const opened = this.#cache.opened.get(cacheKey)
+    if (opened) return opened
 
-    const key = await this.#sealKey()
+    const { seal: key } = await this.#keys()
     let target: BucketTarget
     try {
-      const plain = await unseal(account.storage, key, sealContext(sub))
-      target = StoredBucketSchema.parse(JSON.parse(plain))
+      target = StoredBucketSchema.parse(JSON.parse(await unseal(sealed, key, bucketKey(sub))))
     } catch {
       this.#log.warn('an account’s bucket could not be opened; treating it as not connected')
       return null
     }
-    if (this.#cache.buckets.size >= CACHE_LIMIT) this.#cache.buckets.clear()
-    this.#cache.buckets.set(cacheKey, target)
+    remember(this.#cache.opened, cacheKey, target)
     return target
   }
 
+  /** Seal a bucket and make it the account's, replacing any it had. One KV write. */
+  async connect(sub: string, target: BucketTarget): Promise<void> {
+    const { seal: key } = await this.#keys()
+    const sealed = await seal(JSON.stringify(target), key, bucketKey(sub))
+    await this.#kv.put(bucketKey(sub), sealed)
+    this.#set(this.#cache.sealed, sub, sealed)
+  }
+
+  /** Forget the bucket. The bucket and everything in it are left alone. One KV write. */
+  async disconnect(sub: string): Promise<void> {
+    await this.#kv.delete(bucketKey(sub))
+    this.#set(this.#cache.sealed, sub, null)
+  }
+
+  /** When the account last signed out everywhere, in milliseconds, or null. */
+  sessionsValidAfter(sub: string): Promise<number | null> {
+    return this.#remembered(this.#cache.signedOut, sub, async () => {
+      const record = await getRecord(this.#kv, signOutKey(sub), SignOutSchema)
+      return record ? Date.parse(record.sessionsValidAfter) : null
+    })
+  }
+
+  /** End every session the account has, this one included. One KV write. */
+  async signOutEverywhere(sub: string): Promise<void> {
+    const now = this.#now()
+    await putRecord(this.#kv, signOutKey(sub), {
+      sessionsValidAfter: new Date(now).toISOString(),
+    })
+    this.#set(this.#cache.signedOut, sub, now)
+  }
+
   /** Who is signed in and where their bucket is, for `/v1/me`. Never the key. */
-  async me(sub: string, account: Account): Promise<DoormanMe> {
-    const target = await this.bucket(sub, account)
+  async me(session: Session): Promise<DoormanMe> {
+    const target = await this.bucket(session.sub)
     return {
-      email: account.email,
-      name: account.name,
-      picture: account.picture,
+      email: session.email,
+      name: session.name,
+      picture: session.picture,
       storage: target
         ? {
             endpoint: target.endpoint,
@@ -152,23 +161,32 @@ export class Accounts {
     }
   }
 
-  async #save(sub: string, account: Account): Promise<Account> {
-    await putRecord(this.#kv, accountKey(sub), account)
-    this.#remember(sub, account)
-    return account
+  async #remembered<Value>(
+    cache: Map<string, Remembered<Value>>,
+    sub: string,
+    read: () => Promise<Value>,
+  ): Promise<Value> {
+    const cached = cache.get(sub)
+    if (cached && cached.until > this.#now()) return cached.value
+    const value = await read()
+    this.#set(cache, sub, value)
+    return value
   }
 
-  #remember(sub: string, account: Account | null): void {
-    if (this.#cache.accounts.size >= CACHE_LIMIT) this.#cache.accounts.clear()
-    this.#cache.accounts.set(sub, { account, until: this.#now() + CACHE_MS })
+  #set<Value>(cache: Map<string, Remembered<Value>>, sub: string, value: Value): void {
+    remember(cache, sub, { value, until: this.#now() + CACHE_MS })
   }
 }
 
-function accountKey(sub: string): string {
-  return `account:${sub}`
+function remember<Value>(cache: Map<string, Value>, key: string, value: Value): void {
+  if (cache.size >= CACHE_LIMIT) cache.clear()
+  cache.set(key, value)
 }
 
-/** What a sealed bucket is tied to: see seal.ts. */
-function sealContext(sub: string): string {
-  return `account:${sub}`
+function bucketKey(sub: string): string {
+  return `bucket:${sub}`
+}
+
+function signOutKey(sub: string): string {
+  return `signout:${sub}`
 }

@@ -79,7 +79,8 @@ describe('/v1/me', () => {
     expect(h.kv.reads).toBe(reads)
     h.clock.now += 61_000
     await h.call('/v1/me', { token })
-    expect(h.kv.reads).toBe(reads + 2)
+    // The session, the account's last sign-out everywhere, and its bucket.
+    expect(h.kv.reads).toBe(reads + 3)
   })
 })
 
@@ -104,15 +105,25 @@ describe('connecting a bucket', () => {
     expect(h.bucket.requests.map(request => request.method)).toEqual(['GET', 'GET', 'PUT', 'GET'])
     expect(h.bucket.requests[0]?.url.searchParams.get('prefix')).toBe('selfmp3/format.json')
 
-    // Nothing in KV gives the key away.
+    // Nothing in KV gives the key away: the bucket is sealed, under a key of its own.
     for (const { value } of h.kv.dump()) {
       expect(value).not.toContain(APPLICATION_KEY)
       expect(value).not.toContain(KEY_ID)
     }
-    const account = JSON.parse((await h.kv.get(`account:${ME.sub}`)) ?? '') as {
-      storage: string
-    }
-    expect(account.storage).toMatch(/^v1:/)
+    expect(await h.kv.get(`bucket:${ME.sub}`)).toMatch(/^v1:[A-Za-z0-9+/]+=*$/)
+  })
+
+  it('is never rewritten by signing in again', async () => {
+    const { h, token } = await signedIn()
+    await h.connect(token)
+    const sealed = await h.kv.get(`bucket:${ME.sub}`)
+    const writes = h.kv.writes
+    const later = await h.signIn({ name: 'Xiao Z' })
+    // The sign-in's own three writes, and none of them the bucket.
+    expect(h.kv.writes).toBe(writes + 3)
+    expect(await h.kv.get(`bucket:${ME.sub}`)).toBe(sealed)
+    const me = DoormanMeSchema.parse(await (await h.call('/v1/me', { token: later })).json())
+    expect(me).toMatchObject({ name: 'Xiao Z', storage: { bucket: BUCKET } })
   })
 
   it('leaves a format.json it understands as it is', async () => {
@@ -202,6 +213,39 @@ describe('connecting a bucket', () => {
     expect(h.bucket.requests).toEqual([])
   })
 
+  it('refuses a region or a key ID that could not go in a request header', async () => {
+    const { h, token } = await signedIn()
+    for (const [changes, field] of [
+      [{ region: 'US West 004' }, 'region'],
+      [{ region: 'us-west-004\r\nx-evil: 1' }, 'region'],
+      [{ region: 'r'.repeat(65) }, 'region'],
+      [{ keyId: '004 abc' }, 'keyId'],
+      [{ keyId: 'clé-004' }, 'keyId'],
+      [{ keyId: '004abc\nx' }, 'keyId'],
+    ] as const) {
+      const response = await h.connect(token, changes)
+      expect(response.status, JSON.stringify(changes)).toBe(400)
+      const body = ErrorBodySchema.parse(await response.json())
+      expect(body.error.startsWith(`${field}: `)).toBe(true)
+    }
+    expect(h.bucket.requests).toEqual([])
+  })
+
+  it('takes a bucket on this computer over http only in development', async () => {
+    const { h, token } = await signedIn()
+    const local = { endpoint: 'http://127.0.0.1:9000', region: 'us-east-1' }
+    expect(await refusal(await h.connect(token, local))).toBe(
+      'The endpoint has to be an https:// address.',
+    )
+    h.env.DEV = 'true'
+    // Allowed now; the test's internet has nothing on port 9000, which is the point.
+    expect(await refusal(await h.connect(token, local))).toBe('Could not reach 127.0.0.1:9000.')
+    // Even in development, only this computer.
+    expect(await refusal(await h.connect(token, { endpoint: `http://${B2_HOST}` }))).toBe(
+      'The endpoint has to be an https:// address.',
+    )
+  })
+
   it('refuses a body that is not a CloudConnect', async () => {
     const { h, token } = await signedIn()
     const response = await h.connect(token, { bucket: 'x' })
@@ -271,9 +315,7 @@ describe('a sealed bucket', () => {
     const theirs = await h.signIn({ sub: '2', email: 'friend@example.com' })
 
     // Someone with access to KV copies my sealed bucket onto my friend's account.
-    const my = JSON.parse((await h.kv.get(`account:${ME.sub}`)) ?? '') as { storage: string }
-    const record = JSON.parse((await h.kv.get('account:2')) ?? '') as Record<string, unknown>
-    await h.kv.put('account:2', JSON.stringify({ ...record, storage: my.storage }))
+    await h.kv.put('bucket:2', (await h.kv.get(`bucket:${ME.sub}`)) ?? '')
     h.clock.now += 61_000
 
     expect((await me(h, theirs)).storage).toBeNull()

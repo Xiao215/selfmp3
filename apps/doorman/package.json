@@ -5,7 +5,7 @@
   "type": "module",
   "description": "self.mp3 doorman — a Cloudflare Worker that signs you in with Google and passes your devices' reads and writes through to your bucket.",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --env dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit -p ."
   },

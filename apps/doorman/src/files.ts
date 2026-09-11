@@ -1,4 +1,6 @@
 import {
+  FORMAT_KEY,
+  SNAPSHOTS_FOLDER,
   isCloudFileKey,
   isCloudListPrefix,
   isDeletableCloudKey,
@@ -15,6 +17,7 @@ import {
   noContent,
   notFound,
 } from './http.js'
+import type { Session } from './sessions.js'
 
 /**
  * A signed-in device's reads and writes, passed through to its bucket.
@@ -22,6 +25,13 @@ import {
  * Keys are relative to the account's folder, and only the library's own
  * files may pass: `isCloudFileKey` and `isCloudListPrefix` from the shared
  * package decide, before anything reaches the bucket.
+ *
+ * A session can write, but not undo the library. `format.json` is the
+ * doorman's own, written when a bucket is connected, and no device may
+ * replace or delete it. A file named by the hash of its bytes is never
+ * replaced once it is there. Only snapshots and change logs are deleted.
+ * And what a file says about itself — its type and encoding — is held to
+ * the few shapes the library uses.
  *
  * Bodies stream through in both directions and are never held whole, which
  * keeps each request inside the free plan's 10 ms of CPU however big the
@@ -31,15 +41,17 @@ import {
 /** Named by the hash of their bytes: the same key is the same bytes, forever. */
 const HASH_NAMED = /^(?:audio|covers|lyrics)\//
 
-/** What a device may say about the part it wants, or the copy it has. */
-const FORWARDED = [
-  'range',
+/** What a device may say about the copy it has, passed to the bucket as it is. */
+const CONDITIONS = [
   'if-none-match',
   'if-modified-since',
   'if-match',
   'if-unmodified-since',
   'if-range',
 ]
+
+/** A byte range, or a few. Anything else is ignored, as HTTP lets a server do. */
+const RANGE = /^bytes=\d*-\d*(?:,\s*\d*-\d*)*$/
 
 /** What the bucket says about the object that a device can use. */
 const RELAYED = [
@@ -52,12 +64,15 @@ const RELAYED = [
   'accept-ranges',
 ]
 
+/** `audio/mp4`, `application/json`, `text/plain; charset=utf-8`. */
+const CONTENT_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+(?:; ?charset=[a-z0-9-]+)?$/i
+
 /** The largest request body the free plan lets through. */
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
 /** `GET /v1/list?prefix=<p>&cursor=<c>` — one page of a folder. */
 export async function list(ctx: Context): Promise<Response> {
-  await requireSession(ctx)
+  const session = await requireSession(ctx)
   const prefix = ctx.url.searchParams.get('prefix') ?? ''
   if (!isCloudListPrefix(prefix)) throw badRequest('that is not a folder a device may list')
   const cursor = ctx.url.searchParams.get('cursor')
@@ -65,7 +80,7 @@ export async function list(ctx: Context): Promise<Response> {
     throw badRequest('that is not a cursor from a listing')
   }
 
-  const bucket = await requireBucket(ctx)
+  const bucket = await requireBucket(ctx, session)
   const page = await bucket.list(prefix, cursor)
   const body: DoormanList = {
     // Anything else in the folder is not the library's, so not a device's business.
@@ -85,28 +100,35 @@ export async function file(ctx: Context, encodedKey: string): Promise<Response> 
     response.headers.set('allow', 'GET, HEAD, PUT, DELETE')
     return response
   }
-  await requireSession(ctx)
+  const session = await requireSession(ctx)
   const key = fileKey(encodedKey)
 
   switch (method) {
     case 'GET':
     case 'HEAD':
-      return read(ctx, key, method)
+      return read(ctx, session, key, method)
     case 'PUT':
-      return write(ctx, key)
+      return write(ctx, session, key)
     case 'DELETE':
-      return remove(ctx, key)
+      return remove(ctx, session, key)
   }
 }
 
-async function read(ctx: Context, key: string, method: 'GET' | 'HEAD'): Promise<Response> {
+async function read(
+  ctx: Context,
+  session: Session,
+  key: string,
+  method: 'GET' | 'HEAD',
+): Promise<Response> {
   const forward = new Headers()
-  for (const name of FORWARDED) {
+  const range = ctx.request.headers.get('range')
+  if (range !== null && RANGE.test(range.trim())) forward.set('range', range.trim())
+  for (const name of CONDITIONS) {
     const value = ctx.request.headers.get(name)
     if (value !== null) forward.set(name, value)
   }
 
-  const bucket = await requireBucket(ctx)
+  const bucket = await requireBucket(ctx, session)
   const upstream = await bucket.fetchObject(method, key, forward)
   if (!upstream) throw notFound('no such file')
   if (upstream.status === 412) {
@@ -118,8 +140,8 @@ async function read(ctx: Context, key: string, method: 'GET' | 'HEAD'): Promise<
     const response = errorResponse(
       new DoormanError(416, 'range_not_satisfiable', 'that range is not in the file'),
     )
-    const range = upstream.headers.get('content-range')
-    if (range) response.headers.set('content-range', range)
+    const contentRange = upstream.headers.get('content-range')
+    if (contentRange) response.headers.set('content-range', contentRange)
     return response
   }
 
@@ -132,6 +154,9 @@ async function read(ctx: Context, key: string, method: 'GET' | 'HEAD'): Promise<
     'cache-control',
     HASH_NAMED.test(key) ? 'private, max-age=31536000, immutable' : 'private, no-cache',
   )
+  // A file is the library's data, never a page: even one a device stored as
+  // text/html cannot run anything from the doorman's address.
+  headers.set('content-security-policy', 'sandbox')
   headers.set('x-content-type-options', 'nosniff')
 
   // The bytes as stored, headers and all. They were fetched undecoded (see
@@ -141,7 +166,10 @@ async function read(ctx: Context, key: string, method: 'GET' | 'HEAD'): Promise<
   return new Response(upstream.body, { status: upstream.status, headers, encodeBody: 'manual' })
 }
 
-async function write(ctx: Context, key: string): Promise<Response> {
+async function write(ctx: Context, session: Session, key: string): Promise<Response> {
+  if (key === FORMAT_KEY) {
+    throw forbidden('format.json is written by the doorman when a bucket is connected')
+  }
   const declared = ctx.request.headers.get('content-length')
   if (declared === null) {
     throw new DoormanError(411, 'length_required', 'say how big the file is, with Content-Length')
@@ -154,22 +182,33 @@ async function write(ctx: Context, key: string): Promise<Response> {
   const body = ctx.request.body
   if (length > 0 && !body) throw badRequest('the file is missing')
 
-  const contentType = header(ctx.request, 'content-type') ?? 'application/octet-stream'
-  const contentEncoding = header(ctx.request, 'content-encoding')
+  const contentType = ctx.request.headers.get('content-type')?.trim() || 'application/octet-stream'
+  if (!CONTENT_TYPE.test(contentType)) {
+    throw badRequest('Content-Type should be a plain media type, like audio/mp4')
+  }
+  const encoding = ctx.request.headers.get('content-encoding')?.trim().toLowerCase() || null
+  // Snapshots are stored gzipped (docs/SYNC.md). Nothing else is encoded at all.
+  if (encoding !== null && !(encoding === 'gzip' && key.startsWith(SNAPSHOTS_FOLDER))) {
+    throw badRequest('only a snapshot may have a Content-Encoding, and only gzip')
+  }
 
-  const bucket = await requireBucket(ctx)
+  const bucket = await requireBucket(ctx, session)
+  if (HASH_NAMED.test(key) && (await bucket.exists(key))) {
+    // Named by its hash, so what is there already is these very bytes.
+    throw new DoormanError(412, 'exists', 'that file is already in the bucket')
+  }
   await bucket.write(key, length > 0 && body ? { stream: body, length } : new Uint8Array(0), {
     contentType,
-    contentEncoding,
+    contentEncoding: encoding,
   })
   return noContent()
 }
 
-async function remove(ctx: Context, key: string): Promise<Response> {
+async function remove(ctx: Context, session: Session, key: string): Promise<Response> {
   if (!isDeletableCloudKey(key)) {
     throw forbidden('only snapshots and change logs are ever deleted')
   }
-  const bucket = await requireBucket(ctx)
+  const bucket = await requireBucket(ctx, session)
   await bucket.remove(key)
   return noContent()
 }
@@ -184,12 +223,4 @@ function fileKey(encoded: string): string {
   }
   if (!isCloudFileKey(key)) throw badRequest('that is not a file a device may read or write')
   return key
-}
-
-/** A header worth passing on to the bucket: present, and of a sane length. */
-function header(request: Request, name: string): string | null {
-  const value = request.headers.get(name)?.trim()
-  if (!value) return null
-  if (value.length > 200) throw badRequest(`${name} is too long`)
-  return value
 }

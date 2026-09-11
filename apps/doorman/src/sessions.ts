@@ -6,8 +6,12 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * Signed-in devices.
  *
  * A session is a random token the device keeps and sends as
- * `Authorization: Bearer <token>`. KV holds only its SHA-256, so the list of
- * sessions cannot be used to sign in even by someone who can read it.
+ * `Authorization: Bearer <token>`. It is made when a device claims its
+ * sign-in with the right code, and goes straight back to that device: KV
+ * only ever holds its SHA-256, so the list of sessions cannot be used to sign
+ * in even by someone who can read it. Using one also needs its address on
+ * ALLOWED_EMAILS and a creation time after the account's last "sign out
+ * everywhere" (see context.ts).
  *
  * A session lasts 180 days from sign-in, and that is fixed: sliding it
  * forward on use would cost a KV write per device per day, and the free plan
@@ -32,7 +36,8 @@ export const SessionSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),
-  createdAt: z.string(),
+  /** Compared with the account's last "sign out everywhere". */
+  createdAt: z.string().datetime(),
 })
 export type Session = z.infer<typeof SessionSchema>
 
@@ -56,8 +61,8 @@ export class Sessions {
     this.#cache = cache
   }
 
-  /** A new session for someone Google has just vouched for. Returns its token. */
-  async create(identity: Identity): Promise<string> {
+  /** A new session for someone Google has vouched for, and its token. */
+  async create(identity: Identity): Promise<{ token: string; session: Session }> {
     const token = randomToken()
     const session: Session = {
       sub: identity.sub,
@@ -67,7 +72,7 @@ export class Sessions {
       createdAt: new Date(this.#now()).toISOString(),
     }
     await putRecord(this.#kv, await sessionKey(token), session, SESSION_TTL_SECONDS)
-    return token
+    return { token, session }
   }
 
   async find(token: string): Promise<Session | null> {

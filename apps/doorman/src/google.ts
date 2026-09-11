@@ -1,15 +1,18 @@
 import { z } from 'zod'
 import type { Fetch } from './bucket.js'
 import { fromBase64Url, fromUtf8 } from './encoding.js'
+import { redact } from './http.js'
 import type { Identity } from './sessions.js'
 
 /**
- * Signing in with Google: OpenID Connect's authorization code flow.
+ * Signing in with Google: OpenID Connect's authorization code flow, with PKCE.
  *
- * The doorman sends the browser to Google with a `state` and a `nonce` it
- * keeps, Google sends it back with a one-time code, and the doorman trades
- * the code for an ID token at Google's token endpoint, with the client
- * secret. The token says who signed in.
+ * The doorman sends the browser to Google with a signed `state`, a `nonce`
+ * and a PKCE challenge; Google sends it back with a one-time code, and the
+ * doorman trades the code for an ID token at Google's token endpoint, with
+ * the client secret and the PKCE verifier. The token says who signed in.
+ * PKCE means a code that leaks on its way back — through a log, say — is no
+ * use to anyone but the doorman that asked for it.
  *
  * The token's signature is not checked, and does not need to be: it comes
  * straight from Google's token endpoint, over TLS, in answer to a request
@@ -42,6 +45,8 @@ export interface SignInLink {
   readonly redirectUri: string
   readonly state: string
   readonly nonce: string
+  /** base64url(SHA-256(verifier)). */
+  readonly codeChallenge: string
 }
 
 /** Google's sign-in page, set up to come back to the doorman. */
@@ -53,6 +58,8 @@ export function authUrl(link: SignInLink): string {
   url.searchParams.set('scope', 'openid email profile')
   url.searchParams.set('state', link.state)
   url.searchParams.set('nonce', link.nonce)
+  url.searchParams.set('code_challenge', link.codeChallenge)
+  url.searchParams.set('code_challenge_method', 'S256')
   // Always ask which account: the one the browser is signed in to is often
   // not the one this self.mp3 knows.
   url.searchParams.set('prompt', 'select_account')
@@ -67,6 +74,7 @@ export interface CodeExchange {
   readonly clientSecret: string
   readonly redirectUri: string
   readonly code: string
+  readonly codeVerifier: string
 }
 
 /** Trade the code Google sent back for an ID token. */
@@ -77,6 +85,7 @@ export async function exchangeCode(exchange: CodeExchange): Promise<string> {
     client_secret: exchange.clientSecret,
     redirect_uri: exchange.redirectUri,
     grant_type: 'authorization_code',
+    code_verifier: exchange.codeVerifier,
   })
   let response: Response
   try {
@@ -92,12 +101,10 @@ export async function exchangeCode(exchange: CodeExchange): Promise<string> {
     throw new GoogleError('could not reach Google', 502)
   }
   if (!response.ok) {
-    // Google's answer says why (invalid_grant, invalid_client…) and holds nothing secret.
-    const reason = await response.text().catch(() => '')
-    throw new GoogleError(
-      `Google refused the code (${response.status}): ${reason.slice(0, 200)}`,
-      502,
-    )
+    // Google's answer says why (invalid_grant, invalid_client…). It goes to
+    // the log, so it is trimmed and has anything like a credential taken out.
+    const reason = redact((await response.text().catch(() => '')).slice(0, 200))
+    throw new GoogleError(`Google refused the code (${response.status}): ${reason}`, 502)
   }
   let data: unknown
   try {

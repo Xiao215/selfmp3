@@ -9,6 +9,7 @@ import {
   harness,
   newAttempt,
 } from './fakes.js'
+import { redact } from './http.js'
 
 /**
  * The doorman as a whole: routing, CORS for the web app, the shape of every
@@ -167,5 +168,72 @@ describe('what comes back out', () => {
     for (const secret of [APPLICATION_KEY, KEY_ID, CLIENT_SECRET, SEAL_KEY, token, other]) {
       expect(everything).not.toContain(secret)
     }
+  })
+
+  it('never answers a bad header with a 500', async () => {
+    const h = harness()
+    const token = await h.signIn()
+    await h.connect(token)
+    const answers = await Promise.all([
+      h.call('/v1/me', { headers: { authorization: 'Bearer a b c' } }),
+      h.call('/v1/me', { headers: { authorization: `Bearer ${'é'.repeat(3)}` } }),
+      h.call('/v1/files/format.json', { token, headers: { range: 'bytes=--' } }),
+      h.call('/v1/files/format.json', { token, headers: { 'if-none-match': 'a, b, "c' } }),
+      h.call(`/v1/files/log/iphone-0b7d44a1/000001.jsonl`, {
+        method: 'PUT',
+        token,
+        body: 'x',
+        headers: { 'content-type': 'x/y; boundary=z', 'content-length': '1' },
+      }),
+      h.call('/v1/storage', { method: 'PUT', token, json: { region: 'a b' } }),
+      h.call('/v1/health', { origin: 'not an origin' }),
+    ])
+    for (const answer of answers) expect(answer.status).toBeLessThan(500)
+  })
+})
+
+describe('the log', () => {
+  it('never holds a credential, even when an error quotes one', async () => {
+    const h = harness()
+    const token = await h.signIn()
+    const quoting = new Error(
+      `upstream choked on Authorization: AWS4-HMAC-SHA256 Credential=${KEY_ID}/20260911/` +
+        `us-west-004/s3/aws4_request, SignedHeaders=host, Signature=0123abcd and Bearer ${token}`,
+    )
+    h.env.KV = {
+      get: () => Promise.reject(quoting),
+      put: () => Promise.reject(quoting),
+      delete: () => Promise.reject(quoting),
+    }
+    h.clock.now += 61_000
+
+    const response = await h.call('/v1/me', { token })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'internal error', code: 'internal' })
+    const logged = JSON.stringify(h.logs)
+    expect(h.logs.at(-1)?.message).toBe('unexpected error')
+    for (const secret of [token, KEY_ID, 'Signature=0123abcd', 'aws4_request']) {
+      expect(logged).not.toContain(secret)
+    }
+  })
+
+  it('takes out whatever looks like a credential', () => {
+    expect(
+      redact('Authorization: AWS4-HMAC-SHA256 Credential=K/1/r/s3/aws4_request, Signature=ab'),
+    ).toBe('Authorization: …')
+    expect(redact('X-Amz-Signature=deadbeef&X-Amz-Credential=AKIA%2Fx&keep=1')).toBe(
+      'X-Amz-Signature=…&X-Amz-Credential=…&keep=1',
+    )
+    expect(redact('token Bearer abc.def-ghi, next')).toBe('token Bearer …, next')
+    expect(redact('nothing to see')).toBe('nothing to see')
+  })
+})
+
+describe('signing out everywhere, as a route', () => {
+  it('takes only POST', async () => {
+    const h = harness()
+    const response = await h.call('/v1/auth/signout-everywhere')
+    expect(response.status).toBe(405)
+    expect(response.headers.get('allow')).toBe('POST')
   })
 })

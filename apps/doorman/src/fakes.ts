@@ -92,18 +92,25 @@ export class FakeKv implements KvStore {
 
 // --- Google --------------------------------------------------------------------
 
-/** Google's token endpoint: trades a code for an ID token with the claims the test chose. */
+/**
+ * Google's token endpoint: trades a code for an ID token with the claims the
+ * test chose — but only with the PKCE verifier whose challenge the code was
+ * issued for, as Google checks it.
+ */
 export class FakeGoogle {
-  readonly #codes = new Map<string, Record<string, unknown>>()
+  readonly #codes = new Map<string, { claims: Record<string, unknown>; challenge: string }>()
   #issued = 0
   /** Each exchange's form, as the doorman sent it. */
   readonly exchanges: URLSearchParams[] = []
   refuse = false
 
-  /** A code that Google will trade for an ID token carrying these claims. Used once. */
-  code(claims: Record<string, unknown>): string {
+  /**
+   * A code that Google will trade for an ID token carrying these claims, once,
+   * for whoever holds the verifier of this PKCE challenge.
+   */
+  code(claims: Record<string, unknown>, challenge: string): string {
     const code = `4/0Abc-code-${++this.#issued}`
-    this.#codes.set(code, claims)
+    this.#codes.set(code, { claims, challenge })
     return code
   }
 
@@ -115,11 +122,20 @@ export class FakeGoogle {
       return Response.json({ error: 'invalid_client' }, { status: 401 })
     }
     const code = form.get('code') ?? ''
-    const claims = this.#codes.get(code)
-    if (!claims || form.get('grant_type') !== 'authorization_code') {
+    const issued = this.#codes.get(code)
+    if (!issued || form.get('grant_type') !== 'authorization_code') {
       return Response.json({ error: 'invalid_grant' }, { status: 400 })
     }
+    const verifier = form.get('code_verifier') ?? ''
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(verifier)))
+    if (toBase64Url(digest) !== issued.challenge) {
+      return Response.json(
+        { error: 'invalid_grant', error_description: 'Invalid code verifier.' },
+        { status: 400 },
+      )
+    }
     this.#codes.delete(code)
+    const claims = issued.claims
     const part = (value: unknown): string => toBase64Url(utf8(JSON.stringify(value)))
     return Response.json({
       access_token: 'an-access-token-the-doorman-never-uses',
@@ -413,6 +429,40 @@ export function newAttempt(): string {
   return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/** What Google would put in an ID token for this person and this sign-in. */
+export function idTokenClaims(
+  profile: Profile,
+  nonce: string,
+  clock: Clock,
+  changes: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    iss: 'https://accounts.google.com',
+    azp: CLIENT_ID,
+    aud: CLIENT_ID,
+    sub: profile.sub,
+    email: profile.email,
+    email_verified: true,
+    name: profile.name,
+    picture: profile.picture,
+    nonce,
+    iat: Math.floor(clock.now / 1000),
+    exp: Math.floor(clock.now / 1000) + 3600,
+    ...changes,
+  }
+}
+
+/**
+ * The sign-in code the callback showed: on its page, or in the fragment of
+ * the address it sent the browser back to. Null when it showed none.
+ */
+export async function signInCodeFrom(response: Response): Promise<string | null> {
+  const location = response.headers.get('location')
+  if (location) return /#signin-code=([0-9A-Z]{8})$/.exec(location)?.[1] ?? null
+  const html = await response.clone().text()
+  return /<p class="code">([0-9A-Z]{4})-([0-9A-Z]{4})<\/p>/.exec(html)?.slice(1, 3).join('') ?? null
+}
+
 export function harness(): Harness {
   const clock: Clock = { now: Date.parse('2026-09-11T12:00:00Z') }
   const kv = new FakeKv(clock)
@@ -467,34 +517,22 @@ export function harness(): Harness {
   }
 
   const signIn = async (changes: Partial<Profile> = {}): Promise<string> => {
-    const profile = { ...ME, ...changes }
     const attempt = newAttempt()
     const start = await call(`/v1/auth/start?attempt=${attempt}`)
     const sentTo = new URL(start.headers.get('location') ?? 'about:blank')
-    const code = googleCode(profile, sentTo.searchParams.get('nonce') ?? '')
+    const code = google.code(
+      idTokenClaims({ ...ME, ...changes }, sentTo.searchParams.get('nonce') ?? '', clock),
+      sentTo.searchParams.get('code_challenge') ?? '',
+    )
     const state = sentTo.searchParams.get('state') ?? ''
     const back = await call(`/v1/auth/callback?state=${state}&code=${encodeURIComponent(code)}`)
-    if (back.status !== 200) throw new Error(`signing in failed: ${back.status}`)
-    const claimed = await call('/v1/auth/claim', { json: { attempt } })
+    const shown = await signInCodeFrom(back)
+    if (!shown) throw new Error(`signing in failed: ${back.status}`)
+    const claimed = await call('/v1/auth/claim', { json: { attempt, code: shown } })
     const result = DoormanClaimResultSchema.parse(await claimed.json())
     if (result.status !== 'signed-in') throw new Error('the sign-in was not there to claim')
     return result.token
   }
-
-  const googleCode = (profile: Profile, nonce: string): string =>
-    google.code({
-      iss: 'https://accounts.google.com',
-      azp: CLIENT_ID,
-      aud: CLIENT_ID,
-      sub: profile.sub,
-      email: profile.email,
-      email_verified: true,
-      name: profile.name,
-      picture: profile.picture,
-      nonce,
-      iat: Math.floor(clock.now / 1000),
-      exp: Math.floor(clock.now / 1000) + 3600,
-    })
 
   const connect = (token: string, changes: Record<string, unknown> = {}): Promise<Response> =>
     call('/v1/storage', {

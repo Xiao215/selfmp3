@@ -223,6 +223,24 @@ describe('reading a file', () => {
     expect(h.outside.at(-1)?.init.cache).toBe('no-store')
   })
 
+  it('marks every file as data that can never run as a page', async () => {
+    const { h, token } = await connected()
+    h.bucket.put(`selfmp3/${LOG}`, '<script>alert(1)</script>', { contentType: 'text/html' })
+    const response = await h.call(`/v1/files/${LOG}`, { token })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-security-policy')).toBe('sandbox')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+  })
+
+  it('ignores a range that is not one, rather than failing', async () => {
+    const { h, token } = await connected()
+    h.bucket.put(`selfmp3/${SONG}`, '0123456789')
+    const response = await h.call(`/v1/files/${SONG}`, { token, headers: { range: 'items=0-5' } })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('0123456789')
+    expect(h.bucket.requests.at(-1)?.headers.get('range')).toBeNull()
+  })
+
   it('says a missing file is missing', async () => {
     const { h, token } = await connected()
     const response = await h.call(`/v1/files/${SONG}`, { token })
@@ -340,6 +358,108 @@ describe('writing a file', () => {
     })
     expect(nonsense.status).toBe(400)
     expect(h.bucket.requests).toEqual([])
+  })
+
+  it('never takes a format.json from a device', async () => {
+    const { h, token } = await connected()
+    const before = h.bucket.text('selfmp3/format.json')
+    const body = utf8('{"app":"self.mp3","format":99,"createdAt":"x","createdBy":"me"}')
+    const response = await h.call('/v1/files/format.json', {
+      method: 'PUT',
+      token,
+      body,
+      headers: { 'content-type': 'application/json', 'content-length': String(body.length) },
+    })
+    expect(response.status).toBe(403)
+    expect((await error(response)).code).toBe('forbidden')
+    expect(h.bucket.text('selfmp3/format.json')).toBe(before)
+    expect(h.bucket.requests).toEqual([])
+  })
+
+  it('never replaces a file named by its hash', async () => {
+    const { h, token } = await connected()
+    h.bucket.put(`selfmp3/${SONG}`, 'the real song', { contentType: 'audio/mp4' })
+    h.bucket.put(`selfmp3/lyrics/${SHA}.lrc`, '')
+    const put = (key: string, text: string) =>
+      h.call(`/v1/files/${key}`, {
+        method: 'PUT',
+        token,
+        body: text,
+        headers: { 'content-type': 'audio/mp4', 'content-length': String(utf8(text).length) },
+      })
+
+    for (const key of [SONG, `lyrics/${SHA}.lrc`]) {
+      const response = await put(key, 'something else')
+      expect(response.status, key).toBe(412)
+      expect(await error(response)).toEqual({
+        error: 'that file is already in the bucket',
+        code: 'exists',
+      })
+    }
+    expect(h.bucket.text(`selfmp3/${SONG}`)).toBe('the real song')
+    // Asked with a one-byte GET, and nothing written.
+    expect(h.bucket.requests.map(r => [r.method, r.headers.get('range')])).toEqual([
+      ['GET', 'bytes=0-0'],
+      ['GET', 'bytes=0-0'],
+    ])
+
+    // One that is not there yet goes up.
+    expect((await put(`covers/${SHA}.jpg`, 'a cover')).status).toBe(204)
+    expect(h.bucket.text(`selfmp3/covers/${SHA}.jpg`)).toBe('a cover')
+    // Snapshots and logs are not named by their hash, so writing one again is fine.
+    h.bucket.put(`selfmp3/${LOG}`, 'old')
+    expect((await put(LOG, 'new')).status).toBe(204)
+  })
+
+  it('lets only a snapshot be encoded, and only with gzip', async () => {
+    const { h, token } = await connected()
+    const put = (key: string, encoding: string) =>
+      h.call(`/v1/files/${key}`, {
+        method: 'PUT',
+        token,
+        body: 'x',
+        headers: {
+          'content-type': 'application/json',
+          'content-encoding': encoding,
+          'content-length': '1',
+        },
+      })
+    for (const [key, encoding] of [
+      [LOG, 'gzip'],
+      [`audio/${'cd'.repeat(32)}.m4a`, 'gzip'],
+      [SNAPSHOT, 'br'],
+      [SNAPSHOT, 'gzip, gzip'],
+      [SNAPSHOT, 'identity'],
+    ] as const) {
+      const response = await put(key, encoding)
+      expect(response.status, `${key} ${encoding}`).toBe(400)
+    }
+    expect(h.bucket.requests).toEqual([])
+    expect((await put(SNAPSHOT, 'GZIP')).status).toBe(204)
+    expect(h.bucket.objects.get(`selfmp3/${SNAPSHOT}`)?.contentEncoding).toBe('gzip')
+  })
+
+  it('wants a Content-Type of a plain shape', async () => {
+    const { h, token } = await connected()
+    const put = (type: string) =>
+      h.call(`/v1/files/${LOG}`, {
+        method: 'PUT',
+        token,
+        body: 'x',
+        headers: { 'content-type': type, 'content-length': '1' },
+      })
+    for (const type of ['nonsense', 'audio/mp4; codecs=mp4a', 'text/html;;', 'a/b c', '/json']) {
+      const response = await put(type)
+      expect(response.status, type).toBe(400)
+    }
+    expect(h.bucket.requests).toEqual([])
+    for (const type of [
+      'text/plain; charset=utf-8',
+      'application/json;charset=UTF-8',
+      'AUDIO/MP4',
+    ]) {
+      expect((await put(type)).status, type).toBe(204)
+    }
   })
 })
 

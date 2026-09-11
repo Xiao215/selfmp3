@@ -1,61 +1,81 @@
 import {
   DoormanClaimRequestSchema,
   SignInAttemptSchema,
+  formatSignInCode,
   type DoormanClaimResult,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { allowedEmails, type Context } from './context.js'
+import { allowedEmails, isAllowed, requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
 import { page } from './html.js'
-import { json, noContent, readJson, unauthorized } from './http.js'
+import { DoormanError, forbidden, json, noContent, readJson, unauthorized } from './http.js'
+import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { bearerToken, type Identity } from './sessions.js'
+import {
+  SIGN_IN_TTL_MS,
+  codeMatches,
+  codeTag,
+  newSignInCode,
+  openState,
+  pkceChallenge,
+  pkceVerifier,
+  signState,
+} from './signin.js'
 
 /**
  * Signing in, for a device that may not be where Google's page opens.
  *
  * The device makes up a sign-in attempt — 32 random hex characters — and
- * opens `/v1/auth/start?attempt=…` wherever it can: a new tab, or Safari when
- * it is an iPhone home-screen app. Google sends that browser back to
- * `/v1/auth/callback`, which makes the session and leaves it under the
- * attempt for ten minutes. Meanwhile the device asks `/v1/auth/claim` with
- * its attempt every few seconds and gets the session the first time it is
- * there. Nothing has to find its way back into the app; the app goes to it.
+ * opens `/v1/auth/start?attempt=…` wherever it can: a new tab, or a sheet of
+ * its own in an iPhone home-screen app. Google sends that browser back to
+ * `/v1/auth/callback`, which shows a one-time code: on its own page, or in
+ * the fragment of the app address it sends the browser back to
+ * (`#signin-code=…`). The device claims its session with the attempt and
+ * that code, from the fragment or typed in by hand. Until it has the code it
+ * may ask with the attempt alone, and hears "pending", then "code".
  *
- * The attempt never goes to Google. It waits in KV beside a `state` (which
- * Google does carry, and which proves the callback belongs to a sign-in this
- * doorman started) and a `nonce` (which Google puts in the ID token, and which
- * proves the token was issued for this sign-in and no other).
+ * The code is what makes the session the signed-in person's own. Someone
+ * who gets you to open a start link of their making knows its attempt, but
+ * never sees the code you are shown, and has one guess at it: a wrong code
+ * ends the attempt. The two never travel together: the attempt goes to
+ * Google and back inside the signed state, and the code comes only on the
+ * doorman's page or in the fragment of the app's address.
  *
- * A claim hands the session over once: the attempt is deleted as it is
- * claimed. KV has no "read and delete" in one step, so two claims racing
- * each other to the same key from different places could, in principle, both
- * win; the attempt is a 128-bit secret only the device and its browser know.
+ * Starting writes nothing (see signin.ts), and neither does anything before
+ * Google has vouched for an address on the list: the callback's one write is
+ * the identity and a MAC of the code, under the attempt, for ten minutes.
+ * The session itself is made only when the code is claimed, so no token is
+ * ever stored. A whole sign-in costs three KV writes.
  *
- * KV also remembers, for up to a minute, that a key was missing. A device
- * that reaches Cloudflare somewhere other than where its browser did may be
- * told "pending" for that long after the browser has finished, so a device
- * should keep asking for a couple of minutes before it gives up.
+ * KV has no "read and delete" in one step, so two claims racing each other
+ * from different places could, in principle, both succeed. Both would need
+ * the attempt and the code. KV also remembers, for up to a minute, that a key
+ * was missing: a device reaching Cloudflare somewhere other than where its
+ * browser did may hear "pending" for that long after Google has finished.
  */
 
-const STATE_TTL_SECONDS = 10 * 60
-const ATTEMPT_TTL_SECONDS = 10 * 60
+const ATTEMPT_TTL_SECONDS = SIGN_IN_TTL_MS / 1000
 
-/** base64url of 32 random bytes, as `randomToken` makes them. */
-const STATE = /^[A-Za-z0-9_-]{43}$/
-
-const StateRecordSchema = z.object({
-  attempt: SignInAttemptSchema,
-  /** Where the browser goes afterwards: an address in APP_ORIGINS, or nowhere. */
-  returnTo: z.string().nullable(),
-  nonce: z.string(),
+/** What the callback leaves under the attempt for the claim. No code, no token. */
+const AttemptRecordSchema = z.object({
+  sub: z.string().min(1),
+  email: z.string(),
+  name: z.string().nullable(),
+  picture: z.string().nullable(),
+  /** A MAC of the code shown, tied to the attempt (see signin.ts). */
+  codeTag: z.string(),
+  /** Milliseconds; KV's own expiry is the backstop. */
+  expiresAt: z.number(),
 })
-type StateRecord = z.infer<typeof StateRecordSchema>
+type AttemptRecord = z.infer<typeof AttemptRecordSchema>
 
-const AttemptRecordSchema = z.object({ token: z.string() })
+/** The one answer to a code that is not the right one, or has nothing to be right for. */
+const wrongCode = (): DoormanError =>
+  new DoormanError(403, 'wrong_code', 'That isn’t the code shown after signing in. Start again.')
 
-/** `GET /v1/auth/start?attempt=<id>&return=<url>` — off to Google. */
+/** `GET /v1/auth/start?attempt=<id>&return=<url>` — off to Google, writing nothing. */
 export async function start(ctx: Context): Promise<Response> {
   const attempt = SignInAttemptSchema.safeParse(ctx.url.searchParams.get('attempt'))
   if (!attempt.success) {
@@ -66,25 +86,35 @@ export async function start(ctx: Context): Promise<Response> {
     })
   }
   const google = googleClient(ctx)
-  if (!google) return notSetUpPage()
+  const keys = await keysOrNull(ctx)
+  if (!google || !keys) return notSetUpPage()
   // Say so before the trip to Google, rather than after it.
   if (allowedEmails(ctx.env.ALLOWED_EMAILS).size === 0) return nobodyAllowedPage()
 
-  const state = randomToken()
   const nonce = randomToken()
-  const record: StateRecord = {
-    attempt: attempt.data,
-    returnTo: safeReturn(ctx.url.searchParams.get('return'), ctx.origins),
-    nonce,
-  }
-  await putRecord(ctx.env.KV, `state:${state}`, record, STATE_TTL_SECONDS)
+  const state = await signState(
+    {
+      attempt: attempt.data,
+      returnTo: safeReturn(ctx.url.searchParams.get('return'), ctx.origins),
+      nonce,
+      exp: ctx.now() + SIGN_IN_TTL_MS,
+    },
+    keys.state,
+  )
+  const codeChallenge = await pkceChallenge(await pkceVerifier(nonce, keys.pkce))
 
   // Built by hand rather than with Response.redirect, whose headers cannot be
   // added to afterwards (CORS adds some to every answer).
   return new Response(null, {
     status: 302,
     headers: {
-      location: authUrl({ clientId: google.clientId, redirectUri: redirectUri(ctx), state, nonce }),
+      location: authUrl({
+        clientId: google.clientId,
+        redirectUri: redirectUri(ctx),
+        state,
+        nonce,
+        codeChallenge,
+      }),
       'cache-control': 'no-store',
       'referrer-policy': 'no-referrer',
     },
@@ -93,14 +123,13 @@ export async function start(ctx: Context): Promise<Response> {
 
 /** `GET /v1/auth/callback?code=…&state=…` — Google sends the browser back here. */
 export async function callback(ctx: Context): Promise<Response> {
+  const keys = await keysOrNull(ctx)
+  const google = googleClient(ctx)
+  if (!keys || !google) return notSetUpPage()
+
   const params = ctx.url.searchParams
-  const state = params.get('state') ?? ''
-  const stored = STATE.test(state)
-    ? await getRecord(ctx.env.KV, `state:${state}`, StateRecordSchema)
-    : null
-  if (!stored) return expiredPage()
-  // Used once, whatever happens next.
-  await ctx.env.KV.delete(`state:${state}`)
+  const state = await openState(params.get('state') ?? '', keys.state, ctx.now())
+  if (!state) return expiredPage()
 
   const refused = params.get('error')
   if (refused !== null) {
@@ -115,20 +144,18 @@ export async function callback(ctx: Context): Promise<Response> {
   const code = params.get('code')
   if (!code) return expiredPage()
 
-  const google = googleClient(ctx)
-  if (!google) return notSetUpPage()
-
   let identity: Identity
   try {
     const idToken = await exchangeCode({
       fetch: ctx.fetch,
       code,
+      codeVerifier: await pkceVerifier(state.nonce, keys.pkce),
       redirectUri: redirectUri(ctx),
       ...google,
     })
     identity = checkIdToken(idToken, {
       clientId: google.clientId,
-      nonce: stored.nonce,
+      nonce: state.nonce,
       now: ctx.now(),
     })
   } catch (error) {
@@ -144,57 +171,74 @@ export async function callback(ctx: Context): Promise<Response> {
 
   const allowed = allowedEmails(ctx.env.ALLOWED_EMAILS)
   if (allowed.size === 0) return nobodyAllowedPage()
-  if (!allowed.has(identity.email.toLowerCase())) {
-    return page({
-      status: 403,
-      title: 'Not allowed',
-      lines: [
-        `This Google account (${identity.email}) is not allowed on this self.mp3.`,
-        'Sign in with the account its owner added, or ask them to add this one.',
-      ],
+  if (!allowed.has(identity.email.toLowerCase())) return notAllowedPage(identity.email)
+
+  // Google has vouched for an address on the list: the sign-in's first write.
+  const signInCode = newSignInCode()
+  const record: AttemptRecord = {
+    ...identity,
+    codeTag: await codeTag(state.attempt, signInCode, keys.code),
+    expiresAt: ctx.now() + SIGN_IN_TTL_MS,
+  }
+  await putRecord(ctx.env.KV, attemptKey(state.attempt), record, ATTEMPT_TTL_SECONDS)
+
+  if (state.returnTo) {
+    // Back to the app, with the code where only that browser can read it:
+    // a fragment never leaves the browser, and never names the attempt.
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: withFragment(state.returnTo, `signin-code=${signInCode}`),
+        'cache-control': 'no-store',
+        'referrer-policy': 'no-referrer',
+      },
     })
   }
-
-  // The attempt goes last: whoever can see it can then see the session and
-  // the account too, since KV has never been asked for those keys before.
-  const token = await ctx.sessions.create(identity)
-  await ctx.accounts.signedIn(identity)
-  await putRecord(ctx.env.KV, `attempt:${stored.attempt}`, { token }, ATTEMPT_TTL_SECONDS)
-
   return page({
     status: 200,
-    title: 'Signed in',
-    lines: [`Signed in as ${identity.email}.`, 'You can go back to self.mp3.'],
-    next: stored.returnTo ? withFragment(stored.returnTo, `signin=${stored.attempt}`) : null,
+    title: 'Your sign-in code',
+    lines: [`Google has signed you in as ${identity.email}.`],
+    code: formatSignInCode(signInCode),
+    notes: [
+      'Go back to self.mp3 — it asks for this code if it needs it.',
+      'It works once, for ten minutes. Never type it anywhere else, or give it to anyone.',
+    ],
   })
 }
 
-/** `POST /v1/auth/claim { attempt }` — the device asking whether its sign-in is done. */
+/**
+ * `POST /v1/auth/claim { attempt, code? }` — the device asking how its sign-in
+ * stands, or claiming it with the code it was shown.
+ */
 export async function claim(ctx: Context): Promise<Response> {
-  const { attempt } = await readJson(ctx.request, DoormanClaimRequestSchema)
-  const key = `attempt:${attempt}`
+  const request = await readJson(ctx.request, DoormanClaimRequestSchema)
+  const key = attemptKey(request.attempt)
   const record = await getRecord(ctx.env.KV, key, AttemptRecordSchema)
-  const pending: DoormanClaimResult = { status: 'pending' }
-  if (!record) return json(pending)
-  // Nobody but this device can have the token yet, so its session is there.
-  // Should KV not show it here yet, the attempt is left for the next ask.
-  const session = await ctx.sessions.find(record.token)
-  if (!session) return json(pending)
-  await ctx.env.KV.delete(key)
+  const live = record && record.expiresAt > ctx.now() ? record : null
 
-  const account = await ctx.accounts.get(session.sub)
+  if (request.code === undefined) {
+    const status: DoormanClaimResult = live ? { status: 'code' } : { status: 'pending' }
+    return json(status)
+  }
+
+  const keys = await ctx.keys()
+  if (!live || !(await codeMatches(request.attempt, request.code, live.codeTag, keys.code))) {
+    // One guess per attempt. A made-up attempt has nothing to end, and costs
+    // no KV write: deleting a key that is not there still counts as one.
+    if (record) await ctx.env.KV.delete(key)
+    throw wrongCode()
+  }
+  if (!isAllowed(live.email, ctx.env.ALLOWED_EMAILS)) {
+    await ctx.env.KV.delete(key)
+    throw forbidden('This Google account is not allowed on this self.mp3.')
+  }
+
+  const { token, session } = await ctx.sessions.create(live)
+  await ctx.env.KV.delete(key)
   const result: DoormanClaimResult = {
     status: 'signed-in',
-    token: record.token,
-    me: await ctx.accounts.me(
-      session.sub,
-      account ?? {
-        email: session.email,
-        name: session.name,
-        picture: session.picture,
-        storage: null,
-      },
-    ),
+    token,
+    me: await ctx.accounts.me(session),
   }
   return json(result)
 }
@@ -206,6 +250,28 @@ export async function signOut(ctx: Context): Promise<Response> {
   // there is nothing to delete, and a made-up token should cost nothing.
   if (!token || !(await ctx.sessions.end(token))) throw unauthorized()
   return noContent()
+}
+
+/**
+ * `POST /v1/auth/signout-everywhere` — every session the account has ends,
+ * this one included: what to do about a lost device. One KV write.
+ */
+export async function signOutEverywhere(ctx: Context): Promise<Response> {
+  const session = await requireSession(ctx)
+  await ctx.accounts.signOutEverywhere(session.sub)
+  return noContent()
+}
+
+function attemptKey(attempt: string): string {
+  return `attempt:${attempt}`
+}
+
+async function keysOrNull(ctx: Context): Promise<DoormanKeys | null> {
+  try {
+    return await ctx.keys()
+  } catch {
+    return null
+  }
 }
 
 function googleClient(ctx: Context): { clientId: string; clientSecret: string } | null {
@@ -220,19 +286,24 @@ function redirectUri(ctx: Context): string {
 }
 
 /**
- * Where to send the browser after signing in: only an address in APP_ORIGINS.
- * Anything else is dropped, not refused — the sign-in still works, it just
- * ends on the doorman's own page — so the doorman never becomes a way to send
- * someone to a site of an attacker's choosing.
+ * Where to send the browser after signing in: an address in APP_ORIGINS, or
+ * this computer (`http://localhost` or `http://127.0.0.1`, any port) for the
+ * Mac's own settings page. Anything else is dropped, not refused — the
+ * sign-in still works, and ends on the doorman's page with the code — so the
+ * doorman never sends anyone, or any code, to a site of someone else's
+ * choosing. The loopback exception is for this redirect only, never CORS.
  */
 function safeReturn(value: string | null, origins: ReadonlySet<string>): string | null {
-  if (!value || value.length > 2000) return null
+  if (!value || value.length > 1024) return null
+  let url: URL
   try {
-    const url = new URL(value)
-    return origins.has(url.origin) ? url.toString() : null
+    url = new URL(value)
   } catch {
     return null
   }
+  const loopback =
+    url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+  return origins.has(url.origin) || loopback ? url.toString() : null
 }
 
 function withFragment(address: string, fragment: string): string {
@@ -260,13 +331,24 @@ function nobodyAllowedPage(): Promise<Response> {
   })
 }
 
+function notAllowedPage(email: string): Promise<Response> {
+  return page({
+    status: 403,
+    title: 'Not allowed',
+    lines: [
+      `This Google account (${email}) is not allowed on this self.mp3.`,
+      'Sign in with the account its owner added, or ask them to add this one.',
+    ],
+  })
+}
+
 function notSetUpPage(): Promise<Response> {
   return page({
     status: 500,
     title: 'Not set up yet',
     lines: [
-      'This self.mp3 has not been connected to Google yet.',
-      'Its owner sets GOOGLE_CLIENT_ID in wrangler.toml and GOOGLE_CLIENT_SECRET as a secret.',
+      'This self.mp3 has not been set up to sign anyone in yet.',
+      'Its owner sets GOOGLE_CLIENT_ID in wrangler.toml, and GOOGLE_CLIENT_SECRET and SEAL_KEY as secrets.',
     ],
   })
 }

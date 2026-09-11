@@ -1,5 +1,5 @@
 import { AwsV4Signer } from 'aws4fetch'
-import { fromUtf8 } from './encoding.js'
+import { fromUtf8, sha256Hex, utf8 } from './encoding.js'
 import { discard, readBytes } from './http.js'
 import { parseError, parseListing } from './xml.js'
 
@@ -54,9 +54,15 @@ export type Fetch = (url: string, init: FetchInit) => Promise<Response>
 export interface BucketDeps {
   readonly fetch: Fetch
   readonly now: () => number
-  /** Signing keys derived from an application key, kept between requests. */
+  /**
+   * SigV4 signing keys, kept between requests: deriving one takes four HMACs.
+   * Keyed by a hash of what each was derived from, never the key itself, and
+   * emptied when it grows past a few dozen.
+   */
   readonly signingKeys: Map<string, ArrayBuffer>
 }
+
+const SIGNING_KEYS_KEPT = 64
 
 export interface BucketObject {
   /** Relative to the account's folder: `audio/4f1c….m4a`. */
@@ -159,6 +165,23 @@ export class Bucket {
     return { objects, cursor: page.truncated && page.nextToken ? page.nextToken : null }
   }
 
+  /**
+   * Whether an object is there. Asked as a GET of its first byte, dropped
+   * unread: a HEAD may reach the bucket as a GET (see the top of this file).
+   * An empty object answers the range with 416, which is still "there".
+   */
+  async exists(key: string): Promise<boolean> {
+    const forward = new Headers({ range: 'bytes=0-0' })
+    const response = await this.#send('GET', this.#path(key), { headers: forward, quick: true })
+    if (response.status === 404) {
+      await this.#absent(response)
+      return false
+    }
+    if (![200, 206, 416].includes(response.status)) throw await this.#explain(response)
+    await discard(response)
+    return true
+  }
+
   /** At most `limit` bytes of a small object, or null when there is none. */
   async read(key: string, limit: number): Promise<Uint8Array | null> {
     const response = await this.#send('GET', this.#path(key), { quick: true })
@@ -238,6 +261,7 @@ export class Bucket {
       : ''
     const url = `${this.#target.endpoint}${path}${query}`
 
+    const datetime = amzDate(this.#deps.now())
     const signer = new AwsV4Signer({
       method,
       url,
@@ -246,8 +270,8 @@ export class Bucket {
       secretAccessKey: this.#target.applicationKey,
       service: 's3',
       region: this.#target.region,
-      cache: this.#deps.signingKeys,
-      datetime: amzDate(this.#deps.now()),
+      cache: await this.#signingKeyFor(datetime.slice(0, 8)),
+      datetime,
     })
     const signed = await signer.sign()
     const headers = new Headers(options.headers)
@@ -263,6 +287,24 @@ export class Bucket {
     } catch {
       throw new BucketError('network', `Could not reach ${this.#host}.`)
     }
+  }
+
+  /**
+   * The day's signing key, as aws4fetch wants it: a map in which it looks the
+   * key up under the application key in plain text. So it gets a map of one,
+   * made for this request; what outlives the request is kept under a hash.
+   */
+  async #signingKeyFor(date: string): Promise<Map<string, ArrayBuffer>> {
+    const { applicationKey, region } = this.#target
+    const kept = this.#deps.signingKeys
+    const id = await sha256Hex(`${applicationKey}\n${date}\n${region}`)
+    let key = kept.get(id)
+    if (!key) {
+      key = await deriveSigningKey(applicationKey, date, region)
+      if (kept.size >= SIGNING_KEYS_KEPT) kept.clear()
+      kept.set(id, key)
+    }
+    return new Map([[[applicationKey, date, region, 's3'].join(), key]])
   }
 
   /** `/<bucket>/<prefix>/<key>`: path-style, which every S3-compatible service takes. */
@@ -331,6 +373,29 @@ function uploadInit(
   }
   headers.set('content-length', String(upload.length))
   return upload instanceof Uint8Array ? { body: upload } : { body: upload.stream, duplex: 'half' }
+}
+
+/** SigV4's signing key: the secret, narrowed by HMAC to one day, region and service. */
+async function deriveSigningKey(
+  secret: string,
+  date: string,
+  region: string,
+): Promise<ArrayBuffer> {
+  const kDate = await hmac(utf8(`AWS4${secret}`), date)
+  const kRegion = await hmac(kDate, region)
+  const kService = await hmac(kRegion, 's3')
+  return hmac(kService, 'aws4_request')
+}
+
+async function hmac(key: ArrayBuffer | Uint8Array, message: string): Promise<ArrayBuffer> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return crypto.subtle.sign('HMAC', cryptoKey, utf8(message))
 }
 
 /** `20260911T142205Z`, the timestamp SigV4 signs. */

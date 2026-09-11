@@ -32,6 +32,9 @@ cookies.txt
 # Test coverage
 coverage/
 
+# Wrangler's local state and bundles (apps/doorman)
+.wrangler/
+
 # OS
 .DS_Store
 Thumbs.db

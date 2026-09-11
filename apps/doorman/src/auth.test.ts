@@ -1,25 +1,50 @@
-import { DoormanClaimResultSchema, DoormanMeSchema, ErrorBodySchema } from '@selfmp3/shared'
+import {
+  DoormanClaimResultSchema,
+  DoormanMeSchema,
+  ErrorBodySchema,
+  formatSignInCode,
+} from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { sha256Base64, sha256Hex } from './encoding.js'
+import {
+  fromBase64Url,
+  fromUtf8,
+  sha256Base64,
+  sha256Hex,
+  toBase64,
+  toBase64Url,
+  utf8,
+} from './encoding.js'
 import {
   APP_ORIGIN,
   CLIENT_ID,
   DOORMAN_ORIGIN,
   ME,
   harness,
+  idTokenClaims,
   newAttempt,
+  signInCodeFrom,
   type Harness,
+  type Profile,
 } from './fakes.js'
 
 /**
  * Signing in, end to end: the device's start link, Google's round trip (a fake
- * token endpoint that issues whatever ID token the test asks for), the page the
- * browser lands on, and the device claiming its session.
+ * token endpoint that issues whatever ID token the test asks for, and checks
+ * PKCE as Google does), the code the browser is shown, and the device
+ * claiming its session with it.
  */
 
-/** Open the start link, as the device would, and read where it sends the browser. */
-async function begin(h: Harness, query = '') {
-  const attempt = newAttempt()
+interface Started {
+  readonly attempt: string
+  readonly start: Response
+  readonly google: URL
+  readonly state: string
+  readonly nonce: string
+  readonly challenge: string
+}
+
+/** Open a start link, as a device (or someone else) would, and read where it sends the browser. */
+async function begin(h: Harness, query = '', attempt = newAttempt()): Promise<Started> {
   const start = await h.call(`/v1/auth/start?attempt=${attempt}${query}`)
   const google = new URL(start.headers.get('location') ?? 'about:blank')
   return {
@@ -28,52 +53,59 @@ async function begin(h: Harness, query = '') {
     google,
     state: google.searchParams.get('state') ?? '',
     nonce: google.searchParams.get('nonce') ?? '',
+    challenge: google.searchParams.get('code_challenge') ?? '',
   }
 }
 
-/** The claims Google would put in an ID token for this sign-in. */
-function claims(h: Harness, nonce: string, changes: Record<string, unknown> = {}) {
-  return {
-    iss: 'https://accounts.google.com',
-    aud: CLIENT_ID,
-    sub: ME.sub,
-    email: ME.email,
-    email_verified: true,
-    name: ME.name,
-    picture: ME.picture,
-    nonce,
-    iat: Math.floor(h.clock.now / 1000),
-    exp: Math.floor(h.clock.now / 1000) + 3600,
-    ...changes,
-  }
+/** Google sending the browser back, after `profile` signed in. */
+function finish(
+  h: Harness,
+  started: Started,
+  profile: Profile = ME,
+  changes: Record<string, unknown> = {},
+): Promise<Response> {
+  const code = h.google.code(
+    idTokenClaims(profile, started.nonce, h.clock, changes),
+    started.challenge,
+  )
+  return h.call(`/v1/auth/callback?state=${started.state}&code=${encodeURIComponent(code)}`)
 }
 
-/** Google sending the browser back, with a code for an ID token carrying these claims. */
-function finish(h: Harness, state: string, tokenClaims: Record<string, unknown>) {
-  const code = h.google.code(tokenClaims)
-  return h.call(`/v1/auth/callback?state=${state}&code=${encodeURIComponent(code)}`)
+function claim(h: Harness, attempt: string, code?: string): Promise<Response> {
+  return h.call('/v1/auth/claim', { json: code === undefined ? { attempt } : { attempt, code } })
 }
 
-async function claim(h: Harness, attempt: string) {
-  const response = await h.call('/v1/auth/claim', { json: { attempt } })
+async function claimed(h: Harness, attempt: string, code?: string) {
+  const response = await claim(h, attempt, code)
   expect(response.status).toBe(200)
   return DoormanClaimResultSchema.parse(await response.json())
 }
 
-function nothingMade(h: Harness): void {
-  expect(h.kv.keys('session:')).toEqual([])
-  expect(h.kv.keys('account:')).toEqual([])
-  expect(h.kv.keys('attempt:')).toEqual([])
+async function refused(response: Response) {
+  expect(response.status).toBe(403)
+  return ErrorBodySchema.parse(await response.json())
+}
+
+/** The state's payload, which is signed but not secret. */
+function statePayload(state: string): Record<string, unknown> {
+  const payload = fromBase64Url(state.slice(0, state.lastIndexOf('.'))) ?? new Uint8Array()
+  return JSON.parse(fromUtf8(payload)) as Record<string, unknown>
+}
+
+/** A well-formed code that is not `code`. */
+function otherCode(code: string): string {
+  return code.startsWith('2') ? `3${code.slice(1)}` : `2${code.slice(1)}`
+}
+
+const WRONG_CODE = {
+  error: 'That isn’t the code shown after signing in. Start again.',
+  code: 'wrong_code',
 }
 
 describe('starting a sign-in', () => {
-  it('sends the browser to Google with a state and nonce it keeps for ten minutes', async () => {
+  it('sends the browser to Google with a signed state, a nonce and PKCE, writing nothing', async () => {
     const h = harness()
-    const returnTo = `${APP_ORIGIN}/selfmp3/settings?tab=cloud`
-    const { attempt, start, google, state, nonce } = await begin(
-      h,
-      `&return=${encodeURIComponent(returnTo)}`,
-    )
+    const { attempt, start, google, state, nonce, challenge } = await begin(h)
 
     expect(start.status).toBe(302)
     expect(start.headers.get('cache-control')).toBe('no-store')
@@ -87,34 +119,53 @@ describe('starting a sign-in', () => {
       scope: 'openid email profile',
       state,
       nonce,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
       prompt: 'select_account',
     })
-    expect(state).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(nonce).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(nonce).not.toBe(state)
-
-    // The attempt stays with the doorman: Google never sees it.
-    expect(google.toString()).not.toContain(attempt)
-    const [stored] = h.kv.dump()
-    expect(stored?.key).toBe(`state:${state}`)
-    expect(stored?.ttlSeconds).toBe(600)
-    expect(JSON.parse(stored?.value ?? '')).toEqual({ attempt, returnTo, nonce })
+    expect(challenge).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(state).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/)
+    expect(statePayload(state)).toEqual({
+      attempt,
+      returnTo: null,
+      nonce,
+      exp: h.clock.now + 10 * 60_000,
+    })
+    // Anyone can open a start link, so it costs no KV write at all.
+    expect(h.kv.writes).toBe(0)
+    expect(h.kv.dump()).toEqual([])
   })
 
-  it('ignores a return address that is not the app’s own', async () => {
+  it('keeps a return address on the app, or on this computer', async () => {
+    const h = harness()
+    for (const address of [
+      `${APP_ORIGIN}/selfmp3/settings?tab=cloud`,
+      'http://localhost:4600/settings',
+      'http://localhost/',
+      'http://127.0.0.1:8123/cloud',
+    ]) {
+      const { state } = await begin(h, `&return=${encodeURIComponent(address)}`)
+      expect(statePayload(state).returnTo, address).toBe(address)
+    }
+  })
+
+  it('drops a return address that is anyone else’s', async () => {
     const h = harness()
     for (const address of [
       'https://evil.example/selfmp3/',
       'https://xiao215.github.io.evil.example/',
+      'http://localhost.evil.example/',
+      'http://127.0.0.2/',
+      'https://localhost:4600/',
       'javascript:alert(1)',
       '//evil.example/',
       'not a url',
+      `${APP_ORIGIN}/${'x'.repeat(1100)}`,
     ]) {
-      const { state, start } = await begin(h, `&return=${encodeURIComponent(address)}`)
+      const { start, state } = await begin(h, `&return=${encodeURIComponent(address)}`)
       expect(start.status).toBe(302)
-      expect(JSON.parse((await h.kv.get(`state:${state}`)) ?? '')).toMatchObject({
-        returnTo: null,
-      })
+      expect(statePayload(state).returnTo, address).toBeNull()
     }
   })
 
@@ -126,7 +177,7 @@ describe('starting a sign-in', () => {
       expect(response.headers.get('content-type')).toMatch(/^text\/html/)
       expect(await response.text()).toMatch(/This sign-in link is not right/)
     }
-    expect(await h.call('/v1/auth/start').then(r => r.status)).toBe(400)
+    expect((await h.call('/v1/auth/start')).status).toBe(400)
     expect(h.kv.writes).toBe(0)
   })
 
@@ -141,98 +192,51 @@ describe('starting a sign-in', () => {
     expect(h.kv.writes).toBe(0)
   })
 
-  it('says the doorman is not set up when it has no Google client', async () => {
-    const h = harness()
-    h.env.GOOGLE_CLIENT_ID = ''
-    const response = await h.call(`/v1/auth/start?attempt=${newAttempt()}`)
-    expect(response.status).toBe(500)
-    expect(await response.text()).toMatch(/Not set up yet/)
+  it('says the doorman is not set up without a Google client or a SEAL_KEY', async () => {
+    for (const change of [{ GOOGLE_CLIENT_ID: '' }, { SEAL_KEY: undefined }, { SEAL_KEY: 'x' }]) {
+      const h = harness()
+      Object.assign(h.env, change)
+      const response = await h.call(`/v1/auth/start?attempt=${newAttempt()}`)
+      expect(response.status).toBe(500)
+      expect(await response.text()).toMatch(/Not set up yet/)
+    }
   })
 })
 
 describe('coming back from Google', () => {
-  it('signs in, and the device claims its session exactly once', async () => {
+  it('shows the code on the doorman’s page, and keeps only who it is and a MAC of it', async () => {
     const h = harness()
-    const returnTo = `${APP_ORIGIN}/selfmp3/`
-    const { attempt, state, nonce } = await begin(h, `&return=${encodeURIComponent(returnTo)}`)
+    const started = await begin(h)
+    const back = await finish(h, started)
 
-    // The device asks before Google has sent the browser back.
-    expect(await claim(h, attempt)).toEqual({ status: 'pending' })
-
-    const back = await finish(h, state, claims(h, nonce))
     expect(back.status).toBe(200)
+    const code = (await signInCodeFrom(back)) ?? ''
     const html = await back.text()
-    expect(html).toContain('Signed in as me@example.com.')
-    expect(html).toContain('You can go back to self.mp3.')
-    const next = `${returnTo}#signin=${attempt}`
-    expect(html).toContain(`<meta http-equiv="refresh" content="2; url=${next}">`)
-    expect(html).toContain(`<a href="${next}">`)
+    expect(code).toMatch(/^[0-9A-HJKMNP-TV-Z]{8}$/)
+    expect(html).toContain(`<p class="code">${formatSignInCode(code)}</p>`)
+    expect(html).toContain('Google has signed you in as me@example.com.')
+    expect(html).toContain('Go back to self.mp3 — it asks for this code if it needs it.')
 
-    // Google was asked with the same address the browser was sent from.
-    const form = h.google.exchanges[0]
-    expect(form?.get('redirect_uri')).toBe(`${DOORMAN_ORIGIN}/v1/auth/callback`)
-    expect(form?.get('grant_type')).toBe('authorization_code')
-
-    const signedIn = await claim(h, attempt)
-    if (signedIn.status !== 'signed-in') throw new Error('expected a session')
-    expect(signedIn.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(signedIn.me).toEqual({
-      email: ME.email,
-      name: ME.name,
-      picture: ME.picture,
-      storage: null,
-    })
-
-    // Once only.
-    expect(await claim(h, attempt)).toEqual({ status: 'pending' })
-
-    // And the session works.
-    const me = await h.call('/v1/me', { token: signedIn.token })
-    expect(me.status).toBe(200)
-    expect(DoormanMeSchema.parse(await me.json()).email).toBe(ME.email)
-  })
-
-  it('keeps only the hash of a session, for 180 days', async () => {
-    const h = harness()
-    const token = await h.signIn()
-    const sessions = h.kv.dump().filter(entry => entry.key.startsWith('session:'))
-    expect(sessions).toHaveLength(1)
-    expect(sessions[0]?.key).toBe(`session:${await sha256Hex(token)}`)
-    expect(sessions[0]?.ttlSeconds).toBe(180 * 24 * 60 * 60)
-    for (const { value } of h.kv.dump()) expect(value).not.toContain(token)
-    expect(JSON.parse(sessions[0]?.value ?? '')).toEqual({
-      sub: ME.sub,
-      email: ME.email,
-      name: ME.name,
-      picture: ME.picture,
-      createdAt: '2026-09-11T12:00:00.000Z',
-    })
-  })
-
-  it('costs six KV writes for a whole sign-in, and nothing to use afterwards', async () => {
-    const h = harness()
-    const token = await h.signIn()
-    expect(h.kv.writes).toBe(6)
-    await h.call('/v1/me', { token })
-    h.clock.now += 5 * 60_000
-    await h.call('/v1/me', { token })
-    expect(h.kv.writes).toBe(6)
-  })
-
-  it('ends on the doorman’s own page when there is nowhere to go back to', async () => {
-    const h = harness()
-    const { state, nonce } = await begin(h)
-    const back = await finish(h, state, claims(h, nonce))
-    const html = await back.text()
-    expect(html).toContain('Signed in as me@example.com.')
-    expect(html).not.toContain('http-equiv="refresh"')
-    expect(html).not.toContain('<a ')
+    // One write, under the attempt, for ten minutes: no session, no token, no code.
+    expect(h.kv.writes).toBe(1)
+    const [kept] = h.kv.dump()
+    expect(kept?.key).toBe(`attempt:${started.attempt}`)
+    expect(kept?.ttlSeconds).toBe(600)
+    expect(Object.keys(JSON.parse(kept?.value ?? '') as object).sort()).toEqual([
+      'codeTag',
+      'email',
+      'expiresAt',
+      'name',
+      'picture',
+      'sub',
+    ])
+    expect(kept?.value).not.toContain(code)
+    expect(h.kv.keys('session:')).toEqual([])
   })
 
   it('gives the page a strict policy, with the stylesheet named by its hash', async () => {
     const h = harness()
-    const { state, nonce } = await begin(h)
-    const back = await finish(h, state, claims(h, nonce))
+    const back = await finish(h, await begin(h))
     const html = await back.text()
     const policy = back.headers.get('content-security-policy') ?? ''
     expect(policy).toContain("default-src 'none'")
@@ -247,29 +251,82 @@ describe('coming back from Google', () => {
     expect(back.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('uses each state once, and forgets it after ten minutes', async () => {
-    const h = harness()
-    const first = await begin(h)
-    expect((await finish(h, first.state, claims(h, first.nonce))).status).toBe(200)
-    const again = await finish(h, first.state, claims(h, first.nonce))
-    expect(again.status).toBe(400)
-    expect(await again.text()).toMatch(/This sign-in has expired/)
-
-    const late = await begin(h)
-    h.clock.now += 11 * 60_000
-    const expired = await finish(h, late.state, claims(h, late.nonce))
-    expect(expired.status).toBe(400)
-    expect(await expired.text()).toMatch(/This sign-in has expired/)
+  it('sends the browser back to the app with the code in the fragment, never the attempt', async () => {
+    for (const returnTo of [
+      `${APP_ORIGIN}/selfmp3/settings?tab=cloud`,
+      'http://localhost:4600/settings/cloud',
+      'http://127.0.0.1:8123/',
+    ]) {
+      const h = harness()
+      const started = await begin(h, `&return=${encodeURIComponent(returnTo)}`)
+      const back = await finish(h, started)
+      expect(back.status).toBe(302)
+      const location = back.headers.get('location') ?? ''
+      const code = (await signInCodeFrom(back)) ?? ''
+      expect(location).toBe(`${returnTo}#signin-code=${code}`)
+      expect(location).not.toContain(started.attempt)
+      expect(back.headers.get('referrer-policy')).toBe('no-referrer')
+      expect(back.headers.get('cache-control')).toBe('no-store')
+      // And the code it carries claims the session.
+      expect((await claimed(h, started.attempt, code)).status).toBe('signed-in')
+    }
   })
 
-  it('says a sign-in has expired when the state is missing or made up', async () => {
+  it('refuses a state that was changed, made elsewhere or is too old, and writes nothing', async () => {
     const h = harness()
-    for (const query of ['', '?code=x', '?state=abc&code=x', `?state=${'a'.repeat(43)}&code=x`]) {
-      const response = await h.call(`/v1/auth/callback${query}`)
+    const expired = async (state: string, started: Started) => {
+      const code = h.google.code(idTokenClaims(ME, started.nonce, h.clock), started.challenge)
+      const response = await h.call(`/v1/auth/callback?state=${state}&code=${code}`)
       expect(response.status).toBe(400)
       expect(await response.text()).toMatch(/This sign-in has expired/)
     }
-    nothingMade(h)
+
+    const started = await begin(h, `&return=${encodeURIComponent(`${APP_ORIGIN}/selfmp3/`)}`)
+    const [payload = '', mac = ''] = started.state.split('.')
+    // A new return address, with the old signature.
+    const redirected = toBase64Url(
+      utf8(JSON.stringify({ ...statePayload(started.state), returnTo: 'https://evil.example/' })),
+    )
+    await expired(`${redirected}.${mac}`, started)
+    // The old payload, with a signature one character off.
+    await expired(`${payload}.${mac.startsWith('A') ? 'B' : 'A'}${mac.slice(1)}`, started)
+    await expired(`${payload}.`, started)
+    await expired('', started)
+    await expired('not-a-state', started)
+
+    // One made by a doorman with another SEAL_KEY.
+    const elsewhere = harness()
+    elsewhere.env.SEAL_KEY = toBase64(new Uint8Array(32).fill(7))
+    const foreign = await begin(elsewhere)
+    await expired(foreign.state, foreign)
+
+    // One that is more than ten minutes old.
+    const late = await begin(h)
+    h.clock.now += 10 * 60_000 + 1
+    await expired(late.state, late)
+
+    expect(h.kv.writes).toBe(0)
+  })
+
+  it('gives Google the PKCE verifier for the challenge it was shown', async () => {
+    const h = harness()
+    const started = await begin(h)
+    expect((await finish(h, started)).status).toBe(200)
+    const verifier = h.google.exchanges[0]?.get('code_verifier') ?? ''
+    expect(verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(verifier)))
+    expect(toBase64Url(digest)).toBe(started.challenge)
+  })
+
+  it('cannot use a code Google issued for another sign-in', async () => {
+    const h = harness()
+    const first = await begin(h)
+    const second = await begin(h)
+    // A code meant for the first sign-in, brought back with the second's state.
+    const code = h.google.code(idTokenClaims(ME, second.nonce, h.clock), first.challenge)
+    const response = await h.call(`/v1/auth/callback?state=${second.state}&code=${code}`)
+    expect(response.status).toBe(502)
+    expect(h.kv.writes).toBe(0)
   })
 
   it('says so when the person cancels at Google', async () => {
@@ -278,8 +335,7 @@ describe('coming back from Google', () => {
     const response = await h.call(`/v1/auth/callback?state=${state}&error=access_denied`)
     expect(response.status).toBe(400)
     expect(await response.text()).toContain('Google did not sign you in (access_denied).')
-    expect(h.kv.keys('state:')).toEqual([])
-    nothingMade(h)
+    expect(h.kv.writes).toBe(0)
   })
 
   it('does not repeat an error it does not recognise', async () => {
@@ -301,50 +357,50 @@ describe('coming back from Google', () => {
     ['with no word on verification', { email_verified: undefined }],
     ['not from Google', { iss: 'https://accounts.evil.example' }],
     ['already expired', { exp: Math.floor(Date.parse('2026-09-11T11:59:00Z') / 1000) }],
-  ])('makes no session from an ID token %s', async (_why, change) => {
+  ])('writes nothing for an ID token %s', async (_why, change) => {
     const h = harness()
-    const { attempt, state, nonce } = await begin(h)
-    const response = await finish(h, state, claims(h, nonce, change))
+    const started = await begin(h)
+    const response = await finish(h, started, ME, change)
     expect(response.status).toBe(400)
     expect(await response.text()).toContain('Google could not finish signing you in.')
-    nothingMade(h)
-    expect(await claim(h, attempt)).toEqual({ status: 'pending' })
+    expect(h.kv.writes).toBe(0)
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'pending' })
+    expect(h.logs.map(line => line.message)).toEqual(['a sign-in failed'])
   })
 
-  it('makes no session when Google will not trade the code', async () => {
+  it('writes nothing when Google will not trade the code', async () => {
     const h = harness()
-    const { state, nonce } = await begin(h)
+    const started = await begin(h)
     h.google.refuse = true
-    const response = await finish(h, state, claims(h, nonce))
-    expect(response.status).toBe(502)
-    nothingMade(h)
+    expect((await finish(h, started)).status).toBe(502)
+    expect(h.kv.writes).toBe(0)
   })
 
-  it('turns away a Google account that is not on the list, and makes nothing for it', async () => {
+  it('turns away a Google account that is not on the list, writing nothing', async () => {
     const h = harness()
-    const { attempt, state, nonce } = await begin(h)
-    const response = await finish(
-      h,
-      state,
-      claims(h, nonce, { email: '"<b>stranger</b>"@example.com', sub: '999' }),
-    )
+    const started = await begin(h)
+    const response = await finish(h, started, {
+      ...ME,
+      sub: '999',
+      email: '"<b>stranger</b>"@example.com',
+    })
     expect(response.status).toBe(403)
     const html = await response.text()
     expect(html).toContain('is not allowed on this self.mp3')
     expect(html).toContain('&quot;&lt;b&gt;stranger&lt;/b&gt;&quot;@example.com')
     expect(html).not.toContain('<b>stranger')
-    nothingMade(h)
-    expect(await claim(h, attempt)).toEqual({ status: 'pending' })
+    expect(html).not.toContain('class="code"')
+    expect(h.kv.writes).toBe(0)
   })
 
   it('turns everyone away when the list was emptied during the sign-in', async () => {
     const h = harness()
-    const { state, nonce } = await begin(h)
+    const started = await begin(h)
     h.env.ALLOWED_EMAILS = ''
-    const response = await finish(h, state, claims(h, nonce))
+    const response = await finish(h, started)
     expect(response.status).toBe(403)
     expect(await response.text()).toMatch(/Nobody can sign in yet/)
-    nothingMade(h)
+    expect(h.kv.writes).toBe(0)
   })
 
   it('compares addresses without regard to case', async () => {
@@ -353,19 +409,99 @@ describe('coming back from Google', () => {
     const token = await h.signIn({ sub: '2', email: 'friend@example.com' })
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
-
-  it('keeps a sign-in’s account up to date, and its bucket', async () => {
-    const h = harness()
-    const token = await h.signIn()
-    expect((await h.connect(token)).status).toBe(200)
-    const later = await h.signIn({ name: 'Xiao Z', picture: 'https://example.com/new.png' })
-    const me = DoormanMeSchema.parse(await (await h.call('/v1/me', { token: later })).json())
-    expect(me).toMatchObject({ name: 'Xiao Z', picture: 'https://example.com/new.png' })
-    expect(me.storage?.bucket).toBe('my-music')
-  })
 })
 
 describe('claiming', () => {
+  it('says pending, then code, then hands the session over for the right code, once', async () => {
+    const h = harness()
+    const started = await begin(h)
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'pending' })
+
+    const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'code' })
+
+    const result = await claimed(h, started.attempt, code)
+    if (result.status !== 'signed-in') throw new Error('expected a session')
+    expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(result.me).toEqual({
+      email: ME.email,
+      name: ME.name,
+      picture: ME.picture,
+      storage: null,
+    })
+    const me = await h.call('/v1/me', { token: result.token })
+    expect(DoormanMeSchema.parse(await me.json()).email).toBe(ME.email)
+
+    // Once only: the attempt is gone.
+    expect(await refused(await claim(h, started.attempt, code))).toEqual(WRONG_CODE)
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'pending' })
+  })
+
+  it('takes the code however it is typed back', async () => {
+    for (const typed of [
+      (code: string) => code.toLowerCase(),
+      (code: string) => formatSignInCode(code),
+      (code: string) => ` ${code.slice(0, 2)} ${code.slice(2, 6)}-${code.slice(6)} `,
+      // I and L for 1, O for 0, as people read them off a screen.
+      (code: string) => code.replace(/1/g, 'l').replace(/0/g, 'O'),
+    ]) {
+      const h = harness()
+      const started = await begin(h)
+      const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+      const result = await claimed(h, started.attempt, typed(code))
+      expect(result.status).toBe('signed-in')
+    }
+  })
+
+  it('ends the attempt at the first wrong code', async () => {
+    const h = harness()
+    const started = await begin(h)
+    const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+
+    expect(await refused(await claim(h, started.attempt, otherCode(code)))).toEqual(WRONG_CODE)
+    // The right code is no good now either.
+    expect(await refused(await claim(h, started.attempt, code))).toEqual(WRONG_CODE)
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'pending' })
+    expect(h.kv.keys()).toEqual([])
+  })
+
+  it('refuses a code for an attempt there is none of, and writes nothing for it', async () => {
+    const h = harness()
+    const writes = h.kv.writes
+    expect(await refused(await claim(h, newAttempt(), '4F7K2QXM'))).toEqual(WRONG_CODE)
+    expect(h.kv.writes).toBe(writes)
+  })
+
+  it('refuses what is not a code at all, and leaves the attempt as it was', async () => {
+    const h = harness()
+    const started = await begin(h)
+    const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+    for (const bad of ['abc', 'ABCDEFGHU', 'UUUUUUUU', 'x'.repeat(40), '']) {
+      const response = await claim(h, started.attempt, bad)
+      expect(response.status, bad).toBe(400)
+    }
+    expect((await claimed(h, started.attempt, code)).status).toBe('signed-in')
+  })
+
+  it('checks the list again before making the session', async () => {
+    const h = harness()
+    const started = await begin(h)
+    const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+    h.env.ALLOWED_EMAILS = 'friend@example.com'
+    const body = await refused(await claim(h, started.attempt, code))
+    expect(body.code).toBe('forbidden')
+    expect(h.kv.keys()).toEqual([])
+  })
+
+  it('lasts ten minutes', async () => {
+    const h = harness()
+    const started = await begin(h)
+    const code = (await signInCodeFrom(await finish(h, started))) ?? ''
+    h.clock.now += 10 * 60_000 + 1
+    expect(await claimed(h, started.attempt)).toEqual({ status: 'pending' })
+    expect(await refused(await claim(h, started.attempt, code))).toEqual(WRONG_CODE)
+  })
+
   it('wants a real attempt, as JSON', async () => {
     const h = harness()
     expect((await h.call('/v1/auth/claim', { json: { attempt: 'nope' } })).status).toBe(400)
@@ -381,6 +517,72 @@ describe('claiming', () => {
     })
     expect(broken.status).toBe(400)
     expect(ErrorBodySchema.parse(await broken.json()).code).toBe('bad_request')
+  })
+
+  it('keeps only the hash of a session, for 180 days', async () => {
+    const h = harness()
+    const token = await h.signIn()
+    const sessions = h.kv.dump().filter(entry => entry.key.startsWith('session:'))
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0]?.key).toBe(`session:${await sha256Hex(token)}`)
+    expect(sessions[0]?.ttlSeconds).toBe(180 * 24 * 60 * 60)
+    for (const { value } of h.kv.dump()) expect(value).not.toContain(token)
+    expect(JSON.parse(sessions[0]?.value ?? '')).toEqual({
+      sub: ME.sub,
+      email: ME.email,
+      name: ME.name,
+      picture: ME.picture,
+      createdAt: '2026-09-11T12:00:00.000Z',
+    })
+    expect(h.kv.keys('attempt:')).toEqual([])
+  })
+
+  it('costs three KV writes for a whole sign-in, and nothing to use afterwards', async () => {
+    const h = harness()
+    const token = await h.signIn()
+    expect(h.kv.writes).toBe(3)
+    await h.call('/v1/me', { token })
+    h.clock.now += 5 * 60_000
+    await h.call('/v1/me', { token })
+    expect(h.kv.writes).toBe(3)
+  })
+})
+
+describe('a sign-in link someone else made', () => {
+  it('gives them nothing, even when the person they sent it to signs in with it', async () => {
+    const h = harness()
+    // The attacker makes an attempt, and gets the victim to open its start link.
+    const attackersAttempt = newAttempt()
+    const victims = await begin(h, '', attackersAttempt)
+    const shown = await finish(h, victims)
+    const code = (await signInCodeFrom(shown)) ?? ''
+    expect(code).not.toBe('')
+
+    // The attacker sees that the victim has signed in…
+    expect(await claimed(h, attackersAttempt)).toEqual({ status: 'code' })
+    // …but not the code, and one guess ends the attempt.
+    expect(await refused(await claim(h, attackersAttempt, otherCode(code)))).toEqual(WRONG_CODE)
+    expect(await refused(await claim(h, attackersAttempt, code))).toEqual(WRONG_CODE)
+
+    expect(h.kv.keys('session:')).toEqual([])
+    expect(h.kv.dump()).toEqual([])
+  })
+
+  it('sends the code only to the app’s own address, where the attacker is not', async () => {
+    const h = harness()
+    const attackersAttempt = newAttempt()
+    const victims = await begin(
+      h,
+      `&return=${encodeURIComponent('https://evil.example/collect')}`,
+      attackersAttempt,
+    )
+    const shown = await finish(h, victims)
+    // The foreign return address was dropped: the code stays on the doorman's page.
+    expect(shown.status).toBe(200)
+    expect(shown.headers.get('location')).toBeNull()
+    expect(await claimed(h, attackersAttempt)).toEqual({ status: 'code' })
+    expect(await refused(await claim(h, attackersAttempt, '2222-2222'))).toEqual(WRONG_CODE)
+    expect(h.kv.keys('session:')).toEqual([])
   })
 })
 
@@ -428,13 +630,15 @@ describe('sessions', () => {
     expect(h.kv.writes).toBe(writes)
   })
 
-  it('end at once for someone taken off the list', async () => {
+  it('are refused while their address is off the list, and back when it is on again', async () => {
     const h = harness()
     const token = await h.signIn({ sub: '2', email: 'friend@example.com' })
     h.env.ALLOWED_EMAILS = 'me@example.com'
-    const response = await h.call('/v1/me', { token })
-    expect(response.status).toBe(401)
-    expect(ErrorBodySchema.parse(await response.json()).error).toMatch(/no longer allowed/)
+    const refusedNow = await h.call('/v1/me', { token })
+    expect(refusedNow.status).toBe(401)
+    expect(ErrorBodySchema.parse(await refusedNow.json()).error).toMatch(/no longer allowed/)
+    h.env.ALLOWED_EMAILS = 'me@example.com, friend@example.com'
+    expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 
   it('expire after 180 days', async () => {
@@ -444,5 +648,65 @@ describe('sessions', () => {
     expect((await h.call('/v1/me', { token })).status).toBe(200)
     h.clock.now += 2 * 24 * 60 * 60_000
     expect((await h.call('/v1/me', { token })).status).toBe(401)
+  })
+})
+
+describe('signing out everywhere', () => {
+  it('ends every session the account has, for good, with one KV write', async () => {
+    const h = harness()
+    const phone = await h.signIn()
+    h.clock.now += 1000
+    const lost = await h.signIn()
+    const friend = await h.signIn({ sub: '2', email: 'friend@example.com' })
+    h.clock.now += 1000
+
+    const writes = h.kv.writes
+    const response = await h.call('/v1/auth/signout-everywhere', { method: 'POST', token: phone })
+    expect(response.status).toBe(204)
+    expect(h.kv.writes).toBe(writes + 1)
+
+    for (const token of [phone, lost]) {
+      const refusedNow = await h.call('/v1/me', { token })
+      expect(refusedNow.status).toBe(401)
+      expect(ErrorBodySchema.parse(await refusedNow.json()).error).toMatch(/signed out everywhere/)
+    }
+    // Only that account's sessions.
+    expect((await h.call('/v1/me', { token: friend })).status).toBe(200)
+    // Putting the address back on the list, or waiting, brings nothing back.
+    h.clock.now += 24 * 60 * 60_000
+    expect((await h.call('/v1/me', { token: lost })).status).toBe(401)
+    // A sign-in afterwards is a session like any other.
+    h.clock.now += 1000
+    const fresh = await h.signIn()
+    expect((await h.call('/v1/me', { token: fresh })).status).toBe(200)
+  })
+
+  it('reaches another Worker instance within the minute', async () => {
+    const h = harness()
+    const kept = await h.signIn()
+    h.clock.now += 1000
+    const elsewhere = harness()
+    elsewhere.env.KV = h.kv
+    const call = (token: string) =>
+      elsewhere.doorman.fetch(
+        new Request(`${DOORMAN_ORIGIN}/v1/me`, { headers: { authorization: `Bearer ${token}` } }),
+        elsewhere.env,
+      )
+    // The other instance has the session, and "never signed out", in hand.
+    expect((await call(kept)).status).toBe(200)
+
+    await h.call('/v1/auth/signout-everywhere', { method: 'POST', token: kept })
+    // Within the minute it remembers, the other instance has not heard yet:
+    // the price of not reading KV on every request.
+    expect((await call(kept)).status).toBe(200)
+    elsewhere.clock.now = h.clock.now + 61_000
+    h.clock.now += 61_000
+    expect((await call(kept)).status).toBe(401)
+  })
+
+  it('needs a session of its own', async () => {
+    const h = harness()
+    expect((await h.call('/v1/auth/signout-everywhere', { method: 'POST' })).status).toBe(401)
+    expect(h.kv.writes).toBe(0)
   })
 })

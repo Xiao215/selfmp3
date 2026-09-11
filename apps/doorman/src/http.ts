@@ -142,3 +142,20 @@ export async function readBytes(
 export async function discard(response: Response): Promise<void> {
   await response.body?.cancel().catch(() => undefined)
 }
+
+/**
+ * Text on its way to the log, with anything that could be a credential taken
+ * out: an Authorization header, a request signature, a bearer token. An
+ * error from the runtime can quote the header it choked on, and the log is
+ * read in a dashboard, far from where the value belongs.
+ */
+export function redact(text: string): string {
+  return text
+    .replace(/AWS4-HMAC-SHA256[^\r\n]*/gi, 'AWS4-HMAC-SHA256 …')
+    .replace(
+      /\b(X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token|Signature)=[^\s&,]*/gi,
+      '$1=…',
+    )
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer …')
+    .replace(/\b(authorization)\s*[:=]\s*[^\r\n]*/gi, '$1: …')
+}

@@ -5,8 +5,8 @@ import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
-import { DoormanError, errorResponse, forbidden, json, notFound, notSetUp } from './http.js'
-import { importSealKey } from './seal.js'
+import { DoormanError, errorResponse, forbidden, json, notFound, notSetUp, redact } from './http.js'
+import { deriveKeys, type DoormanKeys } from './keys.js'
 import { Sessions, type SessionCache } from './sessions.js'
 import * as storage from './storage.js'
 
@@ -14,10 +14,11 @@ import * as storage from './storage.js'
  * The doorman: one small Cloudflare Worker between every device and the
  * bucket — see docs/SYNC.md and the contract in packages/shared.
  *
- * It signs people in with Google (auth.ts), keeps the one bucket that belongs
- * to each Google account with its key sealed (accounts.ts, seal.ts), and
- * passes a signed-in device's reads and writes through to that bucket
- * (files.ts, bucket.ts). Devices never hold the bucket's key.
+ * It signs people in with Google and a one-time code (auth.ts, signin.ts),
+ * keeps the one bucket that belongs to each Google account with its key
+ * sealed (accounts.ts, seal.ts, keys.ts), and passes a signed-in device's
+ * reads and writes through to that bucket (files.ts, bucket.ts). Devices
+ * never hold the bucket's key.
  *
  * `createDoorman` builds it with what it talks to — fetch and a clock — so the
  * tests can run the very same code against a fake Google and a fake bucket.
@@ -52,6 +53,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   '/v1/auth/callback': { GET: auth.callback },
   '/v1/auth/claim': { POST: auth.claim },
   '/v1/auth/signout': { POST: auth.signOut },
+  '/v1/auth/signout-everywhere': { POST: auth.signOutEverywhere },
   '/v1/me': { GET: storage.me },
   '/v1/storage': { PUT: storage.connect, DELETE: storage.disconnect },
   '/v1/list': { GET: files.list },
@@ -74,14 +76,14 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   const sessionCache: SessionCache = new Map()
   const accountCache = newAccountCache()
   const signingKeys = new Map<string, ArrayBuffer>()
-  let sealKey: { secret: string | undefined; key: Promise<CryptoKey> } | null = null
+  let derived: { secret: string | undefined; keys: Promise<DoormanKeys> } | null = null
 
-  /** SEAL_KEY, imported once per instance. A missing or malformed one is the owner's to fix. */
-  const getSealKey = (env: Env): Promise<CryptoKey> => {
-    if (!sealKey || sealKey.secret !== env.SEAL_KEY) {
-      sealKey = { secret: env.SEAL_KEY, key: importSealKey(env.SEAL_KEY) }
+  /** SEAL_KEY's keys, derived once per instance. A missing or malformed one is the owner's to fix. */
+  const getKeys = (env: Env): Promise<DoormanKeys> => {
+    if (!derived || derived.secret !== env.SEAL_KEY) {
+      derived = { secret: env.SEAL_KEY, keys: deriveKeys(env.SEAL_KEY) }
     }
-    return sealKey.key.catch((error: unknown) => {
+    return derived.keys.catch((error: unknown) => {
       throw notSetUp(error instanceof Error ? error.message : 'SEAL_KEY is not usable.')
     })
   }
@@ -89,6 +91,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const origins = allowedOrigins(env.APP_ORIGINS, log)
+      const keys = (): Promise<DoormanKeys> => getKeys(env)
       const ctx: Context = {
         request,
         url: new URL(request.url),
@@ -97,8 +100,9 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         now,
         log,
         origins,
+        keys,
         sessions: new Sessions(env.KV, now, sessionCache),
-        accounts: new Accounts(env.KV, now, accountCache, () => getSealKey(env), log),
+        accounts: new Accounts(env.KV, now, accountCache, keys, log),
         bucketDeps: { fetch: fetcher, now, signingKeys },
       }
 
@@ -152,7 +156,9 @@ function asDoormanError(error: unknown, log: Log): DoormanError {
   if (error instanceof BucketError) {
     return new DoormanError(502, BUCKET_CODES[error.kind], error.message)
   }
-  // Only the message: never a stack's worth of values that might include a key.
-  log.error('unexpected error', { message: error instanceof Error ? error.message : String(error) })
+  // Only the message, never a stack's worth of values, and with anything like
+  // a credential taken out: an error can quote the header it choked on.
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  log.error('unexpected error', { message: redact(message).slice(0, 500) })
   return new DoormanError(500, 'internal', 'internal error')
 }

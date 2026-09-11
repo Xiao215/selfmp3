@@ -1,12 +1,13 @@
 import { fromBase64, fromUtf8, randomBytes, toBase64, utf8 } from './encoding.js'
 
 /**
- * Sealing a bucket's key before it goes into KV.
+ * Sealing a bucket's details before they go into KV.
  *
- * AES-256-GCM under SEAL_KEY, a secret only the Worker has. Anyone who can
- * read the KV namespace — in the Cloudflare dashboard, say — sees `v1:` and
- * noise, and GCM's tag means a sealed value that has been changed does not
- * open at all, rather than opening as something else.
+ * AES-256-GCM, under a key only the Worker has (derived from SEAL_KEY, see
+ * keys.ts). Anyone who can read the KV namespace — in the Cloudflare
+ * dashboard, say — sees `v1:` and noise, and GCM's tag means a sealed value
+ * that has been changed does not open at all, rather than opening as
+ * something else.
  *
  * Each value is sealed for a context (the account it belongs to), passed as
  * GCM's additional data. It is not secret, but it ties the value to that
@@ -24,17 +25,6 @@ export class SealError extends Error {
     super(message)
     this.name = 'SealError'
   }
-}
-
-/** SEAL_KEY as a key. The error says what is wrong with it, never what it is. */
-export async function importSealKey(secret: string | undefined): Promise<CryptoKey> {
-  const bytes = secret ? fromBase64(secret.trim()) : null
-  if (!bytes || bytes.length !== 32) {
-    throw new SealError(
-      'SEAL_KEY must be 32 random bytes in base64, as `openssl rand -base64 32` prints them.',
-    )
-  }
-  return crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt'])
 }
 
 export async function seal(plaintext: string, key: CryptoKey, context: string): Promise<string> {

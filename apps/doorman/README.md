@@ -17,8 +17,25 @@ The API it serves is the contract in
 It runs on Cloudflare's free plan. A request may use 10 ms of CPU, which is
 plenty: song bytes stream through without the Worker touching them. Uploads
 are limited to 100 MB each. Sessions live in Workers KV, whose free plan
-allows about 100,000 reads and 1,000 writes a day; signing in costs six
+allows about 100,000 reads and 1,000 writes a day. Nothing is written until
+Google has vouched for an address on your list; a whole sign-in costs three
 writes, and using the library afterwards costs none.
+
+## How signing in works
+
+1. self.mp3 opens the doorman's sign-in link, and you choose your Google
+   account.
+2. Google sends you back to the doorman, which shows you a **sign-in code**,
+   like `4F7K-2QXM`. If self.mp3 opened the link in the same browser, you are
+   sent straight back to it with the code, and never see it.
+3. self.mp3 claims your session with that code. If it asks you to type the
+   code — the iPhone home-screen app does, since its sign-in opens in a sheet
+   of its own — type it there, and nowhere else.
+
+The code is what makes the session yours. Someone who sends you a sign-in link
+of their own making can see that you signed in, but never the code you were
+shown, and a single wrong guess ends that sign-in. The code works once, for ten
+minutes.
 
 ---
 
@@ -90,9 +107,10 @@ The doorman signs people in with an OAuth client that you own, in the
 
 1. In `wrangler.toml`, set `GOOGLE_CLIENT_ID` to the client ID. It is not a
    secret: it appears in every sign-in link.
-2. Check `APP_ORIGINS` in `wrangler.toml`: the addresses the web app is
-   served from. Browsers may call the doorman only from these, and a sign-in
-   only sends you back to them.
+2. Check `APP_ORIGINS` in `wrangler.toml`: the address the web app is served
+   from, `https://xiao215.github.io`. Browsers may call the doorman only from
+   there, and a sign-in only sends you back there — or to this computer
+   (`http://localhost` or `http://127.0.0.1`, for the Mac's settings page).
 3. Make a seal key, 32 random bytes:
 
    ```sh
@@ -120,19 +138,39 @@ It builds `packages/shared` first (`wrangler.toml` says to), then uploads the
 Worker and prints its address. Open `/v1/health` on it: you should see
 `{"ok":true,"version":"1.0.0"}`.
 
+Wrangler may warn that `wrangler.toml` defines more than one environment. The
+other one, `dev`, is only for running the doorman on your own computer (see
+below); the plain command deploys the real doorman.
+
 ---
 
 ## Good to know
 
+- **A lost or stolen device**: sign in on another device and choose **sign
+  out everywhere** in self.mp3. That ends every session of your Google
+  account at once, the lost device's included, for good; then sign in again
+  where you want to be. It can take up to a minute to reach every Cloudflare
+  location.
 - **ALLOWED_EMAILS** is the whole list of who may sign in. Letter case does
-  not matter. If it is empty or missing, nobody can sign in. Taking someone
-  off the list signs them out everywhere at once.
-- **SEAL_KEY** seals each account's bucket key in KV. If you change it, the
-  doorman can no longer open the keys it sealed, and everyone connects their
+  not matter. If it is empty or missing, nobody can sign in. Taking an address
+  off the list refuses its sessions straight away, but does not end them:
+  putting the address back revives them. To be rid of someone's sessions for
+  good, have them sign out everywhere, or keep them off the list.
+- **SEAL_KEY** is where every key the doorman uses comes from: the one that
+  seals each account's bucket key, and the ones that sign sign-ins and their
+  codes. If you change it, sign-ins in progress stop working, and the doorman
+  can no longer open the bucket keys it sealed, so everyone connects their
   bucket again (the bucket and its files are untouched).
+- **What a device may do to the library**: read everything in it, add files,
+  and replace or delete snapshots and change logs. It can never replace
+  `format.json` (the doorman writes that when a bucket is connected), and
+  never replace or delete a song, cover or lyrics file once it is there.
 - **Logs**: `npx wrangler tail` shows what the doorman is doing, including why
   a sign-in was refused. It never logs a token, a key or a secret.
-- **Running it on your own computer**: put the three secrets in a file named
-  `.dev.vars` in this folder (one `NAME=value` per line; it is ignored by
-  git), add `http://localhost:8787/v1/auth/callback` to the Google client's
-  redirect URIs, and run `npx wrangler dev`.
+- **Running it on your own computer**: put `GOOGLE_CLIENT_ID` and the three
+  secrets in a file named `.dev.vars` in this folder (one `NAME=value` per
+  line; git ignores it), add `http://localhost:8787/v1/auth/callback` to the
+  Google client's redirect URIs, and run `npx wrangler dev --env dev`. That
+  development setup also lets the web app's local addresses call the doorman,
+  and lets it use a bucket on this computer over plain http. It is never
+  deployed.

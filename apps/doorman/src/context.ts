@@ -1,14 +1,15 @@
-import type { Accounts, Account } from './accounts.js'
+import type { Accounts } from './accounts.js'
 import { Bucket, type BucketDeps, type Fetch } from './bucket.js'
 import { DoormanError, unauthorized } from './http.js'
+import type { DoormanKeys } from './keys.js'
 import type { KvStore } from './kv.js'
 import { bearerToken, type Session, type Sessions } from './sessions.js'
 
 /**
  * What every route is handed: the request, the Worker's settings, and the
- * doorman's parts. Also the three gates a route may need to pass — a session,
- * the account behind it, and that account's bucket — so each route says which
- * it needs in one line and they are checked the same way everywhere.
+ * doorman's parts. Also the two gates a route may need to pass — a session
+ * that is still good, and the account's bucket — so each route says which it
+ * needs in one line and they are checked the same way everywhere.
  */
 
 /**
@@ -20,12 +21,14 @@ export interface Env {
   readonly KV: KvStore
   readonly GOOGLE_CLIENT_ID?: string
   readonly GOOGLE_CLIENT_SECRET?: string
-  /** base64 of 32 random bytes. See seal.ts. */
+  /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */
   readonly SEAL_KEY?: string
   /** Comma-separated Google addresses that may sign in. Empty lets nobody in. */
   readonly ALLOWED_EMAILS?: string
   /** Comma-separated origins of the web app, for CORS and for going back after sign-in. */
   readonly APP_ORIGINS?: string
+  /** "true" only in `wrangler dev --env dev`: allows a bucket on this computer, over http. */
+  readonly DEV?: string
 }
 
 /**
@@ -45,6 +48,8 @@ export interface Context {
   readonly now: () => number
   readonly log: Log
   readonly origins: ReadonlySet<string>
+  /** The keys derived from SEAL_KEY. Throws a not-set-up error when it is missing or wrong. */
+  readonly keys: () => Promise<DoormanKeys>
   readonly sessions: Sessions
   readonly accounts: Accounts
   readonly bucketDeps: BucketDeps
@@ -69,9 +74,13 @@ export function isAllowed(email: string, value: string | undefined): boolean {
 }
 
 /**
- * The session the request brings. Checked against ALLOWED_EMAILS every time,
- * so taking someone off the list signs them out everywhere at once rather
- * than when their 180 days are up.
+ * The session the request brings, if it is still good. Two things can end a
+ * session before its 180 days are up, and both are checked every time:
+ *
+ * - its address is no longer on ALLOWED_EMAILS. That refuses the session
+ *   while the address is off the list; putting it back revives it.
+ * - the account signed out everywhere after the session was made. That ends
+ *   it for good, and is what to do about a lost device.
  */
 export async function requireSession(ctx: Context): Promise<Session> {
   const token = bearerToken(ctx.request)
@@ -80,31 +89,17 @@ export async function requireSession(ctx: Context): Promise<Session> {
   if (!isAllowed(session.email, ctx.env.ALLOWED_EMAILS)) {
     throw unauthorized('this Google account is no longer allowed on this self.mp3')
   }
+  const cutoff = await ctx.accounts.sessionsValidAfter(session.sub)
+  // Written so that a creation time that does not parse is refused too.
+  if (cutoff !== null && !(Date.parse(session.createdAt) > cutoff)) {
+    throw unauthorized('this session was signed out everywhere; sign in again')
+  }
   return session
 }
 
-/**
- * The session and its account. Every sign-in writes the account, so it is
- * only missing if someone deleted it from KV by hand; the session's own copy
- * of the name and picture stands in until the next sign-in.
- */
-export async function requireAccount(
-  ctx: Context,
-): Promise<{ session: Session; account: Account }> {
-  const session = await requireSession(ctx)
-  const account = (await ctx.accounts.get(session.sub)) ?? {
-    email: session.email,
-    name: session.name,
-    picture: session.picture,
-    storage: null,
-  }
-  return { session, account }
-}
-
 /** The signed-in account's bucket, ready to use. */
-export async function requireBucket(ctx: Context): Promise<Bucket> {
-  const { session, account } = await requireAccount(ctx)
-  const target = await ctx.accounts.bucket(session.sub, account)
+export async function requireBucket(ctx: Context, session: Session): Promise<Bucket> {
+  const target = await ctx.accounts.bucket(session.sub)
   if (!target) throw new DoormanError(409, 'no_storage', 'connect your bucket first')
   return new Bucket(target, ctx.bucketDeps)
 }

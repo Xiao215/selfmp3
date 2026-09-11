@@ -8,9 +8,9 @@ import {
   type CloudFormat,
 } from '@selfmp3/shared'
 import { Bucket, BucketError, type BucketTarget } from './bucket.js'
-import { requireAccount, type Context } from './context.js'
+import { requireSession, type Context } from './context.js'
 import { fromUtf8, utf8 } from './encoding.js'
-import { json, readJson, unprocessable } from './http.js'
+import { badRequest, json, readJson, unprocessable } from './http.js'
 
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
@@ -26,16 +26,21 @@ import { json, readJson, unprocessable } from './http.js'
 /** A format.json is a hundred bytes. Anything far bigger is not one of ours. */
 const FORMAT_MAX_BYTES = 64 * 1024
 
+/** A region as providers name them: `us-west-004`, `auto`, `eu-central-1`. */
+const REGION = /^[a-z0-9-]{1,64}$/
+/** A key ID goes into every request's Authorization header, so: visible ASCII, no spaces. */
+const KEY_ID = /^[\x21-\x7e]{1,200}$/
+
 /** `GET /v1/me` */
 export async function me(ctx: Context): Promise<Response> {
-  const { session, account } = await requireAccount(ctx)
-  return json(await ctx.accounts.me(session.sub, account))
+  const session = await requireSession(ctx)
+  return json(await ctx.accounts.me(session))
 }
 
 /** `PUT /v1/storage` — connect a bucket, or replace the one connected. */
 export async function connect(ctx: Context): Promise<Response> {
-  const { session, account } = await requireAccount(ctx)
-  const target = targetFrom(await readJson(ctx.request, CloudConnectSchema))
+  const session = await requireSession(ctx)
+  const target = targetFrom(await readJson(ctx.request, CloudConnectSchema), ctx.env.DEV === 'true')
 
   const bucket = new Bucket(target, ctx.bucketDeps)
   try {
@@ -47,31 +52,47 @@ export async function connect(ctx: Context): Promise<Response> {
     throw error
   }
 
-  const connected = await ctx.accounts.connect(session.sub, account, target)
-  return json(await ctx.accounts.me(session.sub, connected))
+  await ctx.accounts.connect(session.sub, target)
+  return json(await ctx.accounts.me(session))
 }
 
 /** `DELETE /v1/storage` — forget the bucket. The bucket and its files are left alone. */
 export async function disconnect(ctx: Context): Promise<Response> {
-  const { session, account } = await requireAccount(ctx)
-  const forgotten = await ctx.accounts.disconnect(session.sub, account)
-  return json(await ctx.accounts.me(session.sub, forgotten))
+  const session = await requireSession(ctx)
+  await ctx.accounts.disconnect(session.sub)
+  return json(await ctx.accounts.me(session))
 }
 
-/** The form's fields, tidied as the Mac tidies them, and checked for what S3 alone would not catch. */
-function targetFrom(input: CloudConnect): BucketTarget {
+/**
+ * The form's fields, tidied as the Mac tidies them, and checked for what S3
+ * alone would not catch. The region and the key ID are checked for shape
+ * before anything is built from them: both end up in a request header, and
+ * a character no header may hold would otherwise fail deep inside the
+ * runtime, as an error that says nothing.
+ */
+function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
+  const keyId = input.keyId.trim()
+  if (!KEY_ID.test(keyId)) {
+    throw badRequest('keyId: a key ID is letters, digits and symbols, with no spaces')
+  }
+  const givenRegion = input.region?.trim()
+  if (givenRegion && !REGION.test(givenRegion)) {
+    throw badRequest('region: lower-case letters, digits and dashes, like us-west-004')
+  }
+
   const endpoint = parseEndpoint(input.endpoint)
   if (!endpoint) {
     throw unprocessable('That endpoint is not an address, like s3.us-west-004.backblazeb2.com.')
   }
-  // The doorman is on the public internet: songs must not cross it in the clear.
-  // A bucket on this computer is the one exception, for `wrangler dev`.
+  // The doorman is on the public internet: songs must not cross it in the
+  // clear. A bucket on this computer is the one exception, and only in
+  // `wrangler dev --env dev`, whose settings say DEV.
   const host = new URL(endpoint.url).hostname
-  const local = host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
-  if (endpoint.url.startsWith('http:') && !local) {
+  const local = host === 'localhost' || host === '127.0.0.1'
+  if (endpoint.url.startsWith('http:') && !(dev && local)) {
     throw unprocessable('The endpoint has to be an https:// address.')
   }
-  const region = input.region?.trim() || endpoint.region
+  const region = givenRegion || endpoint.region
   if (!region) {
     throw unprocessable('Say which region the bucket is in, as its provider names it.')
   }
@@ -86,7 +107,7 @@ function targetFrom(input: CloudConnect): BucketTarget {
     region,
     bucket: input.bucket.trim(),
     prefix,
-    keyId: input.keyId.trim(),
+    keyId,
     applicationKey: input.applicationKey.trim(),
   }
 }

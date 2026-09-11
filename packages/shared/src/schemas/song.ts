@@ -34,6 +34,12 @@ export const SongSchema = z.object({
    */
   rev: z.string().optional(),
   lyricsKind: LyricsKindSchema,
+  /**
+   * True when the song is known to have no words: lrclib said so, or you
+   * marked it. Distinct from lyricsKind 'none', which only means none were
+   * found. Defaults to false for older servers.
+   */
+  instrumental: z.boolean().default(false),
   playCount: z.number().int().nonnegative(),
   skipCount: z.number().int().nonnegative(),
   loved: z.boolean(),
@@ -58,6 +64,8 @@ export const SongPatchSchema = z
     year: z.number().int().min(0).max(9999).nullable(),
     trackNo: z.number().int().min(0).max(9999).nullable(),
     loved: z.boolean(),
+    /** Mark or unmark a song as having no words, so no lyrics are looked up. */
+    instrumental: z.boolean(),
   })
   .partial()
   .refine(patch => Object.keys(patch).length > 0, { message: 'no fields to update' })

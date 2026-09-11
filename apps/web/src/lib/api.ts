@@ -18,8 +18,6 @@ import {
   MigrateParseResultSchema,
   LyricsSearchResponseSchema,
   RomanizedLyricsSchema,
-  SecretsStatusSchema,
-  TranslatedLyricsSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
   ScanResultSchema,
@@ -46,7 +44,6 @@ import {
   type MigrateSourceTrack,
   type OfflineScope,
   type PlayEvent,
-  type SecretProvider,
   type SmartRules,
   type SongPatch,
   type StatsRange,
@@ -211,13 +208,6 @@ export const api = {
   romanizedLyrics: (id: number) =>
     request('GET', `/api/songs/${id}/lyrics/romanized`, RomanizedLyricsSchema),
 
-  translatedLyrics: (id: number, lang: string) =>
-    request(
-      'GET',
-      `/api/songs/${id}/lyrics/translation?lang=${encodeURIComponent(lang)}`,
-      TranslatedLyricsSchema,
-    ),
-
   lyricsSearch: (query: string, limit = 8) =>
     request(
       'GET',
@@ -225,10 +215,6 @@ export const api = {
       LyricsSearchResponseSchema,
     ),
 
-  secrets: () => request('GET', '/api/settings/secrets', SecretsStatusSchema),
-
-  setSecret: (provider: SecretProvider, key: string | null) =>
-    request('PUT', '/api/settings/secrets', SecretsStatusSchema, { provider, key }),
   similar: (id: number, limit = 20) =>
     request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 

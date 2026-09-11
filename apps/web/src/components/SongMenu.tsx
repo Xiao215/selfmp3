@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Song, Tag } from '@selfmp3/shared'
-import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
+import { useAddToPlaylist, useDeleteSong, useLibrary, usePatchSong } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
@@ -13,6 +13,7 @@ import {
   Folder,
   Info,
   ListMusic,
+  Music,
   Queue,
   Sparkles,
   Tag as TagIcon,
@@ -68,6 +69,7 @@ export function SongMenu({
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
   const deleteSong = useDeleteSong()
+  const patchSong = usePatchSong()
   const offline = useOffline()
   const player = usePlayer()
 
@@ -244,6 +246,19 @@ export function SongMenu({
         onClick={() => setMetadataOpen(true)}
       >
         <Sparkles size={15} /> Fix metadata…
+      </button>
+
+      {/* An instrumental gets a visual instead of "no lyrics found", and is not
+          looked up on lrclib again. Easy to take back: lyrics you add later win. */}
+      <button
+        type="button"
+        role="menuitem"
+        className="popover-item"
+        onClick={() =>
+          act(() => patchSong.mutate({ id: song.id, patch: { instrumental: !song.instrumental } }))
+        }
+      >
+        <Music size={15} /> {song.instrumental ? 'Has lyrics after all' : 'Mark as instrumental'}
       </button>
 
       {/* Downloading is for devices away from the Mac. On the Mac itself only

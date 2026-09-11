@@ -41,9 +41,8 @@ where each track is matched to a YouTube upload, scored, and shown to you with a
 before anything downloads.
 
 **Lyrics.** Chinese lyrics can show pinyin underneath and Japanese romaji, computed locally,
-no key needed. Translation is there too but needs an API key of your own (Settings →
-Lyrics). Songs with no timings can be synced by tapping along to the music, which writes a
-proper `.lrc` next to the audio. And you can now find a song by a line you remember — lyrics
+so nothing leaves your Mac. Songs with no timings can be synced by tapping along to the
+music, which writes a proper `.lrc` next to the audio. And you can now find a song by a line you remember — lyrics
 are indexed and searchable from ⌘K.
 
 **It listens to your music.** Every song is analysed locally for tempo, key, energy and

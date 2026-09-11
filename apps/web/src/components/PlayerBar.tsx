@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { formatDuration } from '@selfmp3/shared'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { activeLineIndex, formatDuration, parseLyrics, type Song } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
+import { api } from '../lib/api.js'
 import { useLibrary, useToggleLoved } from '../lib/queries.js'
 import { useIsMobile } from '../lib/hooks.js'
 import { TagPicker } from './TagPicker.js'
@@ -9,7 +11,10 @@ import { useDeviceContext } from '../devices/DevicesProvider.js'
 import { useTransport } from '../devices/useTransport.js'
 import { loopRegionPercent } from '../player/practice.js'
 import { Cover } from './Cover.js'
+import { lyricsQueryKey } from './nowplaying/useSongLyrics.js'
+import type { PageMode } from './nowplaying/NowPlayingPage.js'
 import {
+  ChevronDown,
   Heart,
   Metronome,
   Mic,
@@ -39,26 +44,30 @@ const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
 /**
  * The transport bar.
  *
- * On a phone it collapses to a compact strip above the tab bar — tapping it
- * opens the full-screen now-playing view, which is the interaction people
- * already expect from every other music app.
+ * The artwork, title and artist together are the way into the song's own page
+ * — the same thing the phone's mini player does, and what people expect from
+ * every other music app. On a phone the bar collapses to that compact strip
+ * above the tab bar.
  */
 export function PlayerBar({
-  onOpenLyrics,
+  onToggleLyrics,
   onOpenQueue,
   onOpenPractice,
-  onOpenNowPlaying,
-  lyricsOpen,
+  onTogglePage,
+  page,
   queueOpen,
   practiceOpen,
   tagsOpen,
   onToggleTags,
 }: {
-  onOpenLyrics: () => void
+  /** The mic, or L: the page in Focus, and again to put it away. */
+  onToggleLyrics: () => void
   onOpenQueue: () => void
   onOpenPractice: () => void
-  onOpenNowPlaying: () => void
-  lyricsOpen: boolean
+  /** The artwork block: open the page, or close it. */
+  onTogglePage: () => void
+  /** Which mode the page is in, or null while it is closed. */
+  page: PageMode | null
   queueOpen: boolean
   practiceOpen: boolean
   /** The tag picker for what is playing, opened here or with T. */
@@ -97,7 +106,7 @@ export function PlayerBar({
       .join(', ')
 
   if (isMobile) {
-    return <MiniPlayer onOpen={onOpenNowPlaying} percent={percent} />
+    return <MiniPlayer onOpen={onTogglePage} percent={percent} />
   }
 
   return (
@@ -105,13 +114,28 @@ export function PlayerBar({
       <div className="player-left">
         {song ? (
           <>
-            <Cover song={song} size={54} />
-            <div className="player-meta">
-              <div className="player-title" title={song.title}>
-                {song.title}
-              </div>
-              <div className="player-artist">{song.artist || 'Unknown artist'}</div>
-            </div>
+            <button
+              type="button"
+              className={`player-open ${page ? 'is-open' : ''} ${page === null && song.lyricsKind === 'synced' ? 'has-ticker' : ''}`}
+              onClick={onTogglePage}
+              aria-expanded={page !== null}
+              aria-label={page ? 'Close now playing' : `Open now playing: ${song.title}`}
+              title={page ? 'Close (Esc)' : 'Open the song: lyrics, up next, details'}
+            >
+              <span className="player-open-art">
+                <Cover song={song} size={54} />
+                <span className="player-open-chevron" aria-hidden="true">
+                  <ChevronDown size={22} />
+                </span>
+              </span>
+              <span className="player-meta">
+                <span className="player-title">{song.title}</span>
+                <span className="player-artist">
+                  <span className="player-artist-name">{song.artist || 'Unknown artist'}</span>
+                  {page === null && <LyricTicker song={song} />}
+                </span>
+              </span>
+            </button>
             <button
               type="button"
               className={`icon-button player-love ${song.loved ? 'is-loved' : ''}`}
@@ -261,11 +285,11 @@ export function PlayerBar({
         <div className="player-group" role="group" aria-label="Panels">
           <button
             type="button"
-            className={`icon-button ${lyricsOpen ? 'is-accent' : ''}`}
-            onClick={onOpenLyrics}
+            className={`icon-button ${page === 'focus' ? 'is-accent' : ''}`}
+            onClick={onToggleLyrics}
             aria-label="Lyrics"
-            aria-pressed={lyricsOpen}
-            title="Lyrics (L)"
+            aria-pressed={page === 'focus'}
+            title="Lyrics, full size (L)"
           >
             <Mic size={17} />
           </button>
@@ -343,6 +367,37 @@ export function PlayerBar({
         </div>
       </div>
     </footer>
+  )
+}
+
+/**
+ * The line being sung, under the artist, while the page is closed.
+ *
+ * Only for songs whose lyrics are already known to be timed — it must never
+ * be the reason a song gets looked up on lrclib. Shares its cache with the
+ * page, so opening the page after this costs nothing.
+ */
+function LyricTicker({ song }: { song: Song }) {
+  const transport = useTransport()
+  const { data } = useQuery({
+    queryKey: lyricsQueryKey(song.id),
+    queryFn: () => api.lyrics(song.id),
+    enabled: song.lyricsKind === 'synced',
+    retry: false,
+    staleTime: 10 * 60_000,
+  })
+  const parsed = useMemo(() => (data ? parseLyrics(data.text) : null), [data])
+  if (!parsed?.synced) return null
+
+  const index = activeLineIndex(parsed.lines, transport.currentTime)
+  const text = parsed.lines[index]?.text.trim()
+  if (!text) return null
+
+  // Keyed by line, so each new line fades in rather than snapping.
+  return (
+    <span key={index} className="player-ticker">
+      {text}
+    </span>
   )
 }
 

@@ -102,11 +102,19 @@ playback speed, and a sleep timer that fades out rather than cutting off.
 playing. Hand a song over mid-track in either direction, use the phone as a remote for the
 Mac, or pick up where you left off on the other device when you open the app.
 
-**Lyrics.** Synced `.lrc` lyrics with karaoke-style highlighting, click a line to jump
-there. Resolved from a sidecar file, the audio file's own tags, or lrclib.net — and cached
-to disk so they work offline afterwards. Chinese lyrics can show pinyin and Japanese romaji
-underneath, offline; with an API key of your own, a translation line as well. Songs with no
-timings can be synced by tapping along, and you can find any song by a line you remember.
+**A page for the song that is playing.** Click the artwork in the player bar and the song
+opens into its own page: the artwork and what the app knows about it beside its synced
+lyrics. Press `F` and the page turns into Focus — the words alone, big, each line filling
+in as it is sung, and the controls fading away while you just listen. A song with no words
+gets a visual drawn from its own tempo, energy and cover colours instead, picked to suit
+it: a slow aurora for a nocturne, a live spectrum for a big-band chase. See
+[docs/features/now-playing.md](docs/features/now-playing.md).
+
+**Lyrics.** Synced `.lrc` lyrics, click a line to jump there, right-click it to loop it.
+Resolved from a sidecar file, the audio file's own tags, or lrclib.net — and cached to disk
+so they work offline afterwards. Chinese lyrics can show pinyin and Japanese romaji
+underneath, offline. Songs with no timings can be synced by tapping along, instrumentals
+are remembered as instrumentals, and you can find any song by a line you remember.
 
 **Audio it has actually listened to.** Every song is analysed locally for tempo, musical
 key, energy and loudness. That feeds smart playlists, a "similar songs" pick, and an
@@ -222,7 +230,9 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 | `⇧←` `⇧→` | Previous / next track |
 | `S` | Shuffle |
 | `R` | Repeat |
-| `L` | Lyrics |
+| `L` | Lyrics, full size (again to close) |
+| `F` | Switch the song's page between Stage and Focus |
+| `Esc` | Step back: Focus → Stage → closed |
 | `Q` | Queue |
 | `P` | Practice panel |
 | `T` | Tag the song that is playing |

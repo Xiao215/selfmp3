@@ -6,14 +6,16 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 
 /**
- * Disk cache for things derived from lyrics: romanization and translations.
+ * Disk cache for things derived from lyrics: today, romanization.
  *
  * The lyrics themselves are cached as sidecars next to the audio, because they
- * are the user's files. Romanization and translations are disposable output
- * computed *from* those files, so — like cover art — they live under the data
- * directory (`data/lyrics/<songId>/`), keyed by a hash of the lyric text. Edit
- * the sidecar and the hash changes, so a stale cache is simply never hit; the
- * old entries are swept when a new one is written.
+ * are the user's files. Romanization is disposable output computed *from*
+ * those files, so — like cover art — it lives under the data directory
+ * (`data/lyrics/<songId>/`), keyed by a hash of the lyric text. Edit the
+ * sidecar and the hash changes, so a stale cache is simply never hit; the old
+ * entries are swept when a new one is written. Older versions also cached
+ * translations here; those files are never read again and go with the song's
+ * directory when the song is deleted.
  */
 export class LyricsCache {
   readonly #dir: string

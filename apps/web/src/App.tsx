@@ -7,10 +7,14 @@ import { useHotkeys, useIsMobile } from './lib/hooks.js'
 import { Sidebar } from './components/Sidebar.js'
 import { MobileNav } from './components/MobileNav.js'
 import { PlayerBar } from './components/PlayerBar.js'
-import { LyricsPanel } from './components/LyricsPanel.js'
 import { QueuePanel } from './components/QueuePanel.js'
 import { PracticePanel } from './components/PracticePanel.js'
 import { NowPlaying } from './components/NowPlaying.js'
+import {
+  NowPlayingPage,
+  type PageMode,
+  type StageTab,
+} from './components/nowplaying/NowPlayingPage.js'
 import { CommandPalette } from './components/CommandPalette.js'
 import { ToastHost } from './components/Toast.js'
 import { DevicesProvider } from './devices/DevicesProvider.js'
@@ -74,12 +78,17 @@ function Shell() {
 
   const [selectedTags, setSelectedTags] = useState<ReadonlySet<number>>(() => new Set())
   const [excludedTags, setExcludedTags] = useState<ReadonlySet<number>>(() => new Set())
-  const [lyricsOpen, setLyricsOpen] = useState(false)
   const [queueOpen, setQueueOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
   const [practiceOpen, setPracticeOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
+  // The now-playing page on a computer: closed, Stage, or Focus.
+  const [page, setPage] = useState<PageMode | null>(null)
+  const [pageTab, setPageTab] = useState<StageTab>('lyrics')
+  // Focus with a still mouse: the bar steps aside too.
+  const [ambient, setAmbient] = useState(false)
+  const pageOpen = !isMobile && page !== null
 
   // A tag filters one of two ways — "only these" or "none of these" — never
   // both, so moving it to one side takes it off the other.
@@ -119,23 +128,54 @@ function Shell() {
   }, [])
 
   // Only one side panel at a time — two at once leaves no room for the library.
-  const openLyrics = useCallback(() => {
-    setLyricsOpen(open => !open)
-    setQueueOpen(false)
-    setPracticeOpen(false)
-  }, [])
-
   const openQueue = useCallback(() => {
+    // With the page open, the queue is one of its tabs rather than a second
+    // copy of itself beside it.
+    if (pageOpen) {
+      setPage('stage')
+      setPageTab(tab => (tab === 'queue' && page === 'stage' ? 'lyrics' : 'queue'))
+      setQueueOpen(false)
+      return
+    }
     setQueueOpen(open => !open)
-    setLyricsOpen(false)
     setPracticeOpen(false)
-  }, [])
+  }, [pageOpen, page])
 
   const openPractice = useCallback(() => {
     setPracticeOpen(open => !open)
-    setLyricsOpen(false)
     setQueueOpen(false)
   }, [])
+
+  /** The cover in the bar: open the page at Stage, or close it. */
+  const togglePage = useCallback(() => {
+    if (isMobile) {
+      setNowPlayingOpen(true)
+      return
+    }
+    setPage(current => (current === null ? 'stage' : null))
+    setPageTab('lyrics')
+  }, [isMobile])
+
+  /** L and the mic: straight to the words, and the same again to put them away. */
+  const toggleLyrics = useCallback(() => {
+    if (isMobile) {
+      setNowPlayingOpen(true)
+      return
+    }
+    setPage(current => (current === 'focus' ? null : 'focus'))
+    setPageTab('lyrics')
+  }, [isMobile])
+
+  const toggleFocus = useCallback(() => {
+    setPage(current => (current === 'focus' ? 'stage' : current === 'stage' ? 'focus' : current))
+  }, [])
+
+  // Escape steps back one level: Focus, then Stage, then closed.
+  const stepBack = useCallback(() => {
+    setPage(current => (current === 'focus' ? 'stage' : null))
+  }, [])
+
+  const closePage = useCallback(() => setPage(null), [])
 
   // Declared after the panel callbacks so the shortcuts go through the same
   // one-panel-at-a-time rule the buttons use, rather than a second copy of it.
@@ -149,7 +189,10 @@ function Shell() {
     'shift+ArrowLeft': () => player.previous(),
     s: () => player.toggleShuffle(),
     r: () => player.cycleRepeatMode(),
-    l: openLyrics,
+    l: toggleLyrics,
+    f: () => {
+      if (pageOpen) toggleFocus()
+    },
     q: openQueue,
     p: openPractice,
     // Tag what is playing: you know how a song feels while you are hearing it.
@@ -157,52 +200,80 @@ function Shell() {
       if (player.current) setTagsOpen(open => !open)
     },
     Escape: () => {
-      setPaletteOpen(false)
+      if (paletteOpen) {
+        setPaletteOpen(false)
+        return
+      }
       setNowPlayingOpen(false)
+      stepBack()
     },
   })
 
+  const classes = ['app']
+  if (isMobile) classes.push('is-mobile')
+  if (pageOpen && ambient) classes.push('is-ambient')
+
   return (
-    <div className={`app ${isMobile ? 'is-mobile' : ''}`}>
+    <div className={classes.join(' ')}>
       <div className="app-body">
-        {!isMobile && (
-          <Sidebar
-            library={library}
-            selectedTags={selectedTags}
-            excludedTags={excludedTags}
-            onToggleTag={toggleTag}
-            onExcludeTag={excludeTag}
-            onClearTags={clearTags}
-          />
-        )}
+        {/*
+          The page lies over the library rather than replacing it, so the view
+          underneath keeps its scroll position, search and filters for when you
+          come back. Side panels stay beside it: practice next to the lyrics is
+          exactly where it is wanted.
+        */}
+        <div className="app-content">
+          <div className="app-content-base" inert={pageOpen}>
+            {!isMobile && (
+              <Sidebar
+                library={library}
+                selectedTags={selectedTags}
+                excludedTags={excludedTags}
+                onToggleTag={toggleTag}
+                onExcludeTag={excludeTag}
+                onClearTags={clearTags}
+              />
+            )}
 
-        <main className="app-main">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <LibraryView
-                  selectedTags={selectedTags}
-                  excludedTags={excludedTags}
-                  onToggleTag={toggleTag}
-                  onExcludeTag={excludeTag}
-                  onClearTags={clearTags}
+            <main className="app-main">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <LibraryView
+                      selectedTags={selectedTags}
+                      excludedTags={excludedTags}
+                      onToggleTag={toggleTag}
+                      onExcludeTag={excludeTag}
+                      onClearTags={clearTags}
+                    />
+                  }
                 />
-              }
-            />
-            <Route path="/inbox" element={<TagInboxView />} />
-            <Route path="/playlists" element={<PlaylistsView />} />
-            <Route path="/playlists/:id" element={<PlaylistDetailView />} />
-            <Route path="/import" element={<ImportView />} />
-            <Route path="/import/migrate" element={<MigrateView />} />
-            <Route path="/stats" element={<StatsView />} />
-            <Route path="/stats/wrapped" element={<WrappedView />} />
-            <Route path="/settings" element={<SettingsView />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+                <Route path="/inbox" element={<TagInboxView />} />
+                <Route path="/playlists" element={<PlaylistsView />} />
+                <Route path="/playlists/:id" element={<PlaylistDetailView />} />
+                <Route path="/import" element={<ImportView />} />
+                <Route path="/import/migrate" element={<MigrateView />} />
+                <Route path="/stats" element={<StatsView />} />
+                <Route path="/stats/wrapped" element={<WrappedView />} />
+                <Route path="/settings" element={<SettingsView />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
+          </div>
 
-        {!isMobile && lyricsOpen && <LyricsPanel onClose={() => setLyricsOpen(false)} />}
+          {!isMobile && page !== null && (
+            <NowPlayingPage
+              mode={page}
+              tab={pageTab}
+              onModeChange={setPage}
+              onTabChange={setPageTab}
+              onClose={closePage}
+              onIdleChange={setAmbient}
+            />
+          )}
+        </div>
+
         {!isMobile && queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
         {!isMobile && practiceOpen && <PracticePanel onClose={() => setPracticeOpen(false)} />}
       </div>
@@ -215,12 +286,12 @@ function Shell() {
       </div>
 
       <PlayerBar
-        onOpenLyrics={openLyrics}
+        onToggleLyrics={toggleLyrics}
         onOpenQueue={openQueue}
         onOpenPractice={openPractice}
-        onOpenNowPlaying={() => setNowPlayingOpen(true)}
-        lyricsOpen={lyricsOpen}
-        queueOpen={queueOpen}
+        onTogglePage={togglePage}
+        page={pageOpen ? page : null}
+        queueOpen={queueOpen || (pageOpen && page === 'stage' && pageTab === 'queue')}
         practiceOpen={practiceOpen}
         tagsOpen={tagsOpen}
         onToggleTags={() => setTagsOpen(open => !open)}
@@ -230,11 +301,7 @@ function Shell() {
 
       {isMobile && nowPlayingOpen && <NowPlaying onClose={() => setNowPlayingOpen(false)} />}
 
-      <CommandPalette
-        library={library}
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-      />
+      <CommandPalette library={library} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }

@@ -25,6 +25,21 @@ export interface LyricsResult {
   readonly text: string
 }
 
+/** Lyrics as lrclib has them, before they are written to disk. */
+export interface RemoteLyrics {
+  readonly text: string
+  readonly synced: boolean
+}
+
+/**
+ * lrclib's answer when it knows the track has no words. Kept apart from
+ * "nothing found" so the song can be remembered as instrumental and not looked
+ * up again every time it plays.
+ */
+export type Instrumental = 'instrumental'
+
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+
 interface LrclibRecord {
   syncedLyrics?: string | null
   plainLyrics?: string | null
@@ -34,10 +49,12 @@ interface LrclibRecord {
 export class LyricsService {
   readonly #storage: StorageDriver
   readonly #logger: Logger
+  readonly #fetch: FetchLike
 
-  constructor(storage: StorageDriver, logger: Logger) {
+  constructor(storage: StorageDriver, logger: Logger, fetchImpl: FetchLike = fetch) {
     this.#storage = storage
     this.#logger = logger.child('lyrics')
+    this.#fetch = fetchImpl
   }
 
   /** Path of an existing sidecar for this audio key, or null. */
@@ -76,20 +93,27 @@ export class LyricsService {
    * lets the service pick the right version of a song), then falls back to a
    * fuzzy search. Any network failure is swallowed — a song without lyrics is
    * a minor disappointment, not an import failure.
+   *
+   * Only the exact match is believed when it says a track is instrumental.
+   * The fuzzy search happily returns the karaoke version of a song with
+   * words, and remembering the original as instrumental would stop it from
+   * ever being looked up again.
    */
   async fetchRemote(input: {
     artist: string
     title: string
     album: string
     duration: number
-  }): Promise<{ text: string; synced: boolean } | null> {
+  }): Promise<RemoteLyrics | Instrumental | null> {
     if (!input.title.trim()) return null
 
-    const record = (await this.#exactMatch(input)) ?? (await this.#searchMatch(input))
-    if (!record || record.instrumental === true) return null
+    const exact = await this.#exactMatch(input)
+    const record = exact ?? (await this.#searchMatch(input))
+    if (!record) return null
 
     if (record.syncedLyrics?.trim()) return { text: record.syncedLyrics, synced: true }
     if (record.plainLyrics?.trim()) return { text: record.plainLyrics, synced: false }
+    if (record === exact && record.instrumental === true) return 'instrumental'
     return null
   }
 
@@ -128,7 +152,7 @@ export class LyricsService {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
-      const response = await fetch(url, {
+      const response = await this.#fetch(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
         signal: controller.signal,
       })
@@ -147,12 +171,16 @@ export class LyricsService {
   /**
    * Full resolution for one song: sidecar, then embedded tag, then the network
    * (writing the result to disk so the next lookup is local).
+   *
+   * Pass `remoteInput: null` to stay off the network, for a song already known
+   * to be instrumental. Local lyrics still win in that case: if you added a
+   * sidecar by hand, the words are there, whatever lrclib thought.
    */
   async resolve(
     audioKey: string,
     embedded: string | null,
     remoteInput: { artist: string; title: string; album: string; duration: number } | null,
-  ): Promise<LyricsResult | null> {
+  ): Promise<LyricsResult | Instrumental | null> {
     const sidecar = await this.readSidecar(audioKey)
     if (sidecar) return sidecar
 
@@ -163,7 +191,7 @@ export class LyricsService {
     if (!remoteInput) return null
 
     const remote = await this.fetchRemote(remoteInput)
-    if (!remote) return null
+    if (!remote || remote === 'instrumental') return remote
 
     try {
       await this.writeSidecar(audioKey, remote.text, remote.synced)

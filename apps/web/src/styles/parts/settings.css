@@ -165,31 +165,6 @@
   margin-top: 0;
 }
 
-/* --- secrets --- */
-
-.secret-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px 2px 6px;
-  border-radius: var(--radius-pill);
-  border: 1px solid transparent;
-}
-
-.secret-state.is-set {
-  color: var(--good);
-  background: oklch(0.36 0.08 155 / 0.35);
-  border-color: oklch(0.45 0.1 155 / 0.6);
-}
-
-.secret-state.is-unset {
-  color: var(--text-muted);
-  background: var(--surface-2);
-  border-color: var(--border);
-}
-
 /* --- offline --- */
 
 .offline-summary {

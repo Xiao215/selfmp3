@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { TranslationLangSchema, TranslationProviderSchema } from './lyrics.js'
 
 /**
  * User settings, stored server-side so the Mac and the phone agree.
@@ -41,10 +40,6 @@ export const SettingsSchema = z.object({
   accentHue: z.number().int().min(0).max(359).default(268),
   /** Lyrics+: show pinyin / romaji under each lyric line. */
   lyricsRomanization: z.enum(['off', 'on']).default('off'),
-  /** Lyrics+: target language for translations, free text like 'en', 'zh', 'ja'. */
-  lyricsTranslationLang: TranslationLangSchema.default('en'),
-  /** Lyrics+: which API translates. 'none' keeps the feature quietly off. */
-  lyricsTranslationProvider: TranslationProviderSchema.default('none'),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

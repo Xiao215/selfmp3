@@ -27,6 +27,7 @@ export interface SongRow {
   art_ext: string | null
   art_rev: number
   lyrics_kind: string
+  instrumental: number
   play_count: number
   skip_count: number
   loved: number
@@ -114,6 +115,7 @@ export function toSong(row: SongRow): Song {
     hasArt: row.has_art === 1,
     rev: songRev(row),
     lyricsKind: toLyricsKind(row.lyrics_kind),
+    instrumental: row.instrumental === 1,
     playCount: row.play_count,
     skipCount: row.skip_count,
     loved: row.loved === 1,

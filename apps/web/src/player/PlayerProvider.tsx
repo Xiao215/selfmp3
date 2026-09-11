@@ -89,7 +89,15 @@ interface PlayerContextValue extends EngineState {
   // --- practice ------------------------------------------------------------
   /** Set A or B of the loop from the current playhead. */
   readonly tapLoopPoint: (which: 'A' | 'B') => void
+  /** Loop an exact region, e.g. one lyric line from its timestamps. */
+  readonly setLoop: (a: number, b: number) => void
   readonly clearLoop: () => void
+
+  // --- for animation -------------------------------------------------------
+  /** The playhead right now, finer than `currentTime`; read it per frame. */
+  readonly playhead: () => number
+  /** Live frequency data for the spectrum visuals. Desktop only; see the engine. */
+  readonly analyser: () => AnalyserNode | null
   readonly setPreservesPitch: (on: boolean) => void
   /** Whether a restart of the loop waits one beat first. */
   readonly countIn: boolean
@@ -514,7 +522,10 @@ export function PlayerProvider({
     [engine],
   )
 
+  const setLoop = useCallback((a: number, b: number) => engine.setLoop(a, b), [engine])
   const clearLoop = useCallback(() => engine.clearLoop(), [engine])
+  const playhead = useCallback(() => engine.playhead, [engine])
+  const analyser = useCallback(() => engine.analyser(), [engine])
 
   const setPreservesPitch = useCallback(
     (on: boolean) => {
@@ -685,7 +696,10 @@ export function PlayerProvider({
       setSleepTimer,
       setAutoMix,
       tapLoopPoint,
+      setLoop,
       clearLoop,
+      playhead,
+      analyser,
       setPreservesPitch,
       countIn,
       setCountIn,
@@ -724,7 +738,10 @@ export function PlayerProvider({
       setSleepTimer,
       setAutoMix,
       tapLoopPoint,
+      setLoop,
       clearLoop,
+      playhead,
+      analyser,
       setPreservesPitch,
       countIn,
       setCountIn,

@@ -138,10 +138,10 @@
 /* ----------------------------------------------------- side panels ------ */
 
 /*
- * One shell for lyrics, up next and practice: a fixed header with the title on
- * the left and the actions on the right (close always last, behind a hairline),
- * one scrolling body, and an optional footer. Anything that differs between the
- * three should be inside the body, not in the frame.
+ * One shell for up next and practice: a fixed header with the title on the
+ * left and the actions on the right (close always last, behind a hairline) and
+ * one scrolling body. Anything that differs between the two should be inside
+ * the body, not in the frame.
  */
 .side-panel {
   width: 340px;
@@ -209,19 +209,12 @@
 
 /* The one scrolling region each panel has. */
 .side-panel-body,
-.lyrics-body,
 .queue-list,
 .practice-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-
-.side-panel-foot {
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 /* Shared empty state: nothing playing, an empty queue, a song with no lyrics. */
@@ -262,65 +255,6 @@
 
 .panel-empty .link-button {
   font-size: 13px;
-}
-
-.lyrics-body {
-  /* 40vh of tail so the last line can still be scrolled to the middle. */
-  padding: 24px 16px 40vh;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.lyric-line {
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 15px;
-  line-height: 1.45;
-  text-align: left;
-  /* The accent bar is drawn as a transparent border so the text never shifts
-     sideways when a line becomes active. */
-  border-left: 2px solid transparent;
-  transition:
-    color var(--dur-slow),
-    background var(--dur-fast),
-    border-color var(--dur);
-  width: 100%;
-}
-
-.lyric-line.is-synced:hover {
-  background: var(--surface-2);
-  color: var(--text-secondary);
-}
-
-.lyric-line.is-past {
-  color: oklch(0.5 0.01 var(--accent-hue));
-}
-
-.lyric-line.is-active {
-  color: var(--text-primary);
-  font-weight: 600;
-  border-left-color: var(--accent);
-  background: oklch(0.42 0.1 var(--accent-hue) / 0.14);
-}
-
-.lyric-line.is-plain {
-  color: var(--text-secondary);
-  cursor: default;
-}
-
-/*
- * With romanization and a translation, every lyric is a three-line block. At
- * the default 3px rhythm those blocks run together, so the gap opens up and the
- * original gets a touch more weight than its two helpers.
- */
-.lyrics-body.has-extras {
-  gap: 12px;
-}
-
-.lyrics-body.has-extras .lyric-line {
-  padding-block: 7px;
 }
 
 /* --- a narrowing window ---------------------------------------------------

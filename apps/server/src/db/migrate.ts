@@ -251,6 +251,16 @@ const MIGRATIONS: readonly Migration[] = [
         ON play_events(client_id) WHERE client_id IS NOT NULL;
     `,
   },
+  {
+    name: 'songs: remember that a song is instrumental',
+    sql: `
+      -- Set when lrclib says a track has no words, or when you mark it so.
+      -- It is not a lyrics_kind value because the scanner rewrites that column
+      -- from the files on every rescan, and smart playlists read
+      -- lyrics_kind != 'none' as "has lyrics".
+      ALTER TABLE songs ADD COLUMN instrumental INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ]
 
 export function migrate(db: Database, logger: Logger): void {

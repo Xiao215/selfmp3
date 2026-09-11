@@ -14,6 +14,7 @@ import {
   type LyricsResponse,
   type PlayRecorded,
   type SimilarSongs,
+  type Song,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -33,6 +34,19 @@ export function songRoutes(container: Container): Router {
     const song = container.songs.byId(id)
     if (!song) throw HttpError.notFound(`no song with id ${id}`)
     return song
+  }
+
+  /**
+   * The 404 for a song with no words, remembering that about it first. It has
+   * its own code so a client can say "instrumental" instead of "no lyrics
+   * found", and the flag is what keeps the next play off the network.
+   */
+  const instrumental = (song: Song): HttpError => {
+    if (!song.instrumental) {
+      container.songs.setInstrumental(song.id, true)
+      container.bumpLibraryVersion()
+    }
+    return new HttpError(404, 'this track is instrumental', 'instrumental')
   }
 
   /*
@@ -234,7 +248,8 @@ export function songRoutes(container: Container): Router {
    * Lyrics, resolved through sidecar -> embedded tag -> lrclib.
    *
    * `refresh=1` skips the local sources and goes straight to the network, for
-   * when the cached copy is wrong or badly timed.
+   * when the cached copy is wrong or badly timed. It is also how a song marked
+   * instrumental gets looked up again: without it, such a song never is.
    */
   router.get(
     '/songs/:id/lyrics',
@@ -245,31 +260,39 @@ export function songRoutes(container: Container): Router {
       },
       async ({ params, query }): Promise<LyricsResponse> => {
         const song = requireSong(params.id)
+        const lookup = {
+          artist: song.artist,
+          title: song.title,
+          album: song.album,
+          duration: song.duration,
+        }
 
         if (query.refresh) {
-          const remote = await container.lyrics.fetchRemote({
-            artist: song.artist,
-            title: song.title,
-            album: song.album,
-            duration: song.duration,
-          })
+          const remote = await container.lyrics.fetchRemote(lookup)
+          if (remote === 'instrumental') throw instrumental(song)
           if (!remote) throw HttpError.notFound('no lyrics found for this track')
           await container.lyrics.writeSidecar(song.path, remote.text, remote.synced)
           container.songs.setLyricsKind(params.id, remote.synced ? 'synced' : 'plain')
+          container.songs.setInstrumental(params.id, false)
           container.bumpLibraryVersion()
           container.lyricsIndex.index(song.id, remote.text)
           return { source: 'remote', kind: remote.synced ? 'synced' : 'plain', text: remote.text }
         }
 
+        // Local lyrics win even over the instrumental flag, but a song known to
+        // have no words is not asked about again on every play.
         const metadata = await container.metadata.read(song.path)
-        const resolved = await container.lyrics.resolve(song.path, metadata.embeddedLyrics, {
-          artist: song.artist,
-          title: song.title,
-          album: song.album,
-          duration: song.duration,
-        })
+        const resolved = await container.lyrics.resolve(
+          song.path,
+          metadata.embeddedLyrics,
+          song.instrumental ? null : lookup,
+        )
 
-        if (!resolved) throw HttpError.notFound('no lyrics for this track')
+        if (resolved === 'instrumental') throw instrumental(song)
+        if (!resolved) {
+          if (song.instrumental) throw instrumental(song)
+          throw HttpError.notFound('no lyrics for this track')
+        }
 
         // Keep the stored flag honest so smart playlists and the offline
         // mirror agree with what is actually on disk.
@@ -284,7 +307,12 @@ export function songRoutes(container: Container): Router {
     ),
   )
 
-  /** Save hand-edited or hand-timed lyrics as a sidecar. */
+  /**
+   * Save hand-edited or hand-timed lyrics as a sidecar.
+   *
+   * Words written by hand mean the song is not instrumental after all, so the
+   * flag is cleared. Clearing the lyrics leaves it alone.
+   */
   router.put(
     '/songs/:id/lyrics',
     route(
@@ -311,6 +339,7 @@ export function songRoutes(container: Container): Router {
         await container.lyrics.deleteSidecar(song.path)
         await container.lyrics.writeSidecar(song.path, body.text, synced)
         container.songs.setLyricsKind(params.id, synced ? 'synced' : 'plain')
+        container.songs.setInstrumental(params.id, false)
         container.bumpLibraryVersion()
         container.lyricsIndex.index(song.id, body.text)
         return { ok: true as const, kind: synced ? ('synced' as const) : ('plain' as const) }

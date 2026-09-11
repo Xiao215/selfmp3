@@ -5,7 +5,9 @@ import type { Db } from '../db/index.js'
  * Settings live in a key/value table rather than a single JSON blob, so two
  * clients writing different settings at the same time cannot clobber each
  * other's change. Reads merge stored values over the defaults, which means a
- * newly added setting works immediately without a migration.
+ * newly added setting works immediately without a migration. It also works the
+ * other way: the schema strips keys it does not know, so the row of a setting
+ * that was later removed is simply ignored.
  */
 export class SettingsRepository {
   readonly #all

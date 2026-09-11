@@ -63,6 +63,7 @@ export class SongRepository {
   readonly #recordSkip
   readonly #setArt
   readonly #setLyricsKind
+  readonly #setInstrumental
   readonly #search
   readonly #count
   readonly #totalDuration
@@ -126,6 +127,7 @@ export class SongRepository {
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
     )
     this.#setLyricsKind = db.prepare('UPDATE songs SET lyrics_kind = ? WHERE id = ?')
+    this.#setInstrumental = db.prepare('UPDATE songs SET instrumental = ? WHERE id = ?')
 
     // FTS5 with a bm25 ranking. Column weights bias toward title matches,
     // which is what people mean when they half-remember a song.
@@ -199,6 +201,7 @@ export class SongRepository {
       year: 'year',
       trackNo: 'track_no',
       loved: 'loved',
+      instrumental: 'instrumental',
     }
 
     for (const [key, column] of Object.entries(columns) as [keyof SongPatch, string][]) {
@@ -302,6 +305,11 @@ export class SongRepository {
 
   setLyricsKind(id: number, kind: string): void {
     this.#setLyricsKind.run(kind, id)
+  }
+
+  /** Remember (or forget) that a song has no words, so lyrics are not looked up. */
+  setInstrumental(id: number, on: boolean): void {
+    this.#setInstrumental.run(on ? 1 : 0, id)
   }
 
   /**

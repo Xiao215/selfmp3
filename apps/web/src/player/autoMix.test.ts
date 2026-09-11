@@ -29,6 +29,7 @@ const song = (id: number, features: SongFeatures | null): Song => ({
   mime: 'audio/mp4',
   hasArt: false,
   lyricsKind: 'none',
+  instrumental: false,
   playCount: 0,
   skipCount: 0,
   loved: false,

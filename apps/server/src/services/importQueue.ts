@@ -266,6 +266,9 @@ export class ImportQueueService {
 
       // --- lyrics -----------------------------------------------------------
 
+      // There is no song row yet, so an instrumental answer is held until
+      // there is one to write it to.
+      let instrumental = false
       if (settings.autoFetchLyrics) {
         this.#imports.update(job.id, { step: 'lyrics' })
         const remote = await this.#lyrics.fetchRemote({
@@ -274,7 +277,9 @@ export class ImportQueueService {
           album,
           duration: realDuration,
         })
-        if (remote) {
+        if (remote === 'instrumental') {
+          instrumental = true
+        } else if (remote) {
           await this.#lyrics
             .writeSidecar(libraryKey, remote.text, remote.synced)
             .catch(() => undefined)
@@ -293,6 +298,7 @@ export class ImportQueueService {
         artist: artist.trim(),
         album: album.trim(),
       })
+      if (instrumental) this.#songs.setInstrumental(songId, true)
 
       const song = this.#songs.byId(songId)
       if (song && !song.hasArt && thumbnail) {

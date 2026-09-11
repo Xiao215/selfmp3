@@ -8,7 +8,6 @@ import {
   SimilarSongsSchema,
   SongSchema,
   SyncManifestSchema,
-  TranslatedLyricsSchema,
   type PlayEvent,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -158,14 +157,6 @@ export const api = {
 
   romanizedLyrics: (connection: ServerConnection, id: number) =>
     request(connection, 'GET', `/api/songs/${id}/lyrics/romanized`, RomanizedLyricsSchema),
-
-  translatedLyrics: (connection: ServerConnection, id: number, lang: string) =>
-    request(
-      connection,
-      'GET',
-      `/api/songs/${id}/lyrics/translation?lang=${encodeURIComponent(lang)}`,
-      TranslatedLyricsSchema,
-    ),
 
   // --- system -------------------------------------------------------------
 

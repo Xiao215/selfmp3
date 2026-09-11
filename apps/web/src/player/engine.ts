@@ -90,6 +90,10 @@ export class AudioEngine {
   /** Milliseconds of silence before each loop restart; 0 disables it. */
   #countInMs = 0
 
+  /** Only exist once a visual has asked to hear the music; see `analyser()`. */
+  #audioContext: AudioContext | null = null
+  #analyser: AnalyserNode | null = null
+
   /** Called when the current track finishes and the engine wants the next one. */
   onTrackEnd: (() => void) | null = null
   /** Called when the engine needs to know what to preload. */
@@ -184,6 +188,8 @@ export class AudioEngine {
     // An explicit play during a count-in skips the rest of the beat.
     this.#cancelCountIn()
     if (this.#state.countingIn) this.#update({ countingIn: false })
+    // Once the sound runs through Web Audio, a suspended context is silence.
+    if (this.#audioContext?.state === 'suspended') void this.#audioContext.resume()
     try {
       await this.#primary.play()
     } catch (error) {
@@ -206,6 +212,55 @@ export class AudioEngine {
   async toggle(): Promise<void> {
     if (this.#primary.paused) await this.play()
     else this.pause()
+  }
+
+  /**
+   * The playhead read straight from the element.
+   *
+   * `state.currentTime` moves in `timeupdate` steps, about four a second —
+   * fine for a clock, visibly jerky for a lyric filling in as it is sung.
+   * Animation reads this on each frame instead.
+   */
+  get playhead(): number {
+    return this.#primary.currentTime
+  }
+
+  /**
+   * A live view of the sound, for the spectrum visuals.
+   *
+   * Made on first request and then kept: an element routed through Web Audio
+   * cannot be routed back out. Both elements feed it, so it keeps working
+   * across gapless and crossfaded handovers. Callers decide where it is safe
+   * to ask — never on a phone, where a locked screen suspends Web Audio and
+   * would take playback down with it.
+   */
+  analyser(): AnalyserNode | null {
+    if (this.#analyser) return this.#analyser
+    const Context =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Context) return null
+    try {
+      const context = new Context()
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.8
+      for (const element of [this.#primary, this.#secondary]) {
+        context.createMediaElementSource(element).connect(analyser)
+      }
+      analyser.connect(context.destination)
+      // A context the browser suspends (another tab took the output, say)
+      // would leave the song playing in silence; wake it if music should be on.
+      context.addEventListener('statechange', () => {
+        if (context.state === 'suspended' && !this.#primary.paused) void context.resume()
+      })
+      void context.resume()
+      this.#audioContext = context
+      this.#analyser = analyser
+      return analyser
+    } catch {
+      return null
+    }
   }
 
   seek(seconds: number): void {

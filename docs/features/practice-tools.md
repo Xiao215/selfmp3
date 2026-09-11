@@ -12,7 +12,9 @@ and fold the rest away.
 ## A–B loop
 
 Tap **A** where the phrase starts, **B** where it ends. Playback then returns to A every
-time it reaches B, until you tap **Clear** or move to another song.
+time it reaches B, until you tap **Clear** or move to another song. With timed lyrics on
+screen there is a shortcut: right-click a line on the song's page and choose **Loop this
+line**, which sets A and B from that line's timestamps.
 
 Behaviour worth knowing:
 

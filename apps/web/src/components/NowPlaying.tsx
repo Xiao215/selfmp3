@@ -9,10 +9,11 @@ import { useTransport } from '../devices/useTransport.js'
 import { loopRegionPercent } from '../player/practice.js'
 import { Cover } from './Cover.js'
 import { FeatureBadges } from './FeatureBadges.js'
-import { LyricsPanel } from './LyricsPanel.js'
 import { QueuePanel } from './QueuePanel.js'
 import { PracticePanel } from './PracticePanel.js'
 import { SleepMenu } from './PlayerBar.js'
+import { SongWords } from './nowplaying/SongWords.js'
+import { useSongLyrics } from './nowplaying/useSongLyrics.js'
 import {
   ChevronDown,
   Heart,
@@ -26,18 +27,23 @@ import {
   Queue,
   Repeat,
   RepeatOne,
+  Romanize,
   Shuffle,
   TagPlus,
 } from './Icons.js'
 
-type Panel = 'none' | 'lyrics' | 'queue' | 'practice'
+/** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
+type Panel = 'none' | 'queue' | 'practice' | 'sync'
 
 /**
  * The full-screen phone player.
  *
  * Large artwork, thumb-reachable controls, and a scrubber with a hit area big
- * enough to actually grab while walking. Lyrics and queue slide over it rather
- * than replacing it, so getting back is always one tap.
+ * enough to actually grab while walking. Lyrics take the artwork's place —
+ * tap the artwork, or Lyrics below — so the title, scrubber and buttons never
+ * move and you can read along and still skip. A song with no words shows its
+ * visual there instead. Queue and practice slide over the stage, so getting
+ * back is always one tap.
  *
  * The screen has a fixed head and foot with one flexible stage between them —
  * the artwork is the part that gives way on a short phone, so nothing below it
@@ -48,6 +54,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
   const transport = useTransport()
   const toggleLoved = useToggleLoved()
   const [panel, setPanel] = useState<Panel>('none')
+  const [showWords, setShowWords] = useState(false)
   const [scrubbing, setScrubbing] = useState<number | null>(null)
   const [sleepOpen, setSleepOpen] = useState(false)
   const sleepRef = useRef<HTMLButtonElement>(null)
@@ -57,6 +64,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
 
   const song = transport.song
   const similar = useSimilar(song?.id ?? null, 10)
+  const lyrics = useSongLyrics(song, { enabled: showWords || panel === 'sync' })
   if (!song) return null
 
   const allTags = library?.tags ?? []
@@ -104,7 +112,49 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
       {panel === 'none' && (
         <div className="now-playing-stage">
           <div className="now-playing-art">
-            <Cover song={song} size={340} className="now-playing-cover" />
+            {showWords ? (
+              <div className="np-phone-words">
+                <SongWords
+                  song={song}
+                  lyrics={lyrics}
+                  mode="phone"
+                  syncing={false}
+                  onSyncingChange={on => on && setPanel('sync')}
+                />
+                {lyrics.words.status === 'lyrics' && (
+                  <>
+                    {lyrics.language !== 'none' && (
+                      <button
+                        type="button"
+                        className={`np-phone-roman ${lyrics.romanizationOn ? 'is-on' : ''}`}
+                        onClick={() => lyrics.setRomanization(!lyrics.romanizationOn)}
+                        aria-pressed={lyrics.romanizationOn}
+                        aria-label={lyrics.language === 'ja' ? 'Romaji' : 'Pinyin'}
+                      >
+                        <Romanize size={15} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="np-phone-thumb"
+                      onClick={() => setShowWords(false)}
+                      aria-label="Show the artwork"
+                    >
+                      <Cover song={song} size={38} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="now-playing-art-button"
+                onClick={() => setShowWords(true)}
+                aria-label="Show the lyrics"
+              >
+                <Cover song={song} size={340} className="now-playing-cover" />
+              </button>
+            )}
           </div>
 
           <div className="now-playing-meta">
@@ -269,7 +319,15 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {panel === 'lyrics' && <LyricsPanel onClose={() => setPanel('none')} />}
+      {panel === 'sync' && (
+        <SongWords
+          song={song}
+          lyrics={lyrics}
+          mode="phone"
+          syncing
+          onSyncingChange={on => !on && setPanel('none')}
+        />
+      )}
       {panel === 'queue' && <QueuePanel onClose={() => setPanel('none')} />}
       {panel === 'practice' && <PracticePanel onClose={() => setPanel('none')} />}
 
@@ -280,9 +338,12 @@ export function NowPlaying({ onClose }: { onClose: () => void }) {
       <footer className="now-playing-foot">
         <button
           type="button"
-          className={`np-action ${panel === 'lyrics' ? 'is-active' : ''}`}
-          onClick={toggle('lyrics')}
-          aria-pressed={panel === 'lyrics'}
+          className={`np-action ${showWords && panel === 'none' ? 'is-active' : ''}`}
+          onClick={() => {
+            setPanel('none')
+            setShowWords(show => panel !== 'none' || !show)
+          }}
+          aria-pressed={showWords && panel === 'none'}
         >
           <Mic size={19} />
           <span>Lyrics</span>

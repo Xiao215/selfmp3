@@ -21,7 +21,6 @@ import { Folder, X } from './Icons.js'
  * on this device, your history with it, and the file itself.
  */
 export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () => void }) {
-  const offline = useOffline()
   const titleId = useId()
 
   useEffect(() => {
@@ -32,10 +31,6 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const features = song.features
-  const cached = offline.isCached(song.id)
-  const progress = offline.progressOf(song.id)
-  const onServerMachine = isServerMachine()
   const byline = [song.artist || 'Unknown artist', song.album, song.year]
     .filter(Boolean)
     .join(' · ')
@@ -66,199 +61,213 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
           </button>
         </header>
 
-        <div className="details-body">
-          <section className="details-group" aria-label="Sound">
-            <h3>Sound</h3>
-            {features && (features.bpm != null || features.energy != null || features.key) ? (
-              <dl className="details-facts">
-                {features.bpm != null && (
-                  <div>
-                    <dt>Tempo</dt>
-                    <dd>
-                      <strong>{tempoMark(features.bpm)}</strong>
-                      <span>
-                        {Math.round(features.bpm)} beats a minute — {tempoWords(features.bpm)}.
-                      </span>
-                    </dd>
-                  </div>
-                )}
-                {features.energy != null && (
-                  <div>
-                    <dt>Energy</dt>
-                    <dd>
-                      <strong className="details-energy">
-                        <EnergyWave energy={features.energy} width={44} height={18} />
-                        {Math.round(features.energy * 100)} of 100
-                      </strong>
-                      <span>How loud, busy and driving it feels. The wave grows with it.</span>
-                    </dd>
-                  </div>
-                )}
-                {features.key && (
-                  <div>
-                    <dt>Key</dt>
-                    <dd>
-                      <strong>{features.key}</strong>
-                      <span>Auto-mix uses it to pick songs that blend into this one.</span>
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            ) : (
-              <p className="details-empty">
-                Not listened to yet. self.mp3 works out tempo, energy and key for every song in the
-                background; this one hasn’t had its turn.
-              </p>
-            )}
-          </section>
-
-          {onServerMachine ? (
-            // The Mac that runs self.mp3: the song is a file on this disk, and
-            // "offline" does not apply.
-            <section className="details-group" aria-label="On this Mac">
-              <h3>On this Mac</h3>
-              <dl className="details-facts">
-                <div>
-                  <dt>File</dt>
-                  <dd>
-                    <strong>
-                      {song.missing ? 'Missing' : 'In your library folder'} ·{' '}
-                      {formatBytes(song.sizeBytes)}
-                    </strong>
-                    <span className="details-path">{song.path}</span>
-                    {!song.missing && (
-                      <button
-                        type="button"
-                        className="button button-small details-action"
-                        onClick={() => showInFileManager(song.id)}
-                      >
-                        <Folder size={13} /> Show in {fileManagerName()}
-                      </button>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          ) : (
-            <section className="details-group" aria-label="On this device">
-              <h3>On this device</h3>
-              <dl className="details-facts">
-                <div>
-                  <dt>Offline</dt>
-                  <dd>
-                    {!offline.supported ? (
-                      <>
-                        <strong>Not available here</strong>
-                        <span>This browser can’t keep songs offline.</span>
-                      </>
-                    ) : progress !== undefined ? (
-                      <strong className="details-downloading">
-                        <ProgressRing fraction={progress} />
-                        {progress === null
-                          ? 'Downloading…'
-                          : `Downloading · ${Math.round(progress * 100)}%`}
-                      </strong>
-                    ) : cached ? (
-                      <>
-                        <strong>Downloaded · {formatBytes(song.sizeBytes)}</strong>
-                        <span>Plays with no connection.</span>
-                        <button
-                          type="button"
-                          className="button button-small details-action"
-                          onClick={() => void offline.removeOne(song.id)}
-                        >
-                          Remove download
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <strong>Only on your Mac · {formatBytes(song.sizeBytes)}</strong>
-                        <span>{notDownloadedNote(offline, song.id)}</span>
-                        <button
-                          type="button"
-                          className="button button-small details-action"
-                          onClick={() => void offline.downloadOne(song.id).catch(() => undefined)}
-                          disabled={!offline.serverReachable}
-                        >
-                          Download now
-                        </button>
-                      </>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          )}
-
-          <section className="details-group" aria-label="History">
-            <h3>History</h3>
-            <dl className="details-facts">
-              <div>
-                <dt>Played</dt>
-                <dd>
-                  <strong>
-                    {song.playCount === 0
-                      ? 'Not yet'
-                      : `${song.playCount} ${song.playCount === 1 ? 'time' : 'times'} · last ${formatRelative(song.lastPlayedAt)}`}
-                  </strong>
-                  {song.skipCount > 0 && (
-                    <span>
-                      Skipped {song.skipCount} {song.skipCount === 1 ? 'time' : 'times'}.
-                    </span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Added</dt>
-                <dd>
-                  <strong>{formatDate(song.addedAt)}</strong>
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="details-group" aria-label="File">
-            <h3>File</h3>
-            <dl className="details-facts">
-              <div>
-                <dt>Format</dt>
-                <dd>
-                  <strong>
-                    {formatName(song.mime, song.path)} · {formatDuration(song.duration)}
-                  </strong>
-                  {song.missing && (
-                    <span className="details-warn">
-                      The file is missing from your library folder.
-                    </span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>
-                  {song.sourceUrl ? (
-                    <a href={song.sourceUrl} target="_blank" rel="noreferrer">
-                      {sourceName(song.sourceUrl)}
-                    </a>
-                  ) : (
-                    <strong>Your library folder</strong>
-                  )}
-                </dd>
-              </div>
-              {song.lyricsKind !== 'none' && (
-                <div>
-                  <dt>Lyrics</dt>
-                  <dd>
-                    <strong>{song.lyricsKind === 'synced' ? 'Synced' : 'Plain text'}</strong>
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </section>
-        </div>
+        <SongDetailsBody song={song} />
       </div>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * The facts themselves, without the dialog around them — the now-playing
+ * page shows the same thing in its About tab.
+ */
+export function SongDetailsBody({ song }: { song: Song }) {
+  const offline = useOffline()
+  const features = song.features
+  const cached = offline.isCached(song.id)
+  const progress = offline.progressOf(song.id)
+  const onServerMachine = isServerMachine()
+
+  return (
+    <div className="details-body">
+      <section className="details-group" aria-label="Sound">
+        <h3>Sound</h3>
+        {features && (features.bpm != null || features.energy != null || features.key) ? (
+          <dl className="details-facts">
+            {features.bpm != null && (
+              <div>
+                <dt>Tempo</dt>
+                <dd>
+                  <strong>{tempoMark(features.bpm)}</strong>
+                  <span>
+                    {Math.round(features.bpm)} beats a minute — {tempoWords(features.bpm)}.
+                  </span>
+                </dd>
+              </div>
+            )}
+            {features.energy != null && (
+              <div>
+                <dt>Energy</dt>
+                <dd>
+                  <strong className="details-energy">
+                    <EnergyWave energy={features.energy} width={44} height={18} />
+                    {Math.round(features.energy * 100)} of 100
+                  </strong>
+                  <span>How loud, busy and driving it feels. The wave grows with it.</span>
+                </dd>
+              </div>
+            )}
+            {features.key && (
+              <div>
+                <dt>Key</dt>
+                <dd>
+                  <strong>{features.key}</strong>
+                  <span>Auto-mix uses it to pick songs that blend into this one.</span>
+                </dd>
+              </div>
+            )}
+          </dl>
+        ) : (
+          <p className="details-empty">
+            Not listened to yet. self.mp3 works out tempo, energy and key for every song in the
+            background; this one hasn’t had its turn.
+          </p>
+        )}
+      </section>
+
+      {onServerMachine ? (
+        // The Mac that runs self.mp3: the song is a file on this disk, and
+        // "offline" does not apply.
+        <section className="details-group" aria-label="On this Mac">
+          <h3>On this Mac</h3>
+          <dl className="details-facts">
+            <div>
+              <dt>File</dt>
+              <dd>
+                <strong>
+                  {song.missing ? 'Missing' : 'In your library folder'} ·{' '}
+                  {formatBytes(song.sizeBytes)}
+                </strong>
+                <span className="details-path">{song.path}</span>
+                {!song.missing && (
+                  <button
+                    type="button"
+                    className="button button-small details-action"
+                    onClick={() => showInFileManager(song.id)}
+                  >
+                    <Folder size={13} /> Show in {fileManagerName()}
+                  </button>
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : (
+        <section className="details-group" aria-label="On this device">
+          <h3>On this device</h3>
+          <dl className="details-facts">
+            <div>
+              <dt>Offline</dt>
+              <dd>
+                {!offline.supported ? (
+                  <>
+                    <strong>Not available here</strong>
+                    <span>This browser can’t keep songs offline.</span>
+                  </>
+                ) : progress !== undefined ? (
+                  <strong className="details-downloading">
+                    <ProgressRing fraction={progress} />
+                    {progress === null
+                      ? 'Downloading…'
+                      : `Downloading · ${Math.round(progress * 100)}%`}
+                  </strong>
+                ) : cached ? (
+                  <>
+                    <strong>Downloaded · {formatBytes(song.sizeBytes)}</strong>
+                    <span>Plays with no connection.</span>
+                    <button
+                      type="button"
+                      className="button button-small details-action"
+                      onClick={() => void offline.removeOne(song.id)}
+                    >
+                      Remove download
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <strong>Only on your Mac · {formatBytes(song.sizeBytes)}</strong>
+                    <span>{notDownloadedNote(offline, song.id)}</span>
+                    <button
+                      type="button"
+                      className="button button-small details-action"
+                      onClick={() => void offline.downloadOne(song.id).catch(() => undefined)}
+                      disabled={!offline.serverReachable}
+                    >
+                      Download now
+                    </button>
+                  </>
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      <section className="details-group" aria-label="History">
+        <h3>History</h3>
+        <dl className="details-facts">
+          <div>
+            <dt>Played</dt>
+            <dd>
+              <strong>
+                {song.playCount === 0
+                  ? 'Not yet'
+                  : `${song.playCount} ${song.playCount === 1 ? 'time' : 'times'} · last ${formatRelative(song.lastPlayedAt)}`}
+              </strong>
+              {song.skipCount > 0 && (
+                <span>
+                  Skipped {song.skipCount} {song.skipCount === 1 ? 'time' : 'times'}.
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Added</dt>
+            <dd>
+              <strong>{formatDate(song.addedAt)}</strong>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="details-group" aria-label="File">
+        <h3>File</h3>
+        <dl className="details-facts">
+          <div>
+            <dt>Format</dt>
+            <dd>
+              <strong>
+                {formatName(song.mime, song.path)} · {formatDuration(song.duration)}
+              </strong>
+              {song.missing && (
+                <span className="details-warn">The file is missing from your library folder.</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>
+              {song.sourceUrl ? (
+                <a href={song.sourceUrl} target="_blank" rel="noreferrer">
+                  {sourceName(song.sourceUrl)}
+                </a>
+              ) : (
+                <strong>Your library folder</strong>
+              )}
+            </dd>
+          </div>
+          {song.lyricsKind !== 'none' && (
+            <div>
+              <dt>Lyrics</dt>
+              <dd>
+                <strong>{song.lyricsKind === 'synced' ? 'Synced' : 'Plain text'}</strong>
+              </dd>
+            </div>
+          )}
+        </dl>
+      </section>
+    </div>
   )
 }
 

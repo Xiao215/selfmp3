@@ -1,14 +1,16 @@
 # Lyrics+
 
-Romanization, translation, a timing editor, and search inside lyrics. Everything
+Romanization, a timing editor, and search inside lyrics. Everything
 builds on the lyrics the app already resolves (sidecar → embedded tag → lrclib),
 and every derived form comes back **aligned 1:1** with the original lines —
-same order, same count, same timestamps — so the panel just renders "line N,
-then its extras".
+same order, same count, same timestamps — so the lyrics view just renders
+"line N, then its extras". The lyrics themselves are shown on the song's page; see
+[now-playing.md](now-playing.md).
 
 ## Romanization (offline)
 
-Open the lyrics panel (`L`, or the mic button) and press the **Aa** button.
+Open the song's page (`L`, the mic button, or the artwork in the player bar) and press
+**Romaji** / **Pinyin** — on a phone, the **Aa** button over the lyrics.
 Chinese lines get pinyin with tone marks under them; Japanese lines get Hepburn
 romaji. It is generated on the server with pure-JS libraries — nothing leaves
 your library:
@@ -35,48 +37,10 @@ GET /api/songs/:id/lyrics/romanized
 → { language: 'zh'|'ja'|'none', synced, lines: [{ time, text, romanized }] }
 ```
 
-## Translation (optional, needs an API key)
-
-Press the **translate** button in the panel. With no provider configured the
-panel shows a quiet hint pointing to Settings. To enable it, in Settings →
-Lyrics:
-
-1. Set **Translate lyrics into** to a language code (`en`, `zh`, `ja`,
-   `pt-BR`…). Setting: `lyricsTranslationLang`, default `en`.
-2. Pick a **Translation provider**: Anthropic or OpenAI. Setting:
-   `lyricsTranslationProvider` (`'none' | 'anthropic' | 'openai'`, default
-   `none`).
-3. Paste that provider's API key and Save.
-
-Keys are stored server-side in their own `secrets` table and are **never
-returned** to the client — `GET /api/settings` does not include them, and
-`GET /api/settings/secrets` only reports `{ anthropic: { hasKey }, openai: { hasKey } }`.
-`PUT /api/settings/secrets { provider, key }` sets one; `key: null` removes it.
-
-The whole song is translated in **one request**: non-blank lines are numbered,
-the model is asked for the same numbered list back, the reply is validated for
-count and coverage, and the request is retried once if it does not line up.
-Results are cached per song and language at
-`data/lyrics/<songId>/translation.<lang>.<hash>.json`, so each song costs one
-call per language, ever.
-
-```
-GET /api/songs/:id/lyrics/translation?lang=en
-→ { lang, provider, synced, lines: [{ time, text, translation }] }
-409 no_provider   provider is 'none'
-409 no_key        provider set but no key saved
-424 provider_failed / bad_response
-```
-
-Models are fixed constants in `apps/server/src/services/translation.ts`
-(`claude-sonnet-4-5`, `gpt-4o-mini`). Whether the translation line is shown is
-a per-device toggle (localStorage), since it is about the screen, not the library.
-
 ## Lyric timing editor
 
-For songs with plain (unsynced) lyrics or none at all, press the **clock**
-button in the panel (or the "type and sync them yourself" link in the empty
-state). It works in two steps and is built for a thumb as much as a keyboard:
+For songs with plain (unsynced) lyrics or none at all, press **Sync** on the
+song's page (or **Write them** under a song whose lyrics were not found). It works in two steps and is built for a thumb as much as a keyboard:
 
 1. **Text.** Paste or edit the lyrics, one line per row. If the song already has
    plain lyrics they are pre-filled. Pasting a whole `.lrc` works too — its
@@ -115,12 +79,46 @@ lyrics are resolved, refreshed or saved, and a backfill runs after the boot scan
 have not been opened yet. `lyrics_index` remembers the hash each song was
 indexed from so re-indexing an unchanged song is one row lookup.
 
+## Instrumental songs
+
+lrclib answers `instrumental: true` for tracks with no words. The server
+remembers that on the song as `Song.instrumental` (the `songs.instrumental`
+column), so a client can say "instrumental" instead of "no lyrics found", and
+the song is not looked up again every time it plays. It is a flag of its own
+rather than a `lyricsKind` value: `lyricsKind: 'none'` only means nothing was
+found, the scanner rewrites `lyrics_kind` from the files on every rescan, and
+smart playlists read `lyrics_kind != 'none'` as "has lyrics".
+
+```
+GET /api/songs/:id/lyrics
+404 instrumental   no local lyrics, and the song is flagged or lrclib just said so
+```
+
+- Local lyrics (a sidecar or an embedded tag) always win and are returned as
+  usual; the flag is left alone.
+- A flagged song with no local lyrics answers `404 instrumental` without
+  touching the network. When lrclib is the one saying so, the flag is set first.
+  `GET /api/songs/:id/lyrics/romanized` behaves the same way.
+- `?refresh=1` ("look again") always asks lrclib: lyrics found are written as a
+  sidecar and clear the flag; an instrumental answer sets it and returns
+  `404 instrumental`; nothing at all is the usual `404 not_found`.
+- Only lrclib's exact match is believed about a track being instrumental. The
+  fuzzy search fallback readily returns the karaoke version of a song with
+  words, and a wrong flag would stop the song from ever being looked up again.
+- Imports with lyric fetching on set the flag when lrclib says so.
+- `PUT /api/songs/:id/lyrics` with non-empty text clears the flag — you wrote
+  words for it, so it has some.
+- `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by
+  hand.
+
+Older servers do not send the field; the schema defaults it to `false`.
+
 ## Files
 
 | Area | Where |
 |---|---|
 | Contract | `packages/shared/src/schemas/lyrics.ts`, settings keys in `schemas/settings.ts` |
 | Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests) |
-| Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index`, `secrets` |
-| Server | `services/romanization.ts`, `translation.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`, `secrets.ts`; `routes/lyrics.ts` |
-| Web | `components/LyricsPanel.tsx`, `LyricsSyncEditor.tsx`, `LyricsSettings.tsx`; Lyrics group in `CommandPalette.tsx` |
+| Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index` (its `secrets` table belonged to a since-removed translation feature and is unused); later `songs.instrumental` |
+| Server | `services/lyrics.ts` (lrclib, instrumental), `romanization.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
+| Web | `components/nowplaying/` (see [now-playing.md](now-playing.md)), `LyricsSyncEditor.tsx`, `LyricsSettings.tsx`; Lyrics group in `CommandPalette.tsx` |

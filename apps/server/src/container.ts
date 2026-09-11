@@ -21,11 +21,9 @@ import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MigrateService } from './services/migrate.js'
 import { MetadataLookupService } from './services/lookup.js'
 import { FixCoversService } from './services/fixCovers.js'
-import { SecretsRepository } from './repositories/secrets.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
-import { TranslationService } from './services/translation.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { DeviceRepository } from './repositories/devices.js'
@@ -55,7 +53,6 @@ export interface Container {
   readonly wrapped: WrappedRepository
   readonly gems: GemsRepository
   readonly imports: ImportRepository
-  readonly secrets: SecretsRepository
   readonly lyricsSearch: LyricsSearchRepository
   readonly features: FeaturesRepository
   readonly deviceRepo: DeviceRepository
@@ -72,7 +69,6 @@ export interface Container {
   readonly fixCovers: FixCoversService
   readonly lyricsCache: LyricsCache
   readonly romanization: RomanizationService
-  readonly translation: TranslationService
   readonly lyricsIndex: LyricsIndexService
   readonly analysis: AnalysisService
   readonly events: EventHub
@@ -102,7 +98,6 @@ export function createContainer(config: Config): Container {
   const wrapped = new WrappedRepository(db)
   const gems = new GemsRepository(db)
   const imports = new ImportRepository(db)
-  const secrets = new SecretsRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const features = new FeaturesRepository(db)
   const deviceRepo = new DeviceRepository(db)
@@ -142,7 +137,6 @@ export function createContainer(config: Config): Container {
   const migrate = new MigrateService({ songs, logger })
   const lyricsCache = new LyricsCache(config, logger)
   const romanization = new RomanizationService(logger)
-  const translation = new TranslationService(secrets, logger)
   const lyricsIndex = new LyricsIndexService({
     songs,
     search: lyricsSearch,
@@ -221,7 +215,6 @@ export function createContainer(config: Config): Container {
     wrapped,
     gems,
     imports,
-    secrets,
     lyricsSearch,
     features,
     deviceRepo,
@@ -237,7 +230,6 @@ export function createContainer(config: Config): Container {
     fixCovers,
     lyricsCache,
     romanization,
-    translation,
     lyricsIndex,
     analysis,
     events,

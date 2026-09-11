@@ -28,12 +28,16 @@ const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 export interface RunOptions {
   readonly timeoutMs?: number
   readonly signal?: AbortSignal
-  /** Called for each line of progress output. */
-  readonly onStderrLine?: (line: string) => void
+  /**
+   * Called for each line the command prints, from either stream. yt-dlp's
+   * `[download] 42.1%` progress goes to stdout, and only warnings and errors
+   * to stderr.
+   */
+  readonly onLine?: (line: string) => void
 }
 
 export function run(command: string, args: readonly string[], options: RunOptions = {}): Promise<RunResult> {
-  const { timeoutMs = 10 * 60 * 1000, signal, onStderrLine } = options
+  const { timeoutMs = 10 * 60 * 1000, signal, onLine } = options
 
   return new Promise<RunResult>(resolve => {
     // `shell: false` is the default and is load-bearing: it is what makes it
@@ -42,7 +46,6 @@ export function run(command: string, args: readonly string[], options: RunOption
 
     let stdout = ''
     let stderr = ''
-    let stderrBuffer = ''
     let timedOut = false
     let settled = false
 
@@ -64,18 +67,19 @@ export function run(command: string, args: readonly string[], options: RunOption
       resolve(result)
     }
 
+    const stdoutLines = lineSplitter(onLine)
+    const stderrLines = lineSplitter(onLine)
+
     child.stdout.on('data', (chunk: Buffer) => {
-      if (stdout.length < MAX_OUTPUT_BYTES) stdout += chunk.toString('utf8')
+      const text = chunk.toString('utf8')
+      if (stdout.length < MAX_OUTPUT_BYTES) stdout += text
+      stdoutLines.push(text)
     })
 
     child.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
       if (stderr.length < MAX_OUTPUT_BYTES) stderr += text
-      if (!onStderrLine) return
-      stderrBuffer += text
-      const lines = stderrBuffer.split(/\r?\n|\r/)
-      stderrBuffer = lines.pop() ?? ''
-      for (const line of lines) if (line.trim()) onStderrLine(line)
+      stderrLines.push(text)
     })
 
     child.on('error', error => {
@@ -83,10 +87,32 @@ export function run(command: string, args: readonly string[], options: RunOption
     })
 
     child.on('close', code => {
-      if (stderrBuffer.trim() && onStderrLine) onStderrLine(stderrBuffer)
+      stdoutLines.flush()
+      stderrLines.flush()
       finish({ code: code ?? -1, stdout, stderr, timedOut })
     })
   })
+}
+
+/** Whole lines out of a stream's chunks, however the chunks happen to split them. */
+function lineSplitter(onLine: ((line: string) => void) | undefined): {
+  push: (text: string) => void
+  flush: () => void
+} {
+  let buffer = ''
+  return {
+    push: text => {
+      if (!onLine) return
+      buffer += text
+      const lines = buffer.split(/\r?\n|\r/)
+      buffer = lines.pop() ?? ''
+      for (const line of lines) if (line.trim()) onLine(line)
+    },
+    flush: () => {
+      if (onLine && buffer.trim()) onLine(buffer)
+      buffer = ''
+    },
+  }
 }
 
 /** The last few lines of stderr — where yt-dlp puts the actual reason. */
@@ -316,7 +342,7 @@ export class YtDlpService {
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onProgress
         ? {
-            onStderrLine: (line: string) => {
+            onLine: (line: string) => {
               const percent = parseProgress(line)
               if (percent !== null) input.onProgress?.(percent)
             },

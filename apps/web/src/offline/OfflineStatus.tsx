@@ -37,12 +37,17 @@ export function OfflineMark({ songId }: { songId: number }) {
   }
 
   if (offline.isCached(songId)) {
+    // One meaning on every device: this song is here. Only the reason differs.
     return (
       <span
         className="offline-mark is-cached"
-        title="Downloaded — plays offline"
+        title={
+          offline.holdsLibrary
+            ? 'On this device — a file in your library folder'
+            : 'On this device — downloaded, plays offline'
+        }
         role="img"
-        aria-label="Downloaded"
+        aria-label="On this device"
       >
         <Downloaded size={13} />
       </span>

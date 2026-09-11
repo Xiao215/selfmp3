@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { ProgressRing } from '../offline/OfflineStatus.js'
-import { isServerMachine } from '../offline/autoDownload.js'
 import { fileManagerName, showInFileManager } from '../lib/fileManager.js'
 import { Cover } from './Cover.js'
 import { EnergyWave, tempoMark } from './FeatureBadges.js'
@@ -35,7 +34,7 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
   const features = song.features
   const cached = offline.isCached(song.id)
   const progress = offline.progressOf(song.id)
-  const onServerMachine = isServerMachine()
+  const onServerMachine = offline.holdsLibrary
   const byline = [song.artist || 'Unknown artist', song.album, song.year]
     .filter(Boolean)
     .join(' · ')
@@ -113,18 +112,19 @@ export function SongDetailsDialog({ song, onClose }: { song: Song; onClose: () =
           </section>
 
           {onServerMachine ? (
-            // The Mac that runs self.mp3: the song is a file on this disk, and
-            // "offline" does not apply.
-            <section className="details-group" aria-label="On this Mac">
-              <h3>On this Mac</h3>
+            // Where the library lives, the song is on this device as a file —
+            // the same question every device answers, answered from the disk.
+            <section className="details-group" aria-label="On this device">
+              <h3>On this device</h3>
               <dl className="details-facts">
                 <div>
                   <dt>File</dt>
                   <dd>
                     <strong>
-                      {song.missing ? 'Missing' : 'In your library folder'} ·{' '}
-                      {formatBytes(song.sizeBytes)}
+                      {song.missing ? 'Missing from your library folder' : 'In your library folder'}{' '}
+                      · {formatBytes(song.sizeBytes)}
                     </strong>
+                    {!song.missing && <span>Plays with no connection at all.</span>}
                     <span className="details-path">{song.path}</span>
                     {!song.missing && (
                       <button

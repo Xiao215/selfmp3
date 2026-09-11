@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatBytes, type OfflineScope, type Settings } from '@selfmp3/shared'
+import { formatBytes, type OfflineScope, type Settings, type Song } from '@selfmp3/shared'
 import { useQuery } from '@tanstack/react-query'
 import {
   queryKeys,
@@ -13,7 +13,7 @@ import {
 import { FixCoversPanel } from '../components/FixCoversPanel.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { OfflineAutoStatus } from '../offline/OfflineStatus.js'
-import { connectionKind, isServerMachine } from '../offline/autoDownload.js'
+import { connectionKind } from '../offline/autoDownload.js'
 import { api } from '../lib/api.js'
 import { CheckCircle, CloudDownload, Refresh, Sparkles, Trash, X } from '../components/Icons.js'
 import { LyricsSettings } from '../components/LyricsSettings.js'
@@ -220,6 +220,10 @@ export function SettingsView() {
               <span className="hint">on this device</span>
             </header>
 
+            {offline.holdsLibrary ? (
+              <LibraryOnThisDevice songs={songs} />
+            ) : (
+              <>
             <p className="panel-lead">
               Downloaded songs play with no connection at all — which is the point, since your Mac
               won&rsquo;t always be awake. New songs download on their own; plays you make offline
@@ -237,9 +241,8 @@ export function SettingsView() {
               <span className="setting-label">
                 Download automatically
                 <span className="setting-hint">
-                  {isServerMachine()
-                    ? 'Off by default on this Mac — its songs are already on this disk.'
-                    : 'Keeps this device in step with your library whenever your Mac is reachable. A song you remove by hand stays removed.'}
+                  Keeps this device in step with your library whenever your Mac is reachable. A song
+                  you remove by hand stays removed.
                 </span>
               </span>
               <span className="setting-control">
@@ -416,6 +419,8 @@ export function SettingsView() {
                 This browser hasn’t marked your downloads as permanent, so it may clear them if
                 storage runs low. Adding self.mp3 to your home screen usually fixes that.
               </p>
+            )}
+              </>
             )}
           </section>
 
@@ -814,6 +819,47 @@ export function SettingsView() {
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * The offline panel on the computer the library lives on.
+ *
+ * Same question as on any device — how much of the library is here? — with
+ * the answer every other device is working towards: all of it, as files.
+ * Nothing to switch on, nothing to download.
+ */
+function LibraryOnThisDevice({ songs }: { songs: readonly Song[] }) {
+  const present = songs.filter(song => !song.missing)
+  const bytes = present.reduce((sum, song) => sum + song.sizeBytes, 0)
+  const missing = songs.length - present.length
+
+  return (
+    <>
+      <p className="panel-lead">
+        Your library lives on this computer, so every song is already on this device as a file in
+        your library folder — they play with no connection at all, and there&rsquo;s nothing to
+        download. Downloads are for your phone and other computers.
+      </p>
+
+      <div className="offline-summary">
+        <div className="offline-stat">
+          <span className="offline-stat-value">{present.length}</span>
+          <span className="offline-stat-label">of {songs.length} songs on this device</span>
+        </div>
+        <div className="offline-stat">
+          <span className="offline-stat-value">{formatBytes(bytes)}</span>
+          <span className="offline-stat-label">in your library folder</span>
+        </div>
+      </div>
+
+      {missing > 0 && (
+        <p className="hint">
+          {missing === 1 ? '1 song’s file is' : `${missing} songs’ files are`} missing from the
+          folder — Settings → Library can rescan or forget them.
+        </p>
+      )}
+    </>
   )
 }
 

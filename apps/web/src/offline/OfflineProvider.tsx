@@ -30,6 +30,7 @@ import {
 } from './audioCache.js'
 import {
   connectionKind,
+  isServerMachine,
   loadExcluded,
   loadPrefs,
   onConnectionChange,
@@ -82,6 +83,12 @@ interface OfflineContextValue {
   readonly serverReachable: boolean
   /** False where the browser cannot keep songs at all. */
   readonly supported: boolean
+  /**
+   * This is the computer the library lives on. Its songs are files on this
+   * disk, so every song is on this device and there is nothing to download.
+   */
+  readonly holdsLibrary: boolean
+  /** Songs on this device: downloaded here — or, where the library lives, every file present. */
   readonly cachedIds: ReadonlySet<number>
   readonly usage: StorageUsage | null
   readonly sync: SyncState
@@ -167,7 +174,20 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     })
   }, [])
 
-  const supported = offlineStorageAvailable()
+  /*
+   * Every device answers the same question — is this song on this device? —
+   * and the disc on a row means yes. A phone answers it from what it has
+   * downloaded. The computer the library lives on answers it from the files
+   * themselves: they are on its disk, so every song that is not missing is
+   * "on this device", and a browser copy there would only double a file.
+   */
+  const holdsLibrary = isServerMachine()
+  const supported = holdsLibrary || offlineStorageAvailable()
+  const libraryFiles = useMemo<ReadonlySet<number>>(
+    () => new Set((library?.songs ?? []).filter(song => !song.missing).map(song => song.id)),
+    [library],
+  )
+  const onDevice = holdsLibrary ? libraryFiles : cachedIds
 
   // Refs for the async passes, which must read the latest values without
   // being re-created (and re-scheduled) by every render.
@@ -197,10 +217,16 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   }, [])
 
   useEffect(() => {
+    if (holdsLibrary) {
+      // Copies saved in this browser before the Mac stopped offering
+      // downloads duplicate files already on this disk. They go.
+      void clearAudioCache().then(refreshUsage)
+      return
+    }
     void refreshCached()
     void refreshUsage()
     void requestPersistentStorage().then(setPersistent)
-  }, [refreshCached, refreshUsage])
+  }, [holdsLibrary, refreshCached, refreshUsage])
 
   const setPrefs = useCallback((patch: Partial<OfflinePrefs>) => {
     setPrefsState(current => {
@@ -403,6 +429,10 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
 
   const libraryVersion = library?.version
   useEffect(() => {
+    if (holdsLibrary) {
+      setAuto({ kind: 'off' })
+      return
+    }
     if (!supported) {
       setAuto({ kind: 'unsupported' })
       return
@@ -415,6 +445,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     const timer = window.setTimeout(() => void autoPass(), AUTO_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [
+    holdsLibrary,
     supported,
     prefs.auto,
     prefs.scope,
@@ -509,7 +540,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     await refreshUsage()
   }, [refreshUsage, setPrefs])
 
-  const isCached = useCallback((songId: number) => cachedIds.has(songId), [cachedIds])
+  const isCached = useCallback((songId: number) => onDevice.has(songId), [onDevice])
   const isExcluded = useCallback((songId: number) => excluded.has(songId), [excluded])
   const progressOf = useCallback((songId: number) => downloading.get(songId), [downloading])
 
@@ -518,7 +549,8 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       online,
       serverReachable,
       supported,
-      cachedIds,
+      holdsLibrary,
+      cachedIds: onDevice,
       usage,
       sync,
       persistent,
@@ -540,7 +572,8 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       online,
       serverReachable,
       supported,
-      cachedIds,
+      holdsLibrary,
+      onDevice,
       usage,
       sync,
       persistent,

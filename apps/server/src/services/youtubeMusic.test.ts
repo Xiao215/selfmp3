@@ -137,8 +137,8 @@ const orion: FakeTrack = {
   length: '3:27',
   type: 'MUSIC_VIDEO_TYPE_ATV',
   lines: [
-    [10710, '何気ない あり得ない こと'],
-    [13220, 'くだらない 譲れない から'],
+    [10710, '窓の外 静かな 朝'],
+    [13220, '小さな 灯り ひとつ'],
   ],
 }
 const song = { artist: 'YOASOBI', title: 'オリオン', duration: 206.62 }
@@ -148,7 +148,7 @@ describe('YouTubeMusicLyrics', () => {
     const { youtubeMusic, calls } = fakeYouTubeMusic([orion])
     const lrc = await youtubeMusic.find({ ...song, videoId: orion.videoId })
 
-    expect(lrc).toContain('[00:10.71]何気ない あり得ない こと')
+    expect(lrc).toContain('[00:10.71]窓の外 静かな 朝')
     expect(calls).toEqual(['next', 'browse'])
     const parsed = parseLyrics(lrc ?? '')
     expect(parsed.synced).toBe(true)
@@ -169,7 +169,7 @@ describe('YouTubeMusicLyrics', () => {
     const video: FakeTrack = { ...orion, videoId: 'musicvideo1', type: 'MUSIC_VIDEO_TYPE_OMV' }
     const { youtubeMusic } = fakeYouTubeMusic([video, orion], [orion])
     const lrc = await youtubeMusic.find({ ...song, videoId: video.videoId })
-    expect(lrc).toContain('何気ない')
+    expect(lrc).toContain('窓の外')
   })
 
   it('does not use the studio track for a music video with an intro', async () => {
@@ -192,7 +192,7 @@ describe('YouTubeMusicLyrics', () => {
     }
     const { youtubeMusic } = fakeYouTubeMusic([english, orion], [english, orion])
     const lrc = await youtubeMusic.find({ ...song, videoId: null })
-    expect(lrc).toContain('何気ない')
+    expect(lrc).toContain('窓の外')
     expect(lrc).not.toContain('something else')
   })
 

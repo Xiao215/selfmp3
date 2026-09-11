@@ -6,10 +6,31 @@ dist-types/
 # Your music and your database. Never committed.
 library/
 data/
+# ...nor a stray copy of either, wherever it ends up.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.m4a
+*.mp3
+*.opus
+*.flac
+*.wav
 
-# Local config
+# Local config and secrets
 .env
-.env.local
+.env.*
+!.env.example
+.dev.vars
+cookies.txt
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+
+# Test coverage
+coverage/
 
 # OS
 .DS_Store

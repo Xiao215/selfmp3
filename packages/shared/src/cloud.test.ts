@@ -4,6 +4,9 @@ import {
   audioKey,
   cleanExtension,
   coverKey,
+  isCloudFileKey,
+  isCloudListPrefix,
+  isDeletableCloudKey,
   lyricsKey,
   newCloudDeviceId,
   newUid,
@@ -94,6 +97,68 @@ describe('snapshots', () => {
     const shuffled = [mine[3], theirs, mine[0], mine[4], mine[1], mine[2]] as string[]
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 3)).toEqual([mine[0], mine[1]])
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 10)).toEqual([])
+  })
+})
+
+describe('what may pass through the doorman', () => {
+  const snapshot = snapshotKey(new Date('2026-09-11T14:22:05.123Z'), 'mac-3f9a1c2e')
+
+  it('lets through the library’s own files', () => {
+    for (const key of [
+      'format.json',
+      snapshot,
+      `audio/${SHA}.m4a`,
+      `covers/${SHA}.jpg`,
+      `lyrics/${SHA}.lrc`,
+      'log/iphone-0b7d44a1/000123.jsonl',
+    ]) {
+      expect(isCloudFileKey(key)).toBe(true)
+    }
+  })
+
+  it('refuses anything else, however it is dressed up', () => {
+    for (const key of [
+      '',
+      'format.json.bak',
+      '../format.json',
+      `audio/../covers/${SHA}.jpg`,
+      `audio/${SHA.toUpperCase()}.m4a`,
+      `audio/${SHA}`,
+      `music/${SHA}.m4a`,
+      'snapshots/latest.json',
+      'log/../../etc/passwd',
+      'log/iphone-0b7d44a1/../x',
+      'log/iphone-0b7d44a1/..',
+      'log/iphone-0b7d44a1/.',
+      'log/iphone-0b7d44a1/.hidden',
+      'log/Phone/1.jsonl',
+    ]) {
+      expect(isCloudFileKey(key), key).toBe(false)
+    }
+  })
+
+  it('lets snapshots and logs be deleted, never files named by their hash', () => {
+    expect(isDeletableCloudKey(snapshot)).toBe(true)
+    expect(isDeletableCloudKey('log/iphone-0b7d44a1/000123.jsonl')).toBe(true)
+    expect(isDeletableCloudKey(`audio/${SHA}.m4a`)).toBe(false)
+    expect(isDeletableCloudKey('format.json')).toBe(false)
+  })
+
+  it('lists only the library’s own folders', () => {
+    for (const prefix of [
+      '',
+      'snapshots/',
+      'log/',
+      'log/mac-3f9a1c2e/',
+      'audio/',
+      'covers/',
+      'lyrics/',
+    ]) {
+      expect(isCloudListPrefix(prefix), prefix).toBe(true)
+    }
+    for (const prefix of ['a', 'audio', 'snapshots/2026', '../', 'log/../']) {
+      expect(isCloudListPrefix(prefix), prefix).toBe(false)
+    }
   })
 })
 

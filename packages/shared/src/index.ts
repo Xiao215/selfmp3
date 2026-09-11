@@ -24,6 +24,7 @@ export * from './schemas/devices.js'
 export * from './schemas/wrapped.js'
 export * from './schemas/gems.js'
 export * from './schemas/cloud.js'
+export * from './schemas/doorman.js'
 
 export * from './format.js'
 export * from './lrc.js'

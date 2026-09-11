@@ -111,6 +111,43 @@ export function snapshotsToPrune(keys: readonly string[], deviceId: string, keep
   return mine.slice(0, Math.max(0, mine.length - keep)).map(entry => entry.key)
 }
 
+/**
+ * Every key a device may read or write through the doorman, and nothing else:
+ * the format marker, snapshots, a device's change log, and files named by
+ * their hash. A key that does not match is refused before it reaches the
+ * bucket, so no request can wander outside the library's own folders.
+ *
+ * No part of a key may be `.` or `..`: S3 would take them literally, but a
+ * URL built from them would not, and the request would land somewhere else.
+ */
+const FILE_KEY = new RegExp(
+  '^(?:' +
+    [
+      'format\\.json',
+      'snapshots/\\d{8}T\\d{9}Z-[a-z0-9][a-z0-9-]{2,62}\\.json',
+      'log/[a-z0-9][a-z0-9-]{2,62}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}',
+      '(?:audio|covers|lyrics)/[0-9a-f]{64}\\.[a-z0-9]{1,5}',
+    ].join('|') +
+    ')$',
+)
+
+export function isCloudFileKey(key: string): boolean {
+  return FILE_KEY.test(key)
+}
+
+/** Snapshots and change logs are rewritten and pruned; files named by their hash never are. */
+export function isDeletableCloudKey(key: string): boolean {
+  return isCloudFileKey(key) && (key.startsWith(SNAPSHOTS_FOLDER) || key.startsWith('log/'))
+}
+
+/** The folders a device may list: one of the library's own, or one device's log. */
+const LIST_PREFIX =
+  /^(?:|snapshots\/|log\/|log\/[a-z0-9][a-z0-9-]{2,62}\/|audio\/|covers\/|lyrics\/)$/
+
+export function isCloudListPrefix(prefix: string): boolean {
+  return LIST_PREFIX.test(prefix)
+}
+
 // --- Connecting -----------------------------------------------------------------
 
 /**

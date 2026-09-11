@@ -8,7 +8,7 @@ import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
 import { SongMenu } from './SongMenu.js'
 import { FeatureBadges } from './FeatureBadges.js'
-import { CheckCircle, Equalizer, Heart, More, Play, Plus } from './Icons.js'
+import { Check, CheckCircle, Equalizer, Heart, More, Play, Plus } from './Icons.js'
 
 /** How long a finger has to rest on a row before it opens the song menu. */
 const LONG_PRESS_MS = 450
@@ -40,11 +40,17 @@ function swallowCompatibilityClick(): void {
  *
  * The row speaks two input languages. With a mouse it is a table row: click to
  * select, double-click to play, and the controls that are not information —
- * the play overlay, the tag button, an unloved heart, the ⋯ — stay invisible
- * until the pointer is on the row, so a full screen of songs reads as titles
- * rather than as a wall of icons. With a finger there is no hover to reveal
- * anything, so a tap plays, the ⋯ is always visible at a finger-sized target,
- * and holding the row opens the same menu.
+ * the play overlay, the checkbox, the tag button, an unloved heart, the ⋯ —
+ * stay invisible until the pointer is on the row, so a full screen of songs
+ * reads as titles rather than as a wall of icons. With a finger there is no
+ * hover to reveal anything, so a tap plays, the ⋯ is always visible at a
+ * finger-sized target, and holding the row opens the same menu.
+ *
+ * Multi-select is the one place the two languages have to be told apart
+ * explicitly. A mouse has Cmd and Shift; a finger has neither, so the list
+ * turns on an explicit selection mode instead, and in that mode a tap toggles
+ * the row rather than playing it. `selectable` puts the checkbox in the row,
+ * `selectionMode` says a plain tap is now a selection.
  */
 export const SongRow = memo(function SongRow({
   song,
@@ -57,6 +63,10 @@ export const SongRow = memo(function SongRow({
   onToggleTag,
   onSelect,
   showIndex = true,
+  selectable = false,
+  selectionMode = false,
+  onToggleSelect,
+  onStartSelecting,
 }: {
   song: Song
   index: number
@@ -68,6 +78,13 @@ export const SongRow = memo(function SongRow({
   onToggleTag: (tagId: number) => void
   onSelect?: (event: React.MouseEvent) => void
   showIndex?: boolean
+  /** Show the checkbox and accept selection gestures. */
+  selectable?: boolean
+  /** A plain tap toggles the row instead of playing it. */
+  selectionMode?: boolean
+  onToggleSelect?: () => void
+  /** Offered in the ⋯ menu: the way into selection mode without a keyboard. */
+  onStartSelecting?: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -135,12 +152,36 @@ export const SongRow = memo(function SongRow({
       return
     }
     const modified = event.metaKey || event.ctrlKey || event.shiftKey
+    // In selection mode the row is a checkbox: a tap toggles, it never plays.
+    if (selectionMode) {
+      onSelect?.(event)
+      return
+    }
     // A finger has no double-click and no hover: one tap plays.
     if (pointerType.current === 'touch' && !modified) {
       onPlay()
       return
     }
     onSelect?.(event)
+  }
+
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    // Space toggles the focused row. It has to stop here, or the app-wide
+    // space-is-play-pause shortcut would fire on the same keystroke.
+    if (selectable && event.key === ' ') {
+      event.preventDefault()
+      event.stopPropagation()
+      onToggleSelect?.()
+      return
+    }
+    if (event.key === 'Enter') {
+      if (selectionMode) {
+        event.preventDefault()
+        onToggleSelect?.()
+      } else {
+        onPlay()
+      }
+    }
   }
 
   const className = [
@@ -163,16 +204,46 @@ export const SongRow = memo(function SongRow({
       onPointerMove={onPointerMove}
       onPointerUp={cancelPress}
       onPointerCancel={cancelPress}
+      onMouseDown={event => {
+        // A shift-click on a list is a range, not a paragraph of text: without
+        // this the browser highlights every title between the two rows.
+        if (event.shiftKey && selectable) event.preventDefault()
+      }}
       onContextMenu={event => {
         // Suppress the OS callout on a hold; the menu is the callout here.
         if (pointerType.current === 'touch') event.preventDefault()
       }}
       role="row"
       tabIndex={0}
-      onKeyDown={event => {
-        if (event.key === 'Enter') onPlay()
-      }}
+      onKeyDown={onKeyDown}
     >
+      {/*
+        A real focusable checkbox rather than a decorative one the row toggles:
+        Space on the row is an accelerator for people who find it, but the
+        checkbox is the thing that is announced, labelled with the song's name
+        and reachable by anyone tabbing through the list.
+      */}
+      {selectable && (
+        <div
+          className="song-cell song-select"
+          role="cell"
+          onClick={event => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={selected}
+            className="song-select-box"
+            onClick={onToggleSelect}
+            aria-label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+          >
+            <span className={`checkbox ${selected ? 'is-on' : ''}`} aria-hidden="true">
+              {selected && <Check size={12} />}
+            </span>
+          </button>
+        </div>
+      )}
+
       {showIndex && (
         <div className="song-cell song-index" role="cell">
           {isCurrent && isPlaying ? (
@@ -297,6 +368,7 @@ export const SongRow = memo(function SongRow({
             onClose={() => setMenuOpen(false)}
             onPlayNext={() => player.playNext([song])}
             onAddToQueue={() => player.addToQueue([song])}
+            onStartSelecting={selectable ? onStartSelecting : undefined}
           />
         )}
       </div>

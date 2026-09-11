@@ -159,6 +159,21 @@ export const Check = (p: IconProps) => (
   </Icon>
 )
 
+/** The dash a part-selected checkbox wears: some, but not all. */
+export const Minus = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 12h12" />
+  </Icon>
+)
+
+/** A ticked box, for the control that turns multi-select on. */
+export const CheckSquare = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 11.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+    <path d="m9 11 3 3 8-8" />
+  </Icon>
+)
+
 export const Refresh = (p: IconProps) => (
   <Icon {...p}>
     <path d="M21 12a9 9 0 1 1-2.64-6.36" />

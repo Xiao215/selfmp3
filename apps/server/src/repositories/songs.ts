@@ -216,6 +216,67 @@ export class SongRepository {
     this.#deleteById.run(id)
   }
 
+  /**
+   * Look several songs up at once, in the order they were asked for.
+   *
+   * One `IN (...)` beats N round trips through `byId`, and returning only the
+   * ones that exist lets a caller work out which ids were stale without a
+   * second query.
+   */
+  byIds(ids: readonly number[]): Song[] {
+    if (ids.length === 0) return []
+    const unique = [...new Set(ids)]
+    const placeholders = unique.map(() => '?').join(',')
+    const rows = this.#db
+      .prepare<number[], SongRow>(`${SONG_SELECT} WHERE s.id IN (${placeholders})`)
+      .all(...unique)
+    const byId = new Map(rows.map(row => [row.id, toSong(row)]))
+    return unique.map(id => byId.get(id)).filter(song => song !== undefined)
+  }
+
+  /**
+   * Remove many songs in one transaction.
+   *
+   * All or nothing: a batch that half-applied would leave the library in a
+   * state nobody asked for and no undo to reach it from. Ids that are not in
+   * the database are reported rather than thrown — a phone working from a
+   * stale library should lose the rows it can and be told about the rest,
+   * not have the whole request fail.
+   */
+  deleteMany(ids: readonly number[]): { removed: number[]; missing: number[] } {
+    if (ids.length === 0) return { removed: [], missing: [] }
+
+    const run = this.#db.transaction((unique: readonly number[]) => {
+      const removed: number[] = []
+      const missing: number[] = []
+      for (const id of unique) {
+        if (this.#deleteById.run(id).changes > 0) removed.push(id)
+        else missing.push(id)
+      }
+      return { removed, missing }
+    })
+
+    return run([...new Set(ids)])
+  }
+
+  /** Love or unlove many songs at once. Returns how many rows changed. */
+  setLovedMany(ids: readonly number[], loved: boolean): number {
+    if (ids.length === 0) return 0
+
+    const statement = this.#db.prepare(
+      "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
+    )
+    const value = loved ? 1 : 0
+
+    const run = this.#db.transaction((unique: readonly number[]) => {
+      let affected = 0
+      for (const id of unique) affected += statement.run(value, id, value).changes
+      return affected
+    })
+
+    return run([...new Set(ids)])
+  }
+
   recordPlay(id: number): void {
     this.#recordPlay.run(id)
   }

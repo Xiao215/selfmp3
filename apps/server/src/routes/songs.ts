@@ -2,11 +2,15 @@ import { Router } from 'express'
 import { z } from 'zod'
 import {
   BooleanQuerySchema,
+  BulkDeleteSongsSchema,
+  BulkLovedSchema,
   IdSchema,
   PlayEventSchema,
   SetSongTagsSchema,
   SkipEventSchema,
   SongPatchSchema,
+  type BulkDeleteFailure,
+  type BulkDeleteResult,
   type LyricsResponse,
   type SimilarSongs,
 } from '@selfmp3/shared'
@@ -27,6 +31,78 @@ export function songRoutes(container: Container): Router {
     if (!song) throw HttpError.notFound(`no song with id ${id}`)
     return song
   }
+
+  /*
+   * The bulk routes come first on purpose. `/songs/bulk/loved` would otherwise
+   * be matched by `/songs/:id/loved` with an id of "bulk", which parses to a
+   * 400 rather than to the handler anybody meant.
+   */
+
+  /**
+   * Remove many songs from the library at once — the multi-select path.
+   *
+   * `deleteFile` carries the same weight it does on the single-song route:
+   * off by default, and a separate decision from removing the row. The batch
+   * is deliberately forgiving about the file system and strict about the
+   * database: a file that is already gone is reported and skipped, while the
+   * rows go in one transaction and the library version is bumped once.
+   */
+  router.post(
+    '/songs/bulk/delete',
+    route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
+      const requested = [...new Set(body.songIds)]
+      const songs = container.songs.byIds(requested)
+      const found = new Set(songs.map(song => song.id))
+      const failed: BulkDeleteFailure[] = requested
+        .filter(id => !found.has(id))
+        .map(id => ({ songId: id, reason: `no song with id ${id}`, removed: false }))
+
+      // Side effects one song at a time, and never fatal: the point of a batch
+      // is that one bad file does not cost you the other thirty-nine.
+      let filesDeleted = 0
+      for (const song of songs) {
+        if (body.deleteFile) {
+          try {
+            if (await container.storage.exists(song.path)) {
+              await container.storage.delete(song.path)
+              filesDeleted++
+            } else {
+              failed.push({
+                songId: song.id,
+                reason: 'the file was already missing from disk',
+                removed: true,
+              })
+            }
+            await container.lyrics.deleteSidecar(song.path)
+          } catch (error) {
+            failed.push({
+              songId: song.id,
+              reason: error instanceof Error ? error.message : 'could not delete the file',
+              removed: true,
+            })
+          }
+        }
+        await container.covers.delete(song.id)
+        await container.lyricsCache.delete(song.id)
+        container.lyricsIndex.remove(song.id)
+      }
+
+      const { removed } = container.songs.deleteMany(songs.map(song => song.id))
+      if (removed.length > 0) container.bumpLibraryVersion()
+
+      return { removed: removed.length, filesDeleted, failed }
+    }),
+  )
+
+  /** Love or unlove a whole selection in one request. */
+  router.post(
+    '/songs/bulk/loved',
+    route({ body: BulkLovedSchema }, ({ body }) => {
+      const affected = container.songs.setLovedMany(body.songIds, body.loved)
+      if (affected > 0) container.bumpLibraryVersion()
+      return { affected }
+    }),
+  )
 
   router.get(
     '/songs/:id',

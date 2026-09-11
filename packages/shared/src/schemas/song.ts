@@ -63,6 +63,50 @@ export const SetSongTagsSchema = z.object({
 export type SetSongTags = z.infer<typeof SetSongTagsSchema>
 
 /**
+ * Remove many songs from the library in one request.
+ *
+ * `deleteFile` is a separate field with a `false` default rather than part of
+ * the id list for the same reason the per-song route keeps it in the query
+ * string and off by default: "remove from my list" and "destroy the files"
+ * are different intentions, and forty of them at once is not undoable.
+ */
+export const BulkDeleteSongsSchema = z.object({
+  songIds: z.array(IdSchema).min(1).max(2000),
+  deleteFile: z.boolean().default(false),
+})
+export type BulkDeleteSongs = z.infer<typeof BulkDeleteSongsSchema>
+
+/**
+ * What went wrong for one song in a batch.
+ *
+ * `removed` distinguishes "nothing happened to this song" from "the row went
+ * but the file did not" — a file that is already gone from disk must not
+ * abort the rest of the batch, but it should still be reported.
+ */
+export const BulkDeleteFailureSchema = z.object({
+  songId: IdSchema,
+  reason: z.string(),
+  removed: z.boolean(),
+})
+export type BulkDeleteFailure = z.infer<typeof BulkDeleteFailureSchema>
+
+export const BulkDeleteResultSchema = z.object({
+  /** Rows actually removed from the library. */
+  removed: z.number().int().nonnegative(),
+  /** Audio files actually deleted from disk. Always 0 without `deleteFile`. */
+  filesDeleted: z.number().int().nonnegative(),
+  failed: z.array(BulkDeleteFailureSchema),
+})
+export type BulkDeleteResult = z.infer<typeof BulkDeleteResultSchema>
+
+/** Love or unlove many songs at once, so the UI needs one request, not N. */
+export const BulkLovedSchema = z.object({
+  songIds: z.array(IdSchema).min(1).max(2000),
+  loved: z.boolean(),
+})
+export type BulkLoved = z.infer<typeof BulkLovedSchema>
+
+/**
  * Reported by the client when a song finishes or is abandoned.
  *
  * The client decides what counts as "played" (it knows about seeking and

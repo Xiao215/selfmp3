@@ -4,6 +4,7 @@ import {
   AddToPlaylistSchema,
   CreatePlaylistSchema,
   IdSchema,
+  RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
   UpdatePlaylistSchema,
 } from '@selfmp3/shared'
@@ -95,6 +96,26 @@ export function playlistRoutes(container: Container): Router {
 
       container.bumpLibraryVersion()
       return container.playlists.byId(params.id)
+    }),
+  )
+
+  /**
+   * Take a whole selection out of a manual playlist.
+   *
+   * A POST rather than a DELETE with a body: request bodies on DELETE are
+   * legal but unevenly supported, and this is the path the multi-select bar
+   * uses on a phone. Removing from a playlist never touches the songs.
+   */
+  router.post(
+    '/playlists/:id/songs/remove',
+    route({ params: ParamsWithId, body: RemoveFromPlaylistSchema }, ({ params, body }) => {
+      const playlist = requirePlaylist(params.id)
+      if (playlist.kind === 'smart') {
+        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      }
+      const removed = container.playlists.removeMany(params.id, body.songIds)
+      if (removed > 0) container.bumpLibraryVersion()
+      return { removed, playlist: container.playlists.byId(params.id) }
     }),
   )
 

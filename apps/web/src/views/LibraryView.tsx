@@ -1,20 +1,24 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import {
-  formatLongDuration,
-  fuzzyRank,
-  type Song,
-  type SongSortField,
-  type Tag,
-} from '@selfmp3/shared'
-import { useBulkTag, useLibrary, useScanLibrary } from '../lib/queries.js'
+import { formatLongDuration, fuzzyRank, type Song, type SongSortField } from '@selfmp3/shared'
+import { useLibrary, useScanLibrary } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useDebounced, useIsMobile } from '../lib/hooks.js'
+import { useSelection } from '../lib/selection.js'
 import { SongRow } from '../components/SongRow.js'
+import { SelectionBar } from '../components/SelectionBar.js'
 import { TagChip } from '../components/TagChip.js'
 import { GemsRow } from '../components/GemsRow.js'
 import { Select } from '../components/Select.js'
-import { Download, Play, Refresh, Search, Shuffle, X } from '../components/Icons.js'
+import {
+  CheckSquare,
+  Download,
+  Play,
+  Refresh,
+  Search,
+  Shuffle,
+  X,
+} from '../components/Icons.js'
 
 /**
  * The library.
@@ -47,14 +51,12 @@ export function LibraryView({
   const { data: library, isLoading, error } = useLibrary()
   const player = usePlayer()
   const isMobile = useIsMobile()
-  const bulkTag = useBulkTag()
   const scan = useScanLibrary()
   const [searchParams] = useSearchParams()
 
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SongSortField>('addedAt')
   const [descending, setDescending] = useState(true)
-  const [selection, setSelection] = useState<ReadonlySet<number>>(() => new Set())
 
   const debouncedQuery = useDebounced(query, 150)
 
@@ -102,6 +104,18 @@ export function LibraryView({
     [filtered],
   )
 
+  // Multi-select runs off the *filtered* list, which is what makes "select
+  // all" mean the six songs you can see rather than the whole library — and
+  // what makes a song that a search has hidden drop out of the selection
+  // rather than be quietly deleted along with the rest.
+  const visibleIds = useMemo(() => filtered.map(song => song.id), [filtered])
+  const selection = useSelection(visibleIds)
+  const selectedSongs = useMemo(
+    () => filtered.filter(song => selection.has(song.id)),
+    [filtered, selection],
+  )
+  const narrowed = effectiveTags.size > 0 || debouncedQuery.trim().length > 0
+
   const heading =
     effectiveTags.size > 0
       ? [...effectiveTags]
@@ -123,18 +137,19 @@ export function LibraryView({
   }
 
   const onSelectRow = (song: Song, event: React.MouseEvent): void => {
-    // Multi-select only with a modifier, so a plain click stays "just look at it".
-    if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
-      setSelection(new Set())
-      return
+    // Cmd and Shift stay what they always were, for the people who know them;
+    // the checkbox and the Select button are the same thing made visible.
+    if (event.metaKey || event.ctrlKey || event.shiftKey) event.preventDefault()
+    selection.click(song.id, event)
+  }
+
+  /** Cmd/Ctrl+A selects within the list, not the whole page. */
+  const onListKeyDown = (event: React.KeyboardEvent): void => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault()
+      event.stopPropagation()
+      selection.selectAll()
     }
-    event.preventDefault()
-    setSelection(current => {
-      const next = new Set(current)
-      if (next.has(song.id)) next.delete(song.id)
-      else next.add(song.id)
-      return next
-    })
   }
 
   if (error && !library) {
@@ -214,6 +229,27 @@ export function LibraryView({
           </div>
 
           <div className="library-transport">
+            {/*
+              The way in, on every device. Multi-select used to be reachable
+              only by knowing that Cmd-click did something — invisible on a
+              Mac and impossible on a phone, which has no Cmd key at all.
+            */}
+            <button
+              type="button"
+              className={`button library-select ${selection.active ? 'is-active' : ''}`}
+              onClick={() => (selection.active ? selection.clear() : selection.enter())}
+              disabled={filtered.length === 0}
+              aria-pressed={selection.active}
+              title={
+                selection.active
+                  ? 'Done selecting (Esc)'
+                  : 'Select songs to act on several at once'
+              }
+            >
+              <CheckSquare size={15} />{' '}
+              <span className="button-label">{selection.active ? 'Done' : 'Select'}</span>
+            </button>
+
             <button
               type="button"
               className="button button-primary"
@@ -270,19 +306,16 @@ export function LibraryView({
         </div>
       )}
 
-      {selection.size > 0 && (
+      {selection.active && (
         <SelectionBar
-          count={selection.size}
-          tags={tags}
-          onTag={tagId =>
-            bulkTag.mutate({ songIds: [...selection], tagId, action: 'add' })
-          }
-          onPlay={() => {
-            const chosen = filtered.filter(song => selection.has(song.id))
-            if (chosen.length > 0) player.playFrom(chosen, 0)
-          }}
-          onQueue={() => player.addToQueue(filtered.filter(song => selection.has(song.id)))}
-          onClear={() => setSelection(new Set())}
+          songs={selectedSongs}
+          total={filtered.length}
+          narrowed={narrowed}
+          scope={narrowed ? 'in this view' : 'in your library'}
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.deselectAll}
+          onDone={selection.clear}
         />
       )}
 
@@ -343,7 +376,12 @@ export function LibraryView({
           </div>
         )
       ) : (
-        <div className="song-list" role="table" aria-label={`${heading} songs`}>
+        <div
+          className={`song-list ${selection.active ? 'is-selecting' : ''}`}
+          role="table"
+          aria-label={`${heading} songs`}
+          onKeyDown={onListKeyDown}
+        >
           {filtered.map((song, index) => (
             <SongRow
               key={song.id}
@@ -357,64 +395,15 @@ export function LibraryView({
               onToggleTag={onToggleTag}
               onSelect={event => onSelectRow(song, event)}
               showIndex={!isMobile}
+              selectable
+              selectionMode={selection.mode}
+              onToggleSelect={() => selection.toggle(song.id)}
+              onStartSelecting={() => selection.enter(song.id)}
             />
           ))}
         </div>
       )}
     </section>
-  )
-}
-
-/** The bar that appears when songs are multi-selected. */
-function SelectionBar({
-  count,
-  tags,
-  onTag,
-  onPlay,
-  onQueue,
-  onClear,
-}: {
-  count: number
-  tags: readonly Tag[]
-  onTag: (tagId: number) => void
-  onPlay: () => void
-  onQueue: () => void
-  onClear: () => void
-}) {
-  return (
-    <div className="selection-bar" role="toolbar" aria-label="Selection actions">
-      <span className="selection-count">{count} selected</span>
-
-      <button type="button" className="button button-small" onClick={onPlay}>
-        <Play size={13} /> Play
-      </button>
-
-      <button type="button" className="button button-small" onClick={onQueue}>
-        Add to queue
-      </button>
-
-      {tags.length > 0 && (
-        <Select<number>
-          value={0}
-          onChange={tagId => {
-            if (tagId > 0) onTag(tagId)
-          }}
-          options={tags.map(tag => ({ value: tag.id, label: tag.name }))}
-          label="Add a tag to the selection"
-          placeholder="Add tag…"
-          size="small"
-        />
-      )}
-
-      <button
-        type="button"
-        className="icon-button"
-        onClick={onClear}
-        aria-label="Clear selection"
-      >
-        <X size={15} />
-      </button>
-    </div>
   )
 }
 

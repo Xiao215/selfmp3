@@ -232,6 +232,21 @@ export const useDeleteSong = () =>
     api.deleteSong(id, deleteFile),
   )
 
+/**
+ * The multi-select delete.
+ *
+ * One request rather than one per song: the server removes the rows in a
+ * single transaction and bumps the library version once, so the list settles
+ * in one refetch instead of flickering N times.
+ */
+export const useBulkDeleteSongs = () =>
+  useLibraryMutation((input: { songIds: number[]; deleteFile: boolean }) =>
+    api.bulkDeleteSongs(input),
+  )
+
+export const useBulkLoved = () =>
+  useLibraryMutation((input: { songIds: number[]; loved: boolean }) => api.bulkLoved(input))
+
 export const useScanLibrary = () => useVoidLibraryMutation(() => api.scan())
 
 export const useCreatePlaylist = () =>
@@ -308,6 +323,19 @@ export function useRemoveFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songId }: { playlistId: number; songId: number }) =>
       api.removeFromPlaylist(playlistId, songId),
+    onSuccess: (_result, { playlistId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+      void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
+    },
+  })
+}
+
+/** Remove a whole selection from one manual playlist. Never touches the songs. */
+export function useRemoveManyFromPlaylist() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+      api.removeManyFromPlaylist(playlistId, songIds),
     onSuccess: (_result, { playlistId }) => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })

@@ -12,6 +12,7 @@ import { QueuePanel } from './components/QueuePanel.js'
 import { PracticePanel } from './components/PracticePanel.js'
 import { NowPlaying } from './components/NowPlaying.js'
 import { CommandPalette } from './components/CommandPalette.js'
+import { ToastHost } from './components/Toast.js'
 import { DevicesProvider } from './devices/DevicesProvider.js'
 import { ResumeToast } from './devices/ResumeToast.js'
 import { LibraryView } from './views/LibraryView.js'
@@ -172,6 +173,7 @@ function Shell() {
           themselves without covering a song row or the player. */}
       <div className="toast-layer">
         <ResumeToast />
+        <ToastHost />
       </div>
 
       <PlayerBar

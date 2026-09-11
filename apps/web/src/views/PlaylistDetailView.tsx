@@ -12,10 +12,21 @@ import {
 } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useDragReorder } from '../lib/hooks.js'
+import { useSelection } from '../lib/selection.js'
 import { api } from '../lib/api.js'
 import { SmartRuleBuilder } from '../components/SmartRuleBuilder.js'
+import { SelectionBar } from '../components/SelectionBar.js'
 import { Cover } from '../components/Cover.js'
-import { Grip, Play, Shuffle, Sparkles, Trash, X } from '../components/Icons.js'
+import {
+  Check,
+  CheckSquare,
+  Grip,
+  Play,
+  Shuffle,
+  Sparkles,
+  Trash,
+  X,
+} from '../components/Icons.js'
 
 /**
  * One playlist.
@@ -79,6 +90,17 @@ export function PlaylistDetailView() {
   }
 
   const reorder = useDragReorder(moveTo)
+
+  // The same selection the library has, so the two lists cannot disagree about
+  // what a shift-click or Escape means. The extra batch action here is the one
+  // that only makes sense in a playlist: taking songs out of it without
+  // touching the library.
+  const visibleIds = useMemo(() => songs.map(song => song.id), [songs])
+  const selection = useSelection(visibleIds)
+  const selectedSongs = useMemo(
+    () => songs.filter(song => selection.has(song.id)),
+    [songs, selection],
+  )
 
   if (!playlist) {
     return (
@@ -147,11 +169,27 @@ export function PlaylistDetailView() {
             {formatLongDuration(totalSeconds)}
             {playlist.kind === 'smart'
               ? ' · updates itself'
-              : songs.length > 1 && ' · drag the handles to reorder'}
+              : // The handles step aside in selection mode, so the hint has to
+                // as well rather than pointing at something that is not there.
+                songs.length > 1 && !selection.active && ' · drag the handles to reorder'}
           </p>
         </div>
 
         <div className="view-actions">
+          <button
+            type="button"
+            className={`button library-select ${selection.active ? 'is-active' : ''}`}
+            onClick={() => (selection.active ? selection.clear() : selection.enter())}
+            disabled={songs.length === 0}
+            aria-pressed={selection.active}
+            title={
+              selection.active ? 'Done selecting (Esc)' : 'Select songs to act on several at once'
+            }
+          >
+            <CheckSquare size={15} />{' '}
+            <span className="button-label">{selection.active ? 'Done' : 'Select'}</span>
+          </button>
+
           <button
             type="button"
             className="button button-primary"
@@ -210,6 +248,21 @@ export function PlaylistDetailView() {
         />
       )}
 
+      {selection.active && (
+        <SelectionBar
+          songs={selectedSongs}
+          total={songs.length}
+          scope="in this playlist"
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.deselectAll}
+          onDone={selection.clear}
+          // A smart playlist has no membership to edit — it builds itself from
+          // its rules, so "remove from this playlist" would be a lie.
+          playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+        />
+      )}
+
       {songs.length === 0 ? (
         <div className="empty-state">
           <p className="empty-emoji">{playlist.kind === 'smart' ? '✨' : '📼'}</p>
@@ -235,9 +288,22 @@ export function PlaylistDetailView() {
         </div>
       ) : (
         <div
-          className={`song-list playlist-song-list ${reorder.dragging !== null ? 'is-reordering' : ''}`}
+          className={[
+            'song-list playlist-song-list',
+            reorder.dragging !== null ? 'is-reordering' : '',
+            selection.active ? 'is-selecting' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           onPointerUp={reorder.end}
           onPointerCancel={reorder.end}
+          onKeyDown={event => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+              event.preventDefault()
+              event.stopPropagation()
+              selection.selectAll()
+            }
+          }}
         >
           {songs.map((song, index) => (
             <div
@@ -245,6 +311,7 @@ export function PlaylistDetailView() {
               className={[
                 'playlist-row',
                 player.current?.id === song.id ? 'is-current' : '',
+                selection.has(song.id) ? 'is-selected' : '',
                 reorder.dragging === index ? 'is-dragging' : '',
                 reorder.over === index && reorder.dragging !== null && reorder.dragging !== index
                   ? 'is-drop-target'
@@ -254,6 +321,26 @@ export function PlaylistDetailView() {
                 .join(' ')}
               onPointerEnter={() => reorder.enter(index)}
             >
+              <div className="playlist-row-select">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={selection.has(song.id)}
+                  className="song-select-box"
+                  onClick={() => selection.toggle(song.id)}
+                  aria-label={
+                    selection.has(song.id) ? `Deselect ${song.title}` : `Select ${song.title}`
+                  }
+                >
+                  <span
+                    className={`checkbox ${selection.has(song.id) ? 'is-on' : ''}`}
+                    aria-hidden="true"
+                  >
+                    {selection.has(song.id) && <Check size={12} />}
+                  </span>
+                </button>
+              </div>
+
               {manual && (
                 <button
                   type="button"
@@ -278,7 +365,16 @@ export function PlaylistDetailView() {
               <button
                 type="button"
                 className="playlist-row-main"
-                onClick={() => player.playFrom(songs, index)}
+                onMouseDown={event => {
+                  // Stop a shift-click painting a text selection across rows.
+                  if (event.shiftKey) event.preventDefault()
+                }}
+                onClick={event => {
+                  // Cmd, Shift and selection mode all mean "select"; anything
+                  // else still means "play from here".
+                  if (selection.click(song.id, event)) return
+                  player.playFrom(songs, index)
+                }}
               >
                 <span className="playlist-row-index">{index + 1}</span>
                 <Cover song={song} size={36} />

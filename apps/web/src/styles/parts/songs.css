@@ -494,28 +494,6 @@
   }
 }
 
-/* --- selection ------------------------------------------------------------ */
-
-.selection-bar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-panel);
-}
-
-.selection-count {
-  font-weight: 600;
-  font-size: 13px;
-}
-
 .cover {
   border-radius: var(--radius-sm);
   object-fit: cover;

@@ -4,7 +4,16 @@ import { useAddToPlaylist, useDeleteSong, useLibrary } from '../lib/queries.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
-import { CloudDownload, ListMusic, Queue, Sparkles, Tag as TagIcon, Trash, X } from './Icons.js'
+import {
+  CheckSquare,
+  CloudDownload,
+  ListMusic,
+  Queue,
+  Sparkles,
+  Tag as TagIcon,
+  Trash,
+  X,
+} from './Icons.js'
 import { MetadataDialog } from './MetadataDialog.js'
 import { TagPicker } from './TagPicker.js'
 import { Popover } from './Menu.js'
@@ -29,6 +38,7 @@ export function SongMenu({
   onClose,
   onPlayNext,
   onAddToQueue,
+  onStartSelecting,
 }: {
   anchorRef: React.RefObject<HTMLElement | null>
   song: Song
@@ -36,6 +46,12 @@ export function SongMenu({
   onClose: () => void
   onPlayNext: () => void
   onAddToQueue: () => void
+  /**
+   * Enter multi-select with this song picked. This is the phone's way in:
+   * there are no modifier keys on a touch screen, so the menu you already
+   * reach by holding a row is where "select several of these" has to live.
+   */
+  onStartSelecting?: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [playlistOpen, setPlaylistOpen] = useState(false)
@@ -94,6 +110,21 @@ export function SongMenu({
         <span className="song-menu-head-title">{song.title}</span>
         <span className="song-menu-head-artist">{song.artist || 'Unknown artist'}</span>
       </div>
+
+      {onStartSelecting && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className="popover-item"
+            onClick={() => act(onStartSelecting)}
+          >
+            <CheckSquare size={15} /> Select
+          </button>
+
+          <div className="popover-divider" />
+        </>
+      )}
 
       <button
         type="button"

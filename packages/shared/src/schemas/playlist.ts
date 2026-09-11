@@ -49,6 +49,18 @@ export const AddToPlaylistSchema = z.object({
 export type AddToPlaylist = z.infer<typeof AddToPlaylistSchema>
 
 /**
+ * Take many songs out of a manual playlist at once.
+ *
+ * The single-song route stays: this is the multi-select path, and doing it in
+ * one transaction keeps the positions consistent and bumps the library
+ * version once instead of once per song.
+ */
+export const RemoveFromPlaylistSchema = z.object({
+  songIds: z.array(IdSchema).min(1).max(2000),
+})
+export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
+
+/**
  * Reordering sends the full ordered id list rather than a move instruction.
  * It is a few more bytes but it is idempotent, which matters when the phone
  * retries a request over a flaky connection.

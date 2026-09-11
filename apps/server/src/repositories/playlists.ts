@@ -233,6 +233,24 @@ export class PlaylistRepository {
   }
 
   /**
+   * Take several songs out at once. Returns how many were actually in it.
+   *
+   * One transaction, so a multi-select removal is one atomic edit of the
+   * playlist rather than a visible cascade of single removals.
+   */
+  removeMany(playlistId: number, songIds: readonly number[]): number {
+    if (songIds.length === 0) return 0
+    const run = this.#db.transaction((ids: readonly number[]) => {
+      let affected = 0
+      for (const songId of ids) affected += this.#removeItem.run(playlistId, songId).changes
+      return affected
+    })
+    const affected = run([...new Set(songIds)])
+    this.#touch(playlistId)
+    return affected
+  }
+
+  /**
    * Replace the order wholesale.
    *
    * Ids that are not currently in the playlist are ignored, and ids the client

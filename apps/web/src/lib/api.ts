@@ -31,8 +31,11 @@ import {
   ForgottenGemsSchema,
   SyncManifestSchema,
   TagSchema,
+  BulkDeleteResultSchema,
   type AddToPlaylist,
   type ApplyMetadata,
+  type BulkDeleteSongs,
+  type BulkLoved,
   type BulkTag,
   type CreatePlaylist,
   type DeviceCommand,
@@ -227,6 +230,13 @@ export const api = {
   deleteSong: (id: number, deleteFile: boolean) =>
     request('DELETE', `/api/songs/${id}?deleteFile=${deleteFile ? 1 : 0}`, OkSchema),
 
+  /** The multi-select delete. `deleteFile` is always an explicit decision. */
+  bulkDeleteSongs: (input: BulkDeleteSongs) =>
+    request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
+
+  bulkLoved: (input: BulkLoved) =>
+    request('POST', '/api/songs/bulk/loved', z.object({ affected: z.number() }), input),
+
   // --- metadata polish ------------------------------------------------------
 
   lookupMetadata: (id: number) =>
@@ -271,6 +281,14 @@ export const api = {
 
   removeFromPlaylist: (id: number, songId: number) =>
     request('DELETE', `/api/playlists/${id}/songs/${songId}`, PlaylistSchema),
+
+  removeManyFromPlaylist: (id: number, songIds: number[]) =>
+    request(
+      'POST',
+      `/api/playlists/${id}/songs/remove`,
+      z.object({ removed: z.number(), playlist: PlaylistSchema.nullable() }),
+      { songIds },
+    ),
 
   reorderPlaylist: (id: number, songIds: number[]) =>
     request('PUT', `/api/playlists/${id}/order`, OkSchema, { songIds }),

@@ -44,7 +44,17 @@ interface LrclibRecord {
   syncedLyrics?: string | null
   plainLyrics?: string | null
   instrumental?: boolean
+  /** Seconds: the length of the recording the lyrics were timed against. */
+  duration?: number | null
 }
+
+/**
+ * How far a recording's length may be from the song's for its timings to be
+ * trusted. The same song is uploaded at many lengths — the single, the album
+ * cut, the music video with its intro — and lyrics timed against another one
+ * run early or late the whole way through.
+ */
+const SYNCED_TOLERANCE_S = 1
 
 export class LyricsService {
   readonly #storage: StorageDriver
@@ -90,9 +100,14 @@ export class LyricsService {
    * Look a track up on lrclib.
    *
    * Tries the exact endpoint first (artist + title + album + duration, which
-   * lets the service pick the right version of a song), then falls back to a
-   * fuzzy search. Any network failure is swallowed — a song without lyrics is
-   * a minor disappointment, not an import failure.
+   * lets the service pick the right version of a song). Timed lyrics from it
+   * are taken as they are. Anything less — plain words only, or no match —
+   * goes on to the fuzzy search for timed lyrics whose recording is within a
+   * second of this one, the closest winning: lrclib's exact answer is often
+   * one upload among many, and the untimed one at that. Failing that, plain
+   * words, which at least never run early or late. Any network failure is
+   * swallowed — a song without lyrics is a minor disappointment, not an
+   * import failure.
    *
    * Only the exact match is believed when it says a track is instrumental.
    * The fuzzy search happily returns the karaoke version of a song with
@@ -108,12 +123,26 @@ export class LyricsService {
     if (!input.title.trim()) return null
 
     const exact = await this.#exactMatch(input)
-    const record = exact ?? (await this.#searchMatch(input))
-    if (!record) return null
+    if (exact && hasSynced(exact) && isCloseEnough(exact, input.duration, true)) {
+      return { text: exact.syncedLyrics, synced: true }
+    }
+    if (exact?.instrumental === true && !hasSynced(exact) && !hasPlain(exact)) {
+      return 'instrumental'
+    }
 
-    if (record.syncedLyrics?.trim()) return { text: record.syncedLyrics, synced: true }
-    if (record.plainLyrics?.trim()) return { text: record.plainLyrics, synced: false }
-    if (record === exact && record.instrumental === true) return 'instrumental'
+    const found = await this.#search(input)
+    const records = exact ? [exact, ...found] : found
+
+    const synced = closestFirst(
+      records.filter(record => isCloseEnough(record, input.duration, false)),
+      input.duration,
+    ).find(hasSynced)
+    if (synced) return { text: synced.syncedLyrics, synced: true }
+
+    // The exact match's words first, then the upload nearest in length.
+    const plain =
+      exact && hasPlain(exact) ? exact : closestFirst(found, input.duration).find(hasPlain)
+    if (plain) return { text: plain.plainLyrics, synced: false }
     return null
   }
 
@@ -134,18 +163,12 @@ export class LyricsService {
     return this.#getJson<LrclibRecord>(`${LRCLIB}/get?${query.toString()}`)
   }
 
-  async #searchMatch(input: { artist: string; title: string }): Promise<LrclibRecord | null> {
+  async #search(input: { artist: string; title: string }): Promise<LrclibRecord[]> {
     const query = `${input.artist} ${input.title}`.trim()
     const results = await this.#getJson<LrclibRecord[]>(
       `${LRCLIB}/search?q=${encodeURIComponent(query)}`,
     )
-    if (!Array.isArray(results)) return null
-    // Prefer a synced result even if it ranks lower than a plain one.
-    return (
-      results.find(item => item.syncedLyrics?.trim()) ??
-      results.find(item => item.plainLyrics?.trim()) ??
-      null
-    )
+    return Array.isArray(results) ? results : []
   }
 
   async #getJson<T>(url: string): Promise<T | null> {
@@ -241,4 +264,32 @@ export class LyricsService {
   sidecarPathHint(audioKey: string): string {
     return `${path.basename(audioKey).replace(/\.[^.]+$/, '')}.lrc`
   }
+}
+
+function hasSynced(record: LrclibRecord): record is LrclibRecord & { syncedLyrics: string } {
+  return Boolean(record.syncedLyrics?.trim())
+}
+
+function hasPlain(record: LrclibRecord): record is LrclibRecord & { plainLyrics: string } {
+  return Boolean(record.plainLyrics?.trim())
+}
+
+/**
+ * Was this record timed against a recording as long as the song? With no
+ * length for the song there is nothing to compare, so anything goes. A record
+ * with no length of its own is trusted only from the exact endpoint, which
+ * matched on length itself.
+ */
+function isCloseEnough(record: LrclibRecord, duration: number, trustUnknown: boolean): boolean {
+  if (duration <= 0) return true
+  if (!record.duration) return trustUnknown
+  return Math.abs(record.duration - duration) <= SYNCED_TOLERANCE_S
+}
+
+/** Nearest in length first; lrclib's own order among equals, and without a length to go by. */
+function closestFirst(records: readonly LrclibRecord[], duration: number): LrclibRecord[] {
+  if (duration <= 0) return [...records]
+  const gap = (record: LrclibRecord): number =>
+    record.duration ? Math.abs(record.duration - duration) : Number.POSITIVE_INFINITY
+  return [...records].sort((a, b) => gap(a) - gap(b))
 }

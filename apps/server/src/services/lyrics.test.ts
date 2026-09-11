@@ -72,6 +72,65 @@ describe('LyricsService', () => {
       const { lyrics } = service({ search: [{ plainLyrics: 'la la' }] })
       expect(await lyrics.fetchRemote(song)).toEqual({ text: 'la la', synced: false })
     })
+
+    it('does not search when the exact match is timed', async () => {
+      const { lyrics, lrclib } = service({
+        get: { syncedLyrics: '[00:01.00]exact', duration: 254 },
+        search: [{ syncedLyrics: '[00:01.00]other', duration: 254 }],
+      })
+      expect(await lyrics.fetchRemote(song)).toEqual({ text: '[00:01.00]exact', synced: true })
+      expect(lrclib.calls).toHaveLength(1)
+    })
+
+    // 群青, as lrclib has it: the exact match is an untimed upload, and the
+    // first timed search result is the music video, fourteen seconds longer.
+    it('looks past an untimed exact match for the timed upload closest in length', async () => {
+      const { lyrics } = service({
+        get: { plainLyrics: 'words', duration: 254 },
+        search: [
+          { syncedLyrics: '[00:15.00]video', duration: 268 },
+          { syncedLyrics: '[00:01.00]near', duration: 254.9 },
+          { syncedLyrics: '[00:01.00]nearest', duration: 254.2 },
+        ],
+      })
+      expect(await lyrics.fetchRemote(song)).toEqual({ text: '[00:01.00]nearest', synced: true })
+    })
+
+    it('keeps the exact words over timings more than a second out', async () => {
+      const { lyrics } = service({
+        get: { plainLyrics: 'words', duration: 254 },
+        search: [{ syncedLyrics: '[00:15.00]video', duration: 255.5 }],
+      })
+      expect(await lyrics.fetchRemote(song)).toEqual({ text: 'words', synced: false })
+    })
+
+    it('prefers plain words from the search to timings from another recording', async () => {
+      const { lyrics } = service({
+        search: [
+          { syncedLyrics: '[00:15.00]video', plainLyrics: 'video words', duration: 268 },
+          { plainLyrics: 'album words', duration: 254 },
+        ],
+      })
+      expect(await lyrics.fetchRemote(song)).toEqual({ text: 'album words', synced: false })
+    })
+
+    it('replaces a timed exact match more than a second out with a closer one', async () => {
+      const { lyrics } = service({
+        get: { syncedLyrics: '[00:01.00]exact', duration: 255.6 },
+        search: [{ syncedLyrics: '[00:01.00]closer', duration: 254.4 }],
+      })
+      expect(await lyrics.fetchRemote(song)).toEqual({ text: '[00:01.00]closer', synced: true })
+    })
+
+    it('takes the first timed result when the song has no length to compare', async () => {
+      const { lyrics } = service({
+        search: [{ plainLyrics: 'words' }, { syncedLyrics: '[00:01.00]first', duration: 300 }],
+      })
+      expect(await lyrics.fetchRemote({ ...song, duration: 0 })).toEqual({
+        text: '[00:01.00]first',
+        synced: true,
+      })
+    })
   })
 
   describe('resolve', () => {

@@ -138,5 +138,5 @@ access to it, so I left that to you.
 
 ## Where the work is
 
-23 commits on `master`, one per feature, so anything here can be read or reverted on its
+23 commits on `main`, one per feature, so anything here can be read or reverted on its
 own. `git log --oneline` is the tour.

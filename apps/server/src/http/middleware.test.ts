@@ -54,7 +54,9 @@ describe('sameOriginWrites', () => {
 
   it('lets through an origin the config allows', () => {
     const allowed = ['https://xiao215.github.io']
-    expect(run('POST', { origin: 'https://xiao215.github.io', host: 'mac:4600' }, allowed)).toBeNull()
+    expect(
+      run('POST', { origin: 'https://xiao215.github.io', host: 'mac:4600' }, allowed),
+    ).toBeNull()
   })
 
   /*

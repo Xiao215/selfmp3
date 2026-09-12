@@ -1,33 +1,31 @@
-# Typecheck, lint and test, on every push and every pull request.
+# Typecheck, lint and tests, on every push and pull request.
 #
-# The repository has roughly eighty test files — the server's, the doorman's,
-# the shared rules every device runs, and the web app's — and until this
-# existed none of them ran anywhere but on whoever's laptop remembered.
+# Also called by the Pages workflow before it builds, so nothing reaches the
+# published web app without having passed here first. `workflow_call` is what
+# makes that one definition rather than two that drift.
 #
-# Two jobs rather than one, because `apps/mobile` is deliberately outside the
-# root TypeScript project and the root ESLint config: React Native's globals
-# and the DOM's contradict each other, so sharing a project graph leaks one
-# into the other (docs/MOBILE.md). They are checked side by side instead.
+# The phone app is checked separately because it is not in the root TypeScript
+# project — `npm run check` leaves it out, which is exactly how a rename of a
+# shared export it alone uses can pass everything else and still break it.
 name: Check
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
   workflow_dispatch:
 
 permissions: {}
 
-# A newer push to the same branch makes an older run pointless.
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check:
-    name: typecheck, lint, test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -40,31 +38,18 @@ jobs:
           node-version: 24
           cache: npm
 
+      # With install scripts, unlike the Pages build: better-sqlite3 is a
+      # native module and the server's tests are the reason this job exists.
       - run: npm ci
 
-      # typecheck + lint + test, as defined in the root package.json, so this
-      # runs exactly what a person runs before pushing.
-      - run: npm run check
+      - name: Typecheck
+        run: npm run typecheck
 
-  mobile:
-    name: mobile typecheck and lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+      - name: Lint
+        run: npm run lint
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
+      - name: Test
+        run: npm run test
 
-      - run: npm ci
-
-      # Builds @selfmp3/shared first, then tsc --noEmit, then eslint. No
-      # native toolchain is involved, so this is as far as CI can check the
-      # phone app — compiling it needs a Mac or an Android SDK.
-      - run: npm run check:mobile
+      - name: Check the phone app
+        run: npm run check:mobile

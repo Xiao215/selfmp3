@@ -25,7 +25,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Nothing is published that does not typecheck, lint and pass its tests.
+  # Spelled out rather than inherited, because this workflow grants nothing by
+  # default and a called workflow gets no more than its caller allows.
+  check:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only what building needs: the build runs the dependencies' code, so it

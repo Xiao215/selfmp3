@@ -35,7 +35,17 @@ export function allowedOrigins(value: string | undefined, log: Log): ReadonlySet
     const trimmed = entry.trim()
     if (!trimmed) continue
     try {
-      origins.add(new URL(trimmed).origin)
+      const url = new URL(trimmed)
+      /*
+       * Only a web address has an origin worth allowing. Anything else reports
+       * its origin as the string "null" — which is also what a browser sends
+       * from a sandboxed frame, so one mistyped entry here would have put every
+       * opaque context on the list.
+       */
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new Error('not a web address')
+      }
+      origins.add(url.origin)
     } catch {
       log.warn('APP_ORIGINS has an entry that is not an address; it is ignored', { entry: trimmed })
     }

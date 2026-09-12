@@ -301,6 +301,10 @@ function safeReturn(value: string | null, origins: ReadonlySet<string>): string 
   } catch {
     return null
   }
+  // A web address, and only that. `blob:https://app.example/…` reports the
+  // inner origin as its own, so an address on the list would be matched by one
+  // of these too — and it is not a page anyone should be sent to.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
   const loopback =
     url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
   return origins.has(url.origin) || loopback ? url.toString() : null

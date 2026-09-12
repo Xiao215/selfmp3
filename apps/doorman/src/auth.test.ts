@@ -159,6 +159,10 @@ describe('starting a sign-in', () => {
       'http://127.0.0.2/',
       'https://localhost:4600/',
       'javascript:alert(1)',
+      // A blob URL reports the origin inside it as its own, so this would
+      // otherwise have matched the list exactly.
+      `blob:${APP_ORIGIN}/1b3f0c2e-0000-4000-8000-000000000000`,
+      `data:text/html,<script>alert(1)</script>`,
       '//evil.example/',
       'not a url',
       `${APP_ORIGIN}/${'x'.repeat(1100)}`,

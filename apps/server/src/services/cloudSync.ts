@@ -30,6 +30,7 @@ import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import { CloudError, S3CloudStore, type CloudStore } from '../cloud/store.js'
 import { DoormanClient } from '../cloud/doorman.js'
+import { debounce, type Debounced } from './debounce.js'
 import type {
   CloudConnection,
   CloudRepository,
@@ -164,7 +165,7 @@ export class CloudSyncService {
 
   #running: Promise<void> | null = null
   #again = false
-  #debounce: NodeJS.Timeout | null = null
+  readonly #kickDebounce: Debounced
   #retry: NodeJS.Timeout | null = null
   #retryIndex = 0
   #logPoll: NodeJS.Timeout | null = null
@@ -193,6 +194,15 @@ export class CloudSyncService {
     const openDoorman = deps.openDoorman ?? ((url: string) => new DoormanClient(url))
     this.#doorman = deps.doormanUrl ? openDoorman(deps.doormanUrl) : null
     this.#debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS
+    /*
+     * The shared debounce, for its ceiling.
+     *
+     * A hand-rolled trailing debounce pushed the pass back on every change and
+     * had nothing to stop it: a steady drip of edits — a big import tagging as
+     * it goes — held the cloud off for the whole burst, however long that was.
+     * `maxWaitMs` is what guarantees the pass still happens during one.
+     */
+    this.#kickDebounce = debounce(() => void this.#pass(), this.#debounceMs)
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
@@ -232,12 +242,7 @@ export class CloudSyncService {
   /** Something in the library changed. Cheap to call as often as you like. */
   kick(): void {
     if (!this.#store || this.#stopped) return
-    if (this.#debounce) clearTimeout(this.#debounce)
-    this.#debounce = setTimeout(() => {
-      this.#debounce = null
-      void this.#pass()
-    }, this.#debounceMs)
-    this.#debounce.unref()
+    this.#kickDebounce.trigger()
   }
 
   /**
@@ -247,8 +252,7 @@ export class CloudSyncService {
    * hand because something looks wrong.
    */
   syncNow(options: { verify?: boolean } = {}): Promise<void> {
-    if (this.#debounce) clearTimeout(this.#debounce)
-    this.#debounce = null
+    this.#kickDebounce.cancel()
     if (options.verify) {
       // Trust nothing about the bucket: its format, its files, its snapshot.
       this.#formatChecked = false
@@ -365,13 +369,17 @@ export class CloudSyncService {
       if (result.status !== 'signed-in') {
         throw new CloudError('other', 'Google has not finished signing you in yet.')
       }
-      if (this.#signIn === signIn) this.#stopSignIn()
+      // By attempt rather than by identity: the poll that runs alongside this
+      // replaces the whole object whenever anything about it changes, and then
+      // a sign-in that had just succeeded was left looking like one still
+      // waiting for its code.
+      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
       this.#logger.info('signed in to the cloud', { account: result.me.email })
       this.#adoptAccount(result.token, result.me)
       return this.status()
     } catch (error) {
       // The doorman forgets an attempt a wrong code was tried against.
-      if (this.#signIn === signIn) this.#stopSignIn()
+      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
       throw error
     }
   }
@@ -1124,10 +1132,9 @@ export class CloudSyncService {
   }
 
   #clearTimers(): void {
-    if (this.#debounce) clearTimeout(this.#debounce)
+    this.#kickDebounce.cancel()
     if (this.#retry) clearTimeout(this.#retry)
     if (this.#logPoll) clearInterval(this.#logPoll)
-    this.#debounce = null
     this.#retry = null
     this.#logPoll = null
   }

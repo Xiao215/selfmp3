@@ -210,8 +210,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     (device: Device): void => {
       const target = handoffTarget(device.state, Date.now())
       if (!target) return
-      playerRef.current.playFrom([...target.queueIds], target.index)
-      if (target.position > 0) playerRef.current.seekTo(target.position)
+      playerRef.current.playFrom([...target.queueIds], target.index, undefined, target.position)
       send(device.id, { type: 'pause' })
     },
     [send],
@@ -267,8 +266,12 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
         case 'playSong': {
           const queueIds = command.queueIds?.length ? [...command.queueIds] : [command.songId]
           const found = queueIds.indexOf(command.songId)
-          local.playFrom(queueIds, found === -1 ? (command.queueIndex ?? 0) : found)
-          if (command.position) local.seekTo(command.position)
+          local.playFrom(
+            queueIds,
+            found === -1 ? (command.queueIndex ?? 0) : found,
+            undefined,
+            command.position,
+          )
           return
         }
         case 'transfer': {
@@ -278,8 +281,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           if (!from) return
           const target = handoffTarget(from.state, Date.now())
           if (!target) return
-          local.playFrom([...target.queueIds], target.index)
-          if (target.position > 0) local.seekTo(target.position)
+          local.playFrom([...target.queueIds], target.index, undefined, target.position)
           send(from.id, { type: 'pause' })
           return
         }

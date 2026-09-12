@@ -57,8 +57,18 @@ export interface PlayerApi {
   readonly position: number
   readonly duration: number
   readonly ready: boolean
-  /** Start these songs here; `shuffle` sets the mode first, else it is kept. */
-  playFrom: (songIds: readonly number[], startIndex: number, shuffle?: boolean) => void
+  /**
+   * Start these songs here; `shuffle` sets the mode first, else it is kept.
+   * `position` starts the first song part-way, which is what a handoff needs:
+   * a separate `seekTo` straight after would land before the track has loaded
+   * and be lost.
+   */
+  playFrom: (
+    songIds: readonly number[],
+    startIndex: number,
+    shuffle?: boolean,
+    position?: number,
+  ) => void
   playShuffled: (songIds: readonly number[]) => void
   jumpTo: (index: number) => void
   toggle: () => void
@@ -167,12 +177,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // --- engine wiring -------------------------------------------------------
 
   const loadIndex = useCallback(
-    (state: QueueState, autoplay: boolean) => {
+    (state: QueueState, autoplay: boolean, startAt?: number) => {
       const songId = state.items[state.index]
       if (songId === undefined) return
       trackingRef.current = { songId, listenedSeconds: 0, counted: false }
-      lastPositionRef.current = 0
-      void engine.load(songId, { autoplay })
+      // Starting part-way is not listening to the part skipped.
+      lastPositionRef.current = startAt ?? 0
+      void engine.load(songId, startAt ? { autoplay, startAt } : { autoplay })
     },
     [engine],
   )
@@ -246,13 +257,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // --- commands ------------------------------------------------------------
 
   const play = useCallback(
-    (songIds: readonly number[], startIndex: number, shuffle?: boolean) => {
+    (songIds: readonly number[], startIndex: number, shuffle?: boolean, position?: number) => {
       // "Play" on a list means in order, as on the web; a tapped row keeps
       // whatever mode is on.
       const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
       const next = playFrom(from, songIds, startIndex)
       setQueue(next)
-      loadIndex(next, true)
+      loadIndex(next, true, position)
     },
     [loadIndex],
   )

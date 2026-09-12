@@ -43,7 +43,7 @@ import { useLibraryModel } from './library.model'
  */
 export function LibraryScreen(): ReactNode {
   const accent = useAccent()
-  const { wide } = useLayout()
+  const { wide, dense } = useLayout()
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
   const { state: downloads } = useDownloads()
@@ -120,7 +120,7 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         <View style={[styles.controls, wide && styles.controlsWide]}>
-        <View style={[styles.searchBox, wide && styles.searchWide]}>
+        <View style={[styles.searchBox, wide && styles.searchWide, dense && styles.searchDense]}>
           <Search size={15} color={colors.textMuted} />
           <TextInput
             style={styles.search}
@@ -159,7 +159,11 @@ export function LibraryScreen(): ReactNode {
             />
           </View>
           <Pressable
-            style={({ pressed }) => [styles.direction, pressed && styles.sortButtonPressed]}
+            style={({ pressed }) => [
+              styles.direction,
+              dense && styles.directionDense,
+              pressed && styles.sortButtonPressed,
+            ]}
             onPress={model.toggleDirection}
             accessibilityRole="button"
             accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
@@ -376,6 +380,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: space.sm,
   },
+  /* With a mouse, the web's control heights: the box 36, the arrow 34 wide. */
+  searchDense: { minHeight: 36 },
+  directionDense: { width: 34, height: 36 },
   searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },
   actionsWide: { flex: 1, flexWrap: 'nowrap' },
   /* Enough for the longest option: "Recentl…" would tell you nothing. */

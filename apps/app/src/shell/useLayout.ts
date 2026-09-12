@@ -1,6 +1,8 @@
 import { useWindowDimensions } from 'react-native'
 import { BREAKPOINT } from '@selfmp3/client'
 
+import { finePointer } from '../ports/pointer'
+
 /**
  * Which layout the app is wearing, and the width it was decided from.
  *
@@ -19,11 +21,17 @@ export interface Layout {
   wide: boolean
   /** Below it: tab bar, mini player, full-screen now playing, sheets. */
   compact: boolean
+  /**
+   * Wide, with a mouse: draw controls at the web's desktop size (34–38
+   * points) rather than a finger's 44. A tablet at the same width is not
+   * dense, because it is still a finger.
+   */
+  dense: boolean
   width: number
 }
 
 export function useLayout(): Layout {
   const { width } = useWindowDimensions()
   const wide = width >= BREAKPOINT
-  return { wide, compact: !wide, width }
+  return { wide, compact: !wide, dense: wide && finePointer, width }
 }

@@ -6,6 +6,7 @@ import { useAccent } from '../accent'
 import { colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
+import { usePanelDense } from './panel'
 
 /**
  * A menu, as a sheet from the bottom of the screen.
@@ -147,7 +148,18 @@ export function SheetItem({
   disabled?: boolean
 }): ReactNode {
   const accent = useAccent()
-  const ink = danger ? colors.danger : active ? accent.accent : colors.textPrimary
+  const dense = usePanelDense()
+  // In a panel the web's items are quiet until pointed at or chosen; in a
+  // sheet they are a finger's list and read at full strength.
+  const ink = danger
+    ? colors.danger
+    : dense
+      ? active
+        ? colors.textPrimary
+        : colors.textSecondary
+      : active
+        ? accent.accent
+        : colors.textPrimary
   return (
     <Pressable
       onPress={onPress}
@@ -156,12 +168,17 @@ export function SheetItem({
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [
         styles.item,
+        dense && styles.itemDense,
+        dense && active && styles.itemActiveDense,
         pressed && styles.itemPressed,
         disabled && styles.itemDisabled,
       ]}
     >
       {icon ? <View style={styles.itemIcon}>{icon}</View> : null}
-      <Text style={[styles.itemLabel, { color: ink }]} numberOfLines={1}>
+      <Text
+        style={[styles.itemLabel, dense && styles.itemLabelDense, { color: ink }]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
       {detail ? (
@@ -236,6 +253,19 @@ const styles = StyleSheet.create({
     minHeight: HIT_TARGET + 4,
     paddingHorizontal: space.md,
     borderRadius: radius.sm,
+  },
+  /* `.popover-item`: 8 by 10, 13-point type, where there is a mouse. */
+  itemDense: {
+    minHeight: 0,
+    gap: 9,
+    paddingVertical: space.sm,
+    paddingHorizontal: 10,
+  },
+  itemActiveDense: {
+    backgroundColor: colors.surface3,
+  },
+  itemLabelDense: {
+    fontSize: 13,
   },
   itemPressed: {
     backgroundColor: colors.surface2,

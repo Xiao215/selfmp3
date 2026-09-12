@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
@@ -34,6 +35,7 @@ export function Select<T extends string>({
   testID?: string
 }): ReactNode {
   const accent = useAccent()
+  const { dense } = useLayout()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   const current = options.find(option => option.value === value)
@@ -44,6 +46,7 @@ export function Select<T extends string>({
         ref={anchorRef}
         style={({ pressed }) => [
           styles.control,
+          dense && styles.controlDense,
           pressed && styles.controlPressed,
           // Open, the control keeps the accent edge the web gives it.
           open && { borderColor: accent.accent },
@@ -57,7 +60,7 @@ export function Select<T extends string>({
         accessibilityValue={{ text: current?.label ?? '' }}
         accessibilityState={{ expanded: open }}
       >
-        <Text style={styles.value} numberOfLines={1}>
+        <Text style={[styles.value, dense && styles.valueDense]} numberOfLines={1}>
           {current?.label ?? label}
         </Text>
         <View style={open && styles.chevronOpen}>
@@ -105,6 +108,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
+  },
+  /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
+  controlDense: {
+    minHeight: 36,
+    paddingLeft: 10,
+    paddingRight: 9,
+  },
+  valueDense: {
+    fontSize: 13,
   },
   controlPressed: {
     backgroundColor: colors.surface3,

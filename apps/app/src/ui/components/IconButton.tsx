@@ -1,20 +1,21 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 import { colors, HIT_TARGET, radius } from '@selfmp3/client'
+import { useLayout } from '../../shell/useLayout'
 
 /**
  * The web's `.icon-button`: a square target that darkens while pressed.
  *
- * 34px with a mouse; a phone has no mouse, so the default here is the web's
- * own touch size, `--hit-target`. The icon inside is the caller's, because
- * every icon already takes its own size and colour.
+ * 34px with a mouse, which is the default where there is one at desktop
+ * width; otherwise the web's own touch size, `--hit-target`. The icon inside
+ * is the caller's, because every icon already takes its own size and colour.
  */
 export function IconButton({
   children,
   testID,
   onPress,
   label,
-  size = HIT_TARGET,
+  size: sizeProp,
   disabled = false,
   active = false,
   round = false,
@@ -30,6 +31,8 @@ export function IconButton({
   active?: boolean
   round?: boolean
 }): ReactNode {
+  const { dense } = useLayout()
+  const size = sizeProp ?? (dense ? 34 : HIT_TARGET)
   return (
     <Pressable
       onPress={onPress}

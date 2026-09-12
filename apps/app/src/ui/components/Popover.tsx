@@ -6,6 +6,7 @@ import { colors, motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
+import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 
 /**
@@ -88,7 +89,7 @@ function AnchoredPopover({
   width: number
   testID?: string
 }): ReactNode {
-  const { width: screenWidth } = useLayout()
+  const { width: screenWidth, dense } = useLayout()
   const [anchor, setAnchor] = useState<Anchor | null>(null)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
@@ -141,7 +142,7 @@ function AnchoredPopover({
             },
           ]}
         >
-          {children}
+          <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
         </Animated.View>
       ) : null}
     </>,

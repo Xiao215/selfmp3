@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { colors, HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
 
 /**
- * The web's `.button`, in the same three weights, at the phone's 44px.
+ * The web's `.button`, in the same three weights: at the phone's 44px, and at
+ * the web's own desktop height where there is a mouse (`useLayout().dense`).
  *
  * An icon goes before the label the way it does on the web (`<Play /> Play`);
  * with no label at all it is the web's icon-only phone button — the shuffle
@@ -37,6 +39,7 @@ export function Button({
   active?: boolean
 }): ReactNode {
   const accent = useAccent()
+  const { dense } = useLayout()
   const inactive = disabled || busy
   const ink =
     variant === 'primary'
@@ -55,7 +58,8 @@ export function Button({
       accessibilityState={{ disabled: inactive, selected: active }}
       style={({ pressed }) => [
         styles.button,
-        label === undefined && styles.square,
+        dense && styles.buttonDense,
+        label === undefined && (dense ? styles.squareDense : styles.square),
         grow && styles.grow,
         variant === 'primary' && { backgroundColor: accent.accent, borderColor: accent.accent },
         variant === 'danger' && styles.danger,
@@ -93,6 +97,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface2,
+  },
+  /* 8 by 14 around 13-point type, as `.button` is with a mouse. */
+  buttonDense: {
+    minHeight: 36,
+  },
+  squareDense: {
+    width: 36,
+    paddingHorizontal: 0,
   },
   square: {
     width: HIT_TARGET,

@@ -66,13 +66,22 @@ export async function ensureCover(songId: number): Promise<string | null> {
 
       const signedIn = await cloudSession.loadSession()
       if (!signedIn) return null
-      const task = File.createDownloadTask(
+
+      // `downloadFileAsync`, not a `DownloadTask`. A task is the right shape
+      // for a song — progress, pause, resume — but on iOS it defaults to a
+      // *background* URLSession, which is for a few large transfers that
+      // outlive the app, not thirteen small ones started in the same frame.
+      // Thirteen of them failed as one: `UnableToDownloadException: unknown
+      // error`. A cover is one small GET and wants nothing but the bytes.
+      //
+      // `idempotent` because the name is the hash of the contents: the same
+      // file twice is the same file, and racing to write it is not an error.
+      const written = await File.downloadFileAsync(
         `${nativePlatform.doormanUrl}/v1/files/${key}`,
         file,
-        { headers: { Authorization: `Bearer ${signedIn.token}` } },
+        { headers: { Authorization: `Bearer ${signedIn.token}` }, idempotent: true },
       )
-      await task.downloadAsync()
-      return file.exists ? file.uri : null
+      return written.exists ? written.uri : null
     } catch (error) {
       // A missing cover is survivable — the letter tile is behind it — but it
       // should not be silent: swallowing this is what made an expo-file-system

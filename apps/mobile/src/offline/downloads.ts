@@ -60,6 +60,10 @@ export class DownloadQueue {
   /** The song `task` is paused on, so resume continues it rather than restarts. */
   private pausedSongId: number | null = null
   private running = false
+  /** Resume arrived while the loop was still waiting on a pause; see `drain`. */
+  private resumedWhileRunning = false
+  /** The transfer was called off, so its failure is not worth reporting. */
+  private cancelling = false
   private connection: ServerConnection | null = null
   private songsById = new Map<number, Song>()
   private manifest: SyncManifest | null = null
@@ -128,21 +132,61 @@ export class DownloadQueue {
   pause(): void {
     if (this.state.paused) return
     this.patch({ paused: true })
-    this.task?.pause()
+    // A task that has already stopped throws when asked to stop again, and
+    // this is called straight from a button.
+    if (this.task?.state !== 'paused') {
+      try {
+        this.task?.pause()
+      } catch {
+        // Already finished or cancelled; the flag above is what matters.
+      }
+    }
   }
 
   resume(): void {
     if (!this.state.paused) return
     this.patch({ paused: false })
+    /*
+     * `pause()` returns before the transfer has actually stopped, so Resume
+     * tapped quickly enough arrives while the loop is still waiting on it.
+     * Starting a second loop here would do nothing — one is already running —
+     * and it will then break on a pause nobody is waiting for any more, so it
+     * is told to pick up again once it has.
+     */
+    if (this.running) {
+      this.resumedWhileRunning = true
+      return
+    }
     void this.drain()
   }
 
   /** Abandon everything queued. Files already downloaded are untouched. */
   cancelAll(): void {
-    this.task?.cancel()
+    // Whatever was part-way through leaves a part of a file behind — cancelling
+    // an active transfer and cancelling a paused one both do — and nothing
+    // else ever comes back for it.
+    this.discardPartial()
+    this.cancelling = true
+    try {
+      this.task?.cancel()
+    } catch {
+      // Already gone; nothing to call off.
+    }
     this.task = null
     this.pausedSongId = null
+    this.resumedWhileRunning = false
     this.patch({ queue: [], activeSongId: null, bytesWritten: 0, totalBytes: 0, paused: false })
+  }
+
+  /** Delete the half-written file of whatever was being fetched, if any. */
+  private discardPartial(): void {
+    const songId = this.state.activeSongId
+    const song = songId === null ? undefined : this.songsById.get(songId)
+    if (!song) return
+    // Only a song not yet in the index: a finished one is a real download.
+    if (entryFor(this.state.index, song.id)) return
+    const file = new File(directory(), fileNameFor(song))
+    if (file.exists) file.delete()
   }
 
   async remove(songIds: readonly number[]): Promise<void> {
@@ -185,6 +229,13 @@ export class DownloadQueue {
         this.pausedSongId = null
         this.patch({ activeSongId: null, bytesWritten: 0, totalBytes: 0 })
       }
+    }
+
+    // Resumed while the loop above was still waiting on a pause. Without this
+    // the queue simply stops: not paused, and nothing draining it either.
+    if (this.resumedWhileRunning) {
+      this.resumedWhileRunning = false
+      if (!this.state.paused && this.state.queue.length > 0) void this.drain()
     }
   }
 
@@ -249,6 +300,12 @@ export class DownloadQueue {
       if (destination.exists) destination.delete()
       this.task = null
       this.pausedSongId = null
+      // A transfer we called off failed because we called it off. Saying so on
+      // screen would be reporting the tap back to the person who made it.
+      if (this.cancelling) {
+        this.cancelling = false
+        return true
+      }
       this.patch({
         error: `${song.title}: ${error instanceof Error ? error.message : 'download failed'}`,
       })

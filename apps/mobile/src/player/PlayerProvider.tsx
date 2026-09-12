@@ -284,9 +284,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [buildTracks],
   )
 
-  // Re-resolve the native queue when a download finishes: the track that was
-  // streaming should switch to the local file next time it is played.
+  /*
+   * Re-resolve the native queue when a download finishes: the track that was
+   * streaming should switch to the local file next time it is played.
+   *
+   * Keyed on which of the *queued* songs are held locally, rather than on the
+   * download index itself. Finishing a download changes that index whatever
+   * was downloaded, and tearing the upcoming queue down and building it again
+   * for a song that is not in it achieves nothing — during a sync of a few
+   * hundred songs, a few hundred times over.
+   */
   const downloadedEntries = downloads.index.entries
+  const queuedAndHeld = queue.items.filter(id => String(id) in downloadedEntries).join(',')
   useEffect(() => {
     if (queueRef.current.items.length === 0) return
     // Only the *upcoming* tracks are worth rewriting; replacing the active one
@@ -303,7 +312,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // Nothing loaded yet; the next play builds fresh tracks anyway.
       }
     })()
-  }, [downloadedEntries, buildTracks])
+  }, [queuedAndHeld, buildTracks])
 
   // --- commands ------------------------------------------------------------
 

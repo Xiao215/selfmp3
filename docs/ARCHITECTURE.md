@@ -23,6 +23,9 @@ apps/server
   services/              behaviour: scanning, metadata, lyrics, imports
   routes/                thin — validate, call a service, return
 
+apps/mobile              the phone app (docs/MOBILE.md); shares packages/*, not screens
+                         — docs/UNIVERSAL.md is the plan to fold it and apps/web into one
+
 apps/web
   main.tsx               providers, service worker registration
   App.tsx                shell + routes + hotkeys

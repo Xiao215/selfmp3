@@ -73,7 +73,14 @@ async function readSettings(): Promise<{ accentHue: number; theme: string }> {
   return (await (await fetch(`${API}/api/settings`)).json()) as { accentHue: number; theme: string }
 }
 
+/**
+ * Where the images go. The reference set by default; `SELFMP3_CAPTURE_DIR`
+ * sends them elsewhere, which is how the new app is photographed in the same
+ * states without touching the committed set (phase 4 uses `verify/captures`).
+ */
 function outDir(project: string): string {
+  const captures = process.env.SELFMP3_CAPTURE_DIR
+  if (captures) return path.join(path.resolve(captures), project)
   return path.join(process.cwd(), 'docs', 'reference', SHA, project)
 }
 

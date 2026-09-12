@@ -19,9 +19,9 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { ChevronDown, Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
-import { Sheet, SheetItem } from '../../ui/components/Sheet'
+import { Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
@@ -46,9 +46,8 @@ export function LibraryScreen(): ReactNode {
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
-  const { filter, songs, visible, songIds, tags, heading, sortLabel } = model
+  const { filter, songs, visible, songIds, tags, heading } = model
 
-  const [sortOpen, setSortOpen] = useState(false)
   const [menuSong, setMenuSong] = useState<Song | null>(null)
 
   const downloaded = useCallback(
@@ -111,18 +110,18 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [styles.sortButton, pressed && styles.sortButtonPressed]}
-            onPress={() => setSortOpen(true)}
-            testID="library-sort"
-            accessibilityRole="button"
-            accessibilityLabel={`Sort by ${sortLabel}`}
-          >
-            <Text style={styles.sortLabel} numberOfLines={1}>
-              {sortLabel}
-            </Text>
-            <ChevronDown size={15} color={colors.textMuted} />
-          </Pressable>
+          <View style={styles.sortSlot}>
+            <Select
+              value={filter.sort}
+              options={model.sortOptions.map(option => ({
+                value: option.field,
+                label: option.label,
+              }))}
+              onChange={model.setSort}
+              label="Sort by"
+              testID="library-sort"
+            />
+          </View>
           <Pressable
             style={({ pressed }) => [styles.direction, pressed && styles.sortButtonPressed]}
             onPress={model.toggleDirection}
@@ -196,20 +195,6 @@ export function LibraryScreen(): ReactNode {
         />
       )}
 
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort by">
-        {model.sortOptions.map(option => (
-          <SheetItem
-            key={option.field}
-            label={option.label}
-            active={filter.sort === option.field}
-            onPress={() => {
-              model.setSort(option.field)
-              setSortOpen(false)
-            }}
-          />
-        ))}
-      </Sheet>
-
       <SongMenu song={menuSong} onClose={() => setMenuSong(null)} />
     </SafeAreaView>
   )
@@ -268,6 +253,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
+  },
+  /* The Select fills the space the old sort button had. */
+  sortSlot: {
+    flex: 1,
+    minWidth: 0,
   },
   sortButton: {
     flex: 1,

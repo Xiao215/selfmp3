@@ -5,7 +5,7 @@ dist-types/
 
 # Your music and your database. Never committed.
 /library/
-data/
+/data/
 # ...nor a stray copy of either, wherever it ends up.
 *.db
 *.db-wal

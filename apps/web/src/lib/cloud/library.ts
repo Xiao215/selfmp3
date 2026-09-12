@@ -32,6 +32,7 @@ import {
   type LocalIds,
   type SongFiles,
 } from '@selfmp3/cloud'
+import type { CloudResponse } from '@selfmp3/cloud'
 import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
 
 /**
@@ -558,7 +559,7 @@ export async function forgetCloudLibrary(): Promise<void> {
  * browser undoes that itself when the doorman passes the encoding on, and
  * here when it does not.
  */
-async function readText(response: Response): Promise<string> {
+async function readText(response: CloudResponse): Promise<string> {
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))

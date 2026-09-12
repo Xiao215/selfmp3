@@ -32,3 +32,20 @@ export {
   type LocalIds,
   type SongFiles,
 } from './snapshotLibrary.js'
+
+export type {
+  CloudFetch,
+  CloudPlatform,
+  CloudRequestInit,
+  CloudResponse,
+  DeviceStore,
+} from './platform.js'
+export {
+  DoormanError,
+  SESSION_KEY,
+  createCloudSession,
+  type ClaimOutcome,
+  type CloudSession,
+  type CloudSessionApi,
+  type PendingSignIn,
+} from './session.js'

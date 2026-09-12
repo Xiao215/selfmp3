@@ -95,7 +95,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
 
   /** Claim the session with the code, or say why not. */
   const claimWith = useCallback(async (code: string): Promise<void> => {
-    const pending = pendingSignIn()
+    const pending = await pendingSignIn()
     if (!pending) {
       setGate({ kind: 'signed-out', message: 'The sign-in took too long. Try again.' })
       return
@@ -107,7 +107,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
         setGate({ kind: 'enter-code', error: 'Google hasn’t finished yet. Try again in a moment.' })
     } catch (error) {
       if (error instanceof DoormanError && error.code === 'wrong_code') {
-        clearPendingSignIn()
+        void clearPendingSignIn()
         setGate({ kind: 'signed-out', message: WRONG_CODE })
       } else {
         setGate({
@@ -149,7 +149,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
         }
         return
       }
-      const pending = pendingSignIn()
+      const pending = await pendingSignIn()
       if (pending && code) await claimWith(code)
       else if (pending) setGate({ kind: 'waiting' })
       else if (cameBack) setGate({ kind: 'returned-elsewhere', code })
@@ -165,7 +165,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
     if (gate.kind !== 'waiting') return
     let cancelled = false
     const check = async (): Promise<void> => {
-      const pending = pendingSignIn()
+      const pending = await pendingSignIn()
       if (!pending) {
         if (!cancelled) {
           setGate({ kind: 'signed-out', message: 'The sign-in took too long. Try again.' })
@@ -230,7 +230,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
           onSignOut={() => void signOut()}
           onCode={code => void claimWith(code)}
           onCancel={() => {
-            clearPendingSignIn()
+            void clearPendingSignIn()
             setGate({ kind: 'signed-out', message: null })
           }}
         />
@@ -310,7 +310,7 @@ function GateBody({
             </p>
           )}
           <div className="cloud-gate-actions">
-            <button type="button" className="button button-primary" onClick={beginSignIn}>
+            <button type="button" className="button button-primary" onClick={() => void beginSignIn()}>
               Sign in with Google
             </button>
           </div>

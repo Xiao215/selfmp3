@@ -103,8 +103,8 @@ export function createLogger(level: LogLevel, scope = ''): Logger {
     // `console.warn` does, left the first empty and filled the second with
     // routine successes. The `no-console` rule allows only warn and error,
     // which is how that happened; here stdout is the point.
-    // eslint-disable-next-line no-console
     if (lineLevel === 'error' || lineLevel === 'warn') console.error(line)
+    // eslint-disable-next-line no-console -- stdout is the point; see above
     else console.log(line)
   }
 

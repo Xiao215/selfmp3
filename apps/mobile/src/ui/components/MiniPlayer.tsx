@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { usePlayer } from '../../player/PlayerProvider'
+import { useAccent } from '../accent'
 import { colors, MINI_PLAYER_HEIGHT, space, type } from '../theme'
 import { Cover } from './Cover'
 import { Glyph } from './Glyph'
@@ -13,6 +14,7 @@ import { useArt } from '../../offline/useArt'
  */
 export function MiniPlayer(): ReactNode {
   const artFor = useArt()
+  const accent = useAccent()
   const player = usePlayer()
   const router = useRouter()
 
@@ -24,7 +26,12 @@ export function MiniPlayer(): ReactNode {
   return (
     <Pressable style={styles.bar} onPress={() => router.push('/now-playing')}>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.min(progress, 1) * 100}%` }]} />
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${Math.min(progress, 1) * 100}%`, backgroundColor: accent.accent },
+          ]}
+        />
       </View>
 
       <View style={styles.content}>
@@ -78,7 +85,6 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: 2,
-    backgroundColor: colors.accent,
   },
   content: {
     flex: 1,

@@ -117,10 +117,20 @@ export class LyricsSearchRepository {
     return this.#hash.get(songId)?.hash ?? null
   }
 
-  /** Replace a song's lines in the index. Runs in one transaction. */
+  /**
+   * Replace a song's lines in the index. Runs in one transaction.
+   *
+   * The delete is skipped when there is nothing to delete. `song_id` is
+   * UNINDEXED in the FTS table — it has to be, it is not what is searched — so
+   * deleting by it reads every row in the table. For a song being indexed for
+   * the first time that is a full scan to remove nothing, and the boot
+   * backfill is mostly first-time indexing: one scan per song over a table
+   * that is growing as it goes.
+   */
   replace(songId: number, hash: string, lines: readonly string[]): void {
+    const hadLines = this.indexedHash(songId) !== null
     this.#db.transaction(() => {
-      this.#clearLines.run(songId)
+      if (hadLines) this.#clearLines.run(songId)
       lines.forEach((line, index) => {
         const tokens = tokenizeForFts(line)
         if (tokens) this.#insertLine.run(songId, index, line, tokens)

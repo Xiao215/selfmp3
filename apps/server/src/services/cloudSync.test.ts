@@ -558,7 +558,7 @@ describe('CloudSyncService', () => {
       expect(sync.status().lastError).toMatch(/Update this Mac/)
     })
 
-    it('takes a song another device removed out, and says whose files to take away', async () => {
+    it('takes a song another device removed out, and keeps the file it was told to keep', async () => {
       const id = addSong('A - One', 'one')
       addSong('B - Two', 'two')
       await connect()
@@ -570,8 +570,29 @@ describe('CloudSyncService', () => {
 
       await pass()
 
-      expect(removed).toEqual([{ id, path: 'A - One/A - One.m4a' }])
+      expect(removed).toEqual([{ id, path: 'A - One/A - One.m4a', deleteFile: false }])
       expect(latest().songs.map(song => song.title)).toEqual(['Two'])
+    })
+
+    /*
+     * "Remove from my list" and "destroy the file" are different answers, and
+     * a phone in cloud mode asks the same question the Mac does. Whichever was
+     * given has to survive the trip.
+     */
+    it('says to take the file away when that is what was asked for', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      const removed: unknown[] = []
+      sync.onIngested = result => {
+        removed.push(...result.removed)
+      }
+      writeLog(PHONE, 1, [
+        { type: 'songRemoved', hlc: stamp(1), uid: uidOf(id), deleteFile: true },
+      ])
+
+      await pass()
+
+      expect(removed).toEqual([{ id, path: 'A - One/A - One.m4a', deleteFile: true }])
     })
 
     it('does not mind a file that went between the listing and reading it', async () => {

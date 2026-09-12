@@ -109,6 +109,10 @@ export function TagPickerPanel({
 
   const onSubmit = (event: React.FormEvent): void => {
     event.preventDefault()
+    // With nothing typed there is no best match to pick — ranking an empty
+    // query returns the whole list, and Enter would silently put the first tag
+    // in it on the song.
+    if (!trimmed) return
     // Enter picks the best match; it only creates when nothing matches at all.
     const best = ranked[0]
     if (best) {

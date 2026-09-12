@@ -309,6 +309,14 @@ function safeReturn(
   } catch {
     return null
   }
+  /*
+   * An origin only counts when the address is a web address.
+   *
+   * `blob:https://app.example/…` reports the origin inside it as its own, so
+   * matching on the origin alone would let one through against a list it was
+   * never on. The scheme has to be checked with it, not instead of it.
+   */
+  const web = url.protocol === 'http:' || url.protocol === 'https:'
   const loopback =
     url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
   // A phone has no origin to come back to, so it is named by its scheme
@@ -318,7 +326,7 @@ function safeReturn(
   // session needs the attempt too, which was made on the device and never
   // left it. Whoever intercepts this holds half of a pair.
   const native = schemes.has(url.protocol)
-  return origins.has(url.origin) || loopback || native ? url.toString() : null
+  return (web && (origins.has(url.origin) || loopback)) || native ? url.toString() : null
 }
 
 /** `selfmp3` or `selfmp3://` in the setting, `selfmp3:` as `URL` reports it. */

@@ -291,13 +291,30 @@ export class ImportQueueService {
     const stagingDir = path.join(this.#config.dataDir, 'incoming')
     await fsp.mkdir(stagingDir, { recursive: true })
 
+    /*
+     * Clear anything this job left behind last time.
+     *
+     * A download killed part-way — cancelled, or the server restarted under it
+     * — leaves its half-written file here, and `uniqueBaseName` gives the same
+     * job the same name on every attempt. Left in place it is in `before`, so
+     * the finished file is never recognised as new and the job fails with "no
+     * file appeared" for ever, however often it is retried.
+     */
+    for (const leftover of await safeReaddir(stagingDir)) {
+      if (!leftover.startsWith(baseName)) continue
+      await fsp.rm(path.join(stagingDir, leftover), { force: true }).catch(() => undefined)
+    }
+
     const before = new Set(await safeReaddir(stagingDir))
 
     // yt-dlp reports every chunk; a write per whole percent is plenty.
     let shown = 0
     await this.#ytdlp.download({
       url: job.url,
-      outputTemplate: path.join(stagingDir, `${baseName}.%(ext)s`),
+      // `%` starts a field in an output template, so a title containing one —
+      // "100%(real)" — would name the file something else entirely and the
+      // download would never be found. `%%` is how a template spells a literal.
+      outputTemplate: path.join(stagingDir, `${baseName.replaceAll('%', '%%')}.%(ext)s`),
       hasFfmpeg: tools.ffmpeg,
       signal,
       onProgress: percent => {

@@ -5,6 +5,7 @@ import {
   BulkDeleteSongsSchema,
   BulkLovedSchema,
   IdSchema,
+  isSynced,
   PlayEventSchema,
   SONG_FIELDS,
   SetSongTagsSchema,
@@ -205,12 +206,24 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
+  /**
+   * A skip. Sent twice, counted once — the same bargain a play gets.
+   *
+   * The outbox keeps a skip whose response was lost and sends it again, so
+   * without the id a flaky connection quietly inflates the count that feeds
+   * forgotten gems, Wrapped and any smart rule built on it. `counted_skips` is
+   * the same table the cloud path dedupes against, so the two agree.
+   */
   router.post(
     '/songs/:id/skipped',
-    route({ params: ParamsWithId, body: SkipEventSchema }, ({ params }) => {
+    route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }) => {
       requireSong(params.id)
-      container.songs.recordSkip(params.id)
-      return { ok: true as const }
+      const counted = transact(container.db, () => {
+        if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId)) return false
+        container.songs.recordSkip(params.id)
+        return true
+      })
+      return { ok: true as const, duplicate: !counted }
     }),
   )
 
@@ -347,7 +360,10 @@ export function songRoutes(container: Container): Router {
           return { ok: true as const, kind: 'none' as const }
         }
 
-        const synced = /\[\d{1,3}:\d{1,2}/.test(trimmed)
+        // The same test every reader applies to the same text. A looser one
+        // here meant the stored kind could disagree with what the player, the
+        // search index and the phone all work out for themselves.
+        const synced = isSynced(trimmed)
         // Remove the other sidecar format first so a .txt and .lrc for the
         // same song cannot disagree.
         await container.lyrics.deleteSidecar(song.path)

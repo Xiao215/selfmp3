@@ -169,6 +169,7 @@ export function createContainer(config: Config): Container {
   })
 
   let version = 1
+  let closed = false
   const bump = (): void => {
     version++
     cloudSync.kick()
@@ -273,16 +274,21 @@ export function createContainer(config: Config): Container {
 
   // Other devices' changes, applied during a cloud pass. The pass publishes
   // what they changed itself, so this only moves the version clients watch —
-  // and takes away the files of songs removed elsewhere. Left in the library
-  // folder, the next scan would add them back as new songs.
+  // and tidies up after songs removed elsewhere. A file the person chose to
+  // keep is left where it is, and the next scan adds it back as a new song,
+  // exactly as it would have had they removed it on this Mac.
   cloudSync.onIngested = async ({ removed, requested }) => {
     version++
     if (requested > 0) void cloudImports.process()
     for (const song of removed) {
       try {
-        await storage.delete(song.path).catch(() => undefined)
-        await lyrics.deleteSidecar(song.path)
-        await removeFolderIfEmpty(storage, song.path)
+        // The audio goes only if the device that removed it said so; what is
+        // derived from the row goes either way, since the row has.
+        if (song.deleteFile) {
+          await storage.delete(song.path).catch(() => undefined)
+          await lyrics.deleteSidecar(song.path)
+          await removeFolderIfEmpty(storage, song.path)
+        }
         await covers.delete(song.id)
         await lyricsCache.delete(song.id)
         lyricsIndex.remove(song.id)
@@ -348,7 +354,12 @@ export function createContainer(config: Config): Container {
     cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
+    // Shutdown can arrive here by either of two paths — the server closing
+    // cleanly or the timeout giving up on it — and `db.close()` throws the
+    // second time, so only the first call does the work.
     close: () => {
+      if (closed) return
+      closed = true
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()

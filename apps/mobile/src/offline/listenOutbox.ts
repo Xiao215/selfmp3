@@ -64,7 +64,8 @@ async function send(connection: ServerConnection, event: OutboxEvent): Promise<S
         clientId: event.id,
       })
     } else {
-      await api.recordSkip(connection, event.songId, event.atSeconds)
+      // The event's own id, so a skip whose response was lost counts once.
+      await api.recordSkip(connection, event.songId, event.atSeconds, event.id)
     }
     return 'sent'
   } catch (error) {

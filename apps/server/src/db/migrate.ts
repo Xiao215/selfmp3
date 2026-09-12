@@ -476,8 +476,6 @@ export function migrate(db: Database, logger: Logger, target = MIGRATIONS.length
   logger.info('schema migrated', { to: goal })
 }
 
-export const SCHEMA_VERSION = MIGRATIONS.length
-
 /** The version a migration brings the schema to, found by its name. */
 export function migrationVersion(name: string): number {
   const index = MIGRATIONS.findIndex(migration => migration.name === name)

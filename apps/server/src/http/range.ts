@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import type { Request, Response } from 'express'
 import { pipeline } from 'node:stream/promises'
 
@@ -117,6 +116,17 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     return
   }
 
+  /*
+   * An empty file has nothing to stream, and asking for bytes 0 to -1 throws.
+   * Letting that through was worse than the empty file: the headers here are
+   * already set, so the error handler's JSON went out as audio, cached for a
+   * year and marked immutable — one broken file poisoning the song for good.
+   */
+  if (length <= 0) {
+    res.end()
+    return
+  }
+
   const stream = source.open(start, end)
   try {
     await pipeline(stream, res)
@@ -126,19 +136,5 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'EPIPE' || code === 'ECONNRESET') return
     throw error
-  }
-}
-
-/** Build a `RangeSource` from a file on local disk. */
-export function fileRangeSource(absolutePath: string, mime: string): RangeSource {
-  const stat = fs.statSync(absolutePath)
-  return {
-    sizeBytes: stat.size,
-    mime,
-    // Size plus mtime is enough to detect any realistic change to a music file
-    // and costs nothing, unlike hashing megabytes on every request.
-    etag: `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`,
-    lastModified: stat.mtime,
-    open: (start, end) => fs.createReadStream(absolutePath, { start, end }),
   }
 }

@@ -4,7 +4,7 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { Equalizer } from '../components/Icons.js'
 import { Popover } from '../components/Menu.js'
 import { useDeviceContext } from './DevicesProvider.js'
-import { shortDeviceName } from './handoff.js'
+import { relativeTime, shortDeviceName } from './handoff.js'
 
 /** Enough offline rows for context, before the list turns into a graveyard. */
 const OFFLINE_SHOWN = 3
@@ -217,12 +217,3 @@ function OfflineRow({ device }: { device: Device }) {
 }
 
 /** Coarse on purpose — "3 d ago" is all this row needs to say. */
-function relativeTime(timestamp: number): string {
-  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000))
-  if (seconds < 60) return 'just now'
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} h ago`
-  return `${Math.round(hours / 24)} d ago`
-}

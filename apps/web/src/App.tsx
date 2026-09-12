@@ -65,6 +65,34 @@ function AppWithLibrary() {
     document.documentElement.style.setProperty('--accent-hue', String(accentHue))
   }, [accentHue])
 
+  /*
+   * Dark or light, the same way: one attribute on the root.
+   *
+   * The palette for each lives in styles/parts/tokens.css, and both are built
+   * from `--accent-hue`, so the accent above keeps working whichever is on.
+   * "System" is resolved here rather than in a media query, because the
+   * stylesheet has one light palette keyed on the attribute and following the
+   * system means keeping that attribute in step with the system.
+   */
+  const theme = settings?.theme
+  useEffect(() => {
+    if (theme === undefined) return
+    const root = document.documentElement
+
+    if (theme !== 'system') {
+      root.setAttribute('data-theme', theme)
+      return
+    }
+
+    const query = window.matchMedia('(prefers-color-scheme: light)')
+    const follow = (): void => {
+      root.setAttribute('data-theme', query.matches ? 'light' : 'dark')
+    }
+    follow()
+    query.addEventListener('change', follow)
+    return () => query.removeEventListener('change', follow)
+  }, [theme])
+
   return (
     <PlayerProvider
       songs={library?.songs ?? []}

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatLongDuration,
   fuzzyRank,
+  sortSongs,
   type Song,
   type SongSortField,
   type Tag,
@@ -588,42 +589,3 @@ function MobileTagChip({
   )
 }
 
-/**
- * Sorting.
- *
- * Nulls always sort last regardless of direction — a song that has never been
- * played should not top the "recently played" list just because the direction
- * flipped.
- */
-function sortSongs(songs: readonly Song[], field: SongSortField, descending: boolean): Song[] {
-  const sorted = [...songs]
-  const direction = descending ? -1 : 1
-
-  sorted.sort((a, b) => {
-    switch (field) {
-      case 'title':
-        return direction * a.title.localeCompare(b.title)
-      case 'artist':
-        return direction * (a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))
-      case 'album':
-        return direction * (a.album.localeCompare(b.album) || (a.trackNo ?? 0) - (b.trackNo ?? 0))
-      case 'duration':
-        return direction * (a.duration - b.duration)
-      case 'playCount':
-        return direction * (a.playCount - b.playCount)
-      case 'lastPlayedAt': {
-        if (!a.lastPlayedAt && !b.lastPlayedAt) return 0
-        if (!a.lastPlayedAt) return 1
-        if (!b.lastPlayedAt) return -1
-        return direction * a.lastPlayedAt.localeCompare(b.lastPlayedAt)
-      }
-      case 'random':
-        return Math.random() - 0.5
-      case 'addedAt':
-      default:
-        return direction * (a.addedAt.localeCompare(b.addedAt) || a.id - b.id)
-    }
-  })
-
-  return sorted
-}

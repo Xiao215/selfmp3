@@ -218,14 +218,16 @@ export function createCloudRoutes(
     [
       'DELETE',
       '/api/songs/:id',
-      ({ session, params }) =>
-        recordChanges(session, ctx => {
+      ({ session, params, query }) => {
+        const deleteFile = query.get('deleteFile') === '1'
+        return recordChanges(session, ctx => {
           edits.song(ctx, id(params))
           return {
-            changes: edits.removeSongs(ctx, [id(params)]),
-            answer: () => ({ ok: true, fileDeleted: false }),
+            changes: edits.removeSongs(ctx, [id(params)], deleteFile),
+            answer: () => ({ ok: true, fileDeleted: deleteFile }),
           }
-        }),
+        })
+      },
     ],
     [
       'POST',
@@ -233,11 +235,18 @@ export function createCloudRoutes(
       ({ session, body }) => {
         const input = BulkDeleteSongsSchema.parse(body)
         return recordChanges(session, ctx => {
-          const changes = edits.removeSongs(ctx, input.songIds)
+          const changes = edits.removeSongs(ctx, input.songIds, input.deleteFile)
           const failed = [...new Set(input.songIds)]
             .filter(songId => !ctx.view.uids.songs.has(songId))
             .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
-          return { changes, answer: () => ({ removed: changes.length, filesDeleted: 0, failed }) }
+          return {
+            changes,
+            answer: () => ({
+              removed: changes.length,
+              filesDeleted: input.deleteFile ? changes.length : 0,
+              failed,
+            }),
+          }
         })
       },
     ],

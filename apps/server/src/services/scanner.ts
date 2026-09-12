@@ -67,10 +67,19 @@ export class ScannerService {
     const stat = await this.#storage.stat(key)
     if (!stat) throw new Error(`file not found in library: ${key}`)
 
-    const existing = this.#songs.byPath(key)
     const metadata = await this.#metadata.read(key)
     const lyricsKind = await this.#lyrics.detectKind(key, metadata.embeddedLyrics)
     const mime = mimeForExtension(path.extname(key))
+
+    /*
+     * Look the song up only now that the slow part is done.
+     *
+     * Reading tags and sniffing lyrics both wait, and an import finishing in
+     * that gap can insert this very path — `songs.path` is unique, so an
+     * insert decided before the wait would fail on arrival. Deciding after it
+     * leaves no gap at all: everything from here on is synchronous.
+     */
+    const existing = this.#songs.byPath(key)
 
     if (existing) {
       this.#songs.updateScanned({
@@ -131,26 +140,44 @@ export class ScannerService {
     let added = 0
     let updated = 0
     let removed = 0
+    let skipped = 0
 
     try {
       const onDisk = await this.#storage.list()
       const known = this.#songs.allPaths()
 
       for (const key of onDisk) {
-        const existing = known.get(key)
-        if (existing) {
-          const stat = await this.#storage.stat(key)
-          const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
-          // Unchanged file: clear any stale "missing" flag and move on.
-          if (stat && mtimeMs === existing.mtimeMs) {
-            this.#songs.clearMissing(existing.id)
-            continue
+        /*
+         * One file the scan cannot read must not end the scan.
+         *
+         * A truncated download, a permission the copy did not carry, a format
+         * the tag reader gives up on: any of these throws, and letting it out
+         * of the loop means every file after it is never looked at and the
+         * pass that marks deleted songs missing never runs at all. So the bad
+         * file is reported and the scan goes on without it.
+         */
+        try {
+          const existing = known.get(key)
+          if (existing) {
+            const stat = await this.#storage.stat(key)
+            const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
+            // Unchanged file: clear any stale "missing" flag and move on.
+            if (stat && mtimeMs === existing.mtimeMs) {
+              this.#songs.clearMissing(existing.id)
+              continue
+            }
+            await this.ingest(key)
+            updated++
+          } else {
+            await this.ingest(key)
+            added++
           }
-          await this.ingest(key)
-          updated++
-        } else {
-          await this.ingest(key)
-          added++
+        } catch (error) {
+          skipped++
+          this.#logger.warn('could not read a file, skipping it', {
+            path: key,
+            message: error instanceof Error ? error.message : String(error),
+          })
         }
       }
 
@@ -176,6 +203,7 @@ export class ScannerService {
     this.#logger.info('scan complete', {
       added,
       updated,
+      ...(skipped > 0 ? { skipped } : {}),
       missing: removed,
       total: result.total,
       ms: result.durationMs,

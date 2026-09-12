@@ -5,6 +5,7 @@ import type { Song } from '@selfmp3/shared'
 import { downloadedCount, isDownloaded } from '../../offline/downloadIndex'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { freeToDownload, useConnectionKind } from '../../offline/connectionKind'
+import { useAccent } from '../accent'
 import { colors, radius, space, type } from '../theme'
 
 /**
@@ -20,6 +21,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   const { state, queue } = useDownloads()
   const connection = useConnectionKind()
 
+  const accent = useAccent()
   const held = useMemo(() => downloadedCount(state.index), [state.index])
   const total = songs.length
   const missing = useMemo(
@@ -56,7 +58,12 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
     return (
       <View style={styles.bar}>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.round(fraction * 100)}%`, backgroundColor: accent.accent },
+            ]}
+          />
         </View>
         <View style={styles.row}>
           <Text style={styles.text}>
@@ -66,7 +73,9 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
             onPress={() => (state.paused ? queue.resume() : queue.pause())}
             hitSlop={8}
           >
-            <Text style={styles.action}>{state.paused ? 'Resume' : 'Pause'}</Text>
+            <Text style={[styles.action, { color: accent.accent }]}>
+              {state.paused ? 'Resume' : 'Pause'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -109,7 +118,12 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           {onData ? ' · on mobile data' : ''}
         </Text>
         <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
-          <Text style={[styles.action, onData && styles.actionWarn]}>
+          <Text
+            style={[
+              styles.action,
+              { color: onData ? colors.warning : accent.accent },
+            ]}
+          >
             {onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`}
           </Text>
         </Pressable>
@@ -130,8 +144,8 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   text: { color: colors.textSecondary, fontSize: type.small },
-  action: { color: colors.accent, fontSize: type.small, fontWeight: '600' },
-  actionWarn: { color: colors.warning },
+  // No colour here: it is the device's accent, or amber on mobile data.
+  action: { fontSize: type.small, fontWeight: '600' },
   error: { color: colors.danger, fontSize: type.small, flex: 1, marginRight: space.md },
   progressTrack: {
     height: 3,
@@ -139,5 +153,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface2,
     overflow: 'hidden',
   },
-  progressFill: { height: 3, backgroundColor: colors.accent },
+  progressFill: { height: 3 },
 })

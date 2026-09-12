@@ -1,40 +1,58 @@
+import { oklchToHex } from './oklch'
+
 /**
  * The web app's palette, resolved to hex.
  *
- * `apps/web/src/styles/index.css` builds every colour from `oklch(L C
- * var(--accent-hue))`, and the hue is **330** — a pink. React Native can do
- * neither OKLCH nor custom properties, so the same lightness/chroma pairs are
- * converted once, here.
+ * `apps/web/src/styles/parts/tokens.css` builds every colour from `oklch(L C
+ * var(--accent-hue))`. React Native has neither OKLCH nor custom properties,
+ * so the same lightness/chroma pairs are converted here instead, and the two
+ * apps stay visually identical.
  *
- * These were wrong: every value came from hue 268, a blue, and the comment
- * above them asserted 268 as though it were the web's. So the two apps shared
- * a palette in prose and agreed on nothing on screen, which is most of why the
- * phone looked like a different product. They were re-derived by reading the
- * computed values out of the running web app rather than by eye — which is
- * what the old comment told the next person to do, and is worth doing again if
- * the hue ever moves.
+ * The accent is worked out rather than written down, because on the phone it
+ * is a setting: `buildAccent` below is given whatever hue this device has been
+ * set to. Everything else is fixed — the surfaces are tinted by the hue on the
+ * web too, but at a chroma of around 0.014 that is a tint nobody has ever
+ * noticed, and it is not worth making every surface in the app reactive for.
  */
+
+/** The hue everything here was written at, and what a device starts on. */
+export const DEFAULT_ACCENT_HUE = 268
+
+/** The four colours the accent picker moves. Nothing else depends on the hue. */
+export function buildAccent(hue: number): {
+  accent: string
+  accentStrong: string
+  accentDim: string
+  onAccent: string
+} {
+  return {
+    accent: oklchToHex(0.72, 0.16, hue),
+    accentStrong: oklchToHex(0.78, 0.18, hue),
+    accentDim: oklchToHex(0.42, 0.1, hue),
+    onAccent: oklchToHex(0.15, 0.02, hue),
+  }
+}
+
+export type Accent = ReturnType<typeof buildAccent>
+
 export const colors = {
-  surface0: '#100b10',
-  surface1: '#171217',
-  surface2: '#211a21',
-  surface3: '#2e262d',
+  surface0: '#0b0d13',
+  surface1: '#11141a',
+  surface2: '#1a1d25',
+  surface3: '#252932',
 
-  textPrimary: '#f7f4f7',
-  textSecondary: '#b6aeb5',
-  textMuted: '#857d84',
+  textPrimary: '#f4f5f9',
+  textSecondary: '#aeb1b9',
+  textMuted: '#7c8089',
 
-  accent: '#db7cd4',
-  accentStrong: '#f689ed',
-  accentDim: '#6b3767',
-  onAccent: '#10080f',
+  ...buildAccent(DEFAULT_ACCENT_HUE),
 
   danger: '#f0555b',
   warning: '#ebaa2d',
   good: '#43c07a',
 
-  border: '#332b32',
-  borderStrong: '#493f47',
+  border: '#2a2e36',
+  borderStrong: '#3e424d',
 } as const
 
 export const radius = { sm: 6, md: 10, lg: 16 } as const

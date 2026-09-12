@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { activeLineIndex, parseLyrics } from '@selfmp3/shared'
+import { useAccent } from '../accent'
 import { colors, space, type } from '../theme'
 
 /**
@@ -29,6 +30,7 @@ export function Lyrics({
   loading: boolean
   error: boolean
 }): ReactNode {
+  const accent = useAccent()
   const scrollRef = useRef<ScrollView>(null)
   const parsed = useMemo(() => (text === null ? null : parseLyrics(text)), [text])
 
@@ -65,7 +67,7 @@ export function Lyrics({
           <Text
             style={[
               styles.line,
-              index === active && styles.activeLine,
+              index === active && [styles.activeLine, { color: accent.accent }],
               index < active && styles.pastLine,
             ]}
             numberOfLines={2}
@@ -101,7 +103,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   activeLine: {
-    color: colors.accent,
     fontWeight: '700',
   },
   pastLine: {

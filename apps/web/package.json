@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --build && npm run typecheck:sw && vite build && npm run build:sw",
     "typecheck:sw": "tsc -p tsconfig.sw.json",
-    "build:sw": "esbuild src/sw.ts --bundle --format=iife --target=es2022 --minify --outfile=dist/sw.js",
+    "build:sw": "esbuild src/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=dist/sw.js",
     "preview": "vite preview",
     "clean": "rm -rf dist tsconfig.tsbuildinfo tsconfig.node.tsbuildinfo"
   },

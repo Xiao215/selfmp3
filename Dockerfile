@@ -18,12 +18,16 @@ WORKDIR /app
 # Manifests first so dependency installation is cached across source edits.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/cloud/package.json packages/cloud/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/shared packages/shared
+# The web app is built against it, so it has to be here even though nothing
+# the server runs imports it and none of it reaches the runtime image.
+COPY packages/cloud packages/cloud
 COPY apps/server apps/server
 COPY apps/web apps/web
 RUN npm run build

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import { formatDuration } from '@selfmp3/shared'
+import { useAccent } from '../accent'
 import { colors, space, type } from '../theme'
 
 /**
@@ -25,6 +26,7 @@ export function SeekBar({
   duration: number
   onSeek: (seconds: number) => void
 }): ReactNode {
+  const accent = useAccent()
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
 
@@ -61,8 +63,15 @@ export function SeekBar({
     <View style={styles.wrapper}>
       <View style={styles.hit} onLayout={onLayout} {...responder.panHandlers}>
         <View style={styles.track}>
-          <View style={[styles.fill, { width: width * ratio }]} />
-          <View style={[styles.thumb, { left: Math.max(0, width * ratio - 6) }]} />
+          <View
+            style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]}
+          />
+          <View
+            style={[
+              styles.thumb,
+              { left: Math.max(0, width * ratio - 6), backgroundColor: accent.accentStrong },
+            ]}
+          />
         </View>
       </View>
       <View style={styles.times}>
@@ -90,14 +99,12 @@ const styles = StyleSheet.create({
   fill: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.accent,
   },
   thumb: {
     position: 'absolute',
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.accentStrong,
   },
   times: {
     flexDirection: 'row',

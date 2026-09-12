@@ -208,6 +208,15 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
   )
   const libraryIdsRef = useRef<readonly number[]>([])
   libraryIdsRef.current = useMemo(() => (library?.songs ?? []).map(song => song.id), [library])
+  /**
+   * Whether the library has been heard from at all.
+   *
+   * An empty list means two very different things — "no songs" and "not asked
+   * yet" — and pruning treats them as the same: everything is surplus. Nothing
+   * is thrown away until this is true.
+   */
+  const libraryKnownRef = useRef(false)
+  libraryKnownRef.current = library !== undefined
   /** What the last pass found nothing to do about, so an unrelated bump can skip the work. */
   const settledRef = useRef<string | null>(null)
 
@@ -388,8 +397,17 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
     ].join('|')
     if (settledRef.current === signature) return { missing: [], signature }
 
-    const keep = new Set([...whole.entries.map(entry => entry.id), ...libraryIdsRef.current])
-    if ((await pruneCache(keep)) > 0) await refreshCached()
+    /*
+     * The manifest leaves out songs whose file is missing on the Mac, and the
+     * library is what puts them back into the keep-set — so pruning before the
+     * library has answered throws away exactly the songs the comment above
+     * promises to protect. An auto-pass early in a page's life could reach
+     * here first.
+     */
+    if (libraryKnownRef.current) {
+      const keep = new Set([...whole.entries.map(entry => entry.id), ...libraryIdsRef.current])
+      if ((await pruneCache(keep)) > 0) await refreshCached()
+    }
 
     return { missing: await missingEntries(manifest, excludedRef.current), signature }
   }, [refreshCached])
@@ -451,7 +469,7 @@ export function OfflineProvider({ children }: { children: ReactNode }): ReactNod
       // library should not go on taking up room either — the automatic pass
       // that usually sweeps those up is not running.
       const keep = new Set(libraryIdsRef.current)
-      if (keep.size > 0) {
+      if (libraryKnownRef.current) {
         void pruneCache(keep).then(gone => {
           if (gone === 0) return
           void refreshCached()

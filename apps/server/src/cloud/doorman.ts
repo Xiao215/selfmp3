@@ -38,13 +38,6 @@ export class DoormanClient {
     this.#fetch = fetchImpl
   }
 
-  /** Where a browser goes to sign in with Google for this attempt. */
-  signInUrl(attempt: string, returnUrl?: string): string {
-    const params = new URLSearchParams({ attempt })
-    if (returnUrl) params.set('return', returnUrl)
-    return `${this.url}/v1/auth/start?${params.toString()}`
-  }
-
   /**
    * How a sign-in stands, or with the code the doorman showed, the session.
    * A wrong code throws, and the doorman forgets the attempt.

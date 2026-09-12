@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -14,8 +14,10 @@ import {
 } from '../src/offline/downloadIndex'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { useConnection } from '../src/server/ConnectionProvider'
+import { ACCENT_PRESETS, useAccent } from '../src/ui/accent'
+import { BrandMark } from '../src/ui/components/BrandMark'
 import { Button } from '../src/ui/components/Button'
-import { colors, radius, space, type } from '../src/ui/theme'
+import { buildAccent, colors, radius, space, type } from '../src/ui/theme'
 
 /** Server, downloads, about — the three things worth a settings screen. */
 export default function SettingsScreen(): ReactNode {
@@ -24,6 +26,7 @@ export default function SettingsScreen(): ReactNode {
   const manifest = useManifest()
   const { state: downloads, queue: downloadQueue } = useDownloads()
   const router = useRouter()
+  const accent = useAccent()
   const [busy, setBusy] = useState(false)
 
   const songIds = useMemo(
@@ -113,6 +116,7 @@ export default function SettingsScreen(): ReactNode {
                           ? Math.min(100, (downloads.bytesWritten / downloads.totalBytes) * 100)
                           : 0
                       }%`,
+                      backgroundColor: accent.accent,
                     },
                   ]}
                 />
@@ -172,6 +176,39 @@ export default function SettingsScreen(): ReactNode {
               }}
             />
           </View>
+        </Section>
+
+        <Section title="Appearance">
+          <View style={styles.accentRow}>
+            <View style={styles.accentLabel}>
+              <BrandMark size={20} />
+              <Text style={styles.rowLabel}>Accent</Text>
+            </View>
+            <View style={styles.swatches}>
+              {ACCENT_PRESETS.map(preset => (
+                <Pressable
+                  key={preset.hue}
+                  onPress={() => accent.setHue(preset.hue)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={preset.name}
+                  accessibilityState={{ selected: accent.hue === preset.hue }}
+                  style={[
+                    styles.swatch,
+                    { backgroundColor: buildAccent(preset.hue).accent },
+                    accent.hue === preset.hue && [
+                      styles.swatchOn,
+                      { borderColor: colors.textPrimary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+          <Text style={styles.note}>
+            This phone&rsquo;s colour, kept on this phone. The Mac and any other device keep
+            their own.
+          </Text>
         </Section>
 
         <Section title="About">
@@ -277,8 +314,24 @@ const styles = StyleSheet.create({
   progressFill: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.accent,
   },
+  accentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: space.sm,
+    gap: space.md,
+  },
+  accentLabel: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  swatches: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  swatch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  swatchOn: { borderWidth: 2 },
   error: {
     color: colors.danger,
     fontSize: type.small,

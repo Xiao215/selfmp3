@@ -10,12 +10,14 @@ import { useDownloads } from '../../src/offline/DownloadsProvider'
 import { usePlayer } from '../../src/player/PlayerProvider'
 import { Button } from '../../src/ui/components/Button'
 import { SongRow } from '../../src/ui/components/SongRow'
+import { useAccent } from '../../src/ui/accent'
 import { colors, space, type } from '../../src/ui/theme'
 import { useArt } from '../../src/offline/useArt'
 
 /** One playlist, in order, with play-all and download-this-playlist. */
 export default function PlaylistDetailScreen(): ReactNode {
   const artFor = useArt()
+  const accent = useAccent()
   const params = useLocalSearchParams<{ id: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
@@ -61,7 +63,7 @@ export default function PlaylistDetailScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={styles.back}>‹ Playlists</Text>
+          <Text style={[styles.back, { color: accent.accent }]}>‹ Playlists</Text>
         </Pressable>
         <Text style={styles.heading} numberOfLines={2}>
           {playlist?.name ?? 'Playlist'}
@@ -95,7 +97,7 @@ export default function PlaylistDetailScreen(): ReactNode {
       </View>
 
       {contents.isPending ? (
-        <ActivityIndicator style={styles.spinner} color={colors.accent} />
+        <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
         <FlatList
           data={songs}
@@ -123,7 +125,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   back: {
-    color: colors.accent,
     fontSize: type.small,
     fontWeight: '600',
     marginBottom: space.sm,

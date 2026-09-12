@@ -152,20 +152,31 @@ export function previous(state: QueueState): QueueState {
   return { ...state, index: state.index - 1 }
 }
 
-/** Insert directly after the current track. */
+/**
+ * Insert directly after the current track.
+ *
+ * The playing track stays put even when it is among the ids: "play next" on
+ * what is already playing means the rest of the selection follows it, not that
+ * it starts again from a second copy of itself.
+ */
 export function playNext(state: QueueState, songIds: readonly number[]): QueueState {
   if (songIds.length === 0) return state
 
   // Remove any existing copies first so "play next" moves rather than
   // duplicates — a duplicate in a queue is almost never what was meant.
+  const current = state.index < 0 ? undefined : state.items[state.index]
   const incoming = new Set(songIds)
+  const inserted = songIds.filter(id => id !== current)
+  if (inserted.length === 0) return state
+
   const filtered = state.items.filter((id, i) => i === state.index || !incoming.has(id))
-  const currentIndex = state.index < 0 ? -1 : filtered.indexOf(state.items[state.index] ?? -1)
+  const currentIndex = current === undefined ? -1 : filtered.indexOf(current)
   const at = currentIndex + 1
 
   return {
     ...state,
-    items: [...filtered.slice(0, at), ...songIds, ...filtered.slice(at)],
+    items: [...filtered.slice(0, at), ...inserted, ...filtered.slice(at)],
+    original: withOriginal(state, inserted),
     index: currentIndex < 0 ? state.index : currentIndex,
   }
 }
@@ -176,20 +187,36 @@ export function enqueue(state: QueueState, songIds: readonly number[]): QueueSta
   const existing = new Set(state.items)
   const fresh = songIds.filter(id => !existing.has(id))
   if (fresh.length === 0) return state
-  return { ...state, items: [...state.items, ...fresh] }
+  return { ...state, items: [...state.items, ...fresh], original: withOriginal(state, fresh) }
 }
 
 /** Remove one entry, keeping the currently playing track pointed at correctly. */
 export function removeAt(state: QueueState, position: number): QueueState {
   if (position < 0 || position >= state.items.length) return state
 
+  const gone = state.items[position]
   const items = state.items.filter((_, i) => i !== position)
   let index = state.index
 
   if (position < state.index) index -= 1
   else if (position === state.index) index = Math.min(state.index, items.length - 1)
 
-  return { ...state, items, index }
+  return { ...state, items, original: state.original.filter(id => id !== gone), index }
+}
+
+/**
+ * `original` with these ids appended.
+ *
+ * Every queue edit has to reach `original` as well as `items`, because turning
+ * shuffle off replays `original` wholesale. Leave it behind and the two drift:
+ * a song added while shuffled disappears the moment shuffle goes off, and one
+ * removed while shuffled comes back.
+ */
+function withOriginal(state: QueueState, added: readonly number[]): readonly number[] {
+  if (state.original.length === 0) return state.original
+  const existing = new Set(state.original)
+  const fresh = added.filter(id => !existing.has(id))
+  return fresh.length === 0 ? state.original : [...state.original, ...fresh]
 }
 
 /** Drag-and-drop reordering. */

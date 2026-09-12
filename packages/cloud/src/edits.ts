@@ -113,11 +113,20 @@ export function tagSongs(
   })
 }
 
-/** Out of the library, on every device. The bucket keeps the files. */
-export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
+/**
+ * Out of the library, on every device.
+ *
+ * `deleteFile` is what the person was asked and answered, carried through so
+ * the Mac does the same thing it would have done had they asked it directly.
+ */
+export function removeSongs(
+  ctx: EditContext,
+  ids: readonly number[],
+  deleteFile = false,
+): Change[] {
   return [...new Set(ids)].flatMap(id => {
     const uid = ctx.view.uids.songs.get(id)
-    return uid ? [{ type: 'songRemoved' as const, hlc: ctx.stamp(), uid }] : []
+    return uid ? [{ type: 'songRemoved' as const, hlc: ctx.stamp(), uid, deleteFile }] : []
   })
 }
 

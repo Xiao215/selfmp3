@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useAccent } from '../accent'
 import { colors, NAV_HEIGHT, type } from '../theme'
 import { ListMusic, Music, Settings } from './Icons'
 
@@ -31,6 +32,7 @@ export function BottomNav(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
+  const accent = useAccent()
 
   return (
     <View
@@ -46,8 +48,8 @@ export function BottomNav(): ReactNode {
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <tab.Icon size={20} color={active ? colors.accent : colors.textMuted} />
-            <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
+            <tab.Icon size={20} color={active ? accent.accent : colors.textMuted} />
+            <Text style={[styles.label, active && { color: accent.accent }]}>{tab.label}</Text>
           </Pressable>
         )
       })}
@@ -72,8 +74,5 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: type.tiny,
     fontWeight: '500',
-  },
-  activeLabel: {
-    color: colors.accent,
   },
 })

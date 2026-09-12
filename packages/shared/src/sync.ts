@@ -161,7 +161,18 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       const song = library.songs.get(change.uid)
       if (!song || library.counted.has(change.playId)) return false
       library.counted.add(change.playId)
-      const at = toSqliteTime(Date.parse(change.playedAt))
+      /*
+       * No later than the change that reports it.
+       *
+       * A play cannot have happened after the moment it was written down, and
+       * `lastPlayedAt` only ever moves forward — so one bad timestamp, from a
+       * clock briefly wrong or a device that woke up confused, would stick and
+       * no real play could ever displace it. Clamped against the change's own
+       * stamp rather than against the wall clock, because every device has to
+       * replay this log to the same library; reading the time here would make
+       * the answer depend on when it was read.
+       */
+      const at = toSqliteTime(Math.min(Date.parse(change.playedAt), hlcTime(change.hlc)))
       library.songs.set(song.uid, {
         ...song,
         playCount: song.playCount + 1,

@@ -322,20 +322,22 @@ describe('plays and skips', () => {
       hlc: at(1, 'web-bbbb'),
       uid: SONG_A,
       playId: 'play-0001',
-      playedAt: '2026-09-11T08:30:00.000Z',
+      // Before the stamp on the change that reports it, as a real play is: it
+      // happened, and only then was it written down.
+      playedAt: '2026-09-09T08:30:00.000Z',
       msPlayed: 180_000,
       completed: true,
     }
     const library = replay([
       played,
       { ...played, hlc: at(9, 'web-bbbb') },
-      { ...played, playId: 'play-0002', playedAt: '2026-09-11T07:00:00.000Z' },
+      { ...played, playId: 'play-0002', playedAt: '2026-09-09T07:00:00.000Z' },
       {
         type: 'songSkipped',
         hlc: at(2),
         uid: SONG_A,
         skipId: 'skip-0001',
-        skippedAt: '2026-09-11T08:00:00.000Z',
+        skippedAt: '2026-09-09T08:00:00.000Z',
         atSeconds: 12,
       },
     ])
@@ -343,8 +345,28 @@ describe('plays and skips', () => {
       playCount: 2,
       skipCount: 1,
       // Only moves forward: the play from earlier that morning arrived last.
-      lastPlayedAt: '2026-09-11 08:30:00',
+      lastPlayedAt: '2026-09-09 08:30:00',
     })
+  })
+
+  /*
+   * A clock briefly wrong, or a device that woke up confused, must not be able
+   * to set a `lastPlayedAt` no real play can ever beat — it only moves
+   * forward, so one bad timestamp would stick for good.
+   */
+  it('refuses a play dated after the change that reports it', () => {
+    const library = replay([
+      {
+        type: 'songPlayed',
+        hlc: at(5),
+        uid: SONG_A,
+        playId: 'play-from-the-future',
+        playedAt: '2099-01-01T00:00:00.000Z',
+        msPlayed: 180_000,
+        completed: true,
+      },
+    ])
+    expect(library.songs.get(SONG_A)?.lastPlayedAt).toBe('2026-09-10 00:26:45')
   })
 })
 

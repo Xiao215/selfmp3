@@ -76,14 +76,36 @@ export class CoverService {
     }
   }
 
-  /** Download art from a URL (used for imports where yt-dlp gave a thumbnail). */
+  /**
+   * Download art from a URL (used for imports where yt-dlp gave a thumbnail).
+   *
+   * The ten seconds cover the whole thing, headers and body together. Stopping
+   * the clock once the headers arrived left a server that answers promptly and
+   * then trickles able to hold this open indefinitely — and the fix-covers pass
+   * waits on this one song at a time, so one slow host wedged the lot with no
+   * way to stop or restart it. The size cap is for the same reason from the
+   * other direction: a cover is tens of kilobytes, and nothing says the thing
+   * at the end of that URL is a cover.
+   */
   async saveFromUrl(songId: number, url: string): Promise<boolean> {
+    // `z.string().url()` upstream says it is a URL, not that it is a web
+    // address; art comes off the web and nothing else is worth fetching.
+    let parsed: URL
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 10_000)
+      parsed = new URL(url)
+    } catch {
+      return false
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10_000)
+    try {
       const response = await fetch(url, { signal: controller.signal })
-      clearTimeout(timer)
       if (!response.ok) return false
+
+      const declared = Number(response.headers.get('content-length') ?? Number.NaN)
+      if (Number.isFinite(declared) && declared > MAX_COVER_BYTES) return false
 
       const contentType = response.headers.get('content-type') ?? ''
       const extension = contentType.includes('png')
@@ -92,14 +114,37 @@ export class CoverService {
           ? '.webp'
           : '.jpg'
 
-      const data = Buffer.from(await response.arrayBuffer())
+      const data = await readCapped(response, MAX_COVER_BYTES)
       // Guard against a redirect to an HTML error page.
-      if (data.length < 512) return false
+      if (!data || data.length < 512) return false
 
       await this.save(songId, data, extension)
       return true
     } catch {
       return false
+    } finally {
+      clearTimeout(timer)
     }
   }
+}
+
+/** Cover art is tens of kilobytes; past this it is not cover art. */
+const MAX_COVER_BYTES = 8 * 1024 * 1024
+
+/**
+ * The body, or null if it runs past `limit`.
+ *
+ * Read in chunks rather than through `arrayBuffer()` so an unannounced huge
+ * response is dropped as it arrives instead of after it has all been held.
+ */
+async function readCapped(response: Response, limit: number): Promise<Buffer | null> {
+  if (!response.body) return null
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+    total += chunk.byteLength
+    if (total > limit) return null
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
 }

@@ -13,7 +13,22 @@ import TrackPlayer, { Event } from 'react-native-track-player'
  * Android Auto) are handled in `src/car/androidAuto.ts` instead, where the
  * library is in scope.
  */
+/**
+ * Whether this JavaScript context has already wired the handlers up.
+ *
+ * `registerPlaybackService` is called from the layout's module body, and Fast
+ * Refresh re-runs module bodies — so every reload in development stacked
+ * another full set of handlers on the same events, and one tap of the lock
+ * screen's Next skipped as many tracks as there had been reloads. A fresh
+ * context (a cold start, or Android's headless task) starts false again, which
+ * is exactly right: those genuinely do need wiring up.
+ */
+let registered = false
+
 export async function playbackService(): Promise<void> {
+  if (registered) return
+  registered = true
+
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
     void TrackPlayer.play()
   })

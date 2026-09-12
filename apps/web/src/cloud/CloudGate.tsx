@@ -228,7 +228,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
           gate={gate}
           onConnected={session => setGate(gateFor(session))}
           onSignOut={() => void signOut()}
-          onCode={code => void claimWith(code)}
+          onCode={claimWith}
           onCancel={() => {
             void clearPendingSignIn()
             setGate({ kind: 'signed-out', message: null })
@@ -249,7 +249,7 @@ function GateBody({
   gate: Gate
   onConnected: (session: CloudSession) => void
   onSignOut: () => void
-  onCode: (code: string) => void
+  onCode: (code: string) => Promise<void>
   onCancel: () => void
 }) {
   switch (gate.kind) {
@@ -335,23 +335,28 @@ function EnterCode({
   onCancel,
 }: {
   error: string | null
-  onCode: (code: string) => void
+  onCode: (code: string) => Promise<void>
   onCancel: () => void
 }) {
   const [value, setValue] = useState('')
   const [sending, setSending] = useState(false)
   const parsed = SignInCodeSchema.safeParse(value)
 
-  useEffect(() => setSending(false), [error])
-
   return (
     <form
       className="cloud-gate-form"
       onSubmit={event => {
         event.preventDefault()
-        if (!parsed.success) return
+        if (!parsed.success || sending) return
         setSending(true)
-        onCode(parsed.data)
+        /*
+         * Wait for the attempt itself rather than for the error text to
+         * change. Two tries that fail the same way leave the message exactly
+         * as it was, and watching it for a change meant the button never came
+         * back — the same sign-in code refused twice disabled signing in for
+         * good, short of reloading the page.
+         */
+        void onCode(parsed.data).finally(() => setSending(false))
       }}
     >
       <p className="panel-lead">

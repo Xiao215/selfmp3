@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatDuration, type Song } from '@selfmp3/shared'
+import { useAccent } from '../accent'
 import { colors, radius, space, type } from '../theme'
 import { Cover } from './Cover'
 import { Downloaded, Heart } from './Icons'
@@ -33,6 +34,8 @@ export const SongRow = memo(function SongRow({
   onLongPress?: () => void
   onToggleLoved?: () => void
 }): ReactNode {
+  const accent = useAccent()
+
   return (
     <Pressable
       onPress={onPress}
@@ -49,7 +52,7 @@ export const SongRow = memo(function SongRow({
       </View>
 
       <View style={styles.text}>
-        <Text style={[styles.title, active && styles.activeText]} numberOfLines={1}>
+        <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
           {song.title}
         </Text>
         <View style={styles.subtitleRow}>
@@ -98,9 +101,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: type.body,
     fontWeight: '500',
-  },
-  activeText: {
-    color: colors.accent,
   },
   subtitle: {
     color: colors.textMuted,

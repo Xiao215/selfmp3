@@ -37,8 +37,3 @@ export function writeCachedLibrary(library: Library): void {
     // A cache that cannot be written is a slower cold start, not a failure.
   }
 }
-
-export function clearCachedLibrary(): void {
-  const file = cacheFile()
-  if (file.exists) file.delete()
-}

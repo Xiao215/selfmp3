@@ -1,4 +1,4 @@
-import { fuzzyRank, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
+import { fuzzyRank, sortSongs, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
 
 /**
  * Library filtering and sorting.
@@ -38,29 +38,6 @@ function searchText(song: Song): string {
   return `${song.title} ${song.artist} ${song.album}`
 }
 
-function compare(a: Song, b: Song, field: SongSortField): number {
-  switch (field) {
-    case 'title':
-      return a.title.localeCompare(b.title)
-    case 'artist':
-      return a.artist.localeCompare(b.artist) || a.album.localeCompare(b.album)
-    case 'album':
-      return a.album.localeCompare(b.album) || (a.trackNo ?? 0) - (b.trackNo ?? 0)
-    case 'duration':
-      return a.duration - b.duration
-    case 'addedAt':
-      return a.addedAt.localeCompare(b.addedAt)
-    case 'playCount':
-      return a.playCount - b.playCount
-    case 'lastPlayedAt':
-      return (a.lastPlayedAt ?? '').localeCompare(b.lastPlayedAt ?? '')
-    case 'random':
-      // Only ever set by a smart playlist on the server; a stable order is a
-      // better answer here than reshuffling on every render.
-      return a.id - b.id
-  }
-}
-
 export function filterSongs(
   songs: readonly Song[],
   filter: LibraryFilter,
@@ -78,8 +55,9 @@ export function filterSongs(
     return fuzzyRank(filter.query, result, searchText).map(match => match.item)
   }
 
-  const sorted = [...result].sort((a, b) => compare(a, b, filter.sort))
-  return filter.descending ? sorted.reverse() : sorted
+  // The shared comparison, so the phone and the Mac put the same library in
+  // the same order. A local copy drifted from the web app's in four places.
+  return sortSongs(result, filter.sort, filter.descending)
 }
 
 /** Tags that are actually used, so the filter row is not full of dead chips. */

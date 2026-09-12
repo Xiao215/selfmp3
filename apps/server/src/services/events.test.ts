@@ -96,4 +96,51 @@ describe('EventHub', () => {
     expect(hub.size).toBe(0)
     hub.stop()
   })
+
+  /*
+   * Nothing ends an event stream on its own, so shutting down has to. A stream
+   * left open holds the socket open, and the server waits on open sockets.
+   */
+  it('ends every stream when it stops', () => {
+    const hub = new EventHub(logger)
+    const ended: string[] = []
+    const sink = (name: string): EventSink => ({
+      write: () => undefined,
+      end: () => ended.push(name),
+    })
+    hub.subscribe(sink('mac'), null)
+    hub.subscribe(sink('phone'), 'phone-00001')
+
+    hub.stop()
+
+    expect(ended).toEqual(['mac', 'phone'])
+    expect(hub.size).toBe(0)
+  })
+
+  it('stops twice without ending a stream twice', () => {
+    const hub = new EventHub(logger)
+    let ends = 0
+    hub.subscribe({ write: () => undefined, end: () => ends++ }, null)
+
+    hub.stop()
+    hub.stop()
+
+    expect(ends).toBe(1)
+  })
+
+  it('stops cleanly when a stream refuses to close', () => {
+    const hub = new EventHub(logger)
+    hub.subscribe(
+      {
+        write: () => undefined,
+        end: () => {
+          throw new Error('ERR_STREAM_DESTROYED')
+        },
+      },
+      null,
+    )
+
+    expect(() => hub.stop()).not.toThrow()
+    expect(hub.size).toBe(0)
+  })
 })

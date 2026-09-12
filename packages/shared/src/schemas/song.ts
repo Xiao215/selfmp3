@@ -166,6 +166,15 @@ export type PlayRecorded = z.infer<typeof PlayRecordedSchema>
 
 export const SkipEventSchema = z.object({
   atSeconds: z.number().nonnegative(),
+  /**
+   * The outbox's own id for this skip, so one sent twice counts once.
+   *
+   * Same reasoning as a play's `clientId`: a phone that loses the response
+   * keeps the event and sends it again, and without something to recognise it
+   * by the skip is counted each time. Optional because a client that has
+   * nothing to resend need not have an id.
+   */
+  clientId: z.string().min(8).max(64).optional(),
 })
 export type SkipEvent = z.infer<typeof SkipEventSchema>
 

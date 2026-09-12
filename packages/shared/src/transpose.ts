@@ -1,4 +1,4 @@
-import { camelotFromKey, keyName, PITCH_NAMES, type KeyMode } from './features.js'
+import { camelotFromKey, keyName, type KeyMode } from './features.js'
 
 /**
  * Transposition helpers for the practice panel.
@@ -62,6 +62,3 @@ export function rateToSemitones(rate: number): number {
   if (!(rate > 0)) return 0
   return Math.round(12 * Math.log2(rate) * 10) / 10
 }
-
-/** The pitch names, so a UI can show a wheel or a list. */
-export const TRANSPOSE_PITCHES = PITCH_NAMES

@@ -35,7 +35,21 @@ export const SongTaggedSchema = z.object({
   on: z.boolean(),
 })
 
-export const SongRemovedSchema = z.object({ type: z.literal('songRemoved'), ...at })
+export const SongRemovedSchema = z.object({
+  type: z.literal('songRemoved'),
+  ...at,
+  /**
+   * Whether the audio goes too, or only the song.
+   *
+   * "Remove from my list" and "destroy the file" are different answers to
+   * different questions, and the device that asked is the only one that knows
+   * which was meant — so the answer travels with the change rather than being
+   * assumed by whoever applies it. Defaults to keeping the file, both because
+   * that is the safe way to be wrong and because a log written before this
+   * field existed said nothing about deleting anything.
+   */
+  deleteFile: z.boolean().default(false),
+})
 
 export const SongPlayedSchema = z.object({
   type: z.literal('songPlayed'),

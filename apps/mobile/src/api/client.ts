@@ -184,8 +184,12 @@ export const api = {
   recordPlay: (connection: ServerConnection | null, id: number, event: PlayEvent) =>
     request(connection, 'POST', `/api/songs/${id}/played`, OkSchema, event),
 
-  recordSkip: (connection: ServerConnection | null, id: number, atSeconds: number) =>
-    request(connection, 'POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds }),
+  recordSkip: (
+    connection: ServerConnection | null,
+    id: number,
+    atSeconds: number,
+    clientId?: string,
+  ) => request(connection, 'POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
 
   setLoved: (connection: ServerConnection | null, id: number, loved: boolean) =>
     request(connection, 'POST', `/api/songs/${id}/loved`, SongSchema, { loved }),

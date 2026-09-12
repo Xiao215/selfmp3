@@ -16,6 +16,13 @@ import { appPath } from '../lib/platform.js'
 
 export const AUDIO_CACHE = 'selfmp3-audio-v1'
 
+/**
+ * How a download tells the service worker it wants the file itself, not the
+ * copy already kept. The other half is `REFRESH_HEADER` in sw.ts, which has no
+ * imports on purpose; the two have to agree.
+ */
+const REFRESH_HEADER = 'x-selfmp3-refresh'
+
 /** Cache keys are the stream URLs themselves, so the SW can match on request. */
 export function audioCacheKey(songId: number): string {
   return appPath(`api/stream/${songId}`)
@@ -144,10 +151,12 @@ export type DownloadFraction = number | null
 /**
  * Download one song into the cache.
  *
- * `cache: 'reload'` bypasses the HTTP cache so a re-download after a file
- * changed on the Mac actually fetches fresh bytes. The response is only stored
- * if it is a complete 200 — caching a partial 206 would poison the cache with
- * a fragment that plays for four seconds and stops.
+ * `cache: 'reload'` bypasses the browser's HTTP cache, and `REFRESH_HEADER`
+ * bypasses our own service worker, which sits in front of it and would
+ * otherwise hand back the very copy this is trying to replace. Both are needed
+ * for a re-download after a file changed on the Mac to fetch fresh bytes. The
+ * response is only stored if it is a complete 200 — caching a partial 206
+ * would poison the cache with a fragment that plays for four seconds and stops.
  *
  * With `onProgress`, the body is passed through a counter on its way into the
  * cache: the bytes still stream straight to disk rather than being held in
@@ -165,6 +174,7 @@ export async function cacheSong(
 
   const response = await fetch(url, {
     cache: 'reload',
+    headers: { [REFRESH_HEADER]: '1' },
     ...(signal ? { signal } : {}),
   })
 

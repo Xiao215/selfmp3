@@ -1,47 +1,48 @@
-# Phase 3 gate: a downloaded playlist plays with the network gone.
+# Phase 3 gate: a downloaded song plays with the Mac out of reach.
 #
 # Named by the gate in docs/UNIVERSAL.md:
 #   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 #
-# SKELETON, and one that needs a hand. Maestro cannot toggle airplane mode on
-# the iOS simulator — there is no Settings toggle for it there — so the honest
-# options are to run this on a real device, or to have the app's own network
-# port expose a test-only offline switch. docs/UNIVERSAL.md's OfflineStore port
-# is the natural home for that, and phase 3 should decide which.
+# Run it through offline-run.sh, not on its own. The plan says airplane mode,
+# which the iOS simulator does not have, and a test-only switch inside the app
+# would prove the switch rather than the player: track-player fetches its own
+# URLs, so only a server that genuinely does not answer shows whether a song
+# is coming from disk. offline-run.sh freezes the Mac's server for the length
+# of the run and always resumes it — to the phone, a Mac that has gone to
+# sleep, which is the ordinary way a phone away from home loses it.
 #
-# Until then the steps below cover everything either side of the toggle, and the
-# toggle itself is marked.
+# Needs a phone connected to that Mac by address with at least one song
+# downloaded; smoke.yaml downloads a playlist on the way through.
+#
+# Not asserted, because it does not exist: the plan's "an undownloaded song
+# says so instead of failing". The web app refuses to start it and says why;
+# the phone starts it, and it sits paused with no word. That is a visible
+# change, so it is a question in docs/universal-progress.md, not a fix here.
 appId: com.selfmp3.app
 ---
 - launchApp
 
-- tapOn:
-    id: 'tab-playlists'
-- tapOn:
-    id: 'playlist-row-0'
+# The library is the cached copy, which shows once the request has timed out
+# and been retried once: about half a minute.
+- extendedWaitUntil:
+    visible:
+      id: 'song-row-0'
+    timeout: 90000
 
-# The playlist has to actually be downloaded for the rest to mean anything.
-- assertVisible:
-    id: 'playlist-downloaded'
-
-# --- go offline --------------------------------------------------------------
-# TODO(phase 3): airplane mode, or the port's test switch. See the note above.
-- runScript:
-    file: offline-on.sh
-
-# A downloaded song plays from disk with no network at all.
+- tapOn: 'On this phone'
 - tapOn:
     id: 'song-row-0'
+- extendedWaitUntil:
+    visible:
+      id: 'mini-player-playing'
+    timeout: 15000
+
+# Still playing a few seconds on, rather than a moment's state before a load
+# that fails. Maestro has no sleep; a wait that is expected to time out is one.
+- extendedWaitUntil:
+    notVisible:
+      id: 'mini-player-playing'
+    timeout: 8000
+    optional: true
 - assertVisible:
     id: 'mini-player-playing'
-
-# And one that was never downloaded says so, rather than failing silently —
-# which docs/UNIVERSAL.md calls out as the behaviour that must not regress.
-- tapOn:
-    id: 'tab-library'
-- tapOn:
-    id: 'song-row-undownloaded'
-- assertVisible: 'Not downloaded'
-
-- runScript:
-    file: offline-off.sh

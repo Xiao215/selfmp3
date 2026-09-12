@@ -3,24 +3,44 @@
 Maestro flows for the phone halves of the checks in `docs/UNIVERSAL.md`.
 
 These need a Mac: a booted simulator, a dev client built from this workspace,
-and `maestro` on the `PATH` (`curl -Ls https://get.maestro.mobile.dev | bash`).
-None of them can run in a Linux container, which is why the web halves of the
-same checks live in `../verify/` as Playwright specs and were run there.
+and `maestro` on the `PATH` (`curl -Ls https://get.maestro.mobile.dev | bash`,
+which installs to `~/.maestro/bin`). None of them can run in a Linux
+container, which is why the web halves of the same checks live in `../verify/`
+as Playwright specs.
 
 Before any of these, from `apps/app`:
 
 ```
 npx expo run:ios                                  # once per native change
-npx expo start --dev-client --port 8082
+npx expo start --dev-client --port 8095
 xcrun simctl openurl booted \
-  "selfmp3://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8082"
+  "selfmp3://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8095"
 ```
 
-Each flow deep-links straight to its route, so none of them depends on a
-configured server or a signed-in session — the `/spike-*` routes are exempt
-from the sign-in redirect in `app/_layout.tsx`.
+The first deep link on a fresh simulator raises "Open in self.mp3?", and
+`simctl openurl` does not return until it is answered — which looks exactly
+like a hung simulator. Tap Open (or `maestro hierarchy` to see it is there).
 
-`spike-*.yaml` are throwaway and go when the spike branch does. `smoke.yaml`,
-`offline.yaml` and `devices.yaml` are named by the phase 2 and 3 gates and are
-skeletons: the steps are written out, but they assert against screens that do
-not exist yet, so they will fail until the phase that builds them.
+All three flows go through the real app, so the phone has to be set up first,
+and the same way for all three: **connected to the Mac by address**, not
+signed in to the cloud. Presence, handoff and remote control travel through
+the Mac's event stream, so a cloud-only phone has no other devices by design.
+The sign-in screen has no way to the address form; open it directly:
+
+```
+xcrun simctl openurl booted "selfmp3://onboarding"
+```
+
+| Flow | Also needs | How to run |
+|---|---|---|
+| `smoke.yaml` | A library on the Mac | `maestro test .maestro/smoke.yaml` |
+| `devices.yaml` | Another device playing against the same Mac, e.g. the web app open in a browser | `maestro test .maestro/devices.yaml` |
+| `offline.yaml` | At least one song downloaded (`smoke.yaml` downloads a playlist) | `.maestro/offline-run.sh` |
+
+`offline-run.sh` freezes the Mac's server for the run and resumes it
+afterwards, because the simulator has no airplane mode. Pass maestro's options
+through it, e.g. `.maestro/offline-run.sh --device <udid>`.
+
+Two things these flows cannot see, which whoever runs them reads from
+`GET /api/devices` on the Mac: that the other device paused on handoff, and
+that the phone started near the position the other device had reached.

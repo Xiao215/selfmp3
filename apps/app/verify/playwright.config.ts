@@ -27,10 +27,7 @@ export default defineConfig({
       // Playback checks call play() without a click. Without these the browser
       // blocks it and the test measures Chrome's autoplay policy rather than
       // the engine.
-      args: [
-        '--autoplay-policy=no-user-gesture-required',
-        '--mute-audio',
-      ],
+      args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'],
     },
     trace: 'retain-on-failure',
   },

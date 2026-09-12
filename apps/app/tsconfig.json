@@ -14,7 +14,10 @@
     "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    // jest's globals, for the component tests. The model tests are vitest's and
+    // import their own, so this only covers `*.test.tsx`.
+    "types": ["jest"]
   },
   "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "ios", "android", ".expo"]

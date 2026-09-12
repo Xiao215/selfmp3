@@ -62,6 +62,24 @@ module.exports = [
     },
   },
   {
+    // Jest's globals, for the component tests and their setup. The model tests
+    // are vitest's and import theirs, which is why this is only `*.test.tsx`
+    // and the one setup file.
+    files: ['**/*.test.tsx', 'jest.setup.js', 'jest.config.js'],
+    languageOptions: {
+      globals: {
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        module: 'writable',
+        require: 'readonly',
+      },
+    },
+  },
+  {
     // docs/UNIVERSAL.md foundation 3, enforced.
     //
     // A model file holds a feature's state and behaviour and draws nothing, so

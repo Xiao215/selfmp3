@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDuration, isYouTubeUrl, type ImportPreviewItem } from '@selfmp3/shared'
+import { mediaUrl } from '../lib/api.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { Pause, Play, X } from './Icons.js'
 
@@ -28,8 +29,6 @@ export interface Listening {
 
 /** The server can only stream what yt-dlp finds on YouTube. */
 export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean => isYouTubeUrl(item.url)
-
-const listenUrl = (url: string): string => `/api/import/listen?url=${encodeURIComponent(url)}`
 
 /**
  * Read from the element rather than from which event fired: switching tracks
@@ -126,7 +125,7 @@ export function useListen() {
 
     makeRoom()
     setListening({ track, status: 'loading', currentTime: 0, duration: track.duration })
-    audio.src = listenUrl(track.url)
+    audio.src = mediaUrl.importListen(track.url)
     // A refusal lands in the element's own error, which `sync` reads.
     void audio.play().catch(() => undefined)
   }

@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { api, ApiError } from '../src/api/client'
+import { apiFor, ApiError } from '../src/api/client'
 import { normaliseBaseUrl } from '../src/server/connection'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { Button } from '../src/ui/components/Button'
@@ -50,7 +50,7 @@ export default function OnboardingScreen(): ReactNode {
 
     void (async () => {
       try {
-        const health = await api.health(candidate)
+        const health = await apiFor(candidate).health()
         // `/api/health` answers without a token and keeps the library's
         // details back from an asker who has not proved anything; the count
         // and the path arrive once the token below has been accepted.
@@ -62,7 +62,7 @@ export default function OnboardingScreen(): ReactNode {
 
         // /api/health is unauthenticated, so prove the token separately
         // rather than discovering it is wrong on the first real request.
-        if (candidate.token) await api.settings(candidate)
+        if (candidate.token) await apiFor(candidate).settings()
 
         await connect(candidate)
         router.replace('/')

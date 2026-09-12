@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { mediaUrl } from '../api/client'
+import { mediaUrlFor } from '../api/client'
 import { useConnection } from '../server/ConnectionProvider'
 import { coversNow, ensureCover, onCoversChanged } from './covers'
 
@@ -28,7 +28,7 @@ export function useArt(): (song: Song) => string | null {
       // `fromCloud`, not `connection`: an address left over from talking to a
       // Mac is still stored, and asking whether one exists sends the loader to
       // a Mac that is not running.
-      if (!fromCloud && connection) return mediaUrl.art(connection, song.id, song.rev)
+      if (!fromCloud && connection) return mediaUrlFor(connection).art(song.id, song.rev)
       void ensureCover(song.id)
       return covers.get(song.id) ?? null
     },

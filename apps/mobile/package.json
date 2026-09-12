@@ -18,6 +18,7 @@
     "@expo/log-box": "^57.0.4",
     "@expo/metro-runtime": "~57.0.15",
     "@react-native-masked-view/masked-view": "0.3.2",
+    "@selfmp3/client": "*",
     "@selfmp3/cloud": "*",
     "@selfmp3/shared": "*",
     "@tanstack/react-query": "^5.62.11",

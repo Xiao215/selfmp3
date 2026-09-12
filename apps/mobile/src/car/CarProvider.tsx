@@ -35,7 +35,7 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
       staleTime: 5 * 60_000,
       queryFn: async () => {
         if (!connection) throw new Error('no server configured')
-        return api.playlistSongs(connection, playlist.id)
+        return api.playlistSongs(playlist.id)
       },
     })),
   })

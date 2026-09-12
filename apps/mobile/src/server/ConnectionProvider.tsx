@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { answerFromCloud } from '../api/client'
+import { answerFromCloud, setServer } from '../api/client'
 import { session as cloudSession } from '../cloud'
 import {
   clearConnection,
@@ -53,6 +53,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       ])
       if (cancelled) return
       answerFromCloud(signedIn !== null)
+      // The API client keeps the address in module state, not in this context:
+      // the playback service and the download queue both make requests from
+      // outside the component tree, where there is nothing to read a context
+      // from. This provider is its only writer.
+      setServer(stored)
       setFromCloud(signedIn !== null)
       setConnection(stored)
       setStatus(signedIn || stored ? 'ready' : 'missing')
@@ -72,6 +77,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const connect = useCallback(async (next: ServerConnection) => {
     // Choosing a Mac on purpose means answering from it, not the bucket.
     answerFromCloud(false)
+    setServer(next)
     setFromCloud(false)
     await saveConnection(next)
     setConnection(next)
@@ -80,6 +86,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   const disconnect = useCallback(async () => {
     await clearConnection()
+    setServer(null)
     setConnection(null)
     setStatus('missing')
   }, [])

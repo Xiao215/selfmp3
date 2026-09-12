@@ -13,6 +13,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo tsconfig.node.tsbuildinfo"
   },
   "dependencies": {
+    "@selfmp3/client": "*",
     "@selfmp3/cloud": "*",
     "@selfmp3/shared": "*",
     "@tanstack/react-query": "^5.62.11",

@@ -1,6 +1,6 @@
 import { Directory, File, Paths, type DownloadProgress, type DownloadTask } from 'expo-file-system'
 import type { Song, SyncManifest } from '@selfmp3/shared'
-import { mediaUrl } from '../api/client'
+import { mediaUrlFor } from '../api/client'
 import { nativePlatform, session as cloudSession } from '../cloud'
 import type { ServerConnection } from '../server/connection'
 import {
@@ -367,7 +367,7 @@ async function sourceFor(
     }
   }
   if (!connection) throw new Error('no server, and not signed in to the cloud')
-  return { url: mediaUrl.stream(connection, songId) }
+  return { url: mediaUrlFor(connection).stream(songId) }
 }
 
 function directory(): Directory {

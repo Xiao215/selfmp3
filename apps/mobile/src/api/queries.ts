@@ -49,7 +49,7 @@ export function useServerSettings(): UseQueryResult<Settings> {
     staleTime: 60_000,
     queryFn: async (): Promise<Settings> => {
       if (!connection) throw new Error('no server configured')
-      return api.settings(connection)
+      return api.settings()
     },
   })
 }
@@ -65,7 +65,7 @@ export function useLibrary(): UseQueryResult<Library> {
     retry: 1,
     queryFn: async (): Promise<Library> => {
       try {
-        const library = await api.library(connection)
+        const library = await api.library()
         writeCachedLibrary(library)
         return library
       } catch (error) {
@@ -85,7 +85,7 @@ export function useManifest(): UseQueryResult<SyncManifest> {
     enabled: status === 'ready',
     staleTime: 60_000,
     queryFn: async (): Promise<SyncManifest> => {
-      return api.manifest(connection)
+      return api.manifest()
     },
   })
 }
@@ -99,7 +99,7 @@ export function usePlaylistSongs(playlistId: number | null): UseQueryResult<Play
     staleTime: 30_000,
     queryFn: async (): Promise<PlaylistSongs> => {
       if (playlistId === null) throw new Error('no playlist')
-      return api.playlistSongs(connection, playlistId)
+      return api.playlistSongs(playlistId)
     },
   })
 }
@@ -115,7 +115,7 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse>
     retry: false,
     queryFn: async (): Promise<LyricsResponse> => {
       if (songId === null) throw new Error('no song')
-      return api.lyrics(connection, songId)
+      return api.lyrics(songId)
     },
   })
 }
@@ -139,7 +139,7 @@ export function useToggleLoved(): UseMutationResult<
   const key = queryKeys.library(connection?.baseUrl ?? 'cloud')
 
   return useMutation({
-    mutationFn: ({ id, loved }) => api.setLoved(connection, id, loved),
+    mutationFn: ({ id, loved }) => api.setLoved(id, loved),
     onMutate: async ({ id, loved }) => {
       await queryClient.cancelQueries({ queryKey: key })
       const previous = queryClient.getQueryData<Library>(key)

@@ -57,7 +57,7 @@ function persist(): void {
 async function send(connection: ServerConnection, event: OutboxEvent): Promise<SendOutcome> {
   try {
     if (event.kind === 'play') {
-      await api.recordPlay(connection, event.songId, {
+      await api.recordPlay(event.songId, {
         msPlayed: event.msPlayed,
         completed: event.completed,
         playedAt: event.playedAt,
@@ -65,7 +65,7 @@ async function send(connection: ServerConnection, event: OutboxEvent): Promise<S
       })
     } else {
       // The event's own id, so a skip whose response was lost counts once.
-      await api.recordSkip(connection, event.songId, event.atSeconds, event.id)
+      await api.recordSkip(event.songId, event.atSeconds, event.id)
     }
     return 'sent'
   } catch (error) {

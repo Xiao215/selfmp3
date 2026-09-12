@@ -1,6 +1,6 @@
 import type { Track } from 'react-native-track-player'
 import type { Song } from '@selfmp3/shared'
-import { mediaUrl } from '../api/client'
+import { mediaUrlFor } from '../api/client'
 import type { ServerConnection } from '../server/connection'
 
 /**
@@ -34,7 +34,7 @@ export function toTrack(
     // A stable id lets the native side dedupe; RNTP passes unknown keys
     // through untouched.
     id: String(song.id),
-    url: localUri ?? mediaUrl.stream(connection as ServerConnection, song.id, song.rev),
+    url: localUri ?? mediaUrlFor(connection as ServerConnection).stream(song.id, song.rev),
     title: song.title,
     artist: song.artist,
     album: song.album,
@@ -42,7 +42,9 @@ export function toTrack(
     // the same header the loader cannot send, so a bucket song shows none
     // until covers are downloaded alongside the audio.
     artwork:
-      song.hasArt && connection ? mediaUrl.art(connection, song.id, song.rev) : undefined,
+      song.hasArt && connection
+        ? mediaUrlFor(connection).art(song.id, song.rev)
+        : undefined,
     duration: song.duration > 0 ? song.duration : undefined,
     contentType: song.mime,
     isLiveStream: false,

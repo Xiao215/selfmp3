@@ -1,0 +1,27 @@
+/**
+ * `@selfmp3/client` — what any client of this library does that is not drawing.
+ *
+ * The API client, the query hooks and the rules about which server answers,
+ * compiled without the DOM so the same code runs in a browser, on a phone and
+ * in a test. Everything platform-shaped is an interface in `platform.ts`.
+ */
+export type {
+  ApiContext,
+  ApiTransport,
+  ClientFetch,
+  ClientPlatform,
+  ClientRequestInit,
+  ClientResponse,
+  CloudRequest,
+  LibrarySnapshotStore,
+} from './platform.js'
+
+export { ApiError } from './api/error.js'
+export { createApi, type Api, type ApiOptions } from './api/api.js'
+export { createMediaUrl, type MediaUrl } from './api/media.js'
+
+export {
+  normaliseBaseUrl,
+  serverTransport,
+  type ServerConnection,
+} from './connection/connection.js'

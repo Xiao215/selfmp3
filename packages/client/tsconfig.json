@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // No DOM, the same rule packages/shared and packages/cloud follow and for
+    // the same reason: React Native has no `window`, no `document` and no
+    // `caches`, so anything that reaches for them must fail here rather than on
+    // a phone. What genuinely needs the platform is declared in `platform.ts`
+    // and supplied by each app.
+    //
+    // This is what makes the package's own `fetch` a declared interface rather
+    // than the browser's: the DOM lib is where the real one is typed.
+    "lib": ["ES2023"],
+    "jsx": "react-jsx"
+  },
+  "references": [{ "path": "../shared" }, { "path": "../cloud" }],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

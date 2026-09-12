@@ -5,7 +5,7 @@ import {
   normalizeSignInCode,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { toBase64, toBase64Url, utf8 } from './encoding.js'
+import { fromBase64Url, toBase64, toBase64Url, utf8 } from './encoding.js'
 import { SEAL_KEY, newAttempt } from './fakes.js'
 import { deriveKeys } from './keys.js'
 import {
@@ -26,6 +26,18 @@ import {
  */
 
 const NOW = Date.parse('2026-09-11T12:00:00Z')
+
+const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
+/**
+ * The very same MAC, spelled the next way along. Six bits a character means
+ * the last of a MAC's forty-three carries four bits of it and two bits of
+ * nothing, and an encoder leaves those two bits clear — so the character
+ * after it in the alphabet stands for the same thirty-two bytes.
+ */
+function respell(mac: string): string {
+  return mac.slice(0, -1) + BASE64URL.charAt(BASE64URL.indexOf(mac.slice(-1)) + 1)
+}
 
 function state(changes: Partial<SignInState> = {}): SignInState {
   return {
@@ -52,9 +64,16 @@ describe('the state', () => {
     const signed = await signState(state(), key)
     const [payload = '', mac = ''] = signed.split('.')
     const other = toBase64Url(utf8(JSON.stringify(state({ returnTo: 'https://evil.example/' }))))
+    // Both spell the same MAC, and only the one the doorman wrote is base64url.
+    expect(fromBase64Url(mac)).not.toBeNull()
+    expect(fromBase64Url(respell(mac))).toBeNull()
     for (const value of [
       `${other}.${mac}`,
-      `${payload}.${mac.slice(0, -1)}${mac.endsWith('A') ? 'B' : 'A'}`,
+      // A MAC's first character is six bits of it, so this is another MAC.
+      `${payload}.${mac.startsWith('A') ? 'B' : 'A'}${mac.slice(1)}`,
+      // Its last is four bits of the MAC and two bits of nothing, so this is
+      // the same MAC, spelled a way no encoder writes it.
+      `${payload}.${respell(mac)}`,
       `${payload}.`,
       `.${mac}`,
       payload,

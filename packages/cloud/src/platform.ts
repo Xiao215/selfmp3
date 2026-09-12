@@ -45,6 +45,17 @@ export interface DeviceStore {
   read(key: string): Promise<unknown>
   write(key: string, value: unknown): Promise<void>
   remove(key: string): Promise<void>
+  /**
+   * Read, change, write, with nothing getting in between.
+   *
+   * Not sugar over `read` and `write`: the outbox is changed this way, and two
+   * browser tabs share an origin, so a read-then-write pair can lose a change
+   * that the other tab made in the gap — or hand out the same log sequence
+   * number twice, which is the one thing the bucket's format cannot survive.
+   * A browser does this in an IndexedDB transaction. A device with one
+   * JavaScript context can simply do the three steps.
+   */
+  update(key: string, change: (current: unknown) => unknown): Promise<unknown>
 }
 
 export interface CloudPlatform {
@@ -70,4 +81,48 @@ export interface CloudPlatform {
 
   /** Leave for the doorman's sign-in page — navigate, or open a browser. */
   openSignIn(url: string): void | Promise<void>
+
+  /**
+   * What kind of device this is, for its name in the bucket — `iphone`,
+   * `browser`, `mac`. Only ever a label: nothing reads it back to decide
+   * anything, and two devices of a kind are told apart by the random half of
+   * the name.
+   */
+  readonly deviceKind: string
+
+  /**
+   * Run this when the device looks able to reach the bucket again — the
+   * network came back, or the app returned to the front. Used to send what is
+   * waiting in the outbox without sitting on a timer. A platform with nothing
+   * to offer may do nothing; the retry timer still runs.
+   */
+  onWake(run: () => void): void
+
+  /**
+   * Text from the bucket, given its bytes.
+   *
+   * Snapshots are stored gzip-compressed, and whether they arrive that way
+   * depends on the platform — a browser undoes it only when the doorman
+   * passes the encoding on, while a native HTTP client inflates transparently
+   * and hands over plain bytes. So each platform says how to read them, and
+   * the difference stops here.
+   */
+  decodeText(bytes: Uint8Array): Promise<string>
+
+  /**
+   * Somewhere to keep small text files fetched from the bucket — lyrics,
+   * named by the hash of their contents, so they never go stale and are there
+   * on a plane. Optional: a device without one simply fetches again.
+   */
+  readonly textCache?: TextCache
+
+  /** Somewhere to say that something was skipped. Optional; console by default. */
+  warn?(message: string): void
+}
+
+/** Text files from the bucket, kept by key. Keys are content hashes. */
+export interface TextCache {
+  read(key: string): Promise<string | null>
+  write(key: string, text: string): Promise<void>
+  clear(): Promise<void>
 }

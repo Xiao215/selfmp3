@@ -4,7 +4,8 @@ A log of the overnight run against `docs/UNIVERSAL.md`, written for whoever
 reads it in the morning. Newest phase last. Times are UTC on 2026-09-12.
 
 Nothing has been merged to `main`. Every branch is pushed to `origin` and
-nothing else.
+nothing else. Each branch is based on the one before it: spike, then phase-1,
+then phase-2 from phase-1, then phase-3 from phase-2.
 
 ---
 
@@ -111,11 +112,14 @@ All recorded in the commit messages that made them. In summary:
 
 ### Phases 2 and 3
 
-**Not started.** Both gates need a Mac: phase 2 requires `expo run:ios`,
-`expo run:android` and `maestro test`, and phase 3 requires Maestro for the
-offline and devices flows. Starting them here would produce branches that
-cannot be shown to be green, against a ground rule that says commit only on
-green gates.
+**Not started at the time this was written** — both gates need a Mac: phase 2
+requires `expo run:ios`, `expo run:android` and `maestro test`, and phase 3
+requires Maestro for the offline and devices flows. Starting them there would
+have produced branches that cannot be shown to be green, against a ground rule
+that says commit only on green gates.
+
+They were begun later in the same run, as far as a container could take them.
+See the two sections below.
 
 ---
 
@@ -209,6 +213,100 @@ on 4600 when this started — `npm run start` from the main checkout, on the
 real library — and the dev server lost the bind race silently, so the flows
 would have run against the real collection. Xiao confirmed it could be
 stopped. Check what owns 4600 before trusting a green run.
+
+---
+
+## Phase 2 — `apps/app` — branch `universal/phase-2`
+
+One commit, `1ba3d2c` at 07:17. **Scaffolding only — no screens ported.**
+
+`apps/app` is today's `apps/mobile` copied whole, with the web target the spike
+proved. Copied from `apps/mobile` as it stands on phase 1, not from the spike's
+own copy: the spike copied the phone app before `packages/client` existed, so
+its `apps/app` is a phase behind.
+
+### Gates
+
+| Command | Result |
+|---|---|
+| `npm run check:app` | **pass** |
+| `npx expo export -p web` | **pass** — 1.7MB bundle, and again under `/selfmp3/` |
+| `verify/boot.spec.ts` | **pass** at 1280 and 375 |
+| `npx expo run:ios` / `run:android` | **not run** — needs Xcode and the Android SDK |
+| `maestro test .maestro/smoke.yaml` | **not run** — needs a simulator |
+| `npx playwright test verify/flows --project=phone` | **not run** — needs a library |
+
+**The phone app now runs in a browser.** Not a spike route: the real app, on
+the shared client, booting at both widths with no uncaught errors and landing
+on the sign-in screen because nothing has told it where a Mac is.
+
+`verify/boot.spec.ts` is new. A successful export proves the bundle was built,
+not that it runs — a module that throws at import time exports perfectly and
+then paints a white screen, and that failure otherwise waits for somebody to
+open a browser by hand.
+
+Two pieces of the spike's Metro config are gone, because they existed only so
+the spike could import `apps/web` source directly: the `.js`-to-`.ts` specifier
+retry and the stub for the one module reading Vite's `import.meta.env`.
+`apps/app` imports neither. What remains is two stubs —
+`react-native-track-player` and `expo-file-system` — and those are exactly what
+phase 3's two ports replace. That the list is only two is the finding.
+
+**Not done:** the primitives, `src/features/*`, `src/shell`. That is where to
+pick up, after the reference captures.
+
+---
+
+## Phase 3 — the ports — branch `universal/phase-3`
+
+Two commits, `37d64e4` and `82ff1b9`, 07:18 to 07:24. **Interfaces and the web
+half of one port. No native implementation, no providers.**
+
+Both ports are written in `packages/client`, and the engine one is proved:
+
+```
+const _conforms: PlaybackEngine = new AudioEngine()
+```
+
+`apps/web/src/player/engine.ts` is now also `apps/app/src/ports/engine.web.ts`,
+changed as little as possible — the `mediaUrl` import gone, `capabilities`
+added, nothing else. That line compiles, so the interface derived from the
+engine has not drifted from it. The assertion was checked to bite by adding a
+method to the port and watching it fail.
+
+`OfflineStore` is proved the same way, by the web offline code moved to
+`apps/app/src/ports/offline.web.ts`. It names only the storage, not the
+downloading. The two apps look
+very different here, but that difference is not platform — the queue simply got
+written twice. Ordering, progress and failure handling are policy and belong in
+the one `OfflineProvider` above the port.
+
+### Where this stopped, and why
+
+**The native half of the engine port is the wall, and it is a real one.**
+
+The web half was a move: `engine.ts` was already a self-contained class with
+exactly the right shape, which is why the port was derived from it. The phone
+has no such class — its track-player code is spread across `PlayerProvider`,
+`service.ts`, `setup.ts` and `tracks.ts`. Wrapping it is invention, not a move.
+
+And the invention turns on a design question that needs a device to answer:
+track-player **owns the queue** (`capabilities.nativeQueue`), while the port
+hands an engine one song at a time plus a hint about the next. Reconciling
+those two models is the hard part of phase 3, getting it wrong breaks playback
+on the phone specifically, and nothing here can tell which way is right. That
+is a simulator's answer, not a type checker's.
+
+So: both interfaces and both web halves, proved as far as they can be proved;
+the native halves left for the Mac with the question written down.
+
+One thing the offline move settled in passing. `audioCache.ts` had a single
+import from the web app — `appPath`, from the one module in `apps/web` that
+reads Vite's `import.meta.env`, which is exactly the module the spike had to
+stub because Metro cannot evaluate it. It was used in one place, to build a
+stream URL, so it became injected wiring in the same shape the engine already
+uses. The spike's stub is unnecessary here for the same reason the engine's
+was: the tie to the web app was one function, and naming it made it go away.
 
 ---
 

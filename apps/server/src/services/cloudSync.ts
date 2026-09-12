@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { gzipSync } from 'node:zlib'
+import { gunzipSync, gzipSync } from 'node:zlib'
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
@@ -13,6 +13,7 @@ import {
   coverKey,
   isSynced,
   lyricsKey,
+  newestSnapshotKey,
   parseEndpoint,
   parseLogKey,
   readLogFile,
@@ -46,7 +47,11 @@ import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
-import { buildSnapshot } from './cloudSnapshot.js'
+import {
+  buildSnapshot,
+  publishRefusedMessage,
+  publishWouldLoseLibrary,
+} from './cloudSnapshot.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -174,6 +179,12 @@ export class CloudSyncService {
   #lastSyncAt: string | null = null
   #lastSnapshotAt: string | null = null
   #lastError: string | null = null
+  /**
+   * Whether this run has checked its library against the one in the bucket.
+   * Once per process: after the first snapshot goes up, the bucket's newest is
+   * this device's own, and comparing it with itself proves nothing.
+   */
+  #checkedAgainstBucket = false
 
   constructor(deps: CloudSyncDeps) {
     this.#deps = deps
@@ -906,6 +917,44 @@ export class CloudSyncService {
 
   // --- Snapshots -------------------------------------------------------------
 
+  /**
+   * Read the newest snapshot and decide whether publishing would destroy it.
+   *
+   * The one place this Mac reads a snapshot rather than only writing them. It
+   * asks a single question — how many songs does the bucket think there are —
+   * and nothing else, so a snapshot written by a newer build it cannot fully
+   * parse still protects the library.
+   *
+   * Returns why to refuse, or null to go ahead. A bucket that cannot be read,
+   * or holds no snapshot yet, is not a reason to refuse: a first publish into
+   * an empty bucket is exactly what is supposed to happen.
+   */
+  async #refuseToLoseLibrary(store: CloudStore, songsHere: number): Promise<string | null> {
+    if (process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') return null
+    try {
+      const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+      const newest = newestSnapshotKey(keys)
+      if (!newest) return null
+
+      const body = await store.get(newest)
+      if (!body) return null
+      const parsed: unknown = JSON.parse(gunzipSync(body).toString('utf8'))
+      const songs = (parsed as { songs?: unknown }).songs
+      if (!Array.isArray(songs)) return null
+
+      return publishWouldLoseLibrary(songs.length, songsHere)
+        ? publishRefusedMessage(songs.length, songsHere)
+        : null
+    } catch (error) {
+      // Could not read it. Publishing is still the right default — refusing
+      // here would mean an unreadable bucket stops a healthy Mac syncing.
+      this.#logger.debug('could not check the bucket before publishing', {
+        message: message(error),
+      })
+      return null
+    }
+  }
+
   #publish(store: CloudStore): Promise<void> {
     const run = this.#publishing.then(() => this.#publishNow(store))
     this.#publishing = run.catch(() => undefined)
@@ -940,6 +989,19 @@ export class CloudSyncService {
     const { writtenAt: _stamp, ...content } = snapshot
     const hash = sha256(Buffer.from(JSON.stringify(content)))
     if (hash === this.#lastSnapshotHash) return
+
+    // Once per run, before this device's first snapshot replaces whatever is
+    // there: is this Mac about to throw away somebody's library?
+    if (!this.#checkedAgainstBucket) {
+      const refusal = await this.#refuseToLoseLibrary(store, snapshot.songs.length)
+      this.#checkedAgainstBucket = true
+      if (refusal) {
+        this.#lastError = refusal
+        this.#state = 'error'
+        this.#logger.error(refusal)
+        return
+      }
+    }
 
     const key = snapshotKey(writtenAt, deviceId)
     await store.put(key, gzipSync(Buffer.from(JSON.stringify(snapshot))), {

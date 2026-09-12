@@ -182,3 +182,48 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
 function optional<K extends string>(key: K, value: Stamps | undefined): { [P in K]?: Stamps } {
   return (value ? { [key]: value } : {}) as { [P in K]?: Stamps }
 }
+
+// --- Publishing over somebody else's library ---------------------------------
+
+/**
+ * The smallest library worth protecting. Below this, "half the songs are gone"
+ * is one deleted song, and refusing would be noise.
+ */
+const GUARD_MIN_SONGS = 8
+
+/** How much of a library may vanish in one snapshot before this objects. */
+const GUARD_MAX_LOSS = 0.5
+
+/**
+ * Should this device refuse to replace the library in the bucket?
+ *
+ * The Mac only ever *writes* snapshots — it has never read one — and the newest
+ * snapshot is what every other device adopts. So a Mac that comes up holding
+ * less than the bucket knows about will quietly publish its own sparse database
+ * as the whole library, and every phone and browser will follow it. That is not
+ * hypothetical: it is what a reinstall, a restored backup, a half-finished
+ * first scan, or a second Mac signed in to the same account all look like.
+ *
+ * Today the audio survives, because nothing deletes from the bucket. Once
+ * anything does, this becomes permanent, so the refusal wants to exist first.
+ *
+ * This is deliberately not clever. It does not try to work out *why* the count
+ * fell; it declines to be the one that throws the songs away, says so, and
+ * leaves a person to decide. Deleting most of your library on purpose is rare
+ * and something you would rather confirm than have happen silently.
+ */
+export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number): boolean {
+  if (inBucket < GUARD_MIN_SONGS) return false
+  if (onThisDevice >= inBucket) return false
+  return onThisDevice < inBucket * GUARD_MAX_LOSS
+}
+
+/** What to tell somebody whose Mac just declined to publish. */
+export function publishRefusedMessage(inBucket: number, onThisDevice: number): string {
+  return (
+    `refused to publish: the bucket's library has ${inBucket} songs and this Mac has ` +
+    `${onThisDevice}. Publishing would have replaced the first with the second on every ` +
+    `device. If this Mac is still scanning, wait; if it was reinstalled or restored, let it ` +
+    `finish syncing before publishing. To publish anyway, set SELFMP3_PUBLISH_ANYWAY=1.`
+  )
+}

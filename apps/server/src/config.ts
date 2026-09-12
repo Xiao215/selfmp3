@@ -41,24 +41,50 @@ const APP_DIR_NAME = 'selfmp3'
  * far worse bug than the one this fixes. `docs/INSTALL.md` says how to move
  * them deliberately. Docker sets both variables explicitly and is unaffected.
  */
-export function defaultDirs(
+export function defaultDirs({
   repoRoot = REPO_ROOT,
   home = os.homedir(),
-  platform: NodeJS.Platform = process.platform,
-  exists: (dir: string) => boolean = fs.existsSync,
-): { libraryDir: string; dataDir: string } {
-  const inRepo = { libraryDir: path.join(repoRoot, 'library'), dataDir: path.join(repoRoot, 'data') }
-  // Only an existing library keeps the old spot. `data/` follows it, so the
-  // database and the music it describes are never split across two homes.
-  if (exists(inRepo.libraryDir)) return inRepo
+  platform = process.platform,
+  exists = fs.existsSync,
+  profile = process.env['SELFMP3_PROFILE'] ?? '',
+}: {
+  repoRoot?: string
+  home?: string
+  platform?: NodeJS.Platform
+  exists?: (dir: string) => boolean
+  profile?: string
+} = {}): { libraryDir: string; dataDir: string } {
+  // A profile is a whole separate installation — its own music, its own
+  // database, and so its own cloud sign-in, since that lives in the database.
+  // It is how you work on the code without the real library being what you
+  // work on. `npm run dev` sets it, so the dev server can never be pointed at
+  // your own collection by accident.
+  const suffix = profileSuffix(profile)
 
+  const inRepo = { libraryDir: path.join(repoRoot, 'library'), dataDir: path.join(repoRoot, 'data') }
+  // Only an existing library keeps the old spot, and only for the real one:
+  // asking for a profile means asking not to be here. `data/` follows the
+  // music, so the database and what it describes are never split across homes.
+  if (!suffix && exists(inRepo.libraryDir)) return inRepo
+
+  const dir = APP_DIR_NAME + suffix
   return {
-    libraryDir: path.join(home, 'Music', APP_DIR_NAME),
+    libraryDir: path.join(home, 'Music', dir),
     dataDir:
       platform === 'darwin'
-        ? path.join(home, 'Library', 'Application Support', APP_DIR_NAME)
-        : path.join(home, '.local', 'share', APP_DIR_NAME),
+        ? path.join(home, 'Library', 'Application Support', dir)
+        : path.join(home, '.local', 'share', dir),
   }
+}
+
+/** `dev` → `-dev`, and nothing at all for the real installation. */
+function profileSuffix(profile: string): string {
+  const safe = profile
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return safe ? `-${safe.slice(0, 20)}` : ''
 }
 
 const DEFAULT_DIRS = defaultDirs()

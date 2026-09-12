@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { downloadedCount, isDownloaded } from '../../offline/downloadIndex'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { freeToDownload, useConnectionKind } from '../../offline/connectionKind'
 import { colors, radius, space, type } from '../theme'
 
 /**
@@ -17,6 +18,7 @@ import { colors, radius, space, type } from '../theme'
  */
 export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   const { state, queue } = useDownloads()
+  const connection = useConnectionKind()
 
   const held = useMemo(() => downloadedCount(state.index), [state.index])
   const total = songs.length
@@ -81,17 +83,35 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
     )
   }
 
+  if (connection === 'none') {
+    return (
+      <View style={styles.bar}>
+        <Text style={styles.text}>
+          {missing.length} new · offline
+        </Text>
+      </View>
+    )
+  }
+
   // "New", not "0 of 13": a song in the bucket this phone has not fetched yet
   // is something waiting to be added, which is what it looks like to whoever
   // is holding it — not a shortfall against a total.
+  //
+  // On mobile data it still offers, but says so first. A library is measured
+  // in gigabytes and a phone plan is not, and downloading thirteen songs on a
+  // train because somebody opened the app is a thing an app gets to do once.
+  const onData = !freeToDownload(connection)
   return (
     <View style={styles.bar}>
       <View style={styles.row}>
         <Text style={styles.text}>
           {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
+          {onData ? ' · on mobile data' : ''}
         </Text>
         <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
-          <Text style={styles.action}>Add {missing.length === total ? 'all' : missing.length}</Text>
+          <Text style={[styles.action, onData && styles.actionWarn]}>
+            {onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -111,6 +131,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   text: { color: colors.textSecondary, fontSize: type.small },
   action: { color: colors.accent, fontSize: type.small, fontWeight: '600' },
+  actionWarn: { color: colors.warning },
   error: { color: colors.danger, fontSize: type.small, flex: 1, marginRight: space.md },
   progressTrack: {
     height: 3,

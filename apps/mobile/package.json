@@ -27,6 +27,7 @@
     "expo-dev-client": "~57.0.18",
     "expo-file-system": "~57.0.6",
     "expo-linking": "~57.0.9",
+    "expo-network": "~57.0.1",
     "expo-router": "~57.0.20",
     "expo-secure-store": "~57.0.3",
     "expo-splash-screen": "~57.0.8",

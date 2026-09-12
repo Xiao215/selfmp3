@@ -852,6 +852,41 @@ from review. The captured states still have to pass check 2 by eye.
   lists six deliberate differences. Two are worth knowing about here: the app
   has no toasts, so batch actions finish silently (question 6), and the
   desktop bar's buttons are the app's 44-point size, not the web's small ones.
+- **Tag filtering both ways** (`87e1f46`). The shared filter holds the web's
+  two lists, included (AND) and excluded, with the web's rule that a tag is
+  never both. There are 10 tests. On a phone, a chip is held to open the tag
+  editor. `verify/flows/tags.spec.ts` passes on both apps at both widths.
+- **Escape and the sort control** (`60d33d3`). Sheets and popovers never
+  closed on Escape, which stopped the reference capture at its second state.
+  Escape now closes the topmost layer only. Select is the web's combobox.
+- **A song's ⋯ menu** (`f5ae03c`) in the web's order, with Song details, the
+  tag picker, similar songs, instrumental and the inline removal choice. The
+  pure helpers behind the details have 7 tests.
+  `verify/flows/songMenu.spec.ts` passes on both apps. Fix metadata stays out
+  (phase 5).
+- **The desktop sidebar and header** (this commit's predecessor). The web's tag
+  list, with hide and edit on hover, the new-tag form and the footer. The
+  filter moved into a provider both share. The library header is one row at
+  desktop width.
+
+The reference library capture now runs to the end at 1280 and at 375: all
+seven library states at each width.
+
+### Notes for whoever reviews phase 4
+
+- **The plan lists tag editing later than it arrived.** Phase 5 names "the tag
+  editor", and phase 6 "tag editing on the phone". But the 375 reference
+  reaches "one tag excluded" through the editor a held chip opens, and the
+  parity matrix puts tag exclude in phase 4. The per-tag editor and the song
+  tag picker therefore came across with the library. The tag inbox, which is
+  probably what phase 5 means, has not.
+- **Desktop density is owed.** Every desktop capture so far has 44-point
+  controls and 48-point sheet rows where the web uses 34–38. That is the
+  difference a reviewer will notice first at 1280, and it wants a size token
+  that changes at the breakpoint rather than a fix per screen.
+- **Desktop rows are owed.** At 1280 the web's row has an index, tempo and
+  energy, an album column and tag chips, with the heart and ⋯ revealed on
+  hover. The new app still draws the phone's row at every width.
 
 ---
 

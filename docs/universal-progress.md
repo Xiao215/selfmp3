@@ -310,6 +310,68 @@ was: the tie to the web app was one function, and naming it made it go away.
 
 ---
 
+## The reference set — on the Mac, 2026-09-12
+
+Commit `6d187ed`, on `main`. 58 captures of the old web app under
+`docs/reference/fb882e0/`: 30 at 1280, 28 at 375. Reproduce with
+`npm run dev` and then `npm run verify:reference`.
+
+This was the other thing a container could not do, and phases 2 to 4 are
+checked against it. It is a script — `verify/reference.spec.ts` — rather than a
+session with a screenshot key, so a single state can be recaptured later
+without redoing the set by hand.
+
+### Three things that had to be pinned
+
+Each was found by getting it wrong and looking at the result.
+
+1. **The accent is a server setting.** The capture that demonstrates changing it
+   left the library on the new colour, so the second width was photographed on
+   that instead — 1280 came out pink and 375 blue. It is now fixed for the run
+   and restored afterwards. The set is at hue **330**, which is what the dev
+   library is actually set to; the plan's token test resolves at 268, which is a
+   different question.
+2. **Rows reveal their controls on hover**, and dismissing the resume toast
+   leaves the pointer exactly on the bottom row — so "at rest" was captured with
+   one row hovered. The pointer is parked on the header before every shot.
+3. **`lyricsRomanization` is stored, and this library has it on**, so the lyrics
+   capture and the romanisation capture were the same image under two names.
+   They are now taken as off and then on, whichever way the library is set.
+
+Settings scrolls an inner container rather than the window, so `settings-top`
+and `settings-bottom` were also the same image until that was fixed.
+
+### The seeded library
+
+`verify/reference/seed.ts` adds what the plan's table needs and a thirteen-song
+library with no playlists cannot show: a manual list, a smart list whose rules
+can be opened, an empty list, and a second tag so that "one tag filtered, one
+excluded" is a real state rather than a filter and an empty result. It is
+idempotent and everything it creates is named `Reference — …`.
+
+### Not captured, and why
+
+- **Sign-in and onboarding.** Only in the cloud build (`VITE_CLOUD=1`), and
+  "waiting" and "code entry" mean signing in to Google. Credentials are a
+  stop-and-ask in the runbook, so these are left for Xiao.
+- **The remote device chip.** Needs a second device actually playing; one
+  machine cannot produce it honestly. The devices popover and the resume toast,
+  the rest of that row, are both captured.
+- **Volume (compact).** There is no such surface: the desktop has an inline
+  slider, and the phone has no volume control because a phone's volume is its
+  own.
+- **A truly empty Playlists screen.** Faked by removing the three seeded
+  playlists and putting them straight back; it only ever removes those three.
+
+### The dev library after all this
+
+Left exactly as it was found — accent 330, theme dark, romanisation on — plus
+the seeded playlists and the `reference` tag, which are meant to stay so the
+set stays reproducible. The real `library/` and `data/` in the main checkout
+were never written to.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the

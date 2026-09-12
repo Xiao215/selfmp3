@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
 import { colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
+import { useEscape } from '../../shell/useEscape'
 
 /**
  * A menu, as a sheet from the bottom of the screen.
@@ -22,6 +23,7 @@ export function Sheet({
   onClose,
   title,
   subtitle,
+  titleTone = 'heading',
   children,
   testID,
 }: {
@@ -29,6 +31,12 @@ export function Sheet({
   onClose: () => void
   title?: string
   subtitle?: string
+  /**
+   * `label` is the web's `.popover-title`: small and quiet, for a list whose
+   * title only says what is being chosen ("Sort by"). `heading` names the
+   * thing the sheet is about, the way the song menu's head does.
+   */
+  titleTone?: 'heading' | 'label'
   children: ReactNode
   testID?: string
 }): ReactNode {
@@ -41,6 +49,8 @@ export function Sheet({
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
   const [progress] = useState(() => new Animated.Value(0))
+  // Escape closes it on the web, as the web's popovers do. Nothing on a phone.
+  useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
     if (open) {
@@ -86,7 +96,10 @@ export function Sheet({
         <View style={styles.grabber} />
         {title ? (
           <View style={styles.head}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text
+              style={[styles.title, titleTone === 'label' && styles.titleLabel]}
+              numberOfLines={1}
+            >
               {title}
             </Text>
             {subtitle ? (
@@ -201,6 +214,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     gap: 1,
+  },
+  titleLabel: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.textMuted,
   },
   title: {
     color: colors.textPrimary,

@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { colors, HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
+import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Button } from './Button'
@@ -53,6 +54,7 @@ export function ConfirmRemoveSongs({
   const cancel = (): void => {
     if (!pending) onCancel()
   }
+  useEscape(true, cancel, { layer: true })
 
   useOverlay(
     <View

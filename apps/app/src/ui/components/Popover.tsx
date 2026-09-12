@@ -5,6 +5,7 @@ import type { View as RNView } from 'react-native'
 import { colors, motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
+import { useEscape } from '../../shell/useEscape'
 import { Sheet } from './Sheet'
 
 /**
@@ -26,6 +27,7 @@ export function Popover({
   onClose,
   anchorRef,
   title,
+  titleTone,
   children,
   width = 240,
   testID,
@@ -36,6 +38,7 @@ export function Popover({
   anchorRef: RefObject<RNView | null>
   /** Shown when it falls back to a sheet, where a panel has room for a heading. */
   title?: string
+  titleTone?: 'heading' | 'label'
   children: ReactNode
   width?: number
   testID?: string
@@ -44,7 +47,7 @@ export function Popover({
 
   if (!wide) {
     return (
-      <Sheet open={open} onClose={onClose} title={title} testID={testID}>
+      <Sheet open={open} onClose={onClose} title={title} titleTone={titleTone} testID={testID}>
         {children}
       </Sheet>
     )
@@ -90,6 +93,7 @@ function AnchoredPopover({
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
   if (open && !mounted) setMounted(true)
+  useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
     if (!open) return

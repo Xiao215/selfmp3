@@ -2,9 +2,10 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { useAccent } from '../accent'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
-import { ChevronDown } from './Icons'
+import { Check, ChevronDown } from './Icons'
 
 /**
  * Choose one of a few things.
@@ -32,6 +33,7 @@ export function Select<T extends string>({
   label: string
   testID?: string
 }): ReactNode {
+  const accent = useAccent()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   const current = options.find(option => option.value === value)
@@ -40,24 +42,45 @@ export function Select<T extends string>({
     <>
       <Pressable
         ref={anchorRef}
-        style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+        style={({ pressed }) => [
+          styles.control,
+          pressed && styles.controlPressed,
+          // Open, the control keeps the accent edge the web gives it.
+          open && { borderColor: accent.accent },
+        ]}
         onPress={() => setOpen(true)}
         testID={testID}
-        accessibilityRole="button"
-        accessibilityLabel={`${label} ${current?.label ?? ''}`.trim()}
+        // The web's control is a combobox named by what is chosen, with the
+        // current value as its content.
+        accessibilityRole="combobox"
+        accessibilityLabel={label}
+        accessibilityValue={{ text: current?.label ?? '' }}
         accessibilityState={{ expanded: open }}
       >
         <Text style={styles.value} numberOfLines={1}>
           {current?.label ?? label}
         </Text>
-        <ChevronDown size={15} color={colors.textMuted} />
+        <View style={open && styles.chevronOpen}>
+          <ChevronDown size={15} color={colors.textMuted} />
+        </View>
       </Pressable>
 
-      <Popover open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} title={label}>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={anchorRef}
+        title={label}
+        titleTone="label"
+      >
         {options.map(option => (
           <SheetItem
             key={option.value}
             label={option.label}
+            icon={
+              <View style={styles.checkSlot}>
+                {option.value === value ? <Check size={14} color={accent.accent} /> : null}
+              </View>
+            }
             active={option.value === value}
             onPress={() => {
               onChange(option.value)
@@ -86,6 +109,9 @@ const styles = StyleSheet.create({
   controlPressed: {
     backgroundColor: colors.surface3,
   },
+  chevronOpen: { transform: [{ rotate: '180deg' }] },
+  /* Every option keeps the room, so the labels line up whether ticked or not. */
+  checkSlot: { width: 14, alignItems: 'center' },
   value: {
     color: colors.textPrimary,
     fontSize: type.body,

@@ -41,9 +41,7 @@ export const mediaUrl = createMediaUrl(transport)
  *
  * This module is already imported for its side effect of existing by every
  * screen that talks to the server, so there is no moment where a hook could run
- * first. `standsInFor` is left off, which is the browser's rule: the snapshot
- * stands in when the network is gone and not when the Mac answers with an
- * error, so a broken server still looks broken.
+ * first.
  */
 configureClient({
   api,

@@ -112,20 +112,6 @@ export interface ApiContext {
 export interface LibrarySnapshotStore {
   read(): Promise<Library | null>
   write(library: Library): Promise<void>
-  /**
-   * Whether the snapshot may stand in for this failure.
-   *
-   * The one place the two apps genuinely disagreed, and it is a product
-   * decision rather than a platform one, so it is asked rather than decided
-   * here. The browser only falls back when the network is gone, so a Mac
-   * answering 500 shows an error and you know the server is broken. The phone
-   * falls back on any failure, so a flaky tunnel returning 502 still opens to
-   * your library. Both are defensible and the universal app will have to pick
-   * one; until someone does, each app keeps the behaviour it has.
-   *
-   * Absent means the browser's rule: offline only.
-   */
-  standsInFor?(error: unknown): boolean
 }
 
 /**

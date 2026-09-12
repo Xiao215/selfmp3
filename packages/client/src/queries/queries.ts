@@ -106,12 +106,13 @@ export function useLibrary(): UseQueryResult<Library, Error> {
         void librarySnapshot()?.write(library)
         return library
       } catch (error) {
-        const snapshot = librarySnapshot()
-        const offline = error instanceof ApiError && error.isOffline
-        if (snapshot && (snapshot.standsInFor?.(error) ?? offline)) {
-          const cached = await snapshot.read()
-          if (cached) return cached
-        }
+        // Any failure, not just an unreachable server. A music library is not a
+        // dashboard: you open it to play something, and a library a few hours
+        // stale is still your library where an error screen is nothing. The
+        // only thing the stale copy hides is a song added since the last fetch,
+        // and one song missing beats all of them missing.
+        const cached = (await librarySnapshot()?.read()) ?? null
+        if (cached) return cached
         throw error
       }
     },

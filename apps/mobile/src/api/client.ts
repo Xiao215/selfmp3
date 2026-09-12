@@ -101,13 +101,6 @@ export const api = createApi({
 
 /*
  * Hand the shared query hooks this client, at import time.
- *
- * `standsInFor` says yes to everything, which is the phone's rule and the
- * behaviour it already had: a phone on a train gets 502s from the tunnel as
- * often as it gets no answer at all, and either way the library on disk is a
- * better thing to show than an error. The browser leaves it off and falls back
- * only when the network is gone. Which of the two the universal app keeps is
- * an open question, written up in docs/universal-progress.md.
  */
 configureClient({
   api,
@@ -118,7 +111,6 @@ configureClient({
     write: async library => {
       writeCachedLibrary(library)
     },
-    standsInFor: () => true,
   },
 })
 

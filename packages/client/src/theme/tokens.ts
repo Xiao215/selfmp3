@@ -107,3 +107,18 @@ export const MINI_PLAYER_HEIGHT = 56
  * `--dur-slow`, and the `--ease-out` curve.
  */
 export const motion = { fast: 100, base: 140, slow: 220 } as const
+
+/**
+ * The width at which the app stops being a phone and becomes a desktop.
+ *
+ * Below this it is a tab bar, a mini player, a full-screen now playing and
+ * sheets; at and above it a sidebar, a player bar and popovers. It is a width,
+ * not a platform, which is the whole point — a phone in landscape, an iPad and
+ * a narrow browser window each get the layout that fits them rather than the
+ * one their operating system implies.
+ *
+ * It lives here beside the other tokens because `docs/UNIVERSAL.md` says it
+ * does: one design token source, and the breakpoint is a design token. It
+ * matches the web app's `useIsMobile(820)`.
+ */
+export const BREAKPOINT = 820

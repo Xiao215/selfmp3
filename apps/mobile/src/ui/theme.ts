@@ -1,4 +1,4 @@
-import { oklchToHex } from './oklch'
+import { oklchToHex, oklchToHexAlpha } from './oklch'
 
 /**
  * The web app's palette, resolved to hex.
@@ -18,18 +18,42 @@ import { oklchToHex } from './oklch'
 /** The hue everything here was written at, and what a device starts on. */
 export const DEFAULT_ACCENT_HUE = 268
 
-/** The four colours the accent picker moves. Nothing else depends on the hue. */
+/** The colours the accent picker moves. Nothing else depends on the hue. */
 export function buildAccent(hue: number): {
   accent: string
   accentStrong: string
   accentDim: string
   onAccent: string
+  /** The filled pill behind the current tab's icon: `oklch(0.45 0.13 h / 0.26)`. */
+  accentPill: string
+  /** The progress wash behind the mini player: the web's 26% song colour. */
+  accentWash: string
+  /** A selected row: `oklch(0.36 0.08 h / 0.4)`. */
+  accentSelected: string
 } {
   return {
     accent: oklchToHex(0.72, 0.16, hue),
     accentStrong: oklchToHex(0.78, 0.18, hue),
     accentDim: oklchToHex(0.42, 0.1, hue),
     onAccent: oklchToHex(0.15, 0.02, hue),
+    accentPill: oklchToHexAlpha(0.45, 0.13, hue, 0.26),
+    accentWash: oklchToHexAlpha(0.72, 0.16, hue, 0.26),
+    accentSelected: oklchToHexAlpha(0.36, 0.08, hue, 0.4),
+  }
+}
+
+/** A tag's chip, in its own hue — the web's `.tag-chip` and `.is-active`. */
+export function tagColors(hue: number): {
+  background: string
+  text: string
+  activeBackground: string
+  activeText: string
+} {
+  return {
+    background: oklchToHexAlpha(0.34, 0.07, hue, 0.4),
+    text: oklchToHex(0.86, 0.09, hue),
+    activeBackground: oklchToHexAlpha(0.5, 0.13, hue, 0.6),
+    activeText: oklchToHex(0.96, 0.04, hue),
   }
 }
 
@@ -64,12 +88,22 @@ export const type = {
   body: 14,
   small: 12,
   tiny: 11,
+  label: 10,
   title: 17,
   large: 22,
 } as const
 
-/** Height of the custom bottom nav, before the safe-area inset is added. */
-export const NAV_HEIGHT = 56
+/** The web's `--hit-target`: the smallest comfortable touch target. */
+export const HIT_TARGET = 44
 
-/** Height of the mini player that sits above the nav. */
-export const MINI_PLAYER_HEIGHT = 58
+/** The web's `--mobile-nav-height`, before the safe-area inset is added. */
+export const NAV_HEIGHT = 58
+
+/** Height of the mini player that sits above the nav: 8px + 40px cover + 8px. */
+export const MINI_PLAYER_HEIGHT = 56
+
+/**
+ * The web's motion tokens: quick and subtle. `--dur-fast`, `--dur`,
+ * `--dur-slow`, and the `--ease-out` curve.
+ */
+export const motion = { fast: 100, base: 140, slow: 220 } as const

@@ -59,7 +59,8 @@ export interface PlayerApi {
   readonly position: number
   readonly duration: number
   readonly ready: boolean
-  playFrom: (songIds: readonly number[], startIndex: number) => void
+  /** Start these songs here; `shuffle` sets the mode first, else it is kept. */
+  playFrom: (songIds: readonly number[], startIndex: number, shuffle?: boolean) => void
   playShuffled: (songIds: readonly number[]) => void
   jumpTo: (index: number) => void
   toggle: () => void
@@ -123,6 +124,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const connectionRef = useRef(connection)
   const thresholdRef = useRef(PLAY_THRESHOLD)
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
+  /** Queue loads still being handed to the native player. See `loadQueue`. */
+  const loadsInFlightRef = useRef(0)
+
+  /** Take the native player's word for which track is active. */
+  const syncIndex = useCallback((index: number | undefined) => {
+    if (index === undefined) return
+    setQueue(state => (state.index === index ? state : { ...state, index }))
+  }, [])
 
   useEffect(() => {
     queueRef.current = queue
@@ -231,9 +240,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         trackingRef.current = { songId: songIdOf(event.track), listenedSeconds: 0, counted: false }
         lastPositionRef.current = 0
 
-        if (event.index !== undefined && event.index !== queueRef.current.index) {
-          setQueue(state => ({ ...state, index: event.index ?? state.index }))
-        }
+        // While a queue is being loaded the native side reports every step
+        // of the way — nothing, then track 0, then the one that was asked for
+        // — and `loadQueue` reconciles once at the end instead. Outside a
+        // load the update is functional, against the state React actually
+        // holds: compared against the ref, a stale mirror of that state, the
+        // second of two quick events was once dropped because the ref still
+        // agreed with it, and the phone settled on the wrong song.
+        if (loadsInFlightRef.current === 0) syncIndex(event.index)
         return
       }
 
@@ -266,26 +280,46 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
 
   const loadQueue = useCallback(
-    (state: QueueState, autoplay: boolean) => {
+    (requested: QueueState, autoplay: boolean) => {
+      loadsInFlightRef.current += 1
       void (async () => {
         try {
           await ensurePlayer()
           setReady(true)
-          const tracks = buildTracks(state.items)
+          const tracks = buildTracks(requested.items)
           if (tracks.length === 0) {
             await TrackPlayer.reset()
             return
           }
+
+          // A song with nothing to play it from is left out of the native
+          // queue, so the pure queue drops it too: the two must stay the same
+          // length, or the index the native side reports names the wrong song.
+          let state = requested
+          if (tracks.length !== requested.items.length) {
+            const items = tracks.map(track => track.songId)
+            const wanted = requested.items[requested.index]
+            const at = wanted === undefined ? -1 : items.indexOf(wanted)
+            state = { ...requested, items, index: Math.max(0, Math.min(at, items.length - 1)) }
+            setQueue(state)
+          }
+
           await TrackPlayer.setQueue(tracks)
           await TrackPlayer.setRepeatMode(REPEAT_MODES[state.repeat])
           if (state.index > 0) await TrackPlayer.skip(state.index)
           if (autoplay) await TrackPlayer.play()
         } catch (error) {
           console.warn('could not load the queue', error)
+        } finally {
+          loadsInFlightRef.current -= 1
+        }
+        // The events that arrived during the load were ignored; ask once now.
+        if (loadsInFlightRef.current === 0) {
+          syncIndex(await TrackPlayer.getActiveTrackIndex().catch(() => undefined))
         }
       })()
     },
-    [buildTracks],
+    [buildTracks, syncIndex],
   )
 
   /*
@@ -321,8 +355,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // --- commands ------------------------------------------------------------
 
   const play = useCallback(
-    (songIds: readonly number[], startIndex: number) => {
-      const next = playFrom(queueRef.current, songIds, startIndex)
+    (songIds: readonly number[], startIndex: number, shuffle?: boolean) => {
+      // "Play" on a list means in order, as on the web; a tapped row keeps
+      // whatever mode is on.
+      const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
+      const next = playFrom(from, songIds, startIndex)
       setQueue(next)
       loadQueue(next, true)
     },

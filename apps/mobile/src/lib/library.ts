@@ -16,22 +16,24 @@ export interface LibraryFilter {
   readonly downloadedOnly: boolean
 }
 
+/** The web's opening view: newest first. */
 export const DEFAULT_FILTER: LibraryFilter = {
   query: '',
   tagId: null,
-  sort: 'title',
-  descending: false,
+  sort: 'addedAt',
+  descending: true,
   downloadedOnly: false,
 }
 
-/** Sort options offered in the UI, in the order they appear. */
+/** Sort options offered in the UI — the web's list, in the web's order. */
 export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
+  { field: 'addedAt', label: 'Recently added' },
   { field: 'title', label: 'Title' },
   { field: 'artist', label: 'Artist' },
   { field: 'album', label: 'Album' },
-  { field: 'addedAt', label: 'Added' },
-  { field: 'playCount', label: 'Plays' },
   { field: 'duration', label: 'Length' },
+  { field: 'playCount', label: 'Most played' },
+  { field: 'lastPlayedAt', label: 'Recently played' },
 ]
 
 function searchText(song: Song): string {

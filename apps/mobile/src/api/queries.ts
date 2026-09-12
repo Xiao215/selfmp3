@@ -1,5 +1,18 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import type { Library, LyricsResponse, PlaylistSongs, Settings, SyncManifest } from '@selfmp3/shared'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from '@tanstack/react-query'
+import type {
+  Library,
+  LyricsResponse,
+  PlaylistSongs,
+  Settings,
+  Song,
+  SyncManifest,
+} from '@selfmp3/shared'
 import { api } from './client'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 import { useConnection } from '../server/ConnectionProvider'
@@ -103,6 +116,45 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse>
     queryFn: async (): Promise<LyricsResponse> => {
       if (songId === null) throw new Error('no song')
       return api.lyrics(connection, songId)
+    },
+  })
+}
+
+/**
+ * Love a song, or stop: the web's `useToggleLoved`.
+ *
+ * The heart fills the moment it is tapped and the library on disk is patched
+ * to match, so the row, the mini player and the song's own page all agree
+ * without waiting on a Mac that may be asleep. If the server refuses, the
+ * copy is rolled back to what it was.
+ */
+export function useToggleLoved(): UseMutationResult<
+  Song,
+  Error,
+  { id: number; loved: boolean },
+  { previous: Library | undefined }
+> {
+  const { connection } = useConnection()
+  const queryClient = useQueryClient()
+  const key = queryKeys.library(connection?.baseUrl ?? 'cloud')
+
+  return useMutation({
+    mutationFn: ({ id, loved }) => api.setLoved(connection, id, loved),
+    onMutate: async ({ id, loved }) => {
+      await queryClient.cancelQueries({ queryKey: key })
+      const previous = queryClient.getQueryData<Library>(key)
+      if (previous) {
+        const next = {
+          ...previous,
+          songs: previous.songs.map(song => (song.id === id ? { ...song, loved } : song)),
+        }
+        queryClient.setQueryData<Library>(key, next)
+        writeCachedLibrary(next)
+      }
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData<Library>(key, context.previous)
     },
   })
 }

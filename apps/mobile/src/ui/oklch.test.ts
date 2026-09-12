@@ -24,13 +24,22 @@ const ACCENT = [
 describe('oklchToHex', () => {
   it('matches the browser at every accent the picker offers', () => {
     for (const [hue, accent, accentStrong, accentDim, onAccent] of ACCENT) {
-      expect(buildAccent(hue), `hue ${hue}`).toEqual({
+      expect(buildAccent(hue), `hue ${hue}`).toMatchObject({
         accent,
         accentStrong,
         accentDim,
         onAccent,
       })
     }
+  })
+
+  it('carries the tints the web draws with an alpha as #rrggbbaa', () => {
+    // 26% of the accent behind the tab pill and the mini player's wash, 40%
+    // behind a selected row: the alpha byte is what React Native reads.
+    const built = buildAccent(268)
+    expect(built.accentWash).toBe(`${built.accent}42`)
+    expect(built.accentPill).toMatch(/^#[0-9a-f]{6}42$/)
+    expect(built.accentSelected).toMatch(/^#[0-9a-f]{6}66$/)
   })
 
   it('leaves the palette exactly where it was written by hand', () => {

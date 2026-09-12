@@ -337,6 +337,13 @@ export const ChevronDown = ({ color = colors.textSecondary, ...rest }: IconProps
   </Icon>
 )
 
+/** Native only: a stack has a back edge, which the web's router never draws. */
+export const ChevronLeft = ({ color = colors.textSecondary, ...rest }: IconProps): ReactNode => (
+  <Icon color={color} {...rest}>
+    <Path d="m15 6-6 6 6 6" />
+  </Icon>
+)
+
 export const ChevronRight = ({ color = colors.textSecondary, ...rest }: IconProps): ReactNode => (
   <Icon color={color} {...rest}>
     <Path d="m9 6 6 6-6 6" />

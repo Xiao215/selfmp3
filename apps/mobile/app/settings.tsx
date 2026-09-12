@@ -21,7 +21,7 @@ import { buildAccent, colors, radius, space, type } from '../src/ui/theme'
 
 /** Server, downloads, about — the three things worth a settings screen. */
 export default function SettingsScreen(): ReactNode {
-  const { connection, disconnect } = useConnection()
+  const { connection, fromCloud, disconnect } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
   const { state: downloads, queue: downloadQueue } = useDownloads()
@@ -45,10 +45,17 @@ export default function SettingsScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.heading}>Settings</Text>
+        <Text style={styles.sub}>Server, downloads, and how this phone looks</Text>
 
-        <Section title="Server">
-          <Row label="Address" value={connection?.baseUrl ?? 'Not set'} />
-          <Row label="Token" value={connection?.token ? 'Saved in the keychain' : 'None'} />
+        <Section title={fromCloud ? 'Library' : 'Server'}>
+          {fromCloud ? (
+            <Row label="Signed in" value="With Google — the library is the bucket's" />
+          ) : (
+            <>
+              <Row label="Address" value={connection?.baseUrl ?? 'Not set'} />
+              <Row label="Token" value={connection?.token ? 'Saved in the keychain' : 'None'} />
+            </>
+          )}
           <Row
             label="Library"
             value={
@@ -206,8 +213,8 @@ export default function SettingsScreen(): ReactNode {
             </View>
           </View>
           <Text style={styles.note}>
-            This phone&rsquo;s colour, kept on this phone. The Mac and any other device keep
-            their own.
+            This phone&rsquo;s colour, kept on this phone. The Mac and any other device keep their
+            own.
           </Text>
         </Section>
 
@@ -250,7 +257,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface0,
   },
   content: {
-    padding: space.lg,
+    paddingHorizontal: space.lg,
+    paddingTop: 18,
     paddingBottom: space.xl,
   },
   heading: {
@@ -258,7 +266,12 @@ const styles = StyleSheet.create({
     fontSize: type.large,
     fontWeight: '700',
     letterSpacing: -0.3,
-    marginBottom: space.md,
+  },
+  sub: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginTop: 3,
+    marginBottom: 22,
   },
   section: {
     marginBottom: space.xl,

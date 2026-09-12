@@ -29,6 +29,20 @@ export function oklchToHex(lightness: number, chroma: number, hueDegrees: number
   return `#${channel(red)}${channel(green)}${channel(blue)}`
 }
 
+/**
+ * The same colour with an alpha, as `#rrggbbaa` — React Native reads that
+ * form, and it is how the web's `oklch(L C H / a)` tints come across.
+ */
+export function oklchToHexAlpha(
+  lightness: number,
+  chroma: number,
+  hueDegrees: number,
+  alpha: number,
+): string {
+  const byte = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+  return `${oklchToHex(lightness, chroma, hueDegrees)}${byte.toString(16).padStart(2, '0')}`
+}
+
 /** One linear-light channel as two hex digits, gamma-encoded and clipped. */
 function channel(linear: number): string {
   const encoded =

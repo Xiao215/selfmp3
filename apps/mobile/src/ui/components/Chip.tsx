@@ -1,33 +1,60 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text } from 'react-native'
 import { useAccent } from '../accent'
-import { colors, space, type } from '../theme'
+import { colors, tagColors, type } from '../theme'
 
-/** A small toggle: tag filters, sort fields, the downloaded-only switch. */
+/**
+ * A tag, as the web draws it: a pill in the tag's own hue, brighter when it
+ * is the filter. With no hue it is a plain chip in the app's accent — the
+ * sort field, the "downloaded only" switch.
+ *
+ * A finger's target on a phone (`.mobile-tag-strip .tag-chip`): 8px by 12px
+ * of padding around 12px text, not the sidebar's label-sized version.
+ */
 export function Chip({
   label,
   selected,
   hue,
+  icon,
   onPress,
+  onLongPress,
 }: {
   label: string
   selected: boolean
   hue?: number
+  icon?: ReactNode
   onPress: () => void
+  onLongPress?: () => void
 }): ReactNode {
   const accent = useAccent()
-  const tint = hue === undefined ? accent.accent : `hsl(${hue}, 60%, 68%)`
+  const palette = tagColors(hue ?? accent.hue)
+  const background =
+    hue === undefined && !selected
+      ? colors.surface2
+      : selected
+        ? palette.activeBackground
+        : palette.background
+  const text =
+    hue === undefined && !selected
+      ? colors.textSecondary
+      : selected
+        ? palette.activeText
+        : palette.text
 
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={({ pressed }) => [
         styles.chip,
-        selected && { borderColor: tint, backgroundColor: colors.surface2 },
+        { backgroundColor: background },
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.label, selected && { color: tint }]} numberOfLines={1}>
+      {icon}
+      <Text style={[styles.label, { color: text }]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -36,18 +63,17 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface1,
   },
   pressed: {
     opacity: 0.7,
   },
   label: {
-    color: colors.textSecondary,
     fontSize: type.small,
     fontWeight: '500',
   },

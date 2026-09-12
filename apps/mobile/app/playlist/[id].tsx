@@ -1,20 +1,34 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
-import { useLibrary, useManifest, usePlaylistSongs } from '../../src/api/queries'
+import { useLibrary, useManifest, usePlaylistSongs, useToggleLoved } from '../../src/api/queries'
 import { bytesToDownload, isDownloaded } from '../../src/offline/downloadIndex'
 import { useDownloads } from '../../src/offline/DownloadsProvider'
 import { usePlayer } from '../../src/player/PlayerProvider'
-import { Button } from '../../src/ui/components/Button'
-import { SongRow } from '../../src/ui/components/SongRow'
 import { useAccent } from '../../src/ui/accent'
+import { Button } from '../../src/ui/components/Button'
+import { IconButton } from '../../src/ui/components/IconButton'
+import {
+  ChevronLeft,
+  CloudDownload,
+  Downloaded,
+  Play,
+  Shuffle,
+  Sparkles,
+} from '../../src/ui/components/Icons'
+import { SongMenu } from '../../src/ui/components/SongMenu'
+import { SongRow } from '../../src/ui/components/SongRow'
 import { colors, space, type } from '../../src/ui/theme'
 import { useArt } from '../../src/offline/useArt'
 
-/** One playlist, in order, with play-all and download-this-playlist. */
+/**
+ * One playlist, in order: the web's detail view with its header of actions —
+ * play, shuffle, and the phone's own third, keeping the whole list on this
+ * device.
+ */
 export default function PlaylistDetailScreen(): ReactNode {
   const artFor = useArt()
   const accent = useAccent()
@@ -26,7 +40,9 @@ export default function PlaylistDetailScreen(): ReactNode {
   const manifest = useManifest()
   const contents = usePlaylistSongs(Number.isInteger(playlistId) ? playlistId : null)
   const player = usePlayer()
+  const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue } = useDownloads()
+  const [menuSong, setMenuSong] = useState<Song | null>(null)
 
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
 
@@ -44,33 +60,45 @@ export default function PlaylistDetailScreen(): ReactNode {
   )
 
   const pendingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
+  const currentId = player.current?.id ?? null
+  const playing = player.isPlaying
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
       <SongRow
         song={item}
         artUri={artFor(item)}
-        active={player.current?.id === item.id}
+        active={currentId === item.id}
+        playing={playing}
         downloaded={downloaded(item.id)}
         onPress={() => player.playFrom(songIds, index)}
-        onLongPress={() => player.playNext([item.id])}
+        onMore={() => setMenuSong(item)}
+        onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
       />
     ),
-    [artFor, player, songIds, downloaded],
+    [artFor, currentId, playing, songIds, downloaded, player, toggleLoved],
   )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={[styles.back, { color: accent.accent }]}>‹ Playlists</Text>
-        </Pressable>
-        <Text style={styles.heading} numberOfLines={2}>
-          {playlist?.name ?? 'Playlist'}
-        </Text>
+        <View style={styles.backRow}>
+          <IconButton onPress={() => router.back()} label="Back to playlists">
+            <ChevronLeft size={22} color={colors.textSecondary} />
+          </IconButton>
+          <Text style={styles.backLabel}>Playlists</Text>
+        </View>
+
+        <View style={styles.titleRow}>
+          {playlist?.kind === 'smart' ? <Sparkles size={20} color={accent.accent} /> : null}
+          <Text style={styles.heading} numberOfLines={2}>
+            {playlist?.name ?? 'Playlist'}
+          </Text>
+        </View>
         <Text style={styles.meta}>
-          {songs.length} song{songs.length === 1 ? '' : 's'} ·{' '}
+          {songs.length} {songs.length === 1 ? 'song' : 'songs'} ·{' '}
           {formatLongDuration(songs.reduce((sum, song) => sum + song.duration, 0))}
+          {playlist?.kind === 'smart' ? ' · updates itself' : ''}
         </Text>
         {playlist?.description ? (
           <Text style={styles.description}>{playlist.description}</Text>
@@ -79,17 +107,26 @@ export default function PlaylistDetailScreen(): ReactNode {
         <View style={styles.actions}>
           <Button
             label="Play"
+            icon={<Play size={15} color={colors.onAccent} />}
             variant="primary"
             disabled={songs.length === 0}
-            onPress={() => player.playFrom(songIds, 0)}
+            onPress={() => player.playFrom(songIds, 0, false)}
           />
           <Button
             label="Shuffle"
+            icon={<Shuffle size={15} color={colors.textPrimary} />}
             disabled={songs.length === 0}
             onPress={() => player.playShuffled(songIds)}
           />
           <Button
-            label={pendingBytes > 0 ? `Download ${formatBytes(pendingBytes)}` : 'Downloaded'}
+            label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
+            icon={
+              pendingBytes > 0 ? (
+                <CloudDownload size={15} color={colors.textPrimary} />
+              ) : (
+                <Downloaded size={15} color={accent.accent} knockout={colors.surface2} />
+              )
+            }
             disabled={pendingBytes === 0}
             onPress={() => downloadQueue.enqueue(songIds)}
           />
@@ -104,9 +141,12 @@ export default function PlaylistDetailScreen(): ReactNode {
           keyExtractor={song => String(song.id)}
           renderItem={renderSong}
           initialNumToRender={16}
+          contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.empty}>This playlist is empty.</Text>}
         />
       )}
+
+      <SongMenu song={menuSong} onClose={() => setMenuSong(null)} />
     </SafeAreaView>
   )
 }
@@ -118,18 +158,29 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-    paddingBottom: space.md,
-    gap: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingTop: space.xs,
+    paddingBottom: space.lg,
+    gap: 3,
   },
-  back: {
-    fontSize: type.small,
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: -space.md,
+    marginBottom: space.xs,
+  },
+  backLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: space.sm,
+    marginLeft: -6,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
   },
   heading: {
+    flexShrink: 1,
     color: colors.textPrimary,
     fontSize: type.large,
     fontWeight: '700',
@@ -137,11 +188,12 @@ const styles = StyleSheet.create({
   },
   meta: {
     color: colors.textMuted,
-    fontSize: type.small,
+    fontSize: 13,
   },
   description: {
     color: colors.textSecondary,
     fontSize: type.small,
+    lineHeight: 17,
     marginTop: space.xs,
   },
   actions: {
@@ -149,6 +201,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: space.sm,
     marginTop: space.md,
+  },
+  list: {
+    paddingTop: space.xs,
+    paddingBottom: space.md,
   },
   spinner: {
     marginTop: space.xl,

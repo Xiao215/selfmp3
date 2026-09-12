@@ -6,7 +6,8 @@ import { useAccent } from '../accent'
 import { colors, space, type } from '../theme'
 
 /**
- * Scrubber.
+ * Scrubber: the web's `.scrubber-large`, a 6px track with a 16px thumb that
+ * is always there, in a hit area big enough to grab while walking.
  *
  * Hand-built on PanResponder rather than a slider package: it is thirty lines,
  * it avoids a dependency, and it lets the bar keep showing the dragged
@@ -61,26 +62,37 @@ export function SeekBar({
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.hit} onLayout={onLayout} {...responder.panHandlers}>
+      <View
+        style={styles.hit}
+        onLayout={onLayout}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Seek"
+        accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
+        {...responder.panHandlers}
+      >
         <View style={styles.track}>
-          <View
-            style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]}
-          />
+          <View style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]} />
           <View
             style={[
               styles.thumb,
-              { left: Math.max(0, width * ratio - 6), backgroundColor: accent.accentStrong },
+              {
+                left: Math.max(0, width * ratio - THUMB / 2),
+                transform: [{ scale: dragging === null ? 1 : 1.2 }],
+              },
             ]}
           />
         </View>
       </View>
+      {/* Elapsed on the left, what is left on the right — the phone's page on the web. */}
       <View style={styles.times}>
         <Text style={styles.time}>{formatDuration(shown)}</Text>
-        <Text style={styles.time}>{formatDuration(duration)}</Text>
+        <Text style={styles.time}>-{formatDuration(Math.max(0, duration - shown))}</Text>
       </View>
     </View>
   )
 }
+
+const THUMB = 16
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -91,24 +103,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   track: {
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.surface3,
     justifyContent: 'center',
   },
   fill: {
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
   },
   thumb: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: THUMB,
+    height: THUMB,
+    borderRadius: THUMB / 2,
+    backgroundColor: colors.textPrimary,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
   times: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: -2,
   },
   time: {
     color: colors.textMuted,

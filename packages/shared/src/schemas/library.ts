@@ -73,12 +73,21 @@ export const SimilarSongsSchema = z.object({
 })
 export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
 
+/**
+ * What `/api/health` says.
+ *
+ * The route answers without a token, so that a monitor, launchd or a container
+ * healthcheck does not need the secret. That means anything it says is said to
+ * anyone who can reach the port — so what describes the library rather than
+ * the service is left out unless the asker has authenticated, or there is no
+ * token set and so nothing being kept from anyone.
+ */
 export const HealthSchema = z.object({
   ok: z.literal(true),
   version: z.string(),
   uptimeSeconds: z.number().nonnegative(),
-  libraryPath: z.string(),
   storageDriver: z.string(),
-  songCount: z.number().int().nonnegative(),
+  libraryPath: z.string().optional(),
+  songCount: z.number().int().nonnegative().optional(),
 })
 export type Health = z.infer<typeof HealthSchema>

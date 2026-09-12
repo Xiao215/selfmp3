@@ -8,6 +8,7 @@ import {
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
+import { isAuthenticated } from '../http/middleware.js'
 import { APP_VERSION } from '../config.js'
 
 export function systemRoutes(container: Container): Router {
@@ -16,17 +17,23 @@ export function systemRoutes(container: Container): Router {
   /** Left unauthenticated so a monitor or launchd check does not need a token. */
   router.get(
     '/health',
-    route(
-      {},
-      (): Health => ({
+    route({}, ({ req }): Health => {
+      // Answered without a token so a monitor, launchd or a container
+      // healthcheck needs no secret — which means whoever can reach the port
+      // hears this. Where the music lives, and how much of it there is,
+      // describe the library rather than the service, and are held back from
+      // an asker who has not authenticated.
+      const known = isAuthenticated(req, container.config)
+      return {
         ok: true,
         version: APP_VERSION,
         uptimeSeconds: Math.round(process.uptime()),
-        libraryPath: container.config.libraryDir,
         storageDriver: container.storage.name,
-        songCount: container.songs.count(),
-      }),
-    ),
+        ...(known
+          ? { libraryPath: container.config.libraryDir, songCount: container.songs.count() }
+          : {}),
+      }
+    }),
   )
 
   router.get(

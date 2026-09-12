@@ -67,6 +67,31 @@ export function bearerAuth(config: Config): RequestHandler {
 }
 
 /**
+ * Whether this request carried the right token — or there is no token to
+ * carry, in which case nothing is being kept from anyone.
+ *
+ * For the routes that answer without authenticating and would still rather not
+ * say everything they know to whoever asked.
+ */
+export function isAuthenticated(req: Request, config: Config): boolean {
+  const expected = config.authToken
+  if (!expected) return true
+
+  const header = req.headers.authorization
+  const fromHeader = header?.startsWith('Bearer ') === true ? header.slice(7) : null
+  const rawQueryToken = req.query['token']
+  const provided = fromHeader ?? (typeof rawQueryToken === 'string' ? rawQueryToken : null)
+  if (provided === null) return false
+
+  const providedBuffer = Buffer.from(provided, 'utf8')
+  const expectedBuffer = Buffer.from(expected, 'utf8')
+  return (
+    providedBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(providedBuffer, expectedBuffer)
+  )
+}
+
+/**
  * Refuse a write that another website asked for.
  *
  * Nothing here needs a cookie, so the browser attaches no credentials of its

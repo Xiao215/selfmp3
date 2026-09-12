@@ -21,6 +21,14 @@ const LIBRARY_KEY = 'library-snapshot'
 let dbPromise: Promise<IDBDatabase> | null = null
 
 function openDb(): Promise<IDBDatabase> {
+  /*
+   * A failure is not remembered.
+   *
+   * The promise is cached so every reader shares one connection, but caching a
+   * *rejected* one means a single bad moment — a private window, an upgrade
+   * another tab was holding — locked this page out of its own storage for as
+   * long as it stayed open, and even a fresh sign-in could not save anything.
+   */
   dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
@@ -32,6 +40,9 @@ function openDb(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('could not open IndexedDB'))
     request.onblocked = () => reject(new Error('IndexedDB upgrade blocked by another tab'))
+  }).catch((error: unknown) => {
+    dbPromise = null
+    throw error
   })
   return dbPromise
 }

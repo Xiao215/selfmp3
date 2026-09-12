@@ -658,7 +658,7 @@ export function SettingsView() {
               <span className="hint">{songs.length} songs</span>
             </header>
 
-            {health && (
+            {health?.libraryPath !== undefined && (
               <p className="panel-lead">
                 Your music lives at <code>{health.libraryPath}</code>. It is just a folder of files —
                 copy it anywhere and you have a complete backup.

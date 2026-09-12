@@ -51,7 +51,14 @@ export default function OnboardingScreen(): ReactNode {
     void (async () => {
       try {
         const health = await api.health(candidate)
-        setNote(`Found ${health.songCount} songs on ${health.libraryPath}`)
+        // `/api/health` answers without a token and keeps the library's
+        // details back from an asker who has not proved anything; the count
+        // and the path arrive once the token below has been accepted.
+        setNote(
+          health.songCount === undefined
+            ? `Reached self.mp3 ${health.version}`
+            : `Found ${health.songCount} songs on ${health.libraryPath ?? 'this server'}`,
+        )
 
         // /api/health is unauthenticated, so prove the token separately
         // rather than discovering it is wrong on the first real request.

@@ -218,6 +218,17 @@ export class DownloadQueue {
       const from = await sourceFor(song, connection, songId)
       this.task = File.createDownloadTask(from.url, destination, {
         ...(from.headers ? { headers: from.headers } : {}),
+        // Foreground, against the default. iOS's *background* URLSession is
+        // what `createDownloadTask` reaches for, and every download failed
+        // against it with `UnableToDownloadException: unknown error` — the
+        // same way thirteen covers did, until they stopped using a task at
+        // all. What it buys is a transfer that outlives the app being
+        // suspended; what it costs, here, is every transfer.
+        //
+        // Progress, pause and resume all still work; they are the task's, not
+        // the session's. Only continuing while the app is away is given up,
+        // and a download that does not start continues nothing.
+        sessionType: 'foreground',
         onProgress,
       })
     } else {

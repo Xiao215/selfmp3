@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import * as Linking from 'expo-linking'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { DoormanError, type CloudSession } from '@selfmp3/cloud'
 import { formatSignInCode, SignInCodeSchema } from '@selfmp3/shared'
@@ -34,6 +35,15 @@ import { colors, radius, space, type } from '../src/ui/theme'
 
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
+
+/** The code the doorman put in the address it sent us back to, if it did. */
+function codeIn(url: string | null): string | null {
+  if (!url) return null
+  const raw = /(?:^|[#&?])signin-code=([0-9A-Za-z-]{1,32})/.exec(url)?.[1]
+  if (raw === undefined) return null
+  const parsed = SignInCodeSchema.safeParse(raw)
+  return parsed.success ? parsed.data : null
+}
 
 type Stage =
   | { readonly kind: 'idle'; readonly message: string | null }
@@ -61,7 +71,7 @@ export default function SignInScreen({
     })
   }, [])
 
-  /** Ask the doorman how it is going: now, and whenever the app comes back. */
+  /** Signed in: tell the app to answer from the bucket, and get out of the way. */
   const done = useCallback(
     (session: CloudSession): void => {
       onSignedIn?.(session)
@@ -71,6 +81,7 @@ export default function SignInScreen({
     [onSignedIn, signedInToCloud, router],
   )
 
+  /** Ask the doorman how it is going: now, and whenever the app comes back. */
   const check = useCallback(async (): Promise<void> => {
     const pending = await cloud.pendingSignIn()
     if (!pending) {
@@ -102,37 +113,64 @@ export default function SignInScreen({
     }
   }, [stage.kind, check])
 
-  const claim = useCallback(async (): Promise<void> => {
-    const parsed = SignInCodeSchema.safeParse(code.trim())
-    if (!parsed.success) {
-      setStage({ kind: 'code', error: 'That does not look like the code.' })
-      return
-    }
-    setBusy(true)
-    try {
-      const pending = await cloud.pendingSignIn()
-      if (!pending) {
-        setStage({ kind: 'idle', message: 'That took too long. Try again.' })
+  /** Claim the session with a code, whether it was typed or came in a link. */
+  const claimWith = useCallback(
+    async (raw: string): Promise<void> => {
+      const parsed = SignInCodeSchema.safeParse(raw.trim())
+      if (!parsed.success) {
+        setStage({ kind: 'code', error: 'That does not look like the code.' })
         return
       }
-      const outcome = await cloud.claimSignIn(pending.attempt, parsed.data)
-      if (outcome.status === 'signed-in') done(outcome.session)
-      else setStage({ kind: 'code', error: 'Google hasn’t finished yet. Try again in a moment.' })
-    } catch (error) {
-      // A wrong code ends the attempt: the doorman spends it either way, so
-      // there is nothing to try again with.
-      if (error instanceof DoormanError && error.code === 'wrong_code') {
-        setStage({ kind: 'idle', message: 'That wasn’t the code. Sign in again.' })
-      } else {
-        setStage({
-          kind: 'code',
-          error: error instanceof Error ? error.message : 'Could not sign in.',
-        })
+      setBusy(true)
+      try {
+        const pending = await cloud.pendingSignIn()
+        if (!pending) {
+          setStage({ kind: 'idle', message: 'That took too long. Try again.' })
+          return
+        }
+        const outcome = await cloud.claimSignIn(pending.attempt, parsed.data)
+        if (outcome.status === 'signed-in') done(outcome.session)
+        else setStage({ kind: 'code', error: 'Google hasn’t finished yet. Try again in a moment.' })
+      } catch (error) {
+        // A wrong code ends the attempt: the doorman spends it either way, so
+        // there is nothing to try again with.
+        if (error instanceof DoormanError && error.code === 'wrong_code') {
+          setStage({ kind: 'idle', message: 'That wasn’t the code. Sign in again.' })
+        } else {
+          setStage({
+            kind: 'code',
+            error: error instanceof Error ? error.message : 'Could not sign in.',
+          })
+        }
+      } finally {
+        setBusy(false)
       }
-    } finally {
-      setBusy(false)
+    },
+    [done],
+  )
+
+  /**
+   * Coming back from Google.
+   *
+   * The doorman redirects to `selfmp3://sign-in#signin-code=…`, which reaches
+   * the app either as the link that launched it or as one delivered while it
+   * was already open — so both are watched. With nothing to read, the screen
+   * falls back to asking for the code, which is what a doorman too old to
+   * know this scheme will have shown.
+   */
+  useEffect(() => {
+    let cancelled = false
+    const take = (url: string | null): void => {
+      const code = codeIn(url)
+      if (!cancelled && code) void claimWith(code)
     }
-  }, [code, done])
+    void Linking.getInitialURL().then(take)
+    const sub = Linking.addEventListener('url', event => take(event.url))
+    return () => {
+      cancelled = true
+      sub.remove()
+    }
+  }, [claimWith])
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -181,7 +219,7 @@ export default function SignInScreen({
                 autoFocus
               />
               {stage.error ? <Text style={styles.error}>{stage.error}</Text> : null}
-              <Button label={busy ? 'Signing in…' : 'Continue'} onPress={() => void claim()} />
+              <Button label={busy ? 'Signing in…' : 'Continue'} onPress={() => void claimWith(code)} />
             </View>
           )}
         </ScrollView>

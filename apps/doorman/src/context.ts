@@ -27,6 +27,12 @@ export interface Env {
   readonly ALLOWED_EMAILS?: string
   /** Comma-separated origins of the web app, for CORS and for going back after sign-in. */
   readonly APP_ORIGINS?: string
+  /**
+   * Comma-separated URL schemes of the native app, for going back after
+   * sign-in — `selfmp3` unless a fork changed it in app.config.js. Never used
+   * for CORS: a scheme has no origin to check one against.
+   */
+  readonly APP_SCHEMES?: string
   /** "true" only in `wrangler dev --env dev`: allows a bucket on this computer, over http. */
   readonly DEV?: string
 }

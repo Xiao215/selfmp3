@@ -135,14 +135,19 @@ export const nativePlatform: CloudPlatform = {
   randomBytes: into => into.set(Crypto.getRandomBytes(into.length)),
 
   /**
-   * Null, and that is the whole native sign-in story.
+   * Back into the app, by its own scheme.
    *
-   * There is no page for the doorman to send Google back to, so it shows a
-   * code instead and the app asks for it — the same path an iPhone home-screen
-   * app already takes when Google opens in a sheet with storage of its own.
-   * Nothing in the doorman had to change for this.
+   * What comes back is the code, in the fragment, exactly as it does for the
+   * web app — and not the attempt, which was made here and never left. So the
+   * worst another app claiming this scheme can do is hold half of a pair.
+   * That is the whole reason the code exists, and why this is safe on a phone
+   * where iOS lets any app register any scheme.
+   *
+   * A doorman that does not know this scheme drops it and shows the code on
+   * its own page instead, which still works — so an app newer than its
+   * doorman degrades to typing rather than breaking.
    */
-  returnUrl: null,
+  returnUrl: 'selfmp3://sign-in',
   // The promise is returned, not dropped. `openSignIn` may fail — no browser,
   // a refusal from the OS — and a floating promise turns that into an uncaught
   // rejection nobody sees, leaving the screen saying "Waiting for Google…"

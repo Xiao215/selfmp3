@@ -39,10 +39,21 @@ export function toBase64Url(bytes: Uint8Array): string {
   return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/** Null for anything `toBase64Url` would not have written. */
 export function fromBase64Url(text: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return null
   const base64 = text.replace(/-/g, '+').replace(/_/g, '/')
-  return fromBase64(base64 + '='.repeat((4 - (base64.length % 4)) % 4))
+  const bytes = fromBase64(base64 + '='.repeat((4 - (base64.length % 4)) % 4))
+  /*
+   * Six bits a character rarely divide evenly into bytes, so the last
+   * character of a value usually carries a few bits of nothing after the last
+   * byte of it. `atob` throws those bits away without looking at them, which
+   * leaves every value several spellings: the forty-three characters of a
+   * thirty-two byte MAC end in two spare bits, so `…A`, `…B`, `…C` and `…D`
+   * all decode alike and a MAC changed in its last character still verifies.
+   * Only the one spelling an encoder writes is one of ours.
+   */
+  return bytes && toBase64Url(bytes) === text ? bytes : null
 }
 
 export function toHex(bytes: ArrayBuffer | Uint8Array): string {

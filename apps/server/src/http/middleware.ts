@@ -152,7 +152,17 @@ export function cors(config: Config): RequestHandler {
        * server serves itself is same-origin and never reaches this.
        */
       res.setHeader('Access-Control-Allow-Credentials', 'true')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+      /*
+       * `x-selfmp3-refresh` is how the offline cache asks for the bytes
+       * themselves rather than the copy the service worker would hand back.
+       * A custom header makes a cross-origin request preflight, and a
+       * preflight that does not name the header is refused — so keeping a
+       * song failed with "Failed to fetch" and no clue as to why.
+       */
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Selfmp3-Refresh',
+      )
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
       res.setHeader('Access-Control-Max-Age', '86400')
     }

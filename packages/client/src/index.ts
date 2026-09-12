@@ -58,3 +58,5 @@ export type {
 } from './ports/engine.js'
 export type { DownloadFraction, OfflineStore, SaveOptions, StorageUsage } from './ports/offline.js'
 export type { ServerEventStream } from './ports/events.js'
+export { DownloadQueue, type DownloadQueueState } from './downloads/queue.js'
+export type { DownloadStorage, DownloadTransfer, TransferProgress } from './ports/offline.js'

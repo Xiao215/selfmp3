@@ -1,3 +1,7 @@
+import type { Song } from '@selfmp3/shared'
+import type { ServerConnection } from '../connection/connection.js'
+import type { DownloadEntry, DownloadIndex } from '../downloads/downloadIndex.js'
+
 /**
  * `OfflineStore` — where a song lives once this device has kept a copy.
  *
@@ -82,4 +86,65 @@ export interface OfflineStore {
    * saying it will decide for itself.
    */
   requestPersistence?(): Promise<boolean>
+}
+
+/** How far one transfer has got. `totalBytes` is 0 where the platform does not know yet. */
+export interface TransferProgress {
+  readonly bytesWritten: number
+  readonly totalBytes: number
+}
+
+/**
+ * One song being fetched, which can be stopped part-way.
+ *
+ * `run()` resolves with the bytes written, or with null when a pause landed
+ * before it finished. It rejects on failure, and when `cancel()` calls it off.
+ * Calling `run()` again after a null continues the same transfer — which is the
+ * whole reason this is an object rather than a function: the phone's download
+ * task holds the platform's resume data, and a paused song picks up where it
+ * stopped instead of starting again.
+ */
+export interface DownloadTransfer {
+  run(): Promise<number | null>
+  pause(): void
+  cancel(): void
+}
+
+/**
+ * Where kept songs go, as the download queue needs it.
+ *
+ * Narrower than `OfflineStore` and shaped around the queue rather than the
+ * library view: an index to read and write, a transfer to begin, and files to
+ * throw away. Ordering, pausing, progress and what a failure means are the
+ * queue's (`DownloadQueue`, in `packages/client`), so there is one of each and
+ * the platforms differ only in where the bytes land.
+ *
+ * `resumable` is the one behaviour that genuinely differs. The phone's
+ * transfer continues mid-file after a pause. The browser writes a Cache API
+ * response whole and has nothing to continue, so its `pause()` lets the song
+ * in flight finish and the queue stops after it.
+ */
+export interface DownloadStorage {
+  readonly available: boolean
+  readonly resumable: boolean
+  /** Where downloads come from changes with the Mac or the cloud session. */
+  setConnection?(connection: ServerConnection | null): void
+  /** Null when there is no index or it cannot be read; the queue starts empty. */
+  readIndex(): Promise<DownloadIndex | null>
+  writeIndex(index: DownloadIndex): Promise<void>
+  localUri(entry: DownloadEntry): string | null
+  /**
+   * Start fetching a song, from nothing. Anything already half-written for it
+   * is the storage's to clear first. May throw, or return a transfer whose
+   * `run()` rejects, when there is nowhere to fetch it from.
+   */
+  begin(
+    song: Song,
+    expectedBytes: number,
+    onProgress: (progress: TransferProgress) => void,
+  ): DownloadTransfer
+  /** Throw away what a failed or cancelled transfer left behind for this song. */
+  discard(song: Song): void
+  delete(entry: DownloadEntry): void
+  clear(): Promise<void>
 }

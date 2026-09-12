@@ -247,7 +247,9 @@ export const useCreateTag = () => useLibraryMutation((name: string) => clientApi
 export const useDeleteTag = () => useLibraryMutation((id: number) => clientApi().deleteTag(id))
 
 export const useRenameTag = () =>
-  useLibraryMutation(({ id, name }: { id: number; name: string }) => clientApi().renameTag(id, name))
+  useLibraryMutation(({ id, name }: { id: number; name: string }) =>
+    clientApi().renameTag(id, name),
+  )
 
 /**
  * Recolour a tag, applied optimistically — a swatch that waits a round trip
@@ -315,15 +317,17 @@ export const useBulkLoved = () =>
 export const useScanLibrary = () => useVoidLibraryMutation(() => clientApi().scan())
 
 export const useCreatePlaylist = () =>
-  useLibraryMutation((input: Parameters<Api['createPlaylist']>[0]) => clientApi().createPlaylist(input))
-
-export const useUpdatePlaylist = () =>
-  useLibraryMutation(
-    ({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
-      clientApi().updatePlaylist(id, patch),
+  useLibraryMutation((input: Parameters<Api['createPlaylist']>[0]) =>
+    clientApi().createPlaylist(input),
   )
 
-export const useDeletePlaylist = () => useLibraryMutation((id: number) => clientApi().deletePlaylist(id))
+export const useUpdatePlaylist = () =>
+  useLibraryMutation(({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
+    clientApi().updatePlaylist(id, patch),
+  )
+
+export const useDeletePlaylist = () =>
+  useLibraryMutation((id: number) => clientApi().deletePlaylist(id))
 
 /**
  * Love / unlove, applied optimistically.
@@ -559,9 +563,15 @@ export function useCloudActions() {
     }),
     sync: useMutation({ mutationFn: () => clientApi().cloudSync(), onSuccess }),
     disconnect: useMutation({ mutationFn: () => clientApi().cloudDisconnect(), onSuccess }),
-    signIn: useMutation({ mutationFn: (attempt: string) => clientApi().cloudSignIn(attempt), onSuccess }),
+    signIn: useMutation({
+      mutationFn: (attempt: string) => clientApi().cloudSignIn(attempt),
+      onSuccess,
+    }),
     cancelSignIn: useMutation({ mutationFn: () => clientApi().cloudCancelSignIn(), onSuccess }),
-    enterCode: useMutation({ mutationFn: (code: string) => clientApi().cloudSignInCode(code), onSuccess }),
+    enterCode: useMutation({
+      mutationFn: (code: string) => clientApi().cloudSignInCode(code),
+      onSuccess,
+    }),
     connectStorage: useMutation({
       mutationFn: (input: CloudConnect) => clientApi().cloudConnectStorage(input),
       onSuccess,
@@ -594,10 +604,12 @@ export function useCloudImportActions() {
       mutationFn: (input: CloudImportRequest) => clientApi().requestCloudImport(input),
       onSuccess,
     }),
-    cancel: useMutation({ mutationFn: (uid: string) => clientApi().cancelCloudImport(uid), onSuccess }),
+    cancel: useMutation({
+      mutationFn: (uid: string) => clientApi().cancelCloudImport(uid),
+      onSuccess,
+    }),
   }
 }
-
 
 // --- the phone's own ---------------------------------------------------------
 //
@@ -624,9 +636,7 @@ export function useManifest(): UseQueryResult<SyncManifest, Error> {
 }
 
 /** A playlist's songs in playlist order, with everything about each one. */
-export function usePlaylistSongs(
-  playlistId: number | null,
-): UseQueryResult<PlaylistSongs, Error> {
+export function usePlaylistSongs(playlistId: number | null): UseQueryResult<PlaylistSongs, Error> {
   const { ready } = useClientState()
 
   return useQuery({

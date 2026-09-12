@@ -91,16 +91,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     setStatus('ready')
   }, [forgetCachedServer])
 
-  const connect = useCallback(async (next: ServerConnection) => {
-    // Choosing a Mac on purpose means answering from it, not the bucket.
-    answerFromCloud(false)
-    setServer(next)
-    forgetCachedServer()
-    setFromCloud(false)
-    await saveConnection(next)
-    setConnection(next)
-    setStatus('ready')
-  }, [forgetCachedServer])
+  const connect = useCallback(
+    async (next: ServerConnection) => {
+      // Choosing a Mac on purpose means answering from it, not the bucket.
+      answerFromCloud(false)
+      setServer(next)
+      forgetCachedServer()
+      setFromCloud(false)
+      await saveConnection(next)
+      setConnection(next)
+      setStatus('ready')
+    },
+    [forgetCachedServer],
+  )
 
   const disconnect = useCallback(async () => {
     await clearConnection()

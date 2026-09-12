@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  listenedDelta,
-  secondsToCount,
-  PLAY_THRESHOLD_CAP_SECONDS,
-} from './counting.js'
+import { listenedDelta, secondsToCount, PLAY_THRESHOLD_CAP_SECONDS } from './counting.js'
 
 /**
  * These two decide play counts, and play counts are what stats and Wrapped are

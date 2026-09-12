@@ -61,4 +61,58 @@ module.exports = [
       ],
     },
   },
+  {
+    // docs/UNIVERSAL.md foundation 3, enforced.
+    //
+    // A model file holds a feature's state and behaviour and draws nothing, so
+    // vitest can run it in milliseconds with no simulator and no browser. The
+    // moment one imports `react-native` or a component that stops being true —
+    // silently, because the screen still works. This is the rule that notices.
+    files: ['**/*.model.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              message:
+                'A model file draws nothing. Keep react-native in the screen; vitest has to be able to run this file.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['react-native-*', 'expo', 'expo-*', '@expo/*'],
+              message:
+                'A model file draws nothing and touches no native module. Pass what you need in as an argument.',
+            },
+            {
+              group: ['**/ui/**', '**/components/**', '**/shell/**', '**/ports/**'],
+              message: 'A model file imports no UI and no port. The screen wires those to it.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // docs/UNIVERSAL.md foundation 2, enforced.
+    //
+    // Screens read a port's declared capabilities, never the platform. The two
+    // places allowed to ask which platform this is are the ports themselves and
+    // the shell, because deciding that is their whole job.
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['src/ports/**', 'src/shell/**', 'verify/**', '*.config.js', '*.config.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Platform',
+          property: 'OS',
+          message:
+            'Screens do not read the platform. Put the difference behind a port in src/ports, or a width in src/shell.',
+        },
+      ],
+    },
+  },
 ]

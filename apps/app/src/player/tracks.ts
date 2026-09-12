@@ -41,10 +41,7 @@ export function toTrack(
     // Art comes from a Mac when there is one. From the bucket it would need
     // the same header the loader cannot send, so a bucket song shows none
     // until covers are downloaded alongside the audio.
-    artwork:
-      song.hasArt && connection
-        ? mediaUrlFor(connection).art(song.id, song.rev)
-        : undefined,
+    artwork: song.hasArt && connection ? mediaUrlFor(connection).art(song.id, song.rev) : undefined,
     duration: song.duration > 0 ? song.duration : undefined,
     contentType: song.mime,
     isLiveStream: false,

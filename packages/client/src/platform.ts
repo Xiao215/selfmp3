@@ -80,11 +80,7 @@ export interface ApiTransport {
  * those are the app's. So each app builds its own `cloudRequest` and hands it
  * in here.
  */
-export type CloudRequest = (
-  method: string,
-  path: string,
-  body: unknown,
-) => Promise<unknown>
+export type CloudRequest = (method: string, path: string, body: unknown) => Promise<unknown>
 
 /**
  * Which of the two possible answerers is live.

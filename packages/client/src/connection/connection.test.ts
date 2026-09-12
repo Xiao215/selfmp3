@@ -17,9 +17,7 @@ describe('normaliseBaseUrl', () => {
   it('takes a bare Tailscale name as https', () => {
     // `tailscale serve --bg 4600` puts the server behind Tailscale's HTTPS on
     // 443, so this is the address docs/SETUP.md tells someone to use.
-    expect(normaliseBaseUrl('mac-mini.tail1234.ts.net')).toBe(
-      'https://mac-mini.tail1234.ts.net',
-    )
+    expect(normaliseBaseUrl('mac-mini.tail1234.ts.net')).toBe('https://mac-mini.tail1234.ts.net')
   })
 
   it('takes a named port as http', () => {
@@ -33,9 +31,7 @@ describe('normaliseBaseUrl', () => {
 
   it('keeps an explicit scheme', () => {
     expect(normaliseBaseUrl('http://mac-mini.local')).toBe('http://mac-mini.local')
-    expect(normaliseBaseUrl('https://mac-mini.local:4600')).toBe(
-      'https://mac-mini.local:4600',
-    )
+    expect(normaliseBaseUrl('https://mac-mini.local:4600')).toBe('https://mac-mini.local:4600')
   })
 
   it('forgives whitespace and trailing slashes', () => {
@@ -83,9 +79,7 @@ describe('normaliseBaseUrl', () => {
     // What `URL` does, kept deliberately so the move changed no behaviour.
     // Worth knowing it is silent: someone who types credentials here gets
     // unauthenticated requests and no explanation. The token field is the way.
-    expect(normaliseBaseUrl('http://user:pw@mac.local:4600')).toBe(
-      'http://mac.local:4600',
-    )
+    expect(normaliseBaseUrl('http://user:pw@mac.local:4600')).toBe('http://mac.local:4600')
   })
 
   it('refuses a unicode host rather than mangling it', () => {

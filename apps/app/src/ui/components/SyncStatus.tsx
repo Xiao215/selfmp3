@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Song } from '@selfmp3/shared'
-import { downloadedCount, isDownloaded , colors, radius, space, type } from '@selfmp3/client'
+import { downloadedCount, isDownloaded, colors, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { freeToDownload, useConnectionKind } from '../../offline/connectionKind'
 import { useAccent } from '../accent'
@@ -49,8 +49,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   }
 
   const working = state.queue.length > 0
-  const fraction =
-    state.totalBytes > 0 ? Math.min(1, state.bytesWritten / state.totalBytes) : 0
+  const fraction = state.totalBytes > 0 ? Math.min(1, state.bytesWritten / state.totalBytes) : 0
 
   if (working) {
     const done = Math.max(0, total - state.queue.length)
@@ -68,10 +67,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           <Text style={styles.text}>
             {state.paused ? 'Paused' : 'Adding'} {done + 1} of {total}
           </Text>
-          <Pressable
-            onPress={() => (state.paused ? queue.resume() : queue.pause())}
-            hitSlop={8}
-          >
+          <Pressable onPress={() => (state.paused ? queue.resume() : queue.pause())} hitSlop={8}>
             <Text style={[styles.action, { color: accent.accent }]}>
               {state.paused ? 'Resume' : 'Pause'}
             </Text>
@@ -94,9 +90,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   if (connection === 'none') {
     return (
       <View style={styles.bar}>
-        <Text style={styles.text}>
-          {missing.length} new · offline
-        </Text>
+        <Text style={styles.text}>{missing.length} new · offline</Text>
       </View>
     )
   }
@@ -117,12 +111,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           {onData ? ' · on mobile data' : ''}
         </Text>
         <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
-          <Text
-            style={[
-              styles.action,
-              { color: onData ? colors.warning : accent.accent },
-            ]}
-          >
+          <Text style={[styles.action, { color: onData ? colors.warning : accent.accent }]}>
             {onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`}
           </Text>
         </Pressable>

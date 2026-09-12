@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import {
   AppState,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import { useConnection } from '../src/server/ConnectionProvider'
 import { useRouter } from 'expo-router'
 import { Button } from '../src/ui/components/Button'
 import { colors, radius, space, type } from '@selfmp3/client'
+import { keyboardAvoidBehavior } from '../src/ports/keyboard'
 
 /**
  * First run: sign in with Google.
@@ -95,8 +95,7 @@ export default function SignInScreen({
       // Only when nothing is already being spent: a link may have brought one.
       if (outcome.status === 'code') {
         setStage(current => (current.kind === 'claiming' ? current : { kind: 'code', error: null }))
-      }
-      else if (outcome.status === 'signed-in') done(outcome.session)
+      } else if (outcome.status === 'signed-in') done(outcome.session)
     } catch {
       // Offline, or the doorman is busy. The next look will say.
     }
@@ -185,10 +184,7 @@ export default function SignInScreen({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.wordmark}>self.mp3</Text>
           <Text style={styles.blurb}>
@@ -236,7 +232,10 @@ export default function SignInScreen({
                 autoFocus
               />
               {stage.error ? <Text style={styles.error}>{stage.error}</Text> : null}
-              <Button label={busy ? 'Signing in…' : 'Continue'} onPress={() => void claimWith(code)} />
+              <Button
+                label={busy ? 'Signing in…' : 'Continue'}
+                onPress={() => void claimWith(code)}
+              />
             </View>
           )}
         </ScrollView>

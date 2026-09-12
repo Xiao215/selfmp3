@@ -1,14 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { apiFor, ApiError } from '../src/api/client'
@@ -16,6 +8,7 @@ import { normaliseBaseUrl } from '../src/server/connection'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { Button } from '../src/ui/components/Button'
 import { colors, radius, space, type } from '@selfmp3/client'
+import { keyboardAvoidBehavior } from '../src/ports/keyboard'
 
 /**
  * First run: where is the server?
@@ -82,10 +75,7 @@ export default function OnboardingScreen(): ReactNode {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.wordmark}>self.mp3</Text>
           <Text style={styles.blurb}>

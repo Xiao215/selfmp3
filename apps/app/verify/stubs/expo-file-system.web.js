@@ -3,7 +3,7 @@
 // expo-file-system has no web implementation: it warns "not supported on web"
 // and its `File` throws `this.validatePath is not a function` on construction.
 // Six files in apps/app build a `File` or a `Directory` at module scope
-// (src/offline/*, src/cloud/nativePlatform.ts, src/ui/accent.tsx), so the app
+// (src/offline/*, src/ports/cloudPlatform.ts, src/ui/accent.tsx), so the app
 // crashes on web before any screen renders. That is the single reason the phone
 // app cannot simply be exported to the browser today.
 //

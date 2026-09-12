@@ -11,11 +11,7 @@ import type { ApiTransport } from '../platform.js'
  * to an `<audio>` element, an `<img>`, or `expo-file-system` — so they take the
  * transport directly rather than going through `createApi`.
  */
-function withParams(
-  url: string,
-  rev: string | undefined,
-  extra: Record<string, string>,
-): string {
+function withParams(url: string, rev: string | undefined, extra: Record<string, string>): string {
   const params: string[] = []
   if (rev) params.push(`v=${encodeURIComponent(rev)}`)
   for (const [key, value] of Object.entries(extra)) {

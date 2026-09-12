@@ -10,7 +10,7 @@ import TrackPlayer, { Event } from 'react-native-track-player'
  * into player calls.
  *
  * Events that need library knowledge (`RemotePlayId`, `RemotePlaySearch` from
- * Android Auto) are handled in `src/car/androidAuto.ts` instead, where the
+ * Android Auto) are handled in `src/ports/car/androidAuto.ts` instead, where the
  * library is in scope.
  */
 /**

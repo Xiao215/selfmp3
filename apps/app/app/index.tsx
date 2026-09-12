@@ -14,8 +14,18 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatLongDuration, type Song } from '@selfmp3/shared'
 import { useLibrary, useToggleLoved } from '../src/api/queries'
 import { useArt } from '../src/offline/useArt'
-import { DEFAULT_FILTER, filterSongs, SORT_OPTIONS, usedTags } from '../src/lib/library'
-import { isDownloaded , colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import {
+  DEFAULT_FILTER,
+  filterSongs,
+  isDownloaded,
+  SORT_OPTIONS,
+  usedTags,
+  colors,
+  HIT_TARGET,
+  radius,
+  space,
+  type,
+} from '@selfmp3/client'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { usePlayer } from '../src/player/PlayerProvider'
 import { useAccent } from '../src/ui/accent'

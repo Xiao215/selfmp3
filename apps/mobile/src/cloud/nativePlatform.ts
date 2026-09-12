@@ -114,10 +114,16 @@ const textCache: TextCache = {
   },
 }
 
-/** The doorman this build signs in through. */
+/**
+ * The doorman this build signs in through.
+ *
+ * Checked for being a string rather than merely present, because Expo turns a
+ * null in `extra` into `{}` on the way through — which is not null, so a `??`
+ * fallback keeps it, and the address silently becomes "[object Object]".
+ */
+const configured = (Constants.expoConfig?.extra as { doormanUrl?: unknown } | undefined)?.doormanUrl
 const doormanUrl =
-  (Constants.expoConfig?.extra as { doormanUrl?: string | null } | undefined)?.doormanUrl ??
-  DEFAULT_DOORMAN_URL
+  typeof configured === 'string' && configured.length > 0 ? configured : DEFAULT_DOORMAN_URL
 
 export const nativePlatform: CloudPlatform = {
   doormanUrl,

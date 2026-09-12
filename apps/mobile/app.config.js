@@ -75,7 +75,13 @@ const config = {
    * at your own; left alone it is the one in packages/shared/src/cloud.ts.
    */
   extra: {
-    doormanUrl: process.env.SELFMP3_DOORMAN_URL ?? null,
+    // Spread rather than `?? null`: Expo serialises a null in `extra` as `{}`,
+    // which is not null, so a `??` fallback downstream never fires and the
+    // address becomes the string "[object Object]". Absent is the only way to
+    // say absent here.
+    ...(process.env.SELFMP3_DOORMAN_URL
+      ? { doormanUrl: process.env.SELFMP3_DOORMAN_URL }
+      : {}),
   },
 
   experiments: {

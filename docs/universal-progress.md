@@ -662,6 +662,144 @@ by reading a summary line, and `main` was re-verified from a clean worktree:
 
 ---
 
+## Phase 3, finished — one download queue, and the phone flows run
+
+Commits on `universal/phase-3`: `f3e7f54` the shared download queue,
+`e79c86e` and `a92ce50` both apps onto it, `75f259e` the sync line's buttons,
+`f30363f` handoff position and the devices flow, `b9d7332` the offline flow.
+
+### One download queue
+
+There were two: the phone's class over `expo-file-system` and
+`downloads.web.ts` over the Cache API, the same shape written twice. Now
+`DownloadQueue` in `packages/client` owns ordering, pausing, progress and what
+a failure means, over a `DownloadStorage` port. `src/ports/downloadStorage.ts`
+writes files and continues a paused song mid-file. `downloadStorage.web.ts`
+writes Cache API responses, which cannot be continued, so pausing lets the song
+in flight finish and stops after it. The storage says which with `resumable`.
+There is one `DownloadsProvider` over one queue on both platforms. The queue has
+17 tests against a fake storage, written before the swap.
+
+Writing it once found two bugs in the phone's queue, both fixed in the shared
+one and covered by those tests:
+
+1. **Cancel swallowed the next real failure.** `cancelAll` marked "a cancel is
+   in progress" whether or not a transfer was running. A paused transfer has
+   already resolved and nothing idle rejects, so the mark stayed set, and the
+   next download that genuinely failed was treated as the cancel and said
+   nothing. It is now set only for a transfer in flight.
+2. **A download with nowhere to come from failed silently.** Finding the
+   source — the Mac, or the doorman for a cloud session — happened before the
+   `try`. With neither, its error escaped the download loop unreported, and
+   the sync line went on saying it was adding songs while nothing downloaded.
+   Starting the transfer is now inside the `try`, and the error is shown.
+
+One hazard, caught before it shipped. The browser's cache knows which songs it
+holds, but not the `etag` each was downloaded at. Settings compares those
+etags with the server's to count files that have changed, and offers to remove
+them. With no etags, every kept song would count as changed, and that button
+would delete the lot. The web storage keeps the etags in `localStorage` beside
+the cache. Checked in a fresh browser: 13 songs kept, 13 etags, all 13 still
+there after a reload, and no out-of-date row.
+
+### A commit that held only a deletion
+
+`e79c86e` says it moves both apps onto the queue. It contains only the deletion
+of `downloads.web.ts`. Its `git add` named that file after it was already gone.
+Git refused the whole command over that one path, the refusal was sent to
+`/dev/null`, and the commit went ahead with what had been staged earlier. On
+`e79c86e` alone the web build imports the phone's file-system queue. `a92ce50`
+is the rest of it, and says so. Commits since have been made from a script
+that stops unless the staged files are exactly the expected ones. That script
+also decides the gates by exit code.
+
+### The phone flows, run for the first time
+
+`smoke.yaml` had run before. `devices.yaml` and `offline.yaml` were still the
+spike's skeletons, and had never run. They needed a phone connected to the Mac
+by address, which the phone in use was not, because it was signed in to the
+cloud (question 5). So a second simulator was set up: an iPhone 17 Pro Max with
+the same dev client, connected to the Mac through `selfmp3://onboarding`. The
+cloud-signed iPhone 17 Pro was left as it was.
+
+| Check | Result |
+|---|---|
+| `maestro test .maestro/smoke.yaml` | 19 completed, 0 failed |
+| `maestro test .maestro/devices.yaml`, the web app playing in a browser as the other device | passed |
+| `.maestro/offline-run.sh` | passed; the server resumed and answered afterwards |
+| Handoff position, read from `GET /api/devices` | the web tab paused at 106 s; the phone was playing the same song at 109 s |
+| The phone's event-stream reader against a real Mac | a `pause` posted to the server for the phone reported one delivery, and the phone paused |
+
+**A handoff started the song from the top.** Found on the first run of
+`devices.yaml`. "Play here" took the other device's queue and paused it there,
+but the phone began at 0:00. `DevicesProvider` called `playFrom` and then
+`seekTo`. `playFrom` only starts an asynchronous load, so the seek reached
+track-player before the track existed and was lost. The web app never had this,
+because its `playQueue` takes the position in the same call. `playFrom` now
+takes a start position and hands it to the engine as `startAt` (`f30363f`). The
+`playSong` and `transfer` commands another device can send use the same path,
+but were not driven separately.
+
+**The first passing run proved nothing.** It checked that the phone was
+playing, and the phone was — its own song, resumed. A tap had landed wrong
+during a reload, while the web tab carried on. The flow now records what the
+phone had and fails unless the song changes.
+
+**Offline is a frozen server, not airplane mode.** The simulator has no
+airplane mode. A test-only switch in the app would prove the switch, not the
+player, because track-player fetches its own URLs. `offline-run.sh` sends the
+Mac's server SIGSTOP for the run and SIGCONT after, whatever happens. To the
+phone that is a sleeping Mac.
+
+What the phone does with the Mac out of reach, checked by hand and then by the
+flow:
+
+- A downloaded song plays from the file and keeps playing.
+- The library appears from the cached copy, but after about 40 seconds counting
+  launch. Every request waits out the 15-second timeout, and `retry: 1` makes
+  it wait twice. Not changed; it belongs with question 2.
+- A song that is not downloaded loads into the mini player and sits there
+  paused, with no message. The plan's check says it should "say so instead of
+  failing". The web app refuses to start it and shows a toast; apps/mobile never
+  said anything either. Saying so on the phone would look different, so it is
+  question 6. Until then `offline.yaml` does not assert it. The web build of
+  `apps/app` also lost the web app's toast. The phase 4 comparison would show
+  that as a regression, not a choice.
+
+### Corrections to "Phase 3, continued" above
+
+- "The phone's reader works against a real Mac — **not established**." It is
+  now; see the table above.
+- "A second simulator set up for the test wedged … every `simctl` call against
+  it hung." The CoreSimulator crash (`Mach error -308`) was real. The hung calls
+  were most likely something else. A fresh simulator's first deep link raises
+  "Open in self.mp3?", and `simctl openurl` does not return until it is
+  answered. The Pro Max did exactly the same, and answering the prompt cleared
+  it. The Maestro README now says so.
+
+### Gates
+
+| Gate (docs/UNIVERSAL.md, phase 3) | Result |
+|---|---|
+| `npm run check:app` | exit 0 |
+| `npm run check` | exit 0, 99 test files |
+| `npx playwright test verify/flows --project=desktop`, against `apps/app` on 8090, with `--project=phone` as well | exit 0: 16 passed, 2 skipped — the settings-page flow at each width, skipped by its own condition |
+| `maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml` | all three pass on the Mac-connected simulator (offline through its runner) |
+
+### What phase 3 leaves
+
+- Question 6, and with it the "says so" half of the offline check.
+- On the web, a handoff also carries shuffle and repeat. On the phone it
+  carries the queue and position only. This predates the move, and is left for
+  the phase 4 comparison.
+- `PlayerProvider` moving into `packages/client`, which matters only once
+  `apps/web` is deleted in phase 5.
+- The dev server's device list has several hundred entries from test runs.
+  Only online devices are shown, but the whole list is returned on every
+  heartbeat. It is dev data, not a code change.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the
@@ -705,3 +843,13 @@ by reading a summary line, and `main` was re-verified from a clean worktree:
    its framing and reconnect tested under vitest, but has not run against a
    Mac: a second simulator set up for that wedged and was shut down.
 
+6. **Should the phone say so when a song cannot play?** Found running the
+   offline check in phase 3. With the Mac out of reach, tapping a song that is
+   not downloaded loads it into the mini player, where it sits paused with no
+   message. The plan's offline check asks for the web app's behaviour:
+   refuse to start it, and show "“<title>” isn't downloaded — it plays once
+   your Mac is reachable." The phone has no toast to show that in, so doing
+   it means adding one, or marking such rows the way the web greys them —
+   either looks different, which is why it is a question and not a fix.
+   The web build of `apps/app` has lost the toast too, so on the web it would
+   be restoring the reference rather than a new design.

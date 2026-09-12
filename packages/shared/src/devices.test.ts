@@ -106,6 +106,24 @@ describe('extrapolatePosition', () => {
   it('leaves a paused state alone', () => {
     expect(extrapolatePosition(state(), NOW + 4_000)).toBe(30)
   })
+
+  /*
+   * `updatedAt` is the sending device's clock and a reader's `now` is its own.
+   * The two being a few seconds apart is ordinary, and subtracting one from
+   * the other put the scrubber wherever that difference happened to be — stuck
+   * at the last heartbeat when the sender ran fast, jumped forward when slow.
+   */
+  it('measures from when the reader heard it, when the reader says so', () => {
+    const playing = state({ playing: true })
+
+    // A reader whose clock is two minutes ahead of the sender's.
+    const heard = NOW + 120_000
+    expect(extrapolatePosition(playing, heard + 4_000, undefined, heard)).toBeCloseTo(34)
+
+    // And one whose clock is behind it, which used to freeze the scrubber.
+    const behind = NOW - 120_000
+    expect(extrapolatePosition(playing, behind + 4_000, undefined, behind)).toBeCloseTo(34)
+  })
 })
 
 describe('playbackStateChanged', () => {

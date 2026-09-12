@@ -36,6 +36,9 @@ export function useTransport(): Transport {
   const { remote, send } = useDeviceContext()
   const { data: library } = useLibrary()
 
+  /* When this browser last saw a new state from the remote device, locally. */
+  const heardAt = useMemo(() => Date.now(), [remote?.state.updatedAt])
+
   const remoteSong = useMemo(() => {
     const songId = remote?.state.songId
     if (songId == null) return null
@@ -104,7 +107,11 @@ export function useTransport(): Transport {
     remote,
     song: remoteSong,
     playing: remote.state.playing,
-    currentTime: extrapolatePosition(remote.state, Date.now(), duration),
+    // Measured from when this browser received the heartbeat, by its own
+    // clock. `state.updatedAt` is the other device's clock, and the two
+    // disagreeing by a few seconds is ordinary — subtracting one from the
+    // other put the scrubber wherever the difference happened to be.
+    currentTime: extrapolatePosition(remote.state, Date.now(), duration, heardAt),
     duration,
     volume: remote.state.volume ?? 1,
     toggle,

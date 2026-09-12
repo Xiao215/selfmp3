@@ -117,6 +117,17 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     return
   }
 
+  /*
+   * An empty file has nothing to stream, and asking for bytes 0 to -1 throws.
+   * Letting that through was worse than the empty file: the headers here are
+   * already set, so the error handler's JSON went out as audio, cached for a
+   * year and marked immutable — one broken file poisoning the song for good.
+   */
+  if (length <= 0) {
+    res.end()
+    return
+  }
+
   const stream = source.open(start, end)
   try {
     await pipeline(stream, res)

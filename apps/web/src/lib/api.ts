@@ -203,8 +203,8 @@ export const api = {
   recordPlay: (id: number, event: PlayEvent) =>
     request('POST', `/api/songs/${id}/played`, OkSchema, event),
 
-  recordSkip: (id: number, atSeconds: number) =>
-    request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds }),
+  recordSkip: (id: number, atSeconds: number, clientId?: string) =>
+    request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
 
   /** Open Finder on the server's own machine with the song's file selected. */
   revealSong: (id: number) => request('POST', `/api/songs/${id}/reveal`, OkSchema),

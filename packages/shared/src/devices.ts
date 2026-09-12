@@ -61,10 +61,22 @@ function resumeRank(device: Device): number {
  * The position a device is at *now*, extrapolated from its last heartbeat.
  * A remote device reports every ten seconds; without this the remote-control
  * scrubber would jump in ten-second steps.
+ *
+ * `since` is when `state` was observed, and has to be on the same clock as
+ * `now`. It defaults to the device's own `updatedAt`, which is right only when
+ * `now` comes from that same device: a reader watching *another* device is
+ * otherwise subtracting that device's clock from its own, and two clocks a few
+ * seconds apart is ordinary. Such a reader should pass the moment it received
+ * the heartbeat, by its own clock.
  */
-export function extrapolatePosition(state: PlaybackState, now: number, duration?: number): number {
+export function extrapolatePosition(
+  state: PlaybackState,
+  now: number,
+  duration?: number,
+  since: number = state.updatedAt,
+): number {
   if (!state.playing) return state.position
-  const elapsed = Math.max(0, (now - state.updatedAt) / 1000)
+  const elapsed = Math.max(0, (now - since) / 1000)
   const position = state.position + elapsed
   return duration !== undefined && duration > 0 ? Math.min(position, duration) : position
 }

@@ -120,6 +120,8 @@ export interface CloudLibraryApi {
     session: CloudSession | null,
     songId: number,
   ) => Promise<{ text: string; kind: 'plain' | 'synced' } | null>
+  /** A song's cover in the bucket (`covers/<sha256>.<ext>`), or null. */
+  cloudCoverKey: (songId: number) => Promise<string | null>
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   forgetCloudLibrary: () => Promise<void>
 }
@@ -541,6 +543,17 @@ export function createCloudLibrary(
     return { text, kind: files.lyricsKind }
   }
 
+  /**
+   * Where a song's cover is in the bucket.
+   *
+   * The key rather than the bytes: artwork goes to a file and is handed to the
+   * OS image loader as a path, and a base64 round trip through JavaScript for
+   * every row in a list is not the way to get there.
+   */
+  async function cloudCoverKey(songId: number): Promise<string | null> {
+    return (await filesOf(songId))?.cover ?? null
+  }
+
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
@@ -613,6 +626,7 @@ export function createCloudLibrary(
     flushCloudChanges,
     cloudPlaylistSongs,
     cloudLyrics,
+    cloudCoverKey,
     cloudManifest,
     forgetCloudLibrary,
   }

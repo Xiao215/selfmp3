@@ -48,6 +48,8 @@ function codeIn(url: string | null): string | null {
 type Stage =
   | { readonly kind: 'idle'; readonly message: string | null }
   | { readonly kind: 'waiting' }
+  /** A code arrived in the link and is being spent; nothing to ask for. */
+  | { readonly kind: 'claiming' }
   | { readonly kind: 'code'; readonly error: string | null }
 
 export default function SignInScreen({
@@ -90,7 +92,10 @@ export default function SignInScreen({
     }
     try {
       const outcome = await cloud.claimSignIn(pending.attempt)
-      if (outcome.status === 'code') setStage({ kind: 'code', error: null })
+      // Only when nothing is already being spent: a link may have brought one.
+      if (outcome.status === 'code') {
+        setStage(current => (current.kind === 'claiming' ? current : { kind: 'code', error: null }))
+      }
       else if (outcome.status === 'signed-in') done(outcome.session)
     } catch {
       // Offline, or the doorman is busy. The next look will say.
@@ -162,7 +167,13 @@ export default function SignInScreen({
     let cancelled = false
     const take = (url: string | null): void => {
       const code = codeIn(url)
-      if (!cancelled && code) void claimWith(code)
+      if (cancelled || !code) return
+      // Said before the claim starts, not after: the poll below is also
+      // running, and it learns "code" from the doorman a moment earlier —
+      // which used to put the ask-for-the-code screen up for the two or three
+      // seconds the claim took, on a sign-in that needed nothing typed.
+      setStage({ kind: 'claiming' })
+      void claimWith(code)
     }
     void Linking.getInitialURL().then(take)
     const sub = Linking.addEventListener('url', event => take(event.url))
@@ -189,6 +200,12 @@ export default function SignInScreen({
             <View>
               {stage.message ? <Text style={styles.error}>{stage.message}</Text> : null}
               <Button label="Sign in with Google" onPress={begin} />
+            </View>
+          )}
+
+          {stage.kind === 'claiming' && (
+            <View>
+              <Text style={styles.label}>Signing in…</Text>
             </View>
           )}
 

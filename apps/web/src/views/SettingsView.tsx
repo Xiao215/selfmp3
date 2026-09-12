@@ -791,6 +791,29 @@ export function SettingsView() {
 
               <div className="setting-row">
                 <span className="setting-label">
+                  Theme
+                  <span className="setting-hint">
+                    “System” follows this device’s own light and dark setting, and changes with it.
+                    Your accent colour holds either way.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <Select<Settings['theme']>
+                    value={settings.theme}
+                    onChange={value => set('theme', value)}
+                    options={[
+                      { value: 'dark', label: 'Dark' },
+                      { value: 'light', label: 'Light' },
+                      { value: 'system', label: 'System' },
+                    ]}
+                    label="Theme"
+                    align="end"
+                  />
+                </span>
+              </div>
+
+              <div className="setting-row">
+                <span className="setting-label">
                   Accent colour
                   <span className="setting-hint">
                     Drives every colour in the app — the surfaces are tinted from it too, so a

@@ -20,6 +20,13 @@ import {
 
 interface ConnectionContextValue {
   readonly connection: ServerConnection | null
+  /**
+   * Whether this device answers from the bucket. Not the same as having no
+   * `connection`: an address left over from talking to a Mac is still stored,
+   * and asking "is there a connection?" made covers reach for a Mac that is
+   * not running rather than the copy on this phone.
+   */
+  readonly fromCloud: boolean
   readonly status: 'loading' | 'ready' | 'missing'
   readonly connect: (connection: ServerConnection) => Promise<void>
   /** Say the cloud sign-in finished, so the app answers from the bucket. */
@@ -32,6 +39,7 @@ const ConnectionContext = createContext<ConnectionContextValue | null>(null)
 export function ConnectionProvider({ children }: { children: ReactNode }): ReactNode {
   const [connection, setConnection] = useState<ServerConnection | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
+  const [fromCloud, setFromCloud] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -45,6 +53,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       ])
       if (cancelled) return
       answerFromCloud(signedIn !== null)
+      setFromCloud(signedIn !== null)
       setConnection(stored)
       setStatus(signedIn || stored ? 'ready' : 'missing')
     })()
@@ -56,12 +65,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   /** Called once Google is done, so the app stops asking for a Mac. */
   const signedInToCloud = useCallback(() => {
     answerFromCloud(true)
+    setFromCloud(true)
     setStatus('ready')
   }, [])
 
   const connect = useCallback(async (next: ServerConnection) => {
     // Choosing a Mac on purpose means answering from it, not the bucket.
     answerFromCloud(false)
+    setFromCloud(false)
     await saveConnection(next)
     setConnection(next)
     setStatus('ready')
@@ -74,8 +85,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   }, [])
 
   const value = useMemo<ConnectionContextValue>(
-    () => ({ connection, status, connect, disconnect, signedInToCloud }),
-    [connection, status, connect, disconnect, signedInToCloud],
+    () => ({ connection, fromCloud, status, connect, disconnect, signedInToCloud }),
+    [connection, fromCloud, status, connect, disconnect, signedInToCloud],
   )
 
   return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>

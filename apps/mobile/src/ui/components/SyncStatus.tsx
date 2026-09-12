@@ -63,14 +63,17 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
     )
   }
 
+  // "New", not "0 of 13": a song in the bucket this phone has not fetched yet
+  // is something waiting to be added, which is what it looks like to whoever
+  // is holding it — not a shortfall against a total.
   return (
     <View style={styles.bar}>
       <View style={styles.row}>
         <Text style={styles.text}>
-          {held} of {total} on this phone
+          {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
         </Text>
         <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
-          <Text style={styles.action}>Download {missing.length}</Text>
+          <Text style={styles.action}>Add {missing.length === total ? 'all' : missing.length}</Text>
         </Pressable>
       </View>
     </View>

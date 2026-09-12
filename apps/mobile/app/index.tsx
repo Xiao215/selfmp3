@@ -25,7 +25,7 @@ import { colors, radius, space, type } from '../src/ui/theme'
 export default function LibraryScreen(): ReactNode {
   const library = useLibrary()
   const player = usePlayer()
-  const { connection } = useConnection()
+  const { connection, fromCloud } = useConnection()
   const { state: downloads } = useDownloads()
 
   const [filter, setFilter] = useState(DEFAULT_FILTER)
@@ -50,11 +50,14 @@ export default function LibraryScreen(): ReactNode {
   const artFor = useCallback(
     (song: Song): string | null => {
       if (!song.hasArt) return null
-      if (connection) return mediaUrl.art(connection, song.id, song.rev)
+      // `fromCloud`, not `connection`: a Mac address left over from before is
+      // still stored, and asking whether one exists sent the image loader to a
+      // Mac that is not running — which is why every row kept its letter tile.
+      if (!fromCloud && connection) return mediaUrl.art(connection, song.id, song.rev)
       void ensureCover(song.id)
       return covers.get(song.id) ?? null
     },
-    [connection, covers],
+    [connection, fromCloud, covers],
   )
 
   const renderSong = useCallback(

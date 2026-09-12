@@ -1,6 +1,25 @@
 import { useEffect, useState } from 'react'
 import { AppState } from 'react-native'
-import { getNetworkStateAsync, NetworkStateType } from 'expo-network'
+// Imported lazily, and never at module scope. `expo-network` is a native
+// module, so on a binary built before it was added — which is every binary
+// until the next `expo run:ios` — touching it throws "Cannot find native
+// module 'ExpoNetwork'". At module scope that takes the screen down with it:
+// a route fails to export, and the error boundary itself is undefined by the
+// time anything tries to catch it. Knowing the connection is a nicety; the
+// app running is not.
+type NetworkModule = {
+  getNetworkStateAsync: () => Promise<{ isConnected?: boolean; type?: string }>
+  NetworkStateType: Record<string, string>
+}
+
+function networkModule(): NetworkModule | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-network') as NetworkModule
+  } catch {
+    return null
+  }
+}
 
 /**
  * What this phone is connected through, so downloading can care.
@@ -19,15 +38,18 @@ export type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
 
 export async function connectionKind(): Promise<ConnectionKind> {
   try {
-    const state = await getNetworkStateAsync()
+    const network = networkModule()
+    if (!network) return 'unknown'
+    const state = await network.getNetworkStateAsync()
     if (state.isConnected === false) return 'none'
+    const kinds = network.NetworkStateType
     switch (state.type) {
-      case NetworkStateType.WIFI:
-      case NetworkStateType.ETHERNET:
+      case kinds['WIFI']:
+      case kinds['ETHERNET']:
         return 'wifi'
-      case NetworkStateType.CELLULAR:
+      case kinds['CELLULAR']:
         return 'cellular'
-      case NetworkStateType.NONE:
+      case kinds['NONE']:
         return 'none'
       default:
         // A simulator, a VPN, something the OS will not name. Treated as

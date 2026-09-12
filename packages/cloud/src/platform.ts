@@ -68,7 +68,7 @@ export interface CloudPlatform {
    * Cryptographic random, into the bytes given. Not `Math.random`: an attempt
    * id someone can guess is a session someone can claim.
    */
-  randomBytes(into: Uint8Array): void
+  randomBytes(into: Uint8Array<ArrayBuffer>): void
 
   /**
    * Where the doorman should send the browser back to when Google is done, or

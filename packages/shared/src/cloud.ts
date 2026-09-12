@@ -16,7 +16,7 @@ import type { SmartRules } from './schemas/smart.js'
  * Native's engine may not have it, and there `Math.random` is enough: a uid
  * only has to be unique among the things one person makes.
  */
-export function newUid(random: (bytes: Uint8Array) => void = fillRandom): string {
+export function newUid(random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRandom): string {
   const bytes = new Uint8Array(16)
   random(bytes)
   let out = ''
@@ -24,8 +24,10 @@ export function newUid(random: (bytes: Uint8Array) => void = fillRandom): string
   return out
 }
 
-function fillRandom(bytes: Uint8Array): void {
-  const source = (globalThis as { crypto?: { getRandomValues?: (array: Uint8Array) => void } })
+function fillRandom(bytes: Uint8Array<ArrayBuffer>): void {
+  const source = (globalThis as {
+    crypto?: { getRandomValues?: (array: Uint8Array<ArrayBuffer>) => void }
+  })
     .crypto
   if (source?.getRandomValues) {
     source.getRandomValues(bytes)

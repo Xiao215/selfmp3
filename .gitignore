@@ -4,7 +4,7 @@ dist-types/
 *.tsbuildinfo
 
 # Your music and your database. Never committed.
-library/
+/library/
 data/
 # ...nor a stray copy of either, wherever it ends up.
 *.db

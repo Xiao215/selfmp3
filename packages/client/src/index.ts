@@ -45,3 +45,17 @@ export * from './theme/oklch.js'
 export * from './theme/tokens.js'
 
 export * from './listens/counting.js'
+
+export type {
+  EngineCapabilities,
+  EngineState,
+  FrequencyAnalyser,
+  LoadOptions,
+  PlaybackEngine,
+} from './ports/engine.js'
+export type {
+  DownloadFraction,
+  OfflineStore,
+  SaveOptions,
+  StorageUsage,
+} from './ports/offline.js'

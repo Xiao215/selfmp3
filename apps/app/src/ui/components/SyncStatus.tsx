@@ -40,7 +40,12 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           <Text style={styles.error} numberOfLines={2}>
             {state.error}
           </Text>
-          <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
+          <Pressable
+            onPress={() => queue.enqueue(missing)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry"
+          >
             <Text style={styles.action}>Retry</Text>
           </Pressable>
         </View>
@@ -67,7 +72,12 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           <Text style={styles.text}>
             {state.paused ? 'Paused' : 'Adding'} {done + 1} of {total}
           </Text>
-          <Pressable onPress={() => (state.paused ? queue.resume() : queue.pause())} hitSlop={8}>
+          <Pressable
+            onPress={() => (state.paused ? queue.resume() : queue.pause())}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={state.paused ? 'Resume' : 'Pause'}
+          >
             <Text style={[styles.action, { color: accent.accent }]}>
               {state.paused ? 'Resume' : 'Pause'}
             </Text>
@@ -103,6 +113,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   // in gigabytes and a phone plan is not, and downloading thirteen songs on a
   // train because somebody opened the app is a thing an app gets to do once.
   const onData = !freeToDownload(connection)
+  const addLabel = onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`
   return (
     <View style={styles.bar}>
       <View style={styles.row}>
@@ -110,9 +121,14 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
           {onData ? ' · on mobile data' : ''}
         </Text>
-        <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
+        <Pressable
+          onPress={() => queue.enqueue(missing)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={addLabel}
+        >
           <Text style={[styles.action, { color: onData ? colors.warning : accent.accent }]}>
-            {onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`}
+            {addLabel}
           </Text>
         </Pressable>
       </View>

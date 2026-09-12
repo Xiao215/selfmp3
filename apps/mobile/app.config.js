@@ -77,6 +77,18 @@ const config = {
     './plugins/withCleartextTraffic',
   ],
 
+  /**
+   * Values the app reads at runtime through `expo-constants`.
+   *
+   * The doorman is the one thing the phone cannot work out for itself: the web
+   * app gets it from a Vite variable and the Mac from its environment, and a
+   * binary has neither. Set SELFMP3_DOORMAN_URL when building to point a copy
+   * at your own; left alone it is the one in packages/shared/src/cloud.ts.
+   */
+  extra: {
+    doormanUrl: process.env.SELFMP3_DOORMAN_URL ?? null,
+  },
+
   experiments: {
     typedRoutes: false,
   },

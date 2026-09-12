@@ -512,18 +512,33 @@ which is why these are 8090 and 8095.
 
 ## Open questions for the morning
 
-1. **Should the phone record skips?** The web does: a manual skip past the
-   halfway point is written to the outbox, and that is what makes "songs I
-   always skip" work. The phone never has, so that feature is blind to
-   everything listened to on the phone. Phase 1 gave the phone the function it
-   would need, without calling it — wiring it up changes what shows up in your
-   stats, which is your call, not a refactor's.
+1. ~~**Should the phone record skips?**~~ **Answered: yes.** The web does: a
+   manual skip is written to the outbox, and that is what makes "songs I always
+   skip" work. The phone never has, so that feature was blind to everything
+   listened to on the phone. Done on `feature/phone-skips`, off
+   `universal/phase-3`, which is where the provider that owns Next lives.
 
-2. **An expired token now shows a stale library rather than an error.**
-   Falling back on any failure includes 401. You would see your library and the
-   songs would not stream, which is harder to diagnose than an error screen.
-   The proper fix is the app noticing 401 and asking you to sign in again,
-   which is a real change rather than part of this one. Worth doing?
+   Two decisions came with it. The threshold for a play stays as it is: half
+   the song, capped at four minutes, which is exactly Last.fm's rule and a more
+   considered one than a flat thirty seconds. And the server now keeps *how far
+   into the song* each skip happened, on `feature/skip-detail` off `main` —
+   every client has always sent that number and the server has always thrown it
+   away, which is why a song you abandon after four seconds and one you leave
+   at 2:59 of six minutes have been recorded identically. It is a schema
+   change, so it is on its own branch rather than inside a phase.
+
+2. ~~**An expired token now shows a stale library rather than an error.**~~
+   **Answered: sign in first.** Falling back on any failure included 401, so
+   you saw your library and the songs would not stream. Done on
+   `feature/expired-session` off `main`: 401 is the one failure the cached copy
+   is not offered for, and the phone drops the dead session and goes to the
+   sign-in screen.
+
+   **Still open, and it belongs to phase 5.** The browser only gets the first
+   half. Noticing the 401 and offering the sign-in screen is `CloudGate`'s job,
+   and `apps/web` is read-only until phase 5, so the browser shows the error
+   where the phone asks. Phase 5 should give the web the same behaviour rather
+   than leave the two apps disagreeing about it.
 
 3. **Where should `verify/` finally live?** It is at the repository root now.
    The plan says `apps/app/verify/`. Phase 2 can move it or leave it; leaving
@@ -537,3 +552,29 @@ which is why these are 8090 and 8095.
    of their own, on either side, and `verify/flows` is what would cover them.
    Until that runs on the Mac, the evidence that phase 1 changed no behaviour
    is the type checker, the existing 1043 tests, and reading the diff.
+
+---
+
+## Three branches beside the migration, 2026-09-12 evening
+
+Not phases. Each answers one of the questions above, each is off the branch
+that owns the code it touches, and each passes `npm run check`, `check:app` and
+`check:mobile` before it was pushed. None is merged.
+
+| Branch | Off | What it does |
+| --- | --- | --- |
+| `feature/skip-detail` | `main` | The server keeps how far into a song each skip happened, in a new `skip_events` table beside `play_events`. `songs.skip_count` is untouched, so smart rules, the cloud snapshot and forgotten gems all keep reading what they read. Nothing reads the detail yet; this only stops discarding it. |
+| `feature/phone-skips` | `universal/phase-3` | Pressing Next on the phone records a skip, as it has always done in the browser. The rule for whether a Next is a skip went into `packages/client` beside the play rules, so phase 5 can point the web at the same one. |
+| `feature/expired-session` | `main` | 401 no longer serves the stale library, and on the phone it sends you to sign in. |
+
+`feature/skip-detail` carries a migration, so it is the one to look at first:
+it has to run on the Mac before a phone sending `atSeconds` has anywhere to put
+it. The two are independent otherwise — a phone skip against a server without
+the migration still counts, it just loses the detail.
+
+Worth knowing about the cloud flow, because it came up while deciding these:
+Google sign-in alone is enough for a phone. The B2 keys are entered once and
+sealed against the Google account inside the doorman, so a second device never
+sees them and never asks for them — signing in with Google gets that phone the
+library, the downloads and the uploads. Connecting B2 per device is the
+no-doorman alternative, and is not how this works.

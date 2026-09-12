@@ -3,7 +3,13 @@ import path from 'node:path'
 import express, { type Express } from 'express'
 import compression from 'compression'
 import type { Container } from './container.js'
-import { bearerAuth, cors, requestLogger, securityHeaders } from './http/middleware.js'
+import {
+  bearerAuth,
+  cors,
+  requestLogger,
+  sameOriginWrites,
+  securityHeaders,
+} from './http/middleware.js'
 import { errorHandler, notFoundHandler } from './http/errors.js'
 import { libraryRoutes } from './routes/library.js'
 import { songRoutes } from './routes/songs.js'
@@ -53,6 +59,7 @@ export function createApp(container: Container): Express {
   )
 
   app.use(express.json({ limit: '1mb' }))
+  app.use('/api', sameOriginWrites(container.config))
   app.use('/api', bearerAuth(container.config))
 
   const api = express.Router()

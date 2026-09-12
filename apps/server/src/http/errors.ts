@@ -101,6 +101,19 @@ export function errorHandler(logger: Logger) {
     }
 
     const message = error instanceof Error ? error.message : String(error)
+
+    /*
+     * A body the JSON parser could not read is the sender's mistake, not ours:
+     * body-parser says so by putting a 4xx on the error it throws, and saying
+     * 500 instead would have the sender retry something that can never work.
+     */
+    const status = statusOf(error)
+    if (status !== null && status >= 400 && status < 500) {
+      logger.warn('malformed request body', { path: req.path, message })
+      res.status(status).json({ error: 'that request body could not be read', code: 'bad_request' })
+      return
+    }
+
     logger.error('unhandled error', {
       path: req.path,
       message,
@@ -108,4 +121,13 @@ export function errorHandler(logger: Logger) {
     })
     res.status(500).json({ error: 'internal error', code: 'internal' })
   }
+}
+
+/** The status an error carries, for the middleware that sets one (body-parser does). */
+function statusOf(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null) return null
+  const status = (error as { status?: unknown; statusCode?: unknown }).status
+  if (typeof status === 'number') return status
+  const statusCode = (error as { statusCode?: unknown }).statusCode
+  return typeof statusCode === 'number' ? statusCode : null
 }

@@ -102,6 +102,30 @@ describe('setShuffle', () => {
     const start = base({ items: [1, 2], index: 0 })
     expect(setShuffle(start, false)).toBe(start)
   })
+
+  /*
+   * Turning shuffle off replays `original` wholesale, so every edit made while
+   * shuffled has to have reached it too. These are the three gestures that a
+   * listener can reach with shuffle on.
+   */
+  it('keeps a song added while shuffled', () => {
+    const shuffled = setShuffle(playFrom(base(), [1, 2, 3], 0, seeded(4)), true, seeded(4))
+    const restored = setShuffle(enqueue(shuffled, [9]), false)
+    expect(restored.items).toEqual([1, 2, 3, 9])
+  })
+
+  it('keeps a song queued to play next while shuffled', () => {
+    const shuffled = setShuffle(playFrom(base(), [1, 2, 3], 0, seeded(4)), true, seeded(4))
+    const restored = setShuffle(playNext(shuffled, [7]), false)
+    expect(restored.items).toEqual([1, 2, 3, 7])
+  })
+
+  it('does not bring back a song removed while shuffled', () => {
+    const shuffled = setShuffle(playFrom(base(), [1, 2, 3], 0, seeded(4)), true, seeded(4))
+    const without = removeAt(shuffled, shuffled.items.indexOf(2))
+    const restored = setShuffle(without, false)
+    expect(restored.items).toEqual([1, 3])
+  })
 })
 
 describe('advance', () => {
@@ -189,6 +213,16 @@ describe('playNext', () => {
   it('keeps pointing at the same song after a move', () => {
     const state = playNext(base({ items: [1, 2, 3], index: 1 }), [3])
     expect(state.items[state.index]).toBe(2)
+  })
+
+  it('does not queue a second copy of the track already playing', () => {
+    const state = playNext(base({ items: [1, 2, 3], index: 0 }), [1, 5])
+    expect(state.items).toEqual([1, 5, 2, 3])
+  })
+
+  it('is a no-op when the only id given is already playing', () => {
+    const start = base({ items: [1, 2, 3], index: 0 })
+    expect(playNext(start, [1])).toBe(start)
   })
 })
 

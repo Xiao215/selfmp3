@@ -83,14 +83,23 @@ function main(): void {
     // Let the machine sleep again even if a stream is still winding down.
     container.keepAwake.stop()
 
+    // An event stream is answered and then held open for the life of the tab,
+    // so `server.close` would wait on it forever and never call back — and the
+    // database is closed in that callback. End the streams first and what is
+    // left to wait for is ordinary requests, which do finish.
+    container.devices.stop()
+
     server.close(() => {
       container.close()
       process.exit(0)
     })
+    server.closeIdleConnections()
 
-    // Do not hang forever on a stuck stream.
+    // Do not hang forever on a stuck stream. Close the database on the way out
+    // of this path too: leaving it open strands the write-ahead log.
     setTimeout(() => {
       logger.warn('forcing shutdown')
+      container.close()
       process.exit(1)
     }, 10_000).unref()
   }

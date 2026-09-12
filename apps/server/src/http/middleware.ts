@@ -66,6 +66,45 @@ export function bearerAuth(config: Config): RequestHandler {
   }
 }
 
+/**
+ * Refuse a write that another website asked for.
+ *
+ * Nothing here needs a cookie, so the browser attaches no credentials of its
+ * own — but the server is usually reachable at a predictable address with no
+ * token at all, which is enough. A page you happen to be visiting can submit a
+ * form at `http://localhost:4600/api/library/purge-missing` and the browser
+ * will send it: a form post is a "simple" request, so it goes without asking
+ * permission first, and the reply being unreadable is no comfort once the write
+ * has happened.
+ *
+ * What separates that from the real app is `Origin`, which browsers attach to
+ * every write. A request carrying one we do not know is a page we did not
+ * write, and gets nothing. A request with no `Origin` at all is not a browser —
+ * the phone, `curl`, a shortcut — and is left alone; there is no browser there
+ * to be tricked.
+ */
+export function sameOriginWrites(config: Config): RequestHandler {
+  const allowed = new Set(config.corsOrigins)
+
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next()
+
+    // No `Origin` at all means no browser sent this — the phone, `curl`, a
+    // shortcut — and there is nothing there to trick. The literal "null" is a
+    // different matter: that is what a sandboxed frame sends, which is
+    // something a page can put on you, so it is refused with the rest.
+    const origin = req.headers.origin
+    if (!origin) return next()
+    if (allowed.has(origin)) return next()
+
+    // The app served by this very server, whatever address it was reached at.
+    const host = req.headers.host
+    if (host && origin === `${req.protocol}://${host}`) return next()
+
+    next(HttpError.forbidden('that request came from another site'))
+  }
+}
+
 /** CORS, but only for origins explicitly listed in config. */
 export function cors(config: Config): RequestHandler {
   const allowed = new Set(config.corsOrigins)

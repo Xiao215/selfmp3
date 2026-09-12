@@ -169,6 +169,7 @@ export function createContainer(config: Config): Container {
   })
 
   let version = 1
+  let closed = false
   const bump = (): void => {
     version++
     cloudSync.kick()
@@ -348,7 +349,12 @@ export function createContainer(config: Config): Container {
     cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
+    // Shutdown can arrive here by either of two paths — the server closing
+    // cleanly or the timeout giving up on it — and `db.close()` throws the
+    // second time, so only the first call does the work.
     close: () => {
+      if (closed) return
+      closed = true
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()

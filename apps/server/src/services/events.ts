@@ -13,6 +13,17 @@ import type { Logger } from '../logger.js'
 
 export interface EventSink {
   write(chunk: string): void
+  /**
+   * Finish the response, where there is one to finish.
+   *
+   * An event stream is answered but never ended, so the socket under it stays
+   * open for as long as the tab does — and `server.close()` waits for every
+   * open socket. Without this, one tab left open is enough to stop the process
+   * shutting down, and whatever the close callback was going to do (closing the
+   * database, for one) never happens. Optional because the tests write to a
+   * string buffer, which has nothing to end.
+   */
+  end?(): void
 }
 
 interface Subscriber {
@@ -117,9 +128,20 @@ export class EventHub {
     return delivered
   }
 
+  /** Close every stream. Safe to call twice; the second time has nothing left to do. */
   stop(): void {
     this.#stopKeepalive()
+    const closing = [...this.#subscribers]
     this.#subscribers.clear()
+    for (const subscriber of closing) {
+      try {
+        subscriber.sink.end?.()
+      } catch (error) {
+        this.#logger.debug('event stream would not close', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
   }
 
   #safeWrite(subscriber: Subscriber, chunk: string): boolean {

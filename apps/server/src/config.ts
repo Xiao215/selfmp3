@@ -61,7 +61,10 @@ export function defaultDirs({
   // your own collection by accident.
   const suffix = profileSuffix(profile)
 
-  const inRepo = { libraryDir: path.join(repoRoot, 'library'), dataDir: path.join(repoRoot, 'data') }
+  const inRepo = {
+    libraryDir: path.join(repoRoot, 'library'),
+    dataDir: path.join(repoRoot, 'data'),
+  }
   // Only an existing library keeps the old spot, and only for the real one:
   // asking for a profile means asking not to be here. `data/` follows the
   // music, so the database and what it describes are never split across homes.

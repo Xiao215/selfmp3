@@ -1,4 +1,9 @@
-import { DEFAULT_SETTINGS, SettingsSchema, type Settings, type UpdateSettings } from '@selfmp3/shared'
+import {
+  DEFAULT_SETTINGS,
+  SettingsSchema,
+  type Settings,
+  type UpdateSettings,
+} from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 /**

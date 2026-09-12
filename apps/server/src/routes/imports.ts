@@ -39,9 +39,8 @@ export function importRoutes(container: Container): Router {
 
   router.get(
     '/import/tools',
-    route(
-      { query: z.object({ refresh: BooleanQuerySchema }) },
-      async ({ query }) => container.ytdlp.status(query.refresh),
+    route({ query: z.object({ refresh: BooleanQuerySchema }) }, async ({ query }) =>
+      container.ytdlp.status(query.refresh),
     ),
   )
 

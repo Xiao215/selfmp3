@@ -34,7 +34,10 @@ export function parseLyrics(raw: string): ParsedLyrics {
     if (stamps.length === 0) continue
     sawTimestamp = true
 
-    const text = rawLine.replace(TIMESTAMP, '').replace(/\[[^\]]*\]/g, '').trim()
+    const text = rawLine
+      .replace(TIMESTAMP, '')
+      .replace(/\[[^\]]*\]/g, '')
+      .trim()
     for (const stamp of stamps) {
       const minutes = Number(stamp[1])
       const seconds = Number(stamp[2])
@@ -73,11 +76,7 @@ export function parseLyrics(raw: string): ParsedLyrics {
  * `lead` highlights a line slightly early, which reads as more in-time than a
  * perfectly literal match because the eye needs a moment to travel.
  */
-export function activeLineIndex(
-  lines: readonly SyncedLine[],
-  time: number,
-  lead = 0.25,
-): number {
+export function activeLineIndex(lines: readonly SyncedLine[], time: number, lead = 0.25): number {
   const target = time + lead
   let low = 0
   let high = lines.length - 1

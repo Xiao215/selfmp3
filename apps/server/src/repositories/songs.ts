@@ -213,7 +213,9 @@ export class SongRepository {
 
     if (assignments.length === 0) return
     this.#db
-      .prepare(`UPDATE songs SET ${assignments.join(', ')}, updated_at = datetime('now') WHERE id = @id`)
+      .prepare(
+        `UPDATE songs SET ${assignments.join(', ')}, updated_at = datetime('now') WHERE id = @id`,
+      )
       .run(values)
   }
 

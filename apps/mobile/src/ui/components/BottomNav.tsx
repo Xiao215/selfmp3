@@ -25,7 +25,9 @@ export function BottomNav(): ReactNode {
   const insets = useSafeAreaInsets()
 
   return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom, height: NAV_HEIGHT + insets.bottom }]}>
+    <View
+      style={[styles.bar, { paddingBottom: insets.bottom, height: NAV_HEIGHT + insets.bottom }]}
+    >
       {TABS.map(tab => {
         const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href)
         return (
@@ -36,11 +38,7 @@ export function BottomNav(): ReactNode {
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <Glyph
-              name={tab.icon}
-              size={17}
-              color={active ? colors.accent : colors.textMuted}
-            />
+            <Glyph name={tab.icon} size={17} color={active ? colors.accent : colors.textMuted} />
             <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
           </Pressable>
         )

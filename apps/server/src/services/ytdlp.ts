@@ -46,7 +46,11 @@ export interface RunOptions {
   readonly onLine?: (line: string) => void
 }
 
-export function run(command: string, args: readonly string[], options: RunOptions = {}): Promise<RunResult> {
+export function run(
+  command: string,
+  args: readonly string[],
+  options: RunOptions = {},
+): Promise<RunResult> {
   const { timeoutMs = 10 * 60 * 1000, signal, onLine } = options
 
   return new Promise<RunResult>(resolve => {
@@ -180,7 +184,11 @@ interface YtDlpJson {
   playlist_title?: string
 }
 
-const NO_COOKIES: YtCookieSettings = { ytCookieSource: 'none', ytCookieBrowser: 'chrome', ytCookieFile: '' }
+const NO_COOKIES: YtCookieSettings = {
+  ytCookieSource: 'none',
+  ytCookieBrowser: 'chrome',
+  ytCookieFile: '',
+}
 
 export class YtDlpService {
   readonly #logger: Logger
@@ -234,7 +242,7 @@ export class YtDlpService {
     const status: ToolStatus = {
       ytdlp: ytdlp.code === 0,
       ffmpeg: ffmpeg.code === 0,
-      ytdlpVersion: ytdlp.code === 0 ? ytdlp.stdout.trim().split(/\s+/)[0] ?? null : null,
+      ytdlpVersion: ytdlp.code === 0 ? (ytdlp.stdout.trim().split(/\s+/)[0] ?? null) : null,
     }
 
     // Only cache a working state: if the tool is missing, the user may be
@@ -407,7 +415,9 @@ export class YtDlpService {
 
     if (result.timedOut) throw new Error('download timed out')
     if (result.code !== 0) {
-      throw new Error(this.#explain(summarizeError(result.stderr + result.stdout, 'download failed')))
+      throw new Error(
+        this.#explain(summarizeError(result.stderr + result.stdout, 'download failed')),
+      )
     }
 
     this.#logger.debug('download finished', { url: input.url })

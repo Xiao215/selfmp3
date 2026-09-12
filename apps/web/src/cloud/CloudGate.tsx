@@ -310,7 +310,11 @@ function GateBody({
             </p>
           )}
           <div className="cloud-gate-actions">
-            <button type="button" className="button button-primary" onClick={() => void beginSignIn()}>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => void beginSignIn()}
+            >
               Sign in with Google
             </button>
           </div>

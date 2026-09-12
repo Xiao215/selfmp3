@@ -241,7 +241,9 @@ export function SettingsView() {
                     max={1}
                     step={0.05}
                     value={settings.playThreshold}
-                    style={{ '--progress': `${settings.playThreshold * 100}%` } as React.CSSProperties}
+                    style={
+                      { '--progress': `${settings.playThreshold * 100}%` } as React.CSSProperties
+                    }
                     onChange={event => set('playThreshold', Number(event.target.value))}
                   />
                   <span className="setting-value">{Math.round(settings.playThreshold * 100)}%</span>
@@ -280,219 +282,222 @@ export function SettingsView() {
               <LibraryOnThisDevice songs={songs} />
             ) : (
               <>
-            {CLOUD ? (
-              <p className="panel-lead">
-                Songs stream from your bucket, so nothing is kept here unless you ask for it. One
-                you listen to all the way through is kept for a while — the next play costs
-                nothing, and works with no connection. Downloading a song by hand keeps it for
-                good.
-              </p>
-            ) : (
-              <p className="panel-lead">
-                Downloaded songs play with no connection at all — which is the point, since your
-                Mac won&rsquo;t always be awake. New songs download on their own; plays you make
-                offline are kept here and sent to your Mac when it&rsquo;s back.
-              </p>
-            )}
-
-            {!offline.supported && (
-              <p className="notice notice-warn">
-                This browser can&rsquo;t keep songs offline here. Open self.mp3 over HTTPS — the
-                Tailscale address from the setup guide — and add it to your home screen.
-              </p>
-            )}
-
-            <label className="setting-row setting-row-toggle">
-              <span className="setting-label">
-                Download automatically
                 {CLOUD ? (
-                  <span className="setting-hint">
-                    Keeps a copy of your whole library in this browser. Worth it on a phone with
-                    self.mp3 on its home screen, and a lot of storage anywhere else. A song you
-                    remove by hand stays removed.
-                  </span>
+                  <p className="panel-lead">
+                    Songs stream from your bucket, so nothing is kept here unless you ask for it.
+                    One you listen to all the way through is kept for a while — the next play costs
+                    nothing, and works with no connection. Downloading a song by hand keeps it for
+                    good.
+                  </p>
                 ) : (
-                  <span className="setting-hint">
-                    Keeps this device in step with your library whenever your Mac is reachable. A
-                    song you remove by hand stays removed.
-                  </span>
+                  <p className="panel-lead">
+                    Downloaded songs play with no connection at all — which is the point, since your
+                    Mac won&rsquo;t always be awake. New songs download on their own; plays you make
+                    offline are kept here and sent to your Mac when it&rsquo;s back.
+                  </p>
                 )}
-              </span>
-              <span className="setting-control">
-                <input
-                  type="checkbox"
-                  className="toggle"
-                  checked={offline.prefs.auto}
-                  disabled={!offline.supported}
-                  onChange={event => offline.setPrefs({ auto: event.target.checked })}
-                />
-              </span>
-            </label>
 
-            <label className="setting-row setting-row-toggle">
-              <span className="setting-label">
-                Only on Wi-Fi
-                <span className="setting-hint">
-                  {connectionKind() === 'unknown'
-                    ? 'This browser can’t tell Wi-Fi from mobile data, so it asks before downloading.'
-                    : 'Waits for Wi-Fi rather than using mobile data.'}
-                </span>
-              </span>
-              <span className="setting-control">
-                <input
-                  type="checkbox"
-                  className="toggle"
-                  checked={offline.prefs.wifiOnly}
-                  disabled={!offline.supported || !offline.prefs.auto}
-                  onChange={event => offline.setPrefs({ wifiOnly: event.target.checked })}
-                />
-              </span>
-            </label>
+                {!offline.supported && (
+                  <p className="notice notice-warn">
+                    This browser can&rsquo;t keep songs offline here. Open self.mp3 over HTTPS — the
+                    Tailscale address from the setup guide — and add it to your home screen.
+                  </p>
+                )}
 
-            <div className="setting-row">
-              <span className="setting-label">
-                Keep offline
-                <span className="setting-hint">
-                  Only songs in a playlist, if this device is short on space.
-                </span>
-              </span>
-              <span className="setting-control">
-                <Select<OfflineScope>
-                  value={offline.prefs.scope}
-                  onChange={scope => offline.setPrefs({ scope })}
-                  options={[
-                    { value: 'library', label: 'Every song' },
-                    { value: 'playlists', label: 'Songs in playlists' },
-                  ]}
-                  label="Keep offline"
-                  align="end"
-                />
-              </span>
-            </div>
+                <label className="setting-row setting-row-toggle">
+                  <span className="setting-label">
+                    Download automatically
+                    {CLOUD ? (
+                      <span className="setting-hint">
+                        Keeps a copy of your whole library in this browser. Worth it on a phone with
+                        self.mp3 on its home screen, and a lot of storage anywhere else. A song you
+                        remove by hand stays removed.
+                      </span>
+                    ) : (
+                      <span className="setting-hint">
+                        Keeps this device in step with your library whenever your Mac is reachable.
+                        A song you remove by hand stays removed.
+                      </span>
+                    )}
+                  </span>
+                  <span className="setting-control">
+                    <input
+                      type="checkbox"
+                      className="toggle"
+                      checked={offline.prefs.auto}
+                      disabled={!offline.supported}
+                      onChange={event => offline.setPrefs({ auto: event.target.checked })}
+                    />
+                  </span>
+                </label>
 
-            <OfflineAutoStatus />
+                <label className="setting-row setting-row-toggle">
+                  <span className="setting-label">
+                    Only on Wi-Fi
+                    <span className="setting-hint">
+                      {connectionKind() === 'unknown'
+                        ? 'This browser can’t tell Wi-Fi from mobile data, so it asks before downloading.'
+                        : 'Waits for Wi-Fi rather than using mobile data.'}
+                    </span>
+                  </span>
+                  <span className="setting-control">
+                    <input
+                      type="checkbox"
+                      className="toggle"
+                      checked={offline.prefs.wifiOnly}
+                      disabled={!offline.supported || !offline.prefs.auto}
+                      onChange={event => offline.setPrefs({ wifiOnly: event.target.checked })}
+                    />
+                  </span>
+                </label>
 
-            {offline.pendingListens > 0 && (
-              <p className="hint">
-                {offline.pendingListens === 1
-                  ? '1 play from while you were offline is'
-                  : `${offline.pendingListens} plays from while you were offline are`}{' '}
-                waiting to be sent to your Mac.
-              </p>
-            )}
-
-            <div className="offline-summary">
-              <div className="offline-stat">
-                <span className="offline-stat-value">{cachedCount}</span>
-                <span className="offline-stat-label">of {songs.length} songs downloaded</span>
-              </div>
-              <div className="offline-stat">
-                <span className="offline-stat-value">
-                  {offline.usage ? formatBytes(offline.usage.audioBytes) : '—'}
-                </span>
-                <span className="offline-stat-label">
-                  {offline.usage?.quotaBytes
-                    ? `of ~${formatBytes(offline.usage.quotaBytes)} available`
-                    : 'used'}
-                </span>
-              </div>
-            </div>
-
-            {songs.length > 0 && (
-              <div
-                className="offline-meter"
-                role="progressbar"
-                aria-valuenow={cachedCount}
-                aria-valuemin={0}
-                aria-valuemax={songs.length}
-                aria-label="Songs downloaded"
-              >
-                <span style={{ width: `${(cachedCount / songs.length) * 100}%` }} />
-              </div>
-            )}
-
-            {syncing && offline.sync.status === 'syncing' && (
-              <div className="sync-progress">
-                <div className="sync-progress-head">
-                  <span className="spinner" />
-                  <span>
-                    Downloading {offline.sync.progress.done} of {offline.sync.progress.total}
-                    {offline.sync.progress.currentTitle && ` — ${offline.sync.progress.currentTitle}`}
+                <div className="setting-row">
+                  <span className="setting-label">
+                    Keep offline
+                    <span className="setting-hint">
+                      Only songs in a playlist, if this device is short on space.
+                    </span>
+                  </span>
+                  <span className="setting-control">
+                    <Select<OfflineScope>
+                      value={offline.prefs.scope}
+                      onChange={scope => offline.setPrefs({ scope })}
+                      options={[
+                        { value: 'library', label: 'Every song' },
+                        { value: 'playlists', label: 'Songs in playlists' },
+                      ]}
+                      label="Keep offline"
+                      align="end"
+                    />
                   </span>
                 </div>
-                <div className="offline-meter">
-                  <span
-                    style={{
-                      width: `${
-                        offline.sync.progress.total > 0
-                          ? (offline.sync.progress.done / offline.sync.progress.total) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-                {offline.sync.progress.failed > 0 && (
-                  <p className="hint">{offline.sync.progress.failed} couldn’t be downloaded.</p>
+
+                <OfflineAutoStatus />
+
+                {offline.pendingListens > 0 && (
+                  <p className="hint">
+                    {offline.pendingListens === 1
+                      ? '1 play from while you were offline is'
+                      : `${offline.pendingListens} plays from while you were offline are`}{' '}
+                    waiting to be sent to your Mac.
+                  </p>
                 )}
-              </div>
-            )}
 
-            {offline.sync.status === 'done' && offline.sync.progress.total > 0 && (
-              <p className="notice notice-good">
-                <CheckCircle size={15} /> Downloaded {offline.sync.progress.done}{' '}
-                {offline.sync.progress.done === 1 ? 'song' : 'songs'}.
-                {offline.sync.progress.failed > 0 && ` ${offline.sync.progress.failed} failed.`}
-              </p>
-            )}
+                <div className="offline-summary">
+                  <div className="offline-stat">
+                    <span className="offline-stat-value">{cachedCount}</span>
+                    <span className="offline-stat-label">of {songs.length} songs downloaded</span>
+                  </div>
+                  <div className="offline-stat">
+                    <span className="offline-stat-value">
+                      {offline.usage ? formatBytes(offline.usage.audioBytes) : '—'}
+                    </span>
+                    <span className="offline-stat-label">
+                      {offline.usage?.quotaBytes
+                        ? `of ~${formatBytes(offline.usage.quotaBytes)} available`
+                        : 'used'}
+                    </span>
+                  </div>
+                </div>
 
-            {offline.sync.status === 'error' && (
-              <p className="notice notice-error">{offline.sync.message}</p>
-            )}
+                {songs.length > 0 && (
+                  <div
+                    className="offline-meter"
+                    role="progressbar"
+                    aria-valuenow={cachedCount}
+                    aria-valuemin={0}
+                    aria-valuemax={songs.length}
+                    aria-label="Songs downloaded"
+                  >
+                    <span style={{ width: `${(cachedCount / songs.length) * 100}%` }} />
+                  </div>
+                )}
 
-            <div className="button-row">
-              {syncing ? (
-                <button type="button" className="button" onClick={offline.cancelSync}>
-                  <X size={15} /> Stop downloading
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  onClick={() => void offline.downloadNow()}
-                  disabled={!offline.supported || !offline.serverReachable || songs.length === 0}
-                >
-                  <CloudDownload size={15} />
-                  {cachedCount === 0 ? 'Download everything' : 'Download what’s missing'}
-                </button>
-              )}
+                {syncing && offline.sync.status === 'syncing' && (
+                  <div className="sync-progress">
+                    <div className="sync-progress-head">
+                      <span className="spinner" />
+                      <span>
+                        Downloading {offline.sync.progress.done} of {offline.sync.progress.total}
+                        {offline.sync.progress.currentTitle &&
+                          ` — ${offline.sync.progress.currentTitle}`}
+                      </span>
+                    </div>
+                    <div className="offline-meter">
+                      <span
+                        style={{
+                          width: `${
+                            offline.sync.progress.total > 0
+                              ? (offline.sync.progress.done / offline.sync.progress.total) * 100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                    {offline.sync.progress.failed > 0 && (
+                      <p className="hint">{offline.sync.progress.failed} couldn’t be downloaded.</p>
+                    )}
+                  </div>
+                )}
 
-              {cachedCount > 0 && (
-                <button
-                  type="button"
-                  className="button button-danger"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        offline.prefs.auto
-                          ? 'Remove all downloaded songs from this device? Automatic downloads will be turned off too, or they would just come back.'
-                          : 'Remove all downloaded songs from this device?',
-                      )
-                    ) {
-                      void offline.clearAll()
-                    }
-                  }}
-                >
-                  <Trash size={15} /> Remove all downloads
-                </button>
-              )}
-            </div>
+                {offline.sync.status === 'done' && offline.sync.progress.total > 0 && (
+                  <p className="notice notice-good">
+                    <CheckCircle size={15} /> Downloaded {offline.sync.progress.done}{' '}
+                    {offline.sync.progress.done === 1 ? 'song' : 'songs'}.
+                    {offline.sync.progress.failed > 0 && ` ${offline.sync.progress.failed} failed.`}
+                  </p>
+                )}
 
-            {!offline.persistent && (
-              <p className="hint">
-                This browser hasn’t marked your downloads as permanent, so it may clear them if
-                storage runs low. Adding self.mp3 to your home screen usually fixes that.
-              </p>
-            )}
+                {offline.sync.status === 'error' && (
+                  <p className="notice notice-error">{offline.sync.message}</p>
+                )}
+
+                <div className="button-row">
+                  {syncing ? (
+                    <button type="button" className="button" onClick={offline.cancelSync}>
+                      <X size={15} /> Stop downloading
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={() => void offline.downloadNow()}
+                      disabled={
+                        !offline.supported || !offline.serverReachable || songs.length === 0
+                      }
+                    >
+                      <CloudDownload size={15} />
+                      {cachedCount === 0 ? 'Download everything' : 'Download what’s missing'}
+                    </button>
+                  )}
+
+                  {cachedCount > 0 && (
+                    <button
+                      type="button"
+                      className="button button-danger"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            offline.prefs.auto
+                              ? 'Remove all downloaded songs from this device? Automatic downloads will be turned off too, or they would just come back.'
+                              : 'Remove all downloaded songs from this device?',
+                          )
+                        ) {
+                          void offline.clearAll()
+                        }
+                      }}
+                    >
+                      <Trash size={15} /> Remove all downloads
+                    </button>
+                  )}
+                </div>
+
+                {!offline.persistent && (
+                  <p className="hint">
+                    This browser hasn’t marked your downloads as permanent, so it may clear them if
+                    storage runs low. Adding self.mp3 to your home screen usually fixes that.
+                  </p>
+                )}
               </>
             )}
           </section>
@@ -652,121 +657,125 @@ export function SettingsView() {
 
           {/* ---------------- library ---------------- */}
 
-          {!CLOUD && <section className="panel" id="library">
-            <header className="panel-head">
-              <h2>Library</h2>
-              <span className="hint">{songs.length} songs</span>
-            </header>
+          {!CLOUD && (
+            <section className="panel" id="library">
+              <header className="panel-head">
+                <h2>Library</h2>
+                <span className="hint">{songs.length} songs</span>
+              </header>
 
-            {health?.libraryPath !== undefined && (
-              <p className="panel-lead">
-                Your music lives at <code>{health.libraryPath}</code>. It is just a folder of files —
-                copy it anywhere and you have a complete backup.
-              </p>
-            )}
-
-            <div className="setting-row">
-              <span className="setting-label">
-                Rescan the folder
-                <span className="setting-hint">
-                  {scan.data
-                    ? `Last scan found ${scan.data.total} songs — ${scan.data.added} new, ${scan.data.updated} updated, ${scan.data.removed} now missing.`
-                    : 'Pick up files you added, renamed or deleted outside self.mp3.'}
-                </span>
-              </span>
-              <span className="setting-control">
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => scan.mutate()}
-                  disabled={scan.isPending}
-                >
-                  <Refresh size={15} /> {scan.isPending ? 'Scanning…' : 'Rescan'}
-                </button>
-              </span>
-            </div>
-
-            <FixCoversPanel missingArt={songs.filter(song => !song.hasArt && !song.missing).length} />
-
-            <div className="setting-row">
-              <span className="setting-label">
-                Audio analysis
-                <span className="setting-hint">
-                  Works out each song&rsquo;s tempo, key, energy and loudness from the file itself,
-                  on this Mac. It powers smart-playlist rules, &ldquo;similar songs&rdquo; and
-                  auto-mix. {analyzedCount} of {songs.length} songs analysed.
-                </span>
-              </span>
-              <span className="setting-control">
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => startAnalysis.mutate(false)}
-                  disabled={analysis.data?.running || startAnalysis.isPending}
-                >
-                  <Sparkles size={15} />{' '}
-                  {analysis.data?.running ? 'Analysing…' : 'Analyse new songs'}
-                </button>
-                {analyzedCount > 0 && !analysis.data?.running && (
-                  <button
-                    type="button"
-                    className="button"
-                    data-tip="Throw away existing analysis and redo every song"
-                    onClick={() => {
-                      if (window.confirm('Throw away existing analysis and redo every song?')) {
-                        startAnalysis.mutate(true)
-                      }
-                    }}
-                  >
-                    <Refresh size={15} /> Redo all
-                  </button>
-                )}
-              </span>
-            </div>
-
-            {analysis.data?.running && (
-              <div className="sync-progress" aria-live="polite">
-                <div className="sync-progress-head">
-                  <span className="spinner" />
-                  <span>
-                    Analysing{analysis.data.current ? ` — ${analysis.data.current.title}` : '…'}
-                    {analysis.data.pending > 0 && ` · ${analysis.data.pending} to go`}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {missingCount > 0 && (
-              <div className="setting-row setting-row-stacked">
-                <p className="notice notice-warn">
-                  <span>
-                    {missingCount} {missingCount === 1 ? 'song is' : 'songs are'} in your library but
-                    the {missingCount === 1 ? 'file is' : 'files are'} gone. Their tags and play
-                    counts are kept in case the files come back.
-                  </span>
+              {health?.libraryPath !== undefined && (
+                <p className="panel-lead">
+                  Your music lives at <code>{health.libraryPath}</code>. It is just a folder of
+                  files — copy it anywhere and you have a complete backup.
                 </p>
+              )}
+
+              <div className="setting-row">
+                <span className="setting-label">
+                  Rescan the folder
+                  <span className="setting-hint">
+                    {scan.data
+                      ? `Last scan found ${scan.data.total} songs — ${scan.data.added} new, ${scan.data.updated} updated, ${scan.data.removed} now missing.`
+                      : 'Pick up files you added, renamed or deleted outside self.mp3.'}
+                  </span>
+                </span>
                 <span className="setting-control">
                   <button
                     type="button"
-                    className="button button-danger"
-                    disabled={purging}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Permanently forget ${missingCount} missing songs, including their tags and play history?`,
-                        )
-                      ) {
-                        setPurging(true)
-                        void api.purgeMissing().finally(() => setPurging(false))
-                      }
-                    }}
+                    className="button"
+                    onClick={() => scan.mutate()}
+                    disabled={scan.isPending}
                   >
-                    <Trash size={15} /> Forget missing songs
+                    <Refresh size={15} /> {scan.isPending ? 'Scanning…' : 'Rescan'}
                   </button>
                 </span>
               </div>
-            )}
-          </section>}
+
+              <FixCoversPanel
+                missingArt={songs.filter(song => !song.hasArt && !song.missing).length}
+              />
+
+              <div className="setting-row">
+                <span className="setting-label">
+                  Audio analysis
+                  <span className="setting-hint">
+                    Works out each song&rsquo;s tempo, key, energy and loudness from the file
+                    itself, on this Mac. It powers smart-playlist rules, &ldquo;similar songs&rdquo;
+                    and auto-mix. {analyzedCount} of {songs.length} songs analysed.
+                  </span>
+                </span>
+                <span className="setting-control">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => startAnalysis.mutate(false)}
+                    disabled={analysis.data?.running || startAnalysis.isPending}
+                  >
+                    <Sparkles size={15} />{' '}
+                    {analysis.data?.running ? 'Analysing…' : 'Analyse new songs'}
+                  </button>
+                  {analyzedCount > 0 && !analysis.data?.running && (
+                    <button
+                      type="button"
+                      className="button"
+                      data-tip="Throw away existing analysis and redo every song"
+                      onClick={() => {
+                        if (window.confirm('Throw away existing analysis and redo every song?')) {
+                          startAnalysis.mutate(true)
+                        }
+                      }}
+                    >
+                      <Refresh size={15} /> Redo all
+                    </button>
+                  )}
+                </span>
+              </div>
+
+              {analysis.data?.running && (
+                <div className="sync-progress" aria-live="polite">
+                  <div className="sync-progress-head">
+                    <span className="spinner" />
+                    <span>
+                      Analysing{analysis.data.current ? ` — ${analysis.data.current.title}` : '…'}
+                      {analysis.data.pending > 0 && ` · ${analysis.data.pending} to go`}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {missingCount > 0 && (
+                <div className="setting-row setting-row-stacked">
+                  <p className="notice notice-warn">
+                    <span>
+                      {missingCount} {missingCount === 1 ? 'song is' : 'songs are'} in your library
+                      but the {missingCount === 1 ? 'file is' : 'files are'} gone. Their tags and
+                      play counts are kept in case the files come back.
+                    </span>
+                  </p>
+                  <span className="setting-control">
+                    <button
+                      type="button"
+                      className="button button-danger"
+                      disabled={purging}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Permanently forget ${missingCount} missing songs, including their tags and play history?`,
+                          )
+                        ) {
+                          setPurging(true)
+                          void api.purgeMissing().finally(() => setPurging(false))
+                        }
+                      }}
+                    >
+                      <Trash size={15} /> Forget missing songs
+                    </button>
+                  </span>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ---------------- cloud ---------------- */}
 
@@ -817,7 +826,8 @@ export function SettingsView() {
                   Accent colour
                   <span className="setting-hint">
                     Drives every colour in the app — the surfaces are tinted from it too, so a
-                    change is felt rather than spotted. {ACCENT_PRESETS.find(p => p.hue === settings.accentHue)?.name ??
+                    change is felt rather than spotted.{' '}
+                    {ACCENT_PRESETS.find(p => p.hue === settings.accentHue)?.name ??
                       `Hue ${settings.accentHue}°`}
                     .
                   </span>

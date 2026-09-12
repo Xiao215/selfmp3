@@ -13,7 +13,6 @@ import {
   totalBytes,
 } from '../src/offline/downloadIndex'
 import { useDownloads } from '../src/offline/DownloadsProvider'
-import { isCarPlayAvailable } from '../src/car/carplay'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { Button } from '../src/ui/components/Button'
 import { colors, radius, space, type } from '../src/ui/theme'
@@ -177,11 +176,10 @@ export default function SettingsScreen(): ReactNode {
 
         <Section title="About">
           <Row label="Version" value={String(Constants.expoConfig?.version ?? '1.0.0')} />
-          <Row label="CarPlay" value={isCarPlayAvailable() ? 'Available' : 'Not on this build'} />
           <Text style={styles.note}>
-            Gapless playback is handled by the native player. Crossfade is not: the web app
-            overlaps two audio elements to do it, and there is no equivalent here — the
-            `crossfadeSeconds` setting on the server has no effect on this app.
+            Gapless playback is handled by the native player. Crossfade is not: the web app overlaps
+            two audio elements to do it, and there is no equivalent here — the `crossfadeSeconds`
+            setting on the server has no effect on this app.
           </Text>
         </Section>
       </ScrollView>

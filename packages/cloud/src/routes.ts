@@ -271,7 +271,10 @@ export function createCloudRoutes(
         const input = RenameTagSchema.parse(body)
         return recordChanges(session, ctx => {
           const uid = ctx.view.uids.tags.get(id(params))
-          return { changes: edits.editTag(ctx, id(params), input), answer: view => tagOf(view, uid) }
+          return {
+            changes: edits.editTag(ctx, id(params), input),
+            answer: view => tagOf(view, uid),
+          }
         })
       },
     ],
@@ -483,7 +486,11 @@ export function createCloudRoutes(
       throw error
     }
 
-    throw new CloudRouteError(501, 'Not in the web app yet — this still needs your Mac.', 'needs-mac')
+    throw new CloudRouteError(
+      501,
+      'Not in the web app yet — this still needs your Mac.',
+      'needs-mac',
+    )
   }
 
   /** The numbers standing for `:id` in a path, or null when it is not this route. */
@@ -540,29 +547,29 @@ export function createCloudRoutes(
     }
   }
 
-    async function loadSettings(): Promise<Settings> {
-      try {
-        const stored = await platform.store.read(SETTINGS_KEY)
-        const parsed = SettingsSchema.safeParse({
-          ...DEFAULT_SETTINGS,
-          ...(typeof stored === 'object' && stored !== null ? stored : {}),
-        })
-        return parsed.success ? parsed.data : DEFAULT_SETTINGS
-      } catch {
-        return DEFAULT_SETTINGS
-      }
+  async function loadSettings(): Promise<Settings> {
+    try {
+      const stored = await platform.store.read(SETTINGS_KEY)
+      const parsed = SettingsSchema.safeParse({
+        ...DEFAULT_SETTINGS,
+        ...(typeof stored === 'object' && stored !== null ? stored : {}),
+      })
+      return parsed.success ? parsed.data : DEFAULT_SETTINGS
+    } catch {
+      return DEFAULT_SETTINGS
     }
+  }
 
-    /** Kept on this device: with no Mac to share them through, they are its own. */
-    async function saveSettings(patch: unknown): Promise<Settings> {
-      const next = SettingsSchema.parse({ ...(await loadSettings()), ...(patch as object) })
-      try {
-        await platform.store.write(SETTINGS_KEY, next)
-      } catch {
-        // No storage: the change holds until the app is closed.
-      }
-      return next
+  /** Kept on this device: with no Mac to share them through, they are its own. */
+  async function saveSettings(patch: unknown): Promise<Settings> {
+    const next = SettingsSchema.parse({ ...(await loadSettings()), ...(patch as object) })
+    try {
+      await platform.store.write(SETTINGS_KEY, next)
+    } catch {
+      // No storage: the change holds until the app is closed.
     }
+    return next
+  }
 
   return { cloudRequest }
 }

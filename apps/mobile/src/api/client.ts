@@ -11,6 +11,8 @@ import {
   type PlayEvent,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { CloudRouteError } from '@selfmp3/cloud'
+import { cloudRequest } from '../cloud'
 import type { ServerConnection } from '../server/connection'
 
 /**
@@ -48,11 +50,26 @@ const ErrorResponseSchema = z.object({
 
 const OkSchema = z.object({ ok: z.literal(true) }).passthrough()
 
+/**
+ * Whether this device answers from the bucket rather than from a Mac.
+ *
+ * Set by ConnectionProvider once it has looked for a session, so the check is
+ * not a file read per request. When it is on, `connection` is ignored entirely
+ * and every call is answered by `@selfmp3/cloud`'s route table from this
+ * device's own copy of the library — which is why none of the screens had to
+ * change: they ask the same questions of the same paths.
+ */
+let fromCloud = false
+
+export function answerFromCloud(on: boolean): void {
+  fromCloud = on
+}
+
 /** A slow request is almost always a sleeping server; do not hang forever. */
 const REQUEST_TIMEOUT_MS = 15_000
 
-function authHeaders(connection: ServerConnection): Record<string, string> {
-  return connection.token ? { Authorization: `Bearer ${connection.token}` } : {}
+function authHeaders(connection: ServerConnection | null): Record<string, string> {
+  return connection?.token ? { Authorization: `Bearer ${connection.token}` } : {}
 }
 
 /**
@@ -62,12 +79,16 @@ function authHeaders(connection: ServerConnection): Record<string, string> {
  * defaults might be missing. `z.output<S>` pins it to the parsed side.
  */
 async function request<S extends z.ZodTypeAny>(
-  connection: ServerConnection,
+  connection: ServerConnection | null,
   method: string,
   path: string,
   schema: S,
   body?: unknown,
 ): Promise<z.output<S>> {
+  if (fromCloud) return cloudAnswer(method, path, schema, body)
+  if (!connection) {
+    throw new ApiError(0, 'No server, and not signed in to the cloud.', 'offline')
+  }
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -111,12 +132,36 @@ async function request<S extends z.ZodTypeAny>(
   return parsed.data as z.output<S>
 }
 
+/** The same question, asked of this device's copy instead of a Mac. */
+async function cloudAnswer<S extends z.ZodTypeAny>(
+  method: string,
+  path: string,
+  schema: S,
+  body?: unknown,
+): Promise<z.output<S>> {
+  try {
+    const answer = await cloudRequest(method, path, body)
+    // A route that answers nothing is a 204 as far as the schemas are concerned.
+    return schema.parse(answer === undefined ? undefined : answer) as z.output<S>
+  } catch (error) {
+    // Into ApiError, because every screen already knows how to read one — and
+    // `isOffline` in particular decides what the UI says.
+    if (error instanceof CloudRouteError) {
+      throw new ApiError(error.status, error.message, error.code)
+    }
+    throw error instanceof ApiError
+      ? error
+      : new ApiError(0, error instanceof Error ? error.message : 'the library could not be read')
+  }
+}
+
 export const api = {
   // --- library ------------------------------------------------------------
 
-  library: (connection: ServerConnection) => request(connection, 'GET', '/api/library', LibrarySchema),
+  library: (connection: ServerConnection | null) =>
+    request(connection, 'GET', '/api/library', LibrarySchema),
 
-  libraryVersion: (connection: ServerConnection) =>
+  libraryVersion: (connection: ServerConnection | null) =>
     request(
       connection,
       'GET',
@@ -125,29 +170,33 @@ export const api = {
     ),
 
   /** Sizes and etags for every song — what the download screen budgets from. */
-  manifest: (connection: ServerConnection) =>
+  manifest: (connection: ServerConnection | null) =>
     request(connection, 'GET', '/api/library/manifest', SyncManifestSchema),
 
-  playlistSongs: (connection: ServerConnection, id: number) =>
+  playlistSongs: (connection: ServerConnection | null, id: number) =>
     request(connection, 'GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 
-  similar: (connection: ServerConnection, id: number, limit = 20) =>
+  similar: (connection: ServerConnection | null, id: number, limit = 20) =>
     request(connection, 'GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 
   // --- playback reporting -------------------------------------------------
 
-  recordPlay: (connection: ServerConnection, id: number, event: PlayEvent) =>
+  recordPlay: (connection: ServerConnection | null, id: number, event: PlayEvent) =>
     request(connection, 'POST', `/api/songs/${id}/played`, OkSchema, event),
 
-  recordSkip: (connection: ServerConnection, id: number, atSeconds: number, clientId?: string) =>
-    request(connection, 'POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
+  recordSkip: (
+    connection: ServerConnection | null,
+    id: number,
+    atSeconds: number,
+    clientId?: string,
+  ) => request(connection, 'POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
 
-  setLoved: (connection: ServerConnection, id: number, loved: boolean) =>
+  setLoved: (connection: ServerConnection | null, id: number, loved: boolean) =>
     request(connection, 'POST', `/api/songs/${id}/loved`, SongSchema, { loved }),
 
   // --- lyrics -------------------------------------------------------------
 
-  lyrics: (connection: ServerConnection, id: number, refresh = false) =>
+  lyrics: (connection: ServerConnection | null, id: number, refresh = false) =>
     request(
       connection,
       'GET',
@@ -155,7 +204,7 @@ export const api = {
       LyricsResponseSchema,
     ),
 
-  romanizedLyrics: (connection: ServerConnection, id: number) =>
+  romanizedLyrics: (connection: ServerConnection | null, id: number) =>
     request(connection, 'GET', `/api/songs/${id}/lyrics/romanized`, RomanizedLyricsSchema),
 
   // --- system -------------------------------------------------------------
@@ -165,9 +214,10 @@ export const api = {
    * one route that stays open when a bearer token is configured, so a 200 here
    * proves the address is right even if the token is wrong.
    */
-  health: (connection: ServerConnection) => request(connection, 'GET', '/api/health', HealthSchema),
+  health: (connection: ServerConnection | null) =>
+    request(connection, 'GET', '/api/health', HealthSchema),
 
-  settings: (connection: ServerConnection) =>
+  settings: (connection: ServerConnection | null) =>
     request(connection, 'GET', '/api/settings', SettingsSchema),
 }
 
@@ -181,6 +231,13 @@ export const api = {
  *
  * Pass the song's `rev` when it is known: song ids get reused, and an image or
  * audio cache keyed on the bare URL would keep serving the old song's file.
+ */
+/**
+ * Mac only, and it cannot be otherwise: these are handed to the OS audio
+ * player and CarPlay's image loader, neither of which lets a header be
+ * attached, so the token rides in the query string. The doorman reads the
+ * bearer header and nothing else — which is why a song from the bucket has to
+ * be downloaded to a file and played from disk rather than streamed by URL.
  */
 export const mediaUrl = {
   stream: (connection: ServerConnection, songId: number, rev?: string) =>

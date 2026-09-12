@@ -136,7 +136,11 @@ export type BulkLoved = z.infer<typeof BulkLovedSchema>
  */
 export const PlayEventSchema = z.object({
   /** Seconds of audio actually heard. */
-  msPlayed: z.number().int().nonnegative().max(24 * 60 * 60 * 1000),
+  msPlayed: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(24 * 60 * 60 * 1000),
   /** True when the track ran to its natural end. */
   completed: z.boolean(),
   /**

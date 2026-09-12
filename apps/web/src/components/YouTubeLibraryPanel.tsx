@@ -71,9 +71,9 @@ export function YouTubeLibraryPanel({
       </p>
 
       {/*
-        * A coloured dot is not a status: the state is spelled out, and the dot
-        * only reinforces it.
-        */}
+       * A coloured dot is not a status: the state is spelled out, and the dot
+       * only reinforces it.
+       */}
       <div className={`yt-status ${configured ? 'is-on' : ''}`}>
         <span className="yt-status-dot" aria-hidden="true" />
         <span>

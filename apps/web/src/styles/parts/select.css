@@ -22,13 +22,17 @@
   font-size: 13px;
   font-weight: 550;
   text-align: left;
-  transition: background var(--dur-fast), border-color var(--dur-fast);
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
 }
 
 .select-trigger svg {
   flex-shrink: 0;
   color: var(--text-muted);
-  transition: transform var(--dur-fast), color var(--dur-fast);
+  transition:
+    transform var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .select-trigger:hover:not(:disabled) {

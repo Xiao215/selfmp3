@@ -69,7 +69,11 @@ interface PlayerContextValue extends EngineState {
    * device handoff, remote commands and "continue from your phone" use.
    * Resolves once the track is loaded, so a follow-up seek lands.
    */
-  readonly playQueue: (songIds: readonly number[], index: number, options?: PlayQueueOptions) => Promise<void>
+  readonly playQueue: (
+    songIds: readonly number[],
+    index: number,
+    options?: PlayQueueOptions,
+  ) => Promise<void>
   readonly next: () => void
   readonly previous: () => void
   readonly seek: (seconds: number) => void
@@ -155,7 +159,9 @@ export function PlayerProvider({
   const [queue, setQueue] = useState<QueueState>(() => restoreQueue())
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
   const [autoMix, setAutoMixState] = useState<boolean>(() => restoreAutoMix())
-  const [countIn, setCountInState] = useState<boolean>(() => restoreFlag(COUNT_IN_STORAGE_KEY, false))
+  const [countIn, setCountInState] = useState<boolean>(() =>
+    restoreFlag(COUNT_IN_STORAGE_KEY, false),
+  )
 
   // Refs mirroring state, so the engine's imperative callbacks always see the
   // latest values without being re-created (and re-subscribed) on every render.
@@ -408,7 +414,10 @@ export function PlayerProvider({
       setQueue(next)
       const songId = items[safeIndex]
       if (songId === undefined) return
-      await engine.load(songId, { autoplay: options.autoplay ?? true, startAt: options.position ?? 0 })
+      await engine.load(songId, {
+        autoplay: options.autoplay ?? true,
+        startAt: options.position ?? 0,
+      })
     },
     [engine],
   )
@@ -476,12 +485,24 @@ export function PlayerProvider({
   // "Play next" is an explicit choice about order, so auto-mix leaves it be;
   // "add to queue" is not, so the additions are folded into the path.
   const playNext = useCallback((list: readonly Song[]) => {
-    setQueue(state => playNextItems(state, list.map(song => song.id)))
+    setQueue(state =>
+      playNextItems(
+        state,
+        list.map(song => song.id),
+      ),
+    )
   }, [])
 
   const addToQueue = useCallback(
     (list: readonly Song[]) => {
-      setQueue(state => mixed(enqueueItems(state, list.map(song => song.id))))
+      setQueue(state =>
+        mixed(
+          enqueueItems(
+            state,
+            list.map(song => song.id),
+          ),
+        ),
+      )
     },
     [mixed],
   )

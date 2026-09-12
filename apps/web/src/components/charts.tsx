@@ -307,15 +307,7 @@ export function BarList({
  * The most under-used chart form: when the story is one value, a tile beats
  * any plot — and it is the right answer far more often than it gets used.
  */
-export function StatTile({
-  label,
-  value,
-  hint,
-}: {
-  label: string
-  value: string
-  hint?: string
-}) {
+export function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="stat-tile">
       <div className="stat-label">{label}</div>
@@ -348,11 +340,7 @@ function Tooltip({
   const anchor = left < 18 ? 'start' : left > 82 ? 'end' : 'center'
 
   return (
-    <div
-      className={`chart-tooltip is-${anchor}`}
-      style={{ left: `${left}%` }}
-      role="status"
-    >
+    <div className={`chart-tooltip is-${anchor}`} style={{ left: `${left}%` }} role="status">
       <strong>
         {formatNumber(datum.value)}
         {unit}

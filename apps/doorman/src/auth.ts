@@ -95,7 +95,11 @@ export async function start(ctx: Context): Promise<Response> {
   const state = await signState(
     {
       attempt: attempt.data,
-      returnTo: safeReturn(ctx.url.searchParams.get('return'), ctx.origins),
+      returnTo: safeReturn(
+        ctx.url.searchParams.get('return'),
+        ctx.origins,
+        appSchemes(ctx.env.APP_SCHEMES),
+      ),
       nonce,
       exp: ctx.now() + SIGN_IN_TTL_MS,
     },
@@ -293,7 +297,11 @@ function redirectUri(ctx: Context): string {
  * doorman never sends anyone, or any code, to a site of someone else's
  * choosing. The loopback exception is for this redirect only, never CORS.
  */
-function safeReturn(value: string | null, origins: ReadonlySet<string>): string | null {
+function safeReturn(
+  value: string | null,
+  origins: ReadonlySet<string>,
+  schemes: ReadonlySet<string> = new Set(),
+): string | null {
   if (!value || value.length > 1024) return null
   let url: URL
   try {
@@ -301,13 +309,33 @@ function safeReturn(value: string | null, origins: ReadonlySet<string>): string 
   } catch {
     return null
   }
-  // A web address, and only that. `blob:https://app.example/…` reports the
-  // inner origin as its own, so an address on the list would be matched by one
-  // of these too — and it is not a page anyone should be sent to.
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  /*
+   * An origin only counts when the address is a web address.
+   *
+   * `blob:https://app.example/…` reports the origin inside it as its own, so
+   * matching on the origin alone would let one through against a list it was
+   * never on. The scheme has to be checked with it, not instead of it.
+   */
+  const web = url.protocol === 'http:' || url.protocol === 'https:'
   const loopback =
     url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
-  return origins.has(url.origin) || loopback ? url.toString() : null
+  // A phone has no origin to come back to, so it is named by its scheme
+  // instead. That is weaker than an origin — iOS lets any app claim a scheme,
+  // so another one could take this redirect — and it is safe here for the
+  // reason the code exists at all: what comes back is the code alone, and a
+  // session needs the attempt too, which was made on the device and never
+  // left it. Whoever intercepts this holds half of a pair.
+  const native = schemes.has(url.protocol)
+  return (web && (origins.has(url.origin) || loopback)) || native ? url.toString() : null
+}
+
+/** `selfmp3` or `selfmp3://` in the setting, `selfmp3:` as `URL` reports it. */
+export function appSchemes(value: string | undefined): ReadonlySet<string> {
+  const listed = (value ?? 'selfmp3')
+    .split(',')
+    .map(each => each.trim().toLowerCase().replace(/:\/*$/, ''))
+    .filter(each => /^[a-z][a-z0-9+.-]*$/.test(each))
+  return new Set(listed.map(each => `${each}:`))
 }
 
 function withFragment(address: string, fragment: string): string {

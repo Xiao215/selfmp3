@@ -1,17 +1,18 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { formatLongDuration, type Song } from '@selfmp3/shared'
-import { mediaUrl } from '../src/api/client'
+import type { Song } from '@selfmp3/shared'
 import { useLibrary } from '../src/api/queries'
-import { DEFAULT_FILTER, filterSongs, SORT_OPTIONS, usedTags } from '../src/lib/library'
+import { mediaUrl } from '../src/api/client'
+import { coversNow, ensureCover, onCoversChanged } from '../src/offline/covers'
+import { DEFAULT_FILTER, filterSongs } from '../src/lib/library'
 import { isDownloaded } from '../src/offline/downloadIndex'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { usePlayer } from '../src/player/PlayerProvider'
 import { useConnection } from '../src/server/ConnectionProvider'
-import { Chip } from '../src/ui/components/Chip'
 import { SongRow } from '../src/ui/components/SongRow'
+import { SyncStatus } from '../src/ui/components/SyncStatus'
 import { colors, radius, space, type } from '../src/ui/theme'
 
 /**
@@ -24,52 +25,59 @@ import { colors, radius, space, type } from '../src/ui/theme'
 export default function LibraryScreen(): ReactNode {
   const library = useLibrary()
   const player = usePlayer()
-  const { connection } = useConnection()
+  const { connection, fromCloud } = useConnection()
   const { state: downloads } = useDownloads()
 
   const [filter, setFilter] = useState(DEFAULT_FILTER)
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
-  const tags = useMemo(() => usedTags(songs, library.data?.tags ?? []), [songs, library.data])
 
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
     [downloads.index],
   )
 
-  const visible = useMemo(
-    () => filterSongs(songs, filter, downloaded),
-    [songs, filter, downloaded],
-  )
+  const visible = useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded])
 
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
-  const totalSeconds = useMemo(
-    () => visible.reduce((sum, song) => sum + song.duration, 0),
-    [visible],
+
+  // Covers live on this device (offline/covers.ts): the image loader is given
+  // a file, because it cannot be given a header. Asking is idempotent and
+  // cheap, so every visible row may ask on every render.
+  const [covers, setCovers] = useState(coversNow)
+  useEffect(() => onCoversChanged(() => setCovers(coversNow())), [])
+
+  const artFor = useCallback(
+    (song: Song): string | null => {
+      if (!song.hasArt) return null
+      // `fromCloud`, not `connection`: a Mac address left over from before is
+      // still stored, and asking whether one exists sent the image loader to a
+      // Mac that is not running — which is why every row kept its letter tile.
+      if (!fromCloud && connection) return mediaUrl.art(connection, song.id, song.rev)
+      void ensureCover(song.id)
+      return covers.get(song.id) ?? null
+    },
+    [connection, fromCloud, covers],
   )
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
       <SongRow
         song={item}
-        artUri={item.hasArt && connection ? mediaUrl.art(connection, item.id, item.rev) : null}
+        artUri={artFor(item)}
         active={player.current?.id === item.id}
         downloaded={downloaded(item.id)}
         onPress={() => player.playFrom(songIds, index)}
         onLongPress={() => player.playNext([item.id])}
       />
     ),
-    [connection, player, songIds, downloaded],
+    [artFor, player, songIds, downloaded],
   )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.heading}>Library</Text>
-        <Text style={styles.count}>
-          {visible.length} song{visible.length === 1 ? '' : 's'} ·{' '}
-          {formatLongDuration(totalSeconds)}
-        </Text>
       </View>
 
       <TextInput
@@ -84,54 +92,8 @@ export default function LibraryScreen(): ReactNode {
         returnKeyType="search"
       />
 
-      <View style={styles.chips}>
-        {SORT_OPTIONS.map(option => (
-          <Chip
-            key={option.field}
-            label={
-              filter.sort === option.field && filter.descending
-                ? `${option.label} ↓`
-                : option.label
-            }
-            selected={filter.sort === option.field}
-            onPress={() =>
-              setFilter(current => ({
-                ...current,
-                sort: option.field,
-                // Tapping the active sort flips its direction, which is how
-                // the web app's column headers behave.
-                descending: current.sort === option.field ? !current.descending : false,
-              }))
-            }
-          />
-        ))}
-        <Chip
-          label="Downloaded"
-          selected={filter.downloadedOnly}
-          onPress={() =>
-            setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly }))
-          }
-        />
-      </View>
+      <SyncStatus songs={songs} />
 
-      {tags.length > 0 ? (
-        <View style={styles.chips}>
-          {tags.map(tag => (
-            <Chip
-              key={tag.id}
-              label={tag.name}
-              hue={tag.hue}
-              selected={filter.tagId === tag.id}
-              onPress={() =>
-                setFilter(current => ({
-                  ...current,
-                  tagId: current.tagId === tag.id ? null : tag.id,
-                }))
-              }
-            />
-          ))}
-        </View>
-      ) : null}
 
       {library.isPending ? (
         <ActivityIndicator style={styles.spinner} color={colors.accent} />

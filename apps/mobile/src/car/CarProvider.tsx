@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQueries } from '@tanstack/react-query'
-import { api, mediaUrl } from '../api/client'
+import { api } from '../api/client'
 import { queryKeys, useLibrary } from '../api/queries'
 import { usePlayer } from '../player/PlayerProvider'
 import { useConnection } from '../server/ConnectionProvider'
 import { buildBrowseTree, type BrowseTree } from './browseTree'
 import { connectAndroidAuto } from './androidAuto'
-import { connectCarPlay } from './carplay'
 
 /**
  * Keeps the car's view of the library in sync, on both platforms.
@@ -16,7 +15,7 @@ import { connectCarPlay } from './carplay'
  * tree and see the library, the player and the connection.
  *
  * The tree is handed to the car integrations behind a getter rather than as a
- * value: CarPlay templates are built once when the head unit connects and then
+ * value: the tree is built once when the head unit connects and then
  * live on the native side, so they must read the *current* tree when a row is
  * tapped rather than closing over whatever existed at connection time.
  */
@@ -96,17 +95,9 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
       playerRef.current.playFrom(songIds, startIndex)
     }
 
-    const disconnectCarPlay = connectCarPlay(getTree, {
-      onPlay,
-      artworkUrl: songId => {
-        const server = connectionRef.current
-        return server ? mediaUrl.art(server, songId) : null
-      },
-    })
     const disconnectAndroidAuto = connectAndroidAuto(getTree, { onPlay })
 
     return () => {
-      disconnectCarPlay()
       disconnectAndroidAuto()
     }
   }, [])

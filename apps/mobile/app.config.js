@@ -61,21 +61,28 @@ const config = {
         imageWidth: 160,
       },
     ],
-    // Adds the CarPlay entitlement, the CarPlay scene manifest and the scene
-    // delegate that hands control to react-native-carplay. See
-    // plugins/withCarPlay.js and docs/MOBILE.md.
-    //
-    // Off unless SELFMP3_CARPLAY is set, because `carplay-audio` is an
-    // entitlement Apple grants on request and only to a paid team. Left on,
-    // the first build signed for a device fails on a provisioning error about
-    // an entitlement the developer never asked for — a confusing way to
-    // discover a policy. src/car/carplay.ts already does nothing when the
-    // native module is absent, so the app is unaffected either way.
-    ...(process.env.SELFMP3_CARPLAY ? ['./plugins/withCarPlay'] : []),
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
   ],
+
+  /**
+   * Values the app reads at runtime through `expo-constants`.
+   *
+   * The doorman is the one thing the phone cannot work out for itself: the web
+   * app gets it from a Vite variable and the Mac from its environment, and a
+   * binary has neither. Set SELFMP3_DOORMAN_URL when building to point a copy
+   * at your own; left alone it is the one in packages/shared/src/cloud.ts.
+   */
+  extra: {
+    // Spread rather than `?? null`: Expo serialises a null in `extra` as `{}`,
+    // which is not null, so a `??` fallback downstream never fires and the
+    // address becomes the string "[object Object]". Absent is the only way to
+    // say absent here.
+    ...(process.env.SELFMP3_DOORMAN_URL
+      ? { doormanUrl: process.env.SELFMP3_DOORMAN_URL }
+      : {}),
+  },
 
   experiments: {
     typedRoutes: false,

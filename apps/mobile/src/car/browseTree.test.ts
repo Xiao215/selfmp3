@@ -112,7 +112,7 @@ describe('buildBrowseTree', () => {
   })
 
   it('leaves missing songs out — there is nothing a driver can do about them', () => {
-    const tree = buildBrowseTree(input({ songs: [song(1), song(2, { missing: true })] }) )
+    const tree = buildBrowseTree(input({ songs: [song(1), song(2, { missing: true })] }))
     expect(nodeById(tree, 'recent')?.songIds).toEqual([1])
   })
 

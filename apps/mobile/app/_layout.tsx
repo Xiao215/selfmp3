@@ -73,7 +73,12 @@ function Shell(): ReactNode {
   }, [status])
 
   useEffect(() => {
-    if (status === 'missing' && pathname !== '/onboarding') router.replace('/onboarding')
+    // Google is the front door: a phone's library is the bucket's, and no Mac
+    // has to be awake or even exist. `/onboarding` is still reachable for
+    // anyone pointing this at a Mac on purpose, but it is no longer the
+    // question a new phone is asked first.
+    const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
+    if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])
 
   const chrome = !FULL_SCREEN_ROUTES.includes(pathname) && status === 'ready'
@@ -87,7 +92,10 @@ function Shell(): ReactNode {
           animation: 'fade',
         }}
       >
-        <Stack.Screen name="now-playing" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen
+          name="now-playing"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
       {chrome ? (
         <>

@@ -57,17 +57,17 @@ export function route<
   return (req: Request, res: Response, next: NextFunction): void => {
     void (async () => {
       try {
-        const params = (
-          schemas.params ? schemas.params.parse(req.params) : req.params
-        ) as Parsed<P, Record<string, string>>
+        const params = (schemas.params ? schemas.params.parse(req.params) : req.params) as Parsed<
+          P,
+          Record<string, string>
+        >
 
-        const query = (
-          schemas.query ? schemas.query.parse(req.query) : req.query
-        ) as Parsed<Q, Record<string, unknown>>
+        const query = (schemas.query ? schemas.query.parse(req.query) : req.query) as Parsed<
+          Q,
+          Record<string, unknown>
+        >
 
-        const body = (
-          schemas.body ? schemas.body.parse(req.body) : req.body
-        ) as Parsed<B, unknown>
+        const body = (schemas.body ? schemas.body.parse(req.body) : req.body) as Parsed<B, unknown>
 
         const result = await handler({ params, query, body, req, res })
 

@@ -71,7 +71,8 @@ export function playFrom(
   }
 
   const chosen = songIds[safeIndex]
-  if (chosen === undefined) return { ...state, items: [...songIds], index: safeIndex, original: [...songIds] }
+  if (chosen === undefined)
+    return { ...state, items: [...songIds], index: safeIndex, original: [...songIds] }
 
   const rest = songIds.filter((_, i) => i !== safeIndex)
   return {

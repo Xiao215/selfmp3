@@ -271,8 +271,7 @@ input[type='range'].accent-slider {
   height: 22px;
   padding: 8px 0;
   border-radius: var(--radius-pill);
-  background:
-    linear-gradient(
+  background: linear-gradient(
       to right,
       oklch(0.72 0.16 0),
       oklch(0.72 0.16 60),

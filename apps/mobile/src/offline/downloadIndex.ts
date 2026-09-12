@@ -50,12 +50,23 @@ export function parseIndex(raw: unknown): DownloadIndex {
 /**
  * The file name a song is stored under.
  *
- * The id leads so the name is unique and stable even when a song is renamed;
- * the original extension is kept because the player picks its decoder from it.
+ * From a Mac, the id leads: it is unique and stable even when a song is
+ * renamed. From the bucket, the hash of the audio's own bytes leads instead,
+ * because a song's id there is handed out by this device and starts again
+ * after a sign-out — a file named `7.m4a` would then belong to whichever song
+ * became song 7 next, which is the right audio under the wrong name, and it
+ * plays. The hash cannot be wrong in that way, and it is already the file's
+ * name in the bucket.
+ *
+ * The extension is kept either way: the player picks its decoder from it.
  */
 export function fileNameFor(song: Pick<Song, 'id' | 'path'>): string {
   const match = /\.([a-z0-9]{1,5})$/i.exec(song.path)
   const extension = match?.[1]?.toLowerCase() ?? 'mp3'
+
+  const fromBucket = /^audio\/([0-9a-f]{64})\./i.exec(song.path)
+  if (fromBucket) return `${fromBucket[1]?.toLowerCase() ?? ''}.${extension}`
+
   return `${song.id}.${extension}`
 }
 

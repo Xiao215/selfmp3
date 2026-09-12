@@ -50,9 +50,5 @@ export {
   type PendingSignIn,
 } from './session.js'
 export type { TextCache } from './platform.js'
-export {
-  FILES_KEY,
-  createCloudLibrary,
-  type CloudLibraryApi,
-} from './library.js'
+export { FILES_KEY, createCloudLibrary, type CloudLibraryApi } from './library.js'
 export { createCloudRoutes, parseQuery, type RouteQuery } from './routes.js'

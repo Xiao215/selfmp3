@@ -42,16 +42,15 @@ export function useServerSettings(): UseQueryResult<Settings> {
 }
 
 export function useLibrary(): UseQueryResult<Library> {
-  const { connection } = useConnection()
+  const { connection, status } = useConnection()
 
   return useQuery({
-    queryKey: queryKeys.library(connection?.baseUrl ?? ''),
-    enabled: connection !== null,
+    queryKey: queryKeys.library(connection?.baseUrl ?? 'cloud'),
+    enabled: status === 'ready',
     // The library changes when the Mac imports something, not by the second.
     staleTime: 60_000,
     retry: 1,
     queryFn: async (): Promise<Library> => {
-      if (!connection) throw new Error('no server configured')
       try {
         const library = await api.library(connection)
         writeCachedLibrary(library)
@@ -66,44 +65,43 @@ export function useLibrary(): UseQueryResult<Library> {
 }
 
 export function useManifest(): UseQueryResult<SyncManifest> {
-  const { connection } = useConnection()
+  const { connection, status } = useConnection()
 
   return useQuery({
-    queryKey: queryKeys.manifest(connection?.baseUrl ?? ''),
-    enabled: connection !== null,
+    queryKey: queryKeys.manifest(connection?.baseUrl ?? 'cloud'),
+    enabled: status === 'ready',
     staleTime: 60_000,
     queryFn: async (): Promise<SyncManifest> => {
-      if (!connection) throw new Error('no server configured')
       return api.manifest(connection)
     },
   })
 }
 
 export function usePlaylistSongs(playlistId: number | null): UseQueryResult<PlaylistSongs> {
-  const { connection } = useConnection()
+  const { connection, status } = useConnection()
 
   return useQuery({
-    queryKey: queryKeys.playlistSongs(connection?.baseUrl ?? '', playlistId ?? 0),
-    enabled: connection !== null && playlistId !== null,
+    queryKey: queryKeys.playlistSongs(connection?.baseUrl ?? 'cloud', playlistId ?? 0),
+    enabled: status === 'ready' && playlistId !== null,
     staleTime: 30_000,
     queryFn: async (): Promise<PlaylistSongs> => {
-      if (!connection || playlistId === null) throw new Error('no playlist')
+      if (playlistId === null) throw new Error('no playlist')
       return api.playlistSongs(connection, playlistId)
     },
   })
 }
 
 export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse> {
-  const { connection } = useConnection()
+  const { connection, status } = useConnection()
 
   return useQuery({
-    queryKey: queryKeys.lyrics(connection?.baseUrl ?? '', songId ?? 0),
-    enabled: connection !== null && songId !== null,
+    queryKey: queryKeys.lyrics(connection?.baseUrl ?? 'cloud', songId ?? 0),
+    enabled: status === 'ready' && songId !== null,
     // Lyrics for a given song do not change unless someone edits them.
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async (): Promise<LyricsResponse> => {
-      if (!connection || songId === null) throw new Error('no song')
+      if (songId === null) throw new Error('no song')
       return api.lyrics(connection, songId)
     },
   })

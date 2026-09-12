@@ -281,10 +281,7 @@ export function ImportView() {
             <h2>
               {items.length} {items.length === 1 ? 'track' : 'tracks'} found
               {duplicateCount > 0 && (
-                <span className="hint">
-                  {' '}
-                  · {duplicateCount} already in your library
-                </span>
+                <span className="hint"> · {duplicateCount} already in your library</span>
               )}
             </h2>
             <div className="import-review-actions">
@@ -305,12 +302,12 @@ export function ImportView() {
           </div>
 
           {/*
-            * A real table rather than a stack of cards: one line per track,
-            * with title, artist and album as three columns you can tab across.
-            * A forty-track playlist is the case this screen exists for, and
-            * three stacked full-width inputs per track made six of them fill
-            * the screen.
-            */}
+           * A real table rather than a stack of cards: one line per track,
+           * with title, artist and album as three columns you can tab across.
+           * A forty-track playlist is the case this screen exists for, and
+           * three stacked full-width inputs per track made six of them fill
+           * the screen.
+           */}
           <div className="import-list" role="group" aria-label="Tracks to import">
             <div className="import-item import-item-head" aria-hidden="true">
               <span />
@@ -382,7 +379,10 @@ export function ImportView() {
 
                 <span className="import-col-side">
                   {item.alreadyHave ? (
-                    <span className="import-dup" data-tip="A song with this title and artist is already in your library">
+                    <span
+                      className="import-dup"
+                      data-tip="A song with this title and artist is already in your library"
+                    >
                       <CheckCircle size={12} /> Have it
                     </span>
                   ) : item.duration > 0 ? (
@@ -456,10 +456,10 @@ export function ImportView() {
       )}
 
       {/*
-        * The queue takes the review card's place, above the library panel:
-        * below it, a just-started import landed off-screen and looked like
-        * the button had done nothing.
-        */}
+       * The queue takes the review card's place, above the library panel:
+       * below it, a just-started import landed off-screen and looked like
+       * the button had done nothing.
+       */}
       {queue && queue.jobs.length > 0 && (
         <div className="import-queue" ref={queueRef}>
           <div className="import-queue-head">
@@ -511,15 +511,17 @@ export function ImportView() {
                         : job.status === 'done'
                           ? 'Added to your library'
                           : IMPORT_STEP_LABELS[job.step]}
-                    {job.status === 'error' && job.attempts > 1 && ` \u00b7 ${job.attempts} attempts`}
+                    {job.status === 'error' &&
+                      job.attempts > 1 &&
+                      ` \u00b7 ${job.attempts} attempts`}
                   </span>
                 </span>
 
                 {/*
-                  * A download reports a percentage; the steps around it do not.
-                  * The bar is there either way so the row does not change width
-                  * halfway through - it just goes indeterminate.
-                  */}
+                 * A download reports a percentage; the steps around it do not.
+                 * The bar is there either way so the row does not change width
+                 * halfway through - it just goes indeterminate.
+                 */}
                 {job.status === 'running' && (
                   <span
                     className={`job-progress ${job.progress === null ? 'is-indeterminate' : ''}`}

@@ -165,7 +165,10 @@ export class AudioEngine {
    * element, the two elements are swapped instead of reloading — which is what
    * makes "next track" instant rather than a fresh network round trip.
    */
-  async load(songId: number, options: { autoplay?: boolean; startAt?: number } = {}): Promise<void> {
+  async load(
+    songId: number,
+    options: { autoplay?: boolean; startAt?: number } = {},
+  ): Promise<void> {
     const { autoplay = true, startAt = 0 } = options
 
     // A crossfade that just finished has already put this track on and faded

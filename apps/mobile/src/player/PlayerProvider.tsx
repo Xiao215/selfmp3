@@ -29,7 +29,7 @@ import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { useConnection } from '../server/ConnectionProvider'
 import { ensurePlayer } from './setup'
-import { songIdOf, toTrack } from './tracks'
+import { songIdOf, toTrack, type SongTrack } from './tracks'
 
 /**
  * The React glue, the same role `player/PlayerProvider.tsx` plays on the web.
@@ -251,12 +251,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   const buildTracks = useCallback(
     (songIds: readonly number[]) => {
+      // No Mac is not a reason to play nothing any more: a song downloaded
+      // from the bucket plays from this device's own disk. What is dropped is
+      // a song with neither — nothing to play it from — rather than the whole
+      // queue.
       const server = connectionRef.current
-      if (!server) return []
       return songIds
         .map(id => songsRef.current.get(id))
         .filter((song): song is Song => song !== undefined)
         .map(song => toTrack(song, server, downloadQueue.localUri(song.id)))
+        .filter((track): track is SongTrack => track !== null)
     },
     [downloadQueue],
   )
@@ -351,7 +355,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const toggle = useCallback(() => {
     void (async () => {
       const state = await TrackPlayer.getPlaybackState()
-      if (state.state === State.Playing || state.state === State.Buffering) await TrackPlayer.pause()
+      if (state.state === State.Playing || state.state === State.Buffering)
+        await TrackPlayer.pause()
       else await TrackPlayer.play()
     })()
   }, [])

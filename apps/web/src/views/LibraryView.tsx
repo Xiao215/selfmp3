@@ -211,8 +211,8 @@ export function LibraryView({
           <p className="empty-emoji">😴</p>
           <h2>Can’t reach your library</h2>
           <p className="hint">
-            Your Mac may be asleep. Anything you have downloaded still plays — everything else
-            will come back when it wakes up.
+            Your Mac may be asleep. Anything you have downloaded still plays — everything else will
+            come back when it wakes up.
           </p>
         </div>
       </section>
@@ -275,7 +275,9 @@ export function LibraryView({
               className="button library-direction"
               onClick={() => setDescending(value => !value)}
               aria-label={descending ? 'Sort ascending' : 'Sort descending'}
-              data-tip={descending ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+              data-tip={
+                descending ? 'Descending — click for ascending' : 'Ascending — click for descending'
+              }
             >
               <span aria-hidden="true">{descending ? '↓' : '↑'}</span>
             </button>
@@ -294,9 +296,7 @@ export function LibraryView({
               disabled={filtered.length === 0}
               aria-pressed={selection.active}
               data-tip={
-                selection.active
-                  ? 'Done selecting (Esc)'
-                  : 'Select songs to act on several at once'
+                selection.active ? 'Done selecting (Esc)' : 'Select songs to act on several at once'
               }
             >
               <CheckSquare size={15} />{' '}
@@ -415,8 +415,8 @@ export function LibraryView({
             <p className="empty-emoji">🎧</p>
             <h2>Nothing here yet</h2>
             <p className="hint">
-              Drop audio files into your <code>library/</code> folder and rescan, or import a
-              song straight from a link.
+              Drop audio files into your <code>library/</code> folder and rescan, or import a song
+              straight from a link.
             </p>
             <div className="empty-actions">
               <button
@@ -545,7 +545,10 @@ function MobileTagChip({
       }}
       onPointerMove={event => {
         const start = origin.current
-        if (start && (Math.abs(event.clientX - start.x) > 8 || Math.abs(event.clientY - start.y) > 8)) {
+        if (
+          start &&
+          (Math.abs(event.clientX - start.x) > 8 || Math.abs(event.clientY - start.y) > 8)
+        ) {
           cancel()
         }
       }}

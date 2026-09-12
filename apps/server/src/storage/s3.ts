@@ -157,9 +157,7 @@ export class S3StorageDriver implements StorageDriver {
 
   async delete(key: string): Promise<void> {
     const { s3, client } = await this.#ready()
-    await client.send(
-      new s3.DeleteObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) }),
-    )
+    await client.send(new s3.DeleteObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) }))
   }
 
   async move(fromKey: string, toKey: string): Promise<void> {
@@ -253,8 +251,9 @@ export async function streamToBuffer(body: unknown): Promise<Buffer> {
     'transformToByteArray' in body &&
     typeof body.transformToByteArray === 'function'
   ) {
-    const bytes = await (body as { transformToByteArray(): Promise<Uint8Array> })
-      .transformToByteArray()
+    const bytes = await (
+      body as { transformToByteArray(): Promise<Uint8Array> }
+    ).transformToByteArray()
     return Buffer.from(bytes)
   }
   throw new Error('unsupported S3 response body')

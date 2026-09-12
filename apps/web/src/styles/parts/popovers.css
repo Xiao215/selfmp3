@@ -106,7 +106,9 @@
   text-align: left;
   width: 100%;
   color: var(--text-secondary);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .popover-item:hover,

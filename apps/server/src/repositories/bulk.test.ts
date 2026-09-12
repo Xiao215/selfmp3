@@ -27,10 +27,42 @@ function makeDb(): Database.Database {
   `)
 
   const rows = [
-    { id: 1, path: 'a.mp3', title: 'Midnight Drive', artist: 'Aurora Lane', album: 'Night', duration: 254, loved: 1 },
-    { id: 2, path: 'b.mp3', title: 'Sunrise', artist: 'Aurora Lane', album: 'Night', duration: 190, loved: 0 },
-    { id: 3, path: 'c.mp3', title: 'Nocturne Study', artist: 'Klara Feld', album: 'Etudes', duration: 420, loved: 0 },
-    { id: 4, path: 'd.mp3', title: 'Static Bloom', artist: 'The Wavelets', album: '', duration: 100, loved: 0 },
+    {
+      id: 1,
+      path: 'a.mp3',
+      title: 'Midnight Drive',
+      artist: 'Aurora Lane',
+      album: 'Night',
+      duration: 254,
+      loved: 1,
+    },
+    {
+      id: 2,
+      path: 'b.mp3',
+      title: 'Sunrise',
+      artist: 'Aurora Lane',
+      album: 'Night',
+      duration: 190,
+      loved: 0,
+    },
+    {
+      id: 3,
+      path: 'c.mp3',
+      title: 'Nocturne Study',
+      artist: 'Klara Feld',
+      album: 'Etudes',
+      duration: 420,
+      loved: 0,
+    },
+    {
+      id: 4,
+      path: 'd.mp3',
+      title: 'Static Bloom',
+      artist: 'The Wavelets',
+      album: '',
+      duration: 100,
+      loved: 0,
+    },
   ]
   for (const row of rows) insert.run(row)
 
@@ -51,7 +83,12 @@ describe('SongRepository.deleteMany', () => {
 
     expect(result.removed).toEqual([1, 3])
     expect(result.missing).toEqual([])
-    expect(songs.all().map(song => song.id).sort()).toEqual([2, 4])
+    expect(
+      songs
+        .all()
+        .map(song => song.id)
+        .sort(),
+    ).toEqual([2, 4])
   })
 
   it('reports ids that are not in the library instead of failing the batch', () => {
@@ -60,7 +97,12 @@ describe('SongRepository.deleteMany', () => {
     expect(result.removed).toEqual([2, 4])
     expect(result.missing).toEqual([999])
     // The partial failure must not cost the songs that were real.
-    expect(songs.all().map(song => song.id).sort()).toEqual([1, 3])
+    expect(
+      songs
+        .all()
+        .map(song => song.id)
+        .sort(),
+    ).toEqual([1, 3])
   })
 
   it('is a no-op when nothing in the batch exists', () => {

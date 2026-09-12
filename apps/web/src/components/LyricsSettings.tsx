@@ -24,8 +24,8 @@ export function LyricsSettings({
         <span className="setting-label">
           Show pinyin / romaji
           <span className="setting-hint">
-            A romanized line under each Chinese or Japanese lyric, generated on your Mac —
-            nothing leaves your library.
+            A romanized line under each Chinese or Japanese lyric, generated on your Mac — nothing
+            leaves your library.
           </span>
         </span>
         <span className="setting-control">

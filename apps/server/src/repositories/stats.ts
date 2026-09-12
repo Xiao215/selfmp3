@@ -111,7 +111,8 @@ export class StatsRepository {
       }))
 
     // Zero-fill so the chart shows quiet days as gaps rather than skipping them.
-    const filledDaily = RANGE_DAYS[range] === null ? daily : zeroFill(daily, RANGE_DAYS[range] ?? 30)
+    const filledDaily =
+      RANGE_DAYS[range] === null ? daily : zeroFill(daily, RANGE_DAYS[range] ?? 30)
 
     const hourlyRows = this.#db
       .prepare<unknown[], { hour: string; plays: number }>(
@@ -154,7 +155,14 @@ export class StatsRepository {
     const topSongs: TopSong[] = this.#db
       .prepare<
         unknown[],
-        { song_id: number; title: string; artist: string; has_art: number; plays: number; ms: number | null }
+        {
+          song_id: number
+          title: string
+          artist: string
+          has_art: number
+          plays: number
+          ms: number | null
+        }
       >(
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms

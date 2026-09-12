@@ -32,8 +32,7 @@ export function Lyrics({
   const scrollRef = useRef<ScrollView>(null)
   const parsed = useMemo(() => (text === null ? null : parseLyrics(text)), [text])
 
-  const active =
-    parsed?.synced === true ? activeLineIndex(parsed.lines, position) : -1
+  const active = parsed?.synced === true ? activeLineIndex(parsed.lines, position) : -1
 
   const lastScrolled = useRef(-1)
   useEffect(() => {

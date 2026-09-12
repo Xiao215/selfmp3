@@ -2,10 +2,10 @@
 
 `apps/mobile` is an Expo / React Native app: the same library, the same server,
 but with the three things a PWA cannot do — dependable background audio on iOS,
-real downloaded files instead of an evictable cache, and a car.
+and real downloaded files instead of an evictable cache.
 
 **The full guide is [`docs/MOBILE.md`](../MOBILE.md)** — prerequisites, running
-it on a phone, EAS and local builds, the CarPlay entitlement process, Android
+it on a phone, local builds, Android
 Auto testing with the Desktop Head Unit, and an explicit list of what has and
 has not been verified. This page is the short version.
 
@@ -39,17 +39,16 @@ with no server at all.
 
 ## In the car
 
-**CarPlay** shows Playlists, Albums, Artists and Recently added as nested lists
-over the system Now Playing screen. It needs Apple's `carplay-audio`
-entitlement, which has to be requested and granted; without it the app is
-unaffected in every other respect. See `docs/MOBILE.md`.
+**CarPlay has been removed.** It needed Apple's `carplay-audio` entitlement,
+which is granted only to a paid developer team and only on request — and this
+is a personal app built on a free account. The browse tree it used is still
+here, and still unit-tested, because Android Auto resolves against the same one.
 
 **Android Auto** gets transport, metadata, artwork and voice search ("play Kind
 of Blue"), which is what react-native-track-player currently exposes. The
 browsable menu inside the car's own UI is not there yet, because the library has
 no API to publish one — `docs/MOBILE.md` explains what was found and what the
-alternatives are. The tree itself is built and unit-tested either way, since
-CarPlay uses it.
+alternatives are. The tree itself is built and unit-tested regardless.
 
 ## Notes for whoever touches it next
 

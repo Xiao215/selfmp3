@@ -1,11 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import {
-  StatsRangeSchema,
-  UpdateSettingsSchema,
-  type Health,
-  type Stats,
-} from '@selfmp3/shared'
+import { StatsRangeSchema, UpdateSettingsSchema, type Health, type Stats } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { isAuthenticated } from '../http/middleware.js'
@@ -55,9 +50,8 @@ export function systemRoutes(container: Container): Router {
 
   router.get(
     '/stats',
-    route(
-      { query: z.object({ range: StatsRangeSchema.default('30d') }) },
-      ({ query }): Stats => container.stats.build(query.range),
+    route({ query: z.object({ range: StatsRangeSchema.default('30d') }) }, ({ query }): Stats =>
+      container.stats.build(query.range),
     ),
   )
 

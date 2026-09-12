@@ -26,6 +26,7 @@ import {
   type Harness,
   type Profile,
 } from './fakes.js'
+import { appSchemes } from './auth.js'
 
 /**
  * Signing in, end to end: the device's start link, Google's round trip (a fake
@@ -712,5 +713,47 @@ describe('signing out everywhere', () => {
     const h = harness()
     expect((await h.call('/v1/auth/signout-everywhere', { method: 'POST' })).status).toBe(401)
     expect(h.kv.writes).toBe(0)
+  })
+})
+
+describe('coming back to a native app', () => {
+  it('goes back to the app when the return is its own scheme', async () => {
+    const h = harness()
+    const started = await begin(h, `&return=${encodeURIComponent('selfmp3://signin')}`)
+    const back = await finish(h, started)
+    expect(back.status).toBe(302)
+    const code = (await signInCodeFrom(back)) ?? ''
+    // The code rides in the fragment, exactly as it does for the web app —
+    // and the attempt does not, which is what makes this safe on a phone.
+    expect(back.headers.get('location')).toBe(`selfmp3://signin#signin-code=${code}`)
+    expect(back.headers.get('location')).not.toContain(started.attempt)
+    expect((await claimed(h, started.attempt, code)).status).toBe('signed-in')
+  })
+
+  it('drops a scheme that is not the app\'s, and still shows the code', async () => {
+    const h = harness()
+    const started = await begin(h, `&return=${encodeURIComponent('evilapp://collect')}`)
+    const back = await finish(h, started)
+    expect(back.status).toBe(200)
+    expect(back.headers.get('location')).toBeNull()
+  })
+})
+
+describe('appSchemes', () => {
+  it('defaults to the app this doorman was written for', () => {
+    expect(appSchemes(undefined).has('selfmp3:')).toBe(true)
+  })
+
+  it('takes a scheme however it is written', () => {
+    for (const written of ['selfmp3', 'selfmp3:', 'selfmp3://', 'SELFMP3']) {
+      expect(appSchemes(written).has('selfmp3:')).toBe(true)
+    }
+  })
+
+  it('ignores anything that could not be one', () => {
+    const schemes = appSchemes('ok, not a scheme, 9bad')
+    expect(schemes.has('ok:')).toBe(true)
+    expect(schemes.has('9bad:')).toBe(false)
+    expect(schemes.has('not a scheme:')).toBe(false)
   })
 })

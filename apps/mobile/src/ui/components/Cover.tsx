@@ -18,7 +18,11 @@ export function Cover({
   title: string
   size?: number
 }): ReactNode {
-  const dimensions = { width: size, height: size, borderRadius: size >= 120 ? radius.lg : radius.sm }
+  const dimensions = {
+    width: size,
+    height: size,
+    borderRadius: size >= 120 ? radius.lg : radius.sm,
+  }
 
   if (uri) {
     return <Image source={{ uri }} style={[styles.cover, dimensions]} resizeMode="cover" />

@@ -120,6 +120,8 @@ export interface CloudLibraryApi {
     session: CloudSession | null,
     songId: number,
   ) => Promise<{ text: string; kind: 'plain' | 'synced' } | null>
+  /** A song's cover in the bucket (`covers/<sha256>.<ext>`), or null. */
+  cloudCoverKey: (songId: number) => Promise<string | null>
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   forgetCloudLibrary: () => Promise<void>
 }
@@ -161,9 +163,7 @@ export function createCloudLibrary(
 
   /** The outbox, changed in one IndexedDB transaction, so two tabs never undo each other. */
   async function changeOutbox(change: (outbox: Outbox) => Outbox): Promise<Outbox> {
-    const next = (await store.update(OUTBOX_KEY, current =>
-      change(asOutbox(current)),
-    )) as Outbox
+    const next = (await store.update(OUTBOX_KEY, current => change(asOutbox(current)))) as Outbox
     if (replica) replica.outbox = next
     return next
   }
@@ -219,7 +219,8 @@ export function createCloudLibrary(
     const local = localChanges(r.outbox)
     const seen = latestStamp(r.base.snapshot)
     if (seen) r.clock.observe(seen)
-    for (const file of r.logs.values()) for (const change of file.changes) r.clock.observe(change.hlc)
+    for (const file of r.logs.values())
+      for (const change of file.changes) r.clock.observe(change.hlc)
     for (const change of local) r.clock.observe(change.hlc)
     r.library = replay(r.base.snapshot, r.logs.values(), local)
     await show(r)
@@ -253,7 +254,10 @@ export function createCloudLibrary(
     return keys
   }
 
-  async function fetchSnapshot(session: CloudSession, key: string): Promise<CloudSnapshot | 'gone'> {
+  async function fetchSnapshot(
+    session: CloudSession,
+    key: string,
+  ): Promise<CloudSnapshot | 'gone'> {
     const response = await session_.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
     return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))
@@ -539,6 +543,17 @@ export function createCloudLibrary(
     return { text, kind: files.lyricsKind }
   }
 
+  /**
+   * Where a song's cover is in the bucket.
+   *
+   * The key rather than the bytes: artwork goes to a file and is handed to the
+   * OS image loader as a path, and a base64 round trip through JavaScript for
+   * every row in a list is not the way to get there.
+   */
+  async function cloudCoverKey(songId: number): Promise<string | null> {
+    return (await filesOf(songId))?.cover ?? null
+  }
+
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
@@ -611,6 +626,7 @@ export function createCloudLibrary(
     flushCloudChanges,
     cloudPlaylistSongs,
     cloudLyrics,
+    cloudCoverKey,
     cloudManifest,
     forgetCloudLibrary,
   }

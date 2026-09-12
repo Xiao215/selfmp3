@@ -68,7 +68,9 @@ export default function PlaylistsScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.head}>
-        <Text style={styles.heading}>Playlists</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Playlists
+        </Text>
         <Text style={styles.sub}>
           {library.isPending
             ? 'Loading…'

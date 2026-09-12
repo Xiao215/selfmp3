@@ -70,6 +70,13 @@ export const SongRow = memo(function SongRow({
       */}
       <View
         testID={testID}
+        // The same semantics the web app's row has had all along: the row is a
+        // row, and the controls inside it are buttons. `role` rather than
+        // `accessibilityRole` because React Native has no "row" of its own and
+        // ignores what it does not know, while react-native-web turns it into
+        // the real ARIA role — so the phone is unaffected and a browser gets a
+        // table it can navigate.
+        role="row"
         style={[
           styles.row,
           active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },

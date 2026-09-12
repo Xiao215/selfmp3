@@ -48,7 +48,9 @@ export default function SettingsScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.heading}>Settings</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Settings
+        </Text>
         <Text style={styles.sub}>Server, downloads, and how this phone looks</Text>
 
         <Section title={fromCloud ? 'Library' : 'Server'}>

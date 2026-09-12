@@ -11,6 +11,19 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  * every class name is different.
  */
 
+/**
+ * Which app these flows are pointed at.
+ *
+ * They are written once and run against both: the old web app, where they are
+ * phase 1's gate, and `apps/app`, where they are phase 2's. A few things are
+ * genuinely not there yet in the new app — not broken, not yet built — and a
+ * flow that cannot tell the difference between "missing" and "wrong" is worth
+ * less than one that says which. `SELFMP3_APP_API` is set only when pointing
+ * them at `apps/app`, because that is the app that has to be told where its Mac
+ * is (see verify/playwright.config.ts).
+ */
+export const againstUniversalApp = Boolean(process.env.SELFMP3_APP_API)
+
 /** The songs table, which is labelled `<heading> songs`. */
 export function songTable(page: Page): Locator {
   return page.getByRole('table', { name: /songs$/ })

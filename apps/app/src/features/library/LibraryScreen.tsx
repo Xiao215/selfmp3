@@ -80,7 +80,7 @@ export function LibraryScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
       <View style={styles.head}>
-        <Text style={styles.heading} numberOfLines={1}>
+        <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
           {heading}
         </Text>
         <Text style={styles.sub}>{model.subtitle}</Text>
@@ -188,6 +188,8 @@ export function LibraryScreen(): ReactNode {
         <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
         <FlatList
+          role="table"
+          aria-label={`${heading} songs`}
           data={visible}
           keyExtractor={song => String(song.id)}
           renderItem={renderSong}

@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import type { Library, LyricsResponse, PlaylistSongs, SyncManifest } from '@selfmp3/shared'
+import type { Library, LyricsResponse, PlaylistSongs, Settings, SyncManifest } from '@selfmp3/shared'
 import { api } from './client'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 import { useConnection } from '../server/ConnectionProvider'
@@ -17,6 +17,28 @@ export const queryKeys = {
   manifest: (baseUrl: string) => ['manifest', baseUrl] as const,
   playlistSongs: (baseUrl: string, id: number) => ['playlist-songs', baseUrl, id] as const,
   lyrics: (baseUrl: string, id: number) => ['lyrics', baseUrl, id] as const,
+  settings: (baseUrl: string) => ['settings', baseUrl] as const,
+}
+
+/**
+ * The Mac's settings, for the few the phone has to agree about.
+ *
+ * How much of a song counts as a play is one of them: it is one number
+ * deciding one thing, and the two clients disagreeing means the same listening
+ * is counted differently depending on which one was in your hand.
+ */
+export function useServerSettings(): UseQueryResult<Settings> {
+  const { connection } = useConnection()
+
+  return useQuery({
+    queryKey: queryKeys.settings(connection?.baseUrl ?? ''),
+    enabled: connection !== null,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Settings> => {
+      if (!connection) throw new Error('no server configured')
+      return api.settings(connection)
+    },
+  })
 }
 
 export function useLibrary(): UseQueryResult<Library> {

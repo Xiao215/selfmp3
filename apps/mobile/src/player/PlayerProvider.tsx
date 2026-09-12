@@ -24,7 +24,7 @@ import {
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
-import { useLibrary } from '../api/queries'
+import { useLibrary, useServerSettings } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { useConnection } from '../server/ConnectionProvider'
@@ -82,7 +82,13 @@ const REPEAT_MODES: Record<QueueState['repeat'], RepeatMode> = {
   one: RepeatMode.Track,
 }
 
-/** Fraction of a track that must be heard before it counts, as on the web. */
+/**
+ * Fraction of a track that must be heard before it counts, until the Mac says
+ * otherwise. It is a setting the person chooses, and the web app honours it —
+ * a phone quietly keeping its own number means the same listening is counted
+ * differently depending on which device was in your hand. This is only the
+ * fallback for before the setting has been read, and matches its default.
+ */
 const PLAY_THRESHOLD = 0.5
 /** ...capped, so a 20-minute track is not held hostage. */
 const PLAY_THRESHOLD_CAP_SECONDS = 240
@@ -97,6 +103,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const { connection } = useConnection()
   const library = useLibrary()
   const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { data: serverSettings } = useServerSettings()
 
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [ready, setReady] = useState(false)
@@ -114,6 +121,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const queueRef = useRef(queue)
   const songsRef = useRef(songsById)
   const connectionRef = useRef(connection)
+  const thresholdRef = useRef(PLAY_THRESHOLD)
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
 
   useEffect(() => {
@@ -123,6 +131,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     songsRef.current = songsById
   }, [songsById])
+
+  useEffect(() => {
+    thresholdRef.current = serverSettings?.playThreshold ?? PLAY_THRESHOLD
+  }, [serverSettings?.playThreshold])
 
   useEffect(() => {
     connectionRef.current = connection
@@ -155,7 +167,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     if (songId === null || tracking.counted) return
 
     const song = songsRef.current.get(songId)
-    const needed = Math.min((song?.duration ?? 0) * PLAY_THRESHOLD, PLAY_THRESHOLD_CAP_SECONDS)
+    const needed = Math.min(
+      (song?.duration ?? 0) * thresholdRef.current,
+      PLAY_THRESHOLD_CAP_SECONDS,
+    )
     if (!completed && tracking.listenedSeconds < needed) return
 
     tracking.counted = true

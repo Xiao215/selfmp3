@@ -127,15 +127,6 @@ export async function loadLibrarySnapshot(): Promise<Library | null> {
   }
 }
 
-export async function snapshotAge(): Promise<number | null> {
-  try {
-    const stored = await get<{ savedAt: number }>(LIBRARY_KEY)
-    return stored ? Date.now() - stored.savedAt : null
-  } catch {
-    return null
-  }
-}
-
 export async function clearSnapshot(): Promise<void> {
   try {
     const db = await openDb()

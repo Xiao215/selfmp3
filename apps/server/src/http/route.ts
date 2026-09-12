@@ -83,8 +83,3 @@ export function route<
     })()
   }
 }
-
-/** Shorthand for handlers that need no input validation at all. */
-export function simpleRoute(handler: (req: Request, res: Response) => unknown) {
-  return route({}, ({ req, res }) => handler(req, res))
-}

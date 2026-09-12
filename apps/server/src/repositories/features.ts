@@ -26,7 +26,6 @@ export class FeaturesRepository {
   readonly #deleteAll
   readonly #nextPending
   readonly #countPending
-  readonly #countAnalyzed
 
   constructor(db: Db) {
     this.#bySong = db.prepare<[number], SongFeaturesRow>(
@@ -67,7 +66,6 @@ export class FeaturesRepository {
     this.#countPending = db.prepare<[number], { n: number }>(
       `SELECT COUNT(*) AS n FROM songs s WHERE ${pendingWhere}`,
     )
-    this.#countAnalyzed = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM song_features')
   }
 
   bySong(songId: number): SongFeatures | null {
@@ -94,9 +92,5 @@ export class FeaturesRepository {
 
   countPending(version: number): number {
     return this.#countPending.get(version)?.n ?? 0
-  }
-
-  countAnalyzed(): number {
-    return this.#countAnalyzed.get()?.n ?? 0
   }
 }

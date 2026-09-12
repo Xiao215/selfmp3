@@ -97,24 +97,3 @@ export const EMPTY_SMART_RULES: SmartRules = {
   limit: null,
 }
 
-/** Human-readable labels, shared so the UI and any future CLI agree. */
-export const RULE_FIELD_LABELS: Record<SmartRule['field'], string> = {
-  title: 'Title',
-  artist: 'Artist',
-  album: 'Album',
-  albumArtist: 'Album artist',
-  tag: 'Tag',
-  playCount: 'Play count',
-  skipCount: 'Skip count',
-  duration: 'Duration (seconds)',
-  year: 'Year',
-  addedAt: 'Date added',
-  lastPlayedAt: 'Last played',
-  loved: 'Loved',
-  hasLyrics: 'Has lyrics',
-  hasArt: 'Has cover art',
-  bpm: 'BPM',
-  energy: 'Energy (0–1)',
-  loudness: 'Loudness (LUFS)',
-  key: 'Key',
-}

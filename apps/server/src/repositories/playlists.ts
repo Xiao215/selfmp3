@@ -325,14 +325,4 @@ export class PlaylistRepository {
   #touch(id: number): void {
     this.#db.prepare("UPDATE playlists SET updated_at = datetime('now') WHERE id = ?").run(id)
   }
-
-  /** Playlists that contain a given song. Used by the song context menu. */
-  containing(songId: number): number[] {
-    return this.#db
-      .prepare<[number], { playlist_id: number }>(
-        'SELECT playlist_id FROM playlist_items WHERE song_id = ?',
-      )
-      .all(songId)
-      .map(row => row.playlist_id)
-  }
 }

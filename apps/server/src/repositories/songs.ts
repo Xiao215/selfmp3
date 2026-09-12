@@ -68,7 +68,6 @@ export class SongRepository {
   readonly #setInstrumental
   readonly #search
   readonly #count
-  readonly #totalDuration
   readonly #manifest
 
   constructor(db: Db) {
@@ -144,9 +143,6 @@ export class SongRepository {
     `)
 
     this.#count = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM songs')
-    this.#totalDuration = db.prepare<[], { total: number | null }>(
-      'SELECT SUM(duration) AS total FROM songs WHERE missing = 0',
-    )
     this.#manifest = db.prepare<[], { id: number; size_bytes: number; mtime_ms: number }>(
       'SELECT id, size_bytes, mtime_ms FROM songs WHERE missing = 0 ORDER BY id',
     )
@@ -354,10 +350,6 @@ export class SongRepository {
 
   count(): number {
     return this.#count.get()?.n ?? 0
-  }
-
-  totalDuration(): number {
-    return this.#totalDuration.get()?.total ?? 0
   }
 
   /** Compact list used by the phone to work out what it still needs to cache. */

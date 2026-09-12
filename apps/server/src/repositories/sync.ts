@@ -126,10 +126,6 @@ export class SyncRepository {
     return target ? { id: target.id, uid: alias.uid, name: target.name } : null
   }
 
-  isAlias(uid: string): boolean {
-    return this.#aliasTarget.get(uid) !== undefined
-  }
-
   /** A tag by name, compared the way the tags table compares names. */
   tagNamed(name: string): { id: number; uid: string } | null {
     return this.#tagByName.get(name) ?? null

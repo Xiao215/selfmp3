@@ -112,7 +112,6 @@ async function request<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   body?: unknown,
-  init?: RequestInit,
 ): Promise<z.output<S>> {
   // Built for the web there is no Mac to ask: the bucket answers what it can.
   if (CLOUD) return cloudResponse(method, path, schema, body)
@@ -123,7 +122,6 @@ async function request<S extends z.ZodTypeAny>(
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
-      ...init,
     })
   } catch (error) {
     // A network-level failure is almost always "the Mac is asleep" rather than

@@ -19,14 +19,6 @@ const HAN = /[㐀-䶿一-鿿豈-﫿]/
 const KANA = /[ぁ-ゟ゠-ヿㇰ-ㇿｦ-ﾟ]/
 const LATIN = /[A-Za-zÀ-ɏ]/
 
-export function hasHan(text: string): boolean {
-  return HAN.test(text)
-}
-
-export function hasKana(text: string): boolean {
-  return KANA.test(text)
-}
-
 /** Dominant script of one line. `mixed` means Han and kana together (Japanese). */
 export function detectScript(text: string): Script {
   const han = HAN.test(text)

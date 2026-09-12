@@ -92,30 +92,6 @@ export function useHotkeys(handlers: Record<string, (event: KeyboardEvent) => vo
   }, [])
 }
 
-/** Run a callback when a click lands outside the referenced element. */
-export function useClickOutside<T extends HTMLElement>(
-  onOutside: () => void,
-): React.RefObject<T | null> {
-  const ref = useRef<T>(null)
-  const callbackRef = useRef(onOutside)
-  callbackRef.current = onOutside
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent): void => {
-      const element = ref.current
-      if (element && event.target instanceof Node && !element.contains(event.target)) {
-        callbackRef.current()
-      }
-    }
-    // Capture phase, so it fires before a click handler inside a portal can
-    // stop propagation.
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [])
-
-  return ref
-}
-
 /**
  * Something that animates out as well as in.
  *

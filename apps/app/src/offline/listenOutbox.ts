@@ -52,11 +52,11 @@ const outbox = createListenOutbox({
   },
 })
 
-export const { flushListens, recordListen, loadPendingListens } = outbox
+export const { flushListens, recordListen, recordSkipListen, loadPendingListens } = outbox
 
 /*
- * `recordSkipListen` and `subscribePendingListens` are the package's too and
- * work here, but nothing on the phone calls them yet: there is no skip button
- * that records one and no badge that shows the count. The web app has both, and
- * the universal app will inherit them rather than have them written again.
+ * `subscribePendingListens` is the package's too and works here, but nothing on
+ * the phone calls it yet: there is no badge that shows the pending count. The
+ * web app has one, and the universal app will inherit it rather than have it
+ * written again.
  */

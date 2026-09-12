@@ -18,11 +18,11 @@ import {
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
-import { listenedDelta, secondsToCount, type EngineState } from '@selfmp3/client'
+import { listenedDelta, secondsToCount, skipToRecord, type EngineState } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { useLibrary, useServerSettings } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
-import { flushListens, recordListen } from '../offline/listenOutbox'
+import { flushListens, recordListen, recordSkipListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../server/ConnectionProvider'
 
@@ -290,13 +290,28 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [engine])
 
   const next = useCallback(() => {
+    // A song left before it counted is a skip, and until now the phone was the
+    // only place you could skip one without it being recorded — so "songs you
+    // always skip" only ever saw the half of your listening done at a desk.
+    // `engine.playhead` rather than `engineState.currentTime`: the state is a
+    // render-time snapshot from a one-second tick, and where in the song you
+    // pressed Next is the whole point of the record.
+    const skip = skipToRecord(
+      queueRef.current.items[queueRef.current.index],
+      trackingRef.current.counted,
+      engine.playhead,
+    )
+    // Kept on the phone first, like a play: with the Mac asleep it goes when
+    // the Mac wakes.
+    if (skip) recordSkipListen(skip.songId, skip.atSeconds)
+
     // Pressing Next is not the song running out: `auto` false, so repeat-one
     // moves on rather than playing the same song again.
     const { state, stop } = advance(queueRef.current, false)
     if (stop) return
     setQueue(state)
     loadIndex(state, true)
-  }, [loadIndex])
+  }, [engine, loadIndex])
 
   const previous = useCallback(() => {
     // Match the web: within the first few seconds "previous" means the

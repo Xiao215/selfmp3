@@ -51,3 +51,38 @@ export function listenedDelta(position: number, lastPosition: number): number {
 export function secondsToCount(duration: number, threshold: number): number {
   return Math.min(duration * threshold, PLAY_THRESHOLD_CAP_SECONDS)
 }
+
+/** A skip worth sending, and how far into the song it happened. */
+export interface SkipToRecord {
+  readonly songId: number
+  readonly atSeconds: number
+}
+
+/**
+ * Whether pressing Next on the song that is playing is a skip worth recording.
+ *
+ * A skip only means something next to the alternative. If you heard enough of
+ * the song for it to count as a play and then moved on, that is not an opinion
+ * about the song, and recording it would put every song you ever finish into
+ * "songs I always skip". So a Next after the play has counted records nothing,
+ * and only one before it does.
+ *
+ * A song running out on its own is never a skip and never reaches here: that
+ * path ends a play rather than abandoning one. On a phone this matters more
+ * than on a desktop, because the lock screen's Next and the song ending look
+ * alike from the outside and only the player knows which happened.
+ *
+ * `position` is clamped because the phone's playhead is the last progress tick
+ * rather than a live reading, and a Next pressed before the first tick of a
+ * freshly loaded song can hand back whatever the previous song left behind.
+ * The server takes a non-negative number of seconds, so a negative or missing
+ * one becomes zero: a skip at the very start, which is what it was.
+ */
+export function skipToRecord(
+  songId: number | undefined,
+  counted: boolean,
+  position: number,
+): SkipToRecord | null {
+  if (songId === undefined || counted) return null
+  return { songId, atSeconds: Number.isFinite(position) && position > 0 ? position : 0 }
+}

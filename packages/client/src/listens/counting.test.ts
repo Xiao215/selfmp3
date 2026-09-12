@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { listenedDelta, secondsToCount, PLAY_THRESHOLD_CAP_SECONDS } from './counting.js'
+import {
+  listenedDelta,
+  secondsToCount,
+  skipToRecord,
+  PLAY_THRESHOLD_CAP_SECONDS,
+} from './counting.js'
 
 /**
  * These two decide play counts, and play counts are what stats and Wrapped are
@@ -50,5 +55,25 @@ describe('secondsToCount', () => {
     // Duration is 0 until the metadata loads; the callers check for it, and
     // this must not be the thing that makes an unplayed song count.
     expect(secondsToCount(0, 0.5)).toBe(0)
+  })
+})
+
+describe('whether Next was a skip', () => {
+  it('is a skip when the song had not counted as a play yet', () => {
+    expect(skipToRecord(7, false, 4.5)).toEqual({ songId: 7, atSeconds: 4.5 })
+  })
+
+  it('is not a skip once the play has counted', () => {
+    expect(skipToRecord(7, true, 120)).toBeNull()
+  })
+
+  it('is nothing at all when no song is playing', () => {
+    expect(skipToRecord(undefined, false, 4.5)).toBeNull()
+  })
+
+  it('records a skip before the first progress tick at the start', () => {
+    expect(skipToRecord(7, false, 0)).toEqual({ songId: 7, atSeconds: 0 })
+    expect(skipToRecord(7, false, -1)).toEqual({ songId: 7, atSeconds: 0 })
+    expect(skipToRecord(7, false, Number.NaN)).toEqual({ songId: 7, atSeconds: 0 })
   })
 })

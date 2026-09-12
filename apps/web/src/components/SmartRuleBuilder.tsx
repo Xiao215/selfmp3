@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   EMPTY_SMART_RULES,
   SmartRulesSchema,
@@ -209,9 +209,35 @@ export function SmartRuleBuilder({
     }
   }, [debounced])
 
+  /*
+   * Save on the debounced rules, not on every keystroke.
+   *
+   * Each save is a PATCH that invalidates the whole library, so typing three
+   * characters into a value box used to fire three writes and three refetches
+   * of every song — while the preview beside it was already careful to wait.
+   */
+  const saved = useRef(rules)
+  const latest = useRef(rules)
+  latest.current = rules
+  const save = useRef(onChange)
+  save.current = onChange
+
+  useEffect(() => {
+    if (debounced === saved.current) return
+    saved.current = debounced
+    save.current(debounced)
+  }, [debounced])
+
+  // Closing the editor within the debounce window must not lose the last edit.
+  useEffect(
+    () => () => {
+      if (latest.current !== saved.current) save.current(latest.current)
+    },
+    [],
+  )
+
   const update = (next: SmartRules): void => {
     setRules(next)
-    onChange(next)
   }
 
   const setRule = (index: number, rule: SmartRule): void => {

@@ -54,6 +54,42 @@ const ALL_SECTIONS: ReadonlyArray<{ id: string; label: string; mac?: boolean }> 
 const SECTIONS = ALL_SECTIONS.filter(section => !CLOUD || !section.mac)
 
 /** A starting point for the accent, so the slider is not the only way in. */
+/**
+ * The accent hue slider.
+ *
+ * Dragging one of these fires an event per pixel crossed, and each one used to
+ * be a write to the Mac: a single drag across the strip sent hundreds of PATCHes
+ * and the thumb jumped backwards whenever a stale reply landed under the
+ * pointer. The colour follows the drag locally, and only where the drag stops
+ * is saved.
+ */
+function AccentHueSlider({ hue, onPick }: { hue: number; onPick: (hue: number) => void }) {
+  const [dragging, setDragging] = useState<number | null>(null)
+  const shown = dragging ?? hue
+
+  const commit = (): void => {
+    if (dragging !== null && dragging !== hue) onPick(dragging)
+    setDragging(null)
+  }
+
+  return (
+    <input
+      type="range"
+      className="accent-slider"
+      min={0}
+      max={359}
+      step={1}
+      value={shown}
+      aria-label="Accent hue"
+      onChange={event => setDragging(Number(event.target.value))}
+      onPointerUp={commit}
+      onPointerCancel={commit}
+      onBlur={commit}
+      onKeyUp={commit}
+    />
+  )
+}
+
 const ACCENT_PRESETS: ReadonlyArray<{ hue: number; name: string }> = [
   { hue: 268, name: 'Violet' },
   { hue: 220, name: 'Blue' },
@@ -778,15 +814,9 @@ export function SettingsView() {
                       />
                     ))}
                   </span>
-                  <input
-                    type="range"
-                    className="accent-slider"
-                    min={0}
-                    max={359}
-                    step={1}
-                    value={settings.accentHue}
-                    aria-label="Accent hue"
-                    onChange={event => set('accentHue', Number(event.target.value))}
+                  <AccentHueSlider
+                    hue={settings.accentHue}
+                    onPick={hue => set('accentHue', hue)}
                   />
                 </span>
               </div>

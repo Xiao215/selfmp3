@@ -46,7 +46,17 @@ export const queryKeys = {
   migrateJob: (id: string) => ['migrate', id] as const,
   stats: (range: StatsRange) => ['stats', range] as const,
   wrapped: (range: WrappedRange) => ['stats', 'wrapped', range] as const,
-  gems: (limit: number) => ['library', 'gems', limit] as const,
+  /*
+   * Its own namespace, deliberately not under `library`.
+   *
+   * Invalidation matches by prefix, so nesting it there had every library
+   * mutation — a tag, a love, an edit — refetch the gems, and the server
+   * re-ranks them with a little randomness on every request. The row reshuffled
+   * under the pointer as you tagged, which is the one thing `staleTime:
+   * Infinity` on it is there to prevent. A different handful each time you open
+   * the library; the same handful while you are looking at it.
+   */
+  gems: (limit: number) => ['gems', limit] as const,
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
   health: ['health'] as const,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EMPTY_SMART_RULES, formatLongDuration, type Playlist } from '@selfmp3/shared'
 import { useCreatePlaylist, useLibrary, useUpdatePlaylist } from '../lib/queries.js'
+import { showToast } from '../components/Toast.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { api } from '../lib/api.js'
 import { ListMusic, Play, Plus, Sparkles } from '../components/Icons.js'
@@ -33,14 +34,23 @@ export function PlaylistsView() {
   const create = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed || !creating) return
+    // Enter twice before the first one comes back would otherwise make two
+    // playlists of the same name, and navigate to the second.
+    if (!trimmed || !creating || createPlaylist.isPending) return
 
-    const created = await createPlaylist.mutateAsync({
-      name: trimmed,
-      description: '',
-      kind: creating,
-      rules: creating === 'smart' ? EMPTY_SMART_RULES : null,
-    })
+    let created
+    try {
+      created = await createPlaylist.mutateAsync({
+        name: trimmed,
+        description: '',
+        kind: creating,
+        rules: creating === 'smart' ? EMPTY_SMART_RULES : null,
+      })
+    } catch (error) {
+      // The name stays in the box, so trying again is one keystroke.
+      showToast(`Couldn’t create “${trimmed}”: ${(error as Error).message}`, 'error')
+      return
+    }
 
     setName('')
     setCreating(null)
@@ -96,7 +106,11 @@ export function PlaylistsView() {
             aria-label={creating === 'smart' ? 'Smart playlist name' : 'Playlist name'}
             spellCheck={false}
           />
-          <button type="submit" className="button button-primary" disabled={!name.trim()}>
+          <button
+            type="submit"
+            className="button button-primary"
+            disabled={!name.trim() || createPlaylist.isPending}
+          >
             Create
           </button>
           <button

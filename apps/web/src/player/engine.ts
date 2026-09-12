@@ -81,6 +81,11 @@ export class AudioEngine {
   #currentId: number | null = null
   /** Song id preloaded into the secondary element, if any. */
   #preloadedId: number | null = null
+  /**
+   * The track a finished crossfade left playing, waiting for the `load()` that
+   * follows `onTrackEnd` to acknowledge it rather than reload it.
+   */
+  #handedOverId: number | null = null
 
   #fadeTimer: ReturnType<typeof setInterval> | null = null
   #handoverArmed = false
@@ -163,12 +168,19 @@ export class AudioEngine {
   async load(songId: number, options: { autoplay?: boolean; startAt?: number } = {}): Promise<void> {
     const { autoplay = true, startAt = 0 } = options
 
+    // A crossfade that just finished has already put this track on and faded
+    // it in. Anything else means we really are changing tracks.
+    const alreadyPlaying = this.#handedOverId === songId && startAt === 0
+    this.#handedOverId = null
+
     this.#stopFade()
     this.#handoverArmed = false
     // A loop is a region of one particular song; it never carries over.
     this.clearLoop()
 
-    if (this.#preloadedId === songId && startAt === 0) {
+    if (alreadyPlaying) {
+      // Nothing to load: reloading here is what restarts it from 0:00.
+    } else if (this.#preloadedId === songId && startAt === 0) {
       this.#swap()
     } else {
       this.#primary.src = this.streamUrl?.(songId) ?? mediaUrl.stream(songId)
@@ -184,7 +196,11 @@ export class AudioEngine {
     this.#preloadedId = null
     this.#secondary.removeAttribute('src')
     this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
-    this.#update({ error: null, currentTime: startAt, buffered: 0 })
+    this.#update({
+      error: null,
+      currentTime: alreadyPlaying ? this.#primary.currentTime : startAt,
+      buffered: 0,
+    })
 
     if (autoplay) await this.play()
   }
@@ -485,10 +501,11 @@ export class AudioEngine {
     const looping = this.#state.loopA !== null && this.#state.loopB !== null
     if (looping) return
 
-    // Begin the crossfade, or hand over cleanly for gapless.
+    // Begin the crossfade, or hand over cleanly for gapless. Armed only if one
+    // actually began: there is nothing to fade into with repeat-one or at the
+    // end of the queue, and claiming otherwise loses the end of the track.
     if (!this.#handoverArmed && this.#crossfadeSeconds > 0 && remaining <= this.#crossfadeSeconds) {
-      this.#handoverArmed = true
-      this.#startCrossfade()
+      this.#handoverArmed = this.#startCrossfade()
     }
   }
 
@@ -526,8 +543,8 @@ export class AudioEngine {
    * audibly in the middle, because perceived loudness follows power, not
    * amplitude.
    */
-  #startCrossfade(): void {
-    if (this.#preloadedId === null) return
+  #startCrossfade(): boolean {
+    if (this.#preloadedId === null) return false
 
     const target = this.#state.muted ? 0 : this.#state.volume
     const durationMs = this.#crossfadeSeconds * 1000
@@ -547,11 +564,16 @@ export class AudioEngine {
         this.#stopFade()
         this.#swap()
         this.#currentId = this.#preloadedId
+        // The next track is already playing, faded all the way in. Say so, or
+        // the `load()` that follows this callback reloads the element it is
+        // playing from and starts it again from the beginning.
+        this.#handedOverId = this.#preloadedId
         this.#preloadedId = null
         this.#handoverArmed = false
         this.onTrackEnd?.()
       }
     }, FADE_TICK_MS)
+    return true
   }
 
   #stopFade(): void {

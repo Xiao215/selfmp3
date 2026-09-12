@@ -28,9 +28,26 @@
 
 declare const self: ServiceWorkerGlobalScope
 
-const VERSION = 'v1'
-const SHELL_CACHE = `selfmp3-shell-${VERSION}`
-const API_CACHE = `selfmp3-api-${VERSION}`
+/**
+ * A stamp the build replaces, so each build's shell is its own cache.
+ *
+ * The shell holds hashed asset files, which a new build renames rather than
+ * overwrites. With one fixed cache name nothing ever went out of it: every
+ * build's superseded JavaScript and CSS stayed on the device for good. Naming
+ * the cache after the build means `activate` sweeps the last one away as part
+ * of what it already does. Left as `dev` when nothing substitutes it, which is
+ * what `vite dev` wants anyway — one cache it keeps reusing.
+ */
+declare const __SHELL_BUILD__: string
+const SHELL_BUILD = typeof __SHELL_BUILD__ === 'string' ? __SHELL_BUILD__ : 'dev'
+
+const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
+/*
+ * These two are deliberately *not* named after the build: what they hold is
+ * the person's, not this build's. Yesterday's library is what a sleeping Mac
+ * degrades to, and re-downloading every song on a deploy is unthinkable.
+ */
+const API_CACHE = 'selfmp3-api-v1'
 const AUDIO_CACHE = 'selfmp3-audio-v1'
 
 /** Caches this worker owns. Anything else from an old build gets deleted. */
@@ -38,6 +55,15 @@ const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE])
 
 /** `/` served by the Mac, `/selfmp3/` on GitHub Pages: this worker's scope. */
 const BASE = new URL(self.registration.scope).pathname
+
+/**
+ * How a download says it wants the file itself, not the copy already kept.
+ *
+ * Spelled out here rather than imported: this worker has no imports on
+ * purpose, so that what esbuild bundles is exactly this file. The other half
+ * is `REFRESH_HEADER` in offline/audioCache.ts, and the two have to agree.
+ */
+const REFRESH_HEADER = 'x-selfmp3-refresh'
 
 /** The web build registers `sw.js?cloud=1` (main.tsx): only then is there a bucket to ask. */
 const CLOUD = new URL(self.location.href).searchParams.get('cloud') === '1'
@@ -131,7 +157,18 @@ self.addEventListener('fetch', event => {
 async function handleAudio(request: Request, url: URL): Promise<Response> {
   const cache = await caches.open(AUDIO_CACHE)
   const cacheKey = url.pathname
-  const cached = await cache.match(cacheKey)
+
+  /*
+   * A download saying it wants fresh bytes gets them.
+   *
+   * `cache: 'reload'` only skips the browser's HTTP cache — this worker sits
+   * in front of that and would hand back the copy the page is trying to
+   * replace, so a song whose file changed on the Mac could never be refreshed
+   * and every pass re-stored what it already had. The page asks with a header
+   * rather than a query, since what is stored is keyed by path alone.
+   */
+  const wantsFresh = request.headers.get(REFRESH_HEADER) !== null
+  const cached = wantsFresh ? undefined : await cache.match(cacheKey)
 
   if (cached) {
     const range = request.headers.get('range')

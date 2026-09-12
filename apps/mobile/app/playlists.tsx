@@ -5,10 +5,12 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatLongDuration, type Playlist } from '@selfmp3/shared'
 import { useLibrary } from '../src/api/queries'
+import { useAccent } from '../src/ui/accent'
 import { colors, space, type } from '../src/ui/theme'
 
 /** Playlists, pinned first — the same order as the web app's sidebar. */
 export default function PlaylistsScreen(): ReactNode {
+  const accent = useAccent()
   const library = useLibrary()
   const router = useRouter()
 
@@ -43,7 +45,7 @@ export default function PlaylistsScreen(): ReactNode {
       </View>
 
       {library.isPending ? (
-        <ActivityIndicator style={styles.spinner} color={colors.accent} />
+        <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
         <FlatList
           data={playlists}

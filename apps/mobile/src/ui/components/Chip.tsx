@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text } from 'react-native'
+import { useAccent } from '../accent'
 import { colors, space, type } from '../theme'
 
 /** A small toggle: tag filters, sort fields, the downloaded-only switch. */
@@ -14,7 +15,8 @@ export function Chip({
   hue?: number
   onPress: () => void
 }): ReactNode {
-  const tint = hue === undefined ? colors.accent : `hsl(${hue}, 60%, 68%)`
+  const accent = useAccent()
+  const tint = hue === undefined ? accent.accent : `hsl(${hue}, 60%, 68%)`
 
   return (
     <Pressable

@@ -12,6 +12,7 @@ import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
+import { AccentProvider } from '../src/ui/accent'
 import { BottomNav } from '../src/ui/components/BottomNav'
 import { MiniPlayer } from '../src/ui/components/MiniPlayer'
 import { colors } from '../src/ui/theme'
@@ -46,17 +47,20 @@ export default function RootLayout(): ReactNode {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <QueryClientProvider client={queryClient}>
-        <ConnectionProvider>
-          <DownloadsProvider>
-            <PlayerProvider>
-              <CarProvider>
-                <Shell />
-              </CarProvider>
-            </PlayerProvider>
-          </DownloadsProvider>
-        </ConnectionProvider>
-      </QueryClientProvider>
+      {/* Outermost of the app's own providers: everything below draws with it. */}
+      <AccentProvider>
+        <QueryClientProvider client={queryClient}>
+          <ConnectionProvider>
+            <DownloadsProvider>
+              <PlayerProvider>
+                <CarProvider>
+                  <Shell />
+                </CarProvider>
+              </PlayerProvider>
+            </DownloadsProvider>
+          </ConnectionProvider>
+        </QueryClientProvider>
+      </AccentProvider>
     </SafeAreaProvider>
   )
 }

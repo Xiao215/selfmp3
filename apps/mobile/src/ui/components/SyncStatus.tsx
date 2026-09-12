@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { downloadedCount, isDownloaded } from '../../offline/downloadIndex'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useAccent } from '../accent'
 import { colors, radius, space, type } from '../theme'
 
 /**
@@ -18,6 +19,7 @@ import { colors, radius, space, type } from '../theme'
 export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
   const { state, queue } = useDownloads()
 
+  const accent = useAccent()
   const held = useMemo(() => downloadedCount(state.index), [state.index])
   const total = songs.length
   const missing = useMemo(
@@ -36,7 +38,12 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
     return (
       <View style={styles.bar}>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.round(fraction * 100)}%`, backgroundColor: accent.accent },
+            ]}
+          />
         </View>
         <View style={styles.row}>
           <Text style={styles.text}>
@@ -46,7 +53,9 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
             onPress={() => (state.paused ? queue.resume() : queue.pause())}
             hitSlop={8}
           >
-            <Text style={styles.action}>{state.paused ? 'Resume' : 'Pause'}</Text>
+            <Text style={[styles.action, { color: accent.accent }]}>
+              {state.paused ? 'Resume' : 'Pause'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -73,7 +82,9 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
           {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
         </Text>
         <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
-          <Text style={styles.action}>Add {missing.length === total ? 'all' : missing.length}</Text>
+          <Text style={[styles.action, { color: accent.accent }]}>
+            Add {missing.length === total ? 'all' : missing.length}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -92,12 +103,12 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   text: { color: colors.textSecondary, fontSize: type.small },
-  action: { color: colors.accent, fontSize: type.small, fontWeight: '600' },
+  action: { fontSize: type.small, fontWeight: '600' },
   progressTrack: {
     height: 3,
     borderRadius: 2,
     backgroundColor: colors.surface2,
     overflow: 'hidden',
   },
-  progressFill: { height: 3, backgroundColor: colors.accent },
+  progressFill: { height: 3 },
 })

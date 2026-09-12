@@ -13,6 +13,7 @@ import { Cover } from '../src/ui/components/Cover'
 import { Glyph } from '../src/ui/components/Glyph'
 import { Lyrics } from '../src/ui/components/Lyrics'
 import { SeekBar } from '../src/ui/components/SeekBar'
+import { useAccent } from '../src/ui/accent'
 import { colors, radius, space, type } from '../src/ui/theme'
 
 /**
@@ -27,6 +28,7 @@ export default function NowPlayingScreen(): ReactNode {
   const player = usePlayer()
   const { connection } = useConnection()
   const router = useRouter()
+  const accent = useAccent()
   const { width } = useWindowDimensions()
   const [panel, setPanel] = useState<'lyrics' | 'queue'>('lyrics')
 
@@ -41,7 +43,10 @@ export default function NowPlayingScreen(): ReactNode {
       onPress={() => player.jumpTo(index)}
     >
       <Text
-        style={[styles.queueTitle, index === player.queue.index && styles.queueActive]}
+        style={[
+          styles.queueTitle,
+          index === player.queue.index && [styles.queueActive, { color: accent.accent }],
+        ]}
         numberOfLines={1}
       >
         {item.title}
@@ -95,7 +100,7 @@ export default function NowPlayingScreen(): ReactNode {
               <Glyph
                 name="shuffle"
                 size={20}
-                color={player.queue.shuffle ? colors.accent : colors.textMuted}
+                color={player.queue.shuffle ? accent.accent : colors.textMuted}
               />
             </Pressable>
 
@@ -103,7 +108,10 @@ export default function NowPlayingScreen(): ReactNode {
               <Glyph name="previous" size={26} />
             </Pressable>
 
-            <Pressable style={styles.playButton} onPress={player.toggle}>
+            <Pressable
+              style={[styles.playButton, { backgroundColor: accent.accent }]}
+              onPress={player.toggle}
+            >
               <Glyph name={player.isPlaying ? 'pause' : 'play'} size={24} color={colors.onAccent} />
             </Pressable>
 
@@ -115,7 +123,7 @@ export default function NowPlayingScreen(): ReactNode {
               <Glyph
                 name={player.queue.repeat === 'one' ? 'repeatOne' : 'repeat'}
                 size={20}
-                color={player.queue.repeat === 'off' ? colors.textMuted : colors.accent}
+                color={player.queue.repeat === 'off' ? colors.textMuted : accent.accent}
               />
             </Pressable>
           </View>
@@ -231,7 +239,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -272,7 +279,6 @@ const styles = StyleSheet.create({
     fontSize: type.body,
   },
   queueActive: {
-    color: colors.accent,
     fontWeight: '600',
   },
   queueArtist: {

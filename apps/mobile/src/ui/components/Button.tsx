@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
+import { useAccent } from '../accent'
 import { colors, radius, space, type } from '../theme'
 
 /** The one button in the app, in three weights. */
@@ -16,6 +17,7 @@ export function Button({
   disabled?: boolean
   busy?: boolean
 }): ReactNode {
+  const accent = useAccent()
   const inactive = disabled || busy
 
   return (
@@ -24,7 +26,10 @@ export function Button({
       disabled={inactive}
       style={({ pressed }) => [
         styles.button,
-        variant === 'primary' && styles.primary,
+        variant === 'primary' && {
+          backgroundColor: accent.accent,
+          borderColor: accent.accent,
+        },
         variant === 'danger' && styles.danger,
         pressed && styles.pressed,
         inactive && styles.disabled,
@@ -57,10 +62,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface2,
-  },
-  primary: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
   },
   danger: {
     borderColor: colors.danger,

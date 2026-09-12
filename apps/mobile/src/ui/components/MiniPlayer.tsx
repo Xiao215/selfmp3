@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { mediaUrl } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useConnection } from '../../server/ConnectionProvider'
+import { useAccent } from '../accent'
 import { colors, MINI_PLAYER_HEIGHT, space, type } from '../theme'
 import { Cover } from './Cover'
 import { Glyph } from './Glyph'
@@ -13,6 +14,7 @@ import { Glyph } from './Glyph'
  * list gets the full screen until something is playing.
  */
 export function MiniPlayer(): ReactNode {
+  const accent = useAccent()
   const player = usePlayer()
   const { connection } = useConnection()
   const router = useRouter()
@@ -25,7 +27,12 @@ export function MiniPlayer(): ReactNode {
   return (
     <Pressable style={styles.bar} onPress={() => router.push('/now-playing')}>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.min(progress, 1) * 100}%` }]} />
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${Math.min(progress, 1) * 100}%`, backgroundColor: accent.accent },
+          ]}
+        />
       </View>
 
       <View style={styles.content}>
@@ -79,7 +86,6 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: 2,
-    backgroundColor: colors.accent,
   },
   content: {
     flex: 1,

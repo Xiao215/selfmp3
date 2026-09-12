@@ -13,6 +13,8 @@ import { usePlayer } from '../src/player/PlayerProvider'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { SongRow } from '../src/ui/components/SongRow'
 import { SyncStatus } from '../src/ui/components/SyncStatus'
+import { useAccent } from '../src/ui/accent'
+import { BrandMark } from '../src/ui/components/BrandMark'
 import { colors, radius, space, type } from '../src/ui/theme'
 
 /**
@@ -23,6 +25,7 @@ import { colors, radius, space, type } from '../src/ui/theme'
  * over an array and no round trip.
  */
 export default function LibraryScreen(): ReactNode {
+  const accent = useAccent()
   const library = useLibrary()
   const player = usePlayer()
   const { connection, fromCloud } = useConnection()
@@ -77,7 +80,10 @@ export default function LibraryScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.heading}>Library</Text>
+        <View style={styles.brand}>
+          <BrandMark size={20} />
+          <Text style={styles.heading}>Library</Text>
+        </View>
       </View>
 
       <TextInput
@@ -96,7 +102,7 @@ export default function LibraryScreen(): ReactNode {
 
 
       {library.isPending ? (
-        <ActivityIndicator style={styles.spinner} color={colors.accent} />
+        <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
         <FlatList
           data={visible}
@@ -131,6 +137,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
   },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   heading: {
     color: colors.textPrimary,
     fontSize: type.large,

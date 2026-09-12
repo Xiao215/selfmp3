@@ -1,12 +1,40 @@
+import { oklchToHex } from './oklch'
+
 /**
  * The web app's palette, resolved to hex.
  *
- * `apps/web/src/styles/index.css` builds every colour from `oklch(L C
- * var(--accent-hue))` with a hue of 268. React Native cannot do OKLCH or CSS
- * custom properties, so the same lightness/chroma pairs are converted once,
- * here, and the two apps stay visually identical. If the web accent hue ever
- * changes, re-derive these rather than eyeballing them.
+ * `apps/web/src/styles/parts/tokens.css` builds every colour from `oklch(L C
+ * var(--accent-hue))`. React Native has neither OKLCH nor custom properties,
+ * so the same lightness/chroma pairs are converted here instead, and the two
+ * apps stay visually identical.
+ *
+ * The accent is worked out rather than written down, because on the phone it
+ * is a setting: `buildAccent` below is given whatever hue this device has been
+ * set to. Everything else is fixed — the surfaces are tinted by the hue on the
+ * web too, but at a chroma of around 0.014 that is a tint nobody has ever
+ * noticed, and it is not worth making every surface in the app reactive for.
  */
+
+/** The hue everything here was written at, and what a device starts on. */
+export const DEFAULT_ACCENT_HUE = 268
+
+/** The four colours the accent picker moves. Nothing else depends on the hue. */
+export function buildAccent(hue: number): {
+  accent: string
+  accentStrong: string
+  accentDim: string
+  onAccent: string
+} {
+  return {
+    accent: oklchToHex(0.72, 0.16, hue),
+    accentStrong: oklchToHex(0.78, 0.18, hue),
+    accentDim: oklchToHex(0.42, 0.1, hue),
+    onAccent: oklchToHex(0.15, 0.02, hue),
+  }
+}
+
+export type Accent = ReturnType<typeof buildAccent>
+
 export const colors = {
   surface0: '#0b0d13',
   surface1: '#11141a',
@@ -17,10 +45,7 @@ export const colors = {
   textSecondary: '#aeb1b9',
   textMuted: '#7c8089',
 
-  accent: '#7a9eff',
-  accentStrong: '#86afff',
-  accentDim: '#364983',
-  onAccent: '#080b14',
+  ...buildAccent(DEFAULT_ACCENT_HUE),
 
   danger: '#f0555b',
   warning: '#ebaa2d',

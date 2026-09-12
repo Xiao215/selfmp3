@@ -22,10 +22,17 @@ export function SeekBar({
   position,
   duration,
   onSeek,
+  inline = false,
 }: {
   position: number
   duration: number
   onSeek: (seconds: number) => void
+  /**
+   * The desktop bar's scrubber: elapsed, a thin track, and the length on one
+   * line, as the web's `.player-progress` is, rather than the phone page's
+   * thick track with the times beneath it.
+   */
+  inline?: boolean
 }): ReactNode {
   const accent = useAccent()
   const [width, setWidth] = useState(0)
@@ -58,6 +65,58 @@ export function SeekBar({
 
   const onLayout = (event: LayoutChangeEvent): void => {
     setWidth(event.nativeEvent.layout.width)
+  }
+
+  if (inline) {
+    return (
+      <View style={styles.inline}>
+        <Text style={styles.timeInline}>{formatDuration(shown)}</Text>
+        <View style={styles.inlineTrack}>
+          <View
+            style={[styles.hit, inline && styles.hitInline]}
+            onLayout={onLayout}
+            accessibilityRole="adjustable"
+            accessibilityLabel="Seek"
+            accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
+            /*
+             * The same numbers again as ARIA props, because
+             * `react-native-web` renders `accessibilityRole="adjustable"` as
+             * `role="slider"` and then drops `accessibilityValue` entirely. A
+             * slider that announces no position is no use to a screen reader — it
+             * says "slider" and nothing about where the song has got to — and it is
+             * also why a flow could read the old app's scrubber and not this one.
+             * React Native maps these to the same place on a phone, so it is the
+             * one spelling that works on both.
+             */
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration)}
+            aria-valuenow={Math.round(shown)}
+            {...responder.panHandlers}
+          >
+            <View style={[styles.track, inline && styles.trackInline]}>
+              <View
+                style={[
+                  styles.fill,
+                  inline && styles.fillInline,
+                  { width: width * ratio, backgroundColor: accent.accent },
+                ]}
+              />
+              <View
+                style={[
+                  styles.thumb,
+                  inline && styles.thumbInline,
+                  {
+                    left: Math.max(0, width * ratio - (inline ? THUMB_INLINE : THUMB) / 2),
+                    transform: [{ scale: dragging === null ? 1 : 1.2 }],
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+        <Text style={styles.timeInline}>{formatDuration(duration)}</Text>
+      </View>
+    )
   }
 
   return (
@@ -106,8 +165,28 @@ export function SeekBar({
 }
 
 const THUMB = 16
+const THUMB_INLINE = 12
 
 const styles = StyleSheet.create({
+  /* `.player-progress`: the times either side, 11-point and tabular. */
+  inline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  inlineTrack: { flex: 1, minWidth: 0 },
+  timeInline: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
+    minWidth: 36,
+    textAlign: 'center',
+  },
+  hitInline: { paddingVertical: 8 },
+  trackInline: { height: 4, borderRadius: 2 },
+  fillInline: { height: 4, borderRadius: 2 },
+  thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
   wrapper: {
     width: '100%',
   },

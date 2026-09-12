@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Easing, Pressable, StyleSheet } from 'react-native'
+import {
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+} from 'react-native'
 import type { View as RNView } from 'react-native'
 import { colors, motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
@@ -31,6 +38,7 @@ export function Popover({
   titleTone,
   children,
   width = 240,
+  placement = 'below',
   testID,
 }: {
   open: boolean
@@ -42,6 +50,11 @@ export function Popover({
   titleTone?: 'heading' | 'label'
   children: ReactNode
   width?: number
+  /**
+   * `above` for a control at the foot of the window — the player bar — where a
+   * panel opening downwards would open off the screen.
+   */
+  placement?: 'below' | 'above'
   testID?: string
 }): ReactNode {
   const { wide } = useLayout()
@@ -56,6 +69,7 @@ export function Popover({
 
   return (
     <AnchoredPopover
+      placement={placement}
       open={open}
       onClose={onClose}
       anchorRef={anchorRef}
@@ -75,6 +89,7 @@ interface Anchor {
 }
 
 function AnchoredPopover({
+  placement,
   open,
   onClose,
   anchorRef,
@@ -82,6 +97,7 @@ function AnchoredPopover({
   width,
   testID,
 }: {
+  placement: 'below' | 'above'
   open: boolean
   onClose: () => void
   anchorRef: RefObject<RNView | null>
@@ -90,7 +106,11 @@ function AnchoredPopover({
   testID?: string
 }): ReactNode {
   const { width: screenWidth, dense } = useLayout()
+  const { height: screenHeight } = useWindowDimensions()
   const [anchor, setAnchor] = useState<Anchor | null>(null)
+  // Opening upwards needs the panel's own height, which is only known once it
+  // has laid out; until then it is drawn transparent where it will land.
+  const [panelHeight, setPanelHeight] = useState(0)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
   if (open && !mounted) setMounted(true)
@@ -129,20 +149,46 @@ function AnchoredPopover({
       {anchor ? (
         <Animated.View
           testID={testID}
+          onLayout={event => setPanelHeight(event.nativeEvent.layout.height)}
           style={[
             styles.panel,
             {
               width,
               left,
-              top: anchor.y + anchor.height + space.xs,
+              // Opening upwards, the panel waits off-screen until it has
+              // measured itself. Its opacity stays the animated value all the
+              // while: swapping a plain 0 for an Animated value after mount
+              // leaves react-native-web drawing the 0.
+              top:
+                placement === 'above'
+                  ? panelHeight === 0
+                    ? -10000
+                    : anchor.y - panelHeight - space.xs
+                  : anchor.y + anchor.height + space.xs,
               opacity: progress,
               transform: [
-                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) },
+                {
+                  translateY: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [placement === 'above' ? 4 : -4, 0],
+                  }),
+                },
               ],
             },
           ]}
         >
-          <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
+          {/* Never taller than the room on its side of the control; a long list
+              — every device on the account — scrolls inside it. */}
+          <ScrollView
+            style={{
+              maxHeight:
+                placement === 'above'
+                  ? anchor.y - space.sm * 2
+                  : screenHeight - (anchor.y + anchor.height) - space.sm * 2,
+            }}
+          >
+            <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
+          </ScrollView>
         </Animated.View>
       ) : null}
     </>,

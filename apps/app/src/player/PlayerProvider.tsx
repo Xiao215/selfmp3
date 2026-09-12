@@ -20,6 +20,7 @@ import {
 } from '@selfmp3/shared'
 import { listenedDelta, secondsToCount, type EngineState } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
+import { prefs } from '../ports/prefs'
 import { useLibrary, useServerSettings } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
@@ -81,7 +82,24 @@ export interface PlayerApi {
   addToQueue: (songIds: readonly number[]) => void
   removeFromQueue: (index: number) => void
   reorderQueue: (from: number, to: number) => void
+  /** 0–1, as the engine has it; the bar's slider and the web's share one scale. */
+  readonly volume: number
+  readonly muted: boolean
+  /** Playback speed: 1 is normal. */
+  readonly rate: number
+  /** Waiting on the network mid-song, which shows differently from paused. */
+  readonly stalled: boolean
+  /** When the sleep timer stops playback, or null when none is set. */
+  readonly sleepTimerEndsAt: number | null
+  setVolume: (volume: number) => void
+  toggleMute: () => void
+  setRate: (rate: number) => void
+  /** Minutes from now, or null to cancel. */
+  setSleepTimer: (minutes: number | null) => void
 }
+
+/** Where this device keeps its volume, as the web app does. */
+const VOLUME_KEY = 'volume'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
 
@@ -112,6 +130,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [engine] = useState(createEngine)
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
+  const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
 
   const songsById = useMemo(() => {
     const map = new Map<number, Song>()
@@ -142,6 +161,15 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [serverSettings?.playThreshold])
 
   useEffect(() => engine.subscribe(setEngineState), [engine])
+
+  // Restore the saved volume once. An unguarded Number(null) is 0, which would
+  // start every fresh install silent with no hint why.
+  useEffect(() => {
+    const raw = prefs.get(VOLUME_KEY)
+    if (raw === null) return
+    const stored = Number(raw)
+    if (Number.isFinite(stored) && stored >= 0 && stored <= 1) engine.setVolume(stored)
+  }, [engine])
   useEffect(() => () => engine.destroy(), [engine])
 
   // --- play reporting ------------------------------------------------------
@@ -382,6 +410,50 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
+  // --- volume, speed, sleep ---------------------------------------------------
+
+  const setVolume = useCallback(
+    (volume: number) => {
+      engine.setVolume(volume)
+      prefs.set(VOLUME_KEY, String(volume))
+    },
+    [engine],
+  )
+  const toggleMute = useCallback(() => engine.setMuted(!engine.state.muted), [engine])
+  const setRate = useCallback((rate: number) => engine.setRate(rate), [engine])
+
+  const setSleepTimer = useCallback((minutes: number | null) => {
+    setSleepTimerEndsAt(minutes === null ? null : Date.now() + minutes * 60_000)
+  }, [])
+
+  useEffect(() => {
+    if (sleepTimerEndsAt === null) return undefined
+    let fade: ReturnType<typeof setInterval> | undefined
+    const timer = setInterval(() => {
+      if (Date.now() < sleepTimerEndsAt) return
+      clearInterval(timer)
+      setSleepTimerEndsAt(null)
+      // Fade out over four seconds rather than cutting off, which is much
+      // gentler if you are actually falling asleep to it.
+      const startVolume = engine.state.volume
+      const steps = 40
+      let step = 0
+      fade = setInterval(() => {
+        step++
+        engine.setVolume(startVolume * (1 - step / steps))
+        if (step >= steps) {
+          clearInterval(fade)
+          engine.pause()
+          engine.setVolume(startVolume)
+        }
+      }, 100)
+    }, 1_000)
+    return () => {
+      clearInterval(timer)
+      if (fade !== undefined) clearInterval(fade)
+    }
+  }, [sleepTimerEndsAt, engine])
+
   // Renamed on the way out: `resolveQueue` returns `{ songs, current }`, and a
   // `.current` read during render is indistinguishable from a ref access to
   // the React Compiler, which then gives up on memoising this component.
@@ -413,8 +485,26 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       addToQueue,
       removeFromQueue,
       reorderQueue,
+      volume: engineState.volume,
+      muted: engineState.muted,
+      rate: engineState.rate,
+      stalled: engineState.stalled,
+      sleepTimerEndsAt,
+      setVolume,
+      toggleMute,
+      setRate,
+      setSleepTimer,
     }),
     [
+      engineState.volume,
+      engineState.muted,
+      engineState.rate,
+      engineState.stalled,
+      sleepTimerEndsAt,
+      setVolume,
+      toggleMute,
+      setRate,
+      setSleepTimer,
       queue,
       resolved,
       engineState.playing,

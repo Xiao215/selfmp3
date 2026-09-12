@@ -1,7 +1,10 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import type { View as RNView } from 'react-native'
 import { colors, relativeTime, shortDeviceName, space, type } from '@selfmp3/client'
 
+import { useLayout } from '../../shell/useLayout'
+import { Popover } from '../../ui/components/Popover'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { Devices, Remote } from '../../ui/components/Icons'
 import { useDeviceContext } from './DevicesProvider'
@@ -19,11 +22,24 @@ import { useDeviceContext } from './DevicesProvider'
  * this one's over and stops here. Both are `handoffTarget` in
  * `packages/client`, which is why they behave the same on every device.
  */
-export function DevicesSheet({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
+export function DevicesSheet({
+  open,
+  onClose,
+  anchorRef,
+}: {
+  open: boolean
+  onClose: () => void
+  /**
+   * The control that opened it. At desktop width the list opens beside it, as
+   * the web's devices popover does; without one it is a sheet.
+   */
+  anchorRef?: RefObject<RNView | null>
+}): ReactNode {
   const devices = useDeviceContext()
+  const { wide } = useLayout()
 
-  return (
-    <Sheet open={open} onClose={onClose} title="Devices" testID="devices-sheet">
+  const list = (
+    <>
       <View style={styles.self}>
         <Devices size={15} color={colors.textSecondary} />
         <Text style={styles.selfName} numberOfLines={1}>
@@ -64,6 +80,27 @@ export function DevicesSheet({ open, onClose }: { open: boolean; onClose: () => 
           </View>
         ))
       )}
+    </>
+  )
+
+  if (wide && anchorRef) {
+    return (
+      <Popover
+        open={open}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        placement="above"
+        width={300}
+        testID="devices-sheet"
+      >
+        {list}
+      </Popover>
+    )
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Devices" testID="devices-sheet">
+      {list}
     </Sheet>
   )
 }

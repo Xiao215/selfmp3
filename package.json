@@ -23,6 +23,7 @@
     "lint:mobile": "npm run lint --workspace @selfmp3/mobile",
     "check:mobile": "npm run typecheck:mobile && npm run lint:mobile",
     "dev:mobile": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run start --workspace @selfmp3/mobile",
+    "dev:cloud": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && VITE_CLOUD=1 VITE_BASE=/selfmp3/ npm run build --workspace @selfmp3/web && VITE_BASE=/selfmp3/ npm run preview --workspace @selfmp3/web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

@@ -158,3 +158,27 @@ describe('bytesToDownload', () => {
     expect(bytesToDownload(EMPTY_INDEX, manifest([]), [1, 2])).toBe(0)
   })
 })
+
+describe('naming a downloaded file', () => {
+  it('leads with the id for a song from a Mac', () => {
+    expect(fileNameFor({ id: 7, path: 'Artist/Album/Song.m4a' })).toBe('7.m4a')
+  })
+
+  it('leads with the hash for a song from the bucket', () => {
+    // The id is this device's, and starts again after a sign-out; the hash is
+    // the audio's own, and is already its name in the bucket.
+    const hash = 'a'.repeat(64)
+    expect(fileNameFor({ id: 7, path: `audio/${hash}.m4a` })).toBe(`${hash}.m4a`)
+  })
+
+  it('gives two devices the same name for the same audio', () => {
+    const hash = 'b'.repeat(64)
+    expect(fileNameFor({ id: 1, path: `audio/${hash}.opus` })).toBe(
+      fileNameFor({ id: 999, path: `audio/${hash}.opus` }),
+    )
+  })
+
+  it('falls back to mp3 when a path says nothing about its type', () => {
+    expect(fileNameFor({ id: 3, path: 'no-extension-here' })).toBe('3.mp3')
+  })
+})

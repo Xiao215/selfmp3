@@ -1,6 +1,7 @@
 import { Directory, File, Paths, type DownloadProgress, type DownloadTask } from 'expo-file-system'
 import type { Song, SyncManifest } from '@selfmp3/shared'
 import { mediaUrl } from '../api/client'
+import { nativePlatform, session as cloudSession } from '../cloud'
 import type { ServerConnection } from '../server/connection'
 import {
   addEntry,
@@ -192,8 +193,8 @@ export class DownloadQueue {
   private async downloadOne(songId: number): Promise<boolean> {
     const connection = this.connection
     const song = this.songsById.get(songId)
-    if (!connection || !song) {
-      this.patch({ error: `Cannot download song ${songId}: no server or song` })
+    if (!song) {
+      this.patch({ error: `Cannot download song ${songId}: it is not in the library` })
       return true
     }
 
@@ -214,7 +215,9 @@ export class DownloadQueue {
     if (!paused) {
       if (destination.exists) destination.delete()
       this.patch({ activeSongId: songId, bytesWritten: 0, totalBytes: expectedBytes, error: null })
-      this.task = File.createDownloadTask(mediaUrl.stream(connection, songId), destination, {
+      const from = await sourceFor(song, connection, songId)
+      this.task = File.createDownloadTask(from.url, destination, {
+        ...(from.headers ? { headers: from.headers } : {}),
         onProgress,
       })
     } else {
@@ -270,6 +273,33 @@ export class DownloadQueue {
     this.state = { ...this.state, ...patch }
     for (const listener of this.listeners) listener(this.state)
   }
+}
+
+/**
+ * Where a song's bytes come from.
+ *
+ * The bucket, through the doorman, when this device is signed in — and a
+ * header rather than a query string, because that is all the doorman reads.
+ * `song.path` is already the key there (`audio/<sha256>.<ext>`), since
+ * snapshotLibrary.ts puts it there.
+ *
+ * Otherwise a Mac, where the token has to ride in the query string: this URL
+ * is also handed to the OS audio player, which cannot attach headers.
+ */
+async function sourceFor(
+  song: Song,
+  connection: ServerConnection | null,
+  songId: number,
+): Promise<{ url: string; headers?: Record<string, string> }> {
+  const signedIn = await cloudSession.loadSession().catch(() => null)
+  if (signedIn) {
+    return {
+      url: `${nativePlatform.doormanUrl}/v1/files/${song.path}`,
+      headers: { Authorization: `Bearer ${signedIn.token}` },
+    }
+  }
+  if (!connection) throw new Error('no server, and not signed in to the cloud')
+  return { url: mediaUrl.stream(connection, songId) }
 }
 
 function directory(): Directory {

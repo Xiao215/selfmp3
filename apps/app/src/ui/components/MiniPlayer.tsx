@@ -100,6 +100,11 @@ export function MiniPlayer(): ReactNode {
         </Text>
       </Animated.View>
 
+      {/* Where else this could be playing, first in the row as on the web's
+          mini player: beside the transport, not buried in a menu. */}
+      <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
+        <Devices size={19} color={colors.textSecondary} />
+      </IconButton>
       {/*
         The transport carries whether it is playing in its own testID, rather
         than a separate marker element. A marker with nothing in it has no size,
@@ -120,11 +125,6 @@ export function MiniPlayer(): ReactNode {
       </IconButton>
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={colors.textSecondary} />
-      </IconButton>
-      {/* Where else this could be playing. The web app puts it in the same
-          place — beside the transport, not buried in a menu. */}
-      <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
-        <Devices size={19} color={colors.textSecondary} />
       </IconButton>
 
       <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />

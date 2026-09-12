@@ -75,3 +75,5 @@ export {
   type SelectionModifiers,
   type SelectionState,
 } from './selection/selection.js'
+
+export * from './songs/facts.js'

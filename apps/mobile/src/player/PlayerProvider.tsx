@@ -24,6 +24,7 @@ import {
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
+import { listenedDelta, secondsToCount } from '@selfmp3/client'
 import { useLibrary, useServerSettings } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
@@ -92,7 +93,6 @@ const REPEAT_MODES: Record<QueueState['repeat'], RepeatMode> = {
  */
 const PLAY_THRESHOLD = 0.5
 /** ...capped, so a 20-minute track is not held hostage. */
-const PLAY_THRESHOLD_CAP_SECONDS = 240
 
 interface PlayTracking {
   songId: number | null
@@ -176,10 +176,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     if (songId === null || tracking.counted) return
 
     const song = songsRef.current.get(songId)
-    const needed = Math.min(
-      (song?.duration ?? 0) * thresholdRef.current,
-      PLAY_THRESHOLD_CAP_SECONDS,
-    )
+    const needed = secondsToCount(song?.duration ?? 0, thresholdRef.current)
     if (!completed && tracking.listenedSeconds < needed) return
 
     tracking.counted = true
@@ -210,9 +207,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const lastPositionRef = useRef(0)
   useEffect(() => {
     const tracking = trackingRef.current
-    const delta = progress.position - lastPositionRef.current
+    const delta = listenedDelta(progress.position, lastPositionRef.current)
     lastPositionRef.current = progress.position
-    if (playing === true && delta > 0 && delta < 2) tracking.listenedSeconds += delta
+    if (playing === true) tracking.listenedSeconds += delta
     if (!tracking.counted) flushPlay(false)
   }, [progress.position, playing, flushPlay])
 

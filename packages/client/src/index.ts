@@ -43,3 +43,5 @@ export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'
+
+export * from './listens/counting.js'

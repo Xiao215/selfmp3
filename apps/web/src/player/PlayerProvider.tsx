@@ -27,6 +27,7 @@ import {
   setShuffle as setShuffleState,
   type QueueState,
 } from './queue.js'
+import { listenedDelta, secondsToCount } from '@selfmp3/client'
 import { autoMixCrossfade, autoMixOrder } from './autoMix.js'
 import { recordListen, recordSkipListen } from '../offline/playOutbox.js'
 import { keepRecentlyPlayed } from '../offline/recentCache.js'
@@ -217,15 +218,14 @@ export function PlayerProvider({
 
       // Accumulate only forward movement, so scrubbing back and forth cannot
       // inflate a play count.
-      const delta = currentTime - tracking.lastTime
-      if (delta > 0 && delta < 2) tracking.listenedSeconds += delta
+      tracking.listenedSeconds += listenedDelta(currentTime, tracking.lastTime)
       tracking.lastTime = currentTime
 
       if (tracking.counted || duration <= 0) return
 
-      // A play counts at the configured fraction, capped at four minutes so a
-      // long track is not held hostage.
-      const needed = Math.min(duration * playThreshold, 240)
+      // A play counts at the configured fraction, capped so a long track is not
+      // held hostage. The rule is the phone's too.
+      const needed = secondsToCount(duration, playThreshold)
       if (tracking.listenedSeconds >= needed) {
         tracking.counted = true
         // Through the outbox, not straight to the server: with the Mac asleep

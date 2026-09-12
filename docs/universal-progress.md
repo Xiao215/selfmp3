@@ -4,7 +4,8 @@ A log of the overnight run against `docs/UNIVERSAL.md`, written for whoever
 reads it in the morning. Newest phase last. Times are UTC on 2026-09-12.
 
 Nothing has been merged to `main`. Every branch is pushed to `origin` and
-nothing else.
+nothing else. Each branch is based on the one before it: spike, then phase-1,
+then phase-2 from phase-1, then phase-3 from phase-2.
 
 ---
 
@@ -116,6 +117,90 @@ All recorded in the commit messages that made them. In summary:
 offline and devices flows. Starting them here would produce branches that
 cannot be shown to be green, against a ground rule that says commit only on
 green gates.
+
+---
+
+## Phase 2 — `apps/app` — branch `universal/phase-2`
+
+One commit, `1ba3d2c` at 07:17. **Scaffolding only — no screens ported.**
+
+`apps/app` is today's `apps/mobile` copied whole, with the web target the spike
+proved. Copied from `apps/mobile` as it stands on phase 1, not from the spike's
+own copy: the spike copied the phone app before `packages/client` existed, so
+its `apps/app` is a phase behind.
+
+### Gates
+
+| Command | Result |
+|---|---|
+| `npm run check:app` | **pass** |
+| `npx expo export -p web` | **pass** — 1.7MB bundle, and again under `/selfmp3/` |
+| `verify/boot.spec.ts` | **pass** at 1280 and 375 |
+| `npx expo run:ios` / `run:android` | **not run** — needs Xcode and the Android SDK |
+| `maestro test .maestro/smoke.yaml` | **not run** — needs a simulator |
+| `npx playwright test verify/flows --project=phone` | **not run** — needs a library |
+
+**The phone app now runs in a browser.** Not a spike route: the real app, on
+the shared client, booting at both widths with no uncaught errors and landing
+on the sign-in screen because nothing has told it where a Mac is.
+
+`verify/boot.spec.ts` is new. A successful export proves the bundle was built,
+not that it runs — a module that throws at import time exports perfectly and
+then paints a white screen, and that failure otherwise waits for somebody to
+open a browser by hand.
+
+Two pieces of the spike's Metro config are gone, because they existed only so
+the spike could import `apps/web` source directly: the `.js`-to-`.ts` specifier
+retry and the stub for the one module reading Vite's `import.meta.env`.
+`apps/app` imports neither. What remains is two stubs —
+`react-native-track-player` and `expo-file-system` — and those are exactly what
+phase 3's two ports replace. That the list is only two is the finding.
+
+**Not done:** the primitives, `src/features/*`, `src/shell`. That is where to
+pick up, after the reference captures.
+
+---
+
+## Phase 3 — the ports — branch `universal/phase-3`
+
+Two commits, `37d64e4` and `82ff1b9`, 07:18 to 07:24. **Interfaces and the web
+half of one port. No native implementation, no providers.**
+
+Both ports are written in `packages/client`, and the engine one is proved:
+
+```
+const _conforms: PlaybackEngine = new AudioEngine()
+```
+
+`apps/web/src/player/engine.ts` is now also `apps/app/src/ports/engine.web.ts`,
+changed as little as possible — the `mediaUrl` import gone, `capabilities`
+added, nothing else. That line compiles, so the interface derived from the
+engine has not drifted from it. The assertion was checked to bite by adding a
+method to the port and watching it fail.
+
+`OfflineStore` names only the storage, not the downloading. The two apps look
+very different here, but that difference is not platform — the queue simply got
+written twice. Ordering, progress and failure handling are policy and belong in
+the one `OfflineProvider` above the port.
+
+### Where this stopped, and why
+
+**The native half of the engine port is the wall, and it is a real one.**
+
+The web half was a move: `engine.ts` was already a self-contained class with
+exactly the right shape, which is why the port was derived from it. The phone
+has no such class — its track-player code is spread across `PlayerProvider`,
+`service.ts`, `setup.ts` and `tracks.ts`. Wrapping it is invention, not a move.
+
+And the invention turns on a design question that needs a device to answer:
+track-player **owns the queue** (`capabilities.nativeQueue`), while the port
+hands an engine one song at a time plus a hint about the next. Reconciling
+those two models is the hard part of phase 3, getting it wrong breaks playback
+on the phone specifically, and nothing here can tell which way is right. That
+is a simulator's answer, not a type checker's.
+
+So: interfaces and the web half, proved as far as they can be proved; the
+native half left for the Mac with the question written down.
 
 ---
 

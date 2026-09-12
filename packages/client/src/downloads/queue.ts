@@ -11,7 +11,7 @@ import {
   type DownloadIndex,
 } from './downloadIndex.js'
 
-type Connection = Parameters<NonNullable<DownloadStorage['setConnection']>>[0]
+type Connection = Parameters<NonNullable<DownloadStorage['configure']>>[0]
 
 export interface DownloadQueueState {
   readonly index: DownloadIndex
@@ -91,7 +91,7 @@ export class DownloadQueue {
   }
 
   configure(connection: Connection, songs: readonly Song[]): void {
-    this.#storage.setConnection?.(connection)
+    this.#storage.configure?.(connection, songs)
     this.#songsById = new Map(songs.map(song => [song.id, song]))
   }
 

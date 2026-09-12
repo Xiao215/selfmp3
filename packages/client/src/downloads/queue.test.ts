@@ -80,7 +80,7 @@ function fakeStorage(
     deleted: [] as number[],
     cleared: 0,
     transfers,
-    setConnection: vi.fn(),
+    configure: vi.fn(),
     readIndex: vi.fn((): Promise<DownloadIndex | null> => Promise.resolve(options.index ?? null)),
     writeIndex(index: DownloadIndex): Promise<void> {
       if (storage.failWrite) return Promise.reject(new Error('disk full'))
@@ -440,10 +440,10 @@ describe('keeping songs on this device', () => {
     expect(queue.localUri(2)).toBeNull()
   })
 
-  it('tells the storage where downloads come from when that changes', () => {
+  it('tells the storage where downloads come from, and the songs they belong to', () => {
     const { storage, queue } = setup()
     const connection = { baseUrl: 'http://mac:4600', token: null }
     queue.configure(connection as never, [FIRST])
-    expect(storage.setConnection).toHaveBeenLastCalledWith(connection)
+    expect(storage.configure).toHaveBeenLastCalledWith(connection, [FIRST])
   })
 })

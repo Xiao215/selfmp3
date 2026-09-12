@@ -127,8 +127,13 @@ export interface DownloadTransfer {
 export interface DownloadStorage {
   readonly available: boolean
   readonly resumable: boolean
-  /** Where downloads come from changes with the Mac or the cloud session. */
-  setConnection?(connection: ServerConnection | null): void
+  /**
+   * Where downloads come from — the Mac or the cloud session — and the songs
+   * they belong to. The browser's cache is keyed by stream URL, and a stream
+   * URL carries the song's `rev`, so without the song list the storage cannot
+   * find, size or delete a song it has kept.
+   */
+  configure?(connection: ServerConnection | null, songs: readonly Song[]): void
   /** Null when there is no index or it cannot be read; the queue starts empty. */
   readIndex(): Promise<DownloadIndex | null>
   writeIndex(index: DownloadIndex): Promise<void>

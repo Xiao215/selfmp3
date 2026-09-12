@@ -510,6 +510,93 @@ which is why these are 8090 and 8095.
 
 ---
 
+## Phase 3, on the Mac — 2026-09-12
+
+Two commits on `universal/phase-3`, `6b7fe9b` and `4d69bd3`, on top of a merge
+of `main`. **The exit criterion is met**: at 1280 in a browser the new app
+plays and keeps songs on the device, and the phone does not regress. What is
+not done is at the end.
+
+| Command | Result |
+|---|---|
+| `npm run check:app` | **pass** |
+| `npm run check` | **pass** — 1108 passed, 1 skipped |
+| `maestro test .maestro/smoke.yaml` | **pass** — the phone does not regress |
+| `verify/flows --project=desktop` vs `apps/app` | **8 passed, 1 skipped** |
+| `verify/flows --project=phone` vs `apps/app` | **8 passed, 1 skipped** |
+| `verify/flows` vs `apps/web` | **pass** — 18, unchanged |
+
+The one skip is the Mac's settings, which phase 4 brings to the phone. **Both
+playback flows now pass against `apps/app`** — they were phase 2's two skips,
+waiting on exactly this.
+
+### The question the container could not answer
+
+It left the native engine unwritten because of a real design question: the port
+hands an engine one song at a time and a hint about what follows, while
+track-player owns a queue and advances through it by itself.
+
+**The answer: neither owns it outright. The provider owns the order, and the
+player is lent a window onto it** — the song that is sounding and the one after
+it, and nothing further. That window is not a detail. It is what keeps the
+handover gapless, because the next file is already open when the first ends,
+and it is what gives the lock screen a Next to offer at all. `load()`
+recognises a song that is already playing and leaves it alone, which is the
+difference between a gapless join and a stutter at the end of every track.
+
+`PlayerProvider` is written against the port now and got *shorter*. It used to
+hand the player the whole queue and then spend half its length keeping two
+ideas of "which song is playing" in step, and reconciling events that arrived
+mid-load. That is gone rather than moved: `QueueState` is the only source of
+truth and the lookahead is the engine's business. It is now the same shape as
+the web app's provider, because both are written against the same port.
+
+One change to the port itself: the wiring is a `connect()` rather than four
+assignable properties. A provider assigning to an engine it made during render
+is mutating render-owned state, which the React Compiler stops — rightly. And
+`trackMetadata` is new, because a phone's lock screen is drawn by the operating
+system from metadata handed over with the URL, and an engine that only knows a
+song id would put a blank card on it.
+
+### Four bugs found by making it actually play
+
+1. **The server refused the audio.** The web engine asks with credentials —
+   `crossOrigin = 'use-credentials'`, which it needs for the Media Session API
+   — and a browser throws that response away unless the server says credentials
+   are allowed. An allowed origin got its library and then silence.
+2. **Keeping a song failed with "Failed to fetch".** The offline cache asks for
+   the bytes rather than the copy with `x-selfmp3-refresh`; a custom header
+   makes the request preflight, and the preflight did not name the header.
+3. **The scrubber announced nothing.** `react-native-web` renders
+   `accessibilityRole="adjustable"` as `role="slider"` and then drops
+   `accessibilityValue`, so the control said "slider" and never where the song
+   had got to — to a screen reader as much as to a flow.
+4. FlashList's recycled rows, from phase 2, which is why the list is a
+   `FlatList`.
+
+Both server fixes only ever apply to an origin somebody put on the list on
+purpose (`SELFMP3_CORS_ORIGINS`). The app the server serves itself is
+same-origin and reaches none of it.
+
+### What phase 3 still owes
+
+- **One `OfflineProvider`.** There are two download queues — the phone's and
+  `downloads.web.ts` — with the same class shape over the same port. The port
+  deliberately names only storage, because ordering, progress and pausing are
+  policy that belongs above it; writing that policy once means splitting the
+  phone's queue, which is what makes the phone play with no signal, and that
+  wants airplane-mode testing rather than a green type check.
+- **Devices and handoff**, which the plan brings across in this phase. Not
+  started. The heartbeat and the remote transport are HTTP and a clock, so
+  this is a move rather than an invention.
+- **`.maestro/offline.yaml` and `.maestro/devices.yaml`**, which are still the
+  skeletons the spike wrote and assert against screens that do not exist yet.
+- Moving `PlayerProvider` into `packages/client`. It is one provider now, and
+  it lives in `apps/app`; the move matters when `apps/web` is deleted in phase
+  5 and cannot matter before.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the

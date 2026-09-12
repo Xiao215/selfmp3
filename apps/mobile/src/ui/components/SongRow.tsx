@@ -57,7 +57,7 @@ export const SongRow = memo(function SongRow({
         </Text>
         <View style={styles.subtitleRow}>
           {/* The web calls this "On this device", and draws exactly this. */}
-          {downloaded ? <Downloaded size={13} color={colors.accent} knockout={colors.surface0} /> : null}
+          {downloaded ? <Downloaded size={13} color={accent.accent} knockout={colors.surface0} /> : null}
           <Text style={styles.subtitle} numberOfLines={1}>
             {song.artist || 'Unknown artist'}
             {song.album ? ` · ${song.album}` : ''}
@@ -70,7 +70,7 @@ export const SongRow = memo(function SongRow({
           <Heart
             size={18}
             filled={song.loved}
-            color={song.loved ? colors.accent : colors.textSecondary}
+            color={song.loved ? accent.accent : colors.textSecondary}
           />
         </Pressable>
       ) : null}

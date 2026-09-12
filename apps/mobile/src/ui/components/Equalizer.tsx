@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, StyleSheet, View } from 'react-native'
-import { colors } from '../theme'
+import { useAccent } from '../accent'
 
 /**
  * The three bars that say a song is playing.
@@ -18,13 +18,15 @@ const DURATIONS = [900, 700, 1100]
 
 export function Equalizer({
   paused = false,
-  color = colors.accent,
+  color,
   size = 14,
 }: {
   paused?: boolean
   color?: string
   size?: number
 }): ReactNode {
+  const accent = useAccent()
+  const barColor = color ?? accent.accent
   // Created once, through state rather than a ref: these are read while
   // rendering, and a ref read during render is exactly what the compiler
   // objects to — correctly, since a ref is not a render input.
@@ -64,7 +66,7 @@ export function Equalizer({
           style={[
             styles.bar,
             {
-              backgroundColor: color,
+              backgroundColor: barColor,
               height: bar.interpolate({ inputRange: [0, 1], outputRange: [2, size] }),
             },
           ]}

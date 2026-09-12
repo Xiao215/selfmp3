@@ -220,7 +220,7 @@ export function songRoutes(container: Container): Router {
       requireSong(params.id)
       const counted = transact(container.db, () => {
         if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId)) return false
-        container.songs.recordSkip(params.id)
+        container.songs.recordSkip(params.id, body.atSeconds)
         return true
       })
       return { ok: true as const, duplicate: !counted }

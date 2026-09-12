@@ -429,6 +429,32 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
     `,
   },
+  {
+    name: 'skip events: how far in each skip was',
+    sql: `
+      -- Skips, one row each, the way plays have had play_events all along.
+      --
+      -- songs.skip_count stays exactly as it is: smart rules, the cloud
+      -- snapshot and forgotten gems all read it, and this changes none of
+      -- them. What it adds is the part that was being thrown away — every
+      -- client has always sent how many seconds in the skip happened, and
+      -- the server incremented a counter and dropped it.
+      --
+      -- That number is most of the signal. Leaving a song after four seconds
+      -- and leaving it at 2:59 of six minutes are opposite opinions, and a
+      -- single counter records them identically, so "songs I always skip"
+      -- could not tell a song you dislike from one you simply moved on from.
+      CREATE TABLE skip_events (
+        id         INTEGER PRIMARY KEY,
+        song_id    INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+        skipped_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        at_seconds REAL    NOT NULL DEFAULT 0
+      );
+
+      CREATE INDEX idx_skip_events_time ON skip_events(skipped_at DESC);
+      CREATE INDEX idx_skip_events_song ON skip_events(song_id);
+    `,
+  },
 ]
 
 /**

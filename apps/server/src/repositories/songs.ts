@@ -63,6 +63,7 @@ export class SongRepository {
   readonly #deleteById
   readonly #recordPlay
   readonly #recordSkip
+  readonly #recordSkipEvent
   readonly #setArt
   readonly #setLyricsKind
   readonly #setInstrumental
@@ -125,6 +126,9 @@ export class SongRepository {
     `)
 
     this.#recordSkip = db.prepare('UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?')
+    this.#recordSkipEvent = db.prepare(
+      'INSERT INTO skip_events (song_id, at_seconds) VALUES (?, ?)',
+    )
 
     this.#setArt = db.prepare(
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
@@ -311,8 +315,20 @@ export class SongRepository {
     this.#recordPlay.run({ id, at: playedAt })
   }
 
-  recordSkip(id: number): void {
+  /**
+   * A skip: the running total, and the row that says how far in it was.
+   *
+   * `skip_count` is what smart rules, the cloud snapshot and forgotten gems
+   * read, so it keeps working exactly as before. `skip_events` is the detail
+   * that used to be discarded — every client has always sent `atSeconds`, and
+   * this is the first thing to keep it.
+   *
+   * `atSeconds` is optional so the older callers, and any client too old to
+   * send one, still count a skip rather than failing.
+   */
+  recordSkip(id: number, atSeconds = 0): void {
     this.#recordSkip.run(id)
+    this.#recordSkipEvent.run(id, atSeconds)
   }
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {

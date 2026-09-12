@@ -864,7 +864,7 @@ from review. The captured states still have to pass check 2 by eye.
   pure helpers behind the details have 7 tests.
   `verify/flows/songMenu.spec.ts` passes on both apps. Fix metadata stays out
   (phase 5).
-- **The desktop sidebar and header** (this commit's predecessor). The web's tag
+- **The desktop sidebar and header** (`e894425`). The web's tag
   list, with hide and edit on hover, the new-tag form and the footer. The
   filter moved into a provider both share. The library header is one row at
   desktop width.
@@ -880,10 +880,12 @@ seven library states at each width.
   parity matrix puts tag exclude in phase 4. The per-tag editor and the song
   tag picker therefore came across with the library. The tag inbox, which is
   probably what phase 5 means, has not.
-- **Desktop density is owed.** Every desktop capture so far has 44-point
-  controls and 48-point sheet rows where the web uses 34–38. That is the
-  difference a reviewer will notice first at 1280, and it wants a size token
-  that changes at the breakpoint rather than a fix per screen.
+- **Desktop density, mostly settled.** It was the difference a reviewer
+  would notice first at 1280. It is now `useLayout().dense`: desktop width
+  and a fine pointer, from a pointer port. Buttons, icon buttons, the select
+  trigger, the library search and anchored popover rows take the web's
+  desktop sizes. A tablet at desktop width stays finger-sized. Still at touch
+  size: the song row's heart and ⋯, which arrive with the desktop row.
 - **Desktop rows are owed.** At 1280 the web's row has an index, tempo and
   energy, an album column and tag chips, with the heart and ⋯ revealed on
   hover. The new app still draws the phone's row at every width.

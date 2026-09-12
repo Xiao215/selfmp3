@@ -3,9 +3,11 @@
 A log of the overnight run against `docs/UNIVERSAL.md`, written for whoever
 reads it in the morning. Newest phase last. Times are UTC on 2026-09-12.
 
-Nothing has been merged to `main`. Every branch is pushed to `origin` and
-nothing else. Each branch is based on the one before it: spike, then phase-1,
-then phase-2 from phase-1, then phase-3 from phase-2.
+Phases 1, 2 and 3 are on `main`, each as a fast-forward of its branch once its
+gates were green. Each branch is based on the one before it: spike, then
+phase-1, then phase-2 from phase-1, then phase-3 from phase-2. The sections
+below were written as each phase went, so an early one saying something has
+not been merged was true when it was written.
 
 ---
 

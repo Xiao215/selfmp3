@@ -135,7 +135,10 @@ export class AnalysisService {
     try {
       while (!this.#stopped) {
         if (this.#busy()) {
-          // Come back once the important work is done.
+          // Come back once the important work is done. One timer, not one per
+          // kick: a scan kicks once per song ingested, and each of those used
+          // to leave another timer behind to wake the process for nothing.
+          if (this.#retryTimer) clearTimeout(this.#retryTimer)
           this.#retryTimer = setTimeout(() => this.kick(), BUSY_RETRY_MS)
           return
         }

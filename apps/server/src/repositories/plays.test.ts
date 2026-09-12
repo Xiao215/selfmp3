@@ -88,6 +88,38 @@ describe('plays reported late', () => {
   })
 })
 
+/**
+ * Which bar of the chart a play lands on.
+ *
+ * `played_at` is stored in UTC and the axis under the chart is built from
+ * local dates, so the grouping has to say which it means. Dating the column
+ * plainly put an evening play west of Greenwich on tomorrow — and tomorrow is
+ * off the end of the chart, so it vanished.
+ */
+describe('the daily chart, in the timezone the listener is in', () => {
+  it('counts an evening play on the evening it happened', () => {
+    const db = makeDb()
+    const stats = new StatsRepository(db)
+    const songs = new SongRepository(db)
+
+    // 20:00 local, whatever local is here.
+    const evening = new Date()
+    evening.setHours(20, 0, 0, 0)
+    // Yesterday evening, so "today" cannot mask a UTC/local disagreement.
+    evening.setDate(evening.getDate() - 1)
+    recordPlay(db, stats, songs, evening.toISOString(), 'phone-play-evening')
+
+    const expected = [
+      evening.getFullYear(),
+      String(evening.getMonth() + 1).padStart(2, '0'),
+      String(evening.getDate()).padStart(2, '0'),
+    ].join('-')
+
+    const day = stats.build('30d').daily.find(row => row.date === expected)
+    expect(day?.plays).toBe(1)
+  })
+})
+
 describe('sqliteTime', () => {
   const now = Date.parse('2026-09-10T12:00:00.000Z')
 

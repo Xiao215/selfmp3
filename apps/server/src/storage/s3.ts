@@ -168,7 +168,15 @@ export class S3StorageDriver implements StorageDriver {
     await client.send(
       new s3.CopyObjectCommand({
         Bucket: this.#bucket,
-        CopySource: `${this.#bucket}/${from}`,
+        /*
+         * Encoded, because this one goes over as a header rather than as a
+         * signed field. Every other key here is escaped by the SDK on the way
+         * out; this string is not, and Node refuses to put a non-ASCII
+         * character in a header at all — so moving "Café - Song.m4a" threw
+         * before it ever reached the bucket. The slashes stay as they are:
+         * they separate folders, they are not part of a name.
+         */
+        CopySource: `${this.#bucket}/${from.split('/').map(encodeURIComponent).join('/')}`,
         Key: normalizeKey(toKey),
       }),
     )

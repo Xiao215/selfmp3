@@ -20,10 +20,20 @@ export interface RunResult {
   readonly stdout: string
   readonly stderr: string
   readonly timedOut: boolean
+  /** True when output ran past the cap, so `stdout` is a prefix of what was said. */
+  readonly truncated: boolean
 }
 
-/** Cap captured output; yt-dlp can be extremely chatty on failure. */
+/**
+ * Caps on captured output, different for the two streams because they are put
+ * to different uses. stderr is read by a human, and yt-dlp is extremely chatty
+ * on failure, so a couple of megabytes is already more than anyone wants.
+ * stdout is JSON that has to parse as a whole — a playlist cut off in the
+ * middle is not a shorter playlist, it is a syntax error — and at roughly a
+ * kilobyte a track, two megabytes gave up at about sixteen hundred of them.
+ */
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+const MAX_STDOUT_BYTES = 64 * 1024 * 1024
 
 export interface RunOptions {
   readonly timeoutMs?: number
@@ -47,6 +57,7 @@ export function run(command: string, args: readonly string[], options: RunOption
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let truncated = false
     let settled = false
 
     const timer = setTimeout(() => {
@@ -58,13 +69,17 @@ export function run(command: string, args: readonly string[], options: RunOption
       child.kill('SIGKILL')
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    // A signal already aborted never fires its listener, and a cancel landing
+    // between two yt-dlp calls lands exactly there — so the download this just
+    // started would run to its timeout and the cancelled job finish as done.
+    if (signal?.aborted === true) onAbort()
 
-    const finish = (result: RunResult): void => {
+    const finish = (result: Omit<RunResult, 'truncated'>): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
       signal?.removeEventListener('abort', onAbort)
-      resolve(result)
+      resolve({ ...result, truncated })
     }
 
     const stdoutLines = lineSplitter(onLine)
@@ -72,7 +87,8 @@ export function run(command: string, args: readonly string[], options: RunOption
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
-      if (stdout.length < MAX_OUTPUT_BYTES) stdout += text
+      if (stdout.length < MAX_STDOUT_BYTES) stdout += text
+      else truncated = true
       stdoutLines.push(text)
     })
 
@@ -258,7 +274,13 @@ export class YtDlpService {
     try {
       parsed = JSON.parse(result.stdout) as YtDlpJson
     } catch {
-      throw new Error('yt-dlp returned something unreadable')
+      // Say which of the two it was. A very long playlist runs past the cap on
+      // captured output, and "unreadable" sends you looking for the wrong thing.
+      throw new Error(
+        result.truncated
+          ? 'that playlist is too long to read in one go — try importing it in parts'
+          : 'yt-dlp returned something unreadable',
+      )
     }
 
     if (parsed._type === 'playlist' && Array.isArray(parsed.entries)) {

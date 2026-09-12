@@ -64,6 +64,10 @@ export function sanitizeFilename(name: string, maxLength = 120): string {
     // eslint-disable-next-line no-control-regex
     .replace(/[/\\:*?"<>|\x00-\x1f]/g, '')
     .replace(/\s+/g, ' ')
+    // Trim before taking the dots off, or " .hidden" keeps its dot through the
+    // guard and is trimmed into a dotfile afterwards; then again, since taking
+    // the dots off ". x" leaves a space at the front.
+    .trim()
     .replace(/^\.+/, '')
     .trim()
   return cleaned.slice(0, maxLength).trim()

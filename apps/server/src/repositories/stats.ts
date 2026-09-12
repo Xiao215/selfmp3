@@ -92,9 +92,16 @@ export class StatsRepository {
 
     const daily: DailyPlays[] = this.#db
       .prepare<unknown[], { date: string; plays: number; ms: number | null }>(
-        `SELECT date(played_at) AS date, COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) AS ms
+        /*
+         * Grouped by the local day, as the axis beneath it is built and as the
+         * hourly query below already does. `played_at` is stored in UTC, so
+         * plainly dating it put an evening play west of Greenwich on tomorrow's
+         * bar — or off the end of the chart, where `zeroFill` never looked.
+         */
+        `SELECT date(played_at, 'localtime') AS date, COUNT(*) AS plays,
+                COALESCE(SUM(ms_played), 0) AS ms
            FROM play_events WHERE ${clause}
-          GROUP BY date(played_at) ORDER BY date`,
+          GROUP BY date(played_at, 'localtime') ORDER BY date`,
       )
       .all(...params)
       .map(row => ({

@@ -468,6 +468,68 @@ web only, the fallback is already named.
 The known standing risk is unchanged: track-player 5 is an alpha. The
 fallback is now `expo-audio` as a second native engine, not an SDK downgrade.
 
+### Spike results — 2026-09-12, branch `universal/spike`
+
+Run on Linux with Node 22 and Chromium, from `apps/app`. **There was no Mac,
+no simulator, no Android SDK and no Maestro**, so every check with a device
+half is split: the web half was run and the phone half was written as a flow
+in `apps/app/.maestro/` for a Mac to run. `apps/mobile` was copied to
+`apps/app` first, since none of these commands exist without it.
+
+| Check | Command | Result |
+|---|---|---|
+| 1 | `npx expo export -p web && test -f dist/index.html` | **pass** — 970 modules, 1.6MB bundle |
+| 1 | `EXPO_PUBLIC_BASE=/selfmp3 npx expo export -p web && grep -q '/selfmp3/' dist/index.html` | **pass** — `experiments.baseUrl` threaded from the env; both served under `express.static` |
+| 2 | `npx playwright test verify/spike.hover.spec.ts` | **pass** — Unistyles 3 emits a real CSS `:hover`; the 820 breakpoint switches direction and width |
+| 2 | `npx expo run:ios --no-install && npx expo run:android --no-install` | **not run** — needs Xcode and the Android SDK |
+| 3 | `npx playwright test verify/spike.tabs.spec.ts` | **pass** — one `TabList` renders as a 220pt sidebar at 1280 and a bottom row at 375; triggers navigate both ways |
+| 3 | `maestro test .maestro/spike-tabs.yaml` | **not run** — flow written; needs a simulator |
+| 4 | `npx playwright test verify/spike.engine.spec.ts` | **pass** — `apps/web`'s engine, imported unchanged, plays, preloads the next track into its second element, and crossfades with both sounding on an equal-power ramp |
+| 5 | `maestro test .maestro/spike-dom-visual.yaml` | **not run** — flow written. Companion `verify/spike.dom.spec.ts` **passes**, so `visualDraw.ts` paints; a red flow means the webview, not the drawing |
+| 6 | `npx playwright test verify/spike.list.spec.ts` | **pass** — 2,000 rows, virtualised, no blank frame across 30 scroll steps. The `FlatList` fallback is not needed on web |
+| 6 | `maestro test .maestro/spike-list.yaml` | **not run** — flow written; needs a simulator |
+
+**Checks 1 and 4 both pass, so the plan does not stop at phase 1.** Nothing
+found so far changes the stack: Unistyles, FlashList and the headless tabs all
+did what the Stack table claims.
+
+Four things the spike found, none of them fatal, all of them work the phases
+already own:
+
+1. **The phone app cannot boot on web until the ports exist.** Three modules
+   stop it, and only three: `expo-file-system` has no web implementation at all
+   (its `File` throws on construction, and six files build one at module
+   scope); `react-native-track-player`'s web implementation imports
+   `shaka-player`, which is not a dependency here and is not wanted; and
+   `apps/web/src/lib/platform.ts` reads Vite's `import.meta.env`, which Metro
+   does not provide. The spike stubs all three in `metro.config.js` — phase 3's
+   `OfflineStore` and `PlaybackEngine` ports and phase 1's move of the
+   connection code delete those stubs. That the list is exactly three is the
+   good news.
+2. **Metro does not honour TypeScript's `./x.js`-meaning-`x.ts` imports.**
+   `apps/web` uses that style in **377 places across 85 files**. It does not
+   affect `packages/*`, which tsc compiles — only source that Metro bundles
+   directly. So the phase 3 move of the engine and the offline code must either
+   rewrite those specifiers or keep the resolver rule the spike added. Worth
+   deciding once, in phase 3, rather than per file.
+3. **`expo-router/ui`'s `TabList` and `TabTrigger` must be direct, unwrapped
+   children of `Tabs`.** The navigator finds its screens by component identity,
+   so wrapping them — in a component of your own, or in `withUnistyles()` —
+   fails at runtime with "Couldn't find any screens for the navigator". The
+   shell therefore reads the breakpoint itself and passes plain styles, which
+   foundation 5 allows it and nothing below it to do.
+4. **A raw Unistyles style handed to a third-party component arrives
+   unresolved**, so breakpoint variants silently fall back to their base values
+   rather than erroring. `withUnistyles()` is the fix everywhere except the tab
+   components above. Worth a lint rule in phase 2.
+
+What is still unanswered, and answerable only on the Mac: whether Unistyles 3
+and track-player 5 build into one dev client (check 2's real risk), whether
+native tabs come out of these route files, whether a `'use dom'` canvas paints
+in the webview, and whether FlashList holds up on a phone. The four flows are
+written and deep-link straight to their routes; `apps/app/.maestro/README.md`
+says what to run first.
+
 ## Parity matrix
 
 The starting point for phase 0. *Both* means the feature belongs on every

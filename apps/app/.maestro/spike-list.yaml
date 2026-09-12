@@ -1,0 +1,42 @@
+# Spike check 6, phone half: FlashList v2 scrolls 2,000 rows without blank cells.
+#
+# The web half is ../verify/spike.list.spec.ts and it passes, which already
+# retires the fallback docs/UNIVERSAL.md names (`FlatList` behind
+# `SongList.web.tsx`) for the web side. This is the iOS side.
+#
+# 2,000 is the real number: the whole library arrives in one response with no
+# pagination, so the library screen hands the list every song at once.
+#
+# Run: maestro test .maestro/spike-list.yaml
+appId: com.selfmp3.app
+---
+- launchApp:
+    clearState: true
+
+- openLink: selfmp3://spike-list
+
+- assertVisible:
+    id: "spike-list-page"
+- assertVisible: "Song 0"
+
+# Scroll in steps rather than jumping: recycling fails *during* a scroll, and a
+# single jump to the end would step straight over the evidence.
+- repeat:
+    times: 25
+    commands:
+      - scroll
+      # Any row at all must be on screen after each step. A blank frame here is
+      # the failure the check is named for.
+      - assertVisible: "Artist .*"
+
+# The far end is reachable and has content on it.
+- scrollUntilVisible:
+    element: "Song 1999"
+    direction: DOWN
+    timeout: 30000
+
+# And back to the top, since a list that cannot scroll up is no use either.
+- scrollUntilVisible:
+    element: "Song 0"
+    direction: UP
+    timeout: 30000

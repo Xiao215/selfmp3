@@ -1,0 +1,42 @@
+# Spike check 3, phone half: native tabs from the same route files.
+#
+# The desktop half is ../verify/spike.tabs.spec.ts, which passes: at 1280 the
+# same TabList renders as a 220pt sidebar on the left, and the triggers
+# navigate. What only a device can show is that `expo-router/unstable-native-tabs`
+# turns those same files into a real system tab bar — Liquid Glass on iOS 26 —
+# rather than a row of Views that merely looks like one.
+#
+# Run: maestro test .maestro/spike-tabs.yaml
+appId: com.selfmp3.app
+---
+- launchApp:
+    clearState: true
+
+- openLink: selfmp3://spike-tabs
+
+# The library screen is the first tab's content.
+- assertVisible:
+    id: "spike-screen-library"
+
+# Both triggers are drawn, which under 820 means the tab bar.
+- assertVisible:
+    id: "spike-trigger-library"
+- assertVisible:
+    id: "spike-trigger-playlists"
+
+# Switching tabs changes the content...
+- tapOn:
+    id: "spike-trigger-playlists"
+- assertVisible:
+    id: "spike-screen-playlists"
+
+# ...and going back is instant, because a tab navigator keeps both mounted.
+- tapOn:
+    id: "spike-trigger-library"
+- assertVisible:
+    id: "spike-screen-library"
+
+# The chrome is a row along the bottom here, never the sidebar: if this is
+# visible at phone width the breakpoint is not being read on device.
+- assertVisible:
+    id: "spike-chrome"

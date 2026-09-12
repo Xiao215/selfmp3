@@ -1,0 +1,68 @@
+# Phase 2 gate: the phone app's current feature set, after the move to apps/app.
+#
+# Named by the gate in docs/UNIVERSAL.md:
+#   maestro test .maestro/smoke.yaml   # play, next, mini player, sort, tag filter, menu, download
+#
+# SKELETON. The steps below are the flow the gate asks for, written against the
+# screens phase 2 produces. They will fail until those screens exist with these
+# testIDs — which is the point: the flow is written before the screens, so the
+# screens are built to be testable rather than retro-fitted.
+#
+# Needs a configured server or a signed-in session; unlike the spike flows this
+# one goes through the real app.
+appId: com.selfmp3.app
+---
+- launchApp
+
+# --- library -----------------------------------------------------------------
+- assertVisible:
+    id: "library-screen"
+
+# Tap a row: it plays, the row tints, and the mini player picks it up.
+- tapOn:
+    id: "song-row-0"
+- assertVisible:
+    id: "mini-player"
+- assertVisible:
+    id: "mini-player-playing"
+
+# --- transport ---------------------------------------------------------------
+# Next from the mini player moves the same queue every surface is showing.
+- tapOn:
+    id: "mini-player-next"
+- assertVisible:
+    id: "mini-player-playing"
+
+# --- sort --------------------------------------------------------------------
+- tapOn:
+    id: "library-sort"
+- tapOn: "Recently added"
+- assertVisible:
+    id: "library-screen"
+
+# --- tag filter --------------------------------------------------------------
+- tapOn:
+    id: "tag-chip-0"
+- assertVisible:
+    id: "library-screen"
+- tapOn:
+    id: "tag-chip-0"
+
+# --- a row's menu ------------------------------------------------------------
+- longPressOn:
+    id: "song-row-0"
+- assertVisible:
+    id: "song-menu"
+- tapOn: "Play next"
+
+# --- download ----------------------------------------------------------------
+- tapOn:
+    id: "tab-playlists"
+- tapOn:
+    id: "playlist-row-0"
+- tapOn:
+    id: "playlist-download"
+- extendedWaitUntil:
+    visible:
+      id: "playlist-downloaded"
+    timeout: 120000

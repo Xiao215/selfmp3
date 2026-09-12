@@ -1,0 +1,47 @@
+# Phase 3 gate: a downloaded playlist plays with the network gone.
+#
+# Named by the gate in docs/UNIVERSAL.md:
+#   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
+#
+# SKELETON, and one that needs a hand. Maestro cannot toggle airplane mode on
+# the iOS simulator — there is no Settings toggle for it there — so the honest
+# options are to run this on a real device, or to have the app's own network
+# port expose a test-only offline switch. docs/UNIVERSAL.md's OfflineStore port
+# is the natural home for that, and phase 3 should decide which.
+#
+# Until then the steps below cover everything either side of the toggle, and the
+# toggle itself is marked.
+appId: com.selfmp3.app
+---
+- launchApp
+
+- tapOn:
+    id: "tab-playlists"
+- tapOn:
+    id: "playlist-row-0"
+
+# The playlist has to actually be downloaded for the rest to mean anything.
+- assertVisible:
+    id: "playlist-downloaded"
+
+# --- go offline --------------------------------------------------------------
+# TODO(phase 3): airplane mode, or the port's test switch. See the note above.
+- runScript:
+    file: offline-on.sh
+
+# A downloaded song plays from disk with no network at all.
+- tapOn:
+    id: "song-row-0"
+- assertVisible:
+    id: "mini-player-playing"
+
+# And one that was never downloaded says so, rather than failing silently —
+# which docs/UNIVERSAL.md calls out as the behaviour that must not regress.
+- tapOn:
+    id: "tab-library"
+- tapOn:
+    id: "song-row-undownloaded"
+- assertVisible: "Not downloaded"
+
+- runScript:
+    file: offline-off.sh

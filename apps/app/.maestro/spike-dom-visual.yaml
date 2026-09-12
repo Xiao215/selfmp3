@@ -1,0 +1,27 @@
+# Spike check 5: a `'use dom'` component draws the song visual on iOS.
+#
+# The drawing is apps/web's own visualDraw.ts, imported unchanged. It already
+# paints in a browser — ../verify/spike.dom.spec.ts proves that and is green —
+# so a failure here is the webview, not the canvas code. That split is the
+# reason the companion spec exists.
+#
+# If this fails, docs/UNIVERSAL.md's answer is that the visual waits for Skia or
+# stays web-only. It does not block the migration.
+#
+# Run: maestro test .maestro/spike-dom-visual.yaml
+appId: com.selfmp3.app
+---
+- launchApp:
+    clearState: true
+
+- openLink: selfmp3://spike-dom
+
+- assertVisible:
+    id: "spike-dom-page"
+
+# The component reads a pixel back from its own canvas and says which it found.
+# "canvas-blank" means the webview mounted but nothing painted, which is a
+# different failure from the route not loading at all.
+- extendedWaitUntil:
+    visible: "canvas-painted"
+    timeout: 15000

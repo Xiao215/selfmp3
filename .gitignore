@@ -49,3 +49,7 @@ _to_delete/
 
 # A local build of the web app for GitHub Pages
 apps/web/dist-pages/
+
+# Playwright's output from apps/app/verify
+test-results/
+playwright-report/

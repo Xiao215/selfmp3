@@ -25,6 +25,10 @@ export default tseslint.config(
        * into that graph would leak them into the web app.
        */
       'apps/mobile/**',
+      // Same reasoning for the universal app, which is the phone app's
+      // successor and carries the same React Native toolchain: it lints itself
+      // with eslint-config-expo from apps/app/eslint.config.js.
+      'apps/app/**',
     ],
   },
   js.configs.recommended,

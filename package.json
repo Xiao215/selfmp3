@@ -24,7 +24,7 @@
     "check:mobile": "npm run typecheck:mobile && npm run lint:mobile",
     "typecheck:app": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run typecheck --workspace @selfmp3/app",
     "lint:app": "npm run lint --workspace @selfmp3/app",
-    "check:app": "npm run typecheck:app && npm run lint:app",
+    "check:app": "npm run typecheck:app && npm run lint:app && npm run test:app",
     "dev:mobile": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run start --workspace @selfmp3/mobile",
     "dev:cloud": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && VITE_CLOUD=1 VITE_BASE=/selfmp3/ npm run build --workspace @selfmp3/web && VITE_BASE=/selfmp3/ npm run preview --workspace @selfmp3/web",
     "lint": "eslint .",
@@ -35,7 +35,9 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo",
-    "verify:flows": "playwright test verify/flows --project=desktop --project=phone"
+    "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone",
+    "verify:reference": "playwright test -c verify/playwright.config.ts reference --project=desktop --project=phone",
+    "test:app": "npm run test --workspace @selfmp3/app"
   },
   "overrides": {
     "react": "19.2.3",

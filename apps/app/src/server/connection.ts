@@ -1,19 +1,19 @@
-import * as SecureStore from 'expo-secure-store'
-
 import { normaliseBaseUrl, type ServerConnection } from '@selfmp3/client'
 
+import { secrets } from '../ports/secrets'
+
 /**
- * Where the server is and how to authenticate to it — the keychain half.
+ * Where the server is and how to authenticate to it.
  *
  * The `ServerConnection` shape and `normaliseBaseUrl` moved to
- * `packages/client`, because neither is the phone's: the universal app will ask
- * for the same address in a browser and has to make the same sense of it. What
- * stayed is `expo-secure-store`, which genuinely is.
+ * `packages/client`, because neither is the phone's: the universal app asks for
+ * the same address in a browser and has to make the same sense of it.
  *
- * Both values live in the keychain / Android keystore rather than plain
- * AsyncStorage: the token is a real credential, and the hostname is a private
- * Tailscale name that is nobody else's business either. It is two small
- * strings, so the cost of doing it properly is nil.
+ * Where they are kept is the `secrets` port's business, not this file's. On a
+ * phone that is the keychain / Android keystore rather than plain AsyncStorage:
+ * the token is a real credential, and the hostname is a private Tailscale name
+ * that is nobody else's business either. In a browser it is `localStorage`,
+ * because a browser has no keychain. This file only knows there are two keys.
  */
 
 export { normaliseBaseUrl }
@@ -23,19 +23,19 @@ const BASE_URL_KEY = 'selfmp3.baseUrl'
 const TOKEN_KEY = 'selfmp3.token'
 
 export async function loadConnection(): Promise<ServerConnection | null> {
-  const baseUrl = await SecureStore.getItemAsync(BASE_URL_KEY)
+  const baseUrl = await secrets.get(BASE_URL_KEY)
   if (!baseUrl) return null
-  const token = await SecureStore.getItemAsync(TOKEN_KEY)
+  const token = await secrets.get(TOKEN_KEY)
   return { baseUrl, token: token && token.length > 0 ? token : null }
 }
 
 export async function saveConnection(connection: ServerConnection): Promise<void> {
-  await SecureStore.setItemAsync(BASE_URL_KEY, connection.baseUrl)
-  if (connection.token) await SecureStore.setItemAsync(TOKEN_KEY, connection.token)
-  else await SecureStore.deleteItemAsync(TOKEN_KEY)
+  await secrets.set(BASE_URL_KEY, connection.baseUrl)
+  if (connection.token) await secrets.set(TOKEN_KEY, connection.token)
+  else await secrets.remove(TOKEN_KEY)
 }
 
 export async function clearConnection(): Promise<void> {
-  await SecureStore.deleteItemAsync(BASE_URL_KEY)
-  await SecureStore.deleteItemAsync(TOKEN_KEY)
+  await secrets.remove(BASE_URL_KEY)
+  await secrets.remove(TOKEN_KEY)
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatDuration, type Song } from '@selfmp3/shared'
 import { useAccent } from '../accent'
-import { oklchToHexAlpha , colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { oklchToHexAlpha, colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { Cover } from './Cover'
 import { Downloaded, Heart, More } from './Icons'
 import { Equalizer } from './Equalizer'
@@ -21,6 +21,7 @@ import { Equalizer } from './Equalizer'
  * tick otherwise — the one place in this app where that actually matters.
  */
 export const SongRow = memo(function SongRow({
+  testID,
   song,
   artUri,
   active,
@@ -30,6 +31,8 @@ export const SongRow = memo(function SongRow({
   onMore,
   onToggleLoved,
 }: {
+  /** Named so a flow can tap a row by position: `song-row-0`. */
+  testID?: string
   song: Song
   artUri: string | null
   active: boolean
@@ -55,46 +58,67 @@ export const SongRow = memo(function SongRow({
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        onPress={onPress}
-        onLongPress={onMore}
-        onPressIn={() => press(true)}
-        onPressOut={() => press(false)}
-        delayLongPress={450}
-        accessibilityRole="button"
-        accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
-        accessibilityState={{ selected: active }}
-        style={({ pressed }) => [
+      {/*
+        The row is a container, and the thing you press is inside it — not the
+        other way round. On a phone either shape works; in a browser only this
+        one does. `react-native-web` renders `accessibilityRole="button"` as a
+        real `<button>`, so a row that was itself a button ended up with the
+        love and ⋯ buttons nested inside it, which is invalid HTML and which
+        React reports as a hydration error. The web app has always drawn it this
+        way — a `role="row"` with buttons as siblings — so this is the shape
+        both platforms were already asking for.
+      */}
+      <View
+        testID={testID}
+        // The same semantics the web app's row has had all along: the row is a
+        // row, and the controls inside it are buttons. `role` rather than
+        // `accessibilityRole` because React Native has no "row" of its own and
+        // ignores what it does not know, while react-native-web turns it into
+        // the real ARIA role — so the phone is unaffected and a browser gets a
+        // table it can navigate.
+        role="row"
+        style={[
           styles.row,
           active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },
-          pressed && styles.pressed,
           song.missing && styles.missing,
         ]}
       >
-        <View style={styles.art}>
-          <Cover uri={artUri} title={song.album || song.title} size={40} />
-          {active ? (
-            <View style={styles.playingOverlay}>
-              <Equalizer paused={!playing} size={12} />
-            </View>
-          ) : null}
-        </View>
-
-        <View style={styles.text}>
-          <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
-            {song.title}
-          </Text>
-          <View style={styles.subtitleRow}>
-            {/* The web calls this "On this device", and draws exactly this. */}
-            {downloaded ? (
-              <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+        <Pressable
+          onPress={onPress}
+          onLongPress={onMore}
+          onPressIn={() => press(true)}
+          onPressOut={() => press(false)}
+          delayLongPress={450}
+          accessibilityRole="button"
+          accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+          accessibilityState={{ selected: active }}
+          style={({ pressed }) => [styles.main, pressed && styles.pressed]}
+        >
+          <View style={styles.art}>
+            <Cover uri={artUri} title={song.album || song.title} size={40} />
+            {active ? (
+              <View style={styles.playingOverlay}>
+                <Equalizer paused={!playing} size={12} />
+              </View>
             ) : null}
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {song.artist || 'Unknown artist'}
-              {song.album ? ` · ${song.album}` : ''}
-            </Text>
           </View>
-        </View>
+
+          <View style={styles.text}>
+            <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
+              {song.title}
+            </Text>
+            <View style={styles.subtitleRow}>
+              {/* The web calls this "On this device", and draws exactly this. */}
+              {downloaded ? (
+                <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+              ) : null}
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {song.artist || 'Unknown artist'}
+                {song.album ? ` · ${song.album}` : ''}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
 
         {onToggleLoved ? (
           <Pressable
@@ -126,7 +150,7 @@ export const SongRow = memo(function SongRow({
             <More size={16} color={colors.textMuted} />
           </Pressable>
         ) : null}
-      </Pressable>
+      </View>
     </Animated.View>
   )
 })
@@ -140,6 +164,16 @@ const styles = StyleSheet.create({
     paddingLeft: space.lg,
     paddingRight: space.sm,
     marginHorizontal: space.xs,
+    borderRadius: radius.sm,
+  },
+  /* The press target: everything from the cover to the end of the title. */
+  main: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 3,
     borderRadius: radius.sm,
   },
   pressed: {

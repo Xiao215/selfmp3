@@ -48,6 +48,7 @@ export function BottomNav(): ReactNode {
             onPress={() => {
               if (!active) router.navigate(tab.href)
             }}
+            testID={`tab-${tab.label.toLowerCase()}`}
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf, topRow } from './helpers.js'
 
 /**
  * The library: the screen that proves `useLibrary` still works.
@@ -24,7 +24,7 @@ test.describe('library', () => {
     await skipIfNoLibrary(page, 2)
     const before = await songRows(page).count()
 
-    const title = await titleOf(songRows(page).first())
+    const title = await titleOf(await topRow(page))
     const term = title.slice(0, 4).trim()
     test.skip(term.length < 2, 'the first song title is too short to search for')
 
@@ -38,9 +38,9 @@ test.describe('library', () => {
 
   test('reversing the sort changes which song is first', async ({ page }) => {
     await skipIfNoLibrary(page, 2)
-    const first = await titleOf(songRows(page).first())
+    const first = await titleOf(await topRow(page))
 
     await page.getByLabel(/^Sort (ascending|descending)$/).click()
-    await expect.poll(async () => titleOf(songRows(page).first())).not.toBe(first)
+    await expect.poll(async () => titleOf(await topRow(page))).not.toBe(first)
   })
 })

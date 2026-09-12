@@ -58,6 +58,7 @@ export function MiniPlayer(): ReactNode {
 
   return (
     <Animated.View
+      testID="mini-player"
       style={[
         styles.bar,
         {
@@ -97,14 +98,25 @@ export function MiniPlayer(): ReactNode {
         </Text>
       </Animated.View>
 
-      <IconButton onPress={player.toggle} label={player.isPlaying ? 'Pause' : 'Play'}>
+      {/*
+        The transport carries whether it is playing in its own testID, rather
+        than a separate marker element. A marker with nothing in it has no size,
+        and a flow quite reasonably does not count a zero-by-zero view as
+        visible — which is how the first run of the smoke flow failed against an
+        app that was, on screen, plainly playing.
+      */}
+      <IconButton
+        testID={player.isPlaying ? 'mini-player-playing' : 'mini-player-paused'}
+        onPress={player.toggle}
+        label={player.isPlaying ? 'Pause' : 'Play'}
+      >
         {player.isPlaying ? (
           <Pause size={22} color={colors.textPrimary} />
         ) : (
           <Play size={22} color={colors.textPrimary} />
         )}
       </IconButton>
-      <IconButton onPress={player.next} label="Next">
+      <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={colors.textSecondary} />
       </IconButton>
     </Animated.View>

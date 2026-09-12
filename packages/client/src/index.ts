@@ -27,17 +27,15 @@ export {
   type ServerConnection,
 } from './connection/connection.js'
 
-export {
-  configureClient,
-  clientApi,
-  librarySnapshot,
-  type ClientRuntime,
-} from './runtime.js'
+export { configureClient, clientApi, librarySnapshot, type ClientRuntime } from './runtime.js'
 
 export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
 export * from './queries/queries.js'
 
 export * from './downloads/downloadIndex.js'
+
+/** Filtering and sorting a library, which every client does the same way. */
+export * from './library/filter.js'
 
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 

@@ -11,6 +11,7 @@ import { colors, HIT_TARGET, radius } from '@selfmp3/client'
  * in the library header — which is square rather than a pill.
  */
 export function Button({
+  testID,
   label,
   icon,
   onPress,
@@ -19,6 +20,7 @@ export function Button({
   busy = false,
   grow = false,
 }: {
+  testID?: string
   label?: string
   icon?: ReactNode
   onPress: () => void
@@ -41,6 +43,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={inactive}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: inactive }}

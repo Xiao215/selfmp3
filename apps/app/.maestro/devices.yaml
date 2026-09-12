@@ -1,0 +1,33 @@
+# Phase 3 gate: devices and handoff, which the phone gains with the move.
+#
+# Named by the gate in docs/UNIVERSAL.md:
+#   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
+#
+# SKELETON. The heartbeat and the remote transport are HTTP and a clock, so the
+# phone gets them for free when packages/client moves — but "the devices popover
+# lists both" needs two devices, so this flow assumes the desktop app is open
+# against the same server. That is a real prerequisite, not a bug: a one-device
+# run cannot prove handoff.
+appId: com.selfmp3.app
+---
+- launchApp
+
+- tapOn:
+    id: 'tab-settings'
+- tapOn:
+    id: 'devices-open'
+
+# Both this phone and the desktop the flow assumes is running.
+- assertVisible:
+    id: 'device-row-self'
+- assertVisible:
+    id: 'device-row-other'
+
+# --- handoff -----------------------------------------------------------------
+# Playing on the desktop, "play here" brings it over with its position intact.
+- tapOn:
+    id: 'device-play-here'
+- assertVisible:
+    id: 'mini-player-playing'
+- assertVisible:
+    id: 'handoff-resumed'

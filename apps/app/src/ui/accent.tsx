@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { File, Paths } from 'expo-file-system'
 import { buildAccent, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
+
+import { prefs } from '../ports/prefs'
 
 /**
  * This phone's accent colour.
@@ -14,11 +15,12 @@ import { buildAccent, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
  * Mac on a desk are allowed to disagree, and having one overwrite the other
  * would be a worse answer than either.
  *
- * One number in one small file, read once at launch and written when it
- * changes. Not the keychain — a hue is nobody's secret.
+ * One number, read once at launch and written when it changes, through the
+ * `prefs` port — a file on a phone, `localStorage` in a browser. Not the
+ * keychain: a hue is nobody's secret.
  */
 
-const PREFS_FILE_NAME = 'accent.json'
+const ACCENT_KEY = 'accent'
 
 /** The presets the picker offers, and their hues. The web app offers these. */
 export const ACCENT_PRESETS: readonly { hue: number; name: string }[] = [
@@ -38,15 +40,11 @@ interface AccentApi extends Accent {
 
 const AccentContext = createContext<AccentApi | null>(null)
 
-function prefsFile(): File {
-  return new File(Paths.document, PREFS_FILE_NAME)
-}
-
 function readHue(): number {
   try {
-    const file = prefsFile()
-    if (!file.exists) return DEFAULT_ACCENT_HUE
-    const parsed: unknown = JSON.parse(file.textSync())
+    const raw = prefs.get(ACCENT_KEY)
+    if (raw === null) return DEFAULT_ACCENT_HUE
+    const parsed: unknown = JSON.parse(raw)
     const hue =
       typeof parsed === 'object' && parsed !== null ? (parsed as { hue?: unknown }).hue : undefined
     // Anything else — a file from a newer build, a half-written one — is just
@@ -65,12 +63,9 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   const [hue, setHueState] = useState<number>(() => readHue())
 
   useEffect(() => {
-    if (hue === DEFAULT_ACCENT_HUE && !prefsFile().exists) return
-    try {
-      prefsFile().write(JSON.stringify({ hue }))
-    } catch {
-      // A colour that cannot be saved still applies for this run.
-    }
+    // Nothing to write for a default nobody has chosen yet.
+    if (hue === DEFAULT_ACCENT_HUE && prefs.get(ACCENT_KEY) === null) return
+    prefs.set(ACCENT_KEY, JSON.stringify({ hue }))
   }, [hue])
 
   const setHue = useCallback((next: number) => {

@@ -1,0 +1,160 @@
+import { useEffect, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native'
+import type { View as RNView } from 'react-native'
+import { colors, motion, radius, space } from '@selfmp3/client'
+import { useOverlay } from '../../shell/Overlay'
+import { useLayout } from '../../shell/useLayout'
+import { Sheet } from './Sheet'
+
+/**
+ * A small panel attached to the control that opened it — or a sheet, when
+ * there is not enough room for one.
+ *
+ * One component, two shapes, and the caller does not know which it got:
+ * `docs/UNIVERSAL.md` foundation 5, and its "does not port one-to-one" note
+ * that a popover anchored to a button becomes a sheet below the breakpoint,
+ * which is what the web app already does with `.popover-sheet`.
+ *
+ * React Native has no `position: fixed`, so above the breakpoint the anchor is
+ * measured with `measureInWindow` and the panel is drawn by the shell's
+ * overlay host at those coordinates. It is kept on screen: a control near the
+ * right edge opens a panel that ends at the edge rather than past it.
+ */
+export function Popover({
+  open,
+  onClose,
+  anchorRef,
+  title,
+  children,
+  width = 240,
+  testID,
+}: {
+  open: boolean
+  onClose: () => void
+  /** The control this belongs to. Measured when it opens. */
+  anchorRef: RefObject<RNView | null>
+  /** Shown when it falls back to a sheet, where a panel has room for a heading. */
+  title?: string
+  children: ReactNode
+  width?: number
+  testID?: string
+}): ReactNode {
+  const { wide } = useLayout()
+
+  if (!wide) {
+    return (
+      <Sheet open={open} onClose={onClose} title={title} testID={testID}>
+        {children}
+      </Sheet>
+    )
+  }
+
+  return (
+    <AnchoredPopover
+      open={open}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      width={width}
+      testID={testID}
+    >
+      {children}
+    </AnchoredPopover>
+  )
+}
+
+interface Anchor {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function AnchoredPopover({
+  open,
+  onClose,
+  anchorRef,
+  children,
+  width,
+  testID,
+}: {
+  open: boolean
+  onClose: () => void
+  anchorRef: RefObject<RNView | null>
+  children: ReactNode
+  width: number
+  testID?: string
+}): ReactNode {
+  const { width: screenWidth } = useLayout()
+  const [anchor, setAnchor] = useState<Anchor | null>(null)
+  const [progress] = useState(() => new Animated.Value(0))
+  const [mounted, setMounted] = useState(open)
+  if (open && !mounted) setMounted(true)
+
+  useEffect(() => {
+    if (!open) return
+    // Measured on open rather than on every render: the control does not move
+    // while its panel is up, and measuring is a round trip to the shadow tree.
+    anchorRef.current?.measureInWindow((x, y, w, h) => {
+      setAnchor({ x, y, width: w, height: h })
+    })
+  }, [open, anchorRef])
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: open ? 1 : 0,
+      duration: open ? motion.base : motion.fast,
+      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished && !open) setMounted(false)
+    })
+  }, [open, progress])
+
+  // Right-aligned to the anchor, then pulled back inside the screen. A control
+  // near the edge is the common case for these — a sort button sits at the end
+  // of its row — so the panel ends where the control does.
+  const left = anchor
+    ? Math.max(space.sm, Math.min(anchor.x + anchor.width - width, screenWidth - width - space.sm))
+    : 0
+
+  useOverlay(
+    <>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      {anchor ? (
+        <Animated.View
+          testID={testID}
+          style={[
+            styles.panel,
+            {
+              width,
+              left,
+              top: anchor.y + anchor.height + space.xs,
+              opacity: progress,
+              transform: [
+                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) },
+              ],
+            },
+          ]}
+        >
+          {children}
+        </Animated.View>
+      ) : null}
+    </>,
+    mounted && anchor !== null,
+  )
+
+  return null
+}
+
+const styles = StyleSheet.create({
+  panel: {
+    position: 'absolute',
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: space.xs,
+    overflow: 'hidden',
+  },
+})

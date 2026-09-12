@@ -53,14 +53,14 @@ export function serve({
   app.use(mount, express.static(root))
   app.use(mount, (_req, res) => res.sendFile(join(root, 'index.html')))
 
-  return new Promise<StaticServer>((resolvePromise) => {
+  return new Promise<StaticServer>(resolvePromise => {
     const server = app.listen(port, '127.0.0.1', () => {
       const actual = (server.address() as { port: number }).port
       const path = base === '/' ? '' : base
       resolvePromise({
         url: `http://127.0.0.1:${actual}${path}`,
         port: actual,
-        close: () => new Promise<void>((done) => server.close(() => done())),
+        close: () => new Promise<void>(done => server.close(() => done())),
       })
     })
   })

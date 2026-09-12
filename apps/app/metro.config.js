@@ -43,14 +43,8 @@ config.resolver.nodeModulesPaths = [
 // belongs. That these two are the *whole* list is itself the finding: nothing
 // else in the phone app blocks a web build.
 const webStubs = {
-  'react-native-track-player': path.resolve(
-    projectRoot,
-    'verify/stubs/track-player.web.js',
-  ),
-  'expo-file-system': path.resolve(
-    projectRoot,
-    'verify/stubs/expo-file-system.web.js',
-  ),
+  'react-native-track-player': path.resolve(projectRoot, 'verify/stubs/track-player.web.js'),
+  'expo-file-system': path.resolve(projectRoot, 'verify/stubs/expo-file-system.web.js'),
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

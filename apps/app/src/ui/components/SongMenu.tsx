@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { formatBytes, type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
-import { isDownloaded , colors } from '@selfmp3/client'
+import { isDownloaded, colors } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { CloudDownload, Heart, ListMusic, Queue, Trash } from './Icons'
@@ -19,6 +19,7 @@ import { Sheet, SheetItem } from './Sheet'
 export function SongMenu({ song, onClose }: { song: Song | null; onClose: () => void }): ReactNode {
   return (
     <Sheet
+      testID="song-menu"
       open={song !== null}
       onClose={onClose}
       title={song?.title}

@@ -79,9 +79,7 @@ const config = {
     // which is not null, so a `??` fallback downstream never fires and the
     // address becomes the string "[object Object]". Absent is the only way to
     // say absent here.
-    ...(process.env.SELFMP3_DOORMAN_URL
-      ? { doormanUrl: process.env.SELFMP3_DOORMAN_URL }
-      : {}),
+    ...(process.env.SELFMP3_DOORMAN_URL ? { doormanUrl: process.env.SELFMP3_DOORMAN_URL } : {}),
   },
 
   /**
@@ -102,9 +100,7 @@ const config = {
     // Mac serves the same build from /. One build cannot be both, so the path
     // is a build-time variable: unset for the Mac, /selfmp3 for Pages. This is
     // the replacement for the web app's VITE_BASE.
-    ...(process.env.EXPO_PUBLIC_BASE
-      ? { baseUrl: process.env.EXPO_PUBLIC_BASE }
-      : {}),
+    ...(process.env.EXPO_PUBLIC_BASE ? { baseUrl: process.env.EXPO_PUBLIC_BASE } : {}),
   },
 }
 

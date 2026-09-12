@@ -191,9 +191,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     if (response.status === 204) return schema.parse(undefined) as z.output<S>
 
     if (!response.ok) {
-      const parsed = ErrorResponseSchema.safeParse(
-        await response.json().catch(() => null),
-      )
+      const parsed = ErrorResponseSchema.safeParse(await response.json().catch(() => null))
       throw new ApiError(
         response.status,
         parsed.success ? parsed.data.error : `${method} ${path} failed (${response.status})`,
@@ -217,7 +215,6 @@ export function createApi({ context, fetch }: ApiOptions) {
   const OkSchema = z.object({ ok: z.literal(true) }).passthrough()
 
   return {
-
     // --- library ------------------------------------------------------------
 
     library: () => request('GET', '/api/library', LibrarySchema),
@@ -314,7 +311,8 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     createTag: (name: string) => request('POST', '/api/tags', TagSchema, { name }),
 
-    renameTag: (id: number, name: string) => request('PATCH', `/api/tags/${id}`, TagSchema, { name }),
+    renameTag: (id: number, name: string) =>
+      request('PATCH', `/api/tags/${id}`, TagSchema, { name }),
 
     setTagHue: (id: number, hue: number) => request('PATCH', `/api/tags/${id}`, TagSchema, { hue }),
 
@@ -333,7 +331,8 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     deletePlaylist: (id: number) => request('DELETE', `/api/playlists/${id}`, OkSchema),
 
-    playlistSongs: (id: number) => request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
+    playlistSongs: (id: number) =>
+      request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 
     addToPlaylist: (id: number, input: AddToPlaylist) =>
       request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, input),

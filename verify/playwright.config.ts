@@ -18,6 +18,36 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH
  * this CSS in the first place, so a flow that passes here is the flow the
  * simulator is checked against.
  */
+/**
+ * Where the app under test should look for its Mac.
+ *
+ * `apps/web` is served by the server itself, so it asks its own origin and
+ * there is nothing to configure. `apps/app` is a separate build on a separate
+ * port and has to be told — it keeps the address through the `secrets` port,
+ * which in a browser is `localStorage`. A fresh Playwright context has none, so
+ * without this the app quite correctly shows its sign-in screen and every flow
+ * times out waiting for a library.
+ *
+ * Set it when pointing these flows at `apps/app`:
+ *
+ *   SELFMP3_WEB_URL=http://localhost:8090 \
+ *   SELFMP3_APP_API=http://localhost:4600 npm run verify:flows
+ */
+const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4601'
+const appApi = process.env.SELFMP3_APP_API
+
+const storageState = appApi
+  ? {
+      cookies: [],
+      origins: [
+        {
+          origin: baseURL,
+          localStorage: [{ name: 'selfmp3.baseUrl', value: appApi }],
+        },
+      ],
+    }
+  : undefined
+
 export default defineConfig({
   testDir: '.',
   // The app talks to a real server; these are not parallel-safe against one
@@ -26,7 +56,8 @@ export default defineConfig({
   fullyParallel: false,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.SELFMP3_WEB_URL ?? 'http://localhost:4601',
+    baseURL,
+    ...(storageState ? { storageState } : {}),
     trace: 'retain-on-failure',
     // A sleeping Mac is the usual cause of a slow first paint; this is not the
     // thing under test.

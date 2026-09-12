@@ -46,7 +46,6 @@ function Icon({
   )
 }
 
-
 export const Play = ({ color = colors.textSecondary, ...rest }: IconProps): ReactNode => (
   <Icon color={color} {...rest}>
     <Path d="M7 4.5v15l13-7.5z" fill={color} stroke="none" />
@@ -150,14 +149,14 @@ export const CloudUpload = ({ color = colors.textSecondary, ...rest }: IconProps
   </Icon>
 )
 
-export const Downloaded = ({ color = colors.textSecondary, knockout = colors.surface0, ...rest }: IconProps): ReactNode => (
+export const Downloaded = ({
+  color = colors.textSecondary,
+  knockout = colors.surface0,
+  ...rest
+}: IconProps): ReactNode => (
   <Icon color={color} {...rest}>
     <Circle cx="12" cy="12" r="9.5" fill={color} stroke="none" />
-    <Path
-      d="M12 7v8.5M8.5 12.5 12 16l3.5-3.5"
-      stroke={knockout}
-      strokeWidth={2.2}
-    />
+    <Path d="M12 7v8.5M8.5 12.5 12 16l3.5-3.5" stroke={knockout} strokeWidth={2.2} />
   </Icon>
 )
 

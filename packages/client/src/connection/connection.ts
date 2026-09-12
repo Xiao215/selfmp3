@@ -75,8 +75,7 @@ export function normaliseBaseUrl(input: string): string | null {
   // unicode host, which `URL` converts to punycode using a table this package
   // is not going to carry — refused rather than mangled. A bracketed IPv6
   // literal is the one host that may hold colons.
-  const validHost =
-    /^[a-z0-9._-]+$/.test(hostname) || /^\[[0-9a-f:.]+\]$/.test(hostname)
+  const validHost = /^[a-z0-9._-]+$/.test(hostname) || /^\[[0-9a-f:.]+\]$/.test(hostname)
   if (!validHost) return null
 
   const digits = port?.[1] ?? ''
@@ -105,8 +104,7 @@ export function serverTransport(connection: ServerConnection): ApiTransport {
 
   return {
     url: (path: string) => `${connection.baseUrl}${path}`,
-    headers: (): Record<string, string> =>
-      token ? { Authorization: `Bearer ${token}` } : {},
+    headers: (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}),
     // The OS audio player and CarPlay's image loader cannot send a header.
     mediaParams: (): Record<string, string> => (token ? { token } : {}),
   }

@@ -27,15 +27,14 @@ const SILENT = new Set([
   'reset',
 ])
 
-const unreachable = (name) => () => {
+const unreachable = name => () => {
   throw new Error(
     `react-native-track-player.${name} was called in the web bundle. ` +
       'On web, playback belongs to the web engine behind the PlaybackEngine port.',
   )
 }
 
-const silent = (name) => () =>
-  name === 'addEventListener' ? { remove() {} } : Promise.resolve()
+const silent = name => () => (name === 'addEventListener' ? { remove() {} } : Promise.resolve())
 
 const handler = {
   get: (_target, prop) => {

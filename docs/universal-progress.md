@@ -49,7 +49,7 @@ The plan's four phase 1 commands. Run at 06:38, on `35e6ab6`.
 | `npm run check` | **pass** — 1085 tests, 94 files (baseline on `main` was 1043) |
 | `npm run check:mobile` | **pass** — clean |
 | `grep -rn "'/api/" apps/web/src apps/mobile/src \| grep -v packages` | **pass** — no matches; every route string is in the package |
-| `npx playwright test verify/flows --project=desktop --project=phone` | **not run** — written, 18 tests, collects at both widths; needs a server with a library |
+| `npx playwright test verify/flows --project=desktop --project=phone` | **pass** — 18 tests at both widths, on the Mac, 2026-09-12. See *The fourth gate, run* below. |
 
 `npm run build` was also run at each commit, since `npm run check` does not
 build the web bundle and a broken Vite build would not have shown up otherwise.
@@ -112,11 +112,107 @@ All recorded in the commit messages that made them. In summary:
 
 ### Phases 2 and 3
 
-**Not started.** Both gates need a Mac: phase 2 requires `expo run:ios`,
-`expo run:android` and `maestro test`, and phase 3 requires Maestro for the
-offline and devices flows. Starting them here would produce branches that
-cannot be shown to be green, against a ground rule that says commit only on
-green gates.
+**Not started at the time this was written** — both gates need a Mac: phase 2
+requires `expo run:ios`, `expo run:android` and `maestro test`, and phase 3
+requires Maestro for the offline and devices flows. Starting them there would
+have produced branches that cannot be shown to be green, against a ground rule
+that says commit only on green gates.
+
+They were begun later in the same run, as far as a container could take them.
+See the two sections below.
+
+---
+
+## The fourth gate, run — on the Mac, 2026-09-12
+
+Commit `17f4571` on `universal/phase-1`. The flow suite had never met a running
+app; this is what happened when it did.
+
+**All four phase 1 gates are now green on one commit**, so phase 1 is done.
+
+| Command | Result |
+|---|---|
+| `npm run check` | **pass** — 94 files, 1085 passed, 1 skipped |
+| `npm run check:mobile` | **pass** — clean |
+| `grep -rn "'/api/" apps/web/src apps/mobile/src \| grep -v packages` | **pass** — no matches |
+| `npm run verify:flows` | **pass** — 18 passed, desktop and phone, stable over three runs |
+
+`npm run build` was run too, since `npm run check` does not build the web bundle.
+
+### What the gate found
+
+Three faults, every one of them in the tests. No product code was touched and
+nothing about how the app looks or behaves changed. The question the runbook
+asks — real regression from the `packages/client` move, or a selector guessed
+by someone who never saw the app run — came back "selector" all three times,
+and the evidence for that is below rather than asserted.
+
+1. **The gate command could not have worked.** `playwright test verify/flows`
+   looks for a config in the working directory and there is none at the root,
+   so it ran with defaults and failed with *no such project: available
+   projects: ""*. It now passes `-c verify/playwright.config.ts`.
+
+2. **A song could not be started, at either width, for two different reasons.**
+   Above the 820 breakpoint `.song-index-play` is `display: none` until
+   `.song-row:hover`, so Playwright waited on a button with no box. Below 820
+   that button is not hidden but *absent* — the phone has no index column,
+   `showIndex={!isMobile}` — and the row itself is the control. Both now go
+   through one `playSong` helper.
+
+3. **"The audio is really advancing" could never have been true.** It read
+   `document.querySelector('audio').currentTime`. There are no `<audio>`
+   elements in the document at all: `engine.ts` builds its two with
+   `new Audio()` and never appends them, so the selector was always null and
+   the value always 0. Instrumenting the page confirmed it — zero elements, at
+   both widths, with no console errors. It now reads the scrubber, which is the
+   engine's `currentTime` and also the number a person can see: 0 → 4.7s at
+   1280, 0 → 5.0s at 375.
+
+So the answer to open question 4 — is the type checker plus 1043 existing tests
+enough evidence that phase 1 changed no behaviour — is now better than it was.
+The 27 moved query hooks are exercised end to end: the library loads, searches
+and sorts, a love survives a reload, playlists and settings load, a song plays
+from a stream URL built by `packages/client`, and Next moves the queue.
+
+### The dev library, and one failure that was not a fault
+
+`reversing the sort changes which song is first` failed at both widths on the
+first run and then passed, without the test changing. Worth writing down,
+because the difference was the library and not the app.
+
+The thirteen songs live in the main checkout (`library/` and `data/`, the
+legacy in-repo location), not at the `~/Music/selfmp3-dev` that
+`SELFMP3_PROFILE=dev` points at — and a git worktree has no `library/` of its
+own, so `npm run dev` from here came up empty. Copying the audio across and
+letting the server rescan produced thirteen songs whose `addedAt` are all
+*one* value, since they were scanned in a single 225 ms batch. The default
+sort is `addedAt`, and reversing a stable sort whose keys are all equal
+cannot change which song is first.
+
+Copying `data/selfmp3.db` into the profile's data directory as well fixed it:
+the real dev library has twelve distinct timestamps across its thirteen songs,
+and song paths are stored relative to the library folder, so the database
+works unchanged against the copy. The original checkout's `library/` and
+`data/` were not modified — the flows love songs and edit playlists, which is
+exactly what the profile mechanism exists to keep away from real data.
+
+**Setup for the next session**, since this is not in the repository and cannot
+be:
+
+```
+~/Music/selfmp3-dev                             the thirteen songs (+ .lrc)
+~/Library/Application Support/selfmp3-dev/      selfmp3.db, covers/, lyrics/
+```
+
+Both are copies of the main checkout's `library/` and `data/`. With them in
+place `npm run dev` works from any worktree, and `npm run verify:flows` is
+green.
+
+One thing to know when running these by hand: a server was already listening
+on 4600 when this started — `npm run start` from the main checkout, on the
+real library — and the dev server lost the bind race silently, so the flows
+would have run against the real collection. Xiao confirmed it could be
+stopped. Check what owns 4600 before trusting a green run.
 
 ---
 
@@ -211,6 +307,206 @@ stub because Metro cannot evaluate it. It was used in one place, to build a
 stream URL, so it became injected wiring in the same shape the engine already
 uses. The spike's stub is unnecessary here for the same reason the engine's
 was: the tie to the web app was one function, and naming it made it go away.
+
+---
+
+## The reference set — on the Mac, 2026-09-12
+
+Commit `6d187ed`, on `main`. 58 captures of the old web app under
+`docs/reference/fb882e0/`: 30 at 1280, 28 at 375. Reproduce with
+`npm run dev` and then `npm run verify:reference`.
+
+This was the other thing a container could not do, and phases 2 to 4 are
+checked against it. It is a script — `verify/reference.spec.ts` — rather than a
+session with a screenshot key, so a single state can be recaptured later
+without redoing the set by hand.
+
+### Three things that had to be pinned
+
+Each was found by getting it wrong and looking at the result.
+
+1. **The accent is a server setting.** The capture that demonstrates changing it
+   left the library on the new colour, so the second width was photographed on
+   that instead — 1280 came out pink and 375 blue. It is now fixed for the run
+   and restored afterwards. The set is at hue **330**, which is what the dev
+   library is actually set to; the plan's token test resolves at 268, which is a
+   different question.
+2. **Rows reveal their controls on hover**, and dismissing the resume toast
+   leaves the pointer exactly on the bottom row — so "at rest" was captured with
+   one row hovered. The pointer is parked on the header before every shot.
+3. **`lyricsRomanization` is stored, and this library has it on**, so the lyrics
+   capture and the romanisation capture were the same image under two names.
+   They are now taken as off and then on, whichever way the library is set.
+
+Settings scrolls an inner container rather than the window, so `settings-top`
+and `settings-bottom` were also the same image until that was fixed.
+
+### The seeded library
+
+`verify/reference/seed.ts` adds what the plan's table needs and a thirteen-song
+library with no playlists cannot show: a manual list, a smart list whose rules
+can be opened, an empty list, and a second tag so that "one tag filtered, one
+excluded" is a real state rather than a filter and an empty result. It is
+idempotent and everything it creates is named `Reference — …`.
+
+### Not captured, and why
+
+- **Sign-in and onboarding.** Only in the cloud build (`VITE_CLOUD=1`), and
+  "waiting" and "code entry" mean signing in to Google. Credentials are a
+  stop-and-ask in the runbook, so these are left for Xiao.
+- **The remote device chip.** Needs a second device actually playing; one
+  machine cannot produce it honestly. The devices popover and the resume toast,
+  the rest of that row, are both captured.
+- **Volume (compact).** There is no such surface: the desktop has an inline
+  slider, and the phone has no volume control because a phone's volume is its
+  own.
+- **A truly empty Playlists screen.** Faked by removing the three seeded
+  playlists and putting them straight back; it only ever removes those three.
+
+### The dev library after all this
+
+Left exactly as it was found — accent 330, theme dark, romanisation on — plus
+the seeded playlists and the `reference` tag, which are meant to stay so the
+set stays reproducible. The real `library/` and `data/` in the main checkout
+were never written to.
+
+---
+
+## Phase 2, on the Mac — 2026-09-12
+
+Nine commits on `universal/phase-2`, `48695a5` through `66b7776`, on top of a
+merge of `main`. **Done, bar `expo run:android`** — this Mac has no Android SDK
+and Xiao chose not to install one.
+
+### Gates
+
+| Command | Result |
+|---|---|
+| `npm run check:app` | **pass** |
+| `npm run test` | **pass** — 96 files, 1105 passed, 1 skipped |
+| token parity (`packages/client` theme) | **pass** — 23 tests |
+| `npx expo export -p web` | **pass** — 1.7MB |
+| `npx expo run:ios` | **pass** — Build Succeeded, 0 errors |
+| `maestro test .maestro/smoke.yaml` | **pass** — iPhone 17 Pro, iOS 26.5 |
+| `verify/flows --project=phone` vs `apps/app` | **6 passed, 3 skipped** (reasons below) |
+| `verify/flows` vs `apps/web` | **pass** — 18, unchanged |
+| `npm run check:app` (jest-expo) | **pass** — 7 component tests, now part of the same command |
+| `npx expo run:android` | **not run** — no Android SDK on this Mac; Xiao chose not to install one |
+
+The iOS build is also the device half of spike check 2: Unistyles,
+`react-native-nitro-modules` and track-player compile into one dev client.
+
+### What was built
+
+- **`src/shell`** — the one place that reads a width. Under 820 the screen
+  fills the display with a mini player and a tab bar; at 820 and above a
+  sidebar runs down the left and a player bar across the foot. The screen is
+  `children` either way, so dragging a browser window across the breakpoint
+  swaps the chrome without remounting it. `BREAKPOINT` is a token in
+  `packages/client` beside the colours.
+- **`src/ports`** — `secrets`, `prefs`, `keyboard`, plus `cloudPlatform` and
+  `car/` moved in from where they were.
+- **`src/features/library`** — the screen, and `library.model.ts` behind it
+  with its own vitest test.
+- **The foundations as lint rules**, which is how three of the ports were
+  found.
+
+### Four bugs the Mac found, which a container could not
+
+1. **A sheet made the app invisible.** Every sheet was its own `Modal`, and a
+   `Modal` on iOS is its own window. Presenting a second one after a first had
+   been dismissed took the app's whole view tree out of the accessibility
+   hierarchy: the list, the tab bar and the mini player stayed on screen and
+   became unreachable to VoiceOver and to anything driving the app. Opening
+   the sort sheet and then a song's menu is exactly that sequence —
+   `maestro hierarchy` showed six nodes, all of them the status bar. Sheets are
+   now drawn by one host at the root of the shell, with no windows at all,
+   which is also the host the web needs for `Popover` in phase 4.
+2. **`expo-secure-store` throws on web.** It resolves and then fails on use, so
+   the app accepted a server address, said it had found thirteen songs, and
+   forgot on reload. Now the `secrets` port.
+3. **The accent could not be read or saved on web.** It is a device-local
+   preference in a file, and `expo-file-system` is stubbed out of the web
+   bundle, so the picker appeared to work and forgot. Now the `prefs` port; the
+   web comes up in the same colour as the phone.
+4. **`SongRow` was a button containing buttons.** `react-native-web` renders
+   `accessibilityRole="button"` as a real `<button>`, so every row wrapped its
+   love and ⋯ controls in one — invalid HTML, two hydration errors per row. The
+   row is a container now, as the web app has always drawn it.
+
+### The three skipped flows, and why
+
+- **Playback, twice.** `react-native-track-player` has no web implementation
+  this repo will take, so the web bundle stubs it. The web engine is phase 3's
+  `PlaybackEngine` port. These are phase 3's gate.
+- **The Mac's settings.** The phone's Settings carries server, downloads,
+  appearance and about; crossfade and what counts as a play arrive with phase 4.
+
+### Finished after that was written
+
+- **Every screen has a folder.** Playlists, playlist detail, now playing,
+  settings, sign-in and onboarding joined library in `src/features/*`; each
+  route file is one line. `playlists.model.ts` came with the move, carrying the
+  one rule that screen has — pinned lists above the alphabet rather than into
+  it, and names compared by locale rather than by code point, which is not a
+  subtlety in a library that is mostly Japanese.
+- **The three primitives.** `Popover` is one component with two shapes, anchored
+  above the breakpoint and a `Sheet` below it, and the caller does not know
+  which it got. `Select` is built on it and the library's sort control is the
+  first user — checked at both widths, a sheet at 375 and a panel anchored under
+  the control at 1280. `Tooltip` is a `.web.tsx` pair that draws nothing on a
+  phone.
+- **`SongList`, with a `FlatList` inside it.** See below: FlashList was tried
+  and is not usable yet.
+- **jest-expo**, folded into `npm run check:app`.
+
+### FlashList was tried, and is not in
+
+The Stack table picks FlashList v2, so it went in first. It draws correctly and
+scrolls well on RN 0.86 — and on the phone it breaks recycled rows. After a
+data change (filtering by a tag and clearing it is enough) the cells keep their
+positions and their testIDs and stop exposing any accessible content at all:
+`maestro hierarchy` shows thirteen rows, correctly placed, every one empty. A
+long press stops opening a song's menu, and VoiceOver reads an empty row where
+a song is plainly drawn. The smoke flow passes with `FlatList` and fails at
+exactly that step with FlashList.
+
+The plan allowed for this the other way round — "if it falls short on web,
+`SongList.web.tsx` uses `FlatList` and nothing else changes" — so the answer
+has the same shape: the component stays, the list inside it is a `FlatList`,
+and revisiting is a one-file change once FlashList fixes recycled-cell
+accessibility on the New Architecture. **This is one for Xiao to know about
+rather than decide**: nothing is blocked by it.
+
+### What phase 2 still owes
+
+- `expo run:android`, which needs an SDK this Mac does not have.
+- Model files for the five screens that moved without one. Now playing above
+  all deserves one, and it is being rewritten in phase 4 anyway, which is the
+  moment to write it rather than now.
+
+### Running it
+
+```
+npm run dev                                   # 4600 / 4601
+cd apps/app && npx expo start --dev-client --port 8095
+xcrun simctl openurl booted \
+  "selfmp3://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8095"
+maestro test .maestro/smoke.yaml
+```
+
+For the web target and its flows, the server needs to allow the origin and the
+app needs to be told where the Mac is:
+
+```
+SELFMP3_CORS_ORIGINS=http://localhost:8090 npm run dev
+cd apps/app && npx expo start --web --port 8090
+SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4600 \
+  npx playwright test -c verify/playwright.config.ts flows --project=phone
+```
+
+Ports 8081 and 8082 are taken by other worktrees' Metro instances on this Mac,
+which is why these are 8090 and 8095.
 
 ---
 

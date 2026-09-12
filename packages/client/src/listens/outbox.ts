@@ -123,9 +123,7 @@ export function createListenOutbox(store: OutboxStore): ListenOutbox {
         if (waiting.length === 0) return 0
         const result = await flushOutbox(waiting, send)
         const kept = new Set(result.remaining.map(event => event.id))
-        const handled = new Set(
-          waiting.filter(event => !kept.has(event.id)).map(event => event.id),
-        )
+        const handled = new Set(waiting.filter(event => !kept.has(event.id)).map(event => event.id))
         await change(events => events.filter(event => !handled.has(event.id)))
         return result.sent
       } finally {

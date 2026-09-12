@@ -1,20 +1,18 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
 import { Stack, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TrackPlayer from 'react-native-track-player'
-import { CarProvider } from '../src/car/CarProvider'
+import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
+import { Shell as Frame } from '../src/shell/Shell'
 import { AccentProvider } from '../src/ui/accent'
-import { BottomNav } from '../src/ui/components/BottomNav'
-import { MiniPlayer } from '../src/ui/components/MiniPlayer'
 import { colors } from '@selfmp3/client'
 
 /**
@@ -88,7 +86,7 @@ function Shell(): ReactNode {
   const chrome = !FULL_SCREEN_ROUTES.includes(pathname) && status === 'ready'
 
   return (
-    <View style={styles.root}>
+    <Frame chrome={chrome}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -101,19 +99,6 @@ function Shell(): ReactNode {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
       </Stack>
-      {chrome ? (
-        <>
-          <MiniPlayer />
-          <BottomNav />
-        </>
-      ) : null}
-    </View>
+    </Frame>
   )
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface0,
-  },
-})

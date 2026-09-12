@@ -178,7 +178,9 @@ added, nothing else. That line compiles, so the interface derived from the
 engine has not drifted from it. The assertion was checked to bite by adding a
 method to the port and watching it fail.
 
-`OfflineStore` names only the storage, not the downloading. The two apps look
+`OfflineStore` is proved the same way, by the web offline code moved to
+`apps/app/src/ports/offline.web.ts`. It names only the storage, not the
+downloading. The two apps look
 very different here, but that difference is not platform — the queue simply got
 written twice. Ordering, progress and failure handling are policy and belong in
 the one `OfflineProvider` above the port.
@@ -199,8 +201,16 @@ those two models is the hard part of phase 3, getting it wrong breaks playback
 on the phone specifically, and nothing here can tell which way is right. That
 is a simulator's answer, not a type checker's.
 
-So: interfaces and the web half, proved as far as they can be proved; the
-native half left for the Mac with the question written down.
+So: both interfaces and both web halves, proved as far as they can be proved;
+the native halves left for the Mac with the question written down.
+
+One thing the offline move settled in passing. `audioCache.ts` had a single
+import from the web app — `appPath`, from the one module in `apps/web` that
+reads Vite's `import.meta.env`, which is exactly the module the spike had to
+stub because Metro cannot evaluate it. It was used in one place, to build a
+stream URL, so it became injected wiring in the same shape the engine already
+uses. The spike's stub is unnecessary here for the same reason the engine's
+was: the tie to the web app was one function, and naming it made it go away.
 
 ---
 

@@ -27,6 +27,7 @@ import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { TagEditor } from '../../ui/components/TagEditor'
+import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useLibraryModel } from './library.model'
@@ -51,9 +52,14 @@ export function LibraryScreen(): ReactNode {
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
-  const { filter, songs, visible, songIds, tags, heading } = model
+  const { filter, songs, visible, songIds, tags, heading, includeTag } = model
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
+  // The ⋯ the menu was opened from, so at desktop width it opens beside it.
+  const menuAnchorRef = useRef<View | null>(null)
+  // The dashed + in a row's tag column opens the same picker the menu does.
+  const [taggingSong, setTaggingSong] = useState<Song | null>(null)
+  const tagById = useMemo(() => new Map(tags.map(tag => [tag.id, tag])), [tags])
   // Holding a chip opens its editor, as on the web's phone strip. A sheet on a
   // phone; above the breakpoint it opens beside the strip.
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
@@ -93,14 +99,35 @@ export function LibraryScreen(): ReactNode {
           if (selection.click(item.id, modifiersOf(event))) return
           player.playFrom(songIds, index)
         }}
-        onMore={() => setMenuSong(item)}
+        onMore={anchor => {
+          menuAnchorRef.current = anchor
+          setMenuSong(item)
+        }}
         onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
         selecting={selection.active}
         selected={selection.has(item.id)}
         onToggleSelect={() => selection.toggle(item.id)}
+        index={index}
+        tags={item.tagIds.flatMap(id => {
+          const tag = tagById.get(id)
+          return tag ? [tag] : []
+        })}
+        onToggleTag={includeTag}
+        onEditTags={() => setTaggingSong(item)}
       />
     ),
-    [artFor, currentId, playing, songIds, downloaded, player, toggleLoved, selection],
+    [
+      artFor,
+      currentId,
+      playing,
+      songIds,
+      downloaded,
+      player,
+      toggleLoved,
+      selection,
+      tagById,
+      includeTag,
+    ],
   )
 
   return (
@@ -322,8 +349,11 @@ export function LibraryScreen(): ReactNode {
         onClose={() => setEditingTag(null)}
       />
 
+      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} />
+
       <SongMenu
         song={menuSong}
+        anchorRef={menuAnchorRef}
         onClose={() => setMenuSong(null)}
         onStartSelecting={song => selection.enter(song.id)}
       />

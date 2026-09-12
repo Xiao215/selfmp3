@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import type { View as RNView } from 'react-native'
 import { formatBytes, type Song } from '@selfmp3/shared'
 import { clientApi, colors, isDownloaded, space } from '@selfmp3/client'
 import { useAddToPlaylist, useDeleteSong, useLibrary, usePatchSong } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
+import { useLayout } from '../../shell/useLayout'
 import {
   CheckSquare,
   CloudDownload,
@@ -18,6 +20,7 @@ import {
   Trash,
   X,
 } from './Icons'
+import { Popover } from './Popover'
 import { Sheet, SheetItem } from './Sheet'
 import { SongDetails } from './SongDetails'
 import { TagPicker } from './TagPicker'
@@ -40,9 +43,15 @@ export function SongMenu({
   song,
   onClose,
   onStartSelecting,
+  anchorRef,
 }: {
   song: Song | null
   onClose: () => void
+  /**
+   * The ⋯ that opened it. At desktop width the menu hangs off it, as the web's
+   * does, and does not need to name the song; without one it is a sheet.
+   */
+  anchorRef?: RefObject<RNView | null>
   /**
    * Where the list supports it, "Select" starts selection mode with this song
    * ticked — the web's third way in, and the only one a held finger has.
@@ -50,6 +59,7 @@ export function SongMenu({
   onStartSelecting?: (song: Song) => void
 }): ReactNode {
   const { data: library } = useLibrary()
+  const { wide } = useLayout()
   const [opened, setOpened] = useState<{ kind: 'tags' | 'details'; songId: number } | null>(null)
   // The song as the library has it now, so a dialog opened from the menu shows
   // the tags or the play count after a change rather than a snapshot.
@@ -58,25 +68,47 @@ export function SongMenu({
 
   return (
     <>
-      <Sheet
-        testID="song-menu"
-        open={song !== null}
-        onClose={onClose}
-        title={song?.title}
-        subtitle={song ? song.artist || 'Unknown artist' : undefined}
-      >
-        {song ? (
-          <Items
-            song={song}
-            onClose={onClose}
-            onStartSelecting={onStartSelecting}
-            onOpen={kind => {
-              setOpened({ kind, songId: song.id })
-              onClose()
-            }}
-          />
-        ) : null}
-      </Sheet>
+      {wide && anchorRef ? (
+        <Popover
+          open={song !== null}
+          onClose={onClose}
+          anchorRef={anchorRef}
+          width={240}
+          testID="song-menu"
+        >
+          {song ? (
+            <Items
+              song={song}
+              onClose={onClose}
+              onStartSelecting={onStartSelecting}
+              onOpen={kind => {
+                setOpened({ kind, songId: song.id })
+                onClose()
+              }}
+            />
+          ) : null}
+        </Popover>
+      ) : (
+        <Sheet
+          testID="song-menu"
+          open={song !== null}
+          onClose={onClose}
+          title={song?.title}
+          subtitle={song ? song.artist || 'Unknown artist' : undefined}
+        >
+          {song ? (
+            <Items
+              song={song}
+              onClose={onClose}
+              onStartSelecting={onStartSelecting}
+              onOpen={kind => {
+                setOpened({ kind, songId: song.id })
+                onClose()
+              }}
+            />
+          ) : null}
+        </Sheet>
+      )}
 
       <TagPicker
         song={opened?.kind === 'tags' ? openedSong : null}

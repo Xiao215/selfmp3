@@ -1,26 +1,47 @@
-import { memo, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import {
+  colors,
+  HIT_TARGET,
+  motion,
+  oklchToHexAlpha,
+  radius,
+  space,
+  tagColors,
+  tempoMark,
+  type,
+} from '@selfmp3/client'
+import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { oklchToHexAlpha, colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
-import { Downloaded, Heart, More } from './Icons'
+import { EnergyWave } from './EnergyWave'
 import { Equalizer } from './Equalizer'
+import { Downloaded, Heart, More, Play, Plus } from './Icons'
+
+/** Past this width the album leaves the second line for a column of its own. */
+const ALBUM_COLUMN_WIDTH = 1160
 
 /**
- * One song in a list: the web's `.song-row`, as it is on a phone.
+ * One song in a list: the web's `.song-row`.
  *
- * With a finger there is no hover to reveal anything, so a tap plays, the ⋯
- * is always there at a finger-sized target, and holding the row opens the
- * same menu. The heart is the other control that stays: loving a song is the
- * one edit worth making from a list. Title, artist and length are the only
- * ink; everything else is quiet metadata or a control.
+ * Two shapes, as the web has. On a phone, with a finger and no hover: a tap
+ * plays, the heart and ⋯ are always there at a finger-sized target, and holding
+ * the row opens the same menu. At desktop width it is a table row: the
+ * position (or the equaliser, for the song that is loaded), the art, the title
+ * over the artist with the tempo and energy after it, the album in a column of
+ * its own once there is room, the tags, and the heart, length and ⋯.
  *
- * Memoised because the library list is long and re-renders on every progress
- * tick otherwise — the one place in this app where that actually matters.
+ * With a mouse, the controls that are actions rather than information — the
+ * play button over the number, the checkbox, the tag button, an unloved heart,
+ * the ⋯ — wait for the pointer, so a screen of songs reads as titles and not as
+ * a grid of grey icons. Only three things are ever ink: title, artist, length.
+ *
+ * Memoised because the list is long and re-renders on every progress tick
+ * otherwise — the one place in this app where that actually matters.
  */
 export const SongRow = memo(function SongRow({
   testID,
@@ -35,6 +56,10 @@ export const SongRow = memo(function SongRow({
   selecting = false,
   selected = false,
   onToggleSelect,
+  index,
+  tags,
+  onToggleTag,
+  onEditTags,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -46,19 +71,33 @@ export const SongRow = memo(function SongRow({
   playing?: boolean
   /** The press event comes through, so a list can read Shift and Cmd on the web. */
   onPress: (event: GestureResponderEvent) => void
-  /** The ⋯, and what a held finger opens. */
-  onMore?: () => void
+  /**
+   * The ⋯, and what a held finger opens. Handed the ⋯ itself, so at desktop
+   * width the menu can open beside it.
+   */
+  onMore?: (anchor: View | null) => void
   onToggleLoved?: () => void
   /**
-   * Selection mode is on, so the checkbox column is showing. The web app keeps
-   * the column hidden on a phone until then, rather than spending 34 points of
-   * every row on nothing; the row decides what a tap means via `onPress`.
+   * Selection mode is on, so the checkbox column is showing. On a phone the
+   * column is not there until then, rather than spending 34 points of every
+   * row on nothing; the row decides what a tap means via `onPress`.
    */
   selecting?: boolean
   selected?: boolean
   onToggleSelect?: () => void
+  /** Position in the list, shown at desktop width. */
+  index?: number
+  /** The song's tags, drawn as chips at desktop width. */
+  tags?: readonly Tag[]
+  /** A tag chip filters the library by that tag. */
+  onToggleTag?: (tagId: number) => void
+  /** The dashed + beside the chips. */
+  onEditTags?: () => void
 }): ReactNode {
   const accent = useAccent()
+  const { wide, dense, width } = useLayout()
+  const [hovered, setHovered] = useState(false)
+  const moreRef = useRef<View>(null)
   // The held-finger state, as on the web: the row gives a little under the
   // finger so something is visibly happening while the menu is on its way.
   const [scale] = useState(() => new Animated.Value(1))
@@ -70,119 +109,294 @@ export const SongRow = memo(function SongRow({
     }).start()
   }
 
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      {/*
-        The row is a container, and the thing you press is inside it — not the
-        other way round. On a phone either shape works; in a browser only this
-        one does. `react-native-web` renders `accessibilityRole="button"` as a
-        real `<button>`, so a row that was itself a button ended up with the
-        love and ⋯ buttons nested inside it, which is invalid HTML and which
-        React reports as a hydration error. The web app has always drawn it this
-        way — a `role="row"` with buttons as siblings — so this is the shape
-        both platforms were already asking for.
-      */}
-      <View
-        testID={testID}
-        // The same semantics the web app's row has had all along: the row is a
-        // row, and the controls inside it are buttons. `role` rather than
-        // `accessibilityRole` because React Native has no "row" of its own and
-        // ignores what it does not know, while react-native-web turns it into
-        // the real ARIA role — so the phone is unaffected and a browser gets a
-        // table it can navigate.
-        role="row"
-        style={[
-          styles.row,
-          active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },
-          // The web's `.song-row.is-selected`: a translucent accent that reads
-          // as picked on the dark UI.
-          selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
-          song.missing && styles.missing,
-        ]}
-      >
-        {selecting && onToggleSelect ? (
-          <Pressable
-            onPress={onToggleSelect}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: selected }}
-            accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
-            style={styles.select}
-          >
-            <Checkbox checked={selected} />
-          </Pressable>
-        ) : null}
+  const tint = [
+    active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },
+    // The web's `.song-row.is-selected`: a translucent accent that reads as
+    // picked on the dark UI.
+    selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
+    song.missing && styles.missing,
+  ]
 
-        <Pressable
-          onPress={onPress}
-          onLongPress={onMore}
-          onPressIn={() => press(true)}
-          onPressOut={() => press(false)}
-          delayLongPress={450}
-          accessibilityRole="button"
-          accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
-          accessibilityState={{ selected: active }}
-          style={({ pressed }) => [styles.main, pressed && styles.pressed]}
-        >
-          <View style={styles.art}>
-            <Cover uri={artUri} title={song.album || song.title} size={40} />
-            {active ? (
-              <View style={styles.playingOverlay}>
-                <Equalizer paused={!playing} size={12} />
+  if (!wide) {
+    return (
+      <Animated.View style={{ transform: [{ scale }] }}>
+        {/*
+          The row is a container, and the thing you press is inside it. In a
+          browser only this shape works: react-native-web renders a button as a
+          real <button>, and a row that was one would nest the heart and ⋯
+          inside it. The web has always drawn a role="row" with buttons as
+          siblings.
+        */}
+        <View testID={testID} role="row" style={[styles.row, ...tint]}>
+          {selecting && onToggleSelect ? (
+            <SelectBox song={song} selected={selected} onToggle={onToggleSelect} phone />
+          ) : null}
+
+          <Pressable
+            onPress={onPress}
+            onLongPress={onMore ? () => onMore(moreRef.current) : undefined}
+            onPressIn={() => press(true)}
+            onPressOut={() => press(false)}
+            delayLongPress={450}
+            accessibilityRole="button"
+            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            accessibilityState={{ selected: active }}
+            style={({ pressed }) => [styles.main, pressed && styles.pressed]}
+          >
+            <View style={styles.art}>
+              <Cover uri={artUri} title={song.album || song.title} size={40} />
+              {active ? (
+                <View style={styles.playingOverlay}>
+                  <Equalizer paused={!playing} size={12} />
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.text}>
+              <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
+                {song.title}
+              </Text>
+              <View style={styles.subtitleRow}>
+                {/* The web calls this "On this device", and draws exactly this. */}
+                {downloaded ? (
+                  <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+                ) : null}
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {song.artist || 'Unknown artist'}
+                  {song.album ? ` · ${song.album}` : ''}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          {onToggleLoved ? (
+            <Love song={song} onPress={onToggleLoved} size={HIT_TARGET} visible />
+          ) : null}
+
+          <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
+
+          {onMore ? (
+            <View ref={moreRef} collapsable={false}>
+              <Pressable
+                onPress={() => onMore?.(moreRef.current)}
+                accessibilityRole="button"
+                accessibilityLabel={`More actions for ${song.title}`}
+                style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+              >
+                <More size={16} color={colors.textMuted} />
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      </Animated.View>
+    )
+  }
+
+  // --- desktop width ---------------------------------------------------------
+
+  // With a mouse these wait for the pointer; a tablet at this width shows them.
+  const revealed = !dense || hovered
+  const albumColumn = width >= ALBUM_COLUMN_WIDTH
+  const features = song.features
+  const badges = features && (features.bpm != null || features.energy != null)
+  const controlSize = dense ? 34 : HIT_TARGET
+
+  return (
+    <View
+      testID={testID}
+      role="row"
+      style={[styles.rowWide, dense && hovered && styles.rowHovered, ...tint]}
+      onPointerEnter={dense ? () => setHovered(true) : undefined}
+      onPointerLeave={dense ? () => setHovered(false) : undefined}
+    >
+      {onToggleSelect ? (
+        <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
+          <SelectBox song={song} selected={selected} onToggle={onToggleSelect} />
+        </View>
+      ) : null}
+
+      <View style={styles.index}>
+        {active ? (
+          <Equalizer paused={!playing} size={14} />
+        ) : revealed && dense ? (
+          <Pressable
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${song.title}`}
+            style={styles.indexPlay}
+          >
+            <Play size={16} color={colors.textPrimary} />
+          </Pressable>
+        ) : (
+          <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
+        )}
+      </View>
+
+      <Pressable
+        onPress={onPress}
+        onLongPress={onMore ? () => onMore(moreRef.current) : undefined}
+        delayLongPress={450}
+        accessibilityRole="button"
+        accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+        accessibilityState={{ selected: active }}
+        style={styles.mainWide}
+      >
+        <Cover uri={artUri} title={song.album || song.title} size={40} />
+        <View style={styles.text}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.titleWide, active && { color: accent.accent }]} numberOfLines={1}>
+              {song.title}
+            </Text>
+            {song.missing ? <Text style={styles.badge}>FILE MISSING</Text> : null}
+          </View>
+          <View style={styles.subtitleRow}>
+            {downloaded ? (
+              <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+            ) : null}
+            <Text style={styles.artist} numberOfLines={1}>
+              {song.artist || 'Unknown artist'}
+            </Text>
+            {song.album && !albumColumn ? (
+              <Text style={styles.albumInline} numberOfLines={1}>
+                {' · '}
+                {song.album}
+              </Text>
+            ) : null}
+            {badges ? (
+              <View style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}>
+                <Text style={styles.subtitle}>·</Text>
+                {features.bpm != null ? (
+                  <Text style={styles.tempo}>{tempoMark(features.bpm)}</Text>
+                ) : null}
+                {features.energy != null ? <EnergyWave energy={features.energy} /> : null}
               </View>
             ) : null}
           </View>
+        </View>
+      </Pressable>
 
-          <View style={styles.text}>
-            <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
-              {song.title}
-            </Text>
-            <View style={styles.subtitleRow}>
-              {/* The web calls this "On this device", and draws exactly this. */}
-              {downloaded ? (
-                <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
-              ) : null}
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
-                {song.album ? ` · ${song.album}` : ''}
-              </Text>
-            </View>
-          </View>
-        </Pressable>
+      {albumColumn ? (
+        <Text style={styles.albumColumn} numberOfLines={1}>
+          {song.album}
+        </Text>
+      ) : null}
 
-        {onToggleLoved ? (
+      <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
+        {/* Below the album column's width the chips go; the button stays. */}
+        {albumColumn && tags
+          ? tags.map(tag => <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />)
+          : null}
+        {onEditTags ? (
           <Pressable
-            onPress={onToggleLoved}
+            onPress={onEditTags}
             accessibilityRole="button"
-            accessibilityLabel={
-              song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`
-            }
-            accessibilityState={{ selected: song.loved }}
-            style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+            accessibilityLabel={`Edit tags for ${song.title}`}
+            style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
           >
-            <Heart
-              size={16}
-              filled={song.loved}
-              color={song.loved ? colors.danger : colors.textMuted}
-            />
-          </Pressable>
-        ) : null}
-
-        <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
-
-        {onMore ? (
-          <Pressable
-            onPress={onMore}
-            accessibilityRole="button"
-            accessibilityLabel={`More actions for ${song.title}`}
-            style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
-          >
-            <More size={16} color={colors.textMuted} />
+            <Plus size={13} color={colors.textMuted} />
           </Pressable>
         ) : null}
       </View>
-    </Animated.View>
+
+      <View style={styles.actions}>
+        {onToggleLoved ? (
+          <Love
+            song={song}
+            onPress={onToggleLoved}
+            size={controlSize}
+            visible={revealed || song.loved}
+          />
+        ) : null}
+        <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
+        {onMore ? (
+          <View ref={moreRef} collapsable={false} style={{ opacity: revealed ? 1 : 0 }}>
+            <Pressable
+              onPress={() => onMore?.(moreRef.current)}
+              accessibilityRole="button"
+              accessibilityLabel={`More actions for ${song.title}`}
+              style={({ pressed }) => [
+                styles.controlWide,
+                { width: controlSize, height: controlSize },
+                pressed && styles.controlPressed,
+              ]}
+            >
+              <More size={16} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
   )
 })
+
+function SelectBox({
+  song,
+  selected,
+  onToggle,
+  phone = false,
+}: {
+  song: Song
+  selected: boolean
+  onToggle: () => void
+  phone?: boolean
+}): ReactNode {
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+      style={phone ? styles.select : styles.selectWide}
+    >
+      <Checkbox checked={selected} />
+    </Pressable>
+  )
+}
+
+function Love({
+  song,
+  onPress,
+  size,
+  visible,
+}: {
+  song: Song
+  onPress: () => void
+  size: number
+  visible: boolean
+}): ReactNode {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`}
+      accessibilityState={{ selected: song.loved }}
+      style={({ pressed }) => [
+        styles.controlWide,
+        { width: size, height: size, opacity: visible ? 1 : 0 },
+        pressed && styles.controlPressed,
+      ]}
+    >
+      <Heart size={16} filled={song.loved} color={song.loved ? colors.danger : colors.textMuted} />
+    </Pressable>
+  )
+}
+
+/** The web's small `.tag-chip`, in the tag's own hue. */
+function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
+  const palette = tagColors(tag.hue)
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={tag.name}
+      style={[styles.rowTag, { backgroundColor: palette.background }]}
+    >
+      <Text style={[styles.rowTagText, { color: palette.text }]} numberOfLines={1}>
+        {tag.name}
+      </Text>
+    </Pressable>
+  )
+}
 
 const styles = StyleSheet.create({
   row: {
@@ -195,6 +409,19 @@ const styles = StyleSheet.create({
     marginHorizontal: space.xs,
     borderRadius: radius.sm,
   },
+  /* `.song-row` at desktop width: 7 by 10, 12 between cells. */
+  rowWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    marginHorizontal: space.sm,
+    borderRadius: radius.sm,
+  },
+  rowHovered: {
+    backgroundColor: colors.surface1,
+  },
   /* The press target: everything from the cover to the end of the title. */
   main: {
     flex: 1,
@@ -204,6 +431,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 3,
     borderRadius: radius.sm,
+  },
+  mainWide: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
   },
   pressed: {
     backgroundColor: colors.surface1,
@@ -224,12 +458,35 @@ const styles = StyleSheet.create({
     fontSize: type.body,
     fontWeight: '600',
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
+  titleWide: {
+    flexShrink: 1,
+    color: colors.textPrimary,
+    fontSize: type.body,
+    fontWeight: '500',
+  },
+  badge: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    color: colors.warning,
+    backgroundColor: oklchToHexAlpha(0.36, 0.09, 78, 0.5),
+    overflow: 'hidden',
+  },
   subtitle: {
     color: colors.textMuted,
     fontSize: type.small,
     flexShrink: 1,
   },
-  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  /* The artist is what is scanned for, so it never shrinks; the album does. */
+  artist: { flexShrink: 0, color: colors.textMuted, fontSize: type.small },
+  albumInline: { flexShrink: 1, minWidth: 0, color: colors.textMuted, fontSize: type.small },
+  badges: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
+  tempo: { color: colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   playingOverlay: {
     position: 'absolute',
     top: 0,
@@ -249,9 +506,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* `.song-select` at desktop width: 24 wide, always in the layout. */
+  selectWide: {
+    width: 24,
+    height: 24,
+    marginLeft: -4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  index: { width: 28, alignItems: 'center', justifyContent: 'center' },
+  indexNumber: { color: colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  indexPlay: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  /* A fixed column, so it lines up down the page; the title takes the slack. */
+  albumColumn: {
+    flexBasis: '20%',
+    flexGrow: 0,
+    flexShrink: 0,
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
+  tagsColumn: { width: 180, paddingLeft: 20, overflow: 'hidden', flexWrap: 'nowrap' },
+  tagAdd: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.borderStrong,
+  },
+  rowTag: { borderRadius: 20, paddingVertical: 4, paddingHorizontal: space.sm },
+  rowTagText: { fontSize: 11 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {
     width: HIT_TARGET,
     height: HIT_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  controlWide: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.sm,
@@ -264,6 +566,13 @@ const styles = StyleSheet.create({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
     minWidth: 34,
+    textAlign: 'right',
+  },
+  durationWide: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+    minWidth: 40,
     textAlign: 'right',
   },
 })

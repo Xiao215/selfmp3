@@ -30,7 +30,9 @@ export function deviceRoutes(container: Container): Router {
 
   router.post(
     '/devices/heartbeat',
-    route({ body: DeviceHeartbeatSchema }, ({ body }): DeviceList => container.devices.heartbeat(body)),
+    route({ body: DeviceHeartbeatSchema }, ({ body }): DeviceList =>
+      container.devices.heartbeat(body),
+    ),
   )
 
   router.post(

@@ -12,7 +12,10 @@
   font-size: 13px;
   font-weight: 550;
   white-space: nowrap;
-  transition: background var(--dur-fast), border-color var(--dur-fast), transform 80ms;
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast),
+    transform 80ms;
 }
 
 .button:hover:not(:disabled) {
@@ -81,7 +84,9 @@
   height: 34px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .icon-button:hover:not(:disabled) {
@@ -127,7 +132,9 @@
   border-radius: 50%;
   background: var(--text-primary);
   color: var(--surface-0);
-  transition: transform var(--dur-fast), background var(--dur-fast);
+  transition:
+    transform var(--dur-fast),
+    background var(--dur-fast);
 }
 
 .play-button:active:not(:disabled) {
@@ -221,7 +228,9 @@ textarea:focus-visible {
   font-size: 12px;
   font-weight: 550;
   color: var(--text-muted);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .segmented-item:hover:not(.is-active):not(:disabled) {
@@ -265,7 +274,9 @@ textarea:focus-visible {
   height: 18px;
   border-radius: 50%;
   background: var(--text-secondary);
-  transition: transform var(--dur), background var(--dur);
+  transition:
+    transform var(--dur),
+    background var(--dur);
 }
 
 .toggle:checked {

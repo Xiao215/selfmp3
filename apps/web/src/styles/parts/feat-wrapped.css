@@ -12,7 +12,11 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background:
-    radial-gradient(120% 140% at 100% 0%, oklch(0.42 0.1 var(--accent-hue) / 0.55), transparent 60%),
+    radial-gradient(
+      120% 140% at 100% 0%,
+      oklch(0.42 0.1 var(--accent-hue) / 0.55),
+      transparent 60%
+    ),
     var(--surface-1);
   box-shadow: var(--shadow-2);
 }
@@ -169,11 +173,7 @@
   padding: 12px;
   margin-bottom: 10px;
   border-radius: var(--radius);
-  background: linear-gradient(
-    100deg,
-    oklch(0.3 0.06 var(--accent-hue) / 0.55),
-    transparent 85%
-  );
+  background: linear-gradient(100deg, oklch(0.3 0.06 var(--accent-hue) / 0.55), transparent 85%);
   border: 1px solid var(--border);
   transition:
     border-color var(--dur) var(--ease-out),

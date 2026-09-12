@@ -37,7 +37,10 @@ export function parseFilename(relativePath: string): { artist: string; title: st
   const base = path.basename(relativePath).replace(/\.[^.]+$/, '')
 
   const cleaned = base
-    .replace(/[([][^)\]]*(?:official|video|audio|lyric|lyrics|hd|hq|mv|m\/v|live|4k)[^)\]]*[)\]]/gi, '')
+    .replace(
+      /[([][^)\]]*(?:official|video|audio|lyric|lyrics|hd|hq|mv|m\/v|live|4k)[^)\]]*[)\]]/gi,
+      '',
+    )
     .replace(/\s+/g, ' ')
     .trim()
 

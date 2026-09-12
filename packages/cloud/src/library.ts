@@ -161,9 +161,7 @@ export function createCloudLibrary(
 
   /** The outbox, changed in one IndexedDB transaction, so two tabs never undo each other. */
   async function changeOutbox(change: (outbox: Outbox) => Outbox): Promise<Outbox> {
-    const next = (await store.update(OUTBOX_KEY, current =>
-      change(asOutbox(current)),
-    )) as Outbox
+    const next = (await store.update(OUTBOX_KEY, current => change(asOutbox(current)))) as Outbox
     if (replica) replica.outbox = next
     return next
   }
@@ -219,7 +217,8 @@ export function createCloudLibrary(
     const local = localChanges(r.outbox)
     const seen = latestStamp(r.base.snapshot)
     if (seen) r.clock.observe(seen)
-    for (const file of r.logs.values()) for (const change of file.changes) r.clock.observe(change.hlc)
+    for (const file of r.logs.values())
+      for (const change of file.changes) r.clock.observe(change.hlc)
     for (const change of local) r.clock.observe(change.hlc)
     r.library = replay(r.base.snapshot, r.logs.values(), local)
     await show(r)
@@ -253,7 +252,10 @@ export function createCloudLibrary(
     return keys
   }
 
-  async function fetchSnapshot(session: CloudSession, key: string): Promise<CloudSnapshot | 'gone'> {
+  async function fetchSnapshot(
+    session: CloudSession,
+    key: string,
+  ): Promise<CloudSnapshot | 'gone'> {
     const response = await session_.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
     return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))

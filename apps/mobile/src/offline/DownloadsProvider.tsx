@@ -39,10 +39,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     downloadQueue.setManifest(manifest.data ?? null)
   }, [manifest.data])
 
-  const value = useMemo<DownloadsContextValue>(
-    () => ({ state, queue: downloadQueue }),
-    [state],
-  )
+  const value = useMemo<DownloadsContextValue>(() => ({ state, queue: downloadQueue }), [state])
 
   return <DownloadsContext.Provider value={value}>{children}</DownloadsContext.Provider>
 }

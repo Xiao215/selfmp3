@@ -179,10 +179,10 @@ export function WrappedView() {
 
       <div className="wrapped-hero">
         {/*
-          * The top song's artwork, blurred well past recognition, as the hero's
-          * ground. It is the one image on the page and it is always the right
-          * one — decoration that is also data.
-          */}
+         * The top song's artwork, blurred well past recognition, as the hero's
+         * ground. It is the one image on the page and it is always the right
+         * one — decoration that is also data.
+         */}
         {hero && (
           <div
             className="wrapped-hero-art"
@@ -295,10 +295,7 @@ export function WrappedView() {
                     {song ? (
                       <Cover song={song} size={34} />
                     ) : (
-                      <span
-                        className="cover cover-placeholder"
-                        style={{ width: 34, height: 34 }}
-                      />
+                      <span className="cover cover-placeholder" style={{ width: 34, height: 34 }} />
                     )}
                     <span className="top-song-meta">
                       <span className="top-song-title">{entry.title}</span>

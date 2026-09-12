@@ -158,7 +158,8 @@ async function cloudAnswer<S extends z.ZodTypeAny>(
 export const api = {
   // --- library ------------------------------------------------------------
 
-  library: (connection: ServerConnection | null) => request(connection, 'GET', '/api/library', LibrarySchema),
+  library: (connection: ServerConnection | null) =>
+    request(connection, 'GET', '/api/library', LibrarySchema),
 
   libraryVersion: (connection: ServerConnection | null) =>
     request(
@@ -209,7 +210,8 @@ export const api = {
    * one route that stays open when a bearer token is configured, so a 200 here
    * proves the address is right even if the token is wrong.
    */
-  health: (connection: ServerConnection | null) => request(connection, 'GET', '/api/health', HealthSchema),
+  health: (connection: ServerConnection | null) =>
+    request(connection, 'GET', '/api/health', HealthSchema),
 
   settings: (connection: ServerConnection | null) =>
     request(connection, 'GET', '/api/settings', SettingsSchema),

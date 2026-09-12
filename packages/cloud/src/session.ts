@@ -84,7 +84,10 @@ export interface CloudSessionApi {
   ) => Promise<CloudResponse>
 }
 
-export function createCloudSession(platform: CloudPlatform, now = () => Date.now()): CloudSessionApi {
+export function createCloudSession(
+  platform: CloudPlatform,
+  now = () => Date.now(),
+): CloudSessionApi {
   const { doormanUrl, store } = platform
 
   /**

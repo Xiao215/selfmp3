@@ -18,7 +18,10 @@ describe('describeUserAgent', () => {
   it('names phones and browsers', () => {
     expect(describeUserAgent(IPHONE_SAFARI)).toEqual({ name: 'iPhone · Safari', kind: 'phone' })
     expect(describeUserAgent(IPHONE_CHROME)).toEqual({ name: 'iPhone · Chrome', kind: 'phone' })
-    expect(describeUserAgent(ANDROID_CHROME)).toEqual({ name: 'Android phone · Chrome', kind: 'phone' })
+    expect(describeUserAgent(ANDROID_CHROME)).toEqual({
+      name: 'Android phone · Chrome',
+      kind: 'phone',
+    })
   })
 
   it('names desktops and does not mistake Chrome for Safari', () => {

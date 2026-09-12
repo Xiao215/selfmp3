@@ -17,16 +17,7 @@ import { api } from '../lib/api.js'
 import { SmartRuleBuilder } from '../components/SmartRuleBuilder.js'
 import { SelectionBar } from '../components/SelectionBar.js'
 import { Cover } from '../components/Cover.js'
-import {
-  Check,
-  CheckSquare,
-  Grip,
-  Play,
-  Shuffle,
-  Sparkles,
-  Trash,
-  X,
-} from '../components/Icons.js'
+import { Check, CheckSquare, Grip, Play, Shuffle, Sparkles, Trash, X } from '../components/Icons.js'
 
 /**
  * One playlist.

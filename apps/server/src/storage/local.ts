@@ -103,7 +103,10 @@ export class LocalStorageDriver implements StorageDriver {
       if (Buffer.isBuffer(data)) {
         await fsp.writeFile(temp, data)
       } else {
-        await pipeline(data instanceof Readable ? data : Readable.from(data), fs.createWriteStream(temp))
+        await pipeline(
+          data instanceof Readable ? data : Readable.from(data),
+          fs.createWriteStream(temp),
+        )
       }
       await fsp.rename(temp, absolute)
     } catch (error) {

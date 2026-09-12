@@ -1,11 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import {
-  StatsRangeSchema,
-  UpdateSettingsSchema,
-  type Health,
-  type Stats,
-} from '@selfmp3/shared'
+import { StatsRangeSchema, UpdateSettingsSchema, type Health, type Stats } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { APP_VERSION } from '../config.js'
@@ -16,17 +11,14 @@ export function systemRoutes(container: Container): Router {
   /** Left unauthenticated so a monitor or launchd check does not need a token. */
   router.get(
     '/health',
-    route(
-      {},
-      (): Health => ({
-        ok: true,
-        version: APP_VERSION,
-        uptimeSeconds: Math.round(process.uptime()),
-        libraryPath: container.config.libraryDir,
-        storageDriver: container.storage.name,
-        songCount: container.songs.count(),
-      }),
-    ),
+    route({}, (): Health => ({
+      ok: true,
+      version: APP_VERSION,
+      uptimeSeconds: Math.round(process.uptime()),
+      libraryPath: container.config.libraryDir,
+      storageDriver: container.storage.name,
+      songCount: container.songs.count(),
+    })),
   )
 
   router.get(
@@ -48,9 +40,8 @@ export function systemRoutes(container: Container): Router {
 
   router.get(
     '/stats',
-    route(
-      { query: z.object({ range: StatsRangeSchema.default('30d') }) },
-      ({ query }): Stats => container.stats.build(query.range),
+    route({ query: z.object({ range: StatsRangeSchema.default('30d') }) }, ({ query }): Stats =>
+      container.stats.build(query.range),
     ),
   )
 

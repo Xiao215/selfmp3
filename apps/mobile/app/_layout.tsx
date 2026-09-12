@@ -92,7 +92,10 @@ function Shell(): ReactNode {
           animation: 'fade',
         }}
       >
-        <Stack.Screen name="now-playing" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen
+          name="now-playing"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
       {chrome ? (
         <>

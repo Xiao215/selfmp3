@@ -8,17 +8,7 @@ import { CLOUD } from '../lib/platform.js'
 import { queryKeys } from '../lib/queries.js'
 import { usePlayer } from '../player/PlayerProvider.js'
 import { Cover } from './Cover.js'
-import {
-  BarChart,
-  Inbox,
-  ListMusic,
-  Mic,
-  Music,
-  Search,
-  Settings,
-  Shuffle,
-  Tag,
-} from './Icons.js'
+import { BarChart, Inbox, ListMusic, Mic, Music, Search, Settings, Shuffle, Tag } from './Icons.js'
 
 /**
  * The ⌘K palette.
@@ -194,7 +184,10 @@ export function CommandPalette({
       })
     }
     for (const list of matchedPlaylists) {
-      entries.push({ key: `playlist-${list.id}`, run: () => void navigate(`/playlists/${list.id}`) })
+      entries.push({
+        key: `playlist-${list.id}`,
+        run: () => void navigate(`/playlists/${list.id}`),
+      })
     }
     for (const tag of matchedTags) {
       entries.push({ key: `tag-${tag.id}`, run: () => void navigate(`/?tag=${tag.id}`) })
@@ -456,9 +449,9 @@ export function CommandPalette({
         </div>
 
         {/*
-          * The keys are the whole point of a palette; saying so costs one row
-          * and saves everyone the guess.
-          */}
+         * The keys are the whole point of a palette; saying so costs one row
+         * and saves everyone the guess.
+         */}
         <footer className="palette-foot">
           <span>
             <kbd>↑</kbd>

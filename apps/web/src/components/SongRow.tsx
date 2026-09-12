@@ -155,7 +155,11 @@ export const SongRow = memo(function SongRow({
   const unavailable = !offline.serverReachable && !offline.isCached(song.id)
   const play = (): void => {
     if (unavailable) {
-      showToast(`“${song.title}” isn’t downloaded — it plays once your Mac is reachable.`, 'info', 3500)
+      showToast(
+        `“${song.title}” isn’t downloaded — it plays once your Mac is reachable.`,
+        'info',
+        3500,
+      )
       return
     }
     onPlay()
@@ -319,11 +323,7 @@ export const SongRow = memo(function SongRow({
         {song.album}
       </div>
 
-      <div
-        className="song-cell song-tags"
-        role="cell"
-        onClick={event => event.stopPropagation()}
-      >
+      <div className="song-cell song-tags" role="cell" onClick={event => event.stopPropagation()}>
         {song.tagIds.map(tagId => {
           const tag = tagById.get(tagId)
           return tag ? (

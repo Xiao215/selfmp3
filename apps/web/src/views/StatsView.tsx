@@ -151,7 +151,9 @@ export function StatsView() {
             <StatTile
               label="Current streak"
               value={`${stats.streakDays} ${stats.streakDays === 1 ? 'day' : 'days'}`}
-              hint={stats.longestStreakDays > 0 ? `best: ${stats.longestStreakDays} days` : undefined}
+              hint={
+                stats.longestStreakDays > 0 ? `best: ${stats.longestStreakDays} days` : undefined
+              }
             />
             <StatTile
               label="Never played"
@@ -234,7 +236,10 @@ export function StatsView() {
                       {song ? (
                         <Cover song={song} size={34} />
                       ) : (
-                        <span className="cover cover-placeholder" style={{ width: 34, height: 34 }} />
+                        <span
+                          className="cover cover-placeholder"
+                          style={{ width: 34, height: 34 }}
+                        />
                       )}
                       <span className="top-song-meta">
                         <span className="top-song-title">{entry.title}</span>

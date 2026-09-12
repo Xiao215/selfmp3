@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AppState, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { DoormanError, type CloudSession } from '@selfmp3/cloud'
 import { formatSignInCode, SignInCodeSchema } from '@selfmp3/shared'
@@ -151,7 +160,10 @@ export default function SignInScreen({
               <Text style={styles.blurb}>
                 Finish signing in, then come back here. Google will show you a short code.
               </Text>
-              <Button label="I have the code" onPress={() => setStage({ kind: 'code', error: null })} />
+              <Button
+                label="I have the code"
+                onPress={() => setStage({ kind: 'code', error: null })}
+              />
             </View>
           )}
 

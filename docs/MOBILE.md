@@ -1,12 +1,11 @@
 # The native app
 
 `apps/mobile` is an Expo (React Native) app for iOS and Android: a player and
-sync client for the same server the web app talks to, with CarPlay and Android
-Auto.
+sync client for the library in your bucket, with Android Auto.
 
 It exists because a PWA cannot do three things that matter in practice —
-reliable background audio on iOS, real offline files rather than a Cache API
-quota the OS may evict, and a car. Everything else it does, the web app already
+reliable background audio on iOS, and real offline files rather than a Cache API
+quota the OS may evict. Everything else it does, the web app already
 did; the shared zod schemas and pure helpers in `packages/shared` are used
 verbatim, not copied.
 
@@ -28,7 +27,6 @@ done without a Mac and an Android SDK.
 | **Offline** | Downloads to the app's document directory, resumable, with a persisted index, storage usage, and per-playlist or whole-library sync. A downloaded file is played from disk; anything else streams. |
 | **Opens offline** | The last `/api/library` response is cached to disk, so the app opens with a full library on a plane. |
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
-| **CarPlay** | A `CPListTemplate` hierarchy — Playlists, Albums, Artists, Recently added — over the system Now Playing template. |
 | **Android Auto** | See [Android Auto](#android-auto), which is the one place where the honest answer is "partly". |
 
 Settings holds the server address, the download controls and the storage
@@ -49,10 +47,9 @@ numbers.
 
 - macOS with Xcode 16 or newer, and its command line tools.
 - CocoaPods (`sudo gem install cocoapods`, or `brew install cocoapods`).
-- An Apple Developer account. A free account is enough to run on your own
-  phone for seven days at a time; a paid one ($99/year) is needed for a build
-  that lasts, and is required before Apple will even consider the CarPlay
-  entitlement.
+- An Apple ID. A free one is enough to run this on your own phone, seven days
+  at a time; a paid account ($99/year) is what makes a build last. This is a
+  personal app on the free path, which is also why there is no CarPlay.
 
 **Android**
 
@@ -121,54 +118,6 @@ debug one automatically, which is fine for sideloading onto your own phone.
 
 ---
 
-## CarPlay
-
-CarPlay support is real code, but it is gated behind an Apple entitlement.
-
-**What the app does.** `src/car/carplay.ts` builds a `CPListTemplate` stack from
-the same browse tree the rest of the app uses (`src/car/browseTree.ts`): a root
-list of Playlists, Albums, Artists and Recently added, each opening a child list,
-each song starting playback and pushing the system `CPNowPlayingTemplate`.
-Transport, artwork and the scrubber on that screen come from
-react-native-track-player's now-playing metadata, so there is nothing to draw.
-
-**What the config plugin does.** `plugins/withCarPlay.js` adds, at prebuild time:
-
-1. the `com.apple.developer.carplay-audio` entitlement,
-2. a `UIApplicationSceneManifest` declaring a single CarPlay scene, and
-3. `SelfMp3CarSceneDelegate.{h,m}` — a `CPTemplateApplicationSceneDelegate` that
-   hands the interface controller to `RNCarPlay` — written into the Xcode
-   project and added to the app target's compile sources.
-
-Only the CarPlay scene role is declared, so the phone UI keeps its existing
-non-scene lifecycle. That is the arrangement react-native-carplay expects.
-
-**Getting the entitlement.** Apple gates `carplay-audio` behind a request form:
-
-1. Sign in to your Apple Developer account and open
-   <https://developer.apple.com/contact/carplay/>.
-2. Choose "Audio" as the app type, give the bundle id (`com.selfmp3.app` unless
-   you changed it in `app.config.js`), and describe the app. A personal music
-   player for your own library is a legitimate answer; be plain about it.
-3. Wait. Days to weeks is normal, and a refusal is possible — Apple has
-   historically been reluctant with apps that are not going on the App Store.
-4. Once granted, the entitlement appears in your account's provisioning profile
-   and the next build picks it up.
-
-**Until then.** A build signed without the entitlement will not install on a
-device *if* the entitlement is requested and unavailable — Xcode fails with
-"Provisioning profile doesn't include the com.apple.developer.carplay-audio
-entitlement". To build in the meantime, remove `'./plugins/withCarPlay'` from
-the `plugins` array in `app.config.js` and re-run `npx expo prebuild --clean`.
-Everything except CarPlay is unaffected: `src/car/carplay.ts` checks whether the
-native module is there and does nothing when it is not, so the app itself needs
-no changes.
-
-**Testing without a car.** Xcode ships a CarPlay simulator: run the app in the
-iOS Simulator, then choose **I/O → External Displays → CarPlay**. It behaves
-closely enough to a real head unit for template work.
-
----
 
 ## Android Auto
 
@@ -194,7 +143,7 @@ filter at all, so Android Auto would not list the app.
 
 **What the app does instead.** `src/car/androidAuto.ts` wires up the two entry
 points RNTP *does* expose, resolving both against the same tested browse tree
-CarPlay uses:
+the browse tree serves:
 
 - `Event.RemotePlayId` — the car asks for a media id.
 - `Event.RemotePlaySearch` — voice search ("play Kind of Blue"). The parsed
@@ -241,7 +190,8 @@ apps/mobile
   src/player/             setup, the playback service, Song → Track mapping,
                           and the React glue
   src/offline/            the download queue, its pure index, the library cache
-  src/car/                the browse tree (pure), CarPlay, Android Auto
+  src/car/                the browse tree (pure), Android Auto
+  src/cloud/              the phone's half of @selfmp3/cloud's platform port
   src/ui/                 theme + StyleSheet components
   plugins/                config plugins run at prebuild time
 ```
@@ -300,13 +250,9 @@ npm run check:mobile       # both
 Its *pure* unit tests (`downloadIndex`, `browseTree`) do run in the root vitest
 suite, because they import nothing from React Native.
 
-**The `overrides` block in the root `package.json` needs explaining.** There are
-three of them and each fixes a real failure:
+**The `overrides` block in the root `package.json` needs explaining.** Each
+fixes a real failure:
 
-- `react-native-carplay: { react, react-native }` — react-native-carplay's last
-  release is from June 2024 and still declares `react@^17 || ^18`. Without
-  this, `npm install` fails with `ERESOLVE` for the *whole repository*. It
-  changes nothing about what is installed, only what npm is willing to accept.
 - `react` and `react-dom` pinned to `19.2.3` — the version Expo SDK 57 ships
   with. This is what keeps npm from installing a second copy of React nested
   under `apps/mobile`, which Metro would happily bundle alongside the root one,
@@ -329,10 +275,6 @@ silently resolve to the wrong version of a transitive dependency. The
 `overrides` above solve the duplication at its cause instead, so hierarchical
 lookup stays on and nested dependencies keep working.
 
-**`react-native-carplay` is linked on iOS only**, via
-`apps/mobile/react-native.config.js`. It ships an Android implementation, but it
-targets the Car App Library, which Android Auto does not accept for media apps —
-and its build script still references `jcenter()`, which no longer exists.
 
 **Regenerating `package-lock.json` was unavoidable.** Adding the mobile
 workspace on top of the existing lock fails with `ERESOLVE` however the
@@ -396,24 +338,21 @@ Xcode, no Android SDK.
   `packages/shared` and still pass unchanged after the move.
 - `npm run build` (shared + server + web): passes.
 - `npm run check:mobile`: `tsc --noEmit` with the real React Native, Expo,
-  track-player and CarPlay type definitions, plus ESLint with
+  track-player type definitions, plus ESLint with
   `eslint-config-expo` — both clean, zero errors and zero warnings. Every API
   used was checked against the actual `.d.ts` in `node_modules`, not from
   memory.
 - The new pure modules have unit tests: 20 for the download index, 17 for the
   browse tree, all passing in the root vitest run.
 - `npx expo prebuild --platform all --clean` runs to completion, and the output
-  was inspected: the CarPlay entitlement is in `selfmp3.entitlements`, the
-  CarPlay scene is in `Info.plist`, `SelfMp3CarSceneDelegate.m` is written and
-  registered in the Xcode project's Sources build phase,
-  `android:usesCleartextTraffic="true"` is in the release Android manifest.
+  was inspected: `android:usesCleartextTraffic="true"` is in the release
+  Android manifest, and the app icon is in the asset catalog.
 - Autolinking resolves as intended: `react-native-track-player` on both
-  platforms, `react-native-carplay` on iOS only.
+  platforms.
 - After a clean install there is exactly one copy on disk of `react`,
   `react-dom`, `react-native-reanimated` and `react-native-worklets`
   (`apps/mobile/node_modules` holds nothing but `@types`), and `npm ls` reports
-  no invalid peer ranges apart from react-native-carplay's stale declarations,
-  which the override exists to accept.
+  no invalid peer ranges.
 
 **Not verified, and it needs a device or a Mac**
 
@@ -428,8 +367,6 @@ Xcode, no Android SDK.
   a paused download survives the app being backgrounded.
 - Play/skip reporting reaching the server, and the play-count threshold feeling
   right in practice.
-- CarPlay: the entitlement (not requested), the scene delegate connecting, and
-  the list templates rendering on a head unit or in Xcode's CarPlay simulator.
 - Android Auto: that the app appears in the launcher, and that `RemotePlayId` /
   `RemotePlaySearch` fire as expected from the Assistant.
 - Whether Expo's `NSAllowsArbitraryLoads` and the cleartext manifest flag are

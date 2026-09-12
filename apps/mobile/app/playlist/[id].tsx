@@ -42,9 +42,7 @@ export default function PlaylistDetailScreen(): ReactNode {
     [downloads.index],
   )
 
-  const pendingBytes = manifest.data
-    ? bytesToDownload(downloads.index, manifest.data, songIds)
-    : 0
+  const pendingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (

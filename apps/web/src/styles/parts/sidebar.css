@@ -70,7 +70,9 @@
   color: var(--text-secondary);
   text-decoration: none;
   font-weight: 500;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
   text-align: left;
   width: 100%;
 }
@@ -212,7 +214,9 @@
   padding: 6px 5px;
   color: var(--text-muted);
   opacity: 0;
-  transition: opacity var(--dur-fast), color var(--dur-fast);
+  transition:
+    opacity var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .tag-row-action:last-of-type {

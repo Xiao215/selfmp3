@@ -47,11 +47,7 @@ import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
-import {
-  buildSnapshot,
-  publishRefusedMessage,
-  publishWouldLoseLibrary,
-} from './cloudSnapshot.js'
+import { buildSnapshot, publishRefusedMessage, publishWouldLoseLibrary } from './cloudSnapshot.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).

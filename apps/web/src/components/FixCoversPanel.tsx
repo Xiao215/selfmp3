@@ -82,10 +82,8 @@ export function FixCoversPanel({ missingArt }: { missingArt: number }) {
       {status && (status.status === 'done' || status.status === 'cancelled') && (
         <p className="notice notice-good">
           <span>
-            <CheckCircle size={15} />{' '}
-            {status.status === 'cancelled' ? 'Stopped. ' : ''}
-            Found artwork for {status.found} of {status.done}{' '}
-            {status.done === 1 ? 'song' : 'songs'}
+            <CheckCircle size={15} /> {status.status === 'cancelled' ? 'Stopped. ' : ''}
+            Found artwork for {status.found} of {status.done} {status.done === 1 ? 'song' : 'songs'}
             {status.done < status.total ? ` (${status.total - status.done} not checked)` : ''}.
           </span>
         </p>

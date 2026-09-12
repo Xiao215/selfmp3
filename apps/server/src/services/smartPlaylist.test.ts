@@ -47,10 +47,66 @@ function makeDb(): Database.Database {
   `)
 
   const rows = [
-    { id: 1, title: 'Midnight Drive', artist: 'Aurora Lane', album: 'Night', duration: 254, year: 2021, play_count: 12, loved: 1, has_art: 1, lyrics_kind: 'synced', added_at: "datetime('now','-2 days')", last_played_at: "datetime('now','-1 days')", missing: 0 },
-    { id: 2, title: 'Sunrise', artist: 'Aurora Lane', album: 'Night', duration: 190, year: 2021, play_count: 0, loved: 0, has_art: 1, lyrics_kind: 'none', added_at: "datetime('now','-40 days')", last_played_at: null, missing: 0 },
-    { id: 3, title: 'Nocturne Study', artist: 'Klara Feld', album: 'Etudes', duration: 420, year: 2019, play_count: 30, loved: 0, has_art: 0, lyrics_kind: 'plain', added_at: "datetime('now','-100 days')", last_played_at: "datetime('now','-90 days')", missing: 0 },
-    { id: 4, title: 'Gone Missing', artist: 'Ghost', album: '', duration: 100, year: null, play_count: 99, loved: 1, has_art: 0, lyrics_kind: 'none', added_at: "datetime('now')", last_played_at: null, missing: 1 },
+    {
+      id: 1,
+      title: 'Midnight Drive',
+      artist: 'Aurora Lane',
+      album: 'Night',
+      duration: 254,
+      year: 2021,
+      play_count: 12,
+      loved: 1,
+      has_art: 1,
+      lyrics_kind: 'synced',
+      added_at: "datetime('now','-2 days')",
+      last_played_at: "datetime('now','-1 days')",
+      missing: 0,
+    },
+    {
+      id: 2,
+      title: 'Sunrise',
+      artist: 'Aurora Lane',
+      album: 'Night',
+      duration: 190,
+      year: 2021,
+      play_count: 0,
+      loved: 0,
+      has_art: 1,
+      lyrics_kind: 'none',
+      added_at: "datetime('now','-40 days')",
+      last_played_at: null,
+      missing: 0,
+    },
+    {
+      id: 3,
+      title: 'Nocturne Study',
+      artist: 'Klara Feld',
+      album: 'Etudes',
+      duration: 420,
+      year: 2019,
+      play_count: 30,
+      loved: 0,
+      has_art: 0,
+      lyrics_kind: 'plain',
+      added_at: "datetime('now','-100 days')",
+      last_played_at: "datetime('now','-90 days')",
+      missing: 0,
+    },
+    {
+      id: 4,
+      title: 'Gone Missing',
+      artist: 'Ghost',
+      album: '',
+      duration: 100,
+      year: null,
+      play_count: 99,
+      loved: 1,
+      has_art: 0,
+      lyrics_kind: 'none',
+      added_at: "datetime('now')",
+      last_played_at: null,
+      missing: 1,
+    },
   ]
 
   for (const row of rows) {
@@ -62,21 +118,31 @@ function makeDb(): Database.Database {
   }
 
   // Set the relative dates properly now that the rows exist.
-  db.prepare("UPDATE songs SET added_at = datetime('now','-2 days'),  last_played_at = datetime('now','-1 days')  WHERE id = 1").run()
-  db.prepare("UPDATE songs SET added_at = datetime('now','-40 days'), last_played_at = NULL                        WHERE id = 2").run()
-  db.prepare("UPDATE songs SET added_at = datetime('now','-100 days'),last_played_at = datetime('now','-90 days')  WHERE id = 3").run()
-  db.prepare("UPDATE songs SET added_at = datetime('now'),            last_played_at = NULL                        WHERE id = 4").run()
+  db.prepare(
+    "UPDATE songs SET added_at = datetime('now','-2 days'),  last_played_at = datetime('now','-1 days')  WHERE id = 1",
+  ).run()
+  db.prepare(
+    "UPDATE songs SET added_at = datetime('now','-40 days'), last_played_at = NULL                        WHERE id = 2",
+  ).run()
+  db.prepare(
+    "UPDATE songs SET added_at = datetime('now','-100 days'),last_played_at = datetime('now','-90 days')  WHERE id = 3",
+  ).run()
+  db.prepare(
+    "UPDATE songs SET added_at = datetime('now'),            last_played_at = NULL                        WHERE id = 4",
+  ).run()
 
   db.prepare('INSERT INTO tags (id, name) VALUES (1, ?), (2, ?)').run('chill', 'classical')
   db.prepare('INSERT INTO song_tags VALUES (1, 1), (2, 1), (3, 2)').run()
 
   // Song 2 has not been analysed; song 3 was analysed but has no beat.
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO song_features (song_id, bpm, energy, loudness_lufs, key, camelot) VALUES
       (1, 124, 0.8, -9.5, 'A minor', '8A'),
       (3, NULL, 0.2, -22, 'E major', '12B'),
       (4, 128, 0.9, -8, 'A minor', '8A')
-  `).run()
+  `,
+  ).run()
 
   return db
 }
@@ -99,7 +165,9 @@ describe('compileSmartRules', () => {
   })
 
   it('matches text with contains', () => {
-    expect(run(db, { rules: [{ field: 'artist', op: 'contains', value: 'aurora' }] })).toEqual([1, 2])
+    expect(run(db, { rules: [{ field: 'artist', op: 'contains', value: 'aurora' }] })).toEqual([
+      1, 2,
+    ])
   })
 
   it('matches text with equals, case-insensitively', () => {
@@ -111,7 +179,9 @@ describe('compileSmartRules', () => {
   })
 
   it('negates with notContains', () => {
-    expect(run(db, { rules: [{ field: 'artist', op: 'notContains', value: 'Aurora' }] })).toEqual([3])
+    expect(run(db, { rules: [{ field: 'artist', op: 'notContains', value: 'Aurora' }] })).toEqual([
+      3,
+    ])
   })
 
   it('treats LIKE wildcards in user input as literal characters', () => {
@@ -173,7 +243,9 @@ describe('compileSmartRules', () => {
   })
 
   it('rejects a key that is not a Camelot code at the schema', () => {
-    expect(() => run(db, { rules: [{ field: 'key', op: 'is', value: 'A minor' } as never] })).toThrow()
+    expect(() =>
+      run(db, { rules: [{ field: 'key', op: 'is', value: 'A minor' } as never] }),
+    ).toThrow()
   })
 
   it('combines rules with AND', () => {

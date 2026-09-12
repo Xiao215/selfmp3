@@ -327,7 +327,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const toggle = useCallback(() => {
     void (async () => {
       const state = await TrackPlayer.getPlaybackState()
-      if (state.state === State.Playing || state.state === State.Buffering) await TrackPlayer.pause()
+      if (state.state === State.Playing || state.state === State.Buffering)
+        await TrackPlayer.pause()
       else await TrackPlayer.play()
     })()
   }, [])

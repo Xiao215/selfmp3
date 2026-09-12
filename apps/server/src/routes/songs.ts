@@ -166,16 +166,13 @@ export function songRoutes(container: Container): Router {
 
   router.post(
     '/songs/:id/loved',
-    route(
-      { params: ParamsWithId, body: z.object({ loved: z.boolean() }) },
-      ({ params, body }) => {
-        requireSong(params.id)
-        container.songs.patch(params.id, { loved: body.loved })
-        container.edits.songs([params.id], ['loved'])
-        container.bumpLibraryVersion()
-        return container.songs.byId(params.id)
-      },
-    ),
+    route({ params: ParamsWithId, body: z.object({ loved: z.boolean() }) }, ({ params, body }) => {
+      requireSong(params.id)
+      container.songs.patch(params.id, { loved: body.loved })
+      container.edits.songs([params.id], ['loved'])
+      container.bumpLibraryVersion()
+      return container.songs.byId(params.id)
+    }),
   )
 
   /**

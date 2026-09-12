@@ -1,13 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import type { ListRenderItem } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -111,11 +104,7 @@ export default function NowPlayingScreen(): ReactNode {
             </Pressable>
 
             <Pressable style={styles.playButton} onPress={player.toggle}>
-              <Glyph
-                name={player.isPlaying ? 'pause' : 'play'}
-                size={24}
-                color={colors.onAccent}
-              />
+              <Glyph name={player.isPlaying ? 'pause' : 'play'} size={24} color={colors.onAccent} />
             </Pressable>
 
             <Pressable hitSlop={10} onPress={player.next}>

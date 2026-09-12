@@ -30,9 +30,7 @@ const entry = (songId: number, patch: Partial<DownloadEntry> = {}): DownloadEntr
 const withEntries = (...entries: DownloadEntry[]): DownloadIndex =>
   entries.reduce(addEntry, EMPTY_INDEX)
 
-const manifest = (
-  entries: { id: number; sizeBytes: number; etag: string }[],
-): SyncManifest => ({
+const manifest = (entries: { id: number; sizeBytes: number; etag: string }[]): SyncManifest => ({
   version: 1,
   songCount: entries.length,
   totalBytes: entries.reduce((sum, e) => sum + e.sizeBytes, 0),
@@ -102,7 +100,9 @@ describe('entries', () => {
   })
 
   it('sums storage used', () => {
-    expect(totalBytes(withEntries(entry(1, { sizeBytes: 10 }), entry(2, { sizeBytes: 32 })))).toBe(42)
+    expect(totalBytes(withEntries(entry(1, { sizeBytes: 10 }), entry(2, { sizeBytes: 32 })))).toBe(
+      42,
+    )
     expect(totalBytes(EMPTY_INDEX)).toBe(0)
   })
 })

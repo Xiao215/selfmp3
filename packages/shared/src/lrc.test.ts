@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { activeLineIndex, isSynced, parseLyrics, type SyncedLine } from './lrc.js'
 
 // Fixtures use placeholder text so the test suite carries no third-party content.
-const SYNCED = ['[ar:Placeholder Artist]', '[00:12.50]line one', '[00:18.00]line two', '[01:05.25]line three'].join('\n')
+const SYNCED = [
+  '[ar:Placeholder Artist]',
+  '[00:12.50]line one',
+  '[00:18.00]line two',
+  '[01:05.25]line three',
+].join('\n')
 
 describe('parseLyrics', () => {
   it('parses timestamps into seconds', () => {

@@ -209,8 +209,7 @@ export class DownloadQueue {
 
     // Continue a paused transfer where it left off; only start a fresh one
     // when there is nothing to continue.
-    const paused =
-      this.pausedSongId === songId && this.task?.state === 'paused' ? this.task : null
+    const paused = this.pausedSongId === songId && this.task?.state === 'paused' ? this.task : null
 
     if (!paused) {
       if (destination.exists) destination.delete()

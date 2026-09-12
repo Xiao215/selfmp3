@@ -37,10 +37,7 @@ export default function LibraryScreen(): ReactNode {
     [downloads.index],
   )
 
-  const visible = useMemo(
-    () => filterSongs(songs, filter, downloaded),
-    [songs, filter, downloaded],
-  )
+  const visible = useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded])
 
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
   const totalSeconds = useMemo(
@@ -89,9 +86,7 @@ export default function LibraryScreen(): ReactNode {
           <Chip
             key={option.field}
             label={
-              filter.sort === option.field && filter.descending
-                ? `${option.label} ↓`
-                : option.label
+              filter.sort === option.field && filter.descending ? `${option.label} ↓` : option.label
             }
             selected={filter.sort === option.field}
             onPress={() =>

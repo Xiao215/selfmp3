@@ -25,3 +25,13 @@ export {
   serverTransport,
   type ServerConnection,
 } from './connection/connection.js'
+
+export {
+  configureClient,
+  clientApi,
+  librarySnapshot,
+  type ClientRuntime,
+} from './runtime.js'
+
+export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
+export * from './queries/queries.js'

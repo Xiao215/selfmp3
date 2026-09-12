@@ -19,6 +19,7 @@
  * without a line being written for them.
  */
 import {
+  configureClient,
   createApi,
   createMediaUrl,
   serverTransport,
@@ -27,6 +28,7 @@ import {
 } from '@selfmp3/client'
 
 import { cloudRequest } from '../cloud'
+import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 
 /** A slow request is almost always a sleeping server; do not hang forever. */
 const REQUEST_TIMEOUT_MS = 15_000
@@ -95,6 +97,29 @@ export const api = createApi({
     cloudRequest,
   }),
   fetch: fetchWithTimeout,
+})
+
+/*
+ * Hand the shared query hooks this client, at import time.
+ *
+ * `standsInFor` says yes to everything, which is the phone's rule and the
+ * behaviour it already had: a phone on a train gets 502s from the tunnel as
+ * often as it gets no answer at all, and either way the library on disk is a
+ * better thing to show than an error. The browser leaves it off and falls back
+ * only when the network is gone. Which of the two the universal app keeps is
+ * an open question, written up in docs/universal-progress.md.
+ */
+configureClient({
+  api,
+  librarySnapshot: {
+    read: readCachedLibrary,
+    // The phone's cache write is fire-and-forget by design — it hands the work
+    // to a background task and returns — so there is nothing to await.
+    write: async library => {
+      writeCachedLibrary(library)
+    },
+    standsInFor: () => true,
+  },
 })
 
 /**

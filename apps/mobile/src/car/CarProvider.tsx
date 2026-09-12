@@ -30,7 +30,7 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
   // and the car needs them all up front, so they are fetched together.
   const playlistQueries = useQueries({
     queries: playlists.map(playlist => ({
-      queryKey: queryKeys.playlistSongs(connection?.baseUrl ?? '', playlist.id),
+      queryKey: queryKeys.playlistSongs(playlist.id),
       enabled: connection !== null,
       staleTime: 5 * 60_000,
       queryFn: async () => {

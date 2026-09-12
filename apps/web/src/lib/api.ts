@@ -11,7 +11,9 @@
  * The exports are deliberately unchanged, so the 74 call sites across the app
  * did not have to move with it.
  */
-import { createApi, createMediaUrl, type ApiTransport } from '@selfmp3/client'
+import { configureClient, createApi, createMediaUrl, type ApiTransport } from '@selfmp3/client'
+
+import { saveLibrarySnapshot, loadLibrarySnapshot } from '../offline/mirror.js'
 
 import { CLOUD, appPath } from './platform.js'
 import { cloudRequest } from './cloud/routes.js'
@@ -33,5 +35,19 @@ export const api = createApi({
 })
 
 export const mediaUrl = createMediaUrl(transport)
+
+/*
+ * Hand the shared query hooks this client, at import time.
+ *
+ * This module is already imported for its side effect of existing by every
+ * screen that talks to the server, so there is no moment where a hook could run
+ * first. `standsInFor` is left off, which is the browser's rule: the snapshot
+ * stands in when the network is gone and not when the Mac answers with an
+ * error, so a broken server still looks broken.
+ */
+configureClient({
+  api,
+  librarySnapshot: { read: loadLibrarySnapshot, write: saveLibrarySnapshot },
+})
 
 export { ApiError } from '@selfmp3/client'

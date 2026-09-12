@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { ClientStateProvider } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
 import { session as cloudSession } from '../cloud'
 import {
@@ -40,6 +42,20 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [connection, setConnection] = useState<ServerConnection | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [fromCloud, setFromCloud] = useState(false)
+  const queryClient = useQueryClient()
+
+  /*
+   * Forget everything cached for the previous server.
+   *
+   * The phone's query keys used to carry the Mac's address for this reason, so
+   * that pointing at a different one could not show the last one's library
+   * while the new one loaded. The keys are the web app's now and carry no
+   * address, so the forgetting happens here instead — once, on the change,
+   * rather than in twenty-odd key builders.
+   */
+  const forgetCachedServer = useCallback(() => {
+    queryClient.clear()
+  }, [queryClient])
 
   useEffect(() => {
     let cancelled = false
@@ -70,33 +86,47 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   /** Called once Google is done, so the app stops asking for a Mac. */
   const signedInToCloud = useCallback(() => {
     answerFromCloud(true)
+    forgetCachedServer()
     setFromCloud(true)
     setStatus('ready')
-  }, [])
+  }, [forgetCachedServer])
 
   const connect = useCallback(async (next: ServerConnection) => {
     // Choosing a Mac on purpose means answering from it, not the bucket.
     answerFromCloud(false)
     setServer(next)
+    forgetCachedServer()
     setFromCloud(false)
     await saveConnection(next)
     setConnection(next)
     setStatus('ready')
-  }, [])
+  }, [forgetCachedServer])
 
   const disconnect = useCallback(async () => {
     await clearConnection()
     setServer(null)
+    forgetCachedServer()
     setConnection(null)
     setStatus('missing')
-  }, [])
+  }, [forgetCachedServer])
 
   const value = useMemo<ConnectionContextValue>(
     () => ({ connection, fromCloud, status, connect, disconnect, signedInToCloud }),
     [connection, fromCloud, status, connect, disconnect, signedInToCloud],
   )
 
-  return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>
+  return (
+    <ConnectionContext.Provider value={value}>
+      {/*
+       * `ready` is what every query in the package is gated on. The phone spends
+       * the first moment of a cold start reading an address out of the keychain
+       * and looking for a cloud session, and until one of those answers there is
+       * nowhere to send a request; firing anyway meant an error on screen for
+       * the half second before the address arrived.
+       */}
+      <ClientStateProvider ready={status === 'ready'}>{children}</ClientStateProvider>
+    </ConnectionContext.Provider>
+  )
 }
 
 export function useConnection(): ConnectionContextValue {

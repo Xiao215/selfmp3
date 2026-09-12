@@ -2,11 +2,10 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Song } from '@selfmp3/shared'
-import { downloadedCount, isDownloaded } from '@selfmp3/client'
+import { downloadedCount, isDownloaded , colors, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { freeToDownload, useConnectionKind } from '../../offline/connectionKind'
 import { useAccent } from '../accent'
-import { colors, radius, space, type } from '../theme'
 
 /**
  * One line saying whether this phone has your music yet.

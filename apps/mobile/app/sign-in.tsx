@@ -18,7 +18,7 @@ import { session as cloud } from '../src/cloud'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { useRouter } from 'expo-router'
 import { Button } from '../src/ui/components/Button'
-import { colors, radius, space, type } from '../src/ui/theme'
+import { colors, radius, space, type } from '@selfmp3/client'
 
 /**
  * First run: sign in with Google.

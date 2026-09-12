@@ -15,7 +15,7 @@ import { apiFor, ApiError } from '../src/api/client'
 import { normaliseBaseUrl } from '../src/server/connection'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { Button } from '../src/ui/components/Button'
-import { colors, radius, space, type } from '../src/ui/theme'
+import { colors, radius, space, type } from '@selfmp3/client'
 
 /**
  * First run: where is the server?

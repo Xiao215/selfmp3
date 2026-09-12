@@ -1,7 +1,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native'
 import type { ReactNode } from 'react'
 import { hueFromString } from '@selfmp3/shared'
-import { colors, radius } from '../theme'
+import { colors, radius } from '@selfmp3/client'
 
 /**
  * Cover art, with the same placeholder the web app uses: a solid colour

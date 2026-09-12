@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
-import { colors, HIT_TARGET, motion, radius, space, type } from '../theme'
+import { colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 
 /**
  * A menu, as a sheet from the bottom of the screen.

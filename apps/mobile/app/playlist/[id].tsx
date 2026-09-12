@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useLibrary, useManifest, usePlaylistSongs, useToggleLoved } from '../../src/api/queries'
-import { bytesToDownload, isDownloaded } from '@selfmp3/client'
+import { bytesToDownload, isDownloaded , colors, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../src/offline/DownloadsProvider'
 import { usePlayer } from '../../src/player/PlayerProvider'
 import { useAccent } from '../../src/ui/accent'
@@ -21,7 +21,6 @@ import {
 } from '../../src/ui/components/Icons'
 import { SongMenu } from '../../src/ui/components/SongMenu'
 import { SongRow } from '../../src/ui/components/SongRow'
-import { colors, space, type } from '../../src/ui/theme'
 import { useArt } from '../../src/offline/useArt'
 
 /**

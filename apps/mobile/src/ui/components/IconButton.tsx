@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
-import { colors, HIT_TARGET, radius } from '../theme'
+import { colors, HIT_TARGET, radius } from '@selfmp3/client'
 
 /**
  * The web's `.icon-button`: a square target that darkens while pressed.

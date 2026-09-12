@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { File, Paths } from 'expo-file-system'
-import { buildAccent, DEFAULT_ACCENT_HUE, type Accent } from './theme'
+import { buildAccent, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
 
 /**
  * This phone's accent colour.

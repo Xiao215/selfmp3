@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import { formatDuration } from '@selfmp3/shared'
 import { useAccent } from '../accent'
-import { colors, space, type } from '../theme'
+import { colors, space, type } from '@selfmp3/client'
 
 /**
  * Scrubber: the web's `.scrubber-large`, a 6px track with a 16px thumb that

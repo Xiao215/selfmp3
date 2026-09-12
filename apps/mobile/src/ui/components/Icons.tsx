@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
-import { colors } from '../theme'
+import { colors } from '@selfmp3/client'
 
 /**
  * The web app's icons, drawn with the same paths.

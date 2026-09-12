@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useAccent } from '../accent'
-import { colors, HIT_TARGET, radius } from '../theme'
+import { colors, HIT_TARGET, radius } from '@selfmp3/client'
 
 /**
  * The web's `.button`, in the same three weights, at the phone's 44px.

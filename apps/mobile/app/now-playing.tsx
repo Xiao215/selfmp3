@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useLyrics, useToggleLoved } from '../src/api/queries'
-import { isDownloaded } from '@selfmp3/client'
+import { isDownloaded , colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { usePlayer } from '../src/player/PlayerProvider'
 import { useAccent } from '../src/ui/accent'
@@ -40,7 +40,6 @@ import {
 } from '../src/ui/components/Icons'
 import { Lyrics } from '../src/ui/components/Lyrics'
 import { SeekBar } from '../src/ui/components/SeekBar'
-import { colors, HIT_TARGET, motion, radius, space, type } from '../src/ui/theme'
 import { useArt } from '../src/offline/useArt'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */

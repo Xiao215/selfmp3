@@ -7,7 +7,7 @@ import { formatLongDuration, type Playlist } from '@selfmp3/shared'
 import { useLibrary } from '../src/api/queries'
 import { useAccent } from '../src/ui/accent'
 import { ChevronRight, ListMusic, Sparkles } from '../src/ui/components/Icons'
-import { colors, radius, space, type } from '../src/ui/theme'
+import { colors, radius, space, type } from '@selfmp3/client'
 
 /**
  * Playlists: the web's cards, stacked one to a row because a phone is one

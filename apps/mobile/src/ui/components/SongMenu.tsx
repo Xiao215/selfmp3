@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react'
 import { formatBytes, type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
-import { isDownloaded } from '@selfmp3/client'
+import { isDownloaded , colors } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
-import { colors } from '../theme'
 import { CloudDownload, Heart, ListMusic, Queue, Trash } from './Icons'
 import { Sheet, SheetItem } from './Sheet'
 

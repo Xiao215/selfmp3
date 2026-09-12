@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
-import { colors, NAV_HEIGHT, type } from '../theme'
+import { colors, NAV_HEIGHT, type } from '@selfmp3/client'
 import { ListMusic, Music, Settings } from './Icons'
 
 /**

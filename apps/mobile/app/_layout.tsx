@@ -15,7 +15,7 @@ import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvi
 import { AccentProvider } from '../src/ui/accent'
 import { BottomNav } from '../src/ui/components/BottomNav'
 import { MiniPlayer } from '../src/ui/components/MiniPlayer'
-import { colors } from '../src/ui/theme'
+import { colors } from '@selfmp3/client'
 
 /**
  * The app shell.

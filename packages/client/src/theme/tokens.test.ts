@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
-import { oklchToHex } from './oklch'
-import { buildAccent, colors, DEFAULT_ACCENT_HUE } from './theme'
+import { oklchToHex } from './oklch.js'
+import { buildAccent, colors, DEFAULT_ACCENT_HUE } from './tokens.js'
 
 /**
  * The phone's arithmetic against the browser's.
@@ -66,5 +68,65 @@ describe('oklchToHex', () => {
   it('gives black and white at the ends', () => {
     expect(oklchToHex(0, 0, 0)).toBe('#000000')
     expect(oklchToHex(1, 0, 0)).toBe('#ffffff')
+  })
+})
+
+/**
+ * Token parity: the hex in `tokens.ts` against the OKLCH in the web app's CSS.
+ *
+ * The test above proves the arithmetic is the browser's. This one proves the
+ * two files are still describing the same palette — that nobody has nudged
+ * `--surface-2` in the stylesheet and left the phone a shade behind, which is
+ * exactly the drift that would otherwise be found by eye, months later, on a
+ * screenshot comparison.
+ *
+ * It reads the stylesheet rather than restating it. A copied list of expected
+ * values would go stale in the same way and for the same reason.
+ */
+describe('token parity with the web stylesheet', () => {
+  const CSS = readFileSync(
+    new URL('../../../../apps/web/src/styles/parts/tokens.css', import.meta.url),
+    'utf8',
+  )
+
+  /** `--name: oklch(L C H)`, where H is a number or `var(--accent-hue)`. */
+  function cssToken(name: string): { l: number; c: number; h: number } {
+    const match = new RegExp(
+      `--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+(var\\(--accent-hue\\)|[\\d.]+)\\)`,
+    ).exec(CSS)
+    if (!match) throw new Error(`--${name} is not an oklch() token in tokens.css`)
+    const [, l, c, h] = match
+    return {
+      l: Number(l),
+      c: Number(c),
+      h: h === 'var(--accent-hue)' ? DEFAULT_ACCENT_HUE : Number(h),
+    }
+  }
+
+  it('starts from the hue the stylesheet starts from', () => {
+    const match = /--accent-hue:\s*([\d.]+)/.exec(CSS)
+    expect(Number(match?.[1])).toBe(DEFAULT_ACCENT_HUE)
+  })
+
+  it.each([
+    ['surface-0', 'surface0'],
+    ['surface-1', 'surface1'],
+    ['surface-2', 'surface2'],
+    ['surface-3', 'surface3'],
+    ['text-primary', 'textPrimary'],
+    ['text-secondary', 'textSecondary'],
+    ['text-muted', 'textMuted'],
+    ['accent', 'accent'],
+    ['accent-strong', 'accentStrong'],
+    ['accent-dim', 'accentDim'],
+    ['on-accent', 'onAccent'],
+    ['danger', 'danger'],
+    ['warning', 'warning'],
+    ['good', 'good'],
+    ['border', 'border'],
+    ['border-strong', 'borderStrong'],
+  ] as const)('--%s is %s', (cssName, key) => {
+    const { l, c, h } = cssToken(cssName)
+    expect(colors[key]).toBe(oklchToHex(l, c, h))
   })
 })

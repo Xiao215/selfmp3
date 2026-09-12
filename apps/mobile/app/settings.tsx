@@ -11,13 +11,12 @@ import {
   downloadedCount,
   staleIds,
   totalBytes,
-} from '@selfmp3/client'
+ buildAccent, colors, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { useConnection } from '../src/server/ConnectionProvider'
 import { ACCENT_PRESETS, useAccent } from '../src/ui/accent'
 import { BrandMark } from '../src/ui/components/BrandMark'
 import { Button } from '../src/ui/components/Button'
-import { buildAccent, colors, radius, space, type } from '../src/ui/theme'
 
 /** Server, downloads, about — the three things worth a settings screen. */
 export default function SettingsScreen(): ReactNode {

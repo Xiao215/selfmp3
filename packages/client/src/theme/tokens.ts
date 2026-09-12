@@ -1,4 +1,4 @@
-import { oklchToHex, oklchToHexAlpha } from './oklch'
+import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
  * The web app's palette, resolved to hex.

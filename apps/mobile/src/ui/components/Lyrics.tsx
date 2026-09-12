@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { activeLineIndex, parseLyrics } from '@selfmp3/shared'
 import { useAccent } from '../accent'
-import { colors, space, type } from '../theme'
+import { colors, space, type } from '@selfmp3/client'
 
 /**
  * Lyrics, synced when the file has timestamps.

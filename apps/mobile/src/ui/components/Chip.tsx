@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text } from 'react-native'
 import { useAccent } from '../accent'
-import { colors, tagColors, type } from '../theme'
+import { colors, tagColors, type } from '@selfmp3/client'
 
 /**
  * A tag, as the web draws it: a pill in the tag's own hue, brighter when it

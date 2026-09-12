@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +22,7 @@ import { Chip } from '../../ui/components/Chip'
 import { ChevronDown, Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { useLibraryModel } from './library.model'
@@ -187,20 +187,12 @@ export function LibraryScreen(): ReactNode {
       {model.loading ? (
         <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
-        <FlatList
-          role="table"
-          aria-label={`${heading} songs`}
-          data={visible}
-          keyExtractor={song => String(song.id)}
-          renderItem={renderSong}
-          initialNumToRender={16}
-          windowSize={11}
-          removeClippedSubviews
-          keyboardDismissMode="on-drag"
+        <SongList
+          songs={visible}
+          label={`${heading} songs`}
+          renderSong={renderSong}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>
-          }
+          empty={<Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>}
         />
       )}
 

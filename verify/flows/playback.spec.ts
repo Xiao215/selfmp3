@@ -7,8 +7,8 @@ import {
   positionSeconds,
   seekReady,
   skipIfNoLibrary,
-  songRows,
   titleOf,
+  topRow,
   transport,
 } from './helpers.js'
 
@@ -41,7 +41,7 @@ test.describe('playback', () => {
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
-    await playSong(page, songRows(page).first())
+    await playSong(page, await topRow(page))
 
     // The transport turns into a pause button once it is actually playing.
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
@@ -59,8 +59,8 @@ test.describe('playback', () => {
     await libraryReady(page)
     await skipIfNoLibrary(page, 2)
 
-    const first = await titleOf(songRows(page).first())
-    await playSong(page, songRows(page).first())
+    const first = await titleOf(await topRow(page))
+    await playSong(page, await topRow(page))
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Next' }).click()

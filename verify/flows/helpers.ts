@@ -171,3 +171,35 @@ export async function seekReady(page: Page): Promise<void> {
 export function transport(page: Page, name: 'Play' | 'Pause'): Locator {
   return page.getByRole('button', { name, exact: true }).last()
 }
+
+/**
+ * The row at the top of the list — by where it is drawn, not by DOM order.
+ *
+ * These are not the same thing once the list recycles. `apps/app` draws songs
+ * with FlashList, which keeps its rows in a stable DOM order and moves them by
+ * position, so after reversing the sort the first element in the document was
+ * still the song that used to be at the top while the screen quite correctly
+ * showed a different one. A flow reading `.first()` concluded the sort had done
+ * nothing, which was the opposite of the truth.
+ *
+ * On the old web app the list is a real table and the two orders agree, so this
+ * returns exactly what `.first()` did. Anywhere "the first song" means the one
+ * a person sees at the top, this is the one to use — phase 4's comparisons
+ * included.
+ */
+export async function topRow(page: Page): Promise<Locator> {
+  const rows = songRows(page)
+  const count = await rows.count()
+  if (count === 0) return rows.first()
+
+  let top = 0
+  let smallest = Number.POSITIVE_INFINITY
+  for (let index = 0; index < count; index += 1) {
+    const box = await rows.nth(index).boundingBox()
+    if (box && box.y < smallest) {
+      smallest = box.y
+      top = index
+    }
+  }
+  return rows.nth(top)
+}

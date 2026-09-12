@@ -60,3 +60,18 @@ export type { DownloadFraction, OfflineStore, SaveOptions, StorageUsage } from '
 export type { ServerEventStream } from './ports/events.js'
 export { DownloadQueue, type DownloadQueueState } from './downloads/queue.js'
 export type { DownloadStorage, DownloadTransfer, TransferProgress } from './ports/offline.js'
+export {
+  EMPTY_SELECTION,
+  allSelected,
+  clearSelection,
+  clickSelected,
+  deselectAll,
+  enterSelection,
+  pruneSelection,
+  selectAllVisible,
+  selectionActive,
+  toggleSelected,
+  type ClickResult,
+  type SelectionModifiers,
+  type SelectionState,
+} from './selection/selection.js'

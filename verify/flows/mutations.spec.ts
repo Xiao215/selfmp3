@@ -41,7 +41,9 @@ test.describe('loving a song', () => {
     await expect(rowFor(page, title).getByRole('button', { name: /from loved$/ })).toBeVisible()
 
     // Put it back, so the flow can run again on the same library.
-    await rowFor(page, title).getByRole('button', { name: /from loved$/ }).click()
+    await rowFor(page, title)
+      .getByRole('button', { name: /from loved$/ })
+      .click()
     await expect(rowFor(page, title).getByRole('button', { name: `Love ${title}` })).toBeVisible()
   })
 })

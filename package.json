@@ -32,7 +32,7 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo",
-    "verify:flows": "playwright test verify/flows --project=desktop --project=phone"
+    "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone"
   },
   "overrides": {
     "react": "19.2.3",

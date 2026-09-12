@@ -1,6 +1,15 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import {
+  libraryReady,
+  playSong,
+  positionSeconds,
+  seekReady,
+  skipIfNoLibrary,
+  songRows,
+  titleOf,
+  transport,
+} from './helpers.js'
 
 /**
  * Playing something, which is what the app is for.
@@ -16,26 +25,17 @@ test.describe('playback', () => {
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
-    const title = await titleOf(songRows(page).first())
-    await songRows(page).first().getByRole('button', { name: `Play ${title}` }).click()
+    await playSong(page, songRows(page).first())
 
     // The transport turns into a pause button once it is actually playing.
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 
     // And the audio is really advancing, rather than the UI having said so.
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const audio = document.querySelector('audio')
-            return audio ? audio.currentTime : 0
-          }),
-        { timeout: 15_000 },
-      )
-      .toBeGreaterThan(0.5)
+    await seekReady(page)
+    await expect.poll(() => positionSeconds(page), { timeout: 15_000 }).toBeGreaterThan(0.5)
 
-    await page.getByRole('button', { name: 'Pause' }).click()
-    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await transport(page, 'Pause').click()
+    await expect(transport(page, 'Play')).toBeVisible()
   })
 
   test('next moves to another song', async ({ page }) => {
@@ -44,7 +44,7 @@ test.describe('playback', () => {
     await skipIfNoLibrary(page, 2)
 
     const first = await titleOf(songRows(page).first())
-    await songRows(page).first().getByRole('button', { name: `Play ${first}` }).click()
+    await playSong(page, songRows(page).first())
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Next' }).click()
@@ -54,6 +54,6 @@ test.describe('playback', () => {
       `Open now playing: ${first}`,
     )
 
-    await page.getByRole('button', { name: 'Pause' }).click()
+    await transport(page, 'Pause').click()
   })
 })

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { answerFromCloud } from '../api/client'
+import { session as cloudSession } from '../cloud'
 import {
   clearConnection,
   loadConnection,
@@ -20,6 +22,8 @@ interface ConnectionContextValue {
   readonly connection: ServerConnection | null
   readonly status: 'loading' | 'ready' | 'missing'
   readonly connect: (connection: ServerConnection) => Promise<void>
+  /** Say the cloud sign-in finished, so the app answers from the bucket. */
+  readonly signedInToCloud: () => void
   readonly disconnect: () => Promise<void>
 }
 
@@ -31,21 +35,33 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   useEffect(() => {
     let cancelled = false
-    void loadConnection()
-      .then(stored => {
-        if (cancelled) return
-        setConnection(stored)
-        setStatus(stored ? 'ready' : 'missing')
-      })
-      .catch(() => {
-        if (!cancelled) setStatus('missing')
-      })
+    void (async () => {
+      // Signed in to the cloud beats everything: the library is then the
+      // bucket's, and no Mac has to be awake or even exist. A stored server
+      // address is the older way in, and still works for anyone using it.
+      const [signedIn, stored] = await Promise.all([
+        cloudSession.loadSession().catch(() => null),
+        loadConnection().catch(() => null),
+      ])
+      if (cancelled) return
+      answerFromCloud(signedIn !== null)
+      setConnection(stored)
+      setStatus(signedIn || stored ? 'ready' : 'missing')
+    })()
     return () => {
       cancelled = true
     }
   }, [])
 
+  /** Called once Google is done, so the app stops asking for a Mac. */
+  const signedInToCloud = useCallback(() => {
+    answerFromCloud(true)
+    setStatus('ready')
+  }, [])
+
   const connect = useCallback(async (next: ServerConnection) => {
+    // Choosing a Mac on purpose means answering from it, not the bucket.
+    answerFromCloud(false)
     await saveConnection(next)
     setConnection(next)
     setStatus('ready')
@@ -58,8 +74,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   }, [])
 
   const value = useMemo<ConnectionContextValue>(
-    () => ({ connection, status, connect, disconnect }),
-    [connection, status, connect, disconnect],
+    () => ({ connection, status, connect, disconnect, signedInToCloud }),
+    [connection, status, connect, disconnect, signedInToCloud],
   )
 
   return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>

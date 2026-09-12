@@ -73,11 +73,12 @@ function Shell(): ReactNode {
   }, [status])
 
   useEffect(() => {
-    // `/sign-in` is the Google flow, and it is where this is going; until the
-    // screens behind it read from the bucket rather than the Mac, onboarding
-    // stays the default and sign-in is reachable rather than forced.
+    // Google is the front door: a phone's library is the bucket's, and no Mac
+    // has to be awake or even exist. `/onboarding` is still reachable for
+    // anyone pointing this at a Mac on purpose, but it is no longer the
+    // question a new phone is asked first.
     const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
-    if (status === 'missing' && !ownItsRoute) router.replace('/onboarding')
+    if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])
 
   const chrome = !FULL_SCREEN_ROUTES.includes(pathname) && status === 'ready'

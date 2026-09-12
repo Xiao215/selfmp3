@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { DoormanError, type CloudSession } from '@selfmp3/cloud'
 import { formatSignInCode, SignInCodeSchema } from '@selfmp3/shared'
 import { session as cloud } from '../src/cloud'
+import { useConnection } from '../src/server/ConnectionProvider'
+import { useRouter } from 'expo-router'
 import { Button } from '../src/ui/components/Button'
 import { colors, radius, space, type } from '../src/ui/theme'
 
@@ -34,6 +36,8 @@ export default function SignInScreen({
 }: {
   onSignedIn?: (session: CloudSession) => void
 }): ReactNode {
+  const { signedInToCloud } = useConnection()
+  const router = useRouter()
   const [stage, setStage] = useState<Stage>({ kind: 'idle', message: null })
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -49,6 +53,15 @@ export default function SignInScreen({
   }, [])
 
   /** Ask the doorman how it is going: now, and whenever the app comes back. */
+  const done = useCallback(
+    (session: CloudSession): void => {
+      onSignedIn?.(session)
+      signedInToCloud()
+      router.replace('/')
+    },
+    [onSignedIn, signedInToCloud, router],
+  )
+
   const check = useCallback(async (): Promise<void> => {
     const pending = await cloud.pendingSignIn()
     if (!pending) {
@@ -58,11 +71,11 @@ export default function SignInScreen({
     try {
       const outcome = await cloud.claimSignIn(pending.attempt)
       if (outcome.status === 'code') setStage({ kind: 'code', error: null })
-      else if (outcome.status === 'signed-in') onSignedIn?.(outcome.session)
+      else if (outcome.status === 'signed-in') done(outcome.session)
     } catch {
       // Offline, or the doorman is busy. The next look will say.
     }
-  }, [onSignedIn])
+  }, [done])
 
   useEffect(() => {
     if (stage.kind !== 'waiting') return
@@ -94,7 +107,7 @@ export default function SignInScreen({
         return
       }
       const outcome = await cloud.claimSignIn(pending.attempt, parsed.data)
-      if (outcome.status === 'signed-in') onSignedIn?.(outcome.session)
+      if (outcome.status === 'signed-in') done(outcome.session)
       else setStage({ kind: 'code', error: 'Google hasn’t finished yet. Try again in a moment.' })
     } catch (error) {
       // A wrong code ends the attempt: the doorman spends it either way, so
@@ -110,7 +123,7 @@ export default function SignInScreen({
     } finally {
       setBusy(false)
     }
-  }, [code, onSignedIn])
+  }, [code, done])
 
   return (
     <SafeAreaView style={styles.screen}>

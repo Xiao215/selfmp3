@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TrackPlayer from 'react-native-track-player'
 import { DevicesProvider } from '../src/features/devices/DevicesProvider'
+import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
@@ -59,7 +60,10 @@ export default function RootLayout(): ReactNode {
                 */}
                 <DevicesProvider>
                   <CarProvider>
-                    <Shell />
+                    {/* Around the shell: the sidebar and the library share it. */}
+                    <LibraryFilterProvider>
+                      <Shell />
+                    </LibraryFilterProvider>
                   </CarProvider>
                 </DevicesProvider>
               </PlayerProvider>

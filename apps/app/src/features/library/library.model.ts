@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { formatLongDuration, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
-  DEFAULT_FILTER,
   excludeTag,
   filterHeading,
   filterSongs,
@@ -17,6 +16,8 @@ import {
   type LibraryFilter,
   type TagFilterState,
 } from '@selfmp3/client'
+
+import { useLibraryFilter } from './libraryFilter'
 
 /**
  * Everything the library screen knows, with nothing it draws.
@@ -77,7 +78,8 @@ export interface LibraryModel {
 
 export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   const library = useLibrary()
-  const [filter, setFilter] = useState<LibraryFilter>(DEFAULT_FILTER)
+  // Shared with the desktop sidebar, which chooses tags for this list.
+  const [filter, setFilter] = useLibraryFilter()
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const allTags = useMemo(() => library.data?.tags ?? [], [library.data])

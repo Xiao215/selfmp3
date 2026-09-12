@@ -105,13 +105,22 @@ export function LibraryScreen(): ReactNode {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
-      <View style={styles.head}>
-        <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
-          {heading}
-        </Text>
-        <Text style={styles.sub}>{model.subtitle}</Text>
+      {/*
+        The web's `.view-head`. On a phone: the title, then the search on a line
+        of its own, then order and play. At desktop width it is one row — the
+        title on the left, and search, order and play along from it, with the
+        search giving up width before the row wraps.
+      */}
+      <View style={[styles.head, wide && styles.headWide]}>
+        <View style={wide ? styles.titlesWide : undefined}>
+          <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
+            {heading}
+          </Text>
+          <Text style={styles.sub}>{model.subtitle}</Text>
+        </View>
 
-        <View style={styles.searchBox}>
+        <View style={[styles.controls, wide && styles.controlsWide]}>
+        <View style={[styles.searchBox, wide && styles.searchWide]}>
           <Search size={15} color={colors.textMuted} />
           <TextInput
             style={styles.search}
@@ -136,8 +145,8 @@ export function LibraryScreen(): ReactNode {
           ) : null}
         </View>
 
-        <View style={styles.actions}>
-          <View style={styles.sortSlot}>
+        <View style={[styles.actions, wide && styles.actionsWide]}>
+          <View style={[styles.sortSlot, wide && styles.sortSlotWide]}>
             <Select
               value={filter.sort}
               options={model.sortOptions.map(option => ({
@@ -158,7 +167,7 @@ export function LibraryScreen(): ReactNode {
             <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
           </Pressable>
 
-          <View style={[styles.transport, !wide && styles.transportCompact]}>
+          <View style={[styles.transport, wide ? styles.transportWide : styles.transportCompact]}>
             {/*
               The way in, on every device: multi-select used to be reachable
               only by knowing that Cmd-click did something.
@@ -178,16 +187,20 @@ export function LibraryScreen(): ReactNode {
               disabled={visible.length === 0}
               onPress={() => player.playFrom(songIds, 0, false)}
             />
+            {/* Worded at desktop width, as on the web; an icon on a phone. */}
             <Button
+              label={wide ? 'Shuffle' : undefined}
               icon={<Shuffle size={15} color={colors.textPrimary} />}
               disabled={visible.length === 0}
               onPress={() => player.playShuffled(songIds)}
             />
           </View>
         </View>
+        </View>
       </View>
 
-      {tags.length > 0 || songs.length > 0 ? (
+      {/* At desktop width the sidebar carries the tags, as on the web. */}
+      {!wide && (tags.length > 0 || songs.length > 0) ? (
         <View ref={stripRef} collapsable={false}>
         <ScrollView
           horizontal
@@ -343,8 +356,31 @@ const styles = StyleSheet.create({
   sub: {
     color: colors.textMuted,
     fontSize: 13,
-    marginTop: -space.sm - 1,
+    marginTop: 3,
   },
+  headWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 20,
+    paddingBottom: space.md,
+  },
+  titlesWide: { flexShrink: 0 },
+  controls: { gap: space.md },
+  /* `.library-actions`: one line, the search shrinking first. */
+  controlsWide: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.sm,
+  },
+  searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },
+  actionsWide: { flex: 1, flexWrap: 'nowrap' },
+  /* Enough for the longest option: "Recentl…" would tell you nothing. */
+  sortSlotWide: { flex: 0, minWidth: 152 },
+  transportWide: { marginLeft: 'auto' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',

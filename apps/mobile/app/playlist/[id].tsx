@@ -4,18 +4,18 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
-import { mediaUrl } from '../../src/api/client'
 import { useLibrary, useManifest, usePlaylistSongs } from '../../src/api/queries'
 import { bytesToDownload, isDownloaded } from '../../src/offline/downloadIndex'
 import { useDownloads } from '../../src/offline/DownloadsProvider'
 import { usePlayer } from '../../src/player/PlayerProvider'
-import { useConnection } from '../../src/server/ConnectionProvider'
 import { Button } from '../../src/ui/components/Button'
 import { SongRow } from '../../src/ui/components/SongRow'
 import { colors, space, type } from '../../src/ui/theme'
+import { useArt } from '../../src/offline/useArt'
 
 /** One playlist, in order, with play-all and download-this-playlist. */
 export default function PlaylistDetailScreen(): ReactNode {
+  const artFor = useArt()
   const params = useLocalSearchParams<{ id: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
@@ -24,7 +24,6 @@ export default function PlaylistDetailScreen(): ReactNode {
   const manifest = useManifest()
   const contents = usePlaylistSongs(Number.isInteger(playlistId) ? playlistId : null)
   const player = usePlayer()
-  const { connection } = useConnection()
   const { state: downloads, queue: downloadQueue } = useDownloads()
 
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
@@ -48,14 +47,14 @@ export default function PlaylistDetailScreen(): ReactNode {
     ({ item, index }: { item: Song; index: number }) => (
       <SongRow
         song={item}
-        artUri={item.hasArt && connection ? mediaUrl.art(connection, item.id, item.rev) : null}
+        artUri={artFor(item)}
         active={player.current?.id === item.id}
         downloaded={downloaded(item.id)}
         onPress={() => player.playFrom(songIds, index)}
         onLongPress={() => player.playNext([item.id])}
       />
     ),
-    [connection, player, songIds, downloaded],
+    [artFor, player, songIds, downloaded],
   )
 
   return (

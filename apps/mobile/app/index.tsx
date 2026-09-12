@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { useLibrary } from '../src/api/queries'
-import { mediaUrl } from '../src/api/client'
-import { coversNow, ensureCover, onCoversChanged } from '../src/offline/covers'
+import { useArt } from '../src/offline/useArt'
 import { DEFAULT_FILTER, filterSongs } from '../src/lib/library'
 import { isDownloaded } from '../src/offline/downloadIndex'
 import { useDownloads } from '../src/offline/DownloadsProvider'
 import { usePlayer } from '../src/player/PlayerProvider'
-import { useConnection } from '../src/server/ConnectionProvider'
 import { SongRow } from '../src/ui/components/SongRow'
 import { SyncStatus } from '../src/ui/components/SyncStatus'
 import { colors, radius, space, type } from '../src/ui/theme'
@@ -25,7 +23,6 @@ import { colors, radius, space, type } from '../src/ui/theme'
 export default function LibraryScreen(): ReactNode {
   const library = useLibrary()
   const player = usePlayer()
-  const { connection, fromCloud } = useConnection()
   const { state: downloads } = useDownloads()
 
   const [filter, setFilter] = useState(DEFAULT_FILTER)
@@ -41,24 +38,7 @@ export default function LibraryScreen(): ReactNode {
 
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
 
-  // Covers live on this device (offline/covers.ts): the image loader is given
-  // a file, because it cannot be given a header. Asking is idempotent and
-  // cheap, so every visible row may ask on every render.
-  const [covers, setCovers] = useState(coversNow)
-  useEffect(() => onCoversChanged(() => setCovers(coversNow())), [])
-
-  const artFor = useCallback(
-    (song: Song): string | null => {
-      if (!song.hasArt) return null
-      // `fromCloud`, not `connection`: a Mac address left over from before is
-      // still stored, and asking whether one exists sent the image loader to a
-      // Mac that is not running — which is why every row kept its letter tile.
-      if (!fromCloud && connection) return mediaUrl.art(connection, song.id, song.rev)
-      void ensureCover(song.id)
-      return covers.get(song.id) ?? null
-    },
-    [connection, fromCloud, covers],
-  )
+  const artFor = useArt()
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (

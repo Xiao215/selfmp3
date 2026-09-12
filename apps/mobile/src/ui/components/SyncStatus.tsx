@@ -27,6 +27,24 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
 
   if (total === 0) return null
 
+  // A failure used to leave the line saying "13 new" — identical to never
+  // having tried. The queue empties on error, so without this the only way to
+  // know a download failed is that nothing happened.
+  if (state.error) {
+    return (
+      <View style={styles.bar}>
+        <View style={styles.row}>
+          <Text style={styles.error} numberOfLines={2}>
+            {state.error}
+          </Text>
+          <Pressable onPress={() => queue.enqueue(missing)} hitSlop={8}>
+            <Text style={styles.action}>Retry</Text>
+          </Pressable>
+        </View>
+      </View>
+    )
+  }
+
   const working = state.queue.length > 0
   const fraction =
     state.totalBytes > 0 ? Math.min(1, state.bytesWritten / state.totalBytes) : 0
@@ -93,6 +111,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   text: { color: colors.textSecondary, fontSize: type.small },
   action: { color: colors.accent, fontSize: type.small, fontWeight: '600' },
+  error: { color: colors.danger, fontSize: type.small, flex: 1, marginRight: space.md },
   progressTrack: {
     height: 3,
     borderRadius: 2,

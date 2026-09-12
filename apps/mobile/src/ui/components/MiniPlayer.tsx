@@ -1,20 +1,19 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { mediaUrl } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useConnection } from '../../server/ConnectionProvider'
 import { colors, MINI_PLAYER_HEIGHT, space, type } from '../theme'
 import { Cover } from './Cover'
 import { Glyph } from './Glyph'
+import { useArt } from '../../offline/useArt'
 
 /**
  * The bar above the tab bar. Nothing when there is no current track, so the
  * list gets the full screen until something is playing.
  */
 export function MiniPlayer(): ReactNode {
+  const artFor = useArt()
   const player = usePlayer()
-  const { connection } = useConnection()
   const router = useRouter()
 
   const song = player.current
@@ -30,7 +29,7 @@ export function MiniPlayer(): ReactNode {
 
       <View style={styles.content}>
         <Cover
-          uri={song.hasArt && connection ? mediaUrl.art(connection, song.id, song.rev) : null}
+          uri={artFor(song)}
           title={song.album || song.title}
           size={38}
         />

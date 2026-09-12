@@ -5,15 +5,14 @@ import type { ListRenderItem } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
-import { mediaUrl } from '../src/api/client'
 import { useLyrics } from '../src/api/queries'
 import { usePlayer } from '../src/player/PlayerProvider'
-import { useConnection } from '../src/server/ConnectionProvider'
 import { Cover } from '../src/ui/components/Cover'
 import { Glyph } from '../src/ui/components/Glyph'
 import { Lyrics } from '../src/ui/components/Lyrics'
 import { SeekBar } from '../src/ui/components/SeekBar'
 import { colors, radius, space, type } from '../src/ui/theme'
+import { useArt } from '../src/offline/useArt'
 
 /**
  * Now Playing: art, transport, and a panel that is either the synced lyrics or
@@ -24,8 +23,8 @@ import { colors, radius, space, type } from '../src/ui/theme'
  * without one of them fighting the other.
  */
 export default function NowPlayingScreen(): ReactNode {
+  const artFor = useArt()
   const player = usePlayer()
-  const { connection } = useConnection()
   const router = useRouter()
   const { width } = useWindowDimensions()
   const [panel, setPanel] = useState<'lyrics' | 'queue'>('lyrics')
@@ -70,7 +69,7 @@ export default function NowPlayingScreen(): ReactNode {
         <>
           <View style={styles.art}>
             <Cover
-              uri={song.hasArt && connection ? mediaUrl.art(connection, song.id, song.rev) : null}
+              uri={artFor(song)}
               title={song.album || song.title}
               size={artSize}
             />

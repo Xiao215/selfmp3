@@ -586,14 +586,79 @@ same-origin and reaches none of it.
   policy that belongs above it; writing that policy once means splitting the
   phone's queue, which is what makes the phone play with no signal, and that
   wants airplane-mode testing rather than a green type check.
-- **Devices and handoff**, which the plan brings across in this phase. Not
-  started. The heartbeat and the remote transport are HTTP and a clock, so
-  this is a move rather than an invention.
+- **The phone's stream reader against a real Mac.** Devices and handoff are
+  in (see below), and the reader's framing is tested, but it has not run on a
+  phone connected to a Mac.
 - **`.maestro/offline.yaml` and `.maestro/devices.yaml`**, which are still the
   skeletons the spike wrote and assert against screens that do not exist yet.
 - Moving `PlayerProvider` into `packages/client`. It is one provider now, and
   it lives in `apps/app`; the move matters when `apps/web` is deleted in phase
   5 and cannot matter before.
+
+---
+
+## Phase 3, continued — devices, and two gates that were not green
+
+Commits on `universal/phase-3`: `2df5771` devices and handoff, `9c439eb` and
+`482b352` the two gate fixes, `47effb3` the `data/` anchor, `1344b48` the merge
+of main, `3596eb9` the event-stream test. On `main`: `d26d507`.
+
+### Devices and handoff, on the phone for the first time
+
+`handoff.ts` moved to `packages/client`, since it was already pure. The
+heartbeat is HTTP and a clock. The only part that was ever a browser is the
+live stream, which is now the `ServerEvents` port. React Native has no
+`EventSource`, so the phone's half opens the same stream over `XMLHttpRequest`
+and does the framing itself, with reconnect backoff from one second to thirty.
+Without it the phone could appear in the device list — polling covers that —
+but could never be driven, because commands only arrive on the stream.
+
+What is established, and where:
+
+| Claim | Evidence |
+|---|---|
+| The devices sheet lists the other devices by name | a Playwright probe against the web build at 375: another tab "Playing now", and the Mac's browser, shortened from "Mac · Chrome" to "Mac" |
+| Nothing else regressed | every flow suite at both widths, and the phone smoke flow |
+| The phone's reader frames and reconnects correctly | `apps/app/src/ports/events.test.ts`, 7 tests against a fake XHR |
+| The phone's reader works against a real Mac | **not established** |
+
+The last row is owed for two reasons. The simulator the app was built on is
+signed in to the cloud, where devices do nothing by design — presence travels
+through the Mac, the same as the web app's cloud build — and it was not signed
+out, because signing back in needs Xiao's Google account (question 5). A second
+simulator set up for the test wedged: its CoreSimulator service crashed
+(`Mach error -308 — (ipc/mig) server died`), every `simctl` call against it
+hung, and it was shut down rather than retried a fourth time.
+
+### Two gates that were red, and reported green
+
+Both were introduced in phase 2 and merged to main. Both are fixed, on main and
+on this branch.
+
+1. **vitest was collecting the jest component tests.** Its include pattern
+   matched `Button.test.tsx` and `Chip.test.tsx`, which render React Native and
+   cannot be parsed by vitest. They failed to load, but every individual test
+   still passed. So the summary read "1108 passed" beneath "2 failed" files.
+   vitest now excludes `apps/app/**/*.test.tsx`, which jest-expo runs.
+2. **The library model was never committed.** The root `.gitignore` said
+   `library/`, meant for the music folder, and unanchored it matched
+   `apps/app/src/features/library/` too. `library.model.ts` and its test
+   existed only in this worktree, so every pushed branch failed to typecheck
+   from a clean checkout. This was found by running the gate in a fresh
+   worktree of main — the only place it could show. The rule is now
+   `/library/`, and `data/` had the same latent fault and is anchored too. The
+   extension rules beneath them still catch a stray database or song anywhere,
+   which is what "wherever it ends up" was relying on.
+
+**The records these contradict.** The phase 2 gate table above, and the
+messages of `66b7776`, `6b7fe9b`, `4d69bd3` and `2df5771`, report
+`npm run check` or `check:app` as passing. The first fault made `npm run check`
+red at the time. The second made `check:app` pass only in a worktree that had
+untracked files. In `2df5771` the check ran through a `grep` that succeeded
+whatever the result, so the commit went ahead on a red gate. Pushed history is
+left as it is; this is the correction. Gates are now decided by exit code, not
+by reading a summary line, and `main` was re-verified from a clean worktree:
+`npm run check` exit 0, `npm run check:app` exit 0.
 
 ---
 
@@ -636,6 +701,7 @@ same-origin and reaches none of it.
    part of the move. The simulator this was built on is signed in that way,
    which is how it came up; it was not signed out to test around it, because
    signing back in needs your Google account. The sheet itself was checked in the web build, where it lists the other
-   devices by name; the phone's own half — its hand-written stream reader —
-   is being checked on a second simulator pointed at the Mac.
+   devices by name. The phone's own half — its hand-written stream reader — has
+   its framing and reconnect tested under vitest, but has not run against a
+   Mac: a second simulator set up for that wedged and was shut down.
 

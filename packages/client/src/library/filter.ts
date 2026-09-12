@@ -10,7 +10,14 @@ import { fuzzyRank, sortSongs, type Song, type SongSortField, type Tag } from '@
 
 export interface LibraryFilter {
   readonly query: string
-  readonly tagId: number | null
+  /**
+   * A song must carry every one of these: "chinese" and "chill" means both,
+   * not either. Kept in the order they were chosen, which is the order the
+   * heading names them in.
+   */
+  readonly includedTagIds: readonly number[]
+  /** A song carrying any of these is hidden: "chill, but not instrumental". */
+  readonly excludedTagIds: readonly number[]
   readonly sort: SongSortField
   readonly descending: boolean
   readonly downloadedOnly: boolean
@@ -19,10 +26,75 @@ export interface LibraryFilter {
 /** The web's opening view: newest first. */
 export const DEFAULT_FILTER: LibraryFilter = {
   query: '',
-  tagId: null,
+  includedTagIds: [],
+  excludedTagIds: [],
   sort: 'addedAt',
   descending: true,
   downloadedOnly: false,
+}
+
+/** How one tag is filtering the library right now. */
+export type TagFilterState = 'off' | 'include' | 'exclude'
+
+export function tagFilterState(filter: LibraryFilter, tagId: number): TagFilterState {
+  if (filter.includedTagIds.includes(tagId)) return 'include'
+  if (filter.excludedTagIds.includes(tagId)) return 'exclude'
+  return 'off'
+}
+
+/** Whether any tag is filtering, either way. */
+export function tagFiltered(filter: LibraryFilter): boolean {
+  return filter.includedTagIds.length > 0 || filter.excludedTagIds.length > 0
+}
+
+const toggled = (ids: readonly number[], id: number): number[] =>
+  ids.includes(id) ? ids.filter(other => other !== id) : [...ids, id]
+
+/**
+ * Toggle "only songs with this tag". A tag cannot be both shown and hidden, so
+ * including one that was excluded stops excluding it — the web app's rule.
+ */
+export function includeTag(filter: LibraryFilter, tagId: number): LibraryFilter {
+  return {
+    ...filter,
+    includedTagIds: toggled(filter.includedTagIds, tagId),
+    excludedTagIds: filter.excludedTagIds.filter(id => id !== tagId),
+  }
+}
+
+/** Toggle "hide songs with this tag", the other side of the same rule. */
+export function excludeTag(filter: LibraryFilter, tagId: number): LibraryFilter {
+  return {
+    ...filter,
+    excludedTagIds: toggled(filter.excludedTagIds, tagId),
+    includedTagIds: filter.includedTagIds.filter(id => id !== tagId),
+  }
+}
+
+export function clearTagFilter(filter: LibraryFilter): LibraryFilter {
+  return tagFiltered(filter) ? { ...filter, includedTagIds: [], excludedTagIds: [] } : filter
+}
+
+/**
+ * The title a filtered library carries: "chill · not instrumental", or with
+ * only exclusions, "Library · not instrumental". A tag that no longer exists
+ * is left out rather than named as nothing.
+ */
+export function filterHeading(
+  filter: LibraryFilter,
+  tags: readonly Pick<Tag, 'id' | 'name'>[],
+): string {
+  if (!tagFiltered(filter)) return 'Library'
+  const nameOf = (id: number): string | undefined => tags.find(tag => tag.id === id)?.name
+  const parts = [
+    ...(filter.includedTagIds.length === 0 ? ['Library'] : []),
+    ...filter.includedTagIds.map(nameOf),
+    ...filter.excludedTagIds.map(id => {
+      const name = nameOf(id)
+      return name === undefined ? undefined : `not ${name}`
+    }),
+  ].filter((part): part is string => part !== undefined)
+  return parts.length > 0 ? parts.join(' · ') : 'Library'
 }
 
 /** Sort options offered in the UI — the web's list, in the web's order. */
@@ -47,8 +119,13 @@ export function filterSongs(
 ): Song[] {
   let result = songs.filter(song => !song.missing)
 
-  const tagId = filter.tagId
-  if (tagId !== null) result = result.filter(song => song.tagIds.includes(tagId))
+  if (tagFiltered(filter)) {
+    result = result.filter(
+      song =>
+        filter.includedTagIds.every(id => song.tagIds.includes(id)) &&
+        !filter.excludedTagIds.some(id => song.tagIds.includes(id)),
+    )
+  }
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
 
   if (filter.query.trim().length > 0) {

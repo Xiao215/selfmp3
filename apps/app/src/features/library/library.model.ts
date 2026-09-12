@@ -1,14 +1,21 @@
 import { useCallback, useMemo, useState } from 'react'
 import { formatLongDuration, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
 import {
+  clearTagFilter,
   DEFAULT_FILTER,
+  excludeTag,
+  filterHeading,
   filterSongs,
+  includeTag,
   isDownloaded,
   SORT_OPTIONS,
+  tagFilterState,
+  tagFiltered,
   usedTags,
   useLibrary,
   type DownloadIndex,
   type LibraryFilter,
+  type TagFilterState,
 } from '@selfmp3/client'
 
 /**
@@ -27,7 +34,7 @@ import {
  * screen has one; handing it over costs a line and keeps this file runnable.
  */
 
-export type { LibraryFilter }
+export type { LibraryFilter, TagFilterState }
 
 /** What the screen shows when the list is empty, which is three different things. */
 export type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
@@ -42,8 +49,14 @@ export interface LibraryModel {
   songIds: number[]
   /** Only the tags actually in use, which is what the strip offers. */
   tags: readonly Tag[]
-  /** The title: the filtered tag's name, or "Library". */
+  /** The title: "chill · not instrumental", or "Library". */
   heading: string
+  /** A tag is filtering, either way. */
+  tagFiltered: boolean
+  /** The tags being shown only, and being hidden, in the order chosen. */
+  includedTags: readonly Tag[]
+  excludedTags: readonly Tag[]
+  tagFilter: (tagId: number) => TagFilterState
   /** "13 songs · 48 min", or "Loading…" before the first answer. */
   subtitle: string
   sortLabel: string
@@ -54,7 +67,11 @@ export interface LibraryModel {
   clearQuery: () => void
   setSort: (field: SongSortField) => void
   toggleDirection: () => void
-  toggleTag: (tagId: number) => void
+  /** Toggle "only songs with this tag"; stops hiding it if it was hidden. */
+  includeTag: (tagId: number) => void
+  /** Toggle "hide songs with this tag"; stops showing only it if it was. */
+  excludeTag: (tagId: number) => void
+  clearTags: () => void
   toggleDownloadedOnly: () => void
 }
 
@@ -63,7 +80,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   const [filter, setFilter] = useState<LibraryFilter>(DEFAULT_FILTER)
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
-  const tags = useMemo(() => usedTags(songs, library.data?.tags ?? []), [songs, library.data])
+  const allTags = useMemo(() => library.data?.tags ?? [], [library.data])
+  const tags = useMemo(() => usedTags(songs, allTags), [songs, allTags])
 
   const downloaded = useCallback((songId: number) => isDownloaded(downloads, songId), [downloads])
   const visible = useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded])
@@ -74,7 +92,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     [visible],
   )
 
-  const filteredTag = filter.tagId === null ? null : tags.find(tag => tag.id === filter.tagId)
+  const tagsFor = (ids: readonly number[]): Tag[] =>
+    ids.flatMap(id => allTags.filter(tag => tag.id === id))
 
   return {
     filter,
@@ -82,7 +101,11 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     visible,
     songIds,
     tags,
-    heading: filteredTag?.name ?? 'Library',
+    heading: filterHeading(filter, allTags),
+    tagFiltered: tagFiltered(filter),
+    includedTags: tagsFor(filter.includedTagIds),
+    excludedTags: tagsFor(filter.excludedTagIds),
+    tagFilter: tagId => tagFilterState(filter, tagId),
     subtitle: library.isPending
       ? 'Loading…'
       : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`,
@@ -98,8 +121,9 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     clearQuery: () => setFilter(current => ({ ...current, query: '' })),
     setSort: sort => setFilter(current => ({ ...current, sort })),
     toggleDirection: () => setFilter(current => ({ ...current, descending: !current.descending })),
-    toggleTag: tagId =>
-      setFilter(current => ({ ...current, tagId: current.tagId === tagId ? null : tagId })),
+    includeTag: tagId => setFilter(current => includeTag(current, tagId)),
+    excludeTag: tagId => setFilter(current => excludeTag(current, tagId)),
+    clearTags: () => setFilter(clearTagFilter),
     toggleDownloadedOnly: () =>
       setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
   }

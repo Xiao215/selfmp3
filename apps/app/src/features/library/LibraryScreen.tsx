@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { type Song } from '@selfmp3/shared'
+import { type Song, type Tag } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
 import { useArt } from '../../offline/useArt'
 import { isDownloaded, colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
@@ -26,6 +26,7 @@ import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
+import { TagEditor } from '../../ui/components/TagEditor'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useLibraryModel } from './library.model'
@@ -53,6 +54,10 @@ export function LibraryScreen(): ReactNode {
   const { filter, songs, visible, songIds, tags, heading } = model
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
+  // Holding a chip opens its editor, as on the web's phone strip. A sheet on a
+  // phone; above the breakpoint it opens beside the strip.
+  const [editingTag, setEditingTag] = useState<Tag | null>(null)
+  const stripRef = useRef<View>(null)
 
   // Multi-select runs off the visible list, so "select all" means the songs on
   // screen and a song a search has hidden drops out of the selection rather
@@ -62,8 +67,7 @@ export function LibraryScreen(): ReactNode {
     () => visible.filter(song => selection.has(song.id)),
     [visible, selection],
   )
-  const narrowed =
-    filter.query.trim().length > 0 || filter.tagId !== null || filter.downloadedOnly
+  const narrowed = model.tagFiltered || filter.query.trim().length > 0 || filter.downloadedOnly
 
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
@@ -184,6 +188,7 @@ export function LibraryScreen(): ReactNode {
       </View>
 
       {tags.length > 0 || songs.length > 0 ? (
+        <View ref={stripRef} collapsable={false}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -203,17 +208,59 @@ export function LibraryScreen(): ReactNode {
             }
             onPress={model.toggleDownloadedOnly}
           />
-          {tags.map((tag, index) => (
+          {tags.map((tag, index) => {
+            const state = model.tagFilter(tag.id)
+            return (
+              <Chip
+                key={tag.id}
+                testID={`tag-chip-${index}`}
+                label={tag.name}
+                hue={tag.hue}
+                selected={state === 'include'}
+                excluded={state === 'exclude'}
+                // A tap on a hidden tag stops hiding it; otherwise a tap shows
+                // only it — the web's strip.
+                onPress={() =>
+                  state === 'exclude' ? model.excludeTag(tag.id) : model.includeTag(tag.id)
+                }
+                onLongPress={() => setEditingTag(tag)}
+              />
+            )
+          })}
+        </ScrollView>
+        </View>
+      ) : null}
+
+      {model.tagFiltered ? (
+        <View style={styles.activeFilters}>
+          <Text style={styles.filteredBy}>Filtered by</Text>
+          {model.includedTags.map(tag => (
             <Chip
               key={tag.id}
-              testID={`tag-chip-${index}`}
+              compact
               label={tag.name}
               hue={tag.hue}
-              selected={filter.tagId === tag.id}
-              onPress={() => model.toggleTag(tag.id)}
+              selected
+              onPress={() => model.excludeTag(tag.id)}
+              onRemove={() => model.includeTag(tag.id)}
             />
           ))}
-        </ScrollView>
+          {model.excludedTags.map(tag => (
+            <Chip
+              key={tag.id}
+              compact
+              label={tag.name}
+              hue={tag.hue}
+              selected={false}
+              excluded
+              onPress={() => model.includeTag(tag.id)}
+              onRemove={() => model.excludeTag(tag.id)}
+            />
+          ))}
+          <Pressable onPress={model.clearTags} accessibilityRole="button" hitSlop={8}>
+            <Text style={[styles.clear, { color: accent.accent }]}>clear</Text>
+          </Pressable>
+        </View>
       ) : null}
 
       <SyncStatus songs={songs} />
@@ -242,6 +289,21 @@ export function LibraryScreen(): ReactNode {
           empty={<Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>}
         />
       )}
+
+      <TagEditor
+        tag={editingTag}
+        anchorRef={stripRef}
+        filter={editingTag ? model.tagFilter(editingTag.id) : 'off'}
+        onInclude={() => editingTag && model.includeTag(editingTag.id)}
+        onExclude={() => editingTag && model.excludeTag(editingTag.id)}
+        onDeleted={() => {
+          if (!editingTag) return
+          const state = model.tagFilter(editingTag.id)
+          if (state === 'include') model.includeTag(editingTag.id)
+          if (state === 'exclude') model.excludeTag(editingTag.id)
+        }}
+        onClose={() => setEditingTag(null)}
+      />
 
       <SongMenu
         song={menuSong}
@@ -371,6 +433,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingTop: space.md,
     paddingBottom: space.sm,
+  },
+  /* `.active-filters`: the chips that are filtering, each removable, and clear. */
+  activeFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.md,
+  },
+  filteredBy: {
+    color: colors.textMuted,
+    fontSize: type.small,
+  },
+  clear: {
+    fontSize: type.small,
+    textDecorationLine: 'underline',
   },
   list: {
     paddingTop: space.xs,

@@ -73,7 +73,11 @@ function Shell(): ReactNode {
   }, [status])
 
   useEffect(() => {
-    if (status === 'missing' && pathname !== '/onboarding') router.replace('/onboarding')
+    // `/sign-in` is the Google flow, and it is where this is going; until the
+    // screens behind it read from the bucket rather than the Mac, onboarding
+    // stays the default and sign-in is reachable rather than forced.
+    const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
+    if (status === 'missing' && !ownItsRoute) router.replace('/onboarding')
   }, [status, pathname, router])
 
   const chrome = !FULL_SCREEN_ROUTES.includes(pathname) && status === 'ready'

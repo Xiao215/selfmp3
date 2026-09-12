@@ -1,5 +1,5 @@
 import { createCloudLibrary, createCloudRoutes, createCloudSession } from '@selfmp3/cloud'
-import { nativePlatform } from './nativePlatform.js'
+import { nativePlatform } from './nativePlatform'
 
 /**
  * The phone's cloud client: the package, with a phone behind it.

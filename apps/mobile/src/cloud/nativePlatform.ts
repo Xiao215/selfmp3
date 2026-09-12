@@ -137,9 +137,11 @@ export const nativePlatform: CloudPlatform = {
    * Nothing in the doorman had to change for this.
    */
   returnUrl: null,
-  openSignIn: url => {
-    void Linking.openURL(url)
-  },
+  // The promise is returned, not dropped. `openSignIn` may fail — no browser,
+  // a refusal from the OS — and a floating promise turns that into an uncaught
+  // rejection nobody sees, leaving the screen saying "Waiting for Google…"
+  // forever about a Google that was never opened.
+  openSignIn: url => Linking.openURL(url).then(() => undefined),
 
   deviceKind: Platform.OS === 'ios' ? 'iphone' : 'android',
 

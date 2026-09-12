@@ -75,8 +75,14 @@ export default tseslint.config(
      * needs the WebWorker lib rather than the DOM one (see tsconfig.sw.json).
      *
      * typescript-eslint's project service therefore cannot resolve types for
-     * them, so type-aware rules are switched off here. Both are still fully
-     * type-checked: tests by vitest, sw.ts by `npm run typecheck:sw`.
+     * them, so type-aware rules are switched off here.
+     *
+     * sw.ts is still fully type-checked, by `npm run typecheck:sw`. The tests
+     * are not: vitest transpiles them with esbuild and never checks their
+     * types, so a test that does not compile fails when it runs rather than
+     * when it is written. Checking them would want a tsconfig per workspace —
+     * they cannot share one, for the same reason the workspaces cannot (see
+     * the note in the root tsconfig.json).
      */
     files: ['**/*.test.ts', '**/*.test.tsx', 'apps/web/src/sw.ts'],
     extends: [tseslint.configs.disableTypeChecked],

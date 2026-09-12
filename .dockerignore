@@ -6,6 +6,9 @@ node_modules
 **/*.tsbuildinfo
 library
 data
+# The phone app is built by Expo, never by this image; a prebuilt ios/ or
+# android/ tree is hundreds of megabytes of build context for nothing.
+apps/mobile
 .git
 .claude
 .env

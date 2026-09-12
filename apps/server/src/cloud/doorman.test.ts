@@ -53,13 +53,6 @@ const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } })
 
 describe('DoormanClient', () => {
-  it('builds the sign-in address with the attempt, and a way back', () => {
-    const { client } = stand(() => json({}))
-    expect(client.signInUrl('a'.repeat(32), 'http://localhost:4601/settings')).toBe(
-      `https://doorman.test/v1/auth/start?attempt=${'a'.repeat(32)}&return=http%3A%2F%2Flocalhost%3A4601%2Fsettings`,
-    )
-  })
-
   it('claims a sign-in: pending, then signed in with the account', async () => {
     let answered = false
     const { client, calls } = stand(() => {

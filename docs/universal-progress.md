@@ -48,7 +48,7 @@ The plan's four phase 1 commands. Run at 06:38, on `35e6ab6`.
 | `npm run check` | **pass** — 1085 tests, 94 files (baseline on `main` was 1043) |
 | `npm run check:mobile` | **pass** — clean |
 | `grep -rn "'/api/" apps/web/src apps/mobile/src \| grep -v packages` | **pass** — no matches; every route string is in the package |
-| `npx playwright test verify/flows --project=desktop --project=phone` | **not run** — written, 18 tests, collects at both widths; needs a server with a library |
+| `npx playwright test verify/flows --project=desktop --project=phone` | **pass** — 18 tests at both widths, on the Mac, 2026-09-12. See *The fourth gate, run* below. |
 
 `npm run build` was also run at each commit, since `npm run check` does not
 build the web bundle and a broken Vite build would not have shown up otherwise.
@@ -116,6 +116,99 @@ All recorded in the commit messages that made them. In summary:
 offline and devices flows. Starting them here would produce branches that
 cannot be shown to be green, against a ground rule that says commit only on
 green gates.
+
+---
+
+## The fourth gate, run — on the Mac, 2026-09-12
+
+Commit `17f4571` on `universal/phase-1`. The flow suite had never met a running
+app; this is what happened when it did.
+
+**All four phase 1 gates are now green on one commit**, so phase 1 is done.
+
+| Command | Result |
+|---|---|
+| `npm run check` | **pass** — 94 files, 1085 passed, 1 skipped |
+| `npm run check:mobile` | **pass** — clean |
+| `grep -rn "'/api/" apps/web/src apps/mobile/src \| grep -v packages` | **pass** — no matches |
+| `npm run verify:flows` | **pass** — 18 passed, desktop and phone, stable over three runs |
+
+`npm run build` was run too, since `npm run check` does not build the web bundle.
+
+### What the gate found
+
+Three faults, every one of them in the tests. No product code was touched and
+nothing about how the app looks or behaves changed. The question the runbook
+asks — real regression from the `packages/client` move, or a selector guessed
+by someone who never saw the app run — came back "selector" all three times,
+and the evidence for that is below rather than asserted.
+
+1. **The gate command could not have worked.** `playwright test verify/flows`
+   looks for a config in the working directory and there is none at the root,
+   so it ran with defaults and failed with *no such project: available
+   projects: ""*. It now passes `-c verify/playwright.config.ts`.
+
+2. **A song could not be started, at either width, for two different reasons.**
+   Above the 820 breakpoint `.song-index-play` is `display: none` until
+   `.song-row:hover`, so Playwright waited on a button with no box. Below 820
+   that button is not hidden but *absent* — the phone has no index column,
+   `showIndex={!isMobile}` — and the row itself is the control. Both now go
+   through one `playSong` helper.
+
+3. **"The audio is really advancing" could never have been true.** It read
+   `document.querySelector('audio').currentTime`. There are no `<audio>`
+   elements in the document at all: `engine.ts` builds its two with
+   `new Audio()` and never appends them, so the selector was always null and
+   the value always 0. Instrumenting the page confirmed it — zero elements, at
+   both widths, with no console errors. It now reads the scrubber, which is the
+   engine's `currentTime` and also the number a person can see: 0 → 4.7s at
+   1280, 0 → 5.0s at 375.
+
+So the answer to open question 4 — is the type checker plus 1043 existing tests
+enough evidence that phase 1 changed no behaviour — is now better than it was.
+The 27 moved query hooks are exercised end to end: the library loads, searches
+and sorts, a love survives a reload, playlists and settings load, a song plays
+from a stream URL built by `packages/client`, and Next moves the queue.
+
+### The dev library, and one failure that was not a fault
+
+`reversing the sort changes which song is first` failed at both widths on the
+first run and then passed, without the test changing. Worth writing down,
+because the difference was the library and not the app.
+
+The thirteen songs live in the main checkout (`library/` and `data/`, the
+legacy in-repo location), not at the `~/Music/selfmp3-dev` that
+`SELFMP3_PROFILE=dev` points at — and a git worktree has no `library/` of its
+own, so `npm run dev` from here came up empty. Copying the audio across and
+letting the server rescan produced thirteen songs whose `addedAt` are all
+*one* value, since they were scanned in a single 225 ms batch. The default
+sort is `addedAt`, and reversing a stable sort whose keys are all equal
+cannot change which song is first.
+
+Copying `data/selfmp3.db` into the profile's data directory as well fixed it:
+the real dev library has twelve distinct timestamps across its thirteen songs,
+and song paths are stored relative to the library folder, so the database
+works unchanged against the copy. The original checkout's `library/` and
+`data/` were not modified — the flows love songs and edit playlists, which is
+exactly what the profile mechanism exists to keep away from real data.
+
+**Setup for the next session**, since this is not in the repository and cannot
+be:
+
+```
+~/Music/selfmp3-dev                             the thirteen songs (+ .lrc)
+~/Library/Application Support/selfmp3-dev/      selfmp3.db, covers/, lyrics/
+```
+
+Both are copies of the main checkout's `library/` and `data/`. With them in
+place `npm run dev` works from any worktree, and `npm run verify:flows` is
+green.
+
+One thing to know when running these by hand: a server was already listening
+on 4600 when this started — `npm run start` from the main checkout, on the
+real library — and the dev server lost the bind race silently, so the flows
+would have run against the real collection. Xiao confirmed it could be
+stopped. Check what owns 4600 before trusting a green run.
 
 ---
 

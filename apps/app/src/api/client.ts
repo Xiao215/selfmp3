@@ -27,7 +27,8 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 
-import { cloudRequest } from '../cloud'
+import { cloudRequest as request } from '../cloud'
+import { sessionExpired } from '../server/expiry'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 
 /** A slow request is almost always a sleeping server; do not hang forever. */
@@ -84,9 +85,27 @@ const fetchWithTimeout = async (
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    if (response.status === 401) sessionExpired()
+    return response
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/**
+ * The bucket's half of the same watch.
+ *
+ * A Mac says 401 through a response and the doorman says it through a thrown
+ * `CloudRouteError`, so the one thing that has to be noticed on both paths has
+ * to be noticed twice. The error carries on either way: this only reports it.
+ */
+const cloudRequest: typeof request = async (...args) => {
+  try {
+    return await request(...args)
+  } catch (error) {
+    if (error instanceof Error && (error as { status?: number }).status === 401) sessionExpired()
+    throw error
   }
 }
 

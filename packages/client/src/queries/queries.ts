@@ -106,11 +106,19 @@ export function useLibrary(): UseQueryResult<Library, Error> {
         void librarySnapshot()?.write(library)
         return library
       } catch (error) {
-        // Any failure, not just an unreachable server. A music library is not a
-        // dashboard: you open it to play something, and a library a few hours
-        // stale is still your library where an error screen is nothing. The
-        // only thing the stale copy hides is a song added since the last fetch,
-        // and one song missing beats all of them missing.
+        // Almost any failure, not just an unreachable server. A music library
+        // is not a dashboard: you open it to play something, and a library a
+        // few hours stale is still your library where an error screen is
+        // nothing. The only thing the stale copy hides is a song added since
+        // the last fetch, and one song missing beats all of them missing.
+        //
+        // 401 is the one exception, and it is the exception that proves the
+        // rule: there is no music to show. The songs are listed but the server
+        // will refuse every one of them, so the cached copy is not a slightly
+        // old library, it is a menu in a closed restaurant — and a tap that
+        // does nothing is harder to understand than a sentence saying you need
+        // to sign in again. The app is told so it can ask.
+        if (error instanceof ApiError && error.status === 401) throw error
         const cached = (await librarySnapshot()?.read()) ?? null
         if (cached) return cached
         throw error
@@ -120,8 +128,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
-    retry: (failureCount, error) =>
-      error instanceof ApiError && error.isOffline ? false : failureCount < 2,
+    retry: (failureCount, error) => {
+      // Neither of these gets better by being asked again: nothing is
+      // listening, or the answer is no.
+      if (error instanceof ApiError && (error.isOffline || error.status === 401)) return false
+      return failureCount < 2
+    },
   })
 }
 

@@ -1,9 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ClientStateProvider } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
 import { session as cloudSession } from '../cloud'
+import { onSessionExpired } from './expiry'
 import {
   clearConnection,
   loadConnection,
@@ -42,6 +51,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [connection, setConnection] = useState<ServerConnection | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [fromCloud, setFromCloud] = useState(false)
+  // One expiry, however many 401s arrive together; cleared by signing back in.
+  const expiring = useRef(false)
   const queryClient = useQueryClient()
 
   /*
@@ -85,6 +96,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   /** Called once Google is done, so the app stops asking for a Mac. */
   const signedInToCloud = useCallback(() => {
+    expiring.current = false
     answerFromCloud(true)
     forgetCachedServer()
     setFromCloud(true)
@@ -93,6 +105,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   const connect = useCallback(
     async (next: ServerConnection) => {
+      expiring.current = false
       // Choosing a Mac on purpose means answering from it, not the bucket.
       answerFromCloud(false)
       setServer(next)
@@ -104,6 +117,36 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     },
     [forgetCachedServer],
   )
+
+  /**
+   * The server no longer recognises this phone, so ask for a sign-in.
+   *
+   * Everything the phone had is dropped: the dead cloud session, the Mac's
+   * address and token, and the cached answers that were fetched with them.
+   * Forgotten locally rather than by signing out at the doorman — the session
+   * it would have to use is the one being refused, so the call would 401 and
+   * report itself back here.
+   *
+   * Setting `missing` is the whole mechanism. `Shell` already sends a phone
+   * with no way in to `/sign-in`, and an expired session is exactly that; the
+   * sign-in screen does not need to know it is a second visit. Guarded by the
+   * status it is leaving, because a burst of 401s — a screen, the download
+   * queue and the playback service inside the same second — is one expiry.
+   */
+  const expire = useCallback(() => {
+    if (expiring.current) return
+    expiring.current = true
+    void cloudSession.forgetSession().catch(() => undefined)
+    void clearConnection().catch(() => undefined)
+    answerFromCloud(false)
+    setServer(null)
+    forgetCachedServer()
+    setFromCloud(false)
+    setConnection(null)
+    setStatus('missing')
+  }, [forgetCachedServer])
+
+  useEffect(() => onSessionExpired(expire), [expire])
 
   const disconnect = useCallback(async () => {
     await clearConnection()

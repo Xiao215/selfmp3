@@ -36,8 +36,16 @@ import type { SyncClock } from './localEdits.js'
 export interface IngestResult {
   /** Changes that changed something here. */
   readonly applied: number
-  /** Songs another device removed. Their files go too, once the rows have. */
-  readonly removed: readonly { readonly id: number; readonly path: string }[]
+  /**
+   * Songs another device removed. What is derived from them — cover, cached
+   * lyrics, search index — goes with the row either way; the audio itself only
+   * when `deleteFile` says the person asked for that.
+   */
+  readonly removed: readonly {
+    readonly id: number
+    readonly path: string
+    readonly deleteFile: boolean
+  }[]
   /** Links other devices asked this Mac to import, seen for the first time. */
   readonly requested: number
 }
@@ -87,7 +95,7 @@ export class CloudIngest {
    * ever arrive.
    */
   apply(changes: readonly Change[], alongside: () => void = () => undefined): IngestResult {
-    const removed: { id: number; path: string }[] = []
+    const removed: { id: number; path: string; deleteFile: boolean }[] = []
     let applied = 0
     let requested = 0
     this.#db.transaction(() => {
@@ -111,7 +119,10 @@ export class CloudIngest {
     return { applied, removed, requested }
   }
 
-  #applyOne(change: Change, removed: { id: number; path: string }[]): boolean {
+  #applyOne(
+    change: Change,
+    removed: { id: number; path: string; deleteFile: boolean }[],
+  ): boolean {
     switch (change.type) {
       case 'songEdited': {
         const id = this.#sync.songId(change.uid)
@@ -145,7 +156,9 @@ export class CloudIngest {
         const song = id === null ? null : this.#songs.byId(id)
         if (id === null || !song) return false
         this.#songs.delete(id)
-        removed.push({ id, path: song.path })
+        // The audio only goes if that is what was asked for. The device that
+        // removed it offered the choice; this is the other half of it.
+        removed.push({ id, path: song.path, deleteFile: change.deleteFile })
         return true
       }
 

@@ -24,6 +24,7 @@ export class PlaylistRepository {
   readonly #insert
   readonly #delete
   readonly #items
+  readonly #everyItem
   readonly #maxPosition
   readonly #insertItem
   readonly #removeItem
@@ -64,6 +65,22 @@ export class PlaylistRepository {
         JOIN songs s ON s.id = pi.song_id
        WHERE pi.playlist_id = ? AND s.missing = 0
        ORDER BY pi.position, pi.rowid
+    `)
+
+    /*
+     * Every row, missing songs included.
+     *
+     * `#items` hides songs whose file is gone, which is right for playing a
+     * playlist and wrong for rewriting one: `add` and `reorder` clear the
+     * playlist and write back what they read, so reading the hidden version
+     * would drop every missing song on the way through. A missing song is
+     * usually an unplugged drive, and it comes back.
+     */
+    this.#everyItem = db.prepare<[number], { song_id: number }>(`
+      SELECT song_id
+        FROM playlist_items
+       WHERE playlist_id = ?
+       ORDER BY position, rowid
     `)
 
     this.#maxPosition = db.prepare<[number], { max: number | null }>(
@@ -248,7 +265,7 @@ export class PlaylistRepository {
       // Inserting in the middle: rebuild the order rather than shuffling
       // positions in place, which is simpler to reason about and cheap at
       // playlist scale.
-      const existing = this.#items.all(playlistId).map(row => row.song_id)
+      const existing = this.#everyItem.all(playlistId).map(row => row.song_id)
       const incoming = songIds.filter(id => !existing.includes(id))
       const clamped = Math.min(Math.max(position, 0), existing.length)
       const merged = [...existing.slice(0, clamped), ...incoming, ...existing.slice(clamped)]
@@ -291,7 +308,7 @@ export class PlaylistRepository {
    */
   reorder(playlistId: number, songIds: readonly number[]): void {
     const run = this.#db.transaction(() => {
-      const existing = this.#items.all(playlistId).map(row => row.song_id)
+      const existing = this.#everyItem.all(playlistId).map(row => row.song_id)
       const existingSet = new Set(existing)
       const ordered = songIds.filter(id => existingSet.has(id))
       const orderedSet = new Set(ordered)

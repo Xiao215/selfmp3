@@ -4,7 +4,7 @@ import { useToggleLoved } from '../../api/queries'
 import { isDownloaded, colors } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
-import { CloudDownload, Heart, ListMusic, Queue, Trash } from './Icons'
+import { CheckSquare, CloudDownload, Heart, ListMusic, Queue, Trash } from './Icons'
 import { Sheet, SheetItem } from './Sheet'
 
 /**
@@ -16,7 +16,19 @@ import { Sheet, SheetItem } from './Sheet'
  * Mounted only while open, the way the web's is, so the rows never pay for
  * the player context it reads.
  */
-export function SongMenu({ song, onClose }: { song: Song | null; onClose: () => void }): ReactNode {
+export function SongMenu({
+  song,
+  onClose,
+  onStartSelecting,
+}: {
+  song: Song | null
+  onClose: () => void
+  /**
+   * Where the list supports it, "Select" starts selection mode with this song
+   * ticked — the web's third way in, and the only one a held finger has.
+   */
+  onStartSelecting?: (song: Song) => void
+}): ReactNode {
   return (
     <Sheet
       testID="song-menu"
@@ -25,12 +37,20 @@ export function SongMenu({ song, onClose }: { song: Song | null; onClose: () => 
       title={song?.title}
       subtitle={song ? song.artist || 'Unknown artist' : undefined}
     >
-      {song ? <Items song={song} onClose={onClose} /> : null}
+      {song ? <Items song={song} onClose={onClose} onStartSelecting={onStartSelecting} /> : null}
     </Sheet>
   )
 }
 
-function Items({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
+function Items({
+  song,
+  onClose,
+  onStartSelecting,
+}: {
+  song: Song
+  onClose: () => void
+  onStartSelecting?: (song: Song) => void
+}): ReactNode {
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue } = useDownloads()
@@ -79,6 +99,13 @@ function Items({ song, onClose }: { song: Song; onClose: () => void }): ReactNod
           onPress={then(() => downloadQueue.enqueue([song.id]))}
         />
       )}
+      {onStartSelecting ? (
+        <SheetItem
+          icon={<CheckSquare size={16} color={colors.textSecondary} />}
+          label="Select"
+          onPress={then(() => onStartSelecting(song))}
+        />
+      ) : null}
     </>
   )
 }

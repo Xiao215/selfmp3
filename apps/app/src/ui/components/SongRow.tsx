@@ -1,9 +1,11 @@
 import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
+import type { GestureResponderEvent } from 'react-native'
 import { formatDuration, type Song } from '@selfmp3/shared'
 import { useAccent } from '../accent'
 import { oklchToHexAlpha, colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Downloaded, Heart, More } from './Icons'
 import { Equalizer } from './Equalizer'
@@ -30,6 +32,9 @@ export const SongRow = memo(function SongRow({
   onPress,
   onMore,
   onToggleLoved,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -39,10 +44,19 @@ export const SongRow = memo(function SongRow({
   downloaded: boolean
   /** Whether the song is the one actually sounding, for the equaliser. */
   playing?: boolean
-  onPress: () => void
+  /** The press event comes through, so a list can read Shift and Cmd on the web. */
+  onPress: (event: GestureResponderEvent) => void
   /** The ⋯, and what a held finger opens. */
   onMore?: () => void
   onToggleLoved?: () => void
+  /**
+   * Selection mode is on, so the checkbox column is showing. The web app keeps
+   * the column hidden on a phone until then, rather than spending 34 points of
+   * every row on nothing; the row decides what a tap means via `onPress`.
+   */
+  selecting?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }): ReactNode {
   const accent = useAccent()
   // The held-finger state, as on the web: the row gives a little under the
@@ -80,9 +94,24 @@ export const SongRow = memo(function SongRow({
         style={[
           styles.row,
           active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },
+          // The web's `.song-row.is-selected`: a translucent accent that reads
+          // as picked on the dark UI.
+          selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
           song.missing && styles.missing,
         ]}
       >
+        {selecting && onToggleSelect ? (
+          <Pressable
+            onPress={onToggleSelect}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selected }}
+            accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+            style={styles.select}
+          >
+            <Checkbox checked={selected} />
+          </Pressable>
+        ) : null}
+
         <Pressable
           onPress={onPress}
           onLongPress={onMore}
@@ -211,6 +240,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(10, 8, 16, 0.55)',
     borderRadius: radius.sm,
+  },
+  /* `.song-list.is-selecting .song-select` at phone width. */
+  select: {
+    width: 34,
+    height: HIT_TARGET,
+    marginLeft: -6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   control: {
     width: HIT_TARGET,

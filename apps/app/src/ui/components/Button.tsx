@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useAccent } from '../accent'
-import { colors, HIT_TARGET, radius } from '@selfmp3/client'
+import { colors, HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
 
 /**
  * The web's `.button`, in the same three weights, at the phone's 44px.
@@ -19,6 +19,7 @@ export function Button({
   disabled = false,
   busy = false,
   grow = false,
+  active = false,
 }: {
   testID?: string
   label?: string
@@ -29,6 +30,11 @@ export function Button({
   busy?: boolean
   /** Take the row's spare width, so a group of buttons shares a line evenly. */
   grow?: boolean
+  /**
+   * On, the way the web's `.library-select.is-active` is: a dim accent fill with
+   * an accent edge, for a button that toggles a mode.
+   */
+  active?: boolean
 }): ReactNode {
   const accent = useAccent()
   const inactive = disabled || busy
@@ -46,13 +52,17 @@ export function Button({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: inactive }}
+      accessibilityState={{ disabled: inactive, selected: active }}
       style={({ pressed }) => [
         styles.button,
         label === undefined && styles.square,
         grow && styles.grow,
         variant === 'primary' && { backgroundColor: accent.accent, borderColor: accent.accent },
         variant === 'danger' && styles.danger,
+        active && {
+          backgroundColor: oklchToHexAlpha(0.42, 0.1, accent.hue, 1),
+          borderColor: accent.accent,
+        },
         pressed && !inactive && styles.pressed,
         inactive && styles.disabled,
       ]}

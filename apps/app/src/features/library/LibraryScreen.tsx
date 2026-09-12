@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -19,12 +19,15 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
+import { CheckSquare, Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
+import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
+import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { useLayout } from '../../shell/useLayout'
 import { useLibraryModel } from './library.model'
 
 /**
@@ -39,6 +42,7 @@ import { useLibraryModel } from './library.model'
  */
 export function LibraryScreen(): ReactNode {
   const accent = useAccent()
+  const { wide } = useLayout()
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
   const { state: downloads } = useDownloads()
@@ -49,6 +53,17 @@ export function LibraryScreen(): ReactNode {
   const { filter, songs, visible, songIds, tags, heading } = model
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
+
+  // Multi-select runs off the visible list, so "select all" means the songs on
+  // screen and a song a search has hidden drops out of the selection rather
+  // than being acted on with the rest.
+  const selection = useSelection(songIds)
+  const selectedSongs = useMemo(
+    () => visible.filter(song => selection.has(song.id)),
+    [visible, selection],
+  )
+  const narrowed =
+    filter.query.trim().length > 0 || filter.tagId !== null || filter.downloadedOnly
 
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
@@ -68,12 +83,20 @@ export function LibraryScreen(): ReactNode {
         active={currentId === item.id}
         playing={playing}
         downloaded={downloaded(item.id)}
-        onPress={() => player.playFrom(songIds, index)}
+        onPress={event => {
+          // Shift and Cmd on the web, and a tap in selection mode, select; a
+          // plain tap still plays.
+          if (selection.click(item.id, modifiersOf(event))) return
+          player.playFrom(songIds, index)
+        }}
         onMore={() => setMenuSong(item)}
         onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
+        selecting={selection.active}
+        selected={selection.has(item.id)}
+        onToggleSelect={() => selection.toggle(item.id)}
       />
     ),
-    [artFor, currentId, playing, songIds, downloaded, player, toggleLoved],
+    [artFor, currentId, playing, songIds, downloaded, player, toggleLoved, selection],
   )
 
   return (
@@ -131,7 +154,19 @@ export function LibraryScreen(): ReactNode {
             <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
           </Pressable>
 
-          <View style={styles.transport}>
+          <View style={[styles.transport, !wide && styles.transportCompact]}>
+            {/*
+              The way in, on every device: multi-select used to be reachable
+              only by knowing that Cmd-click did something.
+            */}
+            <Button
+              label={selection.active ? 'Done' : 'Select'}
+              active={selection.active}
+              icon={<CheckSquare size={15} color={colors.textPrimary} />}
+              disabled={visible.length === 0}
+              onPress={() => (selection.active ? selection.clear() : selection.enter())}
+              testID="library-select"
+            />
             <Button
               label="Play"
               icon={<Play size={15} color={colors.onAccent} />}
@@ -183,6 +218,19 @@ export function LibraryScreen(): ReactNode {
 
       <SyncStatus songs={songs} />
 
+      {selection.active ? (
+        <SelectionBar
+          songs={selectedSongs}
+          total={visible.length}
+          narrowed={narrowed}
+          scope={narrowed ? 'in this view' : 'in your library'}
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.deselectAll}
+          onDone={selection.clear}
+        />
+      ) : null}
+
       {model.loading ? (
         <ActivityIndicator style={styles.spinner} color={accent.accent} />
       ) : (
@@ -195,7 +243,11 @@ export function LibraryScreen(): ReactNode {
         />
       )}
 
-      <SongMenu song={menuSong} onClose={() => setMenuSong(null)} />
+      <SongMenu
+        song={menuSong}
+        onClose={() => setMenuSong(null)}
+        onStartSelecting={song => selection.enter(song.id)}
+      />
     </SafeAreaView>
   )
 }
@@ -251,6 +303,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: space.sm,
   },
@@ -300,6 +353,11 @@ const styles = StyleSheet.create({
   transport: {
     flexDirection: 'row',
     gap: space.sm,
+  },
+  /* At phone width Select, Play and Shuffle take a line of their own, at the end of it. */
+  transportCompact: {
+    flexBasis: '100%',
+    justifyContent: 'flex-end',
   },
   // A ScrollView shrinks like anything else in a column; next to a list that
   // takes all the room it was squeezed to nothing, and the chips with it.

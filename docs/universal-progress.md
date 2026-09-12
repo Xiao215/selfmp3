@@ -374,9 +374,9 @@ were never written to.
 
 ## Phase 2, on the Mac — 2026-09-12
 
-Four commits on `universal/phase-2`, `48695a5` through `bde1f5f`, on top of a
-merge of `main`. **Not finished.** What is done is green; what is left is
-listed at the end.
+Nine commits on `universal/phase-2`, `48695a5` through `66b7776`, on top of a
+merge of `main`. **Done, bar `expo run:android`** — this Mac has no Android SDK
+and Xiao chose not to install one.
 
 ### Gates
 
@@ -390,6 +390,7 @@ listed at the end.
 | `maestro test .maestro/smoke.yaml` | **pass** — iPhone 17 Pro, iOS 26.5 |
 | `verify/flows --project=phone` vs `apps/app` | **6 passed, 3 skipped** (reasons below) |
 | `verify/flows` vs `apps/web` | **pass** — 18, unchanged |
+| `npm run check:app` (jest-expo) | **pass** — 7 component tests, now part of the same command |
 | `npx expo run:android` | **not run** — no Android SDK on this Mac; Xiao chose not to install one |
 
 The iOS build is also the device half of spike check 2: Unistyles,
@@ -441,16 +442,48 @@ The iOS build is also the device half of spike check 2: Unistyles,
 - **The Mac's settings.** The phone's Settings carries server, downloads,
   appearance and about; crossfade and what counts as a play arrive with phase 4.
 
+### Finished after that was written
+
+- **Every screen has a folder.** Playlists, playlist detail, now playing,
+  settings, sign-in and onboarding joined library in `src/features/*`; each
+  route file is one line. `playlists.model.ts` came with the move, carrying the
+  one rule that screen has — pinned lists above the alphabet rather than into
+  it, and names compared by locale rather than by code point, which is not a
+  subtlety in a library that is mostly Japanese.
+- **The three primitives.** `Popover` is one component with two shapes, anchored
+  above the breakpoint and a `Sheet` below it, and the caller does not know
+  which it got. `Select` is built on it and the library's sort control is the
+  first user — checked at both widths, a sheet at 375 and a panel anchored under
+  the control at 1280. `Tooltip` is a `.web.tsx` pair that draws nothing on a
+  phone.
+- **`SongList`, with a `FlatList` inside it.** See below: FlashList was tried
+  and is not usable yet.
+- **jest-expo**, folded into `npm run check:app`.
+
+### FlashList was tried, and is not in
+
+The Stack table picks FlashList v2, so it went in first. It draws correctly and
+scrolls well on RN 0.86 — and on the phone it breaks recycled rows. After a
+data change (filtering by a tag and clearing it is enough) the cells keep their
+positions and their testIDs and stop exposing any accessible content at all:
+`maestro hierarchy` shows thirteen rows, correctly placed, every one empty. A
+long press stops opening a song's menu, and VoiceOver reads an empty row where
+a song is plainly drawn. The smoke flow passes with `FlatList` and fails at
+exactly that step with FlashList.
+
+The plan allowed for this the other way round — "if it falls short on web,
+`SongList.web.tsx` uses `FlatList` and nothing else changes" — so the answer
+has the same shape: the component stays, the list inside it is a `FlatList`,
+and revisiting is a one-file change once FlashList fixes recycled-cell
+accessibility on the New Architecture. **This is one for Xiao to know about
+rather than decide**: nothing is blocked by it.
+
 ### What phase 2 still owes
 
-- `src/features/*` for the rest: playlists, playlist detail, now playing,
-  settings, sign-in, onboarding. Only library has moved.
-- The primitives the plan adds: `Popover` (a `Sheet` below the breakpoint),
-  `Select`, `Tooltip`. The overlay host they need now exists.
-- `SongList` on FlashList; the library is still a `FlatList`.
-- jest-expo against the primitives. Model tests run under vitest; components
-  have none yet.
-- `expo run:android`.
+- `expo run:android`, which needs an SDK this Mac does not have.
+- Model files for the five screens that moved without one. Now playing above
+  all deserves one, and it is being rewritten in phase 4 anyway, which is the
+  moment to write it rather than now.
 
 ### Running it
 

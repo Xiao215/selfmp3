@@ -1,13 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import { usePlayer } from '../player/PlayerProvider.js'
 import { useOffline } from '../offline/OfflineProvider.js'
 import { useToggleLoved } from '../lib/queries.js'
 import { coverColorStyle, useCoverColor } from '../lib/useCoverColor.js'
 import { Cover } from './Cover.js'
 import { TagChip } from './TagChip.js'
 import { TagPicker } from './TagPicker.js'
-import { SongMenu } from './SongMenu.js'
+import { SongRowMenu } from './SongRowMenu.js'
 import { FeatureBadges } from './FeatureBadges.js'
 import { OfflineMark } from '../offline/OfflineStatus.js'
 import { showToast } from './Toast.js'
@@ -94,7 +93,6 @@ export const SongRow = memo(function SongRow({
   const [pressing, setPressing] = useState(false)
   const tagButtonRef = useRef<HTMLButtonElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
-  const player = usePlayer()
   const offline = useOffline()
   // Only the playing row is tinted, so only it reads its cover.
   const coverColor = useCoverColor(song, isCurrent)
@@ -384,13 +382,11 @@ export const SongRow = memo(function SongRow({
         </button>
 
         {menuOpen && (
-          <SongMenu
+          <SongRowMenu
             anchorRef={menuButtonRef}
             song={song}
             tagById={tagById}
             onClose={() => setMenuOpen(false)}
-            onPlayNext={() => player.playNext([song])}
-            onAddToQueue={() => player.addToQueue([song])}
             onStartSelecting={selectable ? onStartSelecting : undefined}
           />
         )}

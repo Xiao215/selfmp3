@@ -41,3 +41,14 @@ export function shortDeviceName(name: string): string {
   const [first] = name.split('·')
   return (first ?? name).trim() || name
 }
+
+/** "3 min ago" for a device's last heartbeat. Both device lists show one. */
+export function relativeTime(timestamp: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  return `${Math.round(hours / 24)} d ago`
+}

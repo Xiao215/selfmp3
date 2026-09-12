@@ -20,16 +20,19 @@ import {
 } from '@selfmp3/shared'
 import { readStored, updateStored, writeStored } from '../../offline/mirror.js'
 import { appPath } from '../platform.js'
-import type { EditContext } from './edits.js'
-import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
-import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
 import {
   NO_IDS,
+  foldedOwnLogs,
+  latestStamp,
+  replay,
+  replayedSnapshot,
   snapshotToLibrary,
   type CloudLibrary,
+  type EditContext,
   type LocalIds,
   type SongFiles,
-} from './snapshotLibrary.js'
+} from '@selfmp3/cloud'
+import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
 
 /**
  * This device's copy of the library (docs/SYNC.md).

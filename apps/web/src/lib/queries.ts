@@ -25,7 +25,7 @@ import type {
   MigrateMatchJob,
 } from '@selfmp3/shared'
 import { api, ApiError } from './api.js'
-import type { CloudImportRequest, ImportRequestList } from './cloud/schemas.js'
+import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
 import { saveLibrarySnapshot, loadLibrarySnapshot } from '../offline/mirror.js'
 
 /**

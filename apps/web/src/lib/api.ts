@@ -60,7 +60,7 @@ import {
   ImportRequestListSchema,
   ImportRequestViewSchema,
   type CloudImportRequest,
-} from './cloud/schemas.js'
+} from '@selfmp3/cloud'
 
 /**
  * The typed API client.

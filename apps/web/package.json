@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "self.mp3 web app — installable PWA with offline playback.",
+  "description": "self.mp3 web app \u2014 installable PWA with offline playback.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --build && npm run typecheck:sw && vite build && npm run build:sw",
@@ -13,6 +13,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo tsconfig.node.tsbuildinfo"
   },
   "dependencies": {
+    "@selfmp3/cloud": "*",
     "@selfmp3/shared": "*",
     "@tanstack/react-query": "^5.62.11",
     "react": "^19.0.0",

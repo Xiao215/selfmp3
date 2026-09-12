@@ -1,0 +1,23 @@
+{
+  "name": "@selfmp3/cloud",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A device's own copy of the cloud library: the rules for replaying, editing and answering from it, with no platform in them.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@selfmp3/shared": "*",
+    "zod": "^3.24.1"
+  }
+}

@@ -23,5 +23,5 @@
     // it is type-checked separately by tsconfig.sw.json.
     "src/sw.ts"
   ],
-  "references": [{ "path": "../../packages/shared" }]
+  "references": [{ "path": "../../packages/shared" }, { "path": "../../packages/cloud" }]
 }

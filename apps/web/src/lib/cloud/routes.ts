@@ -24,8 +24,8 @@ import {
   type Settings,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import * as edits from './edits.js'
-import { CloudRouteError, notFound } from './errors.js'
+import { edits } from '@selfmp3/cloud'
+import { CloudRouteError, notFound } from '@selfmp3/cloud'
 import {
   cloudLibraryVersion,
   cloudLyrics,
@@ -36,10 +36,10 @@ import {
   recordChanges,
 } from './library.js'
 import { DoormanError, doormanFetch, loadSession, type CloudSession } from './session.js'
-import { CloudImportRequestSchema } from './schemas.js'
-import type { CloudLibrary } from './snapshotLibrary.js'
+import { CloudImportRequestSchema } from '@selfmp3/cloud'
+import type { CloudLibrary } from '@selfmp3/cloud'
 
-export { CloudRouteError } from './errors.js'
+export { CloudRouteError } from '@selfmp3/cloud'
 
 /**
  * The web app's stand-in for the Mac's API (docs/SYNC.md).

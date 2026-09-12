@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatRelative } from '@selfmp3/shared'
 import { Download, X } from '../components/Icons.js'
-import type { ImportRequestView } from '../lib/cloud/schemas.js'
+import type { ImportRequestView } from '@selfmp3/cloud'
 import { queryKeys, useCloudImportActions, useCloudImports } from '../lib/queries.js'
 import { sharedLinksFromQuery } from '../lib/shareTarget.js'
 

@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // No DOM. That is the point of this package: if something here reaches for
+    // `window`, `document` or `caches`, it must not compile, because React
+    // Native has none of them. Anything that genuinely needs a platform goes
+    // behind the port in `platform.ts` and is implemented by each app.
+    "lib": ["ES2023"]
+  },
+  "references": [{ "path": "../shared" }],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -55,3 +55,4 @@ export {
   createCloudLibrary,
   type CloudLibraryApi,
 } from './library.js'
+export { createCloudRoutes, parseQuery, type RouteQuery } from './routes.js'

@@ -12,7 +12,7 @@ import * as session from './session.js'
  * on importing the same names from the same place.
  */
 
-const library = createCloudLibrary(webPlatform, session)
+export const library = createCloudLibrary(webPlatform, session)
 
 export const {
   loadCloudLibrary,

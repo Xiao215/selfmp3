@@ -70,11 +70,50 @@ export interface EngineCapabilities {
   readonly nativeQueue: boolean
 }
 
+/**
+ * What the lock screen, the car and the notification shade show.
+ *
+ * The port hands the engine a song id and a URL, which is all a browser needs:
+ * an `<audio>` element plays a URL and the page draws everything else. A phone
+ * does not work that way. The operating system draws the now-playing card
+ * itself, from metadata given to the player alongside the URL, and an engine
+ * that only knows an id would put a blank card on the lock screen.
+ *
+ * So the queue's owner supplies this the same way it supplies `streamUrl`.
+ * Everything is optional except the title, because everything else genuinely
+ * can be missing — a song with no album art is common and a card without it is
+ * fine, whereas a card with no title is a bug.
+ */
+export interface TrackMetadata {
+  readonly title: string
+  readonly artist?: string
+  readonly album?: string
+  /** Absolute URL. Omitted where there is none, or none the player may fetch. */
+  readonly artwork?: string
+  readonly duration?: number
+  /** MIME type, where the platform wants a hint. */
+  readonly contentType?: string
+}
+
 export interface LoadOptions {
   /** Default true. False loads a song ready to play without starting it. */
   readonly autoplay?: boolean
   /** Seconds in to begin, for resuming where you left off. */
   readonly startAt?: number
+}
+
+/** What an engine needs from whoever owns the queue. */
+export interface EngineWiring {
+  /** Called when a song finishes on its own, so the queue can advance. */
+  onTrackEnd: (() => void) | null
+  /** What to preload, for gapless and crossfade. Null means nothing follows. */
+  nextTrackId: (() => number | null) | null
+  /** Where to fetch a song. Null falls back to the engine's own default. */
+  streamUrl: ((songId: number) => string) | null
+  /** What to show where the platform draws the now-playing card. */
+  trackMetadata: ((songId: number) => TrackMetadata | null) | null
+  /** Every progress tick, for counting a play. */
+  onProgress: ((currentTime: number, duration: number) => void) | null
 }
 
 export interface PlaybackEngine {
@@ -116,13 +155,24 @@ export interface PlaybackEngine {
 
   destroy(): void
 
-  /*
-   * Wiring, set by whoever owns the queue.
+  /**
+   * Point the engine at whoever owns the queue.
    *
-   * Properties rather than constructor arguments because the engine outlives
-   * any particular queue: the provider re-points these as the queue changes,
-   * and an engine built around one of them would have to be rebuilt instead —
-   * which on the web means dropping the `<audio>` element that is playing.
+   * A method rather than four assignable properties, and not only for tidiness:
+   * a provider that assigns to an engine it created during render is mutating
+   * render-owned state, which the React Compiler stops — rightly, since the
+   * thing being mutated looks to it like a value React manages. Handing the
+   * wiring over in one call says what is really happening: the engine outlives
+   * every render and is being told where to ask.
+   *
+   * Returns the undo, so an effect can clean up after itself. Fields left out
+   * are unchanged; passing null for one clears it.
+   */
+  connect(wiring: Partial<EngineWiring>): () => void
+
+  /*
+   * The wiring itself, readable and assignable for an engine's own use. A
+   * provider should call `connect` rather than touch these.
    */
 
   /** Called when a song finishes on its own, so the queue can advance. */
@@ -131,6 +181,11 @@ export interface PlaybackEngine {
   nextTrackId: (() => number | null) | null
   /** Where to fetch a song. Null falls back to the engine's own default. */
   streamUrl: ((songId: number) => string) | null
+  /**
+   * What to show for a song where the platform draws the now-playing card.
+   * Null, or a null answer, means the engine shows what it can work out.
+   */
+  trackMetadata: ((songId: number) => TrackMetadata | null) | null
   /** Every progress tick, for counting a play. */
   onProgress: ((currentTime: number, duration: number) => void) | null
 }

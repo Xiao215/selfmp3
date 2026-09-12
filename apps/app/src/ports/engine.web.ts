@@ -1,5 +1,7 @@
 import type {
+  TrackMetadata,
   EngineCapabilities,
+  EngineWiring,
   EngineState as PortEngineState,
   PlaybackEngine,
 } from '@selfmp3/client'
@@ -29,7 +31,6 @@ import type {
  * tolerable is that one of them is on its way out and neither is being edited
  * meanwhile.
  */
-
 
 /**
  * The audio engine.
@@ -163,8 +164,30 @@ export class AudioEngine implements PlaybackEngine {
   nextTrackId: (() => number | null) | null = null
   /** Where a song's audio lives; the provider knows each song's `rev`. */
   streamUrl: ((songId: number) => string) | null = null
+  /**
+   * Accepted and unused: a browser draws its own now-playing UI, so there is
+   * no card for the operating system to fill in. It is here because the port
+   * declares it for the platforms that do — and because `navigator.mediaSession`
+   * is the obvious next user of it, when the media-session port lands.
+   */
+  trackMetadata: ((songId: number) => TrackMetadata | null) | null = null
   /** Called on every meaningful position change, for play-count tracking. */
   onProgress: ((currentTime: number, duration: number) => void) | null = null
+
+  /** See `PlaybackEngine.connect`. */
+  connect(wiring: Partial<EngineWiring>): () => void {
+    const previous: Partial<EngineWiring> = {
+      onTrackEnd: this.onTrackEnd,
+      nextTrackId: this.nextTrackId,
+      streamUrl: this.streamUrl,
+      trackMetadata: this.trackMetadata,
+      onProgress: this.onProgress,
+    }
+    Object.assign(this, wiring)
+    return () => {
+      Object.assign(this, previous)
+    }
+  }
 
   constructor() {
     this.#primary = createElement()
@@ -701,7 +724,19 @@ function once(target: EventTarget, event: string, timeoutMs: number): Promise<vo
  * surface when the shared PlayerProvider is written against it, which is much
  * later and much more expensive.
  */
-const _conforms: PlaybackEngine = new AudioEngine()
+/**
+ * The engine this platform uses — see the note on `engine.ts`. Also the
+ * conformance proof the port was derived under, now paid for only when an
+ * engine is actually wanted rather than at import time: the old
+ * `const _conforms = new AudioEngine()` built two `<audio>` elements in every
+ * bundle that so much as mentioned this file.
+ */
+export function createEngine(): PlaybackEngine {
+  return new AudioEngine()
+}
+
+const _conforms: PlaybackEngine = null as unknown as AudioEngine
+void _conforms
 void _conforms
 
 /** The port's `EngineState` is this engine's, which is the other half of it. */

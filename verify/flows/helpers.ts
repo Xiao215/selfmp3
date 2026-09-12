@@ -143,7 +143,14 @@ export async function playSong(page: Page, row: Locator): Promise<void> {
  * now playing first; `seekReady` does that.
  */
 export async function positionSeconds(page: Page): Promise<number> {
-  return Number(await page.getByLabel('Seek').first().inputValue())
+  const seek = page.getByLabel('Seek').first()
+  // The old web app's scrubber is a range input; the new app's is a custom
+  // control that announces itself as a slider. Both say where the song has got
+  // to — one in `value`, one in `aria-valuenow` — and neither is more true than
+  // the other, so this reads whichever is there.
+  const value = await seek.getAttribute('aria-valuenow')
+  if (value !== null) return Number(value)
+  return Number(await seek.inputValue())
 }
 
 /**

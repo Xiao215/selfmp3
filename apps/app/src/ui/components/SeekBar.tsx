@@ -68,6 +68,19 @@ export function SeekBar({
         accessibilityRole="adjustable"
         accessibilityLabel="Seek"
         accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
+        /*
+         * The same numbers again as ARIA props, because
+         * `react-native-web` renders `accessibilityRole="adjustable"` as
+         * `role="slider"` and then drops `accessibilityValue` entirely. A
+         * slider that announces no position is no use to a screen reader — it
+         * says "slider" and nothing about where the song has got to — and it is
+         * also why a flow could read the old app's scrubber and not this one.
+         * React Native maps these to the same place on a phone, so it is the
+         * one spelling that works on both.
+         */
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration)}
+        aria-valuenow={Math.round(shown)}
         {...responder.panHandlers}
       >
         <View style={styles.track}>

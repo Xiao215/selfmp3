@@ -140,6 +140,18 @@ export function cors(config: Config): RequestHandler {
     if (origin && allowed.has(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
+      /*
+       * An audio element that plays a song from here asks with credentials —
+       * `crossOrigin = 'use-credentials'`, which the player sets because the
+       * Media Session API and background playback need it. A browser throws
+       * that response away unless the server says credentials were allowed,
+       * so an explicitly allowed origin got its library and then silence.
+       *
+       * Only ever sent to an origin already on the list, which is empty
+       * unless somebody set `SELFMP3_CORS_ORIGINS` on purpose. The app the
+       * server serves itself is same-origin and never reaches this.
+       */
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
       res.setHeader('Access-Control-Max-Age', '86400')

@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test'
 
 import {
-  againstUniversalApp,
   libraryReady,
   playSong,
   positionSeconds,
@@ -21,21 +20,6 @@ import {
  * check the string, and only a browser checks that the string plays.
  */
 test.describe('playback', () => {
-  /*
-   * Against `apps/app` in a browser there is no engine to play with yet.
-   * `react-native-track-player` has no web implementation this repository will
-   * take — it pulls in shaka-player — so the web bundle resolves it to a stub
-   * that throws on anything making sound, deliberately and loudly. The web side
-   * of the `PlaybackEngine` port is the existing two-`<audio>` engine, and
-   * phase 3 is where it arrives. These two flows are that phase's gate, not
-   * this one's; they run against the old web app now and against the new one
-   * the moment the port lands.
-   */
-  test.skip(
-    againstUniversalApp,
-    'apps/app has no web playback engine until phase 3 — track-player is stubbed in the web bundle',
-  )
-
   test('a song plays, and the player bar shows it', async ({ page }) => {
     await page.goto('/')
     await libraryReady(page)

@@ -33,9 +33,7 @@ import type { OfflineStore, SaveOptions, StorageUsage as PortStorageUsage } from
  */
 let streamUrl: ((songId: number) => string) | null = null
 
-export function configureAudioCache(options: {
-  streamUrl: (songId: number) => string
-}): void {
+export function configureAudioCache(options: { streamUrl: (songId: number) => string }): void {
   streamUrl = options.streamUrl
 }
 
@@ -47,7 +45,6 @@ function streamUrlFor(songId: number): string {
   }
   return streamUrl(songId)
 }
-
 
 /**
  * Offline audio storage.

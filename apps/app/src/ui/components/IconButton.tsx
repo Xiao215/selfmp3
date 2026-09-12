@@ -11,6 +11,7 @@ import { colors, HIT_TARGET, radius } from '@selfmp3/client'
  */
 export function IconButton({
   children,
+  testID,
   onPress,
   label,
   size = HIT_TARGET,
@@ -19,6 +20,7 @@ export function IconButton({
   round = false,
 }: {
   children: ReactNode
+  testID?: string
   onPress: () => void
   /** What a screen reader says: "Pause", "Next", "Love". */
   label: string
@@ -33,6 +35,7 @@ export function IconButton({
       onPress={onPress}
       disabled={disabled}
       hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled, selected: active }}

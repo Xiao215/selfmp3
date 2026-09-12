@@ -16,13 +16,13 @@ appId: com.selfmp3.app
 - launchApp
 
 - tapOn:
-    id: "tab-playlists"
+    id: 'tab-playlists'
 - tapOn:
-    id: "playlist-row-0"
+    id: 'playlist-row-0'
 
 # The playlist has to actually be downloaded for the rest to mean anything.
 - assertVisible:
-    id: "playlist-downloaded"
+    id: 'playlist-downloaded'
 
 # --- go offline --------------------------------------------------------------
 # TODO(phase 3): airplane mode, or the port's test switch. See the note above.
@@ -31,17 +31,17 @@ appId: com.selfmp3.app
 
 # A downloaded song plays from disk with no network at all.
 - tapOn:
-    id: "song-row-0"
+    id: 'song-row-0'
 - assertVisible:
-    id: "mini-player-playing"
+    id: 'mini-player-playing'
 
 # And one that was never downloaded says so, rather than failing silently —
 # which docs/UNIVERSAL.md calls out as the behaviour that must not regress.
 - tapOn:
-    id: "tab-library"
+    id: 'tab-library'
 - tapOn:
-    id: "song-row-undownloaded"
-- assertVisible: "Not downloaded"
+    id: 'song-row-undownloaded'
+- assertVisible: 'Not downloaded'
 
 - runScript:
     file: offline-off.sh

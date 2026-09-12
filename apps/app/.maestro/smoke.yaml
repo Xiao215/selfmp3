@@ -16,53 +16,68 @@ appId: com.selfmp3.app
 
 # --- library -----------------------------------------------------------------
 - assertVisible:
-    id: "library-screen"
+    id: 'library-screen'
 
 # Tap a row: it plays, the row tints, and the mini player picks it up.
 - tapOn:
-    id: "song-row-0"
+    id: 'song-row-0'
 - assertVisible:
-    id: "mini-player"
+    id: 'mini-player'
 - assertVisible:
-    id: "mini-player-playing"
+    id: 'mini-player-playing'
 
 # --- transport ---------------------------------------------------------------
 # Next from the mini player moves the same queue every surface is showing.
 - tapOn:
-    id: "mini-player-next"
+    id: 'mini-player-next'
 - assertVisible:
-    id: "mini-player-playing"
+    id: 'mini-player-playing'
 
 # --- sort --------------------------------------------------------------------
 - tapOn:
-    id: "library-sort"
-- tapOn: "Recently added"
+    id: 'library-sort'
+- tapOn: 'Recently added'
 - assertVisible:
-    id: "library-screen"
+    id: 'library-screen'
 
 # --- tag filter --------------------------------------------------------------
 - tapOn:
-    id: "tag-chip-0"
+    id: 'tag-chip-0'
 - assertVisible:
-    id: "library-screen"
+    id: 'library-screen'
 - tapOn:
-    id: "tag-chip-0"
+    id: 'tag-chip-0'
 
 # --- a row's menu ------------------------------------------------------------
 - longPressOn:
-    id: "song-row-0"
-- assertVisible:
-    id: "song-menu"
-- tapOn: "Play next"
+    id: 'song-row-0'
+# The menu is asserted by what is in it rather than by the `song-menu` id on
+# its container. The id is there, and `maestro hierarchy` shows it with real
+# bounds, but the visibility check does not agree once a few screens have been
+# through: a sheet is a `Modal`, which is its own window on iOS, and container
+# views inside it are unreliable for this. The items are not — and "the menu is
+# usable" is a better thing to assert than "a view exists" in any case.
+- extendedWaitUntil:
+    visible: 'Play next'
+    timeout: 5000
+- tapOn: 'Play next'
 
 # --- download ----------------------------------------------------------------
 - tapOn:
-    id: "tab-playlists"
+    id: 'tab-playlists'
 - tapOn:
-    id: "playlist-row-0"
-- tapOn:
-    id: "playlist-download"
+    id: 'playlist-row-0'
+# Download only what is not already here. A phone that has had this playlist
+# for a while shows "On this phone" and has nothing to fetch, and a flow that
+# insisted on a download button would fail on the truest state there is.
+- runFlow:
+    when:
+      visible:
+        id: 'playlist-download'
+    commands:
+      - tapOn:
+          id: 'playlist-download'
 - extendedWaitUntil:
     visible:
-      id: "playlist-downloaded"
+      id: 'playlist-downloaded'
     timeout: 120000

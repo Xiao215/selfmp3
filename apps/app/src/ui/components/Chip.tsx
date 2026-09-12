@@ -12,6 +12,7 @@ import { colors, tagColors, type } from '@selfmp3/client'
  * of padding around 12px text, not the sidebar's label-sized version.
  */
 export function Chip({
+  testID,
   label,
   selected,
   hue,
@@ -19,6 +20,7 @@ export function Chip({
   onPress,
   onLongPress,
 }: {
+  testID?: string
   label: string
   selected: boolean
   hue?: number
@@ -45,6 +47,7 @@ export function Chip({
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       style={({ pressed }) => [

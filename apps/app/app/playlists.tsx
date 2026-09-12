@@ -26,8 +26,9 @@ export default function PlaylistsScreen(): ReactNode {
     (a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1) || a.name.localeCompare(b.name),
   )
 
-  const renderPlaylist: ListRenderItem<Playlist> = ({ item }) => (
+  const renderPlaylist: ListRenderItem<Playlist> = ({ item, index }) => (
     <Pressable
+      testID={`playlist-row-${index}`}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => router.push(`/playlist/${item.id}`)}
       accessibilityRole="button"

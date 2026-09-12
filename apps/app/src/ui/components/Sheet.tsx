@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
 import { colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { useOverlay } from '../../shell/Overlay'
 
 /**
  * A menu, as a sheet from the bottom of the screen.
@@ -22,12 +23,14 @@ export function Sheet({
   title,
   subtitle,
   children,
+  testID,
 }: {
   open: boolean
   onClose: () => void
   title?: string
   subtitle?: string
   children: ReactNode
+  testID?: string
 }): ReactNode {
   const insets = useSafeAreaInsets()
   // Mounted from the moment it is asked for until its exit has played out.
@@ -59,10 +62,10 @@ export function Sheet({
     })
   }, [open, progress])
 
-  if (!mounted) return null
-
-  return (
-    <Modal transparent visible statusBarTranslucent onRequestClose={onClose} animationType="none">
+  // Drawn by the shell's overlay host rather than in a `Modal` of its own.
+  // See src/shell/Overlay.tsx for why there are no windows any more.
+  useOverlay(
+    <>
       <Animated.View style={[styles.backdrop, { opacity: progress }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       </Animated.View>
@@ -93,10 +96,23 @@ export function Sheet({
             ) : null}
           </View>
         ) : null}
-        {children}
+        {/*
+          The id sits on the content rather than on the panel or the `Modal`.
+          A `Modal` is its own window on iOS and an id on it never reaches the
+          hierarchy a flow reads; an id on the animated panel did not either,
+          though the text inside it did. A plain view around the items is the
+          thing that is actually there, and it is what "the menu is open" means
+          anyway.
+        */}
+        <View testID={testID} style={styles.content}>
+          {children}
+        </View>
       </Animated.View>
-    </Modal>
+    </>,
+    mounted,
   )
+
+  return null
 }
 
 /** One line of a sheet: an icon, a label, and what it does. */
@@ -165,6 +181,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingTop: space.sm,
     paddingHorizontal: space.sm,
+  },
+  content: {
+    alignSelf: 'stretch',
   },
   grabber: {
     alignSelf: 'center',

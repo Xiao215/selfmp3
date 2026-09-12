@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
+import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
 import { useLayout } from './useLayout'
@@ -30,6 +31,15 @@ export function Shell({
 }): ReactNode {
   const { wide } = useLayout()
 
+  return <OverlayProvider>{frame(wide, chrome, children)}</OverlayProvider>
+}
+
+/**
+ * The frame itself, with the overlay host already wrapped around it so sheets
+ * and popovers land above the tab bar and the player bar rather than inside
+ * whichever screen opened them.
+ */
+function frame(wide: boolean, chrome: boolean, children: ReactNode): ReactNode {
   if (!chrome) return <View style={styles.root}>{children}</View>
 
   if (wide) {

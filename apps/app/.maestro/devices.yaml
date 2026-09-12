@@ -13,21 +13,21 @@ appId: com.selfmp3.app
 - launchApp
 
 - tapOn:
-    id: "tab-settings"
+    id: 'tab-settings'
 - tapOn:
-    id: "devices-open"
+    id: 'devices-open'
 
 # Both this phone and the desktop the flow assumes is running.
 - assertVisible:
-    id: "device-row-self"
+    id: 'device-row-self'
 - assertVisible:
-    id: "device-row-other"
+    id: 'device-row-other'
 
 # --- handoff -----------------------------------------------------------------
 # Playing on the desktop, "play here" brings it over with its position intact.
 - tapOn:
-    id: "device-play-here"
+    id: 'device-play-here'
 - assertVisible:
-    id: "mini-player-playing"
+    id: 'mini-player-playing'
 - assertVisible:
-    id: "handoff-resumed"
+    id: 'handoff-resumed'

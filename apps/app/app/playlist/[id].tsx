@@ -118,6 +118,7 @@ export default function PlaylistDetailScreen(): ReactNode {
             onPress={() => player.playShuffled(songIds)}
           />
           <Button
+            testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
             label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
             icon={
               pendingBytes > 0 ? (

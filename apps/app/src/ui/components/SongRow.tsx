@@ -21,6 +21,7 @@ import { Equalizer } from './Equalizer'
  * tick otherwise — the one place in this app where that actually matters.
  */
 export const SongRow = memo(function SongRow({
+  testID,
   song,
   artUri,
   active,
@@ -30,6 +31,8 @@ export const SongRow = memo(function SongRow({
   onMore,
   onToggleLoved,
 }: {
+  /** Named so a flow can tap a row by position: `song-row-0`. */
+  testID?: string
   song: Song
   artUri: string | null
   active: boolean
@@ -66,6 +69,7 @@ export const SongRow = memo(function SongRow({
         both platforms were already asking for.
       */}
       <View
+        testID={testID}
         style={[
           styles.row,
           active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },

@@ -19,6 +19,7 @@ import { Sheet, SheetItem } from './Sheet'
 export function SongMenu({ song, onClose }: { song: Song | null; onClose: () => void }): ReactNode {
   return (
     <Sheet
+      testID="song-menu"
       open={song !== null}
       onClose={onClose}
       title={song?.title}

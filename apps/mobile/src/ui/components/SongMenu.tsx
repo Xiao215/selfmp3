@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { formatBytes, type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
-import { isDownloaded } from '../../offline/downloadIndex'
+import { isDownloaded } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { colors } from '../theme'

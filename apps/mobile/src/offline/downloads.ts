@@ -12,7 +12,7 @@ import {
   pendingIds,
   removeEntry,
   type DownloadIndex,
-} from './downloadIndex'
+} from '@selfmp3/client'
 
 /**
  * The download queue: the effectful half of offline sync.

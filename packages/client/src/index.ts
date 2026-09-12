@@ -14,6 +14,7 @@ export type {
   ClientResponse,
   CloudRequest,
   LibrarySnapshotStore,
+  OutboxStore,
 } from './platform.js'
 
 export { ApiError } from './api/error.js'
@@ -35,3 +36,7 @@ export {
 
 export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
 export * from './queries/queries.js'
+
+export * from './downloads/downloadIndex.js'
+
+export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'

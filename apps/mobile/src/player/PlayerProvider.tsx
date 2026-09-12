@@ -184,12 +184,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
     tracking.counted = true
     // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
-    void recordListen(
-      connectionRef.current,
-      songId,
-      Math.round(tracking.listenedSeconds * 1000),
-      completed,
-    )
+    recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
   }, [])
 
   // Plays made offline go the moment there is a server to send them to, and
@@ -198,7 +193,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const queryClient = useQueryClient()
   useEffect(() => {
     const flush = (): void => {
-      void flushListens(connectionRef.current).then(sent => {
+      void flushListens().then(sent => {
         if (sent > 0) void queryClient.invalidateQueries()
       })
     }

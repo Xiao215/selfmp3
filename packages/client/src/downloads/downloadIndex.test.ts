@@ -16,7 +16,7 @@ import {
   totalBytes,
   type DownloadEntry,
   type DownloadIndex,
-} from './downloadIndex'
+} from './downloadIndex.js'
 
 const entry = (songId: number, patch: Partial<DownloadEntry> = {}): DownloadEntry => ({
   songId,

@@ -22,7 +22,7 @@
  * time it was tested, which is a good sign for it.
  */
 
-import type { Library } from '@selfmp3/shared'
+import type { Library, OutboxEvent } from '@selfmp3/shared'
 
 /** As much of a response as anything here reads. */
 export interface ClientResponse {
@@ -126,6 +126,18 @@ export interface LibrarySnapshotStore {
    * Absent means the browser's rule: offline only.
    */
   standsInFor?(error: unknown): boolean
+}
+
+/**
+ * Where this device writes down the plays it has not sent yet.
+ *
+ * `update` rather than read-then-write because the browser's IndexedDB helper
+ * does the whole thing in one transaction, and two tabs recording a play at the
+ * same moment would otherwise lose one of them.
+ */
+export interface OutboxStore {
+  read(): Promise<unknown>
+  update(change: (current: unknown) => OutboxEvent[]): Promise<OutboxEvent[]>
 }
 
 /** Everything the package is handed at startup. */

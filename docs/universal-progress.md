@@ -802,6 +802,59 @@ flow:
 
 ---
 
+## Phase 4 — the shared surfaces — branch `universal/phase-4`
+
+Started from `main` at `c54cae0`, with phases 1–3 merged.
+
+### Tooling first
+
+- `reference.spec.ts` takes `SELFMP3_CAPTURE_DIR`. It photographs the new app
+  in exactly the reference states and never writes to `docs/reference/`.
+  `verify/captures/` is ignored (`90bcccb`).
+- `verify/side-by-side.mjs`, which the phase 4 gate names, builds one HTML
+  sheet with each state's reference and new capture in a row. It counts the
+  states with no new capture, because a missing screen is easy to overlook
+  when you only look at the ones that are there (`90bcccb`).
+- Two API calls in the reference script used the page's origin, which only
+  works when the server serves the app. They now use the server's address
+  (`f5dd9a7`).
+
+### Where the new app stood at the start
+
+The first capture reached 19 of the reference's 58 states. The other 39,
+missing at one width or both, are the phase's work list:
+
+| Surface | Missing |
+|---|---|
+| Library | playing · row menu · selection with two rows · sort open · one tag filtered and one excluded |
+| Playlists | smart list with its rules open · empty playlist |
+| Now playing | about · focus · queue (desktop) · romanisation |
+| Player bar | progress at 40% |
+| Settings | accent changed · light theme |
+| Sheets | sleep timer · speed · practice (phone) |
+| Devices | the popover · the resume toast |
+
+That list comes from the capture script failing or skipping a state, not
+from review. The captured states still have to pass check 2 by eye.
+
+### Done
+
+- **Multi-select** (`81b103a` rules, `65efb91` the feature). The shared
+  selection functions have 16 tests. In the library:
+  - a Select button, a "Select" item in a song's menu, and Shift or Cmd on
+    the web;
+  - the web's selection bar;
+  - the web's two-faced removal confirmation.
+
+  Checked at 375 and 1280 against `library-selection-two`.
+  `verify/flows/selection.spec.ts` passes against both apps at both widths,
+  and checks the library still has every song afterwards. The commit message
+  lists six deliberate differences. Two are worth knowing about here: the app
+  has no toasts, so batch actions finish silently (question 6), and the
+  desktop bar's buttons are the app's 44-point size, not the web's small ones.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the

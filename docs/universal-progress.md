@@ -624,3 +624,18 @@ same-origin and reaches none of it.
    of their own, on either side, and `verify/flows` is what would cover them.
    Until that runs on the Mac, the evidence that phase 1 changed no behaviour
    is the type checker, the existing 1043 tests, and reading the diff.
+
+5. **Should a phone signed in only to the cloud see your other devices?**
+   Found while bringing devices and handoff to the phone in phase 3. Presence,
+   handoff and remote control all travel through the Mac's event stream, so a
+   phone signed in with Google and pointed at no Mac is alone: it sends no
+   heartbeat, opens no stream, and its devices sheet says it is looking. That is
+   the same trade the web app makes in its cloud build (`LoneDevicesProvider`),
+   and it is what the code does now. The alternative is presence relayed
+   through the doorman, which is a server change and a real feature rather than
+   part of the move. The simulator this was built on is signed in that way,
+   which is how it came up; it was not signed out to test around it, because
+   signing back in needs your Google account. The sheet itself was checked in the web build, where it lists the other
+   devices by name; the phone's own half — its hand-written stream reader —
+   is being checked on a second simulator pointed at the Mac.
+

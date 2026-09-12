@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import type { Device, DeviceCommand, PlaybackState } from '@selfmp3/shared'
 import { usePlayer } from '../player/PlayerProvider.js'
-import { handoffTarget } from './handoff.js'
+import { handoffTarget } from '@selfmp3/client'
 
 /**
  * Executing a command that arrived over the event stream.

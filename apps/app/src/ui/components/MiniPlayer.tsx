@@ -6,9 +6,10 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { useAccent } from '../accent'
 import { colors, MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
+import { DevicesSheet } from '../../features/devices/DevicesSheet'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
-import { Next, Pause, Play } from './Icons'
+import { Devices, Next, Pause, Play } from './Icons'
 
 /**
  * The compact strip above the tab bar: the web's `.mini-player`.
@@ -26,6 +27,7 @@ export function MiniPlayer(): ReactNode {
   const player = usePlayer()
   const router = useRouter()
   const song = player.current
+  const [devicesOpen, setDevicesOpen] = useState(false)
 
   // Slides up when a song first appears; the words fade over when it changes.
   const [rise] = useState(() => new Animated.Value(0))
@@ -119,6 +121,13 @@ export function MiniPlayer(): ReactNode {
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={colors.textSecondary} />
       </IconButton>
+      {/* Where else this could be playing. The web app puts it in the same
+          place — beside the transport, not buried in a menu. */}
+      <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
+        <Devices size={19} color={colors.textSecondary} />
+      </IconButton>
+
+      <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </Animated.View>
   )
 }

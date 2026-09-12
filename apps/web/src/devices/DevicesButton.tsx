@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Devices, Remote } from '../components/Icons.js'
 import { useDeviceContext } from './DevicesProvider.js'
 import { DevicesPopover } from './DevicesPopover.js'
-import { shortDeviceName } from './handoff.js'
+import { shortDeviceName } from '@selfmp3/client'
 
 /**
  * The devices button, plus the chip that explains why the transport is not

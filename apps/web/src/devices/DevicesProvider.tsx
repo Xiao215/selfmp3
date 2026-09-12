@@ -23,7 +23,7 @@ import { detectDevice, getDeviceId, getDeviceName, setDeviceName } from '../lib/
 import { usePlayer } from '../player/PlayerProvider.js'
 import { useServerEvents } from './useServerEvents.js'
 import { useRemoteCommands } from './useRemoteCommands.js'
-import { handoffTarget } from './handoff.js'
+import { handoffTarget } from '@selfmp3/client'
 
 /**
  * Presence, handoff and remote control, as one context.

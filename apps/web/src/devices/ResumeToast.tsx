@@ -4,7 +4,7 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { useLibrary } from '../lib/queries.js'
 import { X } from '../components/Icons.js'
 import { useDeviceContext } from './DevicesProvider.js'
-import { handoffTarget, shortDeviceName } from './handoff.js'
+import { handoffTarget, shortDeviceName } from '@selfmp3/client'
 
 /**
  * "Continue where you left off on your phone."

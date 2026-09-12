@@ -4,7 +4,7 @@ import { usePlayer } from '../player/PlayerProvider.js'
 import { Equalizer } from '../components/Icons.js'
 import { Popover } from '../components/Menu.js'
 import { useDeviceContext } from './DevicesProvider.js'
-import { relativeTime, shortDeviceName } from './handoff.js'
+import { relativeTime, shortDeviceName } from '@selfmp3/client'
 
 /** Enough offline rows for context, before the list turns into a graveyard. */
 const OFFLINE_SHOWN = 3

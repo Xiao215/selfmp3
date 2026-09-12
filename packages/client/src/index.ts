@@ -37,6 +37,9 @@ export * from './downloads/downloadIndex.js'
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'
 
+/** Presence and handoff: pure rules, shared by every client. */
+export * from './devices/handoff.js'
+
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 
 export * from './theme/oklch.js'
@@ -54,3 +57,4 @@ export type {
   TrackMetadata,
 } from './ports/engine.js'
 export type { DownloadFraction, OfflineStore, SaveOptions, StorageUsage } from './ports/offline.js'
+export type { ServerEventStream } from './ports/events.js'

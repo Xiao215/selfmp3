@@ -64,7 +64,7 @@ interface PlaylistRow {
 
 /** The playlists the library currently holds, typed rather than `any`. */
 async function playlistsOf(request: APIRequestContext): Promise<PlaylistRow[]> {
-  const response = await request.get('/api/library')
+  const response = await request.get(`${API}/api/library`)
   const body = (await response.json()) as { playlists: PlaylistRow[] }
   return body.playlists
 }
@@ -252,7 +252,7 @@ test.describe('reference', () => {
     // honestly not empty, and says so by being what it is.
     const seeded = Object.values(SEEDED) as string[]
     const mine = (await playlistsOf(page.request)).filter(p => seeded.includes(p.name))
-    for (const playlist of mine) await page.request.delete(`/api/playlists/${playlist.id}`)
+    for (const playlist of mine) await page.request.delete(`${API}/api/playlists/${playlist.id}`)
 
     await page.goto('/playlists')
     await dismissToasts(page)

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, NAV_HEIGHT, type } from '../theme'
-import { Glyph, type GlyphName } from './Glyph'
+import { ListMusic, Music, Settings } from './Icons'
 
 /**
  * The tab bar.
@@ -13,10 +13,18 @@ import { Glyph, type GlyphName } from './Glyph'
  * both less code and an exact match for the web app's mobile nav.
  */
 
-const TABS: { href: '/' | '/playlists' | '/settings'; label: string; icon: GlyphName }[] = [
-  { href: '/', label: 'Library', icon: 'library' },
-  { href: '/playlists', label: 'Playlists', icon: 'playlists' },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
+/**
+ * The same icons the web app's mobile nav uses, from the same drawings.
+ *
+ * Three destinations rather than the web's five: Import and Stats both want a
+ * Mac — Stats is marked `needsMac` there too — and a tab that is dark more
+ * often than not is worse than no tab. They come back when the phone can do
+ * that work itself.
+ */
+const TABS: { href: '/' | '/playlists' | '/settings'; label: string; Icon: typeof Music }[] = [
+  { href: '/', label: 'Library', Icon: Music },
+  { href: '/playlists', label: 'Playlists', Icon: ListMusic },
+  { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 
 export function BottomNav(): ReactNode {
@@ -38,7 +46,7 @@ export function BottomNav(): ReactNode {
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <Glyph name={tab.icon} size={17} color={active ? colors.accent : colors.textMuted} />
+            <tab.Icon size={20} color={active ? colors.accent : colors.textMuted} />
             <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
           </Pressable>
         )

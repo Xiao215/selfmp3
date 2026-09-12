@@ -2,32 +2,39 @@
  * The web app's palette, resolved to hex.
  *
  * `apps/web/src/styles/index.css` builds every colour from `oklch(L C
- * var(--accent-hue))` with a hue of 268. React Native cannot do OKLCH or CSS
- * custom properties, so the same lightness/chroma pairs are converted once,
- * here, and the two apps stay visually identical. If the web accent hue ever
- * changes, re-derive these rather than eyeballing them.
+ * var(--accent-hue))`, and the hue is **330** — a pink. React Native can do
+ * neither OKLCH nor custom properties, so the same lightness/chroma pairs are
+ * converted once, here.
+ *
+ * These were wrong: every value came from hue 268, a blue, and the comment
+ * above them asserted 268 as though it were the web's. So the two apps shared
+ * a palette in prose and agreed on nothing on screen, which is most of why the
+ * phone looked like a different product. They were re-derived by reading the
+ * computed values out of the running web app rather than by eye — which is
+ * what the old comment told the next person to do, and is worth doing again if
+ * the hue ever moves.
  */
 export const colors = {
-  surface0: '#0b0d13',
-  surface1: '#11141a',
-  surface2: '#1a1d25',
-  surface3: '#252932',
+  surface0: '#100b10',
+  surface1: '#171217',
+  surface2: '#211a21',
+  surface3: '#2e262d',
 
-  textPrimary: '#f4f5f9',
-  textSecondary: '#aeb1b9',
-  textMuted: '#7c8089',
+  textPrimary: '#f7f4f7',
+  textSecondary: '#b6aeb5',
+  textMuted: '#857d84',
 
-  accent: '#7a9eff',
-  accentStrong: '#86afff',
-  accentDim: '#364983',
-  onAccent: '#080b14',
+  accent: '#db7cd4',
+  accentStrong: '#f689ed',
+  accentDim: '#6b3767',
+  onAccent: '#10080f',
 
   danger: '#f0555b',
   warning: '#ebaa2d',
   good: '#43c07a',
 
-  border: '#2a2e36',
-  borderStrong: '#3e424d',
+  border: '#332b32',
+  borderStrong: '#493f47',
 } as const
 
 export const radius = { sm: 6, md: 10, lg: 16 } as const

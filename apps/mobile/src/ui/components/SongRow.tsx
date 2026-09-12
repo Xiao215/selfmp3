@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatDuration, type Song } from '@selfmp3/shared'
 import { colors, radius, space, type } from '../theme'
 import { Cover } from './Cover'
+import { Downloaded, Heart } from './Icons'
+import { Equalizer } from './Equalizer'
 
 /**
  * One song in a list.
@@ -16,15 +18,20 @@ export const SongRow = memo(function SongRow({
   artUri,
   active,
   downloaded,
+  playing = false,
   onPress,
   onLongPress,
+  onToggleLoved,
 }: {
   song: Song
   artUri: string | null
   active: boolean
   downloaded: boolean
+  /** Whether the song is the one actually sounding, for the equaliser. */
+  playing?: boolean
   onPress: () => void
   onLongPress?: () => void
+  onToggleLoved?: () => void
 }): ReactNode {
   return (
     <Pressable
@@ -32,20 +39,39 @@ export const SongRow = memo(function SongRow({
       onLongPress={onLongPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed, active && styles.active]}
     >
-      <Cover uri={artUri} title={song.album || song.title} />
+      <View>
+        <Cover uri={artUri} title={song.album || song.title} />
+        {active ? (
+          <View style={styles.playingOverlay}>
+            <Equalizer paused={!playing} size={12} />
+          </View>
+        ) : null}
+      </View>
+
       <View style={styles.text}>
         <Text style={[styles.title, active && styles.activeText]} numberOfLines={1}>
           {song.title}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {song.artist || 'Unknown artist'}
-          {song.album ? ` · ${song.album}` : ''}
-        </Text>
+        <View style={styles.subtitleRow}>
+          {/* The web calls this "On this device", and draws exactly this. */}
+          {downloaded ? <Downloaded size={13} color={colors.accent} knockout={colors.surface0} /> : null}
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {song.artist || 'Unknown artist'}
+            {song.album ? ` · ${song.album}` : ''}
+          </Text>
+        </View>
       </View>
-      <View style={styles.meta}>
-        {downloaded ? <View style={styles.downloaded} /> : null}
-        <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
-      </View>
+
+      {onToggleLoved ? (
+        <Pressable onPress={onToggleLoved} hitSlop={8} style={styles.loveButton}>
+          <Heart
+            size={18}
+            filled={song.loved}
+            color={song.loved ? colors.accent : colors.textSecondary}
+          />
+        </Pressable>
+      ) : null}
+      <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
     </Pressable>
   )
 })
@@ -81,6 +107,19 @@ const styles = StyleSheet.create({
     fontSize: type.small,
     marginTop: 1,
   },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  playingOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: radius.sm,
+  },
+  loveButton: { padding: space.xs },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',

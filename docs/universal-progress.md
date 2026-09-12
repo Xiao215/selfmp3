@@ -372,6 +372,111 @@ were never written to.
 
 ---
 
+## Phase 2, on the Mac — 2026-09-12
+
+Four commits on `universal/phase-2`, `48695a5` through `bde1f5f`, on top of a
+merge of `main`. **Not finished.** What is done is green; what is left is
+listed at the end.
+
+### Gates
+
+| Command | Result |
+|---|---|
+| `npm run check:app` | **pass** |
+| `npm run test` | **pass** — 96 files, 1105 passed, 1 skipped |
+| token parity (`packages/client` theme) | **pass** — 23 tests |
+| `npx expo export -p web` | **pass** — 1.7MB |
+| `npx expo run:ios` | **pass** — Build Succeeded, 0 errors |
+| `maestro test .maestro/smoke.yaml` | **pass** — iPhone 17 Pro, iOS 26.5 |
+| `verify/flows --project=phone` vs `apps/app` | **6 passed, 3 skipped** (reasons below) |
+| `verify/flows` vs `apps/web` | **pass** — 18, unchanged |
+| `npx expo run:android` | **not run** — no Android SDK on this Mac; Xiao chose not to install one |
+
+The iOS build is also the device half of spike check 2: Unistyles,
+`react-native-nitro-modules` and track-player compile into one dev client.
+
+### What was built
+
+- **`src/shell`** — the one place that reads a width. Under 820 the screen
+  fills the display with a mini player and a tab bar; at 820 and above a
+  sidebar runs down the left and a player bar across the foot. The screen is
+  `children` either way, so dragging a browser window across the breakpoint
+  swaps the chrome without remounting it. `BREAKPOINT` is a token in
+  `packages/client` beside the colours.
+- **`src/ports`** — `secrets`, `prefs`, `keyboard`, plus `cloudPlatform` and
+  `car/` moved in from where they were.
+- **`src/features/library`** — the screen, and `library.model.ts` behind it
+  with its own vitest test.
+- **The foundations as lint rules**, which is how three of the ports were
+  found.
+
+### Four bugs the Mac found, which a container could not
+
+1. **A sheet made the app invisible.** Every sheet was its own `Modal`, and a
+   `Modal` on iOS is its own window. Presenting a second one after a first had
+   been dismissed took the app's whole view tree out of the accessibility
+   hierarchy: the list, the tab bar and the mini player stayed on screen and
+   became unreachable to VoiceOver and to anything driving the app. Opening
+   the sort sheet and then a song's menu is exactly that sequence —
+   `maestro hierarchy` showed six nodes, all of them the status bar. Sheets are
+   now drawn by one host at the root of the shell, with no windows at all,
+   which is also the host the web needs for `Popover` in phase 4.
+2. **`expo-secure-store` throws on web.** It resolves and then fails on use, so
+   the app accepted a server address, said it had found thirteen songs, and
+   forgot on reload. Now the `secrets` port.
+3. **The accent could not be read or saved on web.** It is a device-local
+   preference in a file, and `expo-file-system` is stubbed out of the web
+   bundle, so the picker appeared to work and forgot. Now the `prefs` port; the
+   web comes up in the same colour as the phone.
+4. **`SongRow` was a button containing buttons.** `react-native-web` renders
+   `accessibilityRole="button"` as a real `<button>`, so every row wrapped its
+   love and ⋯ controls in one — invalid HTML, two hydration errors per row. The
+   row is a container now, as the web app has always drawn it.
+
+### The three skipped flows, and why
+
+- **Playback, twice.** `react-native-track-player` has no web implementation
+  this repo will take, so the web bundle stubs it. The web engine is phase 3's
+  `PlaybackEngine` port. These are phase 3's gate.
+- **The Mac's settings.** The phone's Settings carries server, downloads,
+  appearance and about; crossfade and what counts as a play arrive with phase 4.
+
+### What phase 2 still owes
+
+- `src/features/*` for the rest: playlists, playlist detail, now playing,
+  settings, sign-in, onboarding. Only library has moved.
+- The primitives the plan adds: `Popover` (a `Sheet` below the breakpoint),
+  `Select`, `Tooltip`. The overlay host they need now exists.
+- `SongList` on FlashList; the library is still a `FlatList`.
+- jest-expo against the primitives. Model tests run under vitest; components
+  have none yet.
+- `expo run:android`.
+
+### Running it
+
+```
+npm run dev                                   # 4600 / 4601
+cd apps/app && npx expo start --dev-client --port 8095
+xcrun simctl openurl booted \
+  "selfmp3://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8095"
+maestro test .maestro/smoke.yaml
+```
+
+For the web target and its flows, the server needs to allow the origin and the
+app needs to be told where the Mac is:
+
+```
+SELFMP3_CORS_ORIGINS=http://localhost:8090 npm run dev
+cd apps/app && npx expo start --web --port 8090
+SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4600 \
+  npx playwright test -c verify/playwright.config.ts flows --project=phone
+```
+
+Ports 8081 and 8082 are taken by other worktrees' Metro instances on this Mac,
+which is why these are 8090 and 8095.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the

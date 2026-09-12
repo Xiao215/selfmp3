@@ -73,8 +73,15 @@ export async function ensureCover(songId: number): Promise<string | null> {
       )
       await task.downloadAsync()
       return file.exists ? file.uri : null
-    } catch {
-      // No cover is a fine answer: the letter tile is still there behind it.
+    } catch (error) {
+      // A missing cover is survivable — the letter tile is behind it — but it
+      // should not be silent: swallowing this is what made an expo-file-system
+      // mistake look like "the bucket has no artwork" for an hour.
+      console.warn(
+        `self.mp3: could not fetch a cover for song ${songId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
       return null
     }
   })()

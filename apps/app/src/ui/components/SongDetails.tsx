@@ -69,7 +69,7 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
           </IconButton>
         </View>
         <ScrollView>
-          <Facts song={song} />
+          <SongDetailsBody song={song} />
         </ScrollView>
       </View>
     </View>,
@@ -79,7 +79,11 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
   return null
 }
 
-function Facts({ song }: { song: Song }): ReactNode {
+/**
+ * The facts themselves, without the dialog around them: the dialog shows them,
+ * and so does the About tab on a computer's Now Playing page.
+ */
+export function SongDetailsBody({ song }: { song: Song }): ReactNode {
   const accent = useAccent()
   const { state: downloads, queue } = useDownloads()
   const features = song.features

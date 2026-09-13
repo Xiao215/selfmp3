@@ -82,6 +82,8 @@ export interface PlayerApi {
   addToQueue: (songIds: readonly number[]) => void
   removeFromQueue: (index: number) => void
   reorderQueue: (from: number, to: number) => void
+  /** Empty the queue and stop, as the web's bin in Up next does. */
+  clearQueue: () => void
   /** 0–1, as the engine has it; the bar's slider and the web's share one scale. */
   readonly volume: number
   readonly muted: boolean
@@ -410,6 +412,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
+  const clearQueue = useCallback(() => {
+    engine.pause()
+    setQueue(EMPTY_QUEUE)
+    queueRef.current = EMPTY_QUEUE
+    refreshLookahead(engine)
+  }, [engine])
+
   // --- volume, speed, sleep ---------------------------------------------------
 
   const setVolume = useCallback(
@@ -485,6 +494,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       addToQueue,
       removeFromQueue,
       reorderQueue,
+      clearQueue,
       volume: engineState.volume,
       muted: engineState.muted,
       rate: engineState.rate,
@@ -523,6 +533,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       addToQueue,
       removeFromQueue,
       reorderQueue,
+      clearQueue,
     ],
   )
 

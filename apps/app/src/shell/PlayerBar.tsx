@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
+import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
 import { formatDuration } from '@selfmp3/shared'
 import { colors, oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
@@ -13,6 +14,7 @@ import { useAccent } from '../ui/accent'
 import { Cover } from '../ui/components/Cover'
 import { IconButton } from '../ui/components/IconButton'
 import {
+  ChevronDown,
   Devices,
   Heart,
   Mic,
@@ -76,7 +78,30 @@ export function PlayerBar(): ReactNode {
 
   const percent =
     song && player.duration > 0 ? Math.min(100, (player.position / player.duration) * 100) : 0
-  const openPage = (): void => router.push('/now-playing')
+  // Now Playing's tab and mode live in its address, so the bar can read and
+  // change them the way the web's bar changes its page.
+  const pathname = usePathname()
+  const pageParams = useGlobalSearchParams<{ tab?: string; mode?: string }>()
+  const onPage = pathname === '/now-playing'
+  const pageMode = onPage ? parseMode(pageParams.mode) : null
+  const pageTab = onPage ? parseTab(pageParams.tab) : null
+  const queueOpen = pageMode === 'stage' && pageTab === 'queue'
+  const closePage = (): void => {
+    if (router.canGoBack()) router.back()
+    else router.replace('/')
+  }
+  const togglePage = (): void => (onPage ? closePage() : router.push('/now-playing'))
+  /** The mic: straight to the words, and the same again to put them away. */
+  const toggleLyrics = (): void => {
+    if (pageMode === 'focus') closePage()
+    else if (onPage) router.setParams({ mode: 'focus', tab: 'lyrics' })
+    else router.push('/now-playing?mode=focus')
+  }
+  /** With the page open, the queue is one of its tabs. */
+  const openQueue = (): void => {
+    if (onPage) router.setParams({ mode: 'stage', tab: queueOpen ? 'lyrics' : 'queue' })
+    else router.push('/now-playing?tab=queue')
+  }
 
   return (
     <View style={styles.bar} testID="player-bar">
@@ -104,11 +129,19 @@ export function PlayerBar(): ReactNode {
           <>
             <Pressable
               style={styles.open}
-              onPress={openPage}
+              onPress={togglePage}
               accessibilityRole="button"
-              accessibilityLabel={`Open now playing: ${song.title}`}
+              accessibilityLabel={onPage ? 'Close now playing' : `Open now playing: ${song.title}`}
+              accessibilityState={{ expanded: onPage }}
             >
-              <Cover uri={artFor(song)} title={song.album || song.title} size={54} />
+              <View>
+                <Cover uri={artFor(song)} title={song.album || song.title} size={54} />
+                {onPage ? (
+                  <View style={styles.openChevron} pointerEvents="none">
+                    <ChevronDown size={22} color="#fff" />
+                  </View>
+                ) : null}
+              </View>
               <View style={styles.meta}>
                 <Text style={styles.title} numberOfLines={1}>
                   {song.title}
@@ -213,11 +246,11 @@ export function PlayerBar(): ReactNode {
 
       <View style={styles.right}>
         <View style={styles.group} role="group" aria-label="Panels">
-          <IconButton onPress={openPage} label="Lyrics">
-            <Mic size={17} color={colors.textSecondary} />
+          <IconButton onPress={toggleLyrics} label="Lyrics" active={pageMode === 'focus'}>
+            <Mic size={17} color={pageMode === 'focus' ? accent.accent : colors.textSecondary} />
           </IconButton>
-          <IconButton onPress={openPage} label="Queue">
-            <Queue size={17} color={colors.textSecondary} />
+          <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
+            <Queue size={17} color={queueOpen ? accent.accent : colors.textSecondary} />
           </IconButton>
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Playback">
@@ -442,6 +475,18 @@ function VolumeSlider({
 }
 
 const styles = StyleSheet.create({
+  /* Open, the cover says the same button now closes the page. */
+  openChevron: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
   bar: {
     height: PLAYER_BAR_HEIGHT,
     flexDirection: 'row',

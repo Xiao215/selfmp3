@@ -41,6 +41,8 @@ import {
 import { Lyrics } from '../../ui/components/Lyrics'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { useArt } from '../../offline/useArt'
+import { useLayout } from '../../shell/useLayout'
+import { NowPlayingStage } from './NowPlayingStage'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
 type Panel = 'none' | 'queue'
@@ -60,6 +62,13 @@ type Panel = 'none' | 'queue'
  * pushed off the bottom.
  */
 export function NowPlayingScreen(): ReactNode {
+  const { wide } = useLayout()
+  // A computer gets the web's page, with the lyrics beside the art; a phone
+  // keeps its own screen.
+  return wide ? <NowPlayingStage /> : <PhoneNowPlaying />
+}
+
+function PhoneNowPlaying(): ReactNode {
   const artFor = useArt()
   const player = usePlayer()
   const router = useRouter()

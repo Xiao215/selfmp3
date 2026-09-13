@@ -289,6 +289,9 @@ test.describe('reference', () => {
   })
 
   test('now playing', async ({ page }, info) => {
+    // Seven states with a settle between each is close to the 30 s default on
+    // its own; a slow first lyrics load was enough to tip it over.
+    test.setTimeout(60_000)
     const project = info.project.name
     await home(page)
 

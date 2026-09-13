@@ -14,6 +14,7 @@ import { PlayerProvider } from '../src/player/PlayerProvider'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
+import { useLayout } from '../src/shell/useLayout'
 import { AccentProvider } from '../src/ui/accent'
 import { colors } from '@selfmp3/client'
 
@@ -79,6 +80,7 @@ function Shell(): ReactNode {
   const { status } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
+  const { wide } = useLayout()
 
   useEffect(() => {
     // hideAsync is safe to call more than once, so no "already hidden" flag is
@@ -95,10 +97,12 @@ function Shell(): ReactNode {
     if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])
 
-  const chrome = !FULL_SCREEN_ROUTES.includes(pathname) && status === 'ready'
+  // On a computer Now Playing covers the sidebar and keeps the player bar.
+  const stage = wide && pathname === '/now-playing'
+  const chrome = (stage || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
   return (
-    <Frame chrome={chrome}>
+    <Frame chrome={chrome} sidebar={!stage}>
       <Stack
         screenOptions={{
           headerShown: false,

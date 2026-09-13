@@ -24,14 +24,20 @@ import { useLayout } from './useLayout'
 export function Shell({
   children,
   chrome,
+  sidebar = true,
 }: {
   children: ReactNode
   /** False while a screen owns the whole display, and before there is a server. */
   chrome: boolean
+  /**
+   * False while a desktop screen covers the sidebar but not the player bar:
+   * Now Playing, which keeps play and pause where your hand already is.
+   */
+  sidebar?: boolean
 }): ReactNode {
   const { wide } = useLayout()
 
-  return <OverlayProvider>{frame(wide, chrome, children)}</OverlayProvider>
+  return <OverlayProvider>{frame(wide, chrome, sidebar, children)}</OverlayProvider>
 }
 
 /**
@@ -39,14 +45,14 @@ export function Shell({
  * and popovers land above the tab bar and the player bar rather than inside
  * whichever screen opened them.
  */
-function frame(wide: boolean, chrome: boolean, children: ReactNode): ReactNode {
+function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: ReactNode): ReactNode {
   if (!chrome) return <View style={styles.root}>{children}</View>
 
   if (wide) {
     return (
       <View style={styles.root} testID="shell-wide">
         <View style={styles.columns}>
-          <Sidebar />
+          {sidebar ? <Sidebar /> : null}
           <View style={styles.content}>{children}</View>
         </View>
         <PlayerBar />

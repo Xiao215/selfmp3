@@ -893,9 +893,32 @@ from review. The captured states still have to pass check 2 by eye.
   smart playlist, edits it, checks the count and the saved rules, then
   deletes it. It passes against both apps at both widths.
 
+- **Now Playing on a computer.** The web's page:
+  - the cover and the song's facts on the left; Lyrics, Up next and About as
+    tabs on the right;
+  - a glow from the cover's own colours;
+  - Focus, where the cover glides into the header and the lyrics grow, and
+    the controls step aside after three still seconds;
+  - "Next · in 12 s" for a song's last fifteen seconds.
+
+  The page covers the sidebar and keeps the player bar. In the bar, the
+  cover button toggles the page, the mic toggles Focus, and Queue switches
+  to the Up next tab and back, as on the web. The tab and mode live in the
+  address (`/now-playing?tab=queue`), which is how the bar changes them.
+
+  Romaji and pinyin are the synced setting and the Mac's romanizer, shown
+  under each line when they line up exactly. The cover palette moved to
+  `packages/client/src/art/palette.ts` (5 tests), and a port reads the
+  pixels: a canvas on the web, nothing yet on a phone. The page's rules are
+  in `nowPlaying.model.ts` (9 tests): its geometry, which words a song has,
+  and when "Next" shows. The player gained `clearQueue`.
+  `verify/flows/nowPlaying.spec.ts` passes against both apps. A phone keeps
+  its own full-screen player, unchanged.
+
 The reference library capture now runs to the end at 1280 and at 375: all
-seven library states at each width. The playlists capture now does too: all
-five playlist states at each width.
+seven library states at each width. The playlists capture does too, with all
+five playlist states at each width. So does the now playing capture: all
+seven states at 1280, and the phone's five.
 
 ### Notes for whoever reviews phase 4
 
@@ -918,6 +941,26 @@ five playlist states at each width.
   whatever is on screen, so a text rule still waiting for its text is sent
   and refused. Here that rule waits until something is typed. The count shows
   "Checking…" in the meantime, as on the web.
+- **Now Playing, what the web has and this does not yet.**
+  - In Focus the sung line lights all at once; the web fills it in word by
+    word, estimated between timestamps, every frame.
+  - The lyrics have no fade at the top and bottom. An SVG gradient over them
+    darkened the whole column instead, so it came out.
+  - The player bar stays in Focus; only the page's own controls step aside.
+  - A song with no words shows a quiet line ("Instrumental", or "No lyrics
+    found · It's instrumental") rather than the web's drawn visual, and the
+    tab is always "Lyrics", never "Visual".
+  - Up next has no Auto-mix row, and a lyric line cannot be looped by
+    right-clicking it: the app's player has neither auto-mix nor the practice
+    loop yet.
+  - With the page closed, Queue opens the page on Up next. The web opens a
+    side panel, which the app doesn't have.
+  - The tag picker is a sheet, not anchored to "Edit tags".
+  - Escape leaves Focus, then closes the page. The web's page ignores
+    Escape.
+- **About offers "Download now" on the web.** Song details say what is on
+  this device, and in a browser that still offers a download, although the
+  web always streams (decided above). It goes with the download settings.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

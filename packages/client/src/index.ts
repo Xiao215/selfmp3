@@ -42,6 +42,9 @@ export * from './devices/handoff.js'
 
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 
+/** The colours a cover lends Now Playing. */
+export * from './art/palette.js'
+
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'
 

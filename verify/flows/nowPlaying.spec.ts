@@ -38,6 +38,15 @@ test.describe('now playing', () => {
     await page.getByRole('tab', { name: 'Up next' }).click()
     await expect(closeQueue).toBeVisible()
 
+    // Auto-mix, on its own row: it says what the next handover will be, and
+    // goes back to queue order when it is switched off.
+    const autoMix = page.getByLabel('Auto-mix', { exact: true })
+    await expect(page.getByText('plays in queue order')).toBeVisible()
+    await autoMix.click()
+    await expect(page.getByText(/^(next crossfade \d+s|nothing to mix yet)$/)).toBeVisible()
+    await autoMix.click()
+    await expect(page.getByText('plays in queue order')).toBeVisible()
+
     const barQueue = page.getByRole('button', { name: 'Queue', exact: true })
     await barQueue.click()
     await expect(closeQueue).toBeHidden()

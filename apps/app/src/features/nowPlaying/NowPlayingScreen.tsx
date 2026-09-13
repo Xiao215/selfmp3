@@ -30,6 +30,7 @@ import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
+import { Toggle } from '../../ui/components/Toggle'
 import {
   ChevronDown,
   CloudDownload,
@@ -59,7 +60,9 @@ import { useArt } from '../../offline/useArt'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
-import { romanName } from './nowPlaying.model'
+import { romanName,
+  autoMixLine,
+} from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { useSongWords } from './useSongWords'
 
@@ -592,6 +595,18 @@ function QueuePanel({
           <X size={17} color={theme.colors.textSecondary} />
         </IconButton>
       </View>
+      <View style={styles.queueToolbar}>
+        <Toggle value={player.autoMix} onChange={player.setAutoMix} label="Auto-mix" testID="auto-mix" />
+        <Text style={styles.queueToolbarLabel}>Auto-mix</Text>
+        <Text style={styles.queueToolbarHint} numberOfLines={1}>
+          {autoMixLine({
+            autoMix: player.autoMix,
+            canCrossfade: player.canCrossfade,
+            upcoming: upcoming.length,
+            nextCrossfadeSeconds: player.nextCrossfadeSeconds,
+          })}
+        </Text>
+      </View>
       <FlatList
         ref={listRef}
         data={player.songs}
@@ -794,6 +809,23 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
   },
   queueSub: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+  },
+  queueToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  queueToolbarLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
+  queueToolbarHint: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'right',
     color: theme.colors.textMuted,
     fontSize: type.small,
   },

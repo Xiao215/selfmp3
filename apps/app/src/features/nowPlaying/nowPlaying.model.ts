@@ -144,3 +144,23 @@ export function hexAlpha(hex: string, alpha: number): string {
   const b = parseInt(value.slice(4, 6), 16)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
+
+/**
+ * What auto-mix will do next, beside its switch in Up next: the web's
+ * `.automix-fade`. A phone's player cannot crossfade, so there it only orders.
+ */
+export function autoMixLine({
+  autoMix,
+  canCrossfade,
+  upcoming,
+  nextCrossfadeSeconds,
+}: {
+  autoMix: boolean
+  canCrossfade: boolean
+  upcoming: number
+  nextCrossfadeSeconds: number
+}): string {
+  if (!autoMix) return 'plays in queue order'
+  if (upcoming === 0) return 'nothing to mix yet'
+  return canCrossfade ? `next crossfade ${nextCrossfadeSeconds}s` : 'ordered by tempo, key and energy'
+}

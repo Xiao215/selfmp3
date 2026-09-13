@@ -7,6 +7,7 @@ import {
   EMPTY_QUEUE,
   enqueue as enqueueIds,
   moveItem,
+  peekNext,
   playFrom,
   playNext as playNextIds,
   previous as previousInQueue,
@@ -18,6 +19,8 @@ import {
 } from '@selfmp3/shared'
 import {
   advancePlayable,
+  autoMixCrossfade,
+  autoMixOrder,
   countInMs,
   type EngineState,
   listenedDelta,
@@ -107,6 +110,15 @@ export interface PlayerApi {
   /** Minutes from now, or null to cancel. */
   setSleepTimer: (minutes: number | null) => void
 
+  // --- auto-mix ------------------------------------------------------------
+  /** Upcoming songs kept in a smooth order by tempo, key and energy. */
+  readonly autoMix: boolean
+  /** Whether this engine fades one song into the next; a phone's cannot. */
+  readonly canCrossfade: boolean
+  /** The fade into the next song: auto-mix's pick, or the Mac's setting. */
+  readonly nextCrossfadeSeconds: number
+  setAutoMix: (on: boolean) => void
+
   // --- practice ------------------------------------------------------------
   /** Whether this engine can loop A to B closely; a phone's cannot, yet. */
   readonly canLoop: boolean
@@ -129,6 +141,7 @@ const VOLUME_KEY = 'volume'
 /** Practice preferences, kept on this device as the web keeps them. */
 const PITCH_LOCK_KEY = 'pitchlock'
 const COUNT_IN_KEY = 'countin'
+const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
 
@@ -161,6 +174,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
   const [countIn, setCountInState] = useState(() => prefs.get(COUNT_IN_KEY) === '1')
+  const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
 
   const songsById = useMemo(() => {
     const map = new Map<number, Song>()
@@ -176,6 +190,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const thresholdRef = useRef(PLAY_THRESHOLD)
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
   const lastPositionRef = useRef(0)
+  const autoMixRef = useRef(autoMix)
 
   useEffect(() => {
     queueRef.current = queue
@@ -183,6 +198,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     songsRef.current = songsById
   }, [songsById])
+  useEffect(() => {
+    autoMixRef.current = autoMix
+  }, [autoMix])
+
+  /** With auto-mix on, anything that brings new songs into Up next re-smooths it, as on the web. */
+  const mixed = useCallback(
+    (state: QueueState): QueueState =>
+      autoMixRef.current ? autoMixOrder(state, songsRef.current) : state,
+    [],
+  )
   useEffect(() => {
     connectionRef.current = connection
   }, [connection])
@@ -329,7 +354,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // "Play" on a list means in order, as on the web; a tapped row keeps
         // whatever mode is on.
         const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
-        const next = playFrom(from, songIds, startIndex)
+        const next = mixed(playFrom(from, songIds, startIndex))
         setQueue(next)
         loadIndex(next, autoplay, position)
       }
@@ -339,7 +364,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, start)) return
       start()
     },
-    [loadIndex, checkPlay],
+    [loadIndex, checkPlay, mixed],
   )
 
   /**
@@ -450,8 +475,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
 
   const addToQueue = useCallback(
-    (songIds: readonly number[]) => mutateQueue(state => enqueueIds(state, songIds)),
-    [mutateQueue],
+    (songIds: readonly number[]) => mutateQueue(state => mixed(enqueueIds(state, songIds))),
+    [mutateQueue, mixed],
   )
 
   const removeFromQueue = useCallback(
@@ -477,6 +502,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     queueRef.current = EMPTY_QUEUE
     refreshLookahead(engine)
   }, [engine])
+
+  const setAutoMix = useCallback(
+    (on: boolean) => {
+      setAutoMixState(on)
+      autoMixRef.current = on
+      prefs.set(AUTO_MIX_KEY, on ? '1' : '0')
+      // Turning it on smooths what is already queued; turning it off keeps the
+      // order as it is, since there is no "original" worth going back to.
+      if (on) mutateQueue(state => autoMixOrder(state, songsRef.current))
+    },
+    [mutateQueue],
+  )
 
   // --- volume, speed, sleep ---------------------------------------------------
 
@@ -560,6 +597,26 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     return { queueSongs, currentSong: current }
   }, [queue, songsById])
 
+  /*
+   * The fade into the next song, and gapless, told to the engine. The Mac's
+   * settings hold both; nothing passed them on before this, so a browser
+   * played gapless with no crossfade whatever the setting said. Auto-mix picks
+   * each fade from the two songs, bounded by the setting. A phone's engine
+   * ignores both: it is gapless within its own queue and cannot fade.
+   */
+  const crossfadeSeconds = serverSettings?.crossfadeSeconds ?? 0
+  const gapless = serverSettings?.gapless ?? true
+  const nextSong = useMemo(() => {
+    const id = peekNext(queue)
+    return id === null ? null : (songsById.get(id) ?? null)
+  }, [queue, songsById])
+  const nextCrossfadeSeconds = autoMix
+    ? autoMixCrossfade(resolved.currentSong, nextSong, crossfadeSeconds)
+    : crossfadeSeconds
+  useEffect(() => {
+    engine.configure({ crossfadeSeconds: nextCrossfadeSeconds, gapless })
+  }, [engine, nextCrossfadeSeconds, gapless])
+
   const currentBpm = resolved.currentSong?.features?.bpm ?? null
   useEffect(() => {
     engine.setCountIn(countIn ? countInMs(currentBpm) : 0)
@@ -598,6 +655,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       toggleMute,
       setRate,
       setSleepTimer,
+      autoMix,
+      canCrossfade: engine.capabilities.crossfade,
+      nextCrossfadeSeconds,
+      setAutoMix,
       canLoop: engine.capabilities.loop,
       loopA: engineState.loopA,
       loopB: engineState.loopB,
@@ -620,6 +681,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       setRate,
       setSleepTimer,
       engine,
+      autoMix,
+      nextCrossfadeSeconds,
+      setAutoMix,
       engineState.loopA,
       engineState.loopB,
       engineState.countingIn,

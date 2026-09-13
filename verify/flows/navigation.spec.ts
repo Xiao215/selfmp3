@@ -27,13 +27,16 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
+    // As long as the heading: the settings query answers within a second, but
+    // the dev build draws this page in about 3 s alone and 5 to 7 s in the
+    // middle of a full run, past the 5 s default.
     await expect(
       page
         .getByRole('spinbutton')
         .or(page.getByRole('checkbox'))
         .or(page.getByRole('switch'))
         .first(),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30_000 })
   })
 
   test('the library is still there afterwards', async ({ page }) => {

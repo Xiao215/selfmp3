@@ -1706,3 +1706,46 @@ not open, or play a downloaded song, without a network. `/sw.js` and
   `?v=player-rev` with `Range: bytes=2-5` as a 206 with `bytes 2-5/10` and the
   right bytes; a song not downloaded answered 503.
 - The flow skips on a build with no manifest or worker, such as the dev server.
+
+### Auto-mix, and crossfade reaching the player
+
+Two more found before deleting `apps/web`, and the second was older than the
+first.
+
+**Crossfade and gapless never reached the web engine.** The Mac's settings hold
+both, Settings saves them, and the web app's player passed them to its engine
+with `engine.configure`. Nothing in the new app called `configure`, so a browser
+played gapless with no crossfade whatever the setting said. The player now tells
+the engine the next fade and gapless whenever either changes. A phone's engine
+ignores both, as it did: it is gapless within its own queue and cannot fade.
+
+**Auto-mix was missing.** The web app's Up next had a switch that keeps the
+upcoming songs in a smooth order by tempo, key and energy, and picks each
+crossfade from the two songs, bounded by the setting (4 s when crossfade is
+off).
+
+- `packages/client/src/queue/autoMix.ts` is the web app's `player/autoMix.ts`,
+  with its 11 tests: the greedy nearest-neighbour path, only what follows the
+  playing song reordered, un-analysed songs kept at the end in order, and the
+  fade for each handover.
+- The player keeps the switch (`automix` in prefs) and, as on the web,
+  re-smooths when a list starts playing and when songs are added; Play next,
+  reordering and shuffle leave the order alone. Turning it on smooths what is
+  queued; turning it off keeps it.
+- Up next has the switch on its own row, at both widths, with what the next
+  handover will be (`autoMixLine`, 3 tests): the fade in seconds where the
+  player can fade, "ordered by tempo, key and energy" on a phone.
+- Checked: `verify/flows/nowPlaying.spec.ts` now switches auto-mix on and off
+  in Up next, against both apps. On the iPhone simulator the switch is in Up
+  next, its line changes, and it was left off. A Chromium probe of the new app
+  recorded the engine's audio elements (it never adds them to the document)
+  and sought the first song to three seconds before its end: with the Mac's
+  crossfade set to 6 s the next song was already sounding at volume 0.03 beside
+  the first; with it at 0, as a control, nothing overlapped. The setting was
+  put back to 0.
+- The gate failed twice on `verify/flows/navigation.spec.ts`'s Settings check,
+  in full runs only. The trace showed `/api/settings` answered in 18 ms about a
+  second after the page loaded, and a probe found the page's controls in
+  order; the dev build simply draws Settings in about 3 s alone and 5 to 7 s
+  mid-run, and the check waited Playwright's default 5 s. Asked, Xiao chose to
+  give that one expect 30 s, the same as the heading above it.

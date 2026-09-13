@@ -10,6 +10,7 @@ import {
   romanName,
   stageGeometry,
   upNextSeconds,
+  autoMixLine,
 } from './nowPlaying.model'
 
 const SYNCED: ParsedLyrics = {
@@ -104,5 +105,19 @@ describe('now playing', () => {
 
   it('writes a token at an opacity', () => {
     expect(hexAlpha('#0b0d13', 0.5)).toBe('rgba(11, 13, 19, 0.5)')
+  })
+})
+
+describe('autoMixLine', () => {
+  const on = { autoMix: true, canCrossfade: true, upcoming: 3, nextCrossfadeSeconds: 4 }
+  it('says the queue plays in order when it is off', () => {
+    expect(autoMixLine({ ...on, autoMix: false })).toBe('plays in queue order')
+  })
+  it('names the next crossfade where the player can fade', () => {
+    expect(autoMixLine(on)).toBe('next crossfade 4s')
+  })
+  it('says only the order where it cannot, and when nothing follows', () => {
+    expect(autoMixLine({ ...on, canCrossfade: false })).toBe('ordered by tempo, key and energy')
+    expect(autoMixLine({ ...on, upcoming: 0 })).toBe('nothing to mix yet')
   })
 })

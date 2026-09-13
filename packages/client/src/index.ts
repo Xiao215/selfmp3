@@ -35,6 +35,8 @@ export * from './queries/queries.js'
 export * from './downloads/downloadIndex.js'
 export * from './downloads/syncPolicy.js'
 export * from './queue/playable.js'
+// Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
+export * from './queue/autoMix.js'
 
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'

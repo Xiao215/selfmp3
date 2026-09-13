@@ -12,6 +12,8 @@ import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
 import { Grip, Queue, Trash, X } from '../../ui/components/Icons'
+import { Toggle } from '../../ui/components/Toggle'
+import { autoMixLine } from './nowPlaying.model'
 import { dropIndex } from '../playlistDetail/playlistDetail.model'
 
 /** A row's height before it has been measured. */
@@ -59,6 +61,20 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
             <X size={17} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
+      </View>
+
+      {/* Its own row, as on the web, where it has room to say what it is doing. */}
+      <View style={styles.toolbar}>
+        <Toggle value={player.autoMix} onChange={player.setAutoMix} label="Auto-mix" testID="auto-mix" />
+        <Text style={styles.toolbarLabel}>Auto-mix</Text>
+        <Text style={styles.toolbarHint} numberOfLines={1}>
+          {autoMixLine({
+            autoMix: player.autoMix,
+            canCrossfade: player.canCrossfade,
+            upcoming: upcoming.length,
+            nextCrossfadeSeconds: player.nextCrossfadeSeconds,
+          })}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.list} scrollEnabled={drag === null}>
@@ -250,6 +266,17 @@ const styles = StyleSheet.create(theme => ({
   sub: { color: theme.colors.textMuted, fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   divider: { width: 1, height: 18, marginHorizontal: 4, backgroundColor: theme.colors.border },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  toolbarLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  toolbarHint: { flex: 1, minWidth: 0, textAlign: 'right', color: theme.colors.textMuted, fontSize: 11 },
   list: { padding: 8, gap: 1 },
   row: {
     flexDirection: 'row',

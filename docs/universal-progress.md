@@ -1613,3 +1613,27 @@ for now").
   already open: the box read the link only when the screen was created, so a
   share that arrived while Import was showing was dropped. It now follows each
   new share.
+
+### Listening before importing
+
+The web's `ImportListen`: a play button over each YouTube track's thumbnail
+on the review, and a bar with what is playing, a playhead and Stop.
+
+- `ports/listen.web.ts` is an audio element of its own, never the player's,
+  so a preview does not touch the queue. `ports/listen.ts` says no on a phone:
+  track-player has one queue, and a second player there is `expo-audio`, a new
+  dependency that needs its own Stack line. The phone's review keeps plain
+  thumbnails.
+- `features/import/listen.model.ts` holds the rules with nothing drawn
+  (6 tests): what can be played (YouTube links), the length known before the
+  audio has one, when a preview stops because its track left the review, and
+  the button's and bar's words.
+- `features/import/ImportListen.tsx`: the hook, which pauses what was playing
+  and resumes it on Stop unless you went back to it yourself, the row button
+  and the bar.
+- Checked: `verify/flows/import.spec.ts` now plays the review's track and
+  stops it, against both apps at both widths. A probe of the new app in
+  Chromium waited for the bar to say Pause: the server answered 206 with
+  `audio/mp4`, playback began after 0.8 s, and the playhead read 0:03 of 4:08
+  before Stop. On the iPhone simulator Import still opens, with plain
+  thumbnails.

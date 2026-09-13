@@ -52,7 +52,10 @@ import {
   toggleChosen,
   type Review,
 } from './import.model'
+import { ListenBar, ListenButton, useListen } from './ImportListen'
+import { canListen, listeningLeftReview, type Listening } from './listen.model'
 import { YouTubeLibraryPanel } from './YouTubeLibraryPanel'
+import { canListenHere } from '../../ports/listen'
 
 /** "Don't add to a playlist": the playlist select holds numbers, and no playlist is 0. */
 const NO_PLAYLIST = 0
@@ -86,6 +89,7 @@ export function ImportScreen(): ReactNode {
   const [createPlaylist, setCreatePlaylist] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
+  const listen = useListen()
   const queueTop = useRef(0)
 
   const tags = library?.tags ?? []
@@ -147,6 +151,15 @@ export function ImportScreen(): ReactNode {
   const afterJob = (promise: Promise<unknown>): void => {
     void promise.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }))
   }
+
+  // A preview whose track has left the review (cancelled, imported, or a new
+  // link fetched) stops with it. Editing a row keeps its url, so it plays on.
+  const leftReview = listeningLeftReview(listen.listening, review?.items ?? null)
+  useEffect(() => {
+    if (leftReview) listen.close()
+    // Only whether it left matters; `close` is a new function every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leftReview])
 
   const activity = queue ? queueActivity(queue) : null
   const heading = review ? reviewHeading(review) : null
@@ -307,9 +320,20 @@ export function ImportScreen(): ReactNode {
                   onPatch={patch =>
                     setReview({ ...review, items: patchItem(review.items, index, patch) })
                   }
+                  listening={listen.listening}
+                  onListen={() => listen.toggle(item)}
                 />
               ))}
             </View>
+
+            {listen.listening ? (
+              <ListenBar
+                listening={listen.listening}
+                onToggle={() => listen.listening && listen.toggle(listen.listening.track)}
+                onSeek={listen.seek}
+                onClose={listen.close}
+              />
+            ) : null}
 
             <View style={styles.options}>
               <View style={styles.option}>
@@ -414,6 +438,8 @@ function ReviewRow({
   chosen,
   onToggle,
   onPatch,
+  listening,
+  onListen,
 }: {
   item: ImportPreviewItem
   index: number
@@ -421,6 +447,8 @@ function ReviewRow({
   chosen: boolean
   onToggle: () => void
   onPatch: (patch: Partial<Pick<ImportPreviewItem, 'title' | 'artist' | 'album'>>) => void
+  listening: Listening | null
+  onListen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -459,7 +487,9 @@ function ReviewRow({
     </Pressable>
   )
 
-  const thumb = item.thumbnail ? (
+  const thumb = canListenHere && canListen(item) ? (
+    <ListenButton item={item} listening={listening} onToggle={onListen} />
+  ) : item.thumbnail ? (
     <Image
       source={{ uri: item.thumbnail }}
       style={[styles.thumb, item.alreadyHave && styles.faded]}

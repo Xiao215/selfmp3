@@ -51,6 +51,14 @@ test.describe('importing', () => {
     await expect(page.getByText('1 track found')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText('1 of 1 selected')).toBeVisible()
 
+    // Listening before importing: the row's thumbnail plays it, and a bar
+    // says what is playing until it is stopped. Nothing reaches the queue.
+    await page.getByRole('button', { name: /^Listen to / }).click()
+    const bar = page.getByLabel('Listening before import')
+    await expect(bar).toBeVisible()
+    await bar.getByRole('button', { name: 'Stop listening' }).click()
+    await expect(bar).toHaveCount(0)
+
     // Unticking the only track leaves nothing to import.
     const tick = page.getByRole('checkbox', { name: /^Import / })
     await tick.click()

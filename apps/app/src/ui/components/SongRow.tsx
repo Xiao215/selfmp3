@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from 'react'
+import { memo, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -451,17 +451,21 @@ function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode 
  * while the song is paused, so the row still says "this is the one".
  */
 function RowWash({ color }: { color: string }): ReactNode {
+  // Its own id per row. A screen the router keeps hidden behind this one (a
+  // playlist listing the same song) holds a wash too; with one shared id, the
+  // visible row's url() landed on the hidden, zero-size gradient and drew nothing.
+  const id = `rowwash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
-          <LinearGradient id="song-row-wash" x1="0" y1="0" x2="1" y2="0">
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0.34" stopColor={color} stopOpacity={0} />
             <Stop offset="0.62" stopColor={color} stopOpacity={0.15} />
             <Stop offset="1" stopColor={color} stopOpacity={0.38} />
           </LinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#song-row-wash)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
       </Svg>
     </View>
   )

@@ -11,7 +11,7 @@ import type { SongFeatures } from './schemas/features.js'
  */
 
 /** Bump when the analysis algorithm changes enough that old rows should be redone. */
-export const FEATURES_VERSION = 1
+export const FEATURES_VERSION = 2
 
 export const PITCH_NAMES = [
   'C',

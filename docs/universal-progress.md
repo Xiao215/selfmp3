@@ -2357,3 +2357,31 @@ From Xiao on 4600, after the captions came back:
 - Checked by hovering in Chrome against the dev server: tempo, energy, row ⋯
   and heart, bar tags and heart, queue Clear and Close, all in -apple-system at
   rgb(174, 177, 185).
+
+### Real keys, the row wash back, song-coloured controls — branch `universal/song-colour-controls`
+
+From Xiao on 4600:
+
+- **Every song was 8A.** Not hard-coded: `chroma()` in `services/dsp.ts` summed
+  FFT bins per pitch class, and at 22050 Hz / 4096 the bins between C2 and C7
+  fall 20 (C♯) to 40 (B) per class. The tilt alone made white noise A minor
+  with 0.46 confidence, so every real song was too. Now a mean per bin, with
+  tests that noise gives a flat chroma and a D major chord reads D major.
+  `FEATURES_VERSION` 1 → 2, so the analyser redid the library on its own:
+  13 × A minor became ten keys.
+- **The playing row's wash was gone.** `RowWash` used the id `song-row-wash`.
+  After a playlist visit the router keeps that screen hidden with its own
+  wash, earlier in the DOM; the visible row's `url(#song-row-wash)` resolved to
+  that 0×0 gradient. Each wash now takes `useId()`, like `ProgressWash`.
+  Checked in Chrome: after Library → Playlists → a playlist → Library, two
+  gradients, each used once, the visible one 1020×54.
+- **Lit controls in the song's colour**: shuffle, repeat, the tag count and
+  the tags icon, and the bar's lyrics, queue, practice, speed, sleep and mute
+  toggles, through a small `usePlayingColor()` in `PlayerBar`. Checked: with
+  三原色 playing, shuffle, the tag badge and the wash are all #56af64.
+- **The tab icon follows the accent**: `ports/appIcon.web.ts` redraws
+  `public/icons/icon.svg` at the chosen hue as a data URL and replaces the
+  build's favicon link; `AccentProvider` calls it when the hue changes. The
+  installed PWA and iOS home-screen icons are build-time files and keep their
+  colour (iOS would need alternate app icons, a native rebuild).
+- Energy's caption: "Energy 86%".

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { buildAccent, currentColorScheme, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
 
+import { setAppIconHue } from '../ports/appIcon'
 import { prefs } from '../ports/prefs'
 import { ACCENT_KEY, readHue, readTheme, THEME_KEY, type ThemeChoice } from './appearancePrefs'
 import { applyAccentHue, applyThemeChoice, onSchemeChange } from './theme/unistyles'
@@ -56,6 +57,8 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     // Every themed stylesheet follows the accent, without a reload.
     applyAccentHue(hue)
+    // And the browser tab's 音符.
+    setAppIconHue(hue)
     // Nothing to write for a default nobody has chosen yet.
     if (hue === DEFAULT_ACCENT_HUE && prefs.get(ACCENT_KEY) === null) return
     prefs.set(ACCENT_KEY, JSON.stringify({ hue }))

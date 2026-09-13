@@ -399,9 +399,12 @@ export function chroma(pcm: Float32Array, sampleRate: number): Float64Array {
   const maxBin = Math.min(CHROMA_FRAME / 2 - 1, Math.floor(2100 / binHz))
 
   const pitchClassOfBin = new Int8Array(maxBin + 1)
+  const binsOfPitchClass = new Float64Array(12)
   for (let k = minBin; k <= maxBin; k++) {
     const midi = 12 * Math.log2((k * binHz) / 440) + 69
-    pitchClassOfBin[k] = ((Math.round(midi) % 12) + 12) % 12
+    const pc = ((Math.round(midi) % 12) + 12) % 12
+    pitchClassOfBin[k] = pc
+    binsOfPitchClass[pc] = (binsOfPitchClass[pc] ?? 0) + 1
   }
 
   forEachSpectrum(pcm, CHROMA_FRAME, CHROMA_HOP, magnitude => {
@@ -411,6 +414,14 @@ export function chroma(pcm: Float32Array, sampleRate: number): Float64Array {
       out[pc] = (out[pc] ?? 0) + Math.log1p(10 * (magnitude[k] ?? 0))
     }
   })
+  // A mean per bin, not a sum. The bins are evenly spaced in Hz, so between
+  // C2 and C7 some pitch classes get twice as many as others (B 40, C♯ 20);
+  // summed, that tilt alone correlated best with A minor, and every song in
+  // a library came out 8A.
+  for (let pc = 0; pc < 12; pc++) {
+    const bins = binsOfPitchClass[pc] ?? 0
+    out[pc] = bins > 0 ? (out[pc] ?? 0) / bins : 0
+  }
   return out
 }
 

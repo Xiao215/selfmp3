@@ -153,6 +153,22 @@ describe('estimateKey', () => {
   it('returns null for silence', () => {
     expect(estimateKey(chroma(new Float32Array(SR * 5), SR))).toBeNull()
   })
+
+  it('gives white noise a flat chroma, with no pitch class favoured', () => {
+    // Summed, the uneven number of FFT bins per pitch class (B 40, C♯ 20) tilted
+    // noise — and so every real song — towards A minor.
+    const random = seeded(3)
+    const noise = new Float32Array(SR * 10)
+    for (let i = 0; i < noise.length; i++) noise[i] = random()
+    const bins = Array.from(chroma(noise, SR))
+    expect(Math.max(...bins) / Math.min(...bins)).toBeLessThan(1.05)
+  })
+
+  it('hears a D major chord as D major, not the old A minor default', () => {
+    const key = estimateKey(chroma(chord([50, 54, 57, 62], 6), SR))
+    expect(key?.pitchClass).toBe(2)
+    expect(key?.mode).toBe('major')
+  })
 })
 
 describe('energy', () => {

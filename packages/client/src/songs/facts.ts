@@ -27,7 +27,7 @@ export function describeTempo(bpm: number): string {
 
 /** The energy in words, for the hover caption on a song's wave. */
 export function describeEnergy(energy: number): string {
-  return `Energy ${Math.round(energy * 100)} of 100`
+  return `Energy ${Math.round(energy * 100)}%`
 }
 
 /** A plain word for the pace, not an Italian one. */

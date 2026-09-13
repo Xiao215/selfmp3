@@ -186,11 +186,11 @@ export function PlayerBar(): ReactNode {
                 caption="Edit tags"
                 active={tagsOpen}
               >
-                <TagPlus size={17} color={tagsOpen ? accent.accent : theme.colors.textSecondary} />
+                <TagPlus size={17} color={tagsOpen ? songColor.color : theme.colors.textSecondary} />
               </IconButton>
               {song.tagIds.length > 0 ? (
                 <View
-                  style={[styles.tagCount, { backgroundColor: accent.accent }]}
+                  style={[styles.tagCount, { backgroundColor: songColor.color }]}
                   pointerEvents="none"
                 >
                   <Text style={[styles.tagCountText, { color: accent.onAccent }]}>
@@ -210,7 +210,7 @@ export function PlayerBar(): ReactNode {
           <IconButton onPress={player.toggleShuffle} label="Shuffle" active={player.queue.shuffle}>
             <Shuffle
               size={17}
-              color={player.queue.shuffle ? accent.accent : theme.colors.textSecondary}
+              color={player.queue.shuffle ? songColor.color : theme.colors.textSecondary}
             />
           </IconButton>
           <IconButton onPress={player.previous} label="Previous" disabled={!song}>
@@ -244,11 +244,11 @@ export function PlayerBar(): ReactNode {
             active={player.queue.repeat !== 'off'}
           >
             {player.queue.repeat === 'one' ? (
-              <RepeatOne size={17} color={accent.accent} />
+              <RepeatOne size={17} color={songColor.color} />
             ) : (
               <Repeat
                 size={17}
-                color={player.queue.repeat === 'off' ? theme.colors.textSecondary : accent.accent}
+                color={player.queue.repeat === 'off' ? theme.colors.textSecondary : songColor.color}
               />
             )}
           </IconButton>
@@ -270,11 +270,11 @@ export function PlayerBar(): ReactNode {
           <IconButton onPress={toggleLyrics} label="Lyrics" active={pageMode === 'focus'}>
             <Mic
               size={17}
-              color={pageMode === 'focus' ? accent.accent : theme.colors.textSecondary}
+              color={pageMode === 'focus' ? songColor.color : theme.colors.textSecondary}
             />
           </IconButton>
           <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
-            <Queue size={17} color={queueOpen ? accent.accent : theme.colors.textSecondary} />
+            <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
           </IconButton>
           <IconButton
             onPress={() => setPracticeOpen(!practiceOpen)}
@@ -284,7 +284,7 @@ export function PlayerBar(): ReactNode {
             <Metronome
               size={17}
               color={
-                practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textSecondary
+                practiceOpen || player.loopB !== null ? songColor.color : theme.colors.textSecondary
               }
             />
           </IconButton>
@@ -313,10 +313,17 @@ export function PlayerBar(): ReactNode {
   )
 }
 
+/** What a lit control is drawn in: the playing song's colour, as the seek bar is. */
+function usePlayingColor(): string {
+  const player = usePlayer()
+  const artFor = useArt()
+  return useSongColor(player.current, player.current ? artFor(player.current) : null).color
+}
+
 function SpeedButton(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
+  const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   return (
@@ -326,7 +333,7 @@ function SpeedButton(): ReactNode {
         label={`Playback speed: ${player.rate}×`}
         active={player.rate !== 1}
       >
-        <Speed size={17} color={player.rate !== 1 ? accent.accent : theme.colors.textSecondary} />
+        <Speed size={17} color={player.rate !== 1 ? lit : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}
@@ -357,7 +364,7 @@ function SpeedButton(): ReactNode {
 function SleepButton(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
+  const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   const running = player.sleepTimerEndsAt !== null
@@ -365,7 +372,7 @@ function SleepButton(): ReactNode {
   return (
     <View ref={anchorRef} collapsable={false}>
       <IconButton onPress={() => setOpen(value => !value)} label="Sleep timer" active={running}>
-        <Moon size={17} color={running ? accent.accent : theme.colors.textSecondary} />
+        <Moon size={17} color={running ? lit : theme.colors.textSecondary} />
       </IconButton>
       <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
     </View>
@@ -375,7 +382,7 @@ function SleepButton(): ReactNode {
 function VolumeControl({ compact }: { compact: boolean }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
+  const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   const muted = player.muted || player.volume === 0
@@ -409,7 +416,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
         label={`Volume: ${percent}%`}
         active={player.muted}
       >
-        <Icon size={17} color={player.muted ? accent.accent : theme.colors.textSecondary} />
+        <Icon size={17} color={player.muted ? lit : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}

@@ -8,6 +8,17 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
 
+export interface SelectOption<T> {
+  readonly value: T
+  readonly label: string
+  readonly disabled?: boolean
+}
+
+export interface SelectGroup<T> {
+  readonly label: string
+  readonly options: readonly SelectOption<T>[]
+}
+
 /**
  * Choose one of a few things.
  *
@@ -16,29 +27,57 @@ import { Check, ChevronDown } from './Icons'
  * breakpoint the options appear beside the control and below it they arrive as
  * a sheet — decided by the primitive, not by the caller, which is foundation 5.
  *
+ * Options come flat, or in labelled groups (the smart-playlist field list:
+ * Text, Tags, Numbers…). Three sizes, as on the web: the ordinary control,
+ * `small` for a row of them, and `inline` for one that sits inside a sentence
+ * ("Match all of these rules").
+ *
  * Not a native picker: the web app's list is styled to match everything around
  * it, and an iOS wheel beside it would be a different control wearing the same
  * label.
  */
-export function Select<T extends string>({
+export function Select<T extends string | number>({
   value,
   options,
+  groups,
   onChange,
   label,
   testID,
+  size = 'normal',
 }: {
   value: T
-  options: readonly { value: T; label: string }[]
+  options?: readonly SelectOption<T>[]
+  groups?: readonly SelectGroup<T>[]
   onChange: (value: T) => void
   /** What is being chosen, e.g. "Sort by". Read out before the current value. */
   label: string
   testID?: string
+  size?: 'normal' | 'small' | 'inline'
 }): ReactNode {
   const accent = useAccent()
   const { dense } = useLayout()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const current = options.find(option => option.value === value)
+  const all = groups ? groups.flatMap(group => group.options) : (options ?? [])
+  const current = all.find(option => option.value === value)
+
+  const item = (option: SelectOption<T>): ReactNode => (
+    <SheetItem
+      key={String(option.value)}
+      label={option.label}
+      disabled={option.disabled}
+      icon={
+        <View style={styles.checkSlot}>
+          {option.value === value ? <Check size={14} color={accent.accent} /> : null}
+        </View>
+      }
+      active={option.value === value}
+      onPress={() => {
+        onChange(option.value)
+        setOpen(false)
+      }}
+    />
+  )
 
   return (
     <>
@@ -46,7 +85,9 @@ export function Select<T extends string>({
         ref={anchorRef}
         style={({ pressed }) => [
           styles.control,
-          dense && styles.controlDense,
+          size === 'normal' && dense && styles.controlDense,
+          size === 'small' && styles.controlSmall,
+          size === 'inline' && styles.controlInline,
           pressed && styles.controlPressed,
           // Open, the control keeps the accent edge the web gives it.
           open && { borderColor: accent.accent },
@@ -60,11 +101,19 @@ export function Select<T extends string>({
         accessibilityValue={{ text: current?.label ?? '' }}
         accessibilityState={{ expanded: open }}
       >
-        <Text style={[styles.value, dense && styles.valueDense]} numberOfLines={1}>
+        <Text
+          style={[
+            styles.value,
+            size === 'normal' && dense && styles.valueDense,
+            size === 'small' && styles.valueSmall,
+            size === 'inline' && styles.valueInline,
+          ]}
+          numberOfLines={1}
+        >
           {current?.label ?? label}
         </Text>
         <View style={open && styles.chevronOpen}>
-          <ChevronDown size={15} color={colors.textMuted} />
+          <ChevronDown size={size === 'normal' ? 15 : 12} color={colors.textMuted} />
         </View>
       </Pressable>
 
@@ -75,22 +124,16 @@ export function Select<T extends string>({
         title={label}
         titleTone="label"
       >
-        {options.map(option => (
-          <SheetItem
-            key={option.value}
-            label={option.label}
-            icon={
-              <View style={styles.checkSlot}>
-                {option.value === value ? <Check size={14} color={accent.accent} /> : null}
+        {groups
+          ? groups.map((group, index) => (
+              <View key={group.label}>
+                <Text style={[styles.groupLabel, index > 0 && styles.groupDivided]}>
+                  {group.label.toUpperCase()}
+                </Text>
+                {group.options.map(item)}
               </View>
-            }
-            active={option.value === value}
-            onPress={() => {
-              onChange(option.value)
-              setOpen(false)
-            }}
-          />
-        ))}
+            ))
+          : all.map(item)}
       </Popover>
     </>
   )
@@ -115,8 +158,32 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 9,
   },
+  /* `.select-trigger-small`: 5 by 8, 12-point type. */
+  controlSmall: {
+    minHeight: 30,
+    gap: 6,
+    paddingLeft: space.sm,
+    paddingRight: 7,
+  },
+  /* `.select-trigger-inline`: part of a sentence, on a lighter ground. */
+  controlInline: {
+    minHeight: 0,
+    gap: 4,
+    paddingVertical: 2,
+    paddingLeft: 6,
+    paddingRight: 4,
+    backgroundColor: colors.surface3,
+  },
   valueDense: {
     fontSize: 13,
+  },
+  valueSmall: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  valueInline: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   controlPressed: {
     backgroundColor: colors.surface3,
@@ -128,5 +195,20 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: type.body,
     flexShrink: 1,
+  },
+  groupLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    paddingTop: 6,
+    paddingHorizontal: 10,
+    paddingBottom: 4,
+  },
+  groupDivided: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 4,
+    paddingTop: 9,
   },
 })

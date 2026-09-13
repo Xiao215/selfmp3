@@ -38,6 +38,7 @@ import {
 import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { PlaylistSongRow } from './PlaylistSongRow'
+import { SmartRuleBuilder } from './SmartRuleBuilder'
 import { dropIndex, moveItem } from './playlistDetail.model'
 
 /**
@@ -74,6 +75,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const [renaming, setRenaming] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editingRules, setEditingRules] = useState(false)
   const [titleHovered, setTitleHovered] = useState(false)
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [rowHeight, setRowHeight] = useState(0)
@@ -236,6 +238,13 @@ export function PlaylistDetailScreen(): ReactNode {
               disabled={songs.length === 0}
               onPress={() => player.playShuffled(songIds)}
             />
+            {playlist?.kind === 'smart' ? (
+              <Button
+                label={editingRules ? 'Done' : 'Edit rules'}
+                active={editingRules}
+                onPress={() => setEditingRules(open => !open)}
+              />
+            ) : null}
             <Button
               testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
               label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
@@ -260,6 +269,26 @@ export function PlaylistDetailScreen(): ReactNode {
           </View>
         </View>
 
+        {playlist?.kind === 'smart' && editingRules ? (
+          <SmartRuleBuilder
+            key={playlist.id}
+            rules={playlist.rules ?? undefined}
+            tags={library.data?.tags ?? []}
+            onChange={rules =>
+              updatePlaylist.mutate(
+                { id: playlist.id, patch: { rules } },
+                {
+                  // The rules decide what is in it, so the list follows them.
+                  onSuccess: () =>
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.playlistSongs(playlist.id),
+                    }),
+                },
+              )
+            }
+          />
+        ) : null}
+
         {selection.active && playlist ? (
           <SelectionBar
             songs={selectedSongs}
@@ -283,11 +312,16 @@ export function PlaylistDetailScreen(): ReactNode {
             <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyHint}>
               {playlist?.kind === 'smart'
-                ? 'No songs match these rules yet. Try loosening them.'
+                ? 'No songs match these rules yet. Try loosening them — the count above the rules updates as you type.'
                 : 'Add songs from the library using the ⋯ menu on any track.'}
             </Text>
-            {playlist?.kind === 'smart' ? null : (
-              <Button label="Go to the library" onPress={() => router.navigate('/')} />
+            {playlist?.kind === 'smart' && editingRules ? null : (
+              <Button
+                label={playlist?.kind === 'smart' ? 'Edit the rules' : 'Go to the library'}
+                onPress={() =>
+                  playlist?.kind === 'smart' ? setEditingRules(true) : router.navigate('/')
+                }
+              />
             )}
           </View>
         ) : (

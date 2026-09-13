@@ -869,8 +869,33 @@ from review. The captured states still have to pass check 2 by eye.
   filter moved into a provider both share. The library header is one row at
   desktop width.
 
+- **The desktop player bar** (`4fb5578`). The web's three-part bar: cover,
+  title, love and tags on the left; transport and an inline seek bar in the
+  middle; lyrics, queue, speed, sleep, devices and volume on the right, in
+  groups. Speed, sleep and devices open as popovers above the bar at desktop
+  width, and volume folds into a popover below 1160.
+- **Playlists** (`7c1ab55`). The web's card grid, with play and pin revealed on
+  hover where there is a mouse, and the New playlist and New smart playlist
+  forms. Creating one opens it. Routes moved to `/playlists/:id` to match the
+  web; the old `/playlist/:id` redirects.
+- **Playlist detail** (`9c6af69`). Rename in place, delete behind a confirm,
+  select and remove, and reorder by dragging the handles. A drag is saved
+  optimistically, then sent. `moveItem` and `dropIndex` have 5 tests. The phone
+  smoke run still passes (19 of 19).
+- **The smart rule builder.** "Edit rules" opens the web's builder. The
+  count is previewed against the real library 350 ms after an edit, and the
+  rules are saved at the same pace. Closing within that pause still saves.
+  At desktop width each rule is a line with the web's columns; on a phone,
+  a card. `Select` gained grouped options, number values, and the web's `small`
+  and `inline` sizes. The field lists, starting rules and count wording
+  live in `rules.model.ts`, with 8 tests; one checks every starting rule
+  against the shared schema. `verify/flows/smartRules.spec.ts` creates its own
+  smart playlist, edits it, checks the count and the saved rules, then
+  deletes it. It passes against both apps at both widths.
+
 The reference library capture now runs to the end at 1280 and at 375: all
-seven library states at each width.
+seven library states at each width. The playlists capture now does too: all
+five playlist states at each width.
 
 ### Notes for whoever reviews phase 4
 
@@ -886,9 +911,17 @@ seven library states at each width.
   trigger, the library search and anchored popover rows take the web's
   desktop sizes. A tablet at desktop width stays finger-sized. Still at touch
   size: the song row's heart and ⋯, which arrive with the desktop row.
-- **Desktop rows are owed.** At 1280 the web's row has an index, tempo and
-  energy, an album column and tag chips, with the heart and ⋯ revealed on
-  hover. The new app still draws the phone's row at every width.
+- **Desktop rows arrived** with the player bar work: the index, tempo and energy,
+  an album column from 1160, and tag chips, with the heart and ⋯ revealed on
+  hover. The phone keeps its own row.
+- **The rule builder saves only rules the server accepts.** The web saves
+  whatever is on screen, so a text rule still waiting for its text is sent
+  and refused. Here that rule waits until something is typed. The count shows
+  "Checking…" in the meantime, as on the web.
+- **Saved rules update the song list.** The web leaves the old list under
+  the builder until the page reloads: after tightening the rules to match
+  nothing, it still shows 13 songs. Here the list is fetched again after each
+  save. The flow checks only what both apps do.
 
 ---
 

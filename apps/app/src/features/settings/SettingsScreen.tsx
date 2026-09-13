@@ -546,7 +546,6 @@ function ImportingPanel({
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
   onTop: (top: number) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
     <Panel title="Importing" hint="shared across your devices" onTop={onTop}>
       <Row
@@ -561,24 +560,9 @@ function ImportingPanel({
         />
       </Row>
       <Row
-        label="Rescan automatically"
-        hint="Watch the library folder for files you dropped in by hand. Takes effect on restart."
-      >
-        <Select<number>
-          value={settings.autoScanMinutes}
-          onChange={value => set('autoScanMinutes', value)}
-          options={[
-            { value: 0, label: 'Never' },
-            { value: 5, label: 'Every 5 minutes' },
-            { value: 15, label: 'Every 15 minutes' },
-            { value: 60, label: 'Every hour' },
-          ]}
-          label="Rescan automatically"
-        />
-      </Row>
-      <Row
         label="Watch the library folder"
         hint="Rescan the moment a file is added, removed or renamed — drag something into the folder in Finder and it shows up here. No timer needed."
+        last
       >
         <Toggle
           value={settings.watchLibrary}
@@ -586,69 +570,6 @@ function ImportingPanel({
           label="Watch the library folder"
         />
       </Row>
-      <Row
-        label="YouTube login cookies"
-        hint="Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login from a browser on the computer running the server; “File” reads a Netscape cookies.txt."
-        last={settings.ytCookieSource === 'none'}
-      >
-        <Select<Settings['ytCookieSource']>
-          value={settings.ytCookieSource}
-          onChange={value => set('ytCookieSource', value)}
-          options={[
-            { value: 'none', label: 'Off' },
-            { value: 'browser', label: 'From a browser' },
-            { value: 'file', label: 'From a cookies.txt file' },
-          ]}
-          label="YouTube login cookies"
-        />
-      </Row>
-      {settings.ytCookieSource === 'browser' ? (
-        <Row
-          label="Browser"
-          hint={
-            settings.ytCookieBrowser === 'safari'
-              ? 'Must be signed in to YouTube Music. Safari’s cookie file is protected by macOS: give the process running self.mp3 (Terminal or node) Full Disk Access in System Settings → Privacy & Security.'
-              : 'Must be signed in to YouTube Music. Chromium browsers may ask for keychain access the first time; Firefox needs to be closed while cookies are read.'
-          }
-          last
-        >
-          <Select<Settings['ytCookieBrowser']>
-            value={settings.ytCookieBrowser}
-            onChange={value => set('ytCookieBrowser', value)}
-            options={[
-              { value: 'chrome', label: 'Chrome' },
-              { value: 'safari', label: 'Safari' },
-              { value: 'firefox', label: 'Firefox' },
-              { value: 'brave', label: 'Brave' },
-              { value: 'edge', label: 'Edge' },
-              { value: 'chromium', label: 'Chromium' },
-            ]}
-            label="Browser"
-          />
-        </Row>
-      ) : null}
-      {settings.ytCookieSource === 'file' ? (
-        <Row
-          label="Cookies file"
-          hint="Full path to a Netscape-format cookies.txt exported from a browser where you are logged in to YouTube Music."
-          last
-        >
-          <TextInput
-            key={settings.ytCookieFile}
-            style={partStyles.input}
-            defaultValue={settings.ytCookieFile}
-            placeholder="/Users/you/cookies.txt"
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Cookies file"
-            onEndEditing={event => {
-              const next = event.nativeEvent.text.trim()
-              if (next !== settings.ytCookieFile) set('ytCookieFile', next)
-            }}
-          />
-        </Row>
-      ) : null}
     </Panel>
   )
 }

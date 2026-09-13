@@ -55,12 +55,12 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
         </View>
         <View style={styles.actions}>
           {count > 0 ? (
-            <IconButton onPress={player.clearQueue} label="Clear queue">
+            <IconButton onPress={player.clearQueue} label="Clear queue" caption="Clear">
               <Trash size={17} color={theme.colors.textSecondary} />
             </IconButton>
           ) : null}
           <View style={styles.divider} />
-          <IconButton onPress={onClose} label="Close queue">
+          <IconButton onPress={onClose} label="Close queue" caption="Close">
             <X size={17} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
@@ -271,7 +271,7 @@ const styles = StyleSheet.create(theme => ({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  titles: { flex: 1, minWidth: 0 },
+  titles: { flex: 1, minWidth: 0, gap: 3 },
   title: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
   sub: { color: theme.colors.textMuted, fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },

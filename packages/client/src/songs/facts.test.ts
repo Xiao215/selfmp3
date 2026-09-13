@@ -4,19 +4,17 @@ import {
   energyWavePath,
   formatName,
   sourceName,
-  describeFeatures,
+  describeEnergy,
+  describeTempo,
   tempoMark,
   tempoWords,
   waveShape,
 } from './facts.js'
 
 describe('song facts', () => {
-  it('says tempo and energy in words for a hover caption', () => {
-    expect(describeFeatures({ bpm: 129.6, energy: 0.724 })).toBe(
-      '130 beats a minute · energy 72 of 100',
-    )
-    expect(describeFeatures({ bpm: null, energy: 0.5 })).toBe('energy 50 of 100')
-    expect(describeFeatures({})).toBe('')
+  it('says tempo and energy in words, each for its own hover caption', () => {
+    expect(describeTempo(129.6)).toBe('130 beats a minute')
+    expect(describeEnergy(0.724)).toBe('Energy 72 of 100')
   })
 
   it('writes a tempo like a metronome marking that never wraps', () => {

@@ -14,7 +14,8 @@ import {
   tagColors,
   tempoMark,
   type,
-  describeFeatures,
+  describeEnergy,
+  describeTempo,
 } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
@@ -208,7 +209,7 @@ export const SongRow = memo(function SongRow({
                 onPress={() => onMore?.(moreRef.current)}
                 accessibilityRole="button"
                 accessibilityLabel={`More actions for ${song.title}`}
-                {...tip('More actions')}
+                {...tip('More')}
                 style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
               >
                 <More size={16} color={theme.colors.textMuted} />
@@ -295,15 +296,18 @@ export const SongRow = memo(function SongRow({
               </Text>
             ) : null}
             {badges ? (
-              <View
-                style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}
-                {...tip(describeFeatures(features))}
-              >
+              <View style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}>
                 <Text style={styles.subtitle}>·</Text>
                 {features.bpm != null ? (
-                  <Text style={styles.tempo}>{tempoMark(features.bpm)}</Text>
+                  <Text style={styles.tempo} {...tip(describeTempo(features.bpm))}>
+                    {tempoMark(features.bpm)}
+                  </Text>
                 ) : null}
-                {features.energy != null ? <EnergyWave energy={features.energy} /> : null}
+                {features.energy != null ? (
+                  <View {...tip(describeEnergy(features.energy))}>
+                    <EnergyWave energy={features.energy} />
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -350,7 +354,7 @@ export const SongRow = memo(function SongRow({
               onPress={() => onMore?.(moreRef.current)}
               accessibilityRole="button"
               accessibilityLabel={`More actions for ${song.title}`}
-              {...tip('More actions')}
+              {...tip('More')}
               style={({ pressed }) => [
                 styles.controlWide,
                 { width: controlSize, height: controlSize },
@@ -407,7 +411,7 @@ function Love({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`}
-      {...tip(song.loved ? 'Loved' : 'Love this song')}
+      {...tip(song.loved ? 'Unlike' : 'Like')}
       accessibilityState={{ selected: song.loved }}
       style={({ pressed }) => [
         styles.controlWide,

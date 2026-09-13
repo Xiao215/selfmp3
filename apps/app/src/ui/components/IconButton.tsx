@@ -21,12 +21,15 @@ export function IconButton({
   disabled = false,
   active = false,
   round = false,
+  caption,
 }: {
   children: ReactNode
   testID?: string
   onPress: () => void
-  /** What a screen reader says: "Pause", "Next", "Love". */
+  /** What a screen reader says: "Pause", "Next", "Like". */
   label: string
+  /** The hover caption, when a shorter one than the label reads better: "Edit tags". */
+  caption?: string
   size?: number
   disabled?: boolean
   /** Toggled on, for anything that stays lit — shuffle, repeat, a loved heart. */
@@ -43,7 +46,7 @@ export function IconButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      {...tip(label)}
+      {...tip(caption ?? label)}
       accessibilityState={{ disabled, selected: active }}
       style={({ pressed }) => [
         styles.button,

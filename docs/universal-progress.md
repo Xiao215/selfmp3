@@ -2332,3 +2332,28 @@ screen-reader labels, which a browser does not show.
 - Checked by hovering in Chrome against the dev server: the badges, the row's
   ⋯ ("More actions") and heart ("Love this song"), the bar's Next, the sidebar's
   New tag, and no caption on the worded Shuffle button.
+
+### Captions, the queue head and Settings, from a second look — branch `universal/caption-polish`
+
+From Xiao on 4600, after the captions came back:
+
+- The caption portals into `document.body`, outside React Native for web's
+  root, so it inherited the browser's serif. It now names the same stack RNW
+  uses for `System`, in `textSecondary` rather than `textPrimary`.
+- An icon button's caption is placed from its `svg`, not its 34px box: the
+  queue's Close caption sat nearer the Lyrics / Up next / About tabs than the ✕.
+- Tempo and energy have separate captions ("100 beats a minute", "Energy 88 of
+  100"); `describeFeatures` became `describeTempo` and `describeEnergy`.
+- Words: every heart says Like / Unlike (row caption, player bar, phone Now
+  Playing); ⋯ says More; the player bar's tags say Edit tags, the queue's
+  buttons Clear and Close. `IconButton` takes a `caption` for these, so the
+  screen-reader labels the flows and Maestro use ("More actions for …",
+  "Close queue", "Tags for …") are unchanged.
+- The queue head's subtitle gets a 3px gap under "Up next".
+- Settings: Rescan automatically and YouTube login cookies are gone (the
+  watcher row stays). The stored values were already Never and Off; the schema
+  is untouched. `YouTubeLibraryPanel` drops its signed-in status, Test and Liked
+  Music, which only work with cookies, and keeps the public playlist link.
+- Checked by hovering in Chrome against the dev server: tempo, energy, row ⋯
+  and heart, bar tags and heart, queue Clear and Close, all in -apple-system at
+  rgb(174, 177, 185).

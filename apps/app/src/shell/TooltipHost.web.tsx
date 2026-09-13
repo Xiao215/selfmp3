@@ -26,6 +26,11 @@ const WARM_MS = 400
 const ANCHOR_GAP = 6
 const VIEWPORT_MARGIN = 8
 const TOOLTIP_ID = 'app-tooltip'
+/**
+ * react-native-web's own `System` stack. The caption lives in `document.body`,
+ * outside the app's root, so it inherits the browser's default serif instead.
+ */
+const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 
 /** "Done (Esc)" → a label and a key cap; "(⇧←)" counts too, a parenthesised aside does not. */
 const SHORTCUT = /^(.*\S)\s+\(([^()\s]{1,5})\)$/
@@ -191,7 +196,10 @@ export function TooltipHost(): ReactNode {
   useLayoutEffect(() => {
     const layer = layerRef.current
     if (!shown || !layer) return
-    const rect = shown.anchor.getBoundingClientRect()
+    // An icon button's box is wider than its symbol; measured from the box, the
+    // caption sits nearer whatever is above than the symbol it names.
+    const icon = shown.anchor.textContent?.trim() ? null : shown.anchor.querySelector('svg')
+    const rect = (icon ?? shown.anchor).getBoundingClientRect()
     const viewportWidth = document.documentElement.clientWidth
     const width = layer.offsetWidth
     const height = layer.offsetHeight
@@ -234,8 +242,8 @@ export function TooltipHost(): ReactNode {
           border: `1px solid ${colors.borderStrong}`,
           borderRadius: radius.sm,
           boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
-          color: colors.textPrimary,
-          fontFamily: 'inherit',
+          color: colors.textSecondary,
+          fontFamily: FONT_STACK,
           fontSize: 12,
           fontWeight: 500,
           lineHeight: 1.35,
@@ -255,7 +263,7 @@ export function TooltipHost(): ReactNode {
                 fontSize: 10.5,
                 lineHeight: '16px',
                 borderRadius: 4,
-                fontFamily: 'inherit',
+                fontFamily: FONT_STACK,
               }}
             >
               {shortcut[2]}

@@ -221,7 +221,7 @@ function PhoneNowPlaying(): ReactNode {
           </Text>
           <IconButton
             onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-            label={song.loved ? 'Unlove' : 'Love'}
+            label={song.loved ? 'Unlike' : 'Like'}
             active={song.loved}
             round
           >

@@ -170,7 +170,7 @@ export function PlayerBar(): ReactNode {
             </Pressable>
             <IconButton
               onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-              label={song.loved ? 'Unlove' : 'Love'}
+              label={song.loved ? 'Unlike' : 'Like'}
               active={song.loved}
             >
               <Heart
@@ -183,6 +183,7 @@ export function PlayerBar(): ReactNode {
               <IconButton
                 onPress={() => setTagsOpen(true)}
                 label={`Tags for ${song.title}`}
+                caption="Edit tags"
                 active={tagsOpen}
               >
                 <TagPlus size={17} color={tagsOpen ? accent.accent : theme.colors.textSecondary} />

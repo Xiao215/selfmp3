@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Playlist } from '@selfmp3/shared'
+import { EMPTY_SMART_RULES, type CreatePlaylist, type Playlist } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 
 /**
@@ -45,4 +45,22 @@ export function orderPlaylists(playlists: readonly Playlist[]): readonly Playlis
   return [...playlists].sort(
     (a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1) || a.name.localeCompare(b.name),
   )
+}
+
+/**
+ * What to ask the server for when a playlist is made, or null when the name
+ * is only whitespace.
+ *
+ * A smart playlist starts with the shared empty rule set, which matches the
+ * whole library until a rule narrows it; a manual one has no rules at all.
+ */
+export function newPlaylist(kind: Playlist['kind'], name: string): CreatePlaylist | null {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+  return {
+    name: trimmed,
+    description: '',
+    kind,
+    rules: kind === 'smart' ? EMPTY_SMART_RULES : null,
+  }
 }

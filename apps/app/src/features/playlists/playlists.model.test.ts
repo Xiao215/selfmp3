@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Playlist } from '@selfmp3/shared'
+import { EMPTY_SMART_RULES, type Playlist } from '@selfmp3/shared'
 
-import { orderPlaylists } from './playlists.model'
+import { newPlaylist, orderPlaylists } from './playlists.model'
 
 const playlist = (name: string, pinned: boolean): Playlist =>
   ({ id: name.length, name, pinned, kind: 'manual' }) as unknown as Playlist
@@ -30,5 +30,22 @@ describe('the order playlists appear in', () => {
     const given = [playlist('B', false), playlist('A', false)]
     orderPlaylists(given)
     expect(given.map(p => p.name)).toEqual(['B', 'A'])
+  })
+})
+
+describe('making a playlist', () => {
+  it('gives a smart playlist the empty rules and a manual one none', () => {
+    expect(newPlaylist('smart', 'Chill')).toEqual({
+      name: 'Chill',
+      description: '',
+      kind: 'smart',
+      rules: EMPTY_SMART_RULES,
+    })
+    expect(newPlaylist('manual', 'Evening')?.rules).toBeNull()
+  })
+
+  it('trims the name, and makes nothing of a name that is only space', () => {
+    expect(newPlaylist('manual', '  Road trip  ')?.name).toBe('Road trip')
+    expect(newPlaylist('manual', '   ')).toBeNull()
   })
 })

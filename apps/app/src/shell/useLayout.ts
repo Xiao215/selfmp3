@@ -27,11 +27,17 @@ export interface Layout {
    * dense, because it is still a finger.
    */
   dense: boolean
+  /**
+   * A mouse or trackpad, at any width: controls that are actions rather than
+   * information may wait for the pointer, as the web's do. A finger never
+   * hovers, so on a touch screen they are always shown.
+   */
+  finePointer: boolean
   width: number
 }
 
 export function useLayout(): Layout {
   const { width } = useWindowDimensions()
   const wide = width >= BREAKPOINT
-  return { wide, compact: !wide, dense: wide && finePointer, width }
+  return { wide, compact: !wide, dense: wide && finePointer, finePointer, width }
 }

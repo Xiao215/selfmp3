@@ -957,6 +957,22 @@ and streaming work builds to. Recorded here so it is not re-litigated.
 
 ## Open questions for the morning
 
+### Answers, 2026-09-12
+
+Xiao accepted Claude's proposed defaults for the questions below:
+
+- **1. Phone records skips:** yes, as the web does.
+- **2. Expired token:** the app notices the 401 and asks to sign in again,
+  instead of showing a stale library that will not play.
+- **5. Cloud-only phone and other devices:** not now. Revisit with the
+  dedicated server, since it needs presence relayed through the doorman.
+
+On the desktop app, Xiao raised no objection to either recommendation:
+Electron despite its size, and the web audio engine rather than a native one
+for bit-perfect output.
+
+
+
 1. **Should the phone record skips?** The web does: a manual skip past the
    halfway point is written to the outbox, and that is what makes "songs I
    always skip" work. The phone never has, so that feature is blind to

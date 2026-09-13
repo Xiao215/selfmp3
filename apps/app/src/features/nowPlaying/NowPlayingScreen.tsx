@@ -14,7 +14,7 @@ import type { ListRenderItem } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
-import { useToggleLoved } from '../../api/queries'
+import { useSimilar, useToggleLoved } from '../../api/queries'
 import {
   HIT_TARGET,
   isDownloaded,
@@ -30,6 +30,7 @@ import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
+import { SimilarShelf } from './SimilarShelf'
 import { Toggle } from '../../ui/components/Toggle'
 import {
   ChevronDown,
@@ -62,6 +63,7 @@ import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
 import { romanName,
   autoMixLine,
+  similarShelfLayout,
 } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { useSongWords } from './useSongWords'
@@ -145,7 +147,15 @@ function PhoneNowPlaying(): ReactNode {
 
   // Sized from the room that is left, not the width alone: on a short phone
   // the art shrinks rather than pushing the controls off the bottom.
-  const artSize = Math.max(180, Math.min(width - space.lg * 2, 340, height - 500))
+  // Nearest neighbours of what is playing, for the shelf under the controls.
+  const similar = useSimilar(song?.id ?? null, 10)
+  const similarSongs = similar.data?.songs ?? []
+  const { artSize, showShelf } = similarShelfLayout({
+    width,
+    height,
+    sidePadding: space.lg,
+    similar: similarSongs.length,
+  })
 
   if (song === null) {
     return (
@@ -297,6 +307,9 @@ function PhoneNowPlaying(): ReactNode {
                 )}
               </IconButton>
             </View>
+
+            {/* Under the lyrics the words have the room; the shelf is for the art. */}
+            {showShelf && !showWords ? <SimilarShelf songs={similarSongs} /> : null}
           </>
         )}
       </View>

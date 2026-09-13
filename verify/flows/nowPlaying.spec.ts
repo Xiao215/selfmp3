@@ -83,4 +83,33 @@ test.describe('now playing', () => {
     await page.mouse.move(420, 320)
     await expect(bar).toBeVisible()
   })
+
+  test('a phone shows similar songs under the controls, and plays one', async ({ page }, info) => {
+    test.skip(info.project.name !== 'phone', 'the shelf is the phone page’s; the stage has no room for it')
+    await page.goto('/')
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 3)
+    await playSong(page, songRows(page).first())
+
+    await page.getByRole('button', { name: /^Open now playing: / }).click()
+    const heading = page.getByRole('heading', { name: 'Similar songs' })
+    const shown = await heading
+      .waitFor({ timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false)
+    test.skip(!shown, 'the server found nothing similar: the library has no analysed songs')
+    await expect(page.getByRole('button', { name: /^Play .+ by / }).first()).toBeVisible()
+
+    await expect(page.getByRole('button', { name: 'Queue all' })).toBeVisible()
+
+    // A card plays its own song first, with the rest of the shelf after it: the
+    // queue is as long as the shelf was, and the new shelf has no card for the
+    // song now playing, since nothing is similar to itself.
+    const cards = page.getByRole('button', { name: /^Play .+ by / })
+    const count = await cards.count()
+    const label = (await cards.first().getAttribute('aria-label')) ?? ''
+    await cards.first().click()
+    await expect(page.getByText(`Playing · 1 of ${count}`, { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0)
+  })
 })

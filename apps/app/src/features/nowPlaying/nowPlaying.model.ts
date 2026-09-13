@@ -164,3 +164,36 @@ export function autoMixLine({
   if (upcoming === 0) return 'nothing to mix yet'
   return canCrossfade ? `next crossfade ${nextCrossfadeSeconds}s` : 'ordered by tempo, key and energy'
 }
+
+/** How tall the similar-songs shelf is on a phone: heading, cards and the gap under them. */
+export const SIMILAR_SHELF_HEIGHT = 132
+
+/** The smallest the cover gets on a phone, shelf or not. */
+export const PHONE_ART_MIN = 180
+
+/**
+ * The phone page's cover, and whether the similar-songs shelf fits under the
+ * controls. The cover gives up the shelf's height; if that would take it below
+ * its floor, the shelf stays out and the page is as it was.
+ */
+export function similarShelfLayout({
+  width,
+  height,
+  sidePadding,
+  similar,
+}: {
+  width: number
+  height: number
+  sidePadding: number
+  similar: number
+}): { artSize: number; showShelf: boolean } {
+  const room = (reserved: number): number => Math.min(width - sidePadding * 2, 340, height - reserved)
+  const withShelf = room(500 + SIMILAR_SHELF_HEIGHT)
+  if (similar > 0 && withShelf >= PHONE_ART_MIN) return { artSize: withShelf, showShelf: true }
+  return { artSize: Math.max(PHONE_ART_MIN, room(500)), showShelf: false }
+}
+
+/** A similar song played from the shelf goes first, with the rest after it in their order. */
+export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {
+  return [chosen, ...ids.filter(id => id !== chosen)]
+}

@@ -1886,3 +1886,37 @@ includes `sw.js` and the manifest), then the gates below.
 
 Not checked: building the Docker image, which needs its base images pulled;
 that waits for Xiao.
+
+## Phase 6
+
+On `universal/phase-6`, from `universal/phase-5`.
+
+### Similar songs on a phone, and tag editing already there
+
+**The shelf.** The web's Now Playing had a "Similar songs" strip under the art;
+the phone page did not (noted in phase 4 as later work). It is now under the
+controls, while the art is showing.
+
+- `features/nowPlaying/SimilarShelf.tsx`: the song's nearest neighbours by tempo,
+  key and energy (`useSimilar`, the server's `/api/songs/:id/similar`). A card
+  plays its song with the rest of the shelf after it; "Queue all" adds them
+  behind what is queued, skipping any already there.
+- `similarShelfLayout` (4 tests) decides whether it fits. The phone's cover is
+  sized from the height; with the shelf it gives up the shelf's 132 points, and
+  if that would take it under its 180-point floor the shelf stays out and the
+  page is as it was. On the iPhone 17 Pro Max the cover goes from 340 to 324;
+  at 375×812 it is at the floor with the shelf; a 667-point phone gets none.
+- Checked: on the iPhone 17 Pro Max the shelf shows three cards and a slice of
+  the fourth under the controls, and "Queue all" then Queue opens Up next. A new
+  phone test in `verify/flows/nowPlaying.spec.ts` taps a card: the queue becomes
+  as long as the shelf was, and the new shelf has no card for the song now
+  playing.
+- Two things the first versions of that test got wrong, both about the test:
+  "Queue all" adds nothing when the dev library's 13 songs are already queued
+  (`enqueue` skips queued songs), and an exact text match finds nothing on the
+  web build, where the title, artist and album are one text node.
+
+**Tag editing on a phone** was already there: a long press on a tag chip in the
+library opens the tag editor as a sheet. Checked on the iPhone 17 Pro Max: it
+shows the tag and its song count, Show only these and Hide these, Name with
+Rename, the colours and Delete tag, and a tap outside closes it untouched.

@@ -11,6 +11,9 @@ import {
   stageGeometry,
   upNextSeconds,
   autoMixLine,
+  PHONE_ART_MIN,
+  playSimilarOrder,
+  similarShelfLayout,
 } from './nowPlaying.model'
 
 const SYNCED: ParsedLyrics = {
@@ -119,5 +122,35 @@ describe('autoMixLine', () => {
   it('says only the order where it cannot, and when nothing follows', () => {
     expect(autoMixLine({ ...on, canCrossfade: false })).toBe('ordered by tempo, key and energy')
     expect(autoMixLine({ ...on, upcoming: 0 })).toBe('nothing to mix yet')
+  })
+})
+
+describe('the similar-songs shelf on a phone', () => {
+  it('fits on a tall phone, and the cover gives up its height', () => {
+    // iPhone 17 Pro Max: 440 wide, 956 tall.
+    expect(similarShelfLayout({ width: 440, height: 956, sidePadding: 16, similar: 10 })).toEqual({
+      artSize: 324,
+      showShelf: true,
+    })
+  })
+
+  it('stays out when the cover would go below its floor, and the page is as it was', () => {
+    // A 667-point phone: 667 − 500 is already under the floor.
+    expect(similarShelfLayout({ width: 375, height: 667, sidePadding: 16, similar: 10 })).toEqual({
+      artSize: PHONE_ART_MIN,
+      showShelf: false,
+    })
+  })
+
+  it('stays out when there is nothing similar', () => {
+    expect(similarShelfLayout({ width: 440, height: 956, sidePadding: 16, similar: 0 })).toEqual({
+      artSize: 340,
+      showShelf: false,
+    })
+  })
+
+  it('plays the chosen song first, then the rest in their order', () => {
+    expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
+    expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
   })
 })

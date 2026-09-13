@@ -1,0 +1,80 @@
+import type { ReactNode } from 'react'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import type { Song } from '@selfmp3/shared'
+import { radius, space, type } from '@selfmp3/client'
+import { useArt } from '../../offline/useArt'
+import { usePlayer } from '../../player/PlayerProvider'
+import { Button } from '../../ui/components/Button'
+import { Cover } from '../../ui/components/Cover'
+import { playSimilarOrder } from './nowPlaying.model'
+
+/**
+ * Similar songs under the controls, on a phone: the web's `.similar-strip`.
+ *
+ * Nearest neighbours of the song playing, by tempo, key and energy. A card plays
+ * that song with the rest after it; "Queue all" adds them behind what is queued.
+ * The page decides whether there is room (`similarShelfLayout`); this only
+ * draws what it is given.
+ */
+export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
+  const player = usePlayer()
+  const artFor = useArt()
+  const ids = songs.map(song => song.id)
+
+  return (
+    <View style={styles.shelf} accessibilityLabel="Similar songs" testID="similar-shelf">
+      <View style={styles.head}>
+        <Text style={styles.heading} accessibilityRole="header">
+          Similar songs
+        </Text>
+        <Button label="Queue all" onPress={() => player.addToQueue(ids)} />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
+        {songs.map(song => (
+          <Pressable
+            key={song.id}
+            onPress={() => player.playFrom(playSimilarOrder(ids, song.id), 0)}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${song.title} by ${song.artist || 'Unknown artist'}`}
+            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+          >
+            <Cover uri={artFor(song)} title={song.album || song.title} size={SHELF_COVER} />
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {song.title}
+            </Text>
+            <Text style={styles.cardArtist} numberOfLines={1}>
+              {song.artist || 'Unknown artist'}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  )
+}
+
+/** The cards' cover, sized so three and a slice of a fourth fit a phone: the slice says it scrolls. */
+const SHELF_COVER = 64
+
+const styles = StyleSheet.create(theme => ({
+  shelf: { marginBottom: space.sm },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
+  },
+  heading: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  list: { gap: 8, paddingRight: space.lg },
+  card: { width: 84, padding: 4, gap: 3, borderRadius: radius.sm },
+  cardPressed: { backgroundColor: theme.colors.surface2 },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
+  cardArtist: { color: theme.colors.textSecondary, fontSize: type.small - 2 },
+}))

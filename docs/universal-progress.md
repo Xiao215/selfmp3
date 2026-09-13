@@ -1120,6 +1120,49 @@ seven states at 1280, and the phone's five.
 
 ---
 
+## Phase 4 — where it stands, 2026-09-12 night
+
+Worked through overnight on `universal/phase-4`, one commit per piece, each on
+green gates. The phase is not merged: two of its steps need Xiao.
+
+**Built.** Every surface the phase names now has the web's shape at 1280 and
+375:
+- **Library:** search, sort, tag filter and exclude, multi-select, row menu,
+  gems row.
+- **Playlists and playlist detail:** create, rename, pin, reorder, delete,
+  select, smart rules.
+- **Now Playing:** the desktop stage and Focus, the phone screen with
+  romanised lyrics, Sleep and Devices, Up next, About.
+- **Settings:** every section except Cloud, plus the light theme.
+- **Downloading and streaming,** as Xiao decided.
+- **Also:** the resume toast, the playing-row wash, and the ⌘K palette with
+  its hotkeys.
+
+The app is captured in every reference state at 1280, and in every state at
+375 except the practice sheet (phase 5). The Playwright flows pass against
+the app (28 passed; 2 skip by design on phone), and each new flow also
+passes against the old web app. Phone smoke passes on the Pro Max.
+
+**Waiting for Xiao.**
+1. **Cloud settings** (the Mac's connection to the bucket: sign in with
+   Google, storage fields, sync, disconnect). About 600 lines on the web. It
+   needs a real Google sign-in to test, which the ground rules say to ask
+   for, and a half-tested version could break the Mac's cloud link. Not
+   started.
+2. **Moving desktop users.** The plan's last step for this phase: point the
+   server's `webDir` at `apps/app/dist` and change the Pages workflow.
+   Outward-facing, so left for review.
+3. **The light theme's approach.** Launch-time palettes now, rather than
+   Unistyles; see the note in "Notes for whoever reviews phase 4".
+4. **Android.** "Both phones" in the exit criteria: there is no Android SDK
+   here, so the phone checks are iOS only (Maestro).
+
+**Noticed, not changed.**
+- The server's device list holds dozens of stale test tabs, which makes the
+  devices popover and sheet long. Clearing it was left alone, as asked.
+- Phone smoke's first check did not wait for the app to load; after a Metro
+  restart the cold bundle takes about 13 seconds. It now waits up to a minute.
+
 ## Downloading and streaming — decided by Xiao, 2026-09-12
 
 Asked in conversation, after question 6. This is the design the downloading

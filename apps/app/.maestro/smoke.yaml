@@ -15,8 +15,12 @@ appId: com.selfmp3.app
 - launchApp
 
 # --- library -----------------------------------------------------------------
-- assertVisible:
-    id: 'library-screen'
+# Waited for rather than asserted at once: a dev client fetches its bundle on
+# launch, and after Metro restarts the cold bundle takes about 13 seconds.
+- extendedWaitUntil:
+    visible:
+      id: 'library-screen'
+    timeout: 60000
 
 # Tap a row: it plays, the row tints, and the mini player picks it up.
 - tapOn:

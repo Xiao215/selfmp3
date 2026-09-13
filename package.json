@@ -15,7 +15,7 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "SELFMP3_PROFILE=dev npm run dev --workspace @selfmp3/server",
     "dev:web": "npm run dev --workspace @selfmp3/web",
-    "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/server && npm run build --workspace @selfmp3/web",
+    "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/server && VITE_BASE=/classic/ npm run build --workspace @selfmp3/web && npm run export:web --workspace @selfmp3/app",
     "start": "npm run start --workspace @selfmp3/server",
     "cli": "node apps/server/dist/cli.js",
     "typecheck": "tsc --build --force",

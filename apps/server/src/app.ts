@@ -39,6 +39,14 @@ export function createApp(container: Container): Express {
 
   // Behind `tailscale serve`, so trust exactly one proxy hop for req.ip.
   app.set('trust proxy', 1)
+
+  // The old web app, served at /classic, was built with that base and puts it
+  // in front of every request: /classic/api/library. Those are the API's own
+  // requests, so they go to the API — before anything else looks at the path.
+  app.use((req, _res, next) => {
+    if (req.url.startsWith('/classic/api/')) req.url = req.url.slice('/classic'.length)
+    next()
+  })
   app.disable('x-powered-by')
 
   app.use(securityHeaders())
@@ -91,6 +99,23 @@ export function createApp(container: Container): Express {
 }
 
 /**
+ * The old web app at /classic, while its last tools move to the universal app
+ * (docs/UNIVERSAL.md, phase 5). Mounted before the new app's shell, whose
+ * catch-all would otherwise answer every /classic path with its own page.
+ */
+function mountClassicWebApp(app: Express, container: Container): void {
+  const classicDir = container.config.classicWebDir
+  if (!fs.existsSync(path.join(classicDir, 'index.html'))) return
+
+  app.use('/classic', express.static(classicDir, { index: false, etag: true }))
+  app.get(/^\/classic(?:\/.*)?$/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache')
+    res.sendFile('index.html', { root: classicDir })
+  })
+  container.logger.debug('serving the classic web app', { classicDir })
+}
+
+/**
  * Serve the built single-page app.
  *
  * Two rules make the PWA work correctly:
@@ -99,6 +124,7 @@ export function createApp(container: Container): Express {
  *    be stuck on an old build with no way to update.
  */
 function mountWebApp(app: Express, container: Container): void {
+  mountClassicWebApp(app, container)
   const webDir = container.config.webDir
 
   if (!fs.existsSync(path.join(webDir, 'index.html'))) {

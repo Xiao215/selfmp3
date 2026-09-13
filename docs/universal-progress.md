@@ -1039,6 +1039,34 @@ from review. The captured states still have to pass check 2 by eye.
   anything moves; `nowPlaying.spec.ts` checks it against this app. In the
   palette, the arrow keys keep the highlighted row in view.
 
+- **Cloud settings** (Xiao, 2026-09-13: "yes, let's do it, I'm around"). The
+  web's section, in `features/settings/CloudPanel.tsx`:
+  - the connected view: where it publishes, how much is up, Publish now,
+    Change bucket, Sign out behind a confirmation;
+  - sign-in with Google through the doorman, with the code step. A browser
+    comes back to Settings with the code in the address (`ports/signInReturn`);
+    a phone types the code the doorman shows;
+  - the bucket form, with the region only for an address it cannot read.
+  Checked live against this Mac: signed in as Xiao, 13 of 13 songs in
+  `selfmp3-xiao215`. Signing in was not exercised, because the Mac is already
+  signed in and signing it out to test would be Xiao's call.
+- **Desktop users moved to the new app** (Xiao, 2026-09-13: "switch it").
+  - The server's `webDir` now defaults to `apps/app/dist`. The old web app
+    is served at `/classic` (`classicWebDir`, built with `VITE_BASE=/classic/`)
+    until phase 5 moves its last tools.
+  - `npm run build` builds both.
+  - The old app puts its base in front of every request
+    (`/classic/api/library`), so the server rewrites those to `/api` before
+    anything else sees the path. Without that the old app at `/classic`
+    thought the server was offline.
+  - A browser loaded from a Mac finds it by asking the page's own origin for
+    `/api/health` (`ports/servedBy`), as the old app assumed. The phone
+    build never asks.
+  - GitHub Pages now publishes `apps/app` (`EXPO_PUBLIC_BASE` for the path,
+    `SELFMP3_DOORMAN_URL` for the doorman).
+  - The Dockerfile still builds `apps/web`; the plan moves it at phase 5's
+    exit.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all

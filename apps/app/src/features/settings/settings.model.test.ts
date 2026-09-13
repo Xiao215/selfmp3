@@ -23,7 +23,8 @@ describe('settings', () => {
     expect(ids).toContain('playback')
     expect(ids).not.toContain('importing')
     expect(ids).not.toContain('devices')
-    expect(sectionsFor(false)).toHaveLength(10)
+    expect(ids).not.toContain('cloud')
+    expect(sectionsFor(false)).toHaveLength(11)
   })
 
   it('picks the last section past the reading line', () => {

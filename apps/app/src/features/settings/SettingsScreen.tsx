@@ -62,6 +62,7 @@ import {
   StackedRows,
   Stats,
 } from './SettingsParts'
+import { CloudPanel } from './CloudPanel'
 import {
   accentName,
   activeSection,
@@ -301,6 +302,8 @@ export function SettingsScreen(): ReactNode {
                 onConfirm={setConfirming}
               />
             )}
+
+            {fromCloud ? null : <CloudPanel onTop={top => onTop('cloud', top)} />}
 
             <ConnectionPanel onTop={top => onTop('connection', top)} onConfirm={setConfirming} />
 

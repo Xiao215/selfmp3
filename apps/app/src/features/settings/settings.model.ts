@@ -10,6 +10,7 @@ export type SectionId =
   | 'offline'
   | 'importing'
   | 'library'
+  | 'cloud'
   | 'connection'
   | 'lyrics'
   | 'devices'
@@ -23,6 +24,7 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
   { id: 'offline', label: 'Offline music' },
   { id: 'importing', label: 'Importing', mac: true },
   { id: 'library', label: 'Library', mac: true },
+  { id: 'cloud', label: 'Cloud', mac: true },
   { id: 'connection', label: 'Connection' },
   { id: 'lyrics', label: 'Lyrics', mac: true },
   { id: 'devices', label: 'Devices', mac: true },

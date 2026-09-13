@@ -10,6 +10,7 @@ import {
   saveConnection,
   type ServerConnection,
 } from './connection'
+import { servedByServer } from '../ports/servedBy'
 
 /**
  * Which server this phone talks to.
@@ -68,15 +69,20 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
         loadConnection().catch(() => null),
       ])
       if (cancelled) return
+      // Loaded from a Mac, with nothing chosen yet: the page's own origin is the
+      // server. Not saved, so the same browser pointed elsewhere asks again.
+      const served = signedIn || stored ? null : await servedByServer().catch(() => null)
+      if (cancelled) return
+      const server = stored ?? served
       answerFromCloud(signedIn !== null)
       // The API client keeps the address in module state, not in this context:
       // the playback service and the download queue both make requests from
       // outside the component tree, where there is nothing to read a context
       // from. This provider is its only writer.
-      setServer(stored)
+      setServer(server)
       setFromCloud(signedIn !== null)
-      setConnection(stored)
-      setStatus(signedIn || stored ? 'ready' : 'missing')
+      setConnection(server)
+      setStatus(signedIn || server ? 'ready' : 'missing')
     })()
     return () => {
       cancelled = true

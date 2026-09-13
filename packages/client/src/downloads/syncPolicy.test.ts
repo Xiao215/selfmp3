@@ -136,6 +136,13 @@ describe('playing a song that is not downloaded', () => {
     expect(playBlock({ ...song, network: 'cellular', dataAllowed: true })).toBeNull()
   })
 
+  it('streams a cloud library in a browser, through the service worker', () => {
+    expect(playBlock({ ...song, installed: false, fromCloud: true })).toBeNull()
+    expect(playBlock({ ...song, installed: false, fromCloud: true, network: 'none' })).toBe(
+      'offline',
+    )
+  })
+
   it('always streams in a browser while online', () => {
     expect(
       playBlock({ ...song, installed: false, streamUndownloaded: false, network: 'cellular' }),

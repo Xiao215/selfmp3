@@ -34,17 +34,31 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH
 const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4600'
 const appApi = process.env.SELFMP3_APP_API
 
-const storageState = appApi
-  ? {
-      cookies: [],
-      origins: [
-        {
-          origin: baseURL,
-          localStorage: [{ name: 'selfmp3.baseUrl', value: appApi }],
-        },
-      ],
-    }
-  : undefined
+/**
+ * One device per width, the same on every run.
+ *
+ * A fresh browser context has no device id, so every flow used to register
+ * with the server under test as a brand-new device: a few days of runs left
+ * thousands of rows called "Windows PC · Chrome" (Playwright's desktop Chrome
+ * says it runs on Windows). With a fixed id per project a run is two devices,
+ * and `flows/teardown.ts` forgets those two when it ends.
+ */
+export const FLOW_DEVICE_IDS = { desktop: 'playwright-desktop', phone: 'playwright-phone' } as const
+
+function storageStateFor(deviceId: string) {
+  return {
+    cookies: [],
+    origins: [
+      {
+        origin: baseURL,
+        localStorage: [
+          ...(appApi ? [{ name: 'selfmp3.baseUrl', value: appApi }] : []),
+          { name: 'selfmp3.device.id', value: deviceId },
+        ],
+      },
+    ],
+  }
+}
 
 export default defineConfig({
   testDir: '.',
@@ -53,9 +67,9 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: process.env.CI ? 'github' : 'list',
+  globalTeardown: './flows/teardown.ts',
   use: {
     baseURL,
-    ...(storageState ? { storageState } : {}),
     trace: 'retain-on-failure',
     // A sleeping Mac is the usual cause of a slow first paint; this is not the
     // thing under test.
@@ -66,6 +80,7 @@ export default defineConfig({
       name: 'desktop',
       use: {
         ...devices['Desktop Chrome'],
+        storageState: storageStateFor(FLOW_DEVICE_IDS.desktop),
         viewport: { width: 1280, height: 900 },
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
@@ -74,6 +89,7 @@ export default defineConfig({
       name: 'phone',
       use: {
         ...devices['Desktop Chrome'],
+        storageState: storageStateFor(FLOW_DEVICE_IDS.phone),
         viewport: { width: 375, height: 812 },
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },

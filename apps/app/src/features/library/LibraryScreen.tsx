@@ -246,6 +246,7 @@ export function LibraryScreen(): ReactNode {
             contentContainerStyle={styles.tagStrip}
             keyboardShouldPersistTaps="handled"
           >
+            {installed ? (
             <Chip
               label="On this phone"
               selected={filter.downloadedOnly}
@@ -260,6 +261,7 @@ export function LibraryScreen(): ReactNode {
               }
               onPress={model.toggleDownloadedOnly}
             />
+            ) : null}
             {tags.map((tag, index) => {
               const state = model.tagFilter(tag.id)
               return (

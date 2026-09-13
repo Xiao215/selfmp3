@@ -18,6 +18,7 @@ import { formatBytes, type Settings, type Song } from '@selfmp3/shared'
 import {
   buildAccent,
   clientApi,
+  deviceListView,
   downloadedCount,
   queryKeys,
   radius,
@@ -34,6 +35,7 @@ import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../..
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'
+import { installedApp } from '../../ports/install'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -81,12 +83,7 @@ import {
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
 
-type Confirming =
-  | 'remove-downloads'
-  | 'redo-analysis'
-  | 'forget-missing'
-  | 'sign-out'
-  | null
+type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sign-out' | null
 
 /**
  * Settings: the web's `SettingsView`.
@@ -110,7 +107,7 @@ export function SettingsScreen(): ReactNode {
     staleTime: 60_000,
   })
 
-  const sections = sectionsFor(fromCloud)
+  const sections = sectionsFor(fromCloud, installedApp)
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
   const tops = useRef(new Map<SectionId, number>())
@@ -304,7 +301,10 @@ export function SettingsScreen(): ReactNode {
               </Panel>
             ) : null}
 
-            <OfflinePanel onTop={top => onTop('offline', top)} onConfirm={setConfirming} />
+            {/* A browser streams and keeps nothing: only an installed app has offline music. */}
+            {installedApp ? (
+              <OfflinePanel onTop={top => onTop('offline', top)} onConfirm={setConfirming} />
+            ) : null}
 
             {settings.data && !fromCloud ? (
               <ImportingPanel
@@ -408,7 +408,6 @@ function OfflinePanel({
   const {
     state: downloads,
     queue,
-    installed,
     prefs,
     setPrefs,
     missingIds,
@@ -438,43 +437,34 @@ function OfflinePanel({
           : 'Downloaded songs play with no connection at all — which is the point, since your server won’t always be reachable. Plays you make offline are kept here and sent to your server when it’s back.'}
       </Lead>
 
-      {installed ? (
-        <>
-          <Row
-            label="Download automatically on Wi-Fi"
-            hint="Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over 500 MB waits for you, and a song you remove by hand stays removed."
-          >
-            <Toggle
-              value={prefs.autoOnWifi}
-              onChange={autoOnWifi => setPrefs({ autoOnWifi })}
-              label="Download automatically on Wi-Fi"
-              testID="setting-auto-download"
-            />
-          </Row>
-          <Row
-            label="Play songs that aren’t downloaded"
-            hint={
-              fromCloud
-                ? 'A library in the cloud can’t stream yet, so only downloaded songs play.'
-                : 'Streams them from your server while it’s reachable. Off, only what is on this device plays.'
-            }
-            last
-          >
-            <Toggle
-              value={prefs.streamUndownloaded && !fromCloud}
-              disabled={fromCloud}
-              onChange={streamUndownloaded => setPrefs({ streamUndownloaded })}
-              label="Play songs that aren’t downloaded"
-              testID="setting-stream"
-            />
-          </Row>
-        </>
-      ) : (
-        <Text style={partStyles.hint}>
-          A browser always streams. Download songs by hand, from a song’s menu or here, to keep them
-          for when you’re offline.
-        </Text>
-      )}
+      <Row
+        label="Download automatically on Wi-Fi"
+        hint="Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over 500 MB waits for you, and a song you remove by hand stays removed."
+      >
+        <Toggle
+          value={prefs.autoOnWifi}
+          onChange={autoOnWifi => setPrefs({ autoOnWifi })}
+          label="Download automatically on Wi-Fi"
+          testID="setting-auto-download"
+        />
+      </Row>
+      <Row
+        label="Play songs that aren’t downloaded"
+        hint={
+          fromCloud
+            ? 'A library in the cloud can’t stream yet, so only downloaded songs play.'
+            : 'Streams them from your server while it’s reachable. Off, only what is on this device plays.'
+        }
+        last
+      >
+        <Toggle
+          value={prefs.streamUndownloaded && !fromCloud}
+          disabled={fromCloud}
+          onChange={streamUndownloaded => setPrefs({ streamUndownloaded })}
+          label="Play songs that aren’t downloaded"
+          testID="setting-stream"
+        />
+      </Row>
 
       <Stats
         items={[
@@ -882,13 +872,21 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   const { deviceId, name, rename, devices, connected } = useDeviceContext()
   const client = useQueryClient()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
+  const [showOlder, setShowOlder] = useState(false)
   const shown = draft && draft.from === name ? draft.text : name
+  // Offline devices that share a name folded into one row, this device and
+  // what was seen in the last day first, the rest behind a button.
+  const view = useMemo(() => deviceListView(devices, deviceId), [devices, deviceId])
+  const rows = showOlder ? [...view.recent, ...view.older] : view.recent
 
-  const forget = (id: string): void => {
-    void clientApi()
-      .forgetDevice(id)
-      .then(() => client.invalidateQueries({ queryKey: queryKeys.devices }))
-      .catch(() => undefined)
+  const forget = (ids: readonly string[]): void => {
+    void Promise.all(
+      ids.map(id =>
+        clientApi()
+          .forgetDevice(id)
+          .catch(() => undefined),
+      ),
+    ).then(() => client.invalidateQueries({ queryKey: queryKeys.devices }))
   }
 
   return (
@@ -911,10 +909,10 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
         />
       </Row>
       <View style={styles.devices}>
-        {devices.map((device, position) => (
+        {rows.map(({ device, ids }, position) => (
           <View
             key={device.id}
-            style={[styles.device, position === devices.length - 1 && styles.deviceLast]}
+            style={[styles.device, position === rows.length - 1 && styles.deviceLast]}
           >
             <View style={[styles.dot, device.online && { backgroundColor: theme.colors.good }]} />
             <View style={styles.deviceName}>
@@ -922,17 +920,36 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
                 {device.name}
               </Text>
               {device.id === deviceId ? <Text style={styles.deviceTag}>this device</Text> : null}
+              {ids.length > 1 ? <Text style={styles.deviceTag}>{`×${ids.length}`}</Text> : null}
             </View>
             <Text style={styles.deviceWhen}>
               {device.online ? 'online' : `last seen ${relativeTime(device.lastSeenAt)}`}
             </Text>
-            <IconButton onPress={() => forget(device.id)} label={`Forget ${device.name}`} size={28}>
+            <IconButton
+              onPress={() => forget(ids)}
+              label={
+                ids.length > 1 ? `Forget ${device.name} (${ids.length})` : `Forget ${device.name}`
+              }
+              size={28}
+            >
               <Trash size={14} color={theme.colors.textMuted} />
             </IconButton>
           </View>
         ))}
         {devices.length === 0 ? (
           <Text style={partStyles.hint}>No devices registered yet.</Text>
+        ) : null}
+        {view.older.length > 0 ? (
+          <View style={styles.devicesMore}>
+            <Button
+              label={
+                showOlder
+                  ? 'Show fewer devices'
+                  : `Show ${view.older.length} older ${view.older.length === 1 ? 'device' : 'devices'}`
+              }
+              onPress={() => setShowOlder(open => !open)}
+            />
+          </View>
         ) : null}
       </View>
     </Panel>
@@ -1147,6 +1164,7 @@ const styles = StyleSheet.create(theme => ({
     borderBottomColor: theme.colors.border,
   },
   deviceLast: { borderBottomWidth: 0 },
+  devicesMore: { paddingTop: 10, alignItems: 'flex-start' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   deviceText: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },

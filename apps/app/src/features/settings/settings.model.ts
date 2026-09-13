@@ -33,8 +33,14 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
   { id: 'about', label: 'About' },
 ]
 
-export function sectionsFor(fromCloud: boolean): readonly { id: SectionId; label: string }[] {
-  return ALL_SECTIONS.filter(section => !fromCloud || !section.mac)
+/** `installed`: a browser streams and keeps no songs, so it has no Offline music. */
+export function sectionsFor(
+  fromCloud: boolean,
+  installed = true,
+): readonly { id: SectionId; label: string }[] {
+  return ALL_SECTIONS.filter(
+    section => (!fromCloud || !section.mac) && (installed || section.id !== 'offline'),
+  )
 }
 
 /** How far below the top of the page a section counts as the one being read. */

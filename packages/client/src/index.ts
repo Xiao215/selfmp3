@@ -47,6 +47,8 @@ export * from './library/filter.js'
 export * from './devices/handoff.js'
 // A browser's name for itself, from its user agent.
 export * from './devices/userAgent.js'
+// The Devices list in Settings: folded, recent first, the rest behind a button.
+export * from './devices/deviceList.js'
 
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 

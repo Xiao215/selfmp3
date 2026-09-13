@@ -283,6 +283,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     // by hand is not asking for it back, and one downloading everything anyway
     // has nothing to second-guess.
     if (!now.fromCloud || now.excluded.has(songId)) return
+    // A browser streams and keeps nothing, played or not.
+    if (!installedApp) return
     if (installedApp && now.prefs.autoOnWifi) return
     void keepRecentlyPlayed(songId)
   }, [])

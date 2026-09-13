@@ -17,8 +17,15 @@ import type { EventHub, EventSink } from './events.js'
 const SWEEP_MS = 5_000
 /** How often to compare the library version. Cheap: it is one integer. */
 const VERSION_MS = 1_500
-/** Devices unseen for this long are forgotten at boot. */
-const FORGET_AFTER_MS = 30 * 24 * 60 * 60 * 1000
+/**
+ * Devices unseen for a week are forgotten. Every browser has its own id, kept
+ * in its storage for one address, so a month's grace left the list full of the
+ * same laptop under old ids. Nothing is lost: a device that comes back simply
+ * heartbeats in again, and a state that old is past offering to resume.
+ */
+const FORGET_AFTER_MS = 7 * 24 * 60 * 60 * 1000
+/** How often to look for devices to forget, besides at boot. */
+const FORGET_EVERY_MS = 60 * 60 * 1000
 
 export class DeviceService {
   readonly #devices: DeviceRepository
@@ -29,6 +36,7 @@ export class DeviceService {
 
   #sweep: ReturnType<typeof setInterval> | null = null
   #versionWatch: ReturnType<typeof setInterval> | null = null
+  #forgetting: ReturnType<typeof setInterval> | null = null
   #lastOnline = ''
   #lastVersion = -1
 
@@ -48,8 +56,9 @@ export class DeviceService {
   }
 
   start(): void {
-    const forgotten = this.#devices.prune(this.#now() - FORGET_AFTER_MS)
-    if (forgotten > 0) this.#logger.info('forgot stale devices', { forgotten })
+    this.forgetStale()
+    this.#forgetting = setInterval(() => this.forgetStale(), FORGET_EVERY_MS)
+    this.#forgetting.unref()
 
     this.#lastVersion = this.#libraryVersion()
     this.#sweep = setInterval(() => this.#sweepPresence(), SWEEP_MS)
@@ -61,9 +70,18 @@ export class DeviceService {
   stop(): void {
     if (this.#sweep) clearInterval(this.#sweep)
     if (this.#versionWatch) clearInterval(this.#versionWatch)
+    if (this.#forgetting) clearInterval(this.#forgetting)
     this.#sweep = null
     this.#versionWatch = null
+    this.#forgetting = null
     this.#hub.stop()
+  }
+
+  /** Forget devices not seen for a week: at boot, and every hour after. */
+  forgetStale(): number {
+    const forgotten = this.#devices.prune(this.#now() - FORGET_AFTER_MS)
+    if (forgotten > 0) this.#logger.info('forgot stale devices', { forgotten })
+    return forgotten
   }
 
   list(): DeviceList {

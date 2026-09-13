@@ -2061,3 +2061,46 @@ across. Now it does, on every platform.
   (祝福's cover has no colour in it, so it keeps the accent); on the iPhone
   17 Pro Max the playing 三原色 row and mini player are green like its cover;
   in the browser at desktop width 夜に駆ける's row and bar are red.
+
+### A shorter device list, and a browser that streams — branch `universal/devices-tidy`
+
+Decided by Xiao after looking at the dev server's Settings: the device list was
+thousands of rows long, and a browser offering to download songs was pointless.
+
+**Devices.**
+
+- **Why it was long.** A browser's device id lives in its storage for one
+  address, so each Playwright context registered a new device: the dev server
+  had 2,347, of them 1,473 "self.mp3" (from before browsers named themselves)
+  and 839 "Windows PC · Chrome" (Playwright's desktop Chrome says Windows).
+- **Show less.** `deviceListView` (packages/client) folds offline devices that
+  share a name into one row, led by the one seen last, with a ×N tag; forgetting
+  the row forgets all of them. This device and online devices are never folded
+  and always shown; with them, what was seen in the last day, up to five rows.
+  The rest wait behind "Show N older devices". Four tests.
+- **Forget sooner.** The server forgets a device a week after it was last seen
+  (was 30 days), at boot and every hour. A device that comes back heartbeats in
+  again; a state that old is past offering to resume anyway. One test.
+- **No more test devices.** The Playwright projects run as `playwright-desktop`
+  and `playwright-phone` on every run (a fixed `selfmp3.device.id` in their
+  storage state), and `verify/flows/teardown.ts` forgets both when the run ends.
+- The dev server's list was cleared once, with Xiao's OK: 2,388 offline devices
+  forgotten, the three open browser tabs left.
+
+**No downloads in a browser.** A browser's storage can be cleared by the
+browser itself (Safari evicts a site's data after about a week unused), so a
+song "downloaded" there was never dependably offline. An installed app keeps
+songs; a browser streams.
+
+- Hidden where `installedApp` is false: Settings' Offline music section and its
+  index entry (`sectionsFor(fromCloud, installed)`), the song menu's Download /
+  Remove download, the song page's "On this device" group, the playlist's
+  download button, the library's "On this phone" chip, and Now Playing's Keep.
+- A cloud library in a browser now streams: `playBlock` only holds back a song
+  that is not downloaded for an installed app, and the service worker already
+  streams a song from the bucket a range at a time, keeping nothing. Offline, a
+  browser says so as before. Not checked end to end: that needs a signed-in
+  browser against the production build.
+- A browser no longer keeps copies of songs it played (`keepPlayed`).
+- The Electron shell, if it is ever built, sets `installedApp` and gets
+  downloads back.

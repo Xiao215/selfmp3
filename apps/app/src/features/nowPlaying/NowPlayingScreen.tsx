@@ -62,10 +62,7 @@ import { useArt } from '../../offline/useArt'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
-import { romanName,
-  autoMixLine,
-  similarShelfLayout,
-} from './nowPlaying.model'
+import { romanName, autoMixLine, similarShelfLayout } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { useSongWords } from './useSongWords'
 
@@ -110,7 +107,7 @@ function PhoneNowPlaying(): ReactNode {
   const router = useRouter()
   const accent = useAccent()
   const toggleLoved = useToggleLoved()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { state: downloads, queue: downloadQueue, installed } = useDownloads()
   const { width, height } = useWindowDimensions()
 
   const [panel, setPanel] = useState<Panel>('none')
@@ -345,20 +342,22 @@ function PhoneNowPlaying(): ReactNode {
           active={practiceOpen}
           onPress={() => setPracticeOpen(true)}
         />
-        <FootAction
-          icon={
-            held ? (
-              <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
-            ) : (
-              <CloudDownload size={19} color={theme.colors.textMuted} />
-            )
-          }
-          label={held ? 'On this phone' : 'Keep'}
-          active={held}
-          onPress={() => {
-            if (!held) downloadQueue.enqueue([song.id])
-          }}
-        />
+        {installed ? (
+          <FootAction
+            icon={
+              held ? (
+                <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
+              ) : (
+                <CloudDownload size={19} color={theme.colors.textMuted} />
+              )
+            }
+            label={held ? 'On this phone' : 'Keep'}
+            active={held}
+            onPress={() => {
+              if (!held) downloadQueue.enqueue([song.id])
+            }}
+          />
+        ) : null}
         <FootAction
           icon={
             <Moon
@@ -610,7 +609,12 @@ function QueuePanel({
         </IconButton>
       </View>
       <View style={styles.queueToolbar}>
-        <Toggle value={player.autoMix} onChange={player.setAutoMix} label="Auto-mix" testID="auto-mix" />
+        <Toggle
+          value={player.autoMix}
+          onChange={player.setAutoMix}
+          label="Auto-mix"
+          testID="auto-mix"
+        />
         <Text style={styles.queueToolbarLabel}>Auto-mix</Text>
         <Text style={styles.queueToolbarHint} numberOfLines={1}>
           {autoMixLine({

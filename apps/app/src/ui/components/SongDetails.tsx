@@ -87,7 +87,7 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
 export function SongDetailsBody({ song }: { song: Song }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const { state: downloads, queue } = useDownloads()
+  const { state: downloads, queue, installed } = useDownloads()
   const features = song.features
   const held = isDownloaded(downloads.index, song.id)
   const downloading = downloads.activeSongId === song.id
@@ -138,35 +138,42 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
         )}
       </Group>
 
-      <Group title="On this device">
-        <Fact label="Offline">
-          {downloading ? (
-            <Text style={styles.strong}>
-              {fraction === null ? 'Downloading…' : `Downloading · ${Math.round(fraction * 100)}%`}
-            </Text>
-          ) : held ? (
-            <>
-              <Text style={styles.strong}>Downloaded · {formatBytes(song.sizeBytes)}</Text>
-              <Text style={styles.note}>Plays with no connection.</Text>
-              <View style={styles.action}>
-                <Button label="Remove download" onPress={() => void queue.remove([song.id])} />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.strong}>Only on your server · {formatBytes(song.sizeBytes)}</Text>
-              <Text style={styles.note}>
-                {queued ? 'Waiting to download.' : 'Plays only while your server is reachable.'}
+      {/* A browser streams; only an installed app keeps songs. */}
+      {installed ? (
+        <Group title="On this device">
+          <Fact label="Offline">
+            {downloading ? (
+              <Text style={styles.strong}>
+                {fraction === null
+                  ? 'Downloading…'
+                  : `Downloading · ${Math.round(fraction * 100)}%`}
               </Text>
-              {queued ? null : (
+            ) : held ? (
+              <>
+                <Text style={styles.strong}>Downloaded · {formatBytes(song.sizeBytes)}</Text>
+                <Text style={styles.note}>Plays with no connection.</Text>
                 <View style={styles.action}>
-                  <Button label="Download now" onPress={() => queue.enqueue([song.id])} />
+                  <Button label="Remove download" onPress={() => void queue.remove([song.id])} />
                 </View>
-              )}
-            </>
-          )}
-        </Fact>
-      </Group>
+              </>
+            ) : (
+              <>
+                <Text style={styles.strong}>
+                  Only on your server · {formatBytes(song.sizeBytes)}
+                </Text>
+                <Text style={styles.note}>
+                  {queued ? 'Waiting to download.' : 'Plays only while your server is reachable.'}
+                </Text>
+                {queued ? null : (
+                  <View style={styles.action}>
+                    <Button label="Download now" onPress={() => queue.enqueue([song.id])} />
+                  </View>
+                )}
+              </>
+            )}
+          </Fact>
+        </Group>
+      ) : null}
 
       <Group title="History">
         <Fact label="Played">

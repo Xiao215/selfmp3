@@ -173,12 +173,16 @@ export function playBlock({
   network: NetworkKind
   /** "Play songs that aren't downloaded". */
   streamUndownloaded: boolean
-  /** A library read from the cloud, which the player cannot stream from yet. */
+  /**
+   * A library read from the cloud. An installed app plays its songs from files,
+   * so one not downloaded waits; a browser streams it from the bucket through
+   * the service worker.
+   */
   fromCloud: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
-  if (fromCloud) return 'cloud'
+  if (fromCloud && installed) return 'cloud'
   if (network === 'none') return 'offline'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'

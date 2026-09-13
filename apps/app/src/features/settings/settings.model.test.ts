@@ -25,6 +25,7 @@ describe('settings', () => {
     expect(ids).not.toContain('devices')
     expect(ids).not.toContain('cloud')
     expect(sectionsFor(false)).toHaveLength(11)
+    expect(sectionsFor(false, false).map(section => section.id)).not.toContain('offline')
   })
 
   it('picks the last section past the reading line', () => {

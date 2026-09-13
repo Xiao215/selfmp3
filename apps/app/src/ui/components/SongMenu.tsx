@@ -147,7 +147,7 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const deleteSong = useDeleteSong()
   const patchSong = usePatchSong()
-  const { state: downloads, downloadByHand, removeByHand } = useDownloads()
+  const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const { fromCloud } = useConnection()
@@ -250,7 +250,8 @@ function Items({
           patchSong.mutate({ id: song.id, patch: { instrumental: !song.instrumental } }),
         )}
       />
-      {held ? (
+      {/* A browser streams; only an installed app keeps songs. */}
+      {!installed ? null : held ? (
         <SheetItem
           icon={icon(X)}
           label="Remove download"

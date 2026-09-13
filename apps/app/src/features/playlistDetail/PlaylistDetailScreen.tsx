@@ -71,7 +71,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
-  const { state: downloads, downloadByHand } = useDownloads()
+  const { state: downloads, installed, downloadByHand } = useDownloads()
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -247,19 +247,21 @@ export function PlaylistDetailScreen(): ReactNode {
                 onPress={() => setEditingRules(open => !open)}
               />
             ) : null}
-            <Button
-              testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
-              label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
-              icon={
-                pendingBytes > 0 ? (
-                  <CloudDownload size={15} color={theme.colors.textPrimary} />
-                ) : (
-                  <Downloaded size={15} color={accent.accent} knockout={theme.colors.surface2} />
-                )
-              }
-              disabled={pendingBytes === 0}
-              onPress={() => downloadByHand(songIds)}
-            />
+            {installed ? (
+              <Button
+                testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
+                label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
+                icon={
+                  pendingBytes > 0 ? (
+                    <CloudDownload size={15} color={theme.colors.textPrimary} />
+                  ) : (
+                    <Downloaded size={15} color={accent.accent} knockout={theme.colors.surface2} />
+                  )
+                }
+                disabled={pendingBytes === 0}
+                onPress={() => downloadByHand(songIds)}
+              />
+            ) : null}
             {playlist ? (
               <Button
                 icon={<Trash size={15} color={theme.colors.danger} />}

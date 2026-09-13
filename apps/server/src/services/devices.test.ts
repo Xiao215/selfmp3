@@ -124,4 +124,16 @@ describe('DeviceService', () => {
     expect(service.forget('mac-00000001')).toBe(false)
     expect(service.list().devices).toEqual([])
   })
+
+  it('forgets a device a week after it was last seen, and keeps the rest', () => {
+    const { service, advance } = setup()
+    service.heartbeat(heartbeat('laptop-00001'))
+    advance(7 * 24 * 60 * 60 * 1000 - 1_000)
+    service.heartbeat(heartbeat('phone-000001', { kind: 'phone' }))
+    expect(service.forgetStale()).toBe(0)
+
+    advance(2_000)
+    expect(service.forgetStale()).toBe(1)
+    expect(service.list().devices.map(device => device.id)).toEqual(['phone-000001'])
+  })
 })

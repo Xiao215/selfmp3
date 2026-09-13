@@ -1584,3 +1584,32 @@ a time, playing each while you tap its tags.
   chip tap, Finish, "Tagged 1 of 1", Done. The chips carry a `triage-tag-<id>`
   test id, because Maestro's text match ignores case and "yoasobi" also finds
   the artist line.
+
+### Importing into a cloud library
+
+The web's `CloudImportView`, which its cloud build showed at `/import` in place
+of the Mac's screen. The new app had a notice there instead ("done on the Mac
+for now").
+
+- `features/import/cloudImport.model.ts` holds the rules with nothing drawn
+  (7 tests): each request's line in the web's words (waiting and for how long,
+  downloading, what a finished one added, why one failed), which requests can
+  still be cancelled, and how many have finished, so the library is fetched
+  again when one brings songs.
+- `features/import/CloudImportScreen.tsx`: one link box and Import, then the
+  requests with Cancel on those the Mac has not finished. The route picks it
+  when the library is the bucket's. A link shared to the app lands in the box,
+  as on the web, rather than being sent on arrival.
+- Import is back in the sidebar and the ⌘K palette for a cloud library, as the
+  web's cloud build had it. Stats and the tag inbox still are not: both need
+  the Mac.
+- The queries and the routes (`useCloudImports`, `/api/cloud/imports`) were
+  already in `packages/client` and `packages/cloud`; nothing there changed.
+- Checked on the cloud-signed iPhone 17 Pro, which was left signed in: Import
+  opens this screen with "Nothing asked for yet". No request was sent, because
+  one would have the Mac download a real song into the library.
+- A shared link fills the box, checked the same way with a link inside other
+  text, as a share sheet sends it. The first try failed with the screen
+  already open: the box read the link only when the screen was created, so a
+  share that arrived while Import was showing was dropped. It now follows each
+  new share.

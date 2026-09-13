@@ -168,14 +168,6 @@ export function ImportScreen(): ReactNode {
           page into their top songs.
         </Text>
 
-        {fromCloud ? (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              Importing into a cloud library is done on the Mac for now.
-            </Text>
-          </View>
-        ) : null}
-
         {tools && !tools.ytdlp ? (
           <View style={[styles.notice, styles.noticeWarn]}>
             <View style={styles.noticeBody}>

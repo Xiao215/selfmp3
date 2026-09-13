@@ -21,7 +21,7 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-/** `fromCloud`: a cloud library has no Mac to import with, count plays on, or tag from. */
+/** `fromCloud`: a cloud library has no Mac to count plays on or tag from; its imports wait for one. */
 export function paletteCommands(
   songCount: number,
   fromCloud = false,
@@ -30,12 +30,8 @@ export function paletteCommands(
   return [
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
-    ...(fromCloud
-      ? []
-      : [
-          { id: 'nav-import' as const, label: 'Import music' },
-          { id: 'nav-stats' as const, label: 'Listening stats' },
-        ]),
+    { id: 'nav-import', label: 'Import music' },
+    ...(fromCloud ? [] : [{ id: 'nav-stats' as const, label: 'Listening stats' }]),
     { id: 'nav-settings', label: 'Settings' },
     ...(fromCloud
       ? []

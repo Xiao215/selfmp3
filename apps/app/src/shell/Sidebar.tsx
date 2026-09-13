@@ -63,7 +63,8 @@ const DESTINATIONS: {
 }[] = [
   { href: '/', label: 'Library', Icon: Music },
   { href: '/playlists', label: 'Playlists', Icon: ListMusic },
-  { href: '/import', label: 'Import', Icon: Download, mac: true },
+  // A cloud library imports too: the link waits in the bucket for the Mac.
+  { href: '/import', label: 'Import', Icon: Download },
   { href: '/stats', label: 'Stats', Icon: BarChart, mac: true },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]

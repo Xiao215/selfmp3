@@ -48,6 +48,7 @@ import { Select } from '../../ui/components/Select'
 import { Slider } from '../../ui/components/Slider'
 import { Toggle } from '../../ui/components/Toggle'
 import { useDeviceContext } from '../devices/DevicesProvider'
+import { finePointer } from '../../ports/pointer'
 import {
   ButtonRow,
   Kbd,
@@ -106,7 +107,8 @@ export function SettingsScreen(): ReactNode {
     staleTime: 60_000,
   })
 
-  const sections = sectionsFor(fromCloud, installedApp)
+  // A mouse or trackpad stands in for a keyboard: a phone has no ⌘K to explain.
+  const sections = sectionsFor(fromCloud, installedApp, finePointer)
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
   const tops = useRef(new Map<SectionId, number>())
@@ -335,20 +337,22 @@ export function SettingsScreen(): ReactNode {
 
             <AppearancePanel onTop={top => onTop('appearance', top)} />
 
-            <Panel
-              title="Keyboard shortcuts"
-              hint="on the server"
-              onTop={top => onTop('shortcuts', top)}
-            >
-              <Text style={partStyles.hint}>Everything else is done with the mouse.</Text>
-              <View style={styles.shortcut}>
-                <View style={styles.keys}>
-                  <Kbd>⌘</Kbd>
-                  <Kbd>K</Kbd>
+            {finePointer ? (
+              <Panel
+                title="Keyboard shortcuts"
+                hint="on the server"
+                onTop={top => onTop('shortcuts', top)}
+              >
+                <Text style={partStyles.hint}>Everything else is done with the mouse.</Text>
+                <View style={styles.shortcut}>
+                  <View style={styles.keys}>
+                    <Kbd>⌘</Kbd>
+                    <Kbd>K</Kbd>
+                  </View>
+                  <Text style={partStyles.hint}>Search everything</Text>
                 </View>
-                <Text style={partStyles.hint}>Search everything</Text>
-              </View>
-            </Panel>
+              </Panel>
+            ) : null}
 
             <Panel title="About" onTop={top => onTop('about', top)}>
               <Row label="Version" last>

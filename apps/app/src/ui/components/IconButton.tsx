@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, radius } from '@selfmp3/client'
+import { HIT_TARGET, radius, withAlpha } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { tip } from '../tip'
 
@@ -65,8 +65,9 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* A light veil rather than a surface: over a song-coloured page a solid box read as a dark square. */
   pressed: {
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
   },
   disabled: {
     opacity: 0.4,

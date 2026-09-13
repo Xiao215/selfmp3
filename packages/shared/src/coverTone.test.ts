@@ -41,6 +41,21 @@ describe('pickCoverTone', () => {
     expect(yoru?.hue).toBeLessThan(30)
   })
 
+  it('finds a colour on a cover whose colour is spread over several hues (祝福)', () => {
+    // Muted greens, teals and blues in about equal parts, none a big share alone.
+    const shukufuku = pickCoverTone(
+      pixels(
+        [96, 128, 84, 110],
+        [84, 124, 118, 110],
+        [88, 108, 142, 110],
+        [124, 126, 86, 110],
+        [104, 96, 132, 110],
+        [12, 14, 12, 26],
+      ),
+    )
+    expect(shukufuku).not.toBeNull()
+  })
+
   it('gives up on a cover with no colour in it', () => {
     expect(
       pickCoverTone(pixels([20, 20, 20, 100], [128, 128, 128, 200], [250, 250, 250, 50])),

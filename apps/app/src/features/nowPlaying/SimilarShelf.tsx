@@ -2,10 +2,9 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { radius, space, type } from '@selfmp3/client'
+import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
-import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { playSimilarOrder } from './nowPlaying.model'
 
@@ -28,7 +27,16 @@ export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
         <Text style={styles.heading} accessibilityRole="header">
           Similar songs
         </Text>
-        <Button label="Queue all" onPress={() => player.addToQueue(ids)} />
+        {/* A small pill the height of the heading, not a full-size button: it sat on the page as a dark block. */}
+        <Pressable
+          onPress={() => player.addToQueue(ids)}
+          accessibilityRole="button"
+          accessibilityLabel="Queue all"
+          hitSlop={10}
+          style={({ pressed }) => [styles.queueAll, pressed && styles.queueAllPressed]}
+        >
+          <Text style={styles.queueAllText}>Queue all</Text>
+        </Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
         {songs.map(song => (
@@ -72,9 +80,17 @@ const styles = StyleSheet.create(theme => ({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
+  queueAll: {
+    paddingVertical: 4,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
+  },
+  queueAllPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.2) },
+  queueAllText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
   list: { gap: 8, paddingRight: space.lg },
   card: { width: 84, padding: 4, gap: 3, borderRadius: radius.sm },
-  cardPressed: { backgroundColor: theme.colors.surface2 },
+  cardPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.08) },
   cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
   cardArtist: { color: theme.colors.textSecondary, fontSize: type.small - 2 },
 }))

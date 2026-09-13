@@ -87,7 +87,12 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   }
 
   const total = weight[best] ?? 0
-  if (total / counted < MIN_COLOURFULNESS) return null
+  // Judged on all the colour in the cover, not the winning hue's share of it:
+  // a cover split between green trees and a blue sky has plenty, spread over a
+  // few bins, and was taken for grey.
+  let colour = 0
+  for (const binWeight of weight) colour += binWeight
+  if (total === 0 || colour / counted < MIN_COLOURFULNESS) return null
 
   const hue = ((Math.atan2(sinSum[best] ?? 0, cosSum[best] ?? 0) * 180) / Math.PI + 360) % 360
   // Chroma-weighted mean chroma: the vivid pixels of the winning hue decide.

@@ -17,6 +17,7 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
+import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { AccentProvider } from '../src/ui/accent'
 
@@ -109,7 +110,12 @@ function Shell(): ReactNode {
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'
-  const chrome = (stage || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
+  // On a phone Now Playing is a native modal over the tab bar already. Taking
+  // the chrome away under it only made the page beneath taller, and a list
+  // scrolled to its end was pulled back up by the difference when it closed.
+  const covered = pathname === '/now-playing' && modalCoversScreen
+  const chrome =
+    (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
   return (
     <Frame chrome={chrome} sidebar={!stage}>

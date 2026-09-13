@@ -33,13 +33,20 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
   { id: 'about', label: 'About' },
 ]
 
-/** `installed`: a browser streams and keeps no songs, so it has no Offline music. */
+/**
+ * `installed`: a browser streams and keeps no songs, so it has no Offline music.
+ * `keyboard`: a finger has no ⌘K, so a phone has no Shortcuts.
+ */
 export function sectionsFor(
   fromCloud: boolean,
   installed = true,
+  keyboard = true,
 ): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
-    section => (!fromCloud || !section.mac) && (installed || section.id !== 'offline'),
+    section =>
+      (!fromCloud || !section.mac) &&
+      (installed || section.id !== 'offline') &&
+      (keyboard || section.id !== 'shortcuts'),
   )
 }
 

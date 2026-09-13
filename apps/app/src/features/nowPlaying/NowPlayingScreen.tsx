@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Animated,
   Easing,
   FlatList,
   Image,
+  PanResponder,
   Pressable,
   Text,
   useWindowDimensions,
@@ -13,7 +14,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ListRenderItem } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useSimilar, useToggleLoved } from '../../api/queries'
 import {
@@ -154,6 +155,40 @@ function PhoneNowPlaying(): ReactNode {
     }).start()
   }, [panel, veil])
 
+  // The window's insets, from the provider at the root. A SafeAreaView measures
+  // its own place on screen, and this page slides up from below: caught
+  // mid-slide it measured no status bar at all, and the head sat under the clock.
+  const insets = useSafeAreaInsets()
+  const edges = {
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+    paddingLeft: space.lg + insets.left,
+    paddingRight: space.lg + insets.right,
+  }
+
+  // A long pull down puts the page away, as Apple Music's does. Asked only on a
+  // move, so taps, the scrubber (which refuses to let go) and the scrolling
+  // lyrics, queue and shelf keep their own touches.
+  const [pull] = useState(() => new Animated.Value(0))
+  const dismiss = useMemo(() => {
+    const settle = (): void => {
+      Animated.spring(pull, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start()
+    }
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        gesture.dy > 12 && gesture.dy > Math.abs(gesture.dx) * 2,
+      onPanResponderMove: (_event, gesture) => pull.setValue(Math.max(0, gesture.dy)),
+      onPanResponderRelease: (_event, gesture) => {
+        if (gesture.dy > DISMISS_DISTANCE || (gesture.dy > 48 && gesture.vy > DISMISS_VELOCITY)) {
+          router.back()
+        } else {
+          settle()
+        }
+      },
+      onPanResponderTerminate: settle,
+    })
+  }, [pull, router])
+
   // Sized from the room that is left, not the width alone: on a short phone
   // the art shrinks rather than pushing the controls off the bottom.
   // Nearest neighbours of what is playing, for the shelf under the controls.
@@ -168,7 +203,7 @@ function PhoneNowPlaying(): ReactNode {
 
   if (song === null) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <View style={[styles.screen, edges]}>
         <View style={styles.head}>
           <IconButton onPress={() => router.back()} label="Close now playing" round>
             <ChevronDown size={24} color={theme.colors.textSecondary} />
@@ -178,7 +213,7 @@ function PhoneNowPlaying(): ReactNode {
           <Text style={styles.emptyTitle}>Nothing playing</Text>
           <Text style={styles.emptyText}>Start a song and it turns up here, with its lyrics.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -191,7 +226,13 @@ function PhoneNowPlaying(): ReactNode {
   }
 
   return (
-    <View style={[styles.shell, { backgroundColor: songColor.color }]}>
+    <Animated.View
+      {...dismiss.panHandlers}
+      style={[
+        styles.shell,
+        { backgroundColor: songColor.color, transform: [{ translateY: pull }] },
+      ]}
+    >
       {/*
         The cover itself, blurred across the whole page behind everything: the
         computer's stage glow, which a phone cannot draw with a CSS filter. A
@@ -210,7 +251,7 @@ function PhoneNowPlaying(): ReactNode {
           style={[styles.backdrop, { backgroundColor: withAlpha(theme.colors.surface0, 0.58) }]}
         />
       </View>
-      <SafeAreaView style={[styles.screen, styles.screenOverBackdrop]}>
+      <View style={[styles.screen, styles.screenOverBackdrop, edges]}>
         <View style={styles.head}>
           <IconButton onPress={() => router.back()} label="Close now playing" round>
             <ChevronDown size={24} color={theme.colors.textSecondary} />
@@ -294,13 +335,14 @@ function PhoneNowPlaying(): ReactNode {
                   onPress={player.toggleShuffle}
                   label={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
                   active={player.queue.shuffle}
+                  round
                 >
                   <Shuffle
                     size={19}
                     color={player.queue.shuffle ? songColor.color : theme.colors.textMuted}
                   />
                 </IconButton>
-                <IconButton onPress={player.previous} label="Previous" size={52}>
+                <IconButton onPress={player.previous} label="Previous" size={52} round>
                   <Prev size={30} color={theme.colors.textPrimary} />
                 </IconButton>
                 <Pressable
@@ -319,13 +361,14 @@ function PhoneNowPlaying(): ReactNode {
                     <Play size={30} color={theme.colors.onAccent} />
                   )}
                 </Pressable>
-                <IconButton onPress={player.next} label="Next" size={52}>
+                <IconButton onPress={player.next} label="Next" size={52} round>
                   <Next size={30} color={theme.colors.textPrimary} />
                 </IconButton>
                 <IconButton
                   onPress={player.cycleRepeatMode}
                   label={REPEAT_LABEL[player.queue.repeat]}
                   active={player.queue.repeat !== 'off'}
+                  round
                 >
                   {player.queue.repeat === 'one' ? (
                     <RepeatOne size={19} color={songColor.color} />
@@ -430,8 +473,8 @@ function PhoneNowPlaying(): ReactNode {
         </Sheet>
         <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
         <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
-      </SafeAreaView>
-    </View>
+      </View>
+    </Animated.View>
   )
 }
 
@@ -683,6 +726,9 @@ function QueuePanel({
 }
 
 const QUEUE_ROW = 52
+/** How far a pull down must travel to put the page away, or how far a quick flick. */
+const DISMISS_DISTANCE = 140
+const DISMISS_VELOCITY = 0.9
 
 const styles = StyleSheet.create(theme => ({
   screen: {
@@ -852,7 +898,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sm,
   },
   actionPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   actionLabel: {
     color: theme.colors.textMuted,

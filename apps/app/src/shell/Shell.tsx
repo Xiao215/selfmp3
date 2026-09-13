@@ -73,9 +73,7 @@ function frame(
   barHidden: boolean,
   children: ReactNode,
 ): ReactNode {
-  if (!chrome) return <View style={styles.root}>{children}</View>
-
-  if (wide) {
+  if (wide && chrome) {
     return (
       <WideFrame sidebar={sidebar} barHidden={barHidden}>
         {children}
@@ -83,14 +81,18 @@ function frame(
     )
   }
 
+  // One tree with the chrome in it or not, never a different tree. When Now
+  // Playing hid the tab bar by returning a bare view instead, React saw the
+  // screens move to a new parent and remounted every one of them: closing Now
+  // Playing put a page scrolled to its end back at the top.
   return (
-    <View style={styles.root} testID="shell-compact">
+    <View style={styles.root} testID={chrome ? 'shell-compact' : undefined}>
       <View style={styles.content}>
         {children}
-        <Toasts />
+        {chrome ? <Toasts /> : null}
       </View>
-      <MiniPlayer />
-      <BottomNav />
+      {chrome ? <MiniPlayer /> : null}
+      {chrome ? <BottomNav /> : null}
     </View>
   )
 }

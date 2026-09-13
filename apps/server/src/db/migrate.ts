@@ -442,6 +442,16 @@ const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE songs ADD COLUMN cover_tone_rev INTEGER;
     `,
   },
+  {
+    name: 'songs: read colourless covers again',
+    sql: `
+      -- The picking took a cover whose colour was spread over a few hues (green
+      -- trees under a blue sky) for grey, and kept it that way against its
+      -- revision. It now weighs all the colour; forget the old "none" answers so
+      -- those covers are read once more.
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
+    `,
+  },
 ]
 
 /**

@@ -8,6 +8,14 @@ import { useAccent } from '../accent'
 import { space, type } from '@selfmp3/client'
 
 /**
+ * Closer than this to a seek, the player is taken to be there. Wide enough for
+ * a second of play at twice the speed, so a seek that landed is not pulled back.
+ */
+const SEEK_LANDED_SECONDS = 2.1
+/** How long a let-go position is held against an engine still reporting the old one. */
+const SEEK_SETTLE_MS = 1000
+
+/**
  * Scrubber: the web's `.scrubber-large`, a 6px track with a 16px thumb that
  * is always there, in a hit area big enough to grab while walking.
  *
@@ -46,6 +54,16 @@ export function SeekBar({
   const fill = color ?? accent.accent
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
+  /**
+   * Where the finger let go, until the player says it is there. A phone's
+   * engine reports the old time for a tick or two after a seek, and without
+   * this the thumb jumped back to it and forward again.
+   */
+  const [pending, setPending] = useState<number | null>(null)
+  // Held only while the player is still somewhere else: once it reports the
+  // new time, the bar follows it again.
+  const held =
+    pending !== null && Math.abs(position - pending) >= SEEK_LANDED_SECONDS ? pending : null
 
   const responder = useMemo(() => {
     // locationX is relative to the view the finger is on. On iOS that is the
@@ -61,10 +79,15 @@ export function SeekBar({
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      // A scrub that wanders downward is still a scrub, not the page's swipe to close.
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: event => setDragging(secondsAt(event.nativeEvent.locationX)),
       onPanResponderMove: event => setDragging(secondsAt(event.nativeEvent.locationX)),
       onPanResponderRelease: event => {
         const target = secondsAt(event.nativeEvent.locationX)
+        setPending(target)
+        // Lets go of this seek only: a later one, made meanwhile, keeps its hold.
+        setTimeout(() => setPending(held => (held === target ? null : held)), SEEK_SETTLE_MS)
         setDragging(null)
         onSeek(target)
       },
@@ -72,7 +95,7 @@ export function SeekBar({
     })
   }, [width, duration, onSeek])
 
-  const shown = dragging ?? position
+  const shown = dragging ?? held ?? position
   const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
 
   const onLayout = (event: LayoutChangeEvent): void => {
@@ -219,8 +242,9 @@ const styles = StyleSheet.create(theme => ({
     width: '100%',
   },
   inlineTrack: { flex: 1, minWidth: 0 },
+  /* In the title's colour: muted, the times all but disappeared over a song-coloured page. */
   timeInline: {
-    color: theme.colors.textMuted,
+    color: theme.colors.textPrimary,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     minWidth: 36,
@@ -276,7 +300,7 @@ const styles = StyleSheet.create(theme => ({
     marginTop: -2,
   },
   time: {
-    color: theme.colors.textMuted,
+    color: theme.colors.textPrimary,
     fontSize: type.tiny,
     fontVariant: ['tabular-nums'],
   },

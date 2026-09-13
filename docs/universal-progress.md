@@ -2401,3 +2401,49 @@ and does not follow the accent; only the browser tab does.
 
 Checked on the dev server: 群青's 7A reads rgb(216, 120, 123) and its wave is
 drawn the same pink, the cover's colour.
+
+### The phone's Now Playing, from a first real use — branch `universal/phone-np-nits`
+
+Six things Xiao found on the Pro Max:
+
+1. **Dark squares.** `IconButton`'s pressed state was `surface3`, a solid box
+   over the song-coloured page. It is a 10% veil of the text colour now, and the
+   page's shuffle, previous, next and repeat are round. Queue all was a
+   full-size secondary `Button`; `SimilarShelf` draws a small pill instead. The
+   foot actions and shelf cards press with the same veil.
+2. **Pull down to close.** The route is a `fullScreenModal`, which has no
+   swipe of its own. A `PanResponder` on the page claims a mostly vertical move
+   down past 12px, follows the finger, and past 140px (or a flick) goes back.
+   `SeekBar` refuses termination so a scrub that drifts down stays a scrub.
+3. **Head under the clock.** `SafeAreaView` (react-native-safe-area-context)
+   measures its own frame; the page slides up from below, and a measure taken
+   mid-slide saw no status bar. The page pads from `useSafeAreaInsets()`, the
+   root provider's window insets.
+4. **Times hard to read.** `SeekBar`'s times, inline and under the track, are
+   `textPrimary`.
+5. **Scrubber jumped back.** After a release the bar showed `player.position`
+   at once, and a phone's engine reports the old time for a tick. The released
+   position is held until the position is within 2.1 s of it, or for 1 s.
+6. **祝福 in the accent.** Its cover is green trees under a blue sky: plenty of
+   colour, but the gate was the winning 15° bin's share (0.014 against 0.02).
+   `pickCoverTone` now gates on all the colour (0.056 there), with a test. The
+   server had stored "none" against the cover's revision, so migration 13 clears
+   `cover_tone_rev` where the hue is null and the covers are read again.
+   (On the dev server the watcher restarted on the migration before the
+   shared package was rebuilt, and read 祝福 with the old rule once more; a real
+   server gets both in one restart.)
+
+Then two more:
+
+7. **Keyboard shortcuts on a phone.** Settings now shows that panel, and its
+   index entry (`sectionsFor(…, keyboard)`), only with a fine pointer.
+8. **The page under Now Playing went back to the top.** `Shell`'s `frame()`
+   returned a bare `<View>` while a screen owned the display and the compact
+   frame otherwise, so opening Now Playing re-parented the router's `Stack`
+   and React remounted every screen in it. One tree now, with the toasts, mini
+   player and tab bar rendered or not. That alone left the list ~3 rows short
+   on the iPhone 17: the page under the modal grew by the tab bar's height
+   while it was hidden, iOS clamped the offset, and it stayed clamped. A phone
+   presents Now Playing as a native modal over the chrome anyway, so the
+   chrome stays there (`ports/modalCoversScreen`); a browser, where the route
+   is a page in the content area, still hides it.

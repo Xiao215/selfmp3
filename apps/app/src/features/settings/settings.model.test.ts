@@ -28,6 +28,11 @@ describe('settings', () => {
     expect(sectionsFor(false, false).map(section => section.id)).not.toContain('offline')
   })
 
+  it('leaves out Shortcuts where there is no keyboard to press them on', () => {
+    expect(sectionsFor(false, true, false).map(section => section.id)).not.toContain('shortcuts')
+    expect(sectionsFor(false).map(section => section.id)).toContain('shortcuts')
+  })
+
   it('picks the last section past the reading line', () => {
     expect(activeSection(TOPS, 0, 800, 2400)).toBe('a')
     expect(activeSection(TOPS, 520, 800, 2400)).toBe('b')

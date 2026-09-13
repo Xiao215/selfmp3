@@ -2279,3 +2279,32 @@ its cover and title for about half a second. The row's main press area took
 over only part of a row that may be washed in a song's colour or tinted as
 selected. The background is gone; the row still scales under the finger, and
 the ⋯ and heart keep their own pressed shading.
+
+### The phone's Now Playing in the song's colour — branch `universal/np-song-colour`
+
+Asked for by Xiao: on the phone's Now Playing the play button, a lit shuffle
+or repeat, and the lit labels in the foot row (Lyrics, Practice, On this
+phone, Sleep, Queue) were the app's blue accent, over a page already washed in
+the cover. They now take the playing song's colour (`useSongColor`), the play
+button pressing to its tint; the icon on the play button stays the theme's.
+
+### Lyrics-only follows the song at once, and drag handles look draggable
+
+Found by Xiao on 4600: after dragging the bar on the stage and opening
+lyrics-only straight away, the words sometimes caught up only after three or
+four seconds.
+
+- Probed in Chrome: 200 ms after the switch the sung line was at 318% of the
+  box, 89% at 600 ms, in place at 1.2 s. Lyrics-only's larger type moves every
+  line; the re-centre that followed was a glide (the same line, so "the song
+  moving on"), and its scroll events, arriving outside the window the page
+  allowed its own scrolls, could be taken for a hand and hold the centring off
+  for `MANUAL_SCROLL_MS`.
+- Now a change of layout re-centres with a jump, and only real reading ahead
+  holds the centring off: the wheel or a finger in a browser, a drag on a
+  phone (`onScrollBeginDrag`). A scroll event alone no longer counts, and the
+  700 ms window and `AUTO_SCROLL_GAP_MS` are gone.
+- The same probe after the change, three switches: the sung line at 40% by
+  200 ms each time, then following.
+- The queue's and a playlist's drag handles show a grab cursor in a browser,
+  and a grabbing one while held (`ports/dragCursor`).

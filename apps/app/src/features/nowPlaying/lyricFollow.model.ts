@@ -18,9 +18,3 @@ export const LYRIC_GLIDE_LINES = 1
 export function glideToLine(from: number, to: number): boolean {
   return from >= 0 && Math.abs(to - from) <= LYRIC_GLIDE_LINES
 }
-
-/**
- * A scroll event this soon after the last one, in a scroll the page began, is
- * still that scroll: a browser animates a long one for as long as it likes.
- */
-export const AUTO_SCROLL_GAP_MS = 250

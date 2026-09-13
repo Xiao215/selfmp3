@@ -6,7 +6,7 @@ import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { hexAlpha, LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
-import { AUTO_SCROLL_GAP_MS, glideToLine } from './lyricFollow.model'
+import { glideToLine } from './lyricFollow.model'
 
 /**
  * The lyrics on a computer's Now Playing page: the web's `LyricsView`.
@@ -45,9 +45,35 @@ export function StageLyrics({
   const [hovered, setHovered] = useState<number | null>(null)
   const [layoutTick, setLayoutTick] = useState(0)
   const lastManual = useRef(0)
-  const autoUntil = useRef(0)
+  /** The layout the words were last centred for: a new one is a jump, not a glide. */
+  const centredFor = useRef(-1)
   /** The line the words were last scrolled to, so a seek can be told from the song moving on. */
   const shownLine = useRef(-1)
+
+  // Reading ahead by hand, in a browser: the wheel, a trackpad, a finger.
+  // Only these hold off the centring — a scroll event alone is also what the
+  // page's own scrolling and a change of layout send, and treating those as a
+  // hand stopped the words following for four seconds after lyrics-only opened.
+  useEffect(() => {
+    const node = (
+      scrollRef.current as unknown as { getScrollableNode?: () => unknown } | null
+    )?.getScrollableNode?.() as
+      | {
+          addEventListener?: (type: string, listener: () => void, options?: object) => void
+          removeEventListener?: (type: string, listener: () => void) => void
+        }
+      | undefined
+    if (!node?.addEventListener || !node.removeEventListener) return undefined
+    const byHand = (): void => {
+      lastManual.current = Date.now()
+    }
+    node.addEventListener('wheel', byHand, { passive: true })
+    node.addEventListener('touchmove', byHand, { passive: true })
+    return () => {
+      node.removeEventListener?.('wheel', byHand)
+      node.removeEventListener?.('touchmove', byHand)
+    }
+  }, [])
 
   const synced = parsed.synced ? parsed.lines : null
   const active = synced ? activeLineIndex(synced, player.position, LYRIC_LEAD) : -1
@@ -66,6 +92,11 @@ export function StageLyrics({
     const line = lineRefs.current[index]
     const content = contentRef.current
     if (!line || !content) return
+    // The words changed size — lyrics-only's larger type, romanization, a
+    // font arriving — so every line moved: jump to the sung one rather than
+    // glide the whole distance.
+    const relaid = centredFor.current !== layoutTick
+    centredFor.current = layoutTick
     shownLine.current = index
     lastManual.current = 0
     line.measureLayout(
@@ -73,8 +104,7 @@ export function StageLyrics({
       (_x, y, _width, height) => {
         // The content's top padding is the anchor's own height, so centring
         // the line on the anchor is scrolling to the line's middle.
-        autoUntil.current = Date.now() + 700
-        scrollRef.current?.scrollTo({ y: Math.max(0, y + height / 2), animated: glide })
+        scrollRef.current?.scrollTo({ y: Math.max(0, y + height / 2), animated: glide && !relaid })
       },
       () => undefined,
     )
@@ -93,16 +123,10 @@ export function StageLyrics({
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={64}
         onLayout={event => setBoxHeight(event.nativeEvent.layout.height)}
-        onScroll={() => {
-          const now = Date.now()
-          // A scroll the page began keeps sending events for as long as the
-          // browser animates it; each one extends the window, and only a scroll
-          // nobody asked for counts as a hand.
-          if (now <= autoUntil.current) {
-            autoUntil.current = Math.max(autoUntil.current, now + AUTO_SCROLL_GAP_MS)
-            return
-          }
-          lastManual.current = now
+        // A drag on a phone. A browser's wheel and touch are listened for below:
+        // a scroll event alone is also what a re-layout or our own scroll sends.
+        onScrollBeginDrag={() => {
+          lastManual.current = Date.now()
         }}
       >
         {/* What the lines are measured against. Its size changing — a font

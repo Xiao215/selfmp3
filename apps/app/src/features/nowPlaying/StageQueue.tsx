@@ -7,6 +7,7 @@ import { radius } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
+import { dragCursor } from '../../ports/dragCursor'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
@@ -66,7 +67,12 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
 
       {/* Its own row, as on the web, where it has room to say what it is doing. */}
       <View style={styles.toolbar}>
-        <Toggle value={player.autoMix} onChange={player.setAutoMix} label="Auto-mix" testID="auto-mix" />
+        <Toggle
+          value={player.autoMix}
+          onChange={player.setAutoMix}
+          label="Auto-mix"
+          testID="auto-mix"
+        />
         <Text style={styles.toolbarLabel}>Auto-mix</Text>
         <Text style={styles.toolbarHint} numberOfLines={1}>
           {autoMixLine({
@@ -209,7 +215,7 @@ const QueueRow = memo(function QueueRow({
         onResponderTerminate={() => onDragEnd(0)}
         accessibilityRole="button"
         accessibilityLabel={`Reorder ${song.title}`}
-        style={[styles.grip, !finePointer && styles.gripTouch]}
+        style={[styles.grip, !finePointer && styles.gripTouch, dragCursor(dragging)]}
       >
         <Grip size={16} color={hovered ? theme.colors.textSecondary : theme.colors.textMuted} />
       </View>
@@ -278,7 +284,13 @@ const styles = StyleSheet.create(theme => ({
     borderBottomColor: theme.colors.border,
   },
   toolbarLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
-  toolbarHint: { flex: 1, minWidth: 0, textAlign: 'right', color: theme.colors.textMuted, fontSize: 11 },
+  toolbarHint: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'right',
+    color: theme.colors.textMuted,
+    fontSize: 11,
+  },
   list: { padding: 8, gap: 1 },
   row: {
     flexDirection: 'row',

@@ -28,7 +28,6 @@ import {
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
@@ -117,7 +116,6 @@ function PhoneNowPlaying(): ReactNode {
   const artFor = useArt()
   const player = usePlayer()
   const router = useRouter()
-  const accent = useAccent()
   const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue, installed } = useDownloads()
   const { width, height } = useWindowDimensions()
@@ -299,7 +297,7 @@ function PhoneNowPlaying(): ReactNode {
                 >
                   <Shuffle
                     size={19}
-                    color={player.queue.shuffle ? accent.accent : theme.colors.textMuted}
+                    color={player.queue.shuffle ? songColor.color : theme.colors.textMuted}
                   />
                 </IconButton>
                 <IconButton onPress={player.previous} label="Previous" size={52}>
@@ -308,7 +306,7 @@ function PhoneNowPlaying(): ReactNode {
                 <Pressable
                   style={({ pressed }) => [
                     styles.playButton,
-                    { backgroundColor: pressed ? accent.accentStrong : accent.accent },
+                    { backgroundColor: pressed ? songColor.tint : songColor.color },
                     pressed && styles.playButtonPressed,
                   ]}
                   onPress={player.toggle}
@@ -330,11 +328,13 @@ function PhoneNowPlaying(): ReactNode {
                   active={player.queue.repeat !== 'off'}
                 >
                   {player.queue.repeat === 'one' ? (
-                    <RepeatOne size={19} color={accent.accent} />
+                    <RepeatOne size={19} color={songColor.color} />
                   ) : (
                     <Repeat
                       size={19}
-                      color={player.queue.repeat === 'off' ? theme.colors.textMuted : accent.accent}
+                      color={
+                        player.queue.repeat === 'off' ? theme.colors.textMuted : songColor.color
+                      }
                     />
                   )}
                 </IconButton>
@@ -355,7 +355,7 @@ function PhoneNowPlaying(): ReactNode {
             icon={
               <Mic
                 size={19}
-                color={showWords && panel === 'none' ? accent.accent : theme.colors.textMuted}
+                color={showWords && panel === 'none' ? songColor.color : theme.colors.textMuted}
               />
             }
             label="Lyrics"
@@ -370,7 +370,7 @@ function PhoneNowPlaying(): ReactNode {
               <Metronome
                 size={19}
                 color={
-                  practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textMuted
+                  practiceOpen || player.loopB !== null ? songColor.color : theme.colors.textMuted
                 }
               />
             }
@@ -382,7 +382,7 @@ function PhoneNowPlaying(): ReactNode {
             <FootAction
               icon={
                 held ? (
-                  <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
+                  <Downloaded size={19} color={songColor.color} knockout={theme.colors.surface0} />
                 ) : (
                   <CloudDownload size={19} color={theme.colors.textMuted} />
                 )
@@ -398,7 +398,7 @@ function PhoneNowPlaying(): ReactNode {
             icon={
               <Moon
                 size={19}
-                color={player.sleepTimerEndsAt !== null ? accent.accent : theme.colors.textMuted}
+                color={player.sleepTimerEndsAt !== null ? songColor.color : theme.colors.textMuted}
               />
             }
             label="Sleep"
@@ -413,7 +413,10 @@ function PhoneNowPlaying(): ReactNode {
           />
           <FootAction
             icon={
-              <Queue size={19} color={panel === 'queue' ? accent.accent : theme.colors.textMuted} />
+              <Queue
+                size={19}
+                color={panel === 'queue' ? songColor.color : theme.colors.textMuted}
+              />
             }
             label="Queue"
             active={panel === 'queue'}
@@ -528,7 +531,10 @@ function FootAction({
   active: boolean
   onPress: () => void
 }): ReactNode {
-  const accent = useAccent()
+  // Lit in the playing song's colour, as the rest of the page is.
+  const player = usePlayer()
+  const artFor = useArt()
+  const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
   return (
     <Pressable
       onPress={onPress}
@@ -538,7 +544,7 @@ function FootAction({
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
     >
       {icon}
-      <Text style={[styles.actionLabel, active && { color: accent.accent }]} numberOfLines={1}>
+      <Text style={[styles.actionLabel, active && { color: songColor.color }]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>

@@ -162,7 +162,9 @@ export const SongRow = memo(function SongRow({
             accessibilityRole="button"
             accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
             accessibilityState={{ selected: active }}
-            style={({ pressed }) => [styles.main, pressed && styles.pressed]}
+            // No pressed background: the row already gives under the finger, and a
+            // filled box over the cover and title flashed white in the light theme.
+            style={styles.main}
           >
             <View style={styles.art}>
               <Cover uri={artUri} title={song.album || song.title} size={40} />
@@ -493,9 +495,6 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-  },
-  pressed: {
-    backgroundColor: theme.colors.surface1,
   },
   missing: {
     opacity: 0.55,

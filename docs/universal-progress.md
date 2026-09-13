@@ -2270,3 +2270,12 @@ selected song left the bar up until its ✕ was pressed.
   (`deselectAll`) still stays in the mode. Two tests.
 - Checked on the iPhone 17 simulator with Maestro: hold a row, the bar is two
   rows inside its border; tap the row again, and the bar and checkboxes go.
+
+### No white flash on a pressed row — branch `universal/row-press`
+
+Found by Xiao in the light theme: tapping a song row flashed a white box over
+its cover and title for about half a second. The row's main press area took
+`surface1` as its pressed background, which is near-white in the light theme,
+over only part of a row that may be washed in a song's colour or tinted as
+selected. The background is gone; the row still scales under the finger, and
+the ⋯ and heart keep their own pressed shading.

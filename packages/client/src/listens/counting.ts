@@ -2,8 +2,7 @@
  * When a song counts as played, and how much of it was heard.
  *
  * Two numbers decided this in both apps, written out twice: the two-second gap
- * that separates playing from seeking, and the four-minute cap on how much of a
- * long song has to be heard. A play counted differently depending on which
+ * that separates playing from seeking, and the minute that has to be heard. A play counted differently depending on which
  * device was in your hand is a wrong play count, wrong stats and a wrong
  * Wrapped, and nothing would have caught the two drifting apart.
  *
@@ -14,12 +13,14 @@
  */
 
 /**
- * The longest a song can be asked to be heard for before it counts.
+ * How long a song has to be heard before it counts as a play: a minute.
  *
- * Without it a threshold of half means twenty minutes of a long mix before the
- * play registers, by which time you have moved on and it never does.
+ * It used to be a fraction of the song, capped at four minutes. Half of an
+ * hour-long mix is more than anyone has, and a minute is what "I listened to
+ * it" means whatever the length. A shorter song counts once all of it has been
+ * heard, and any song that plays to its end counts (the callers pass that).
  */
-export const PLAY_THRESHOLD_CAP_SECONDS = 240
+export const PLAY_COUNT_SECONDS = 60
 
 /**
  * The largest jump in the playhead that is still listening rather than seeking.
@@ -42,12 +43,7 @@ export function listenedDelta(position: number, lastPosition: number): number {
   return delta > 0 && delta < LISTENING_GAP_SECONDS ? delta : 0
 }
 
-/**
- * How many seconds of this song have to be heard before it counts as a play.
- *
- * `threshold` is the fraction from the server's settings, which is the one
- * setting the two clients have to agree about.
- */
-export function secondsToCount(duration: number, threshold: number): number {
-  return Math.min(duration * threshold, PLAY_THRESHOLD_CAP_SECONDS)
+/** How many seconds of this song have to be heard before it counts as a play. */
+export function secondsToCount(duration: number): number {
+  return Math.min(PLAY_COUNT_SECONDS, Math.max(0, duration))
 }

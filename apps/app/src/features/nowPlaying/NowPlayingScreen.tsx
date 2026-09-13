@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  Image,
   Pressable,
   Text,
   useWindowDimensions,
@@ -23,6 +24,7 @@ import {
   radius,
   space,
   type,
+  withAlpha,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -119,6 +121,7 @@ function PhoneNowPlaying(): ReactNode {
   const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue, installed } = useDownloads()
   const { width, height } = useWindowDimensions()
+  const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
 
   const [panel, setPanel] = useState<Panel>('none')
   const [showWords, setShowWords] = useState(false)
@@ -169,7 +172,7 @@ function PhoneNowPlaying(): ReactNode {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.head}>
-          <IconButton onPress={() => router.back()} label="Close now playing">
+          <IconButton onPress={() => router.back()} label="Close now playing" round>
             <ChevronDown size={24} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
@@ -190,218 +193,242 @@ function PhoneNowPlaying(): ReactNode {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.head}>
-        <IconButton onPress={() => router.back()} label="Close now playing">
-          <ChevronDown size={24} color={theme.colors.textSecondary} />
-        </IconButton>
-        <Text style={styles.context} numberOfLines={1}>
-          {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
-          {player.queue.items.length}
-        </Text>
-        <IconButton
-          onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-          label={song.loved ? 'Unlove' : 'Love'}
-          active={song.loved}
-        >
-          <Heart
-            size={22}
-            filled={song.loved}
-            color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
-          />
-        </IconButton>
-      </View>
-
-      <View style={styles.stage}>
-        {panel === 'queue' ? (
-          <Animated.View style={[styles.panel, { opacity: veil }]}>
-            <QueuePanel onClose={() => setPanel('none')} artFor={artFor} />
-          </Animated.View>
-        ) : (
-          <>
-            {showWords ? (
-              <Animated.View style={[styles.face, faceStyle]}>
-                <PhoneWords
-                  song={song}
-                  artUri={artFor(song)}
-                  width={width}
-                  onShowArt={() => setShowWords(false)}
-                />
-              </Animated.View>
-            ) : (
-              <Animated.View style={[styles.face, faceStyle]}>
-                <View style={styles.art}>
-                  <Pressable
-                    onPress={() => setShowWords(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Show the lyrics"
-                    style={styles.artShadow}
-                  >
-                    <Cover uri={artFor(song)} title={song.album || song.title} size={artSize} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.meta}>
-                  <Text style={styles.title} numberOfLines={2}>
-                    {song.title}
-                  </Text>
-                  <Text style={styles.artist} numberOfLines={1}>
-                    {song.artist || 'Unknown artist'}
-                  </Text>
-                  {song.album ? (
-                    <Text style={styles.album} numberOfLines={1}>
-                      {song.album}
-                      {song.year ? ` · ${song.year}` : ''}
-                    </Text>
-                  ) : null}
-                </View>
-              </Animated.View>
-            )}
-
-            <View style={styles.progress}>
-              <SeekBar
-                loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
-                position={player.position}
-                duration={player.duration}
-                onSeek={player.seekTo}
-              />
-            </View>
-
-            <View style={styles.controls}>
-              <IconButton
-                onPress={player.toggleShuffle}
-                label={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
-                active={player.queue.shuffle}
-              >
-                <Shuffle
-                  size={19}
-                  color={player.queue.shuffle ? accent.accent : theme.colors.textMuted}
-                />
-              </IconButton>
-              <IconButton onPress={player.previous} label="Previous" size={52}>
-                <Prev size={30} color={theme.colors.textPrimary} />
-              </IconButton>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.playButton,
-                  { backgroundColor: pressed ? accent.accentStrong : accent.accent },
-                  pressed && styles.playButtonPressed,
-                ]}
-                onPress={player.toggle}
-                accessibilityRole="button"
-                accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
-              >
-                {player.isPlaying ? (
-                  <Pause size={30} color={theme.colors.onAccent} />
-                ) : (
-                  <Play size={30} color={theme.colors.onAccent} />
-                )}
-              </Pressable>
-              <IconButton onPress={player.next} label="Next" size={52}>
-                <Next size={30} color={theme.colors.textPrimary} />
-              </IconButton>
-              <IconButton
-                onPress={player.cycleRepeatMode}
-                label={REPEAT_LABEL[player.queue.repeat]}
-                active={player.queue.repeat !== 'off'}
-              >
-                {player.queue.repeat === 'one' ? (
-                  <RepeatOne size={19} color={accent.accent} />
-                ) : (
-                  <Repeat
-                    size={19}
-                    color={player.queue.repeat === 'off' ? theme.colors.textMuted : accent.accent}
-                  />
-                )}
-              </IconButton>
-            </View>
-
-            {/* Under the lyrics the words have the room; the shelf is for the art. */}
-            {showShelf && !showWords ? <SimilarShelf songs={similarSongs} /> : null}
-          </>
-        )}
-      </View>
-
+    <View style={[styles.shell, { backgroundColor: songColor.color }]}>
       {/*
+        The cover itself, blurred across the whole page behind everything: the
+        computer's stage glow, which a phone cannot draw with a CSS filter. A
+        song with no cover is washed in its tile's colour instead.
+      */}
+      <View pointerEvents="none" style={styles.backdrop}>
+        {artFor(song) ? (
+          <Image
+            source={{ uri: artFor(song) ?? undefined }}
+            blurRadius={60}
+            resizeMode="cover"
+            style={styles.backdropImage}
+          />
+        ) : null}
+        <View
+          style={[styles.backdrop, { backgroundColor: withAlpha(theme.colors.surface0, 0.58) }]}
+        />
+      </View>
+      <SafeAreaView style={[styles.screen, styles.screenOverBackdrop]}>
+        <View style={styles.head}>
+          <IconButton onPress={() => router.back()} label="Close now playing" round>
+            <ChevronDown size={24} color={theme.colors.textSecondary} />
+          </IconButton>
+          <Text style={styles.context} numberOfLines={1}>
+            {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
+            {player.queue.items.length}
+          </Text>
+          <IconButton
+            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
+            label={song.loved ? 'Unlove' : 'Love'}
+            active={song.loved}
+            round
+          >
+            <Heart
+              size={22}
+              filled={song.loved}
+              color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
+            />
+          </IconButton>
+        </View>
+
+        <View style={styles.stage}>
+          {panel === 'queue' ? (
+            <Animated.View style={[styles.panel, { opacity: veil }]}>
+              <QueuePanel onClose={() => setPanel('none')} artFor={artFor} />
+            </Animated.View>
+          ) : (
+            <>
+              {showWords ? (
+                <Animated.View style={[styles.face, faceStyle]}>
+                  <PhoneWords
+                    song={song}
+                    artUri={artFor(song)}
+                    width={width}
+                    onShowArt={() => setShowWords(false)}
+                  />
+                </Animated.View>
+              ) : (
+                <Animated.View style={[styles.face, faceStyle]}>
+                  <View style={styles.art}>
+                    <Pressable
+                      onPress={() => setShowWords(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show the lyrics"
+                      style={styles.artShadow}
+                    >
+                      <Cover uri={artFor(song)} title={song.album || song.title} size={artSize} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.meta}>
+                    <Text style={styles.title} numberOfLines={2}>
+                      {song.title}
+                    </Text>
+                    <Text style={styles.artist} numberOfLines={1}>
+                      {song.artist || 'Unknown artist'}
+                    </Text>
+                    {song.album ? (
+                      <Text style={styles.album} numberOfLines={1}>
+                        {song.album}
+                        {song.year ? ` · ${song.year}` : ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Animated.View>
+              )}
+
+              <View style={styles.progress}>
+                <SeekBar
+                  loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
+                  color={songColor.color}
+                  position={player.position}
+                  duration={player.duration}
+                  onSeek={player.seekTo}
+                />
+              </View>
+
+              <View style={styles.controls}>
+                <IconButton
+                  onPress={player.toggleShuffle}
+                  label={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
+                  active={player.queue.shuffle}
+                >
+                  <Shuffle
+                    size={19}
+                    color={player.queue.shuffle ? accent.accent : theme.colors.textMuted}
+                  />
+                </IconButton>
+                <IconButton onPress={player.previous} label="Previous" size={52}>
+                  <Prev size={30} color={theme.colors.textPrimary} />
+                </IconButton>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.playButton,
+                    { backgroundColor: pressed ? accent.accentStrong : accent.accent },
+                    pressed && styles.playButtonPressed,
+                  ]}
+                  onPress={player.toggle}
+                  accessibilityRole="button"
+                  accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
+                >
+                  {player.isPlaying ? (
+                    <Pause size={30} color={theme.colors.onAccent} />
+                  ) : (
+                    <Play size={30} color={theme.colors.onAccent} />
+                  )}
+                </Pressable>
+                <IconButton onPress={player.next} label="Next" size={52}>
+                  <Next size={30} color={theme.colors.textPrimary} />
+                </IconButton>
+                <IconButton
+                  onPress={player.cycleRepeatMode}
+                  label={REPEAT_LABEL[player.queue.repeat]}
+                  active={player.queue.repeat !== 'off'}
+                >
+                  {player.queue.repeat === 'one' ? (
+                    <RepeatOne size={19} color={accent.accent} />
+                  ) : (
+                    <Repeat
+                      size={19}
+                      color={player.queue.repeat === 'off' ? theme.colors.textMuted : accent.accent}
+                    />
+                  )}
+                </IconButton>
+              </View>
+
+              {/* Under the lyrics the words have the room; the shelf is for the art. */}
+              {showShelf && !showWords ? <SimilarShelf songs={similarSongs} /> : null}
+            </>
+          )}
+        </View>
+
+        {/*
         Bare glyphs say nothing about what they open. Each is a labelled,
         finger-sized target — the same trade the tab bar makes.
       */}
-      <View style={styles.foot}>
-        <FootAction
-          icon={
-            <Mic
-              size={19}
-              color={showWords && panel === 'none' ? accent.accent : theme.colors.textMuted}
-            />
-          }
-          label="Lyrics"
-          active={showWords && panel === 'none'}
-          onPress={() => {
-            setPanel('none')
-            setShowWords(panel !== 'none' || !showWords)
-          }}
-        />
-        <FootAction
-          icon={
-            <Metronome
-              size={19}
-              color={practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textMuted}
-            />
-          }
-          label="Practice"
-          active={practiceOpen}
-          onPress={() => setPracticeOpen(true)}
-        />
-        {installed ? (
+        <View style={styles.foot}>
           <FootAction
             icon={
-              held ? (
-                <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
-              ) : (
-                <CloudDownload size={19} color={theme.colors.textMuted} />
-              )
+              <Mic
+                size={19}
+                color={showWords && panel === 'none' ? accent.accent : theme.colors.textMuted}
+              />
             }
-            label={held ? 'On this phone' : 'Keep'}
-            active={held}
+            label="Lyrics"
+            active={showWords && panel === 'none'}
             onPress={() => {
-              if (!held) downloadQueue.enqueue([song.id])
+              setPanel('none')
+              setShowWords(panel !== 'none' || !showWords)
             }}
           />
-        ) : null}
-        <FootAction
-          icon={
-            <Moon
-              size={19}
-              color={player.sleepTimerEndsAt !== null ? accent.accent : theme.colors.textMuted}
+          <FootAction
+            icon={
+              <Metronome
+                size={19}
+                color={
+                  practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textMuted
+                }
+              />
+            }
+            label="Practice"
+            active={practiceOpen}
+            onPress={() => setPracticeOpen(true)}
+          />
+          {installed ? (
+            <FootAction
+              icon={
+                held ? (
+                  <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
+                ) : (
+                  <CloudDownload size={19} color={theme.colors.textMuted} />
+                )
+              }
+              label={held ? 'On this phone' : 'Keep'}
+              active={held}
+              onPress={() => {
+                if (!held) downloadQueue.enqueue([song.id])
+              }}
             />
-          }
-          label="Sleep"
-          active={player.sleepTimerEndsAt !== null}
-          onPress={() => setSleepOpen(true)}
-        />
-        <FootAction
-          icon={<Devices size={19} color={theme.colors.textMuted} />}
-          label="Devices"
-          active={false}
-          onPress={() => setDevicesOpen(true)}
-        />
-        <FootAction
-          icon={
-            <Queue size={19} color={panel === 'queue' ? accent.accent : theme.colors.textMuted} />
-          }
-          label="Queue"
-          active={panel === 'queue'}
-          onPress={() => setPanel(current => (current === 'queue' ? 'none' : 'queue'))}
-        />
-      </View>
-      <Sheet open={practiceOpen} onClose={() => setPracticeOpen(false)} testID="practice-sheet">
-        <View style={styles.practiceSheet}>
-          <PracticePanel onClose={() => setPracticeOpen(false)} />
+          ) : null}
+          <FootAction
+            icon={
+              <Moon
+                size={19}
+                color={player.sleepTimerEndsAt !== null ? accent.accent : theme.colors.textMuted}
+              />
+            }
+            label="Sleep"
+            active={player.sleepTimerEndsAt !== null}
+            onPress={() => setSleepOpen(true)}
+          />
+          <FootAction
+            icon={<Devices size={19} color={theme.colors.textMuted} />}
+            label="Devices"
+            active={false}
+            onPress={() => setDevicesOpen(true)}
+          />
+          <FootAction
+            icon={
+              <Queue size={19} color={panel === 'queue' ? accent.accent : theme.colors.textMuted} />
+            }
+            label="Queue"
+            active={panel === 'queue'}
+            onPress={() => setPanel(current => (current === 'queue' ? 'none' : 'queue'))}
+          />
         </View>
-      </Sheet>
-      <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
-      <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
-    </SafeAreaView>
+        <Sheet open={practiceOpen} onClose={() => setPracticeOpen(false)} testID="practice-sheet">
+          <View style={styles.practiceSheet}>
+            <PracticePanel onClose={() => setPracticeOpen(false)} />
+          </View>
+        </Sheet>
+        <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
+        <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
+      </SafeAreaView>
+    </View>
   )
 }
 
@@ -664,6 +691,25 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingTop: space.sm,
     marginHorizontal: -space.sm,
+  },
+  shell: {
+    flex: 1,
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  backdropImage: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.25 }],
+  },
+  screenOverBackdrop: {
+    backgroundColor: 'transparent',
   },
   context: {
     flex: 1,

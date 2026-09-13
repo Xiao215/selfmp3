@@ -37,30 +37,22 @@ appId: com.selfmp3.app
 - assertVisible:
     id: 'mini-player-playing'
 
-# --- sort --------------------------------------------------------------------
-- tapOn:
-    id: 'library-sort'
-- tapOn: 'Recently added'
-- assertVisible:
-    id: 'library-screen'
-
-# --- tag filter --------------------------------------------------------------
-- tapOn:
-    id: 'tag-chip-0'
-- assertVisible:
-    id: 'library-screen'
-- tapOn:
-    id: 'tag-chip-0'
-
-# --- a row's menu ------------------------------------------------------------
+# --- selection ---------------------------------------------------------------
+# Holding a row selects it; there is no Select button on a phone.
 - longPressOn:
     id: 'song-row-0'
+- extendedWaitUntil:
+    visible: '1 selected'
+    timeout: 5000
+- tapOn:
+    id: 'selection-done'
+
+# --- a row's menu ------------------------------------------------------------
+# On the row's ⋯, now that holding a row selects it.
+- tapOn: 'More actions for .*'
 # The menu is asserted by what is in it rather than by the `song-menu` id on
-# its container. The id is there, and `maestro hierarchy` shows it with real
-# bounds, but the visibility check does not agree once a few screens have been
-# through: a sheet is a `Modal`, which is its own window on iOS, and container
-# views inside it are unreliable for this. The items are not — and "the menu is
-# usable" is a better thing to assert than "a view exists" in any case.
+# its container: a sheet is a `Modal`, its own window on iOS, and container
+# views inside it are unreliable for the visibility check. The items are not.
 - extendedWaitUntil:
     visible: 'Play next'
     timeout: 5000

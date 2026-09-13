@@ -26,6 +26,7 @@ export function SeekBar({
   onSeek,
   inline = false,
   loop = null,
+  color,
 }: {
   position: number
   duration: number
@@ -38,8 +39,11 @@ export function SeekBar({
   inline?: boolean
   /** The practice loop, as percentages of the bar, drawn behind the track. */
   loop?: LoopRegion | null
+  /** The playing song's colour, for the played part and the loop. The accent when not given. */
+  color?: string
 }): ReactNode {
   const accent = useAccent()
+  const fill = color ?? accent.accent
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
 
@@ -110,8 +114,8 @@ export function SeekBar({
                   {
                     left: `${loop.left}%`,
                     width: `${loop.width}%`,
-                    borderColor: accent.accent,
-                    backgroundColor: `${accent.accent}29`,
+                    borderColor: fill,
+                    backgroundColor: `${fill}29`,
                   },
                 ]}
               />
@@ -122,7 +126,7 @@ export function SeekBar({
                 style={[
                   styles.fill,
                   inline && styles.fillInline,
-                  { width: width * ratio, backgroundColor: accent.accent },
+                  { width: width * ratio, backgroundColor: fill },
                 ]}
               />
               <View
@@ -174,15 +178,15 @@ export function SeekBar({
               {
                 left: `${loop.left}%`,
                 width: `${loop.width}%`,
-                borderColor: accent.accent,
-                backgroundColor: `${accent.accent}29`,
+                borderColor: fill,
+                backgroundColor: `${fill}29`,
               },
             ]}
           />
         ) : null}
         {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
         <View pointerEvents="none" style={styles.track}>
-          <View style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]} />
+          <View style={[styles.fill, { width: width * ratio, backgroundColor: fill }]} />
           <View
             style={[
               styles.thumb,

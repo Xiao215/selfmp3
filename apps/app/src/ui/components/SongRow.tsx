@@ -69,6 +69,7 @@ export const SongRow = memo(function SongRow({
   tags,
   onToggleTag,
   onEditTags,
+  onLongPress,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -107,6 +108,8 @@ export const SongRow = memo(function SongRow({
   onToggleTag?: (tagId: number) => void
   /** The dashed + beside the chips. */
   onEditTags?: () => void
+  /** Holding the row on a phone. Without it, holding opens the ⋯ menu. */
+  onLongPress?: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -152,7 +155,7 @@ export const SongRow = memo(function SongRow({
 
           <Pressable
             onPress={onPress}
-            onLongPress={onMore ? () => onMore(moreRef.current) : undefined}
+            onLongPress={onLongPress ?? (onMore ? () => onMore(moreRef.current) : undefined)}
             onPressIn={() => press(true)}
             onPressOut={() => press(false)}
             delayLongPress={450}

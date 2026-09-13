@@ -68,7 +68,6 @@ import {
   activeSection,
   crossfadeLabel,
   healthLine,
-  percentLabel,
   scanHint,
   sectionsFor,
   type SectionId,
@@ -271,20 +270,6 @@ export function SettingsScreen(): ReactNode {
                     label="Crossfade"
                     format={crossfadeLabel}
                     onCommit={value => set('crossfadeSeconds', value)}
-                  />
-                </Row>
-                <Row
-                  label="Count a play after"
-                  hint="How much of a song you have to hear before it counts in your stats."
-                >
-                  <SliderSetting
-                    value={settings.data.playThreshold}
-                    min={0.1}
-                    max={1}
-                    step={0.05}
-                    label="Count a play after"
-                    format={percentLabel}
-                    onCommit={value => set('playThreshold', value)}
                   />
                 </Row>
                 <Row

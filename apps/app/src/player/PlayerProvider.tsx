@@ -145,14 +145,6 @@ const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
 
-/**
- * Fraction of a track that must be heard before it counts, until the Mac says
- * otherwise. It is a setting the person chooses, and the web app honours it —
- * a phone quietly keeping its own number means the same listening is counted
- * differently depending on which device was in your hand.
- */
-const PLAY_THRESHOLD = 0.5
-
 interface PlayTracking {
   songId: number | null
   listenedSeconds: number
@@ -187,7 +179,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const queueRef = useRef(queue)
   const songsRef = useRef(songsById)
   const connectionRef = useRef(connection)
-  const thresholdRef = useRef(PLAY_THRESHOLD)
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
   const lastPositionRef = useRef(0)
   const autoMixRef = useRef(autoMix)
@@ -211,9 +202,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     connectionRef.current = connection
   }, [connection])
-  useEffect(() => {
-    thresholdRef.current = serverSettings?.playThreshold ?? PLAY_THRESHOLD
-  }, [serverSettings?.playThreshold])
 
   useEffect(() => engine.subscribe(setEngineState), [engine])
 
@@ -229,21 +217,24 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   // --- play reporting ------------------------------------------------------
 
-  const flushPlay = useCallback((completed: boolean) => {
-    const tracking = trackingRef.current
-    const songId = tracking.songId
-    if (songId === null || tracking.counted) return
+  const flushPlay = useCallback(
+    (completed: boolean) => {
+      const tracking = trackingRef.current
+      const songId = tracking.songId
+      if (songId === null || tracking.counted) return
 
-    const song = songsRef.current.get(songId)
-    const needed = secondsToCount(song?.duration ?? 0, thresholdRef.current)
-    if (!completed && tracking.listenedSeconds < needed) return
+      const song = songsRef.current.get(songId)
+      const needed = secondsToCount(song?.duration ?? 0)
+      if (!completed && tracking.listenedSeconds < needed) return
 
-    tracking.counted = true
-    // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
-    recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
-    // A song listened to is one worth having here, where songs stream from the bucket.
-    keepPlayed(songId)
-  }, [keepPlayed])
+      tracking.counted = true
+      // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
+      recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
+      // A song listened to is one worth having here, where songs stream from the bucket.
+      keepPlayed(songId)
+    },
+    [keepPlayed],
+  )
 
   const queryClient = useQueryClient()
   useEffect(() => {

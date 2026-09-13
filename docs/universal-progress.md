@@ -2211,3 +2211,42 @@ were real taps on the mini player, from someone using the simulator by hand.
 Both engines now count loads and stop a load at its next await once a newer
 one has started, so the last request wins. Checked: the smoke passed three
 times in a row on the simulator.
+
+### Six things from Xiao's first look — branch `universal/app-polish`
+
+Asked for after using the web app and the simulator, with three choices made
+by Xiao (tag chips go on the phone too; holding a row selects and the menu is
+on ⋯; a play is a fixed minute):
+
+1. **The bars in the song's colour.** `SeekBar` takes a `color`; the player
+   bar and the phone's Now Playing pass the playing song's, and the player
+   bar's volume slider fills with it too. The loop region follows.
+2. **The phone's Now Playing on its cover.** The cover, blurred
+   (`Image blurRadius`), fills the page behind everything under a shade, as
+   the computer's stage glows; a song with no cover is washed in its tile's
+   colour. A phone cannot draw the stage's CSS blur.
+3. **No Select button.** Gone from the library and the playlist page. On a
+   computer the row's checkbox is the way in. On a phone, holding a library
+   row selects it (`SongRow`'s `onLongPress`), and the song menu is on the ⋯;
+   a playlist row has no ⋯, so holding it still opens the menu, whose Select
+   is wired there now.
+4. **A quieter library.** "13 songs · 48 min" shows only for a view narrowed
+   to a tag. On a phone the head is the title and the search, with "On this
+   phone" in the installed app; sort, direction, Play, Shuffle and the tag
+   chips (and the tag editor they opened) are a computer's.
+5. **A play is a minute.** `secondsToCount` is `min(60, duration)`, and a song
+   that plays to its end counts as before; the fraction, its four-minute cap,
+   the player's threshold and the Settings slider are gone. The server still
+   stores `playThreshold`, unused.
+6. **Now Playing fills a phone.** `fullScreenModal` instead of a sheet with a
+   gap at the top, and the close and love buttons are round.
+
+Flows: the selection flow enters by the checkbox on a computer and by holding a
+row on a phone, and checks there is no Select button; the Maestro smoke drops
+sort and tags and holds a row to select, then opens the menu from ⋯, as the
+downloads flow now does.
+
+Checked in Chrome against the dev server: no Select button and no count at
+either width, sort and Play kept on a computer and gone on a phone, no "Count
+a play after" in Settings, the volume slider red under 夜に駆ける, and the
+phone's Now Playing on its blurred cover with a round close button.

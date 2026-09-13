@@ -27,7 +27,6 @@ import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
 import {
-  CheckSquare,
   ChevronLeft,
   CloudDownload,
   Downloaded,
@@ -221,13 +220,6 @@ export function PlaylistDetailScreen(): ReactNode {
 
           <View style={styles.actions}>
             <Button
-              label={selection.active ? 'Done' : 'Select'}
-              active={selection.active}
-              icon={<CheckSquare size={15} color={theme.colors.textPrimary} />}
-              disabled={songs.length === 0}
-              onPress={() => (selection.active ? selection.clear() : selection.enter())}
-            />
-            <Button
               label="Play"
               icon={<Play size={15} color={accent.onAccent} />}
               variant="primary"
@@ -366,7 +358,12 @@ export function PlaylistDetailScreen(): ReactNode {
         )}
       </ScrollView>
 
-      <SongMenu song={menuSong} onClose={() => setMenuSong(null)} />
+      {/* Holding a row opens this menu; its Select is the way into selection on a phone. */}
+      <SongMenu
+        song={menuSong}
+        onClose={() => setMenuSong(null)}
+        onStartSelecting={song => selection.enter(song.id)}
+      />
       <ConfirmDialog
         open={confirmingDelete}
         title={`Delete the playlist “${playlist?.name ?? ''}”?`}

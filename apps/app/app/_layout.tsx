@@ -122,7 +122,7 @@ function Shell(): ReactNode {
       >
         <Stack.Screen
           name="now-playing"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
         />
       </Stack>
     </Frame>

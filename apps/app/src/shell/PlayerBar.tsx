@@ -122,7 +122,10 @@ export function PlayerBar(): ReactNode {
     <View
       style={[
         styles.bar,
-        insets.bottom > 0 && { height: PLAYER_BAR_HEIGHT + insets.bottom, paddingBottom: insets.bottom },
+        insets.bottom > 0 && {
+          height: PLAYER_BAR_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
+        },
       ]}
       testID="player-bar"
     >
@@ -253,6 +256,7 @@ export function PlayerBar(): ReactNode {
             position={player.position}
             duration={player.duration}
             onSeek={player.seekTo}
+            color={songColor.color}
           />
         </View>
       </View>
@@ -423,7 +427,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
   )
 }
 
-/** The web's `input.volume`: a thin track that fills with the accent. */
+/** The web's `input.volume`: a thin track that fills with the playing song's colour. */
 function VolumeSlider({
   value,
   onChange,
@@ -431,7 +435,9 @@ function VolumeSlider({
   value: number
   onChange: (value: number) => void
 }): ReactNode {
-  const accent = useAccent()
+  const player = usePlayer()
+  const artFor = useArt()
+  const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
   const [trackWidth, setTrackWidth] = useState(0)
   const responder = useMemo(() => {
     const valueAt = (x: number): number =>
@@ -455,7 +461,10 @@ function VolumeSlider({
     >
       <View style={styles.sliderTrack}>
         <View
-          style={[styles.sliderFill, { width: `${value * 100}%`, backgroundColor: accent.accent }]}
+          style={[
+            styles.sliderFill,
+            { width: `${value * 100}%`, backgroundColor: songColor.color },
+          ]}
         />
       </View>
     </View>

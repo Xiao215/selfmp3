@@ -36,7 +36,8 @@ test.describe('library', () => {
     await expect.poll(() => songRows(page).count()).toBe(before)
   })
 
-  test('reversing the sort changes which song is first', async ({ page }) => {
+  test('reversing the sort changes which song is first', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone library has no sort: that is a computer’s')
     await skipIfNoLibrary(page, 2)
     const first = await titleOf(await topRow(page))
 

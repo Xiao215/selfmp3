@@ -49,7 +49,11 @@ async function hideTag(page: Page, name: string): Promise<void> {
 }
 
 test.describe('tag filters', () => {
-  test('show only one tag, hide another, then clear', async ({ page }) => {
+  test('show only one tag, hide another, then clear', async ({ page }, info) => {
+    test.skip(
+      info.project.name === 'phone',
+      'a phone library has no tag chips: tags filter on a computer',
+    )
     await page.goto('/')
     await libraryReady(page)
     await skipIfNoLibrary(page)

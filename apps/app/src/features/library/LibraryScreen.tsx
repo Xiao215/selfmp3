@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { type Song, type Tag } from '@selfmp3/shared'
+import { type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
 import { useArt } from '../../offline/useArt'
 import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
@@ -12,7 +12,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { CheckSquare, Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
+import { Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
@@ -22,7 +22,6 @@ import { SyncStatus } from '../../ui/components/SyncStatus'
 import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../server/ConnectionProvider'
-import { TagEditor } from '../../ui/components/TagEditor'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
@@ -66,8 +65,6 @@ export function LibraryScreen(): ReactNode {
   const tagById = useMemo(() => new Map(tags.map(tag => [tag.id, tag])), [tags])
   // Holding a chip opens its editor, as on the web's phone strip. A sheet on a
   // phone; above the breakpoint it opens beside the strip.
-  const [editingTag, setEditingTag] = useState<Tag | null>(null)
-  const stripRef = useRef<View>(null)
 
   // Multi-select runs off the visible list, so "select all" means the songs on
   // screen and a song a search has hidden drops out of the selection rather
@@ -108,6 +105,8 @@ export function LibraryScreen(): ReactNode {
           menuAnchorRef.current = anchor
           setMenuSong(item)
         }}
+        // Holding a row selects it; the ⋯ opens the menu.
+        onLongPress={() => selection.enter(item.id)}
         onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
         selecting={selection.active}
         selected={selection.has(item.id)}
@@ -149,7 +148,8 @@ export function LibraryScreen(): ReactNode {
           <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
             {heading}
           </Text>
-          <Text style={styles.sub}>{model.subtitle}</Text>
+          {/* How many, and how long, only for a view narrowed to a tag. */}
+          {model.tagFiltered ? <Text style={styles.sub}>{model.subtitle}</Text> : null}
         </View>
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
@@ -178,6 +178,8 @@ export function LibraryScreen(): ReactNode {
             ) : null}
           </View>
 
+          {/* A phone's library is the search and the list: order and play live on a computer. */}
+          {wide ? (
           <View style={[styles.actions, headWide && styles.actionsWide]}>
             <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
               <Select
@@ -205,18 +207,6 @@ export function LibraryScreen(): ReactNode {
             </Pressable>
 
             <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
-              {/*
-              The way in, on every device: multi-select used to be reachable
-              only by knowing that Cmd-click did something.
-            */}
-              <Button
-                label={selection.active ? 'Done' : 'Select'}
-                active={selection.active}
-                icon={<CheckSquare size={15} color={theme.colors.textPrimary} />}
-                disabled={visible.length === 0}
-                onPress={() => (selection.active ? selection.clear() : selection.enter())}
-                testID="library-select"
-              />
               <Button
                 label="Play"
                 icon={<Play size={15} color={theme.colors.onAccent} />}
@@ -233,12 +223,14 @@ export function LibraryScreen(): ReactNode {
               />
             </View>
           </View>
+          ) : null}
         </View>
       </View>
 
       {/* At desktop width the sidebar carries the tags, as on the web. */}
-      {!wide && (tags.length > 0 || songs.length > 0) ? (
-        <View ref={stripRef} collapsable={false}>
+      {/* On a phone only what is on the phone; tags are not a filter here. */}
+      {!wide && installed && songs.length > 0 ? (
+        <View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -262,25 +254,6 @@ export function LibraryScreen(): ReactNode {
               onPress={model.toggleDownloadedOnly}
             />
             ) : null}
-            {tags.map((tag, index) => {
-              const state = model.tagFilter(tag.id)
-              return (
-                <Chip
-                  key={tag.id}
-                  testID={`tag-chip-${index}`}
-                  label={tag.name}
-                  hue={tag.hue}
-                  selected={state === 'include'}
-                  excluded={state === 'exclude'}
-                  // A tap on a hidden tag stops hiding it; otherwise a tap shows
-                  // only it — the web's strip.
-                  onPress={() =>
-                    state === 'exclude' ? model.excludeTag(tag.id) : model.includeTag(tag.id)
-                  }
-                  onLongPress={() => setEditingTag(tag)}
-                />
-              )
-            })}
           </ScrollView>
         </View>
       ) : null}
@@ -348,21 +321,6 @@ export function LibraryScreen(): ReactNode {
           empty={<Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>}
         />
       )}
-
-      <TagEditor
-        tag={editingTag}
-        anchorRef={stripRef}
-        filter={editingTag ? model.tagFilter(editingTag.id) : 'off'}
-        onInclude={() => editingTag && model.includeTag(editingTag.id)}
-        onExclude={() => editingTag && model.excludeTag(editingTag.id)}
-        onDeleted={() => {
-          if (!editingTag) return
-          const state = model.tagFilter(editingTag.id)
-          if (state === 'include') model.includeTag(editingTag.id)
-          if (state === 'exclude') model.excludeTag(editingTag.id)
-        }}
-        onClose={() => setEditingTag(null)}
-      />
 
       <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} />
 

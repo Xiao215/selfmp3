@@ -32,8 +32,7 @@ appId: com.selfmp3.app
 # --- a song that is not here -------------------------------------------------------
 - tapOn:
     id: 'tab-library'
-- longPressOn:
-    id: 'song-row-0'
+- tapOn: 'More actions for .*'
 - extendedWaitUntil:
     visible: 'Play next'
     timeout: 5000

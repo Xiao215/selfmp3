@@ -34,6 +34,8 @@ export * from './queries/queries.js'
 
 export * from './downloads/downloadIndex.js'
 export * from './downloads/syncPolicy.js'
+// Songs kept because they were played: the budget, and the kept list as stored.
+export * from './downloads/recentCopies.js'
 export * from './queue/playable.js'
 // Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
 export * from './queue/autoMix.js'

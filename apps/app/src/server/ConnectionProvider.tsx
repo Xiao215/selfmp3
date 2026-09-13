@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ClientStateProvider } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
-import { session as cloudSession } from '../cloud'
+import { library as cloudLibrary, session as cloudSession } from '../cloud'
 import {
   clearConnection,
   loadConnection,
@@ -35,6 +35,8 @@ interface ConnectionContextValue {
   /** Say the cloud sign-in finished, so the app answers from the bucket. */
   readonly signedInToCloud: () => void
   readonly disconnect: () => Promise<void>
+  /** Leave the cloud: the session is ended elsewhere first; this forgets the bucket's library and asks again. */
+  readonly signedOutOfCloud: () => void
 }
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null)
@@ -111,6 +113,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     [forgetCachedServer],
   )
 
+  const signedOutOfCloud = useCallback(() => {
+    answerFromCloud(false)
+    cloudLibrary.markCloudLibraryStale()
+    forgetCachedServer()
+    setFromCloud(false)
+    setStatus(connection ? 'ready' : 'missing')
+  }, [connection, forgetCachedServer])
+
   const disconnect = useCallback(async () => {
     await clearConnection()
     setServer(null)
@@ -120,8 +130,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   }, [forgetCachedServer])
 
   const value = useMemo<ConnectionContextValue>(
-    () => ({ connection, fromCloud, status, connect, disconnect, signedInToCloud }),
-    [connection, fromCloud, status, connect, disconnect, signedInToCloud],
+    () => ({ connection, fromCloud, status, connect, disconnect, signedInToCloud, signedOutOfCloud }),
+    [connection, fromCloud, status, connect, disconnect, signedInToCloud, signedOutOfCloud],
   )
 
   return (

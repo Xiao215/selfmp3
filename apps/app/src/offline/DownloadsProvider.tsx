@@ -16,6 +16,7 @@ import {
 } from '@selfmp3/client'
 import { useLibrary, useManifest } from '../api/queries'
 import { installedApp } from '../ports/install'
+import { clearRecent, forgetRecent, keepRecentlyPlayed } from '../ports/recentCopies'
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../server/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
@@ -73,6 +74,8 @@ interface DownloadsContextValue {
   removeByHand: (songIds: readonly number[]) => Promise<void>
   /** Remove every download, and stop downloading by itself, or they would come back. */
   removeAll: () => Promise<void>
+  /** A song just counted as a play: keep a copy where songs are streamed from the bucket. */
+  keepPlayed: (songId: number) => void
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
@@ -235,6 +238,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const downloadByHand = useCallback(
     (ids: readonly number[]) => {
       changeExcluded(ids, false)
+      // Asked for by hand, so it stays: no longer a copy the budget may let go.
+      forgetRecent(ids)
       downloadQueue.enqueue(ids)
     },
     [changeExcluded],
@@ -253,6 +258,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const removeByHand = useCallback(
     async (ids: readonly number[]) => {
       changeExcluded(ids, true)
+      forgetRecent(ids)
       await downloadQueue.remove(ids)
     },
     [changeExcluded],
@@ -260,14 +266,26 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   const removeAll = useCallback(async () => {
     setPrefs({ autoOnWifi: false })
+    clearRecent()
     await downloadQueue.removeAll()
   }, [setPrefs])
 
   // The player's commands are made once; they read the latest rules through this.
-  const rules = useRef({ index: state.index, network, prefs, fromCloud, dataAllowed })
+  const rules = useRef({ index: state.index, network, prefs, fromCloud, dataAllowed, excluded })
   useEffect(() => {
-    rules.current = { index: state.index, network, prefs, fromCloud, dataAllowed }
-  }, [state.index, network, prefs, fromCloud, dataAllowed])
+    rules.current = { index: state.index, network, prefs, fromCloud, dataAllowed, excluded }
+  }, [state.index, network, prefs, fromCloud, dataAllowed, excluded])
+
+  const keepPlayed = useCallback((songId: number) => {
+    const now = rules.current
+    // Only where songs come from the bucket; reaching a Mac, this device either
+    // holds the files already or streams them from home. Playing a song removed
+    // by hand is not asking for it back, and one downloading everything anyway
+    // has nothing to second-guess.
+    if (!now.fromCloud || now.excluded.has(songId)) return
+    if (installedApp && now.prefs.autoOnWifi) return
+    void keepRecentlyPlayed(songId)
+  }, [])
 
   const blockFor = useCallback((songId: number): PlayBlock | null => {
     const now = rules.current
@@ -335,6 +353,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       downloadByHand,
       removeByHand,
       removeAll,
+      keepPlayed,
       mayPlay,
       checkPlay,
       question,
@@ -351,6 +370,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       downloadByHand,
       removeByHand,
       removeAll,
+      keepPlayed,
       mayPlay,
       checkPlay,
       question,

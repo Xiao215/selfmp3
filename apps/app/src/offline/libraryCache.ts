@@ -30,6 +30,17 @@ export async function readCachedLibrary(): Promise<Library | null> {
   }
 }
 
+/** Forget it: signing out, where another account's library would reuse the same ids. */
+export function clearCachedLibrary(): Promise<void> {
+  try {
+    const file = cacheFile()
+    if (file.exists) file.delete()
+  } catch {
+    // Nothing to clear.
+  }
+  return Promise.resolve()
+}
+
 export function writeCachedLibrary(library: Library): void {
   try {
     cacheFile().write(JSON.stringify(library))

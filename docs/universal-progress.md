@@ -1749,3 +1749,61 @@ off).
   order; the dev build simply draws Settings in about 3 s alone and 5 to 7 s
   mid-run, and the check waited Playwright's default 5 s. Asked, Xiao chose to
   give that one expect 30 s, the same as the heading above it.
+
+### Signing out of the cloud, the saved library in a browser, and songs kept for being played
+
+Three more found before deleting `apps/web`. They go together because signing
+out has to forget the other two.
+
+**No way to sign out.** The web app's cloud build had Sign out in Settings →
+Cloud; the new app showed "Signed in" and nothing else, on the web and on a
+phone, and the phone app never had one.
+
+- Settings → Connection, for a cloud library, has Sign out, behind a
+  confirmation in the web app's words, which also counts the changes made here
+  that have not reached the bucket yet.
+- `features/settings/signOut.ts` holds the order with nothing drawn (5 tests):
+  one last try at sending those changes (signing out goes on if it fails), end
+  the session at the doorman, then forget the library's replica, the songs kept
+  on this device and the saved library, and ask to sign in again. Songs are kept
+  under this account's ids, and another account's library would hand the same
+  ids to other songs, so nothing kept outlives the account.
+- `ConnectionProvider` gains `signedOutOfCloud`, the way back to asking.
+
+**The saved library never saved in a browser.** `offline/libraryCache.ts`
+writes a file through expo-file-system, which is the spike's stub on the web,
+so the web build kept no library to open with. `libraryCache.web.ts` is the web
+app's snapshot, in IndexedDB under `library-snapshot`.
+
+**Songs kept because they were played were missing.** A browser on a cloud
+library streams from the bucket and keeps nothing by default; the web app kept
+each song that counted as a play, up to 2 GB or a quarter of the browser's
+quota, letting the least recently played go first.
+
+- `packages/client/src/downloads/recentCopies.ts` is its budget, with the web
+  app's tests and two for the stored list (9 tests).
+- `ports/recentCopies.web.ts` keeps, trims and lists copies in the same audio
+  cache downloads use, so the service worker serves them the same way;
+  `ports/recentCopies.ts` does nothing on a phone, which downloads on purpose.
+- The downloads provider decides when: only for a cloud library, never for a
+  song removed by hand, and not where everything downloads anyway. The player
+  hands it each counted play. Asking for a song by hand turns its copy into a
+  download; removing it, removing everything, or signing out forgets it.
+- The download list leaves these copies out, as the web app's marks did: a
+  mark that can vanish on its own is worse than none.
+
+Checked:
+
+- On the web build, a song cached and on the kept list left Settings at
+  "0 of 13 songs downloaded"; the same copy without the entry read "1 of 13".
+- IndexedDB held the saved library, 13 songs, after the library loaded. Metro
+  had to be nudged (touching the importers) to pick up the new `.web.ts` files
+  beside existing native ones, as with the cloud import screen.
+- On the cloud-signed iPhone 17 Pro, Settings showed Sign out, and its
+  confirmation said the music stays in the bucket; it was cancelled, and the
+  phone stayed signed in.
+
+Not checked: a sign-out carried through against the doorman, and a play kept in
+a browser signed in to the cloud. Both need a Google account signed in on a
+device that may be signed out, which this run does not have; the orders and
+rules are covered by the tests above.

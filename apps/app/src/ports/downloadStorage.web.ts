@@ -18,6 +18,7 @@ import {
   offlineStorageAvailable,
   uncacheSong,
 } from './offline.web'
+import { recentIds } from './recentCopies'
 
 /**
  * Where the browser keeps songs: the Cache API, behind the service worker.
@@ -70,8 +71,11 @@ export const downloadStorage: DownloadStorage = {
   async readIndex() {
     const saved = savedIndex()
     const present = await cachedSongIds()
+    // Kept because it was played, not asked for: a cache, and not "on this device".
+    const recent = recentIds()
     let index = EMPTY_INDEX
     for (const songId of present) {
+      if (recent.has(songId)) continue
       const known = saved?.entries[String(songId)]
       if (known) {
         index = addEntry(index, known)

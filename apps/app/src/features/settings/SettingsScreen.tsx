@@ -32,6 +32,9 @@ import {
 } from '@selfmp3/client'
 import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { library as cloudLibrary, session as cloudSession } from '../../cloud'
+import { clearCachedLibrary } from '../../offline/libraryCache'
+import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
@@ -57,6 +60,7 @@ import {
   Stats,
 } from './SettingsParts'
 import { CloudPanel } from './CloudPanel'
+import { signOutOfCloud, signOutWarning } from './signOut'
 import {
   accentName,
   activeSection,
@@ -77,7 +81,13 @@ import {
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
 
-type Confirming = 'change-server' | 'remove-downloads' | 'redo-analysis' | 'forget-missing' | null
+type Confirming =
+  | 'change-server'
+  | 'remove-downloads'
+  | 'redo-analysis'
+  | 'forget-missing'
+  | 'sign-out'
+  | null
 
 /**
  * Settings: the web's `SettingsView`.
@@ -824,7 +834,14 @@ function ConnectionPanel({
   return (
     <Panel title="Connection" hint="on this device" onTop={onTop}>
       {fromCloud ? (
-        <Row label="Signed in" hint="With Google — the library is the bucket’s." />
+        <Row label="Signed in" hint="With Google — the library is the bucket’s.">
+          <Button
+            label="Sign out"
+            variant="danger"
+            onPress={() => onConfirm('sign-out')}
+            testID="cloud-sign-out"
+          />
+        </Row>
       ) : (
         <>
           <Row label="Address">
@@ -1003,8 +1020,8 @@ function Confirmations({
 }): ReactNode {
   const router = useRouter()
   const client = useQueryClient()
-  const { disconnect } = useConnection()
-  const { removeAll } = useDownloads()
+  const { disconnect, signedOutOfCloud } = useConnection()
+  const { removeAll, queue: downloadQueue } = useDownloads()
   const startAnalysis = useStartAnalysis()
 
   const dialogs: Record<
@@ -1028,6 +1045,30 @@ function Confirmations({
       body: 'Tempo, key, energy and loudness are worked out again from each file.',
       label: 'Redo all',
       run: () => startAnalysis.mutate(true),
+    },
+    'sign-out': {
+      title: 'Sign out?',
+      body: signOutWarning(cloudLibrary.pendingCloudChanges()),
+      label: 'Sign out',
+      run: () =>
+        void signOutOfCloud({
+          sendPendingChanges: () => cloudLibrary.flushCloudChanges(),
+          endSession: async () => {
+            const session = await cloudSession.loadSession()
+            if (session) await cloudSession.signOut(session)
+          },
+          forgetLibrary: () => cloudLibrary.forgetCloudLibrary(),
+          removeDownloads: () => {
+            // The copies kept for having been played go with the downloads.
+            clearRecent()
+            return downloadQueue.removeAll()
+          },
+          forgetSavedLibrary: clearCachedLibrary,
+          done: () => {
+            signedOutOfCloud()
+            router.replace('/sign-in')
+          },
+        }),
     },
     'forget-missing': {
       title: 'Permanently forget missing songs?',

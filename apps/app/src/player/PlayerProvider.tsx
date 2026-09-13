@@ -162,7 +162,7 @@ interface PlayTracking {
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection } = useConnection()
   const library = useLibrary()
-  const { queue: downloadQueue, checkPlay, mayPlay } = useDownloads()
+  const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed } = useDownloads()
   const { data: serverSettings } = useServerSettings()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
@@ -241,7 +241,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     tracking.counted = true
     // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
     recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
-  }, [])
+    // A song listened to is one worth having here, where songs stream from the bucket.
+    keepPlayed(songId)
+  }, [keepPlayed])
 
   const queryClient = useQueryClient()
   useEffect(() => {

@@ -991,6 +991,20 @@ from review. The captured states still have to pass check 2 by eye.
   - `verify/flows/palette.spec.ts` finds a song by its title and plays it,
     then runs Settings, against both apps.
 
+- **The light theme.** Choosing Light (or System, with the device in light
+  mode) now draws the app from the web's `:root[data-theme='light']` tokens.
+  - `packages/client/src/theme/tokens.ts` gained `lightPalette(hue)` and
+    `applyColorScheme(scheme, hue)`. `buildAccent` and `tagColors` follow the
+    applied scheme; tag chips turn round to a pale ground with dark ink.
+  - `scheme.test.ts` (15 tests) checks every light token against the
+    stylesheet, as the dark ones already are.
+  - The app has a new entry file, `apps/app/index.ts`. It applies the stored
+    theme before expo-router loads a screen, because every stylesheet copies
+    its colours when it is created.
+  - Changing the theme starts the app again. If a song is playing it waits
+    for the next launch instead, and Settings says so. "System" follows the
+    device the same way.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -1067,6 +1081,18 @@ seven states at 1280, and the phone's five.
   - A tag result sets the library's filter to that tag, where the web
     navigates to `/?tag=`.
   - Arrow keys don't scroll the highlighted row into view on a long list.
+- **The light theme, and a question for Xiao.** The plan's route is
+  Unistyles, which switches themes without re-rendering. It is installed,
+  with its Babel plugin and native pods, but no screen uses it, and moving
+  about 600 colour references to it is a large rewrite. So, for now, the
+  theme is chosen at launch, and changing it restarts the app (or waits,
+  while music plays).
+  - On a phone, "System" stays dark until the next native build:
+    `app.config.js` forces `userInterfaceStyle: 'dark'`.
+  - A release phone build cannot restart itself without expo-updates, so a
+    theme change there applies at the next launch.
+  - Worth deciding: move to Unistyles now, or keep this until the styles are
+    touched anyway.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

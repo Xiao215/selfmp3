@@ -16,6 +16,7 @@ import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvi
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
 import { AccentProvider } from '../src/ui/accent'
+import { launchScheme } from '../src/ui/themeAtLaunch'
 import { colors } from '@selfmp3/client'
 
 /**
@@ -47,7 +48,7 @@ const FULL_SCREEN_ROUTES = ['/onboarding', '/now-playing']
 export default function RootLayout(): ReactNode {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style={launchScheme === 'light' ? 'dark' : 'light'} />
       {/* Outermost of the app's own providers: everything below draws with it. */}
       <AccentProvider>
         <QueryClientProvider client={queryClient}>

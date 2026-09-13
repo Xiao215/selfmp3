@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Appearance, StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { ResumeToast } from '../features/devices/ResumeToast'
 import { CommandPalette } from '../features/palette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
+import { usePlayer } from '../player/PlayerProvider'
+import { reloadApp } from '../ports/reload'
+import { useAccent } from '../ui/accent'
+import { resolveScheme } from '../ui/appearancePrefs'
+import { launchScheme } from '../ui/themeAtLaunch'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
@@ -47,6 +52,7 @@ export function Shell({
       {frame(wide, chrome, sidebar, children)}
       <PlaybackNotices />
       <PaletteHost />
+      <SystemThemeWatcher />
     </OverlayProvider>
   )
 }
@@ -84,6 +90,28 @@ function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: React
       <BottomNav />
     </View>
   )
+}
+
+/**
+ * "System" follows the device: when its own setting flips, start again in the
+ * new scheme — unless a song is playing, in which case the next launch does.
+ */
+function SystemThemeWatcher(): null {
+  const { theme } = useAccent()
+  const player = usePlayer()
+  const playing = useRef(player.isPlaying)
+  useEffect(() => {
+    playing.current = player.isPlaying
+  }, [player.isPlaying])
+
+  useEffect(() => {
+    if (theme !== 'system') return undefined
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      if (resolveScheme('system', colorScheme) !== launchScheme && !playing.current) reloadApp()
+    })
+    return () => subscription.remove()
+  }, [theme])
+  return null
 }
 
 /** ⌘K, or Ctrl+K, anywhere: the command palette. */

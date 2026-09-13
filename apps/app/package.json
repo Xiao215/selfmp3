@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "self.mp3 universal app — iOS, Android and web from one component tree.",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client",
     "ios": "expo run:ios",

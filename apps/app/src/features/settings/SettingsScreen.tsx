@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  Appearance,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -33,9 +34,13 @@ import {
 } from '@selfmp3/client'
 import { useLibrary, useManifest } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { usePlayer } from '../../player/PlayerProvider'
+import { reloadApp } from '../../ports/reload'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
+import { resolveScheme } from '../../ui/appearancePrefs'
+import { launchScheme } from '../../ui/themeAtLaunch'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
@@ -856,15 +861,24 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
 
 function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   const accent = useAccent()
+  const player = usePlayer()
+  // The palette is filled at launch, so a different scheme means starting
+  // again — at once, unless a song is playing, which it would cut off.
+  const pending = resolveScheme(accent.theme, Appearance.getColorScheme()) !== launchScheme
+  const chooseTheme = (choice: ThemeChoice): void => {
+    accent.setTheme(choice)
+    const changes = resolveScheme(choice, Appearance.getColorScheme()) !== launchScheme
+    if (changes && !player.isPlaying) reloadApp()
+  }
   return (
     <Panel title="Appearance" hint="on this device" onTop={onTop}>
       <Row
         label="Theme"
-        hint="“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way."
+        hint={`“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way.${pending ? ' It switches the next time the app opens, so the song playing isn’t cut off.' : ''}`}
       >
         <Select<ThemeChoice>
           value={accent.theme}
-          onChange={accent.setTheme}
+          onChange={chooseTheme}
           options={[
             { value: 'dark', label: 'Dark' },
             { value: 'light', label: 'Light' },

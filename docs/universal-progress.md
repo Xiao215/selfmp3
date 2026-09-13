@@ -1005,6 +1005,20 @@ from review. The captured states still have to pass check 2 by eye.
     for the next launch instead, and Settings says so. "System" follows the
     device the same way.
 
+- **Forgotten gems, and the phone's Now Playing toolbar.**
+  - The library gets the web's gems row above an unfiltered, unsearched
+    library: collapsible, "Play all" and "Add to queue", poster cards, which
+    lie down and share the width when there are three or fewer. It hides
+    itself when there is nothing to show or the server cannot be reached.
+  - On a phone, Now Playing's toolbar gains Sleep and Devices beside Lyrics,
+    Keep and Queue.
+  - The lyrics face gets the web's Romaji or Pinyin pill, and draws its
+    lines with the same lyric view as the computer's page, so romanised lines
+    show there too.
+  - The sleep timer's menu moved out of the player bar into a shared
+    `SleepMenu`: anchored above the button on a computer, a sheet on a
+    phone.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -1093,6 +1107,12 @@ seven states at 1280, and the phone's five.
     theme change there applies at the next launch.
   - Worth deciding: move to Unistyles now, or keep this until the styles are
     touched anyway.
+- **Library and Now Playing, still to come.**
+  - The tag inbox link on a phone goes to `/inbox`, the tag inbox, which is
+    phase 5's.
+  - The web's Forgotten gems card among the playlists is not there yet.
+  - The phone toolbar has no Practice, and the web's similar-songs shelf
+    under the art is not there: both belong to later phases.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

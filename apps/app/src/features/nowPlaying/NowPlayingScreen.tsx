@@ -14,7 +14,7 @@ import type { ListRenderItem } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
-import { useLyrics, useToggleLoved } from '../../api/queries'
+import { useToggleLoved } from '../../api/queries'
 import { isDownloaded, colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -27,7 +27,9 @@ import {
   CloudDownload,
   Downloaded,
   Heart,
+  Devices,
   Mic,
+  Moon,
   Next,
   Pause,
   Play,
@@ -35,14 +37,19 @@ import {
   Queue,
   Repeat,
   RepeatOne,
+  Romanize,
   Shuffle,
   X,
 } from '../../ui/components/Icons'
-import { Lyrics } from '../../ui/components/Lyrics'
+import { SleepMenu } from '../../ui/components/SleepMenu'
+import { DevicesSheet } from '../devices/DevicesSheet'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { useArt } from '../../offline/useArt'
 import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
+import { romanName } from './nowPlaying.model'
+import { StageLyrics } from './StageLyrics'
+import { useSongWords } from './useSongWords'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
 type Panel = 'none' | 'queue'
@@ -79,9 +86,10 @@ function PhoneNowPlaying(): ReactNode {
 
   const [panel, setPanel] = useState<Panel>('none')
   const [showWords, setShowWords] = useState(false)
+  const [sleepOpen, setSleepOpen] = useState(false)
+  const [devicesOpen, setDevicesOpen] = useState(false)
 
   const song = player.current
-  const lyrics = useLyrics(song?.id ?? null)
 
   // The face that just came in slides into place from its own side.
   const [slide] = useState(() => new Animated.Value(0))
@@ -168,30 +176,12 @@ function PhoneNowPlaying(): ReactNode {
           <>
             {showWords ? (
               <Animated.View style={[styles.face, faceStyle]}>
-                <Pressable
-                  style={styles.wordsHead}
-                  onPress={() => setShowWords(false)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Show the artwork"
-                >
-                  <Cover uri={artFor(song)} title={song.album || song.title} size={44} />
-                  <View style={styles.wordsTitles}>
-                    <Text style={styles.wordsTitle} numberOfLines={1}>
-                      {song.title}
-                    </Text>
-                    <Text style={styles.wordsArtist} numberOfLines={1}>
-                      {song.artist || 'Unknown artist'}
-                    </Text>
-                  </View>
-                </Pressable>
-                <View style={styles.words}>
-                  <Lyrics
-                    text={lyrics.data?.text ?? null}
-                    position={player.position}
-                    loading={lyrics.isPending}
-                    error={lyrics.isError}
-                  />
-                </View>
+                <PhoneWords
+                  song={song}
+                  artUri={artFor(song)}
+                  width={width}
+                  onShowArt={() => setShowWords(false)}
+                />
               </Animated.View>
             ) : (
               <Animated.View style={[styles.face, faceStyle]}>
@@ -317,13 +307,109 @@ function PhoneNowPlaying(): ReactNode {
           }}
         />
         <FootAction
+          icon={
+            <Moon
+              size={19}
+              color={player.sleepTimerEndsAt !== null ? accent.accent : colors.textMuted}
+            />
+          }
+          label="Sleep"
+          active={player.sleepTimerEndsAt !== null}
+          onPress={() => setSleepOpen(true)}
+        />
+        <FootAction
+          icon={<Devices size={19} color={colors.textMuted} />}
+          label="Devices"
+          active={false}
+          onPress={() => setDevicesOpen(true)}
+        />
+        <FootAction
           icon={<Queue size={19} color={panel === 'queue' ? accent.accent : colors.textMuted} />}
           label="Queue"
           active={panel === 'queue'}
           onPress={() => setPanel(current => (current === 'queue' ? 'none' : 'queue'))}
         />
       </View>
+      <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
+      <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </SafeAreaView>
+  )
+}
+
+/**
+ * The lyrics face on a phone: the song on one line with romaji or pinyin
+ * beside it when the words can have them, and the same lyric view the
+ * computer's page uses, sized for arm's length.
+ */
+function PhoneWords({
+  song,
+  artUri,
+  width,
+  onShowArt,
+}: {
+  song: Song
+  artUri: string | null
+  width: number
+  onShowArt: () => void
+}): ReactNode {
+  const lyrics = useSongWords(song)
+  const words = lyrics.words
+  const on = lyrics.romanizationOn
+  // The web's `clamp(22px, 6.4vw, 28px)`.
+  const fontSize = Math.min(28, Math.max(22, width * 0.064))
+
+  return (
+    <>
+      <View style={styles.wordsHeadRow}>
+        <Pressable
+          style={[styles.wordsHead, styles.wordsHeadGrow]}
+          onPress={onShowArt}
+          accessibilityRole="button"
+          accessibilityLabel="Show the artwork"
+        >
+          <Cover uri={artUri} title={song.album || song.title} size={44} />
+          <View style={styles.wordsTitles}>
+            <Text style={styles.wordsTitle} numberOfLines={1}>
+              {song.title}
+            </Text>
+            <Text style={styles.wordsArtist} numberOfLines={1}>
+              {song.artist || 'Unknown artist'}
+            </Text>
+          </View>
+        </Pressable>
+        {words.status === 'lyrics' && lyrics.language !== 'none' ? (
+          <Pressable
+            role="button"
+            aria-pressed={on}
+            onPress={() => lyrics.setRomanization(!on)}
+            style={[styles.tool, on && styles.toolOn]}
+          >
+            <Romanize size={15} color={on ? colors.surface0 : colors.textSecondary} />
+            <Text style={[styles.toolText, on && styles.toolTextOn]}>
+              {romanName(lyrics.language)}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={[styles.words, styles.wordsPadded]}>
+        {words.status === 'lyrics' ? (
+          <StageLyrics
+            parsed={words.parsed}
+            roman={words.roman}
+            focus={false}
+            fontSize={fontSize}
+          />
+        ) : (
+          <Text style={styles.wordsStatus}>
+            {words.status === 'loading'
+              ? 'Looking for lyrics…'
+              : words.status === 'instrumental'
+                ? 'Instrumental'
+                : 'No lyrics for this one.'}
+          </Text>
+        )}
+      </View>
+    </>
   )
 }
 
@@ -553,6 +639,22 @@ const styles = StyleSheet.create({
     minHeight: HIT_TARGET,
     paddingVertical: 6,
   },
+  wordsHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  wordsHeadGrow: { flex: 1, minWidth: 0 },
+  wordsPadded: { paddingHorizontal: space.lg - 6 },
+  wordsStatus: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
+  tool: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: colors.surface2,
+  },
+  toolOn: { backgroundColor: colors.textPrimary },
+  toolText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  toolTextOn: { color: colors.surface0 },
   wordsTitles: {
     flex: 1,
     minWidth: 0,

@@ -26,6 +26,7 @@ import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
+import { GemsRow } from './GemsRow'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
@@ -308,6 +309,8 @@ export function LibraryScreen(): ReactNode {
           </Pressable>
         </View>
       ) : null}
+
+      {model.tagFiltered || filter.query.trim() ? null : <GemsRow />}
 
       <SyncStatus />
 

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
-import { formatDuration } from '@selfmp3/shared'
 import { colors, oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
@@ -33,6 +32,7 @@ import {
   VolumeMute,
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
+import { SleepMenu } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
 import { SheetItem } from '../ui/components/Sheet'
 import { TagPicker } from '../ui/components/TagPicker'
@@ -56,7 +56,6 @@ export const PLAYER_BAR_HEIGHT = 84
 const COMPACT_WIDTH = 1160
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const
-const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
 
 const REPEAT_LABEL = {
   off: 'Repeat off',
@@ -322,7 +321,6 @@ function SleepButton(): ReactNode {
   const accent = useAccent()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const remaining = useRemaining(player.sleepTimerEndsAt)
   const running = player.sleepTimerEndsAt !== null
 
   return (
@@ -330,51 +328,9 @@ function SleepButton(): ReactNode {
       <IconButton onPress={() => setOpen(value => !value)} label="Sleep timer" active={running}>
         <Moon size={17} color={running ? accent.accent : colors.textSecondary} />
       </IconButton>
-      <Popover
-        open={open}
-        onClose={() => setOpen(false)}
-        anchorRef={anchorRef}
-        placement="above"
-        title={running ? `Stopping in ${remaining}` : 'Sleep timer'}
-        titleTone="label"
-        width={180}
-        testID="sleep-menu"
-      >
-        <Text style={styles.menuTitle}>{running ? `Stopping in ${remaining}` : 'Sleep timer'}</Text>
-        {SLEEP_OPTIONS.map(minutes => (
-          <SheetItem
-            key={minutes}
-            label={`${minutes} minutes`}
-            onPress={() => {
-              player.setSleepTimer(minutes)
-              setOpen(false)
-            }}
-          />
-        ))}
-        {running ? (
-          <SheetItem
-            label="Cancel timer"
-            danger
-            onPress={() => {
-              player.setSleepTimer(null)
-              setOpen(false)
-            }}
-          />
-        ) : null}
-      </Popover>
+      <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
     </View>
   )
-}
-
-/** "12:04" until the timer runs out, ticking once a second while it is set. */
-function useRemaining(endsAt: number | null): string {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (endsAt === null) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(timer)
-  }, [endsAt])
-  return endsAt === null ? '' : formatDuration(Math.max(0, endsAt - now) / 1000)
 }
 
 function VolumeControl({ compact }: { compact: boolean }): ReactNode {
@@ -553,13 +509,6 @@ const styles = StyleSheet.create({
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   groupDivided: { paddingLeft: space.sm, borderLeftWidth: 1, borderLeftColor: colors.border },
-  menuTitle: {
-    color: colors.textMuted,
-    fontSize: 12,
-    paddingHorizontal: 10,
-    paddingTop: space.sm,
-    paddingBottom: 6,
-  },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   volumePopover: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
   readout: { color: colors.textMuted, fontSize: 11, minWidth: 32, textAlign: 'right' },

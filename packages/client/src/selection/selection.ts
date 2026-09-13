@@ -52,12 +52,21 @@ export function allSelected(state: SelectionState, visibleIds: readonly number[]
   return visibleIds.length > 0 && state.ids.size === visibleIds.length
 }
 
-/** Toggle one row, and make it the anchor for the next shift-click. */
+/**
+ * Toggle one row, and make it the anchor for the next shift-click.
+ *
+ * Unticking the last selected row also leaves selection mode: with nothing
+ * selected there is nothing for the checkboxes to be for, and making someone
+ * find the ✕ as well was one step too many (asked for by Xiao, 2026-09-13).
+ * Emptying the selection from the bar's own checkbox (`deselectAll`) is a
+ * different gesture and stays in the mode.
+ */
 export function toggleSelected(state: SelectionState, id: number): SelectionState {
   const ids = new Set(state.ids)
   if (ids.has(id)) ids.delete(id)
   else ids.add(id)
-  return { ...state, ids, anchor: id }
+  const mode = ids.size === 0 && state.ids.size > 0 ? false : state.mode
+  return { ...state, ids, mode, anchor: id }
 }
 
 /** Everything between the anchor and `id`, in the order now on screen. */

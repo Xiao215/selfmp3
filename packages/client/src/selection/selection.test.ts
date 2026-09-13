@@ -134,3 +134,19 @@ describe('selection', () => {
     expect(enterSelection(inMode)).toBe(inMode)
   })
 })
+
+describe('leaving selection by unticking', () => {
+  it('ends selection mode when the last selected row is unticked', () => {
+    const selecting = enterSelection(EMPTY_SELECTION, 7)
+    expect(selectionActive(selecting)).toBe(true)
+    const none = toggleSelected(selecting, 7)
+    expect(none.ids.size).toBe(0)
+    expect(selectionActive(none)).toBe(false)
+  })
+
+  it('stays in the mode while something is still selected, and after emptying it from the bar', () => {
+    const two = toggleSelected(enterSelection(EMPTY_SELECTION, 7), 8)
+    expect(selectionActive(toggleSelected(two, 7))).toBe(true)
+    expect(selectionActive(deselectAll(two))).toBe(true)
+  })
+})

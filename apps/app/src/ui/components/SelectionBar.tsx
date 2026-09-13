@@ -49,7 +49,10 @@ import { SheetItem } from './Sheet'
  * behind a confirmation.
  *
  * At phone width it is exactly two lines, as on the web: what is selected and
- * Done, then what can be done to it, every button keeping its label.
+ * Done, then what can be done to it, every button keeping its label. They are
+ * two rows in a column rather than one row that wraps: on iOS a wrapping row
+ * with a full-width line in it measured too short, and the buttons hung out of
+ * the bottom of the bar over the first song.
  */
 export function SelectionBar({
   songs,
@@ -135,42 +138,44 @@ export function SelectionBar({
   return (
     <>
       <View
-        style={[styles.bar, { borderColor: accentDim }]}
+        style={[styles.bar, !wide && styles.barCompact, { borderColor: accentDim }]}
         role="toolbar"
         aria-label="Selection actions"
         testID="selection-bar"
       >
-        <View style={[styles.anchor, !wide && styles.anchorCompact]}>
-          <Pressable
-            style={styles.all}
-            onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-            accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${
-              total === 1 ? 'song' : 'songs'
-            } ${scope}`}
-          >
-            <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
-          </Pressable>
-          <View style={styles.counts}>
-            <Text style={styles.count} accessibilityLiveRegion="polite">
-              {count === 0 ? 'None selected' : `${count} selected`}
-            </Text>
-            {allSelected ? (
-              <Text style={styles.scope}>
-                {narrowed ? `every song ${scope}` : `everything ${scope}`}
+        <View style={styles.head}>
+          <View style={[styles.anchor, !wide && styles.anchorCompact]}>
+            <Pressable
+              style={styles.all}
+              onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
+              accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${
+                total === 1 ? 'song' : 'songs'
+              } ${scope}`}
+            >
+              <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
+            </Pressable>
+            <View style={styles.counts}>
+              <Text style={styles.count} accessibilityLiveRegion="polite">
+                {count === 0 ? 'None selected' : `${count} selected`}
               </Text>
-            ) : (
-              <Pressable onPress={onSelectAll} accessibilityRole="button">
-                <Text style={[styles.scope, styles.scopeLink]}>
-                  Select all {total} {scope}
+              {allSelected ? (
+                <Text style={styles.scope}>
+                  {narrowed ? `every song ${scope}` : `everything ${scope}`}
                 </Text>
-              </Pressable>
-            )}
+              ) : (
+                <Pressable onPress={onSelectAll} accessibilityRole="button">
+                  <Text style={[styles.scope, styles.scopeLink]}>
+                    Select all {total} {scope}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
 
-        {wide ? null : done}
+          {wide ? null : done}
+        </View>
 
         <View style={[styles.actions, !wide && styles.actionsCompact]}>
           <Button
@@ -205,7 +210,6 @@ export function SelectionBar({
               icon={<More size={13} color={theme.colors.textPrimary} />}
               onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
               disabled={count === 0}
-              grow={!wide}
               testID="selection-more"
             />
           </View>
@@ -421,7 +425,6 @@ const styles = StyleSheet.create(theme => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: space.sm,
     padding: space.sm,
     marginHorizontal: space.lg,
@@ -430,6 +433,8 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1,
     borderRadius: radius.md,
   },
+  barCompact: { flexDirection: 'column', alignItems: 'stretch' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
   anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
   anchorCompact: { flexGrow: 1, flexShrink: 1 },
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
@@ -443,8 +448,9 @@ const styles = StyleSheet.create(theme => ({
   scope: { color: theme.colors.textMuted, fontSize: 11 },
   scopeLink: { textDecorationLine: 'underline' },
   actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
-  actionsCompact: { flexBasis: '100%', flexGrow: 1 },
-  /* The same basis as the buttons beside it, so the three share the line evenly. */
+  actionsCompact: { flexWrap: 'nowrap' },
+  /* The same basis as the buttons beside it, so the three share the line evenly;
+     the button inside stretches across it, not down it. */
   grow: { flex: 1 },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {

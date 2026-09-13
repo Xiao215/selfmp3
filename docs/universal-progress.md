@@ -2250,3 +2250,23 @@ Checked in Chrome against the dev server: no Select button and no count at
 either width, sort and Play kept on a computer and gone on a phone, no "Count
 a play after" in Settings, the volume slider red under 夜に駆ける, and the
 phone's Now Playing on its blurred cover with a round close button.
+
+### The phone's selection bar, and leaving selection — branch `universal/selection-bar`
+
+Found by Xiao on the simulator right after the Select button went: holding a
+row showed the bar with Play, Queue and More hanging out of its bottom edge
+over the first song, More taller than the others; and unticking the one
+selected song left the bar up until its ✕ was pressed.
+
+- **The bar.** At phone width it was one row that wraps, with the buttons'
+  row forced to full width (`flexBasis: '100%'`). On iOS that measured the bar
+  too short. Chrome laid the same bar out correctly, so only the simulator
+  showed it. More sat in a wrapper, and its `grow` (`flex: 1`) stretched it
+  down the wrapper instead of across. Now the phone's bar is a column of two
+  rows — the count and ✕, then Play, Queue and More sharing a line — and More
+  takes its width from the wrapper.
+- **Leaving selection.** `toggleSelected` ends selection mode when it unticks
+  the last selected row. Emptying the selection from the bar's own checkbox
+  (`deselectAll`) still stays in the mode. Two tests.
+- Checked on the iPhone 17 simulator with Maestro: hold a row, the bar is two
+  rows inside its border; tap the row again, and the bar and checkboxes go.

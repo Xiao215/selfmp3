@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
+import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
@@ -37,7 +38,12 @@ export function Shell({
 }): ReactNode {
   const { wide } = useLayout()
 
-  return <OverlayProvider>{frame(wide, chrome, sidebar, children)}</OverlayProvider>
+  return (
+    <OverlayProvider>
+      {frame(wide, chrome, sidebar, children)}
+      <PlaybackNotices />
+    </OverlayProvider>
+  )
 }
 
 /**

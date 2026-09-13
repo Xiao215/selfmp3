@@ -17,7 +17,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatBytes, type Settings } from '@selfmp3/shared'
 import {
   buildAccent,
-  bytesToDownload,
   clientApi,
   colors,
   downloadedCount,
@@ -378,7 +377,16 @@ function OfflinePanel({
   const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
-  const { state: downloads, queue } = useDownloads()
+  const {
+    state: downloads,
+    queue,
+    installed,
+    prefs,
+    setPrefs,
+    missingIds,
+    situation,
+    requestDownload,
+  } = useDownloads()
   const [busy, setBusy] = useState(false)
 
   const songIds = useMemo(
@@ -386,7 +394,7 @@ function OfflinePanel({
     [library.data],
   )
   const held = downloadedCount(downloads.index)
-  const missingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
+  const missingBytes = situation.missingBytes
   const stale = manifest.data ? staleIds(downloads.index, manifest.data) : []
   const activeSong =
     downloads.activeSongId === null
@@ -401,6 +409,44 @@ function OfflinePanel({
           ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'
           : 'Downloaded songs play with no connection at all — which is the point, since your Mac won’t always be awake. Plays you make offline are kept here and sent to your Mac when it’s back.'}
       </Lead>
+
+      {installed ? (
+        <>
+          <Row
+            label="Download automatically on Wi-Fi"
+            hint="Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over 500 MB waits for you, and a song you remove by hand stays removed."
+          >
+            <Toggle
+              value={prefs.autoOnWifi}
+              onChange={autoOnWifi => setPrefs({ autoOnWifi })}
+              label="Download automatically on Wi-Fi"
+              testID="setting-auto-download"
+            />
+          </Row>
+          <Row
+            label="Play songs that aren’t downloaded"
+            hint={
+              fromCloud
+                ? 'A library in the cloud can’t stream yet, so only downloaded songs play.'
+                : 'Streams them from your Mac while it’s reachable. Off, only what is on this device plays.'
+            }
+            last
+          >
+            <Toggle
+              value={prefs.streamUndownloaded && !fromCloud}
+              disabled={fromCloud}
+              onChange={streamUndownloaded => setPrefs({ streamUndownloaded })}
+              label="Play songs that aren’t downloaded"
+              testID="setting-stream"
+            />
+          </Row>
+        </>
+      ) : (
+        <Text style={partStyles.hint}>
+          A browser always streams. Download songs by hand, from a song’s menu or here, to keep them
+          for when you’re offline.
+        </Text>
+      )}
 
       <Stats
         items={[
@@ -459,8 +505,8 @@ function OfflinePanel({
               />
             }
             variant="primary"
-            disabled={missingBytes === 0 || !manifest.data}
-            onPress={() => queue.enqueue(songIds)}
+            disabled={missingBytes === 0}
+            onPress={() => requestDownload(missingIds)}
           />
         )}
         {stale.length > 0 ? (
@@ -876,7 +922,7 @@ function Confirmations({
   const router = useRouter()
   const client = useQueryClient()
   const { disconnect } = useConnection()
-  const { queue } = useDownloads()
+  const { removeAll } = useDownloads()
   const startAnalysis = useStartAnalysis()
 
   const dialogs: Record<
@@ -891,9 +937,9 @@ function Confirmations({
     },
     'remove-downloads': {
       title: 'Remove all downloaded songs from this device?',
-      body: 'The library itself is not touched.',
+      body: 'The library itself is not touched. Downloading automatically is turned off too, or they would just come back.',
       label: 'Remove all downloads',
-      run: () => void queue.removeAll(),
+      run: () => void removeAll(),
     },
     'redo-analysis': {
       title: 'Throw away existing analysis and redo every song?',

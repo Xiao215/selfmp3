@@ -940,6 +940,34 @@ from review. The captured states still have to pass check 2 by eye.
   navigation flow's Settings check no longer skips the new app, and passes
   against both.
 
+- **Downloading and streaming, as decided.** The design above, built.
+  - **Policy:** `packages/client/src/downloads/syncPolicy.ts` (14 tests) decides
+    when to download by itself, what the header says, when a download
+    someone asked for needs a question first, and why a song cannot play.
+    `DownloadsProvider` carries it out, and a new `ports/install` port says
+    whether this is an installed app (downloads) or a browser (streams).
+  - **On a phone:** "Download automatically on Wi-Fi" and "Play songs that
+    aren't downloaded" are in Settings, on by default, kept on this device.
+    On Wi-Fi the library downloads by itself. The header reads "Downloading
+    12 of 40", "40 not downloaded · on data · Download", "40 not downloaded ·
+    offline", or "40 not downloaded · 1.2 GB · Download" once it is over
+    500 MB.
+  - **Asking:** "Download on mobile data?" is asked once and holds until
+    Wi-Fi. Over 500 MB it asks on any connection.
+  - **Hand actions:** a song removed by hand stays removed, and a song or
+    playlist downloaded by hand is always allowed. Remove all downloads
+    turns automatic downloading off too, or they would come back.
+  - **Rows:** every song not on the phone carries an outline counterpart of
+    the downloaded disc.
+  - **A song that cannot play** says why instead of loading and sitting
+    paused: offline, streaming off, a cloud library, or "Stream on mobile
+    data?", which starts it once answered.
+  - **In a browser** the header only appears while a download someone
+    started is running, and Settings says a browser always streams.
+  - `.maestro/downloads.yaml` turns both settings off, removes a song's
+    download, taps the song, sees the explanation, and puts the settings
+    back. It passes on the Pro Max.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -1000,6 +1028,15 @@ seven states at 1280, and the phone's five.
   - Offline music is this device's download queue. The two new settings
     ("Download automatically on Wi-Fi", "Play songs that aren't downloaded")
     come with the downloading work that follows.
+- **Downloading and streaming, what is still short of the design.**
+  - Only starting a song is checked. When the queue moves on by itself, a
+    song that cannot play is still tried and sits paused, as before.
+  - "Offline" means the phone has no connection at all. A phone online
+    with the Mac asleep still tries to stream.
+  - Downloads run only while the app is open. Background transfers are
+    still the thing to retry (see `src/ports/downloadStorage.ts`).
+  - `offline.yaml`'s note that an undownloaded song "sits paused with no
+    word" is now true only for the queue moving on by itself.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

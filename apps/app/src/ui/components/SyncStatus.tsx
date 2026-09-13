@@ -1,65 +1,40 @@
-import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import type { Song } from '@selfmp3/shared'
-import { downloadedCount, isDownloaded, colors, radius, space, type } from '@selfmp3/client'
+import { colors, radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { freeToDownload, useConnectionKind } from '../../offline/connectionKind'
 import { useAccent } from '../accent'
 
 /**
- * One line saying whether this phone has your music yet.
+ * One line saying whether this device has your music yet, in the words Xiao
+ * chose: "Downloading 12 of 40", "40 not downloaded · on data · Download",
+ * "40 not downloaded · offline".
  *
- * Nothing plays from the bucket directly — the audio player is handed a URL
- * and cannot attach the header the doorman wants — so "is it downloaded" is
- * not a detail here the way it is in a browser. It is the difference between
- * a song that plays and a song that does not, and it belongs where you can
- * see it without going looking.
+ * Only when there is something to say. On Wi-Fi with automatic downloads on,
+ * a missing song is about to be fetched, and a browser streams, so neither
+ * says anything until a download is actually running.
  */
-export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
-  const { state, queue } = useDownloads()
-  const connection = useConnectionKind()
-
+export function SyncStatus(): ReactNode {
+  const downloads = useDownloads()
   const accent = useAccent()
-  const held = useMemo(() => downloadedCount(state.index), [state.index])
-  const total = songs.length
-  const missing = useMemo(
-    () => songs.filter(song => !isDownloaded(state.index, song.id)).map(song => song.id),
-    [songs, state.index],
-  )
+  const header = syncHeader(downloads.situation)
+  if (header.kind === 'none') return null
 
-  if (total === 0) return null
-
-  // A failure used to leave the line saying "13 new" — identical to never
-  // having tried. The queue empties on error, so without this the only way to
-  // know a download failed is that nothing happened.
-  if (state.error) {
-    return (
-      <View style={styles.bar}>
-        <View style={styles.row}>
-          <Text style={styles.error} numberOfLines={2}>
-            {state.error}
-          </Text>
-          <Pressable
-            onPress={() => queue.enqueue(missing)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Retry"
-          >
-            <Text style={styles.action}>Retry</Text>
-          </Pressable>
-        </View>
-      </View>
-    )
+  const { text, action } = syncHeaderText(header)
+  const { state, queue } = downloads
+  const onAction = (): void => {
+    if (header.kind === 'downloading') {
+      if (header.paused) queue.resume()
+      else queue.pause()
+    } else {
+      downloads.requestDownload(downloads.missingIds)
+    }
   }
-
-  const working = state.queue.length > 0
   const fraction = state.totalBytes > 0 ? Math.min(1, state.bytesWritten / state.totalBytes) : 0
+  const warn = header.kind === 'waiting' && header.reason === 'data'
 
-  if (working) {
-    const done = Math.max(0, total - state.queue.length)
-    return (
-      <View style={styles.bar}>
+  return (
+    <View style={styles.bar} testID="sync-status" accessibilityLiveRegion="polite">
+      {header.kind === 'downloading' ? (
         <View style={styles.progressTrack}>
           <View
             style={[
@@ -68,69 +43,26 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
             ]}
           />
         </View>
-        <View style={styles.row}>
-          <Text style={styles.text}>
-            {state.paused ? 'Paused' : 'Adding'} {done + 1} of {total}
-          </Text>
+      ) : null}
+      <View style={styles.row}>
+        <Text
+          style={header.kind === 'error' ? styles.error : styles.text}
+          numberOfLines={header.kind === 'error' ? 2 : 1}
+        >
+          {text}
+        </Text>
+        {action ? (
           <Pressable
-            onPress={() => (state.paused ? queue.resume() : queue.pause())}
+            onPress={onAction}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={state.paused ? 'Resume' : 'Pause'}
+            accessibilityLabel={action}
           >
-            <Text style={[styles.action, { color: accent.accent }]}>
-              {state.paused ? 'Resume' : 'Pause'}
+            <Text style={[styles.action, { color: warn ? colors.warning : accent.accent }]}>
+              {action}
             </Text>
           </Pressable>
-        </View>
-      </View>
-    )
-  }
-
-  if (missing.length === 0) {
-    return (
-      <View style={styles.bar}>
-        <Text style={styles.text}>
-          All {total} song{total === 1 ? '' : 's'} on this phone
-        </Text>
-      </View>
-    )
-  }
-
-  if (connection === 'none') {
-    return (
-      <View style={styles.bar}>
-        <Text style={styles.text}>{missing.length} new · offline</Text>
-      </View>
-    )
-  }
-
-  // "New", not "0 of 13": a song in the bucket this phone has not fetched yet
-  // is something waiting to be added, which is what it looks like to whoever
-  // is holding it — not a shortfall against a total.
-  //
-  // On mobile data it still offers, but says so first. A library is measured
-  // in gigabytes and a phone plan is not, and downloading thirteen songs on a
-  // train because somebody opened the app is a thing an app gets to do once.
-  const onData = !freeToDownload(connection)
-  const addLabel = onData ? 'Add anyway' : `Add ${missing.length === total ? 'all' : missing.length}`
-  return (
-    <View style={styles.bar}>
-      <View style={styles.row}>
-        <Text style={styles.text}>
-          {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
-          {onData ? ' · on data' : ''}
-        </Text>
-        <Pressable
-          onPress={() => queue.enqueue(missing)}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={addLabel}
-        >
-          <Text style={[styles.action, { color: onData ? colors.warning : accent.accent }]}>
-            {addLabel}
-          </Text>
-        </Pressable>
+        ) : null}
       </View>
     </View>
   )
@@ -146,11 +78,16 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
     gap: space.xs,
   },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  text: { color: colors.textSecondary, fontSize: type.small },
-  // No colour here: it is the device's accent, or amber on mobile data.
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+  },
+  text: { color: colors.textSecondary, fontSize: type.small, flexShrink: 1 },
+  // The device's accent, or amber on mobile data.
   action: { fontSize: type.small, fontWeight: '600' },
-  error: { color: colors.danger, fontSize: type.small, flex: 1, marginRight: space.md },
+  error: { color: colors.danger, fontSize: type.small, flex: 1 },
   progressTrack: {
     height: 3,
     borderRadius: 2,

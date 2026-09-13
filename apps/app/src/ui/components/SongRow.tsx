@@ -20,7 +20,7 @@ import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
 import { Equalizer } from './Equalizer'
-import { Downloaded, Heart, More, Play, Plus } from './Icons'
+import { Downloaded, Heart, More, NotDownloaded, Play, Plus } from './Icons'
 
 /** Past this width the album leaves the second line for a column of its own. */
 const ALBUM_COLUMN_WIDTH = 1160
@@ -49,6 +49,7 @@ export const SongRow = memo(function SongRow({
   artUri,
   active,
   downloaded,
+  notDownloadedMark = false,
   playing = false,
   onPress,
   onMore,
@@ -67,6 +68,11 @@ export const SongRow = memo(function SongRow({
   artUri: string | null
   active: boolean
   downloaded: boolean
+  /**
+   * Mark a song that is not on this device. An installed app says so, since
+   * such a song may not play; a browser streams, and leaves it unmarked.
+   */
+  notDownloadedMark?: boolean
   /** Whether the song is the one actually sounding, for the equaliser. */
   playing?: boolean
   /** The press event comes through, so a list can read Shift and Cmd on the web. */
@@ -160,6 +166,8 @@ export const SongRow = memo(function SongRow({
                 {/* The web calls this "On this device", and draws exactly this. */}
                 {downloaded ? (
                   <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+                ) : notDownloadedMark ? (
+                  <NotDownloaded size={13} color={colors.textMuted} />
                 ) : null}
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {song.artist || 'Unknown artist'}
@@ -252,6 +260,8 @@ export const SongRow = memo(function SongRow({
           <View style={styles.subtitleRow}>
             {downloaded ? (
               <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+            ) : notDownloadedMark ? (
+              <NotDownloaded size={13} color={colors.textMuted} />
             ) : null}
             <Text style={styles.artist} numberOfLines={1}>
               {song.artist || 'Unknown artist'}

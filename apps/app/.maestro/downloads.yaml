@@ -1,0 +1,69 @@
+# Phase 4: a song that is not on the phone, with streaming off, says why
+# instead of loading and sitting paused.
+#
+# The design (docs/universal-progress.md, "Downloading and streaming"): two
+# settings, "Download automatically on Wi-Fi" and "Play songs that aren't
+# downloaded". With both off, a song removed by hand stays removed and cannot
+# play, and tapping it explains.
+#
+# Puts both settings back on at the end, so the other flows find the phone as
+# they expect it.
+appId: com.selfmp3.app
+---
+- launchApp
+
+- extendedWaitUntil:
+    visible:
+      id: 'song-row-0'
+    timeout: 60000
+
+# --- both settings off ---------------------------------------------------------
+- tapOn:
+    id: 'tab-settings'
+- scrollUntilVisible:
+    element:
+      id: 'setting-stream'
+    direction: DOWN
+- tapOn:
+    id: 'setting-auto-download'
+- tapOn:
+    id: 'setting-stream'
+
+# --- a song that is not here -------------------------------------------------------
+- tapOn:
+    id: 'tab-library'
+- longPressOn:
+    id: 'song-row-0'
+- extendedWaitUntil:
+    visible: 'Play next'
+    timeout: 5000
+- runFlow:
+    when:
+      visible: 'Remove download'
+    commands:
+      - tapOn: 'Remove download'
+- runFlow:
+    when:
+      visible: 'Download for offline'
+    commands:
+      - tapOn: 'Play next'
+
+- tapOn:
+    id: 'song-row-0'
+- extendedWaitUntil:
+    visible: '.*isn’t downloaded.*'
+    timeout: 5000
+- assertVisible: 'Not now'
+- tapOn: 'Not now'
+
+# --- back as it was ------------------------------------------------------------------
+- tapOn:
+    id: 'tab-settings'
+- scrollUntilVisible:
+    element:
+      id: 'setting-stream'
+    direction: DOWN
+- tapOn:
+    id: 'setting-auto-download'
+- tapOn:
+    id: 'setting-stream'

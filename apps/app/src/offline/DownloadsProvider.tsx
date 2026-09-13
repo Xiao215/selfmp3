@@ -1,31 +1,153 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import {
+  bytesToDownload,
+  dataAnswer,
+  downloadAsk,
+  isDownloaded,
+  onWifi,
+  pendingIds,
+  playBlock,
+  shouldAutoDownload,
+  type DownloadAsk,
+  type NetworkKind,
+  type PlayBlock,
+  type SyncSituation,
+} from '@selfmp3/client'
 import { useLibrary, useManifest } from '../api/queries'
+import { installedApp } from '../ports/install'
+import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../server/ConnectionProvider'
+import { useConnectionKind } from './connectionKind'
 import { downloadQueue, type DownloadQueue, type DownloadState } from './downloads'
 
 /**
- * React's view of the download queue.
+ * React's view of the download queue, and the rules around it.
  *
  * The queue itself is a module-level singleton (downloads outlive screens);
- * this only mirrors its state into React and keeps it pointed at the current
- * server and library.
+ * this mirrors its state into React, keeps it pointed at the current server
+ * and library, and applies the downloading and streaming design: download on
+ * Wi-Fi by itself, ask once on mobile data, wait for a tap over 500 MB, and
+ * say why a song that is not here cannot play (`syncPolicy.ts` in
+ * packages/client decides; this carries it out).
  */
+
+/** This device's two settings, kept on this device. */
+export interface DownloadPrefs {
+  /** "Download automatically on Wi-Fi". */
+  readonly autoOnWifi: boolean
+  /** "Play songs that aren't downloaded". */
+  readonly streamUndownloaded: boolean
+}
+
+/** Something that needs a yes or no before it happens. */
+export type DownloadQuestion =
+  | {
+      readonly kind: 'download'
+      readonly ask: Exclude<DownloadAsk, 'none'>
+      readonly songIds: readonly number[]
+      readonly bytes: number
+    }
+  | {
+      readonly kind: 'play'
+      readonly block: PlayBlock
+      readonly songId: number
+      readonly retry: () => void
+    }
 
 interface DownloadsContextValue {
   readonly state: DownloadState
   readonly queue: DownloadQueue
+  readonly installed: boolean
+  readonly network: NetworkKind
+  readonly prefs: DownloadPrefs
+  setPrefs: (patch: Partial<DownloadPrefs>) => void
+  /** Songs in the library not on this device, leaving out ones removed by hand. */
+  readonly missingIds: readonly number[]
+  readonly situation: SyncSituation
+  /** Download these, asking first about mobile data or a large total. */
+  requestDownload: (songIds: readonly number[]) => void
+  /** Download these now; a song picked by hand is always allowed. */
+  downloadByHand: (songIds: readonly number[]) => void
+  /** Remove these, and keep them removed. */
+  removeByHand: (songIds: readonly number[]) => Promise<void>
+  /** Remove every download, and stop downloading by itself, or they would come back. */
+  removeAll: () => Promise<void>
+  /** Whether a song can start here now, without asking. */
+  mayPlay: (songId: number) => boolean
+  /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
+  checkPlay: (songId: number, retry: () => void) => boolean
+  readonly question: DownloadQuestion | null
+  answer: (yes: boolean) => void
 }
 
 const DownloadsContext = createContext<DownloadsContextValue | null>(null)
 
+const PREFS_KEY = 'downloads.prefs'
+const EXCLUDED_KEY = 'downloads.excluded'
+const DEFAULT_PREFS: DownloadPrefs = { autoOnWifi: true, streamUndownloaded: true }
+
+function readPrefs(): DownloadPrefs {
+  try {
+    const raw = prefStore.get(PREFS_KEY)
+    const parsed: unknown = raw === null ? null : JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_PREFS
+    const stored = parsed as Partial<Record<keyof DownloadPrefs, unknown>>
+    return {
+      autoOnWifi:
+        typeof stored.autoOnWifi === 'boolean' ? stored.autoOnWifi : DEFAULT_PREFS.autoOnWifi,
+      streamUndownloaded:
+        typeof stored.streamUndownloaded === 'boolean'
+          ? stored.streamUndownloaded
+          : DEFAULT_PREFS.streamUndownloaded,
+    }
+  } catch {
+    return DEFAULT_PREFS
+  }
+}
+
+function readExcluded(): ReadonlySet<number> {
+  try {
+    const raw = prefStore.get(EXCLUDED_KEY)
+    const parsed: unknown = raw === null ? [] : JSON.parse(raw)
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((id): id is number => typeof id === 'number') : [],
+    )
+  } catch {
+    return new Set()
+  }
+}
+
 export function DownloadsProvider({ children }: { children: ReactNode }): ReactNode {
-  const { connection } = useConnection()
+  const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
-  const [state, setState] = useState<DownloadState>(() => downloadQueue.getState())
+  const network = useConnectionKind()
+  const [view, setView] = useState(() => ({ state: downloadQueue.getState(), batchTotal: 0 }))
+  const [prefs, setPrefsState] = useState<DownloadPrefs>(readPrefs)
+  const [excluded, setExcluded] = useState<ReadonlySet<number>>(readExcluded)
+  const [dataAllowedAnswer, setDataAllowed] = useState(false)
+  const [question, setQuestion] = useState<DownloadQuestion | null>(null)
+  const state = view.state
 
-  useEffect(() => downloadQueue.subscribe(setState), [])
+  useEffect(
+    () =>
+      downloadQueue.subscribe(next =>
+        setView(previous => {
+          // "12 of 40": the run grows as songs are added and ends when the queue empties.
+          const before = previous.state.queue.length
+          const after = next.queue.length
+          const batchTotal =
+            after === 0
+              ? 0
+              : after > before
+                ? (before === 0 ? 0 : previous.batchTotal) + (after - before)
+                : previous.batchTotal
+          return { state: next, batchTotal }
+        }),
+      ),
+    [],
+  )
 
   useEffect(() => {
     void downloadQueue.load()
@@ -39,7 +161,202 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     downloadQueue.setManifest(manifest.data ?? null)
   }, [manifest.data])
 
-  const value = useMemo<DownloadsContextValue>(() => ({ state, queue: downloadQueue }), [state])
+  // The mobile data answer lasts until Wi-Fi comes back.
+  const dataAllowed = dataAnswer(dataAllowedAnswer, network)
+  useEffect(() => {
+    if (!dataAllowedAnswer || !onWifi(network)) return undefined
+    const timer = setTimeout(() => setDataAllowed(false), 0)
+    return () => clearTimeout(timer)
+  }, [dataAllowedAnswer, network])
+
+  const songIds = useMemo(
+    () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
+    [library.data],
+  )
+  const missingIds = useMemo(
+    () => pendingIds(state.index, songIds).filter(id => !excluded.has(id)),
+    [state.index, songIds, excluded],
+  )
+  const bytesFor = useCallback(
+    (ids: readonly number[]): number => {
+      if (manifest.data) return bytesToDownload(state.index, manifest.data, ids)
+      const wanted = new Set(pendingIds(state.index, ids))
+      return (library.data?.songs ?? [])
+        .filter(song => wanted.has(song.id))
+        .reduce((sum, song) => sum + song.sizeBytes, 0)
+    },
+    [manifest.data, state.index, library.data],
+  )
+  const missingBytes = useMemo(() => bytesFor(missingIds), [bytesFor, missingIds])
+
+  const situation = useMemo<SyncSituation>(
+    () => ({
+      installed: installedApp,
+      network,
+      autoOnWifi: prefs.autoOnWifi,
+      missing: missingIds.length,
+      missingBytes,
+      queued: state.queue.length,
+      batchTotal: view.batchTotal,
+      paused: state.paused,
+      error: state.error,
+    }),
+    [network, prefs.autoOnWifi, missingIds.length, missingBytes, state, view.batchTotal],
+  )
+
+  // On Wi-Fi, keep this device in step without being asked.
+  const auto = library.data !== undefined && shouldAutoDownload(situation)
+  useEffect(() => {
+    if (!auto) return undefined
+    const timer = setTimeout(() => downloadQueue.enqueue(missingIds), 0)
+    return () => clearTimeout(timer)
+  }, [auto, missingIds])
+
+  const setPrefs = useCallback((patch: Partial<DownloadPrefs>) => {
+    setPrefsState(current => {
+      const next = { ...current, ...patch }
+      prefStore.set(PREFS_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const changeExcluded = useCallback((ids: readonly number[], add: boolean) => {
+    setExcluded(current => {
+      const next = new Set(current)
+      for (const id of ids) {
+        if (add) next.add(id)
+        else next.delete(id)
+      }
+      prefStore.set(EXCLUDED_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }, [])
+
+  const downloadByHand = useCallback(
+    (ids: readonly number[]) => {
+      changeExcluded(ids, false)
+      downloadQueue.enqueue(ids)
+    },
+    [changeExcluded],
+  )
+
+  const requestDownload = useCallback(
+    (ids: readonly number[]) => {
+      const bytes = bytesFor(ids)
+      const ask = downloadAsk(network, dataAllowed, bytes)
+      if (ask === 'none') downloadByHand(ids)
+      else setQuestion({ kind: 'download', ask, songIds: ids, bytes })
+    },
+    [bytesFor, network, dataAllowed, downloadByHand],
+  )
+
+  const removeByHand = useCallback(
+    async (ids: readonly number[]) => {
+      changeExcluded(ids, true)
+      await downloadQueue.remove(ids)
+    },
+    [changeExcluded],
+  )
+
+  const removeAll = useCallback(async () => {
+    setPrefs({ autoOnWifi: false })
+    await downloadQueue.removeAll()
+  }, [setPrefs])
+
+  // The player's commands are made once; they read the latest rules through this.
+  const rules = useRef({ index: state.index, network, prefs, fromCloud, dataAllowed })
+  useEffect(() => {
+    rules.current = { index: state.index, network, prefs, fromCloud, dataAllowed }
+  }, [state.index, network, prefs, fromCloud, dataAllowed])
+
+  const blockFor = useCallback((songId: number): PlayBlock | null => {
+    const now = rules.current
+    return playBlock({
+      downloaded: isDownloaded(now.index, songId),
+      installed: installedApp,
+      network: now.network,
+      streamUndownloaded: now.prefs.streamUndownloaded,
+      fromCloud: now.fromCloud,
+      dataAllowed: now.dataAllowed,
+    })
+  }, [])
+
+  const mayPlay = useCallback((songId: number) => blockFor(songId) === null, [blockFor])
+
+  const checkPlay = useCallback(
+    (songId: number, retry: () => void) => {
+      const block = blockFor(songId)
+      if (block === null) return true
+      setQuestion({ kind: 'play', block, songId, retry })
+      return false
+    },
+    [blockFor],
+  )
+
+  const answer = useCallback(
+    (yes: boolean) => {
+      const asked = question
+      setQuestion(null)
+      if (!yes || !asked) return
+      if (asked.kind === 'download') {
+        if (asked.ask === 'data' || asked.ask === 'data-large') setDataAllowed(true)
+        downloadByHand(asked.songIds)
+        return
+      }
+      switch (asked.block) {
+        case 'data':
+          setDataAllowed(true)
+          // The answer is in state on the next render; the retry must not wait for it.
+          rules.current = { ...rules.current, dataAllowed: true }
+          asked.retry()
+          return
+        case 'streaming-off':
+        case 'cloud':
+          downloadByHand([asked.songId])
+          return
+        case 'offline':
+          return
+      }
+    },
+    [question, downloadByHand],
+  )
+
+  const value = useMemo<DownloadsContextValue>(
+    () => ({
+      state,
+      queue: downloadQueue,
+      installed: installedApp,
+      network,
+      prefs,
+      setPrefs,
+      missingIds,
+      situation,
+      requestDownload,
+      downloadByHand,
+      removeByHand,
+      removeAll,
+      mayPlay,
+      checkPlay,
+      question,
+      answer,
+    }),
+    [
+      state,
+      network,
+      prefs,
+      setPrefs,
+      missingIds,
+      situation,
+      requestDownload,
+      downloadByHand,
+      removeByHand,
+      removeAll,
+      mayPlay,
+      checkPlay,
+      question,
+      answer,
+    ],
+  )
 
   return <DownloadsContext.Provider value={value}>{children}</DownloadsContext.Provider>
 }

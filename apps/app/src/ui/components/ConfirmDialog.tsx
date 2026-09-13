@@ -20,6 +20,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
+  cancelLabel = 'Cancel',
   danger = false,
   onConfirm,
   onCancel,
@@ -28,6 +29,8 @@ export function ConfirmDialog({
   title: string
   body?: string
   confirmLabel: string
+  /** Null for a notice with only one way out. */
+  cancelLabel?: string | null
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -37,6 +40,7 @@ export function ConfirmDialog({
       title={title}
       body={body}
       confirmLabel={confirmLabel}
+      cancelLabel={cancelLabel}
       danger={danger}
       onConfirm={onConfirm}
       onCancel={onCancel}
@@ -48,6 +52,7 @@ function Dialog({
   title,
   body,
   confirmLabel,
+  cancelLabel,
   danger,
   onConfirm,
   onCancel,
@@ -55,6 +60,7 @@ function Dialog({
   title: string
   body?: string
   confirmLabel: string
+  cancelLabel: string | null
   danger: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -80,7 +86,9 @@ function Dialog({
         </Text>
         {body ? <Text style={styles.body}>{body}</Text> : null}
         <View style={[styles.actions, !wide && styles.actionsCompact]}>
-          <Button label="Cancel" onPress={onCancel} grow={!wide} />
+          {cancelLabel === null ? null : (
+            <Button label={cancelLabel} onPress={onCancel} grow={!wide} />
+          )}
           <Button
             label={confirmLabel}
             variant={danger ? 'danger' : 'primary'}

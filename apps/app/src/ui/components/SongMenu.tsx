@@ -137,7 +137,7 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const deleteSong = useDeleteSong()
   const patchSong = usePatchSong()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { state: downloads, downloadByHand, removeByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -239,14 +239,14 @@ function Items({
         <SheetItem
           icon={icon(X)}
           label="Remove download"
-          onPress={then(() => void downloadQueue.remove([song.id]))}
+          onPress={then(() => void removeByHand([song.id]))}
         />
       ) : (
         <SheetItem
           icon={icon(CloudDownload)}
           label="Download for offline"
           detail={song.sizeBytes > 0 ? formatBytes(song.sizeBytes) : undefined}
-          onPress={then(() => downloadQueue.enqueue([song.id]))}
+          onPress={then(() => downloadByHand([song.id]))}
         />
       )}
 

@@ -160,6 +160,17 @@ export const Downloaded = ({
   </Icon>
 )
 
+/**
+ * Not on this device: the downloaded disc's counterpart, drawn as an outline
+ * so it reads as the same mark, not yet filled in.
+ */
+export const NotDownloaded = ({ color = colors.textMuted, ...rest }: IconProps): ReactNode => (
+  <Icon color={color} {...rest}>
+    <Circle cx="12" cy="12" r="9" />
+    <Path d="M12 7.5v8M8.8 12.3 12 15.5l3.2-3.2" />
+  </Icon>
+)
+
 export const Info = ({ color = colors.textSecondary, ...rest }: IconProps): ReactNode => (
   <Icon color={color} {...rest}>
     <Circle cx="12" cy="12" r="9" />

@@ -122,7 +122,7 @@ interface PlayTracking {
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection } = useConnection()
   const library = useLibrary()
-  const { queue: downloadQueue } = useDownloads()
+  const { queue: downloadQueue, checkPlay, mayPlay } = useDownloads()
   const { data: serverSettings } = useServerSettings()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
@@ -288,14 +288,21 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   const play = useCallback(
     (songIds: readonly number[], startIndex: number, shuffle?: boolean, position?: number) => {
-      // "Play" on a list means in order, as on the web; a tapped row keeps
-      // whatever mode is on.
-      const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
-      const next = playFrom(from, songIds, startIndex)
-      setQueue(next)
-      loadIndex(next, true, position)
+      const start = (): void => {
+        // "Play" on a list means in order, as on the web; a tapped row keeps
+        // whatever mode is on.
+        const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
+        const next = playFrom(from, songIds, startIndex)
+        setQueue(next)
+        loadIndex(next, true, position)
+      }
+      // A song that cannot play here says why, rather than loading and sitting
+      // paused; one that needs a yes (mobile data) starts once it has one.
+      const songId = songIds[startIndex]
+      if (songId !== undefined && !checkPlay(songId, start)) return
+      start()
     },
-    [loadIndex],
+    [loadIndex, checkPlay],
   )
 
   /**
@@ -308,21 +315,36 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const playShuffled = useCallback(
     (songIds: readonly number[]) => {
       if (songIds.length === 0) return
-      const start = Math.floor(Math.random() * songIds.length)
-      const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
-      setQueue(next)
-      loadIndex(next, true)
+      const begin = (start: number): void => {
+        const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
+        setQueue(next)
+        loadIndex(next, true)
+      }
+      // Start on a song that can play here, when there is one.
+      const playable = songIds.flatMap((id, index) => (mayPlay(id) ? [index] : []))
+      const start =
+        playable.length > 0
+          ? (playable[Math.floor(Math.random() * playable.length)] ?? 0)
+          : Math.floor(Math.random() * songIds.length)
+      const songId = songIds[start]
+      if (songId !== undefined && !checkPlay(songId, () => begin(start))) return
+      begin(start)
     },
-    [loadIndex],
+    [loadIndex, checkPlay, mayPlay],
   )
 
   const jumpTo = useCallback(
     (index: number) => {
-      const next = { ...queueRef.current, index }
-      setQueue(next)
-      loadIndex(next, true)
+      const go = (): void => {
+        const next = { ...queueRef.current, index }
+        setQueue(next)
+        loadIndex(next, true)
+      }
+      const songId = queueRef.current.items[index]
+      if (songId !== undefined && !checkPlay(songId, go)) return
+      go()
     },
-    [loadIndex],
+    [loadIndex, checkPlay],
   )
 
   const toggle = useCallback(() => {

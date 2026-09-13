@@ -47,7 +47,7 @@ export function LibraryScreen(): ReactNode {
   const { wide, dense } = useLayout()
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
-  const { state: downloads } = useDownloads()
+  const { state: downloads, installed } = useDownloads()
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
@@ -93,6 +93,7 @@ export function LibraryScreen(): ReactNode {
         active={currentId === item.id}
         playing={playing}
         downloaded={downloaded(item.id)}
+        notDownloadedMark={installed && !downloaded(item.id)}
         onPress={event => {
           // Shift and Cmd on the web, and a tap in selection mode, select; a
           // plain tap still plays.
@@ -117,6 +118,7 @@ export function LibraryScreen(): ReactNode {
       />
     ),
     [
+      installed,
       artFor,
       currentId,
       playing,
@@ -147,131 +149,131 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         <View style={[styles.controls, wide && styles.controlsWide]}>
-        <View style={[styles.searchBox, wide && styles.searchWide, dense && styles.searchDense]}>
-          <Search size={15} color={colors.textMuted} />
-          <TextInput
-            style={styles.search}
-            value={filter.query}
-            onChangeText={model.setQuery}
-            placeholder="Search"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            accessibilityLabel="Search library"
-          />
-          {filter.query ? (
-            <Pressable
-              onPress={model.clearQuery}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-            >
-              <X size={13} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={[styles.actions, wide && styles.actionsWide]}>
-          <View style={[styles.sortSlot, wide && styles.sortSlotWide]}>
-            <Select
-              value={filter.sort}
-              options={model.sortOptions.map(option => ({
-                value: option.field,
-                label: option.label,
-              }))}
-              onChange={model.setSort}
-              label="Sort by"
-              testID="library-sort"
+          <View style={[styles.searchBox, wide && styles.searchWide, dense && styles.searchDense]}>
+            <Search size={15} color={colors.textMuted} />
+            <TextInput
+              style={styles.search}
+              value={filter.query}
+              onChangeText={model.setQuery}
+              placeholder="Search"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              accessibilityLabel="Search library"
             />
+            {filter.query ? (
+              <Pressable
+                onPress={model.clearQuery}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <X size={13} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.direction,
-              dense && styles.directionDense,
-              pressed && styles.sortButtonPressed,
-            ]}
-            onPress={model.toggleDirection}
-            accessibilityRole="button"
-            accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
-          >
-            <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
-          </Pressable>
 
-          <View style={[styles.transport, wide ? styles.transportWide : styles.transportCompact]}>
-            {/*
+          <View style={[styles.actions, wide && styles.actionsWide]}>
+            <View style={[styles.sortSlot, wide && styles.sortSlotWide]}>
+              <Select
+                value={filter.sort}
+                options={model.sortOptions.map(option => ({
+                  value: option.field,
+                  label: option.label,
+                }))}
+                onChange={model.setSort}
+                label="Sort by"
+                testID="library-sort"
+              />
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.direction,
+                dense && styles.directionDense,
+                pressed && styles.sortButtonPressed,
+              ]}
+              onPress={model.toggleDirection}
+              accessibilityRole="button"
+              accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
+            >
+              <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
+            </Pressable>
+
+            <View style={[styles.transport, wide ? styles.transportWide : styles.transportCompact]}>
+              {/*
               The way in, on every device: multi-select used to be reachable
               only by knowing that Cmd-click did something.
             */}
-            <Button
-              label={selection.active ? 'Done' : 'Select'}
-              active={selection.active}
-              icon={<CheckSquare size={15} color={colors.textPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => (selection.active ? selection.clear() : selection.enter())}
-              testID="library-select"
-            />
-            <Button
-              label="Play"
-              icon={<Play size={15} color={colors.onAccent} />}
-              variant="primary"
-              disabled={visible.length === 0}
-              onPress={() => player.playFrom(songIds, 0, false)}
-            />
-            {/* Worded at desktop width, as on the web; an icon on a phone. */}
-            <Button
-              label={wide ? 'Shuffle' : undefined}
-              icon={<Shuffle size={15} color={colors.textPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => player.playShuffled(songIds)}
-            />
+              <Button
+                label={selection.active ? 'Done' : 'Select'}
+                active={selection.active}
+                icon={<CheckSquare size={15} color={colors.textPrimary} />}
+                disabled={visible.length === 0}
+                onPress={() => (selection.active ? selection.clear() : selection.enter())}
+                testID="library-select"
+              />
+              <Button
+                label="Play"
+                icon={<Play size={15} color={colors.onAccent} />}
+                variant="primary"
+                disabled={visible.length === 0}
+                onPress={() => player.playFrom(songIds, 0, false)}
+              />
+              {/* Worded at desktop width, as on the web; an icon on a phone. */}
+              <Button
+                label={wide ? 'Shuffle' : undefined}
+                icon={<Shuffle size={15} color={colors.textPrimary} />}
+                disabled={visible.length === 0}
+                onPress={() => player.playShuffled(songIds)}
+              />
+            </View>
           </View>
-        </View>
         </View>
       </View>
 
       {/* At desktop width the sidebar carries the tags, as on the web. */}
       {!wide && (tags.length > 0 || songs.length > 0) ? (
         <View ref={stripRef} collapsable={false}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tagStripFrame}
-          contentContainerStyle={styles.tagStrip}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Chip
-            label="On this phone"
-            selected={filter.downloadedOnly}
-            icon={
-              <Downloaded
-                size={12}
-                color={filter.downloadedOnly ? colors.textPrimary : colors.textSecondary}
-                knockout={colors.surface1}
-              />
-            }
-            onPress={model.toggleDownloadedOnly}
-          />
-          {tags.map((tag, index) => {
-            const state = model.tagFilter(tag.id)
-            return (
-              <Chip
-                key={tag.id}
-                testID={`tag-chip-${index}`}
-                label={tag.name}
-                hue={tag.hue}
-                selected={state === 'include'}
-                excluded={state === 'exclude'}
-                // A tap on a hidden tag stops hiding it; otherwise a tap shows
-                // only it — the web's strip.
-                onPress={() =>
-                  state === 'exclude' ? model.excludeTag(tag.id) : model.includeTag(tag.id)
-                }
-                onLongPress={() => setEditingTag(tag)}
-              />
-            )
-          })}
-        </ScrollView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tagStripFrame}
+            contentContainerStyle={styles.tagStrip}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Chip
+              label="On this phone"
+              selected={filter.downloadedOnly}
+              icon={
+                <Downloaded
+                  size={12}
+                  color={filter.downloadedOnly ? colors.textPrimary : colors.textSecondary}
+                  knockout={colors.surface1}
+                />
+              }
+              onPress={model.toggleDownloadedOnly}
+            />
+            {tags.map((tag, index) => {
+              const state = model.tagFilter(tag.id)
+              return (
+                <Chip
+                  key={tag.id}
+                  testID={`tag-chip-${index}`}
+                  label={tag.name}
+                  hue={tag.hue}
+                  selected={state === 'include'}
+                  excluded={state === 'exclude'}
+                  // A tap on a hidden tag stops hiding it; otherwise a tap shows
+                  // only it — the web's strip.
+                  onPress={() =>
+                    state === 'exclude' ? model.excludeTag(tag.id) : model.includeTag(tag.id)
+                  }
+                  onLongPress={() => setEditingTag(tag)}
+                />
+              )
+            })}
+          </ScrollView>
         </View>
       ) : null}
 
@@ -307,7 +309,7 @@ export function LibraryScreen(): ReactNode {
         </View>
       ) : null}
 
-      <SyncStatus songs={songs} />
+      <SyncStatus />
 
       {selection.active ? (
         <SelectionBar

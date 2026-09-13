@@ -69,7 +69,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { state: downloads, downloadByHand } = useDownloads()
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -256,7 +256,7 @@ export function PlaylistDetailScreen(): ReactNode {
                 )
               }
               disabled={pendingBytes === 0}
-              onPress={() => downloadQueue.enqueue(songIds)}
+              onPress={() => downloadByHand(songIds)}
             />
             {playlist ? (
               <Button

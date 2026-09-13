@@ -50,13 +50,17 @@ pointer sitting on the bottom row).
 | Settings | top · bottom · accent changed · light theme |
 | Import | at rest (the queue) · a link's review, fetched and not imported |
 | Migrate a playlist | at rest · two songs' matches, found and not imported |
+| Stats | top · bottom (last 30 days) |
+| Wrapped | top · bottom (last 30 days) |
 | Devices | popover · resume toast |
 | Sheets and popovers | sleep timer · speed (desktop) · practice (phone) |
 
-Import and Migrate were added in phase 5, from the same app: the one commit to `apps/web`
+Import, Migrate, Stats and Wrapped were added in phase 5, from the same app: the one commit to `apps/web`
 after `fb882e0` (2df5771) touched devices and nothing the Import screen draws.
 Their reviews need yt-dlp on the Mac and YouTube to answer; the songs are ones
 the dev library already has, and the captures back out rather than import.
+Stats and Wrapped show what has been played on this Mac, so their numbers are
+those of the day they were taken (2026-09-13).
 
 Where the two widths carry the same thing under different names, the name here
 is the one that describes what was captured: the phone has no About tab (the

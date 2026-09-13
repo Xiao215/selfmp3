@@ -7,7 +7,7 @@ import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
  */
 
 export type PaletteCommandId =
-  'nav-library' | 'nav-playlists' | 'nav-import' | 'nav-settings' | 'shuffle-all'
+  'nav-library' | 'nav-playlists' | 'nav-import' | 'nav-stats' | 'nav-settings' | 'shuffle-all'
 
 export interface PaletteCommand {
   readonly id: PaletteCommandId
@@ -15,12 +15,17 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-/** `fromCloud`: a cloud library has no Mac to import with, so no Import. */
+/** `fromCloud`: a cloud library has no Mac to import with or count plays on. */
 export function paletteCommands(songCount: number, fromCloud = false): readonly PaletteCommand[] {
   return [
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
-    ...(fromCloud ? [] : [{ id: 'nav-import' as const, label: 'Import music' }]),
+    ...(fromCloud
+      ? []
+      : [
+          { id: 'nav-import' as const, label: 'Import music' },
+          { id: 'nav-stats' as const, label: 'Listening stats' },
+        ]),
     { id: 'nav-settings', label: 'Settings' },
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
   ]

@@ -22,7 +22,16 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
-import { ListMusic, Mic, Music, Search, Settings, Shuffle, Tag } from '../../ui/components/Icons'
+import {
+  BarChart,
+  ListMusic,
+  Mic,
+  Music,
+  Search,
+  Settings,
+  Shuffle,
+  Tag,
+} from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
 import { useLibraryFilter } from '../library/libraryFilter'
 import { lyricsQueryFor, paletteResults, stepIndex, type PaletteCommandId } from './palette.model'
@@ -84,6 +93,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         return
       case 'nav-import':
         router.navigate('/import')
+        return
+      case 'nav-stats':
+        router.navigate('/stats')
         return
       case 'nav-settings':
         router.navigate('/settings')
@@ -168,6 +180,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'nav-library': icon(Music),
     'nav-playlists': icon(ListMusic),
     'nav-import': icon(Search),
+    'nav-stats': icon(BarChart),
     'nav-settings': icon(Settings),
     'shuffle-all': icon(Shuffle),
   }

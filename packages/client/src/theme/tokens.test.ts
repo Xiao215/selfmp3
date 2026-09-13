@@ -125,8 +125,14 @@ describe('token parity with the web stylesheet', () => {
     ['good', 'good'],
     ['border', 'border'],
     ['border-strong', 'borderStrong'],
+    ['chart-grid', 'chartGrid'],
   ] as const)('--%s is %s', (cssName, key) => {
     const { l, c, h } = cssToken(cssName)
     expect(colors[key]).toBe(oklchToHex(l, c, h))
+  })
+
+  it('--chart-series is chartSeries, written as hex in both', () => {
+    // The first declaration is the dark block's.
+    expect(colors.chartSeries).toBe(/--chart-series:\s*(#[0-9a-f]{6})/i.exec(CSS)?.[1])
   })
 })

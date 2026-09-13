@@ -25,6 +25,7 @@ import { useConnection } from '../server/ConnectionProvider'
 import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
+  BarChart,
   CloudDownload,
   Download,
   ListMusic,
@@ -52,7 +53,7 @@ import { TagEditor } from '../ui/components/TagEditor'
  * edits it. At the foot, what is on this device and a rescan.
  */
 const DESTINATIONS: {
-  href: '/' | '/playlists' | '/import' | '/settings'
+  href: '/' | '/playlists' | '/import' | '/stats' | '/settings'
   label: string
   Icon: typeof Music
   /** Needs the Mac's own tools: a cloud library has none, as on the web. */
@@ -61,6 +62,7 @@ const DESTINATIONS: {
   { href: '/', label: 'Library', Icon: Music },
   { href: '/playlists', label: 'Playlists', Icon: ListMusic },
   { href: '/import', label: 'Import', Icon: Download, mac: true },
+  { href: '/stats', label: 'Stats', Icon: BarChart, mac: true },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 

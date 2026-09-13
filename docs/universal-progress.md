@@ -1452,3 +1452,41 @@ In a browser `SafeAreaView` is now a plain `View`, which does carry the class
 (safe-area insets there are all but always zero). The phone keeps the
 `withUnistyles` wrapper. Measured after: the library, Import and migration
 screens are the height of the space above the tabs and scroll inside it.
+
+### Stats and Wrapped
+
+The web's `StatsView` and `WrappedView`, at `/stats` and `/stats/wrapped`.
+Stats is in the sidebar and the ⌘K palette ("Listening stats"), and in neither
+for a cloud library, as on the web.
+
+- `features/stats/stats.model.ts` (11 tests) and
+  `features/wrapped/wrapped.model.ts` (7 tests) hold the rules with nothing
+  drawn: the ranges, a column a day and an hour with their tooltip labels, the
+  busiest hour, each song once in "Recently played", round axis numbers, the
+  hero figure and its unit, the six facts, the empty window's way out (longer
+  ranges, then the library), chapter numbering, and the shared image's name.
+- `ui/components/charts.tsx` is the web's charts in react-native-svg: a column
+  chart that measures its plot and draws in real pixels (a rounded data-end, a
+  square baseline, bars capped at 24px, hairline gridlines at round numbers,
+  pointing or touching a column shows its value), a bar list labelled at the
+  tip, and stat tiles. `ui/components/Segmented.tsx` is the range switcher.
+- The charts' two colours are theme tokens now, `chartSeries` and `chartGrid`
+  in `packages/client`, checked against both of the web stylesheet's themes.
+- Wrapped's hero lays the top song's artwork, blurred, under the web's washes;
+  its chapters sit two to a row at desktop width.
+- "Share as image" draws the web's 1080×1080 card on a canvas and downloads it
+  (`ports/shareCard.web.ts`).
+- Checked: `verify/flows/stats.spec.ts` switches Stats' range, opens Wrapped and
+  switches its range, at both widths against both apps. The reference set gains
+  `stats-top`, `stats-bottom`, `wrapped-top` and `wrapped-bottom`, and the new
+  app is captured in the same states.
+
+Where it differs, on purpose for now:
+
+- **No "Share as image" on a phone.** The card is a canvas drawing; the plan's
+  route for canvas work on a phone is an Expo DOM component, which needs a
+  webview module and a native build (`ports/shareCard.ts` says so).
+- **A chart's values are not read out one by one from the keyboard.** The web
+  walks its columns with the arrow keys; here a chart is one image to a screen
+  reader, named with its highest value.
+- **Wrapped's big number is plain text**, not the web's gradient-filled type.

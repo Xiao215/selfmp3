@@ -42,6 +42,12 @@ function lightToken(name: string): string {
 afterEach(() => applyColorScheme('dark'))
 
 describe('the light theme', () => {
+  it('--chart-series is chartSeries, written as hex', () => {
+    expect(lightPalette(DEFAULT_ACCENT_HUE).chartSeries).toBe(
+      /--chart-series:\s*(#[0-9a-f]{6})/i.exec(LIGHT)?.[1],
+    )
+  })
+
   it.each([
     ['surface-0', 'surface0'],
     ['surface-1', 'surface1'],
@@ -56,6 +62,7 @@ describe('the light theme', () => {
     ['on-accent', 'onAccent'],
     ['border', 'border'],
     ['border-strong', 'borderStrong'],
+    ['chart-grid', 'chartGrid'],
   ] as const)('--%s is %s', (cssName, key) => {
     expect(lightPalette(DEFAULT_ACCENT_HUE)[key]).toBe(lightToken(cssName))
   })

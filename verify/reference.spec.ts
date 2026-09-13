@@ -552,6 +552,31 @@ test.describe('reference', () => {
     }
   })
 
+  test('stats', async ({ page }, info) => {
+    test.setTimeout(90_000)
+    const project = info.project.name
+    await page.goto('/stats')
+    await page.getByRole('heading', { name: 'Stats', exact: true }).waitFor({ timeout: 30_000 })
+    await dismissToasts(page)
+    await restMouse(page)
+    // The charts measure their width before they draw.
+    await settle(page, 1500)
+    await shot(page, project, 'stats-top')
+    await scrollTo(page, 'bottom')
+    await settle(page, 900)
+    await shot(page, project, 'stats-bottom')
+
+    await page.goto('/stats/wrapped')
+    await page.getByRole('heading', { name: 'Wrapped', exact: true }).waitFor({ timeout: 30_000 })
+    await dismissToasts(page)
+    await restMouse(page)
+    await settle(page, 1500)
+    await shot(page, project, 'wrapped-top')
+    await scrollTo(page, 'bottom')
+    await settle(page, 900)
+    await shot(page, project, 'wrapped-bottom')
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

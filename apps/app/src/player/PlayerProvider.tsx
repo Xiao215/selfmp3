@@ -3,12 +3,10 @@ import type { ReactNode } from 'react'
 import { AppState } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  advance,
   cycleRepeat,
   EMPTY_QUEUE,
   enqueue as enqueueIds,
   moveItem,
-  peekNext,
   playFrom,
   playNext as playNextIds,
   previous as previousInQueue,
@@ -18,7 +16,13 @@ import {
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
-import { listenedDelta, secondsToCount, type EngineState } from '@selfmp3/client'
+import {
+  advancePlayable,
+  listenedDelta,
+  peekPlayable,
+  secondsToCount,
+  type EngineState,
+} from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
 import { useLibrary, useServerSettings } from '../api/queries'
@@ -222,7 +226,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   useEffect(() => {
     return engine.connect({
-      nextTrackId: () => peekNext(queueRef.current),
+      // Past songs that cannot play here, so a lookahead never preloads one.
+      nextTrackId: () => peekPlayable(queueRef.current, mayPlay),
 
       streamUrl: songId => {
         // The local file wins whenever there is one: that is what the download
@@ -262,7 +267,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // threshold — it finished, which is the strongest evidence there is.
         flushPlay(true)
 
-        const { state, stop } = advance(queueRef.current, true)
+        // Past songs that cannot play here: one not on the phone, offline,
+        // would otherwise load and sit paused with no word.
+        const { state, stop } = advancePlayable(queueRef.current, true, mayPlay)
         if (stop) {
           engine.pause()
           return
@@ -284,7 +291,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         }
       },
     })
-  }, [engine, loadIndex, flushPlay, downloadQueue])
+  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay])
 
   // --- commands ------------------------------------------------------------
 
@@ -363,11 +370,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const next = useCallback(() => {
     // Pressing Next is not the song running out: `auto` false, so repeat-one
     // moves on rather than playing the same song again.
-    const { state, stop } = advance(queueRef.current, false)
+    const { state, stop } = advancePlayable(queueRef.current, false, mayPlay)
     if (stop) return
     setQueue(state)
     loadIndex(state, true)
-  }, [loadIndex])
+  }, [loadIndex, mayPlay])
 
   const previous = useCallback(() => {
     // Match the web: within the first few seconds "previous" means the

@@ -1080,14 +1080,15 @@ seven states at 1280, and the phone's five.
     ("Download automatically on Wi-Fi", "Play songs that aren't downloaded")
     come with the downloading work that follows.
 - **Downloading and streaming, what is still short of the design.**
-  - Only starting a song is checked. When the queue moves on by itself, a
-    song that cannot play is still tried and sits paused, as before.
+  - When the queue moves on, by itself or from Next, it skips songs that
+    cannot play here, and stops if none of the rest can
+    (`packages/client/src/queue/playable.ts`, 7 tests). A song that would
+    need the mobile data question is skipped rather than asked about
+    mid-play; only a song started by hand asks.
   - "Offline" means the phone has no connection at all. A phone online
     with the Mac asleep still tries to stream.
   - Downloads run only while the app is open. Background transfers are
     still the thing to retry (see `src/ports/downloadStorage.ts`).
-  - `offline.yaml`'s note that an undownloaded song "sits paused with no
-    word" is now true only for the queue moving on by itself.
 - **The palette, where this app differs.**
   - It offers Go to Library, Go to Playlists, Settings and Shuffle
     everything. The web's Import music, Listening stats and Tag untagged

@@ -1,15 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import {
-  Animated,
-  Easing,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  useWindowDimensions,
-} from 'react-native'
+import { Animated, Easing, Pressable, ScrollView, useWindowDimensions } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { colors, motion, radius, space } from '@selfmp3/client'
+import { motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
@@ -198,14 +192,14 @@ function AnchoredPopover({
   return null
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   panel: {
     position: 'absolute',
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
     paddingVertical: space.xs,
     overflow: 'hidden',
   },
-})
+}))

@@ -1,3 +1,8 @@
+// Unistyles has no native side in a test: its own mocks stand in, and the app's
+// themes are configured the way the entry file configures them.
+require('react-native-unistyles/mocks')
+require('./src/ui/theme/unistyles')
+
 // What a component test needs that a simulator would otherwise provide.
 //
 // Only the native modules a primitive reaches on its way to the screen. This

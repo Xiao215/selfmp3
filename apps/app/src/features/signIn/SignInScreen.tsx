@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  AppState,
-  KeyboardAvoidingView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { AppState, KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Linking from 'expo-linking'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { DoormanError, type CloudSession } from '@selfmp3/cloud'
 import { formatSignInCode, SignInCodeSchema } from '@selfmp3/shared'
 import { session as cloud } from '../../cloud'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useRouter } from 'expo-router'
 import { Button } from '../../ui/components/Button'
-import { colors, radius, space, type } from '@selfmp3/client'
+import { radius, space, type } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 
 /**
@@ -57,6 +50,7 @@ export function SignInScreen({
 }: {
   onSignedIn?: (session: CloudSession) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { signedInToCloud } = useConnection()
   const router = useRouter()
   const [stage, setStage] = useState<Stage>({ kind: 'idle', message: null })
@@ -226,7 +220,7 @@ export function SignInScreen({
                 value={formatSignInCode(code)}
                 onChangeText={next => setCode(next.replace(/[^0-9A-Za-z]/g, ''))}
                 placeholder="XXXX-XXXX"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={theme.colors.textMuted}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 autoFocus
@@ -244,27 +238,37 @@ export function SignInScreen({
   )
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface0 },
+const styles = StyleSheet.create(theme => ({
+  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { padding: space.xl, gap: space.sm, flexGrow: 1, justifyContent: 'center' },
-  wordmark: { color: colors.textPrimary, fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  wordmark: {
+    color: theme.colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
   blurb: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: type.body,
     lineHeight: 21,
     marginBottom: space.lg,
   },
-  label: { color: colors.textMuted, fontSize: type.small, fontWeight: '600', marginTop: space.md },
+  label: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    fontWeight: '600',
+    marginTop: space.md,
+  },
   input: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     paddingHorizontal: space.md,
     paddingVertical: space.md,
     marginBottom: space.md,
   },
-  error: { color: colors.danger, fontSize: type.small, marginBottom: space.md },
-})
+  error: { color: theme.colors.danger, fontSize: type.small, marginBottom: space.md },
+}))

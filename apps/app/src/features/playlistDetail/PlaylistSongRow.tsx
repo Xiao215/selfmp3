@@ -1,9 +1,10 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native'
+import { PanResponder, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { formatDuration, type Song } from '@selfmp3/shared'
-import { colors, radius, space, type } from '@selfmp3/client'
+import { radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -70,6 +71,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   /** Reports the row's height, so a drag can count rows travelled. */
   onLayoutHeight?: (height: number) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
@@ -135,7 +137,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
           accessibilityLabel={`Move ${song.title}`}
           style={[styles.grip, !finePointer && styles.gripTouch, { opacity: revealed ? 1 : 0.45 }]}
         >
-          <Grip size={16} color={revealed ? colors.textSecondary : colors.textMuted} />
+          <Grip size={16} color={revealed ? theme.colors.textSecondary : theme.colors.textMuted} />
         </View>
       ) : null}
 
@@ -165,7 +167,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
       {manual && !selecting ? (
         <View style={{ opacity: revealed ? 1 : 0 }}>
           <IconButton onPress={onRemove} label={`Remove ${song.title} from ${playlistName}`}>
-            <X size={15} color={colors.textMuted} />
+            <X size={15} color={theme.colors.textMuted} />
           </IconButton>
         </View>
       ) : null}
@@ -173,16 +175,16 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   )
 })
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: radius.sm,
   },
-  rowHovered: { backgroundColor: colors.surface1 },
-  rowSelected: { backgroundColor: colors.surface2 },
-  rowDragging: { opacity: 0.45, backgroundColor: colors.surface2 },
+  rowHovered: { backgroundColor: theme.colors.surface1 },
+  rowSelected: { backgroundColor: theme.colors.surface2 },
+  rowDragging: { opacity: 0.45, backgroundColor: theme.colors.surface2 },
   dropLine: {
     position: 'absolute',
     left: 0,
@@ -205,14 +207,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     borderRadius: radius.sm,
   },
-  index: { width: 22, color: colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  index: { width: 22, color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
   meta: { flex: 1, minWidth: 0 },
-  title: { color: colors.textPrimary, fontSize: type.body, fontWeight: '500' },
-  artist: { color: colors.textMuted, fontSize: 12 },
+  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
+  artist: { color: theme.colors.textMuted, fontSize: 12 },
   time: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
     paddingRight: 4,
   },
-})
+}))

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
-import { colors, radius } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { hexAlpha, LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 
@@ -29,6 +30,7 @@ export function StageLyrics({
   focus: boolean
   fontSize: number
 }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const scrollRef = useRef<ScrollView>(null)
   const [boxHeight, setBoxHeight] = useState(0)
@@ -91,14 +93,14 @@ export function StageLyrics({
           const time = synced?.[index]?.time
           const sub = roman?.[index]
           const color = !synced
-            ? colors.textSecondary
+            ? theme.colors.textSecondary
             : index === active
-              ? colors.textPrimary
+              ? theme.colors.textPrimary
               : hovered === index
-                ? hexAlpha(colors.textPrimary, 0.72)
+                ? hexAlpha(theme.colors.textPrimary, 0.72)
                 : index < active
-                  ? hexAlpha(colors.textPrimary, 0.25)
-                  : hexAlpha(colors.textPrimary, 0.4)
+                  ? hexAlpha(theme.colors.textPrimary, 0.25)
+                  : hexAlpha(theme.colors.textPrimary, 0.4)
           const distance = Math.min(3, Math.abs(index - active))
           const content = (
             <>

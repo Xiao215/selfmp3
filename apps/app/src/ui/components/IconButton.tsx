@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet } from 'react-native'
-import { colors, HIT_TARGET, radius } from '@selfmp3/client'
+import { Pressable } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { HIT_TARGET, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 
 /**
@@ -54,15 +55,15 @@ export function IconButton({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   pressed: {
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   disabled: {
     opacity: 0.4,
   },
-})
+}))

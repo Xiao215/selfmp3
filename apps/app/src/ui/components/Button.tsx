@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { colors, HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
+import { HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
 
 /**
  * The web's `.button`, in the same three weights: at the phone's 44px, and at
@@ -43,13 +44,14 @@ export function Button({
 }): ReactNode {
   const accent = useAccent()
   const { dense } = useLayout()
+  const { theme } = useUnistyles()
   const inactive = disabled || busy
   const ink =
     variant === 'primary'
-      ? colors.onAccent
+      ? theme.colors.onAccent
       : variant === 'danger'
-        ? colors.danger
-        : colors.textPrimary
+        ? theme.colors.danger
+        : theme.colors.textPrimary
 
   return (
     <Pressable
@@ -90,7 +92,7 @@ export function Button({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   button: {
     minHeight: HIT_TARGET,
     paddingHorizontal: 14,
@@ -98,8 +100,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
   },
   /* 8 by 14 around 13-point type, as `.button` is with a mouse. */
   buttonDense: {
@@ -125,8 +127,8 @@ const styles = StyleSheet.create({
     borderColor: '#5a2a2e',
   },
   pressed: {
-    backgroundColor: colors.surface3,
-    borderColor: colors.borderStrong,
+    backgroundColor: theme.colors.surface3,
+    borderColor: theme.colors.borderStrong,
     transform: [{ translateY: 1 }],
   },
   disabled: {
@@ -136,4 +138,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-})
+}))

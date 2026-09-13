@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Appearance,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatBytes, type Settings } from '@selfmp3/shared'
 import {
   buildAccent,
   clientApi,
-  colors,
   downloadedCount,
   queryKeys,
   radius,
@@ -34,13 +32,9 @@ import {
 } from '@selfmp3/client'
 import { useLibrary, useManifest } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
-import { reloadApp } from '../../ports/reload'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
-import { resolveScheme } from '../../ui/appearancePrefs'
-import { launchScheme } from '../../ui/themeAtLaunch'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
@@ -89,6 +83,7 @@ type Confirming = 'change-server' | 'remove-downloads' | 'redo-analysis' | 'forg
  * on a narrow one — and every setting has the same anatomy.
  */
 export function SettingsScreen(): ReactNode {
+  const { theme } = useUnistyles()
   const { fromCloud } = useConnection()
   const { width, wide } = useLayout()
   const settings = useSettings()
@@ -215,7 +210,16 @@ export function SettingsScreen(): ReactNode {
         </View>
 
         {column ? null : (
-          <View style={styles.chipBar}>
+          <View
+            style={[
+              styles.chipBar,
+              // Colours inline, not only from the sheet: a sticky header is
+              // re-parented into ScrollView's own animated wrapper, which
+              // Unistyles' live update does not reach, so the strip would keep
+              // the last theme's ground.
+              { backgroundColor: theme.colors.surface0, borderBottomColor: theme.colors.border },
+            ]}
+          >
             <ScrollView
               ref={chipsRef}
               onLayout={event => {
@@ -382,6 +386,7 @@ function OfflinePanel({
   onTop: (top: number) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
@@ -495,7 +500,7 @@ function OfflinePanel({
             />
             <Button
               label="Stop downloading"
-              icon={<X size={15} color={colors.textPrimary} />}
+              icon={<X size={15} color={theme.colors.textPrimary} />}
               onPress={() => queue.cancelAll()}
             />
           </>
@@ -509,7 +514,7 @@ function OfflinePanel({
             icon={
               <CloudDownload
                 size={15}
-                color={missingBytes === 0 ? colors.textMuted : colors.onAccent}
+                color={missingBytes === 0 ? theme.colors.textMuted : theme.colors.onAccent}
               />
             }
             variant="primary"
@@ -530,7 +535,7 @@ function OfflinePanel({
         {held > 0 ? (
           <Button
             label="Remove all downloads"
-            icon={<Trash size={15} color={colors.danger} />}
+            icon={<Trash size={15} color={theme.colors.danger} />}
             variant="danger"
             onPress={() => onConfirm('remove-downloads')}
           />
@@ -551,6 +556,7 @@ function ImportingPanel({
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
   onTop: (top: number) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   return (
     <Panel title="Importing" hint="shared across your devices" onTop={onTop}>
       <Row
@@ -642,7 +648,7 @@ function ImportingPanel({
             style={partStyles.input}
             defaultValue={settings.ytCookieFile}
             placeholder="/Users/you/cookies.txt"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             accessibilityLabel="Cookies file"
@@ -668,6 +674,7 @@ function LibraryPanel({
   onTop: (top: number) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const library = useLibrary()
   const scan = useScanLibrary()
   const analysis = useAnalysisStatus(true)
@@ -688,7 +695,7 @@ function LibraryPanel({
       <Row label="Rescan the folder" hint={scanHint(scan.data)}>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
-          icon={<Refresh size={15} color={colors.textPrimary} />}
+          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
           disabled={scan.isPending}
           onPress={() => scan.mutate()}
         />
@@ -700,14 +707,14 @@ function LibraryPanel({
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}
-          icon={<Sparkles size={15} color={colors.textPrimary} />}
+          icon={<Sparkles size={15} color={theme.colors.textPrimary} />}
           disabled={running || startAnalysis.isPending}
           onPress={() => startAnalysis.mutate(false)}
         />
         {analysed > 0 && !running ? (
           <Button
             label="Redo all"
-            icon={<Refresh size={15} color={colors.textPrimary} />}
+            icon={<Refresh size={15} color={theme.colors.textPrimary} />}
             onPress={() => onConfirm('redo-analysis')}
           />
         ) : null}
@@ -730,7 +737,7 @@ function LibraryPanel({
           <ButtonRow>
             <Button
               label="Forget missing songs"
-              icon={<Trash size={15} color={colors.danger} />}
+              icon={<Trash size={15} color={theme.colors.danger} />}
               variant="danger"
               onPress={() => onConfirm('forget-missing')}
             />
@@ -750,6 +757,7 @@ function ConnectionPanel({
   onTop: (top: number) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   return (
@@ -782,7 +790,7 @@ function ConnectionPanel({
       <ButtonRow>
         <Button
           label="Refresh"
-          icon={<Refresh size={15} color={colors.textPrimary} />}
+          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
           onPress={() => void library.refetch()}
         />
         {fromCloud ? null : (
@@ -800,6 +808,7 @@ function ConnectionPanel({
 // ---------------------------------------------------------------- devices
 
 function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const { theme } = useUnistyles()
   const { deviceId, name, rename, devices, connected } = useDeviceContext()
   const client = useQueryClient()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
@@ -837,7 +846,7 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
             key={device.id}
             style={[styles.device, position === devices.length - 1 && styles.deviceLast]}
           >
-            <View style={[styles.dot, device.online && { backgroundColor: colors.good }]} />
+            <View style={[styles.dot, device.online && { backgroundColor: theme.colors.good }]} />
             <View style={styles.deviceName}>
               <Text style={styles.deviceText} numberOfLines={1}>
                 {device.name}
@@ -848,7 +857,7 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
               {device.online ? 'online' : `last seen ${relativeTime(device.lastSeenAt)}`}
             </Text>
             <IconButton onPress={() => forget(device.id)} label={`Forget ${device.name}`} size={28}>
-              <Trash size={14} color={colors.textMuted} />
+              <Trash size={14} color={theme.colors.textMuted} />
             </IconButton>
           </View>
         ))}
@@ -863,21 +872,16 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
 // ------------------------------------------------------------- appearance
 
 function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const { theme: ui } = useUnistyles()
   const accent = useAccent()
-  const player = usePlayer()
-  // The palette is filled at launch, so a different scheme means starting
-  // again — at once, unless a song is playing, which it would cut off.
-  const pending = resolveScheme(accent.theme, Appearance.getColorScheme()) !== launchScheme
   const chooseTheme = (choice: ThemeChoice): void => {
     accent.setTheme(choice)
-    const changes = resolveScheme(choice, Appearance.getColorScheme()) !== launchScheme
-    if (changes && !player.isPlaying) reloadApp()
   }
   return (
     <Panel title="Appearance" hint="on this device" onTop={onTop}>
       <Row
         label="Theme"
-        hint={`“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way.${pending ? ' It switches the next time the app opens, so the song playing isn’t cut off.' : ''}`}
+        hint={`“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way.`}
       >
         <Select<ThemeChoice>
           value={accent.theme}
@@ -907,7 +911,7 @@ function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode
               style={[
                 styles.swatch,
                 { backgroundColor: buildAccent(preset.hue).accent },
-                accent.hue === preset.hue && { borderColor: colors.textPrimary },
+                accent.hue === preset.hue && { borderColor: ui.colors.textPrimary },
               ]}
             />
           ))}
@@ -992,19 +996,19 @@ function Confirmations({
   )
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface0 },
+const styles = StyleSheet.create(theme => ({
+  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
   contentColumn: { paddingTop: 28, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
   head: { marginBottom: 20 },
-  title: { color: colors.textPrimary, fontSize: 26, fontWeight: '700', letterSpacing: -0.4 },
+  title: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700', letterSpacing: -0.4 },
   titleNarrow: { fontSize: 22 },
-  sub: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
+  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   panels: { gap: 14, maxWidth: 780 },
   indexColumn: { position: 'absolute', top: 28, left: 32, width: 172, gap: 1 },
   indexTitle: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.8,
@@ -1019,17 +1023,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: 'transparent',
   },
-  indexItemOn: { backgroundColor: colors.surface1 },
-  indexPressed: { backgroundColor: colors.surface1 },
-  indexText: { color: colors.textMuted, fontSize: 13 },
-  indexTextOn: { color: colors.textPrimary, fontWeight: '600' },
+  indexItemOn: { backgroundColor: theme.colors.surface1 },
+  indexPressed: { backgroundColor: theme.colors.surface1 },
+  indexText: { color: theme.colors.textMuted, fontSize: 13 },
+  indexTextOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   chipBar: {
     marginHorizontal: -16,
     paddingVertical: 10,
     marginBottom: 14,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   chips: { gap: 6, paddingHorizontal: 16 },
   chip: {
@@ -1037,12 +1041,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface1,
   },
-  valueText: { color: colors.textPrimary, fontSize: 13 },
+  valueText: { color: theme.colors.textPrimary, fontSize: 13 },
   progress: { marginVertical: 14, gap: 8 },
-  progressText: { color: colors.textSecondary, fontSize: 13 },
+  progressText: { color: theme.colors.textSecondary, fontSize: 13 },
   shortcut: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
   keys: { flexDirection: 'row', gap: 3, minWidth: 92 },
   devices: { marginTop: 6 },
@@ -1052,22 +1056,22 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   deviceLast: { borderBottomWidth: 0 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.borderStrong },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  deviceText: { color: colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  deviceText: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
   deviceTag: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 999,
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
-  deviceWhen: { color: colors.textMuted, fontSize: 12 },
+  deviceWhen: { color: theme.colors.textMuted, fontSize: 12 },
   swatches: { flexDirection: 'row', gap: 6 },
   swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'transparent' },
-})
+}))

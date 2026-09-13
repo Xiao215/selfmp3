@@ -1,7 +1,8 @@
-import { Image, StyleSheet, Text, View } from 'react-native'
+import { Image, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { hueFromString } from '@selfmp3/shared'
-import { colors, radius } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
 
 /**
  * Cover art, with the same placeholder the web app uses: a solid colour
@@ -38,15 +39,15 @@ export function Cover({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   cover: {
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   letter: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontWeight: '600',
   },
-})
+}))

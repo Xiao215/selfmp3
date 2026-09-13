@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
-import { colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { usePanelDense } from './panel'
@@ -150,19 +151,20 @@ export function SheetItem({
   /** A menu's action, or one of a list's choices (a `Select`'s options). */
   role?: 'menuitem' | 'option'
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const dense = usePanelDense()
   // In a panel the web's items are quiet until pointed at or chosen; in a
   // sheet they are a finger's list and read at full strength.
   const ink = danger
-    ? colors.danger
+    ? theme.colors.danger
     : dense
       ? active
-        ? colors.textPrimary
-        : colors.textSecondary
+        ? theme.colors.textPrimary
+        : theme.colors.textSecondary
       : active
         ? accent.accent
-        : colors.textPrimary
+        : theme.colors.textPrimary
   return (
     <Pressable
       onPress={onPress}
@@ -194,7 +196,7 @@ export function SheetItem({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
     top: 0,
@@ -208,11 +210,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     paddingTop: space.sm,
     paddingHorizontal: space.sm,
   },
@@ -224,7 +226,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
     marginBottom: space.sm,
   },
   head: {
@@ -233,21 +235,21 @@ const styles = StyleSheet.create({
     paddingBottom: space.sm + 2,
     marginBottom: space.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
     gap: 1,
   },
   titleLabel: {
     fontSize: 12,
     fontWeight: '400',
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
   },
   title: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
   subtitle: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
   },
   item: {
@@ -266,13 +268,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   itemActiveDense: {
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   itemLabelDense: {
     fontSize: 13,
   },
   itemPressed: {
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
   itemDisabled: {
     opacity: 0.45,
@@ -286,7 +288,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   itemDetail: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
   },
-})
+}))

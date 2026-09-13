@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, StyleSheet } from 'react-native'
-import { colors } from '@selfmp3/client'
+import { Animated, Pressable } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 
 /**
@@ -24,6 +24,7 @@ export function Toggle({
   disabled?: boolean
   testID?: string
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const [position] = useState(() => new Animated.Value(value ? 1 : 0))
 
@@ -54,7 +55,7 @@ export function Toggle({
         style={[
           styles.knob,
           {
-            backgroundColor: value ? accent.onAccent : colors.textSecondary,
+            backgroundColor: value ? accent.onAccent : theme.colors.textSecondary,
             transform: [
               { translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, 18] }) },
             ],
@@ -65,15 +66,15 @@ export function Toggle({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   track: {
     width: 42,
     height: 24,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surface3,
+    borderColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.surface3,
   },
   knob: { position: 'absolute', top: 2, left: 2, width: 18, height: 18, borderRadius: 9 },
   disabled: { opacity: 0.45 },
-})
+}))

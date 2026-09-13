@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { apiFor, ApiError } from '../../api/client'
 import { normaliseBaseUrl } from '../../server/connection'
 import { useConnection } from '../../server/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
-import { colors, radius, space, type } from '@selfmp3/client'
+import { radius, space, type } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 
 /**
@@ -19,6 +20,7 @@ import { keyboardAvoidBehavior } from '../../ports/keyboard'
  * same red box and half an hour of confusion.
  */
 export function OnboardingScreen(): ReactNode {
+  const { theme } = useUnistyles()
   const { connect } = useConnection()
   const router = useRouter()
 
@@ -89,7 +91,7 @@ export function OnboardingScreen(): ReactNode {
             value={address}
             onChangeText={setAddress}
             placeholder="mac-mini.tail1234.ts.net"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -103,7 +105,7 @@ export function OnboardingScreen(): ReactNode {
             value={token}
             onChangeText={setToken}
             placeholder="Leave empty for none"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry
@@ -127,10 +129,10 @@ export function OnboardingScreen(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
   },
   content: {
     padding: space.xl,
@@ -139,40 +141,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   wordmark: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
   },
   blurb: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: type.body,
     lineHeight: 21,
     marginBottom: space.lg,
   },
   label: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
     fontWeight: '600',
     marginTop: space.md,
   },
   input: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     paddingHorizontal: space.md,
     paddingVertical: space.md,
   },
   error: {
-    color: colors.danger,
+    color: theme.colors.danger,
     fontSize: type.small,
     marginTop: space.md,
   },
   note: {
-    color: colors.good,
+    color: theme.colors.good,
     fontSize: type.small,
     marginTop: space.md,
   },
@@ -180,9 +182,9 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
   },
   footnote: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.tiny,
     marginTop: space.lg,
     textAlign: 'center',
   },
-})
+}))

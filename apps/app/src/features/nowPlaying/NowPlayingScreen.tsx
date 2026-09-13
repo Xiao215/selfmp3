@@ -5,17 +5,17 @@ import {
   Easing,
   FlatList,
   Pressable,
-  StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ListRenderItem } from 'react-native'
 import { useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
-import { isDownloaded, colors, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { isDownloaded, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
@@ -76,6 +76,7 @@ export function NowPlayingScreen(): ReactNode {
 }
 
 function PhoneNowPlaying(): ReactNode {
+  const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
   const router = useRouter()
@@ -125,7 +126,7 @@ function PhoneNowPlaying(): ReactNode {
       <SafeAreaView style={styles.screen}>
         <View style={styles.head}>
           <IconButton onPress={() => router.back()} label="Close now playing">
-            <ChevronDown size={24} color={colors.textSecondary} />
+            <ChevronDown size={24} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
         <View style={styles.empty}>
@@ -148,7 +149,7 @@ function PhoneNowPlaying(): ReactNode {
     <SafeAreaView style={styles.screen}>
       <View style={styles.head}>
         <IconButton onPress={() => router.back()} label="Close now playing">
-          <ChevronDown size={24} color={colors.textSecondary} />
+          <ChevronDown size={24} color={theme.colors.textSecondary} />
         </IconButton>
         <Text style={styles.context} numberOfLines={1}>
           {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
@@ -162,7 +163,7 @@ function PhoneNowPlaying(): ReactNode {
           <Heart
             size={22}
             filled={song.loved}
-            color={song.loved ? colors.danger : colors.textSecondary}
+            color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
           />
         </IconButton>
       </View>
@@ -229,11 +230,11 @@ function PhoneNowPlaying(): ReactNode {
               >
                 <Shuffle
                   size={19}
-                  color={player.queue.shuffle ? accent.accent : colors.textMuted}
+                  color={player.queue.shuffle ? accent.accent : theme.colors.textMuted}
                 />
               </IconButton>
               <IconButton onPress={player.previous} label="Previous" size={52}>
-                <Prev size={30} color={colors.textPrimary} />
+                <Prev size={30} color={theme.colors.textPrimary} />
               </IconButton>
               <Pressable
                 style={({ pressed }) => [
@@ -246,13 +247,13 @@ function PhoneNowPlaying(): ReactNode {
                 accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
               >
                 {player.isPlaying ? (
-                  <Pause size={30} color={colors.onAccent} />
+                  <Pause size={30} color={theme.colors.onAccent} />
                 ) : (
-                  <Play size={30} color={colors.onAccent} />
+                  <Play size={30} color={theme.colors.onAccent} />
                 )}
               </Pressable>
               <IconButton onPress={player.next} label="Next" size={52}>
-                <Next size={30} color={colors.textPrimary} />
+                <Next size={30} color={theme.colors.textPrimary} />
               </IconButton>
               <IconButton
                 onPress={player.cycleRepeatMode}
@@ -264,7 +265,7 @@ function PhoneNowPlaying(): ReactNode {
                 ) : (
                   <Repeat
                     size={19}
-                    color={player.queue.repeat === 'off' ? colors.textMuted : accent.accent}
+                    color={player.queue.repeat === 'off' ? theme.colors.textMuted : accent.accent}
                   />
                 )}
               </IconButton>
@@ -282,7 +283,7 @@ function PhoneNowPlaying(): ReactNode {
           icon={
             <Mic
               size={19}
-              color={showWords && panel === 'none' ? accent.accent : colors.textMuted}
+              color={showWords && panel === 'none' ? accent.accent : theme.colors.textMuted}
             />
           }
           label="Lyrics"
@@ -295,9 +296,9 @@ function PhoneNowPlaying(): ReactNode {
         <FootAction
           icon={
             held ? (
-              <Downloaded size={19} color={accent.accent} knockout={colors.surface0} />
+              <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
             ) : (
-              <CloudDownload size={19} color={colors.textMuted} />
+              <CloudDownload size={19} color={theme.colors.textMuted} />
             )
           }
           label={held ? 'On this phone' : 'Keep'}
@@ -310,7 +311,7 @@ function PhoneNowPlaying(): ReactNode {
           icon={
             <Moon
               size={19}
-              color={player.sleepTimerEndsAt !== null ? accent.accent : colors.textMuted}
+              color={player.sleepTimerEndsAt !== null ? accent.accent : theme.colors.textMuted}
             />
           }
           label="Sleep"
@@ -318,13 +319,15 @@ function PhoneNowPlaying(): ReactNode {
           onPress={() => setSleepOpen(true)}
         />
         <FootAction
-          icon={<Devices size={19} color={colors.textMuted} />}
+          icon={<Devices size={19} color={theme.colors.textMuted} />}
           label="Devices"
           active={false}
           onPress={() => setDevicesOpen(true)}
         />
         <FootAction
-          icon={<Queue size={19} color={panel === 'queue' ? accent.accent : colors.textMuted} />}
+          icon={
+            <Queue size={19} color={panel === 'queue' ? accent.accent : theme.colors.textMuted} />
+          }
           label="Queue"
           active={panel === 'queue'}
           onPress={() => setPanel(current => (current === 'queue' ? 'none' : 'queue'))}
@@ -352,6 +355,7 @@ function PhoneWords({
   width: number
   onShowArt: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const lyrics = useSongWords(song)
   const words = lyrics.words
   const on = lyrics.romanizationOn
@@ -384,7 +388,7 @@ function PhoneWords({
             onPress={() => lyrics.setRomanization(!on)}
             style={[styles.tool, on && styles.toolOn]}
           >
-            <Romanize size={15} color={on ? colors.surface0 : colors.textSecondary} />
+            <Romanize size={15} color={on ? theme.colors.surface0 : theme.colors.textSecondary} />
             <Text style={[styles.toolText, on && styles.toolTextOn]}>
               {romanName(lyrics.language)}
             </Text>
@@ -462,6 +466,7 @@ function QueuePanel({
   onClose: () => void
   artFor: (song: Song) => string | null
 }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const listRef = useRef<FlatList<Song>>(null)
@@ -491,7 +496,7 @@ function QueuePanel({
       <View
         style={[
           styles.queueRow,
-          isCurrent && { backgroundColor: colors.surface2, borderLeftColor: accent.accent },
+          isCurrent && { backgroundColor: theme.colors.surface2, borderLeftColor: accent.accent },
         ]}
       >
         <Pressable
@@ -524,7 +529,7 @@ function QueuePanel({
           label={`Remove ${item.title} from queue`}
           size={36}
         >
-          <X size={15} color={colors.textMuted} />
+          <X size={15} color={theme.colors.textMuted} />
         </IconButton>
       </View>
     )
@@ -544,7 +549,7 @@ function QueuePanel({
           </Text>
         </View>
         <IconButton onPress={onClose} label="Close queue" size={36}>
-          <X size={17} color={colors.textSecondary} />
+          <X size={17} color={theme.colors.textSecondary} />
         </IconButton>
       </View>
       <FlatList
@@ -563,10 +568,10 @@ function QueuePanel({
 
 const QUEUE_ROW = 52
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
     paddingHorizontal: space.lg,
   },
   head: {
@@ -579,7 +584,7 @@ const styles = StyleSheet.create({
   },
   context: {
     flex: 1,
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.tiny,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -615,7 +620,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   title: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 21,
     lineHeight: 26,
     fontWeight: '700',
@@ -623,12 +628,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   artist: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: 15,
     textAlign: 'center',
   },
   album: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
     textAlign: 'center',
   },
@@ -642,7 +647,7 @@ const styles = StyleSheet.create({
   wordsHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   wordsHeadGrow: { flex: 1, minWidth: 0 },
   wordsPadded: { paddingHorizontal: space.lg - 6 },
-  wordsStatus: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
+  wordsStatus: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -650,22 +655,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 11,
     borderRadius: 999,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
-  toolOn: { backgroundColor: colors.textPrimary },
-  toolText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  toolTextOn: { color: colors.surface0 },
+  toolOn: { backgroundColor: theme.colors.textPrimary },
+  toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  toolTextOn: { color: theme.colors.surface0 },
   wordsTitles: {
     flex: 1,
     minWidth: 0,
   },
   wordsTitle: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
   wordsArtist: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: 13,
   },
   words: {
@@ -697,7 +702,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
     paddingTop: 6,
     paddingBottom: 6,
   },
@@ -711,10 +716,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   actionPressed: {
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
   actionLabel: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.label,
     fontWeight: '600',
   },
@@ -736,19 +741,19 @@ const styles = StyleSheet.create({
     paddingLeft: space.lg,
     paddingRight: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   queueTitles: {
     flex: 1,
     minWidth: 0,
   },
   queueHeading: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     fontWeight: '600',
   },
   queueSub: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
   },
   queueList: {
@@ -788,20 +793,20 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   queueTitle: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
   queuePastTitle: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontWeight: '500',
   },
   queueArtist: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 11,
   },
   queueDuration: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
   },
@@ -813,13 +818,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
   },
   emptyTitle: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: type.body,
     fontWeight: '600',
   },
   emptyText: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
   },
-})
+}))

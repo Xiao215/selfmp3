@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
@@ -104,7 +105,7 @@ function Dialog({
   return null
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
     top: 0,
@@ -120,14 +121,14 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     padding: 18,
     gap: space.md,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.lg,
   },
-  dialogDanger: { borderColor: colors.danger },
-  title: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  body: { color: colors.textSecondary, fontSize: 13, lineHeight: 20 },
+  dialogDanger: { borderColor: theme.colors.danger },
+  title: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700', lineHeight: 22 },
+  body: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 20 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   actionsCompact: { flexDirection: 'column-reverse' },
-})
+}))

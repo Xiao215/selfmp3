@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
-import { colors, space } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from './Popover'
 import { Sheet, SheetItem } from './Sheet'
@@ -91,12 +92,12 @@ function useRemaining(endsAt: number | null): string {
   return endsAt === null ? '' : formatDuration(Math.max(0, endsAt - now) / 1000)
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   menuTitle: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     paddingHorizontal: 10,
     paddingTop: space.sm,
     paddingBottom: 6,
   },
-})
+}))

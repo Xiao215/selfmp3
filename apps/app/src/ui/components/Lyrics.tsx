@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { activeLineIndex, parseLyrics } from '@selfmp3/shared'
 import { useAccent } from '../accent'
-import { colors, space, type } from '@selfmp3/client'
+import { space, type } from '@selfmp3/client'
 
 /**
  * Lyrics, synced when the file has timestamps.
@@ -88,7 +89,7 @@ function Message({ text }: { text: string }): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   content: {
     paddingHorizontal: space.lg,
     paddingVertical: space.xl,
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   line: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.title,
     fontWeight: '500',
   },
@@ -106,10 +107,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pastLine: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   plainLine: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: type.body,
     lineHeight: 22,
   },
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messageText: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.body,
   },
-})
+}))

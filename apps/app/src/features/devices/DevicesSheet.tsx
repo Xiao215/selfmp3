@@ -1,7 +1,8 @@
 import type { ReactNode, RefObject } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { colors, relativeTime, shortDeviceName, space, type } from '@selfmp3/client'
+import { relativeTime, shortDeviceName, space, type } from '@selfmp3/client'
 
 import { useLayout } from '../../shell/useLayout'
 import { Popover } from '../../ui/components/Popover'
@@ -35,13 +36,14 @@ export function DevicesSheet({
    */
   anchorRef?: RefObject<RNView | null>
 }): ReactNode {
+  const { theme } = useUnistyles()
   const devices = useDeviceContext()
   const { wide } = useLayout()
 
   const list = (
     <>
       <View style={styles.self}>
-        <Devices size={15} color={colors.textSecondary} />
+        <Devices size={15} color={theme.colors.textSecondary} />
         <Text style={styles.selfName} numberOfLines={1}>
           {shortDeviceName(devices.name)}
         </Text>
@@ -58,7 +60,7 @@ export function DevicesSheet({
         devices.others.map(device => (
           <View key={device.id} testID={`device-${device.id}`}>
             <SheetItem
-              icon={<Remote size={16} color={colors.textSecondary} />}
+              icon={<Remote size={16} color={theme.colors.textSecondary} />}
               label={shortDeviceName(device.name)}
               detail={
                 device.state.playing
@@ -105,7 +107,7 @@ export function DevicesSheet({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   self: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,19 +116,19 @@ const styles = StyleSheet.create({
     paddingBottom: space.sm,
   },
   selfName: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     fontWeight: '600',
     flexShrink: 1,
   },
   selfNote: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
   },
   empty: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-})
+}))

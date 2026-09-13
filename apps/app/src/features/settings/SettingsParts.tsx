@@ -1,7 +1,8 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
-import { colors, oklchToHex, oklchToHexAlpha, radius } from '@selfmp3/client'
+import { Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { oklchToHex, oklchToHexAlpha, radius } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Slider } from '../../ui/components/Slider'
 
@@ -150,6 +151,7 @@ export function Notice({
   tone: 'warn' | 'error' | 'good'
   children: ReactNode
 }): ReactNode {
+  const { theme } = useUnistyles()
   const hue = tone === 'warn' ? 78 : tone === 'error' ? 22 : 155
   return (
     <View
@@ -164,8 +166,8 @@ export function Notice({
       <Text
         style={[
           styles.noticeText,
-          tone === 'error' && { color: colors.danger },
-          tone === 'good' && { color: colors.good },
+          tone === 'error' && { color: theme.colors.danger },
+          tone === 'good' && { color: theme.colors.good },
         ]}
       >
         {children}
@@ -182,27 +184,27 @@ export function Kbd({ children }: { children: string }): ReactNode {
   return <Text style={styles.kbd}>{children}</Text>
 }
 
-export const partStyles = StyleSheet.create({
+export const partStyles = StyleSheet.create(theme => ({
   input: {
     minWidth: 220,
     paddingVertical: 7,
     paddingHorizontal: 10,
     fontSize: 13,
-    color: colors.textPrimary,
-    backgroundColor: colors.surface2,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
-  hint: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
-  code: { fontSize: 12, color: colors.textPrimary, backgroundColor: colors.surface2 },
-})
+  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
+  code: { fontSize: 12, color: theme.colors.textPrimary, backgroundColor: theme.colors.surface2 },
+}))
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   panel: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
     padding: 18,
   },
@@ -213,10 +215,10 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
-  panelTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  hint: { color: colors.textMuted, fontSize: 12 },
+  panelTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  hint: { color: theme.colors.textMuted, fontSize: 12 },
   lead: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: 13,
     lineHeight: 20,
     marginBottom: 12,
@@ -229,26 +231,26 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
   rowLast: { borderBottomWidth: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
-  name: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  rowHint: { color: colors.textMuted, fontSize: 12, lineHeight: 17, maxWidth: 400 },
+  name: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  rowHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, maxWidth: 400 },
   control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },
   value: {
     minWidth: 34,
     textAlign: 'right',
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
   stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
-  statValue: { color: colors.textPrimary, fontSize: 24, fontWeight: '700' },
-  statLabel: { color: colors.textMuted, fontSize: 12 },
-  meter: { height: 6, borderRadius: 3, backgroundColor: colors.surface3, overflow: 'hidden' },
+  statValue: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: '700' },
+  statLabel: { color: theme.colors.textMuted, fontSize: 12 },
+  meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   meterFill: { height: '100%', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   notice: {
     paddingVertical: 12,
@@ -257,18 +259,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginVertical: 8,
   },
-  noticeText: { color: colors.textPrimary, fontSize: 13, lineHeight: 19 },
+  noticeText: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   kbd: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 11,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 5,
     borderWidth: 1,
     borderBottomWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
     overflow: 'hidden',
   },
-})
+}))

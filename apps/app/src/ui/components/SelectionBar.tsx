@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song, Tag } from '@selfmp3/shared'
-import { colors, isDownloaded, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { isDownloaded, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import {
   useAddToPlaylist,
   useBulkDeleteSongs,
@@ -76,6 +77,7 @@ export function SelectionBar({
   /** Set in a playlist, which offers removing from it without deleting. */
   playlist?: { readonly id: number; readonly name: string }
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
   const { data: library } = useLibrary()
@@ -126,7 +128,7 @@ export function SelectionBar({
 
   const done = (
     <IconButton onPress={onDone} label="Done selecting" testID="selection-done">
-      <X size={16} color={colors.textSecondary} />
+      <X size={16} color={theme.colors.textSecondary} />
     </IconButton>
   )
 
@@ -173,14 +175,14 @@ export function SelectionBar({
         <View style={[styles.actions, !wide && styles.actionsCompact]}>
           <Button
             label="Play"
-            icon={<Play size={13} color={colors.textPrimary} />}
+            icon={<Play size={13} color={theme.colors.textPrimary} />}
             onPress={() => player.playFrom(ids, 0)}
             disabled={count === 0}
             grow={!wide}
           />
           <Button
             label="Queue"
-            icon={<Queue size={13} color={colors.textPrimary} />}
+            icon={<Queue size={13} color={theme.colors.textPrimary} />}
             onPress={() => player.addToQueue(ids)}
             disabled={count === 0}
             grow={!wide}
@@ -188,7 +190,7 @@ export function SelectionBar({
           {playlist ? (
             <Button
               label={wide ? 'Remove from playlist' : 'Remove'}
-              icon={<X size={13} color={colors.textPrimary} />}
+              icon={<X size={13} color={theme.colors.textPrimary} />}
               onPress={() => {
                 removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
                 showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
@@ -200,7 +202,7 @@ export function SelectionBar({
           <View ref={moreRef} collapsable={false} style={!wide && styles.grow}>
             <Button
               label="More"
-              icon={<More size={13} color={colors.textPrimary} />}
+              icon={<More size={13} color={theme.colors.textPrimary} />}
               onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
               disabled={count === 0}
               grow={!wide}
@@ -232,7 +234,7 @@ export function SelectionBar({
 
         {lovedCount < count ? (
           <SheetItem
-            icon={<Heart size={15} color={colors.textSecondary} />}
+            icon={<Heart size={15} color={theme.colors.textSecondary} />}
             label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
             onPress={act(
               () => bulkLoved.mutate({ songIds: ids, loved: true }),
@@ -242,7 +244,7 @@ export function SelectionBar({
         ) : null}
         {lovedCount > 0 ? (
           <SheetItem
-            icon={<Heart size={15} filled color={colors.danger} />}
+            icon={<Heart size={15} filled color={theme.colors.danger} />}
             label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
             onPress={act(
               () => bulkLoved.mutate({ songIds: ids, loved: false }),
@@ -254,7 +256,7 @@ export function SelectionBar({
         <View style={styles.divider} />
 
         <SheetItem
-          icon={<ListMusic size={15} color={colors.textSecondary} />}
+          icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
           label="Add to playlist…"
           active={nested === 'playlists'}
           onPress={toggleNested('playlists')}
@@ -280,7 +282,7 @@ export function SelectionBar({
 
         {tags.length > 0 ? (
           <SheetItem
-            icon={<TagIcon size={15} color={colors.textSecondary} />}
+            icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
             label="Add tag…"
             active={nested === 'tag'}
             onPress={toggleNested('tag')}
@@ -303,7 +305,7 @@ export function SelectionBar({
 
         {tagsOnSelection.length > 0 ? (
           <SheetItem
-            icon={<TagIcon size={15} color={colors.textSecondary} />}
+            icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
             label="Remove tag…"
             active={nested === 'untag'}
             onPress={toggleNested('untag')}
@@ -328,14 +330,14 @@ export function SelectionBar({
 
         {held.length < count ? (
           <SheetItem
-            icon={<CloudDownload size={15} color={colors.textSecondary} />}
+            icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
             label={`Download ${held.length > 0 ? 'the rest' : 'all'} for offline`}
             onPress={act(() => downloadQueue.enqueue(ids))}
           />
         ) : null}
         {held.length > 0 ? (
           <SheetItem
-            icon={<X size={15} color={colors.textSecondary} />}
+            icon={<X size={15} color={theme.colors.textSecondary} />}
             label={`Remove ${held.length === count ? '' : `${held.length} `}${
               held.length === 1 ? 'download' : 'downloads'
             }`}
@@ -356,7 +358,7 @@ export function SelectionBar({
         <View style={styles.divider} />
 
         <SheetItem
-          icon={<Trash size={15} color={colors.danger} />}
+          icon={<Trash size={15} color={theme.colors.danger} />}
           label={`Remove ${count} ${songWord} from library…`}
           danger
           onPress={() => {
@@ -415,7 +417,7 @@ function summarise(songs: readonly Song[]): string {
   return `${artists.slice(0, 2).join(' · ')} and ${artists.length - 2} more`
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -424,7 +426,7 @@ const styles = StyleSheet.create({
     padding: space.sm,
     marginHorizontal: space.lg,
     marginBottom: space.md,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
     borderRadius: radius.md,
   },
@@ -433,12 +435,12 @@ const styles = StyleSheet.create({
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   counts: { minWidth: 0 },
   count: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  scope: { color: colors.textMuted, fontSize: 11 },
+  scope: { color: theme.colors.textMuted, fontSize: 11 },
   scopeLink: { textDecorationLine: 'underline' },
   actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
   actionsCompact: { flexBasis: '100%', flexGrow: 1 },
@@ -446,19 +448,19 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
     paddingHorizontal: space.md,
     paddingTop: space.xs,
   },
   summary: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     paddingHorizontal: space.md,
     paddingBottom: space.sm,
   },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: space.xs },
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   nested: { paddingLeft: space.lg },
-  hint: { color: colors.textMuted, fontSize: 12, padding: space.md },
-})
+  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.md },
+}))

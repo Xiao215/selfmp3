@@ -998,12 +998,10 @@ from review. The captured states still have to pass check 2 by eye.
     applied scheme; tag chips turn round to a pale ground with dark ink.
   - `scheme.test.ts` (15 tests) checks every light token against the
     stylesheet, as the dark ones already are.
-  - The app has a new entry file, `apps/app/index.ts`. It applies the stored
-    theme before expo-router loads a screen, because every stylesheet copies
-    its colours when it is created.
-  - Changing the theme starts the app again. If a song is playing it waits
-    for the next launch instead, and Settings says so. "System" follows the
-    device the same way.
+  - The app has a new entry file, `apps/app/index.ts`. It configures the
+    themes before expo-router loads a screen.
+  - Superseded the same day by the Unistyles rewrite below: the theme now
+    switches in place, with no restart.
 
 - **Forgotten gems, and the phone's Now Playing toolbar.**
   - The library gets the web's gems row above an unfiltered, unsearched
@@ -1117,9 +1115,6 @@ seven states at 1280, and the phone's five.
     web shares them across devices. The accent already worked this way
     (`ui/accent.tsx`), and the theme follows it for the same reason: how a
     screen looks belongs to the screen.
-  - Choosing Light saves the choice, but the app is still drawn dark. The
-    light theme needs the colours to come from a theme rather than fixed
-    tokens, and is its own piece of work.
   - Cloud (the Mac's connection to the bucket, and uploads) is not here yet.
     Its place is taken by Connection, which shows what this device talks to.
   - Fix covers is not here yet.
@@ -1142,18 +1137,33 @@ seven states at 1280, and the phone's five.
     songs wait for those screens.
   - A tag result sets the library's filter to that tag, where the web
     navigates to `/?tag=`.
-- **The light theme, and a question for Xiao.** The plan's route is
-  Unistyles, which switches themes without re-rendering. It is installed,
-  with its Babel plugin and native pods, but no screen uses it, and moving
-  about 600 colour references to it is a large rewrite. So, for now, the
-  theme is chosen at launch, and changing it restarts the app (or waits,
-  while music plays).
-  - On a phone, "System" stays dark until the next native build:
+- **The theme, on Unistyles (Xiao chose the rewrite).** Dark, Light and
+  System switch in place, on the web and on the phone, with no restart and
+  without cutting off the song playing.
+  - `src/ui/theme/unistyles.ts` holds the two themes, built from the same
+    tokens at this device's accent hue. Every stylesheet is
+    `StyleSheet.create(theme => …)`, and components that draw colour in
+    JavaScript read `useUnistyles()`. The launch-time pieces are gone
+    (`themeAtLaunch`, the reload port, `SystemThemeWatcher`).
+  - "System" is resolved by the app from `Appearance`, never by Unistyles'
+    adaptive mode: chosen after launch, adaptive mode did not follow the
+    device, and the accent (worked out in JavaScript) never did.
+  - Icons take their default colour from the theme on each render; the web
+    slider's stylesheet reads CSS variables; the status bar follows the
+    theme.
+  - Two things Unistyles does not restyle on a phone, fixed: the safe-area
+    view (a third-party component, wrapped with `withUnistyles`) and a
+    sticky header (re-parented by ScrollView, so Settings' section strip
+    takes its colours inline).
+  - In a browser the safe-area view stays unwrapped. `withUnistyles` styles
+    its child (`.hash > *`), and Unistyles names a style by its content, so
+    the wrapper gave the shell's root, which has the same style, a rule that
+    stretched the bottom tabs over half a phone-sized screen.
+  - Checked by hand on both: Light, Dark and System (following the
+    device both ways, accent included), a reload keeps the choice, and
+    another screen reached without a reload is drawn in the new theme.
+  - On a phone, "System" still stays dark until the next native build:
     `app.config.js` forces `userInterfaceStyle: 'dark'`.
-  - A release phone build cannot restart itself without expo-updates, so a
-    theme change there applies at the next launch.
-  - Worth deciding: move to Unistyles now, or keep this until the styles are
-    touched anyway.
 - **Library and Now Playing, still to come.**
   - The tag inbox link on a phone goes to `/inbox`, the tag inbox, which is
     phase 5's.
@@ -1198,8 +1208,8 @@ passes against the old web app. Phone smoke passes on the Pro Max.
 2. **Moving desktop users.** The plan's last step for this phase: point the
    server's `webDir` at `apps/app/dist` and change the Pages workflow.
    Outward-facing, so left for review.
-3. **The light theme's approach.** Launch-time palettes now, rather than
-   Unistyles; see the note in "Notes for whoever reviews phase 4".
+3. **The light theme's approach.** Answered: Unistyles, done. See "The
+   theme, on Unistyles" in "Notes for whoever reviews phase 4".
 4. **Android.** "Both phones" in the exit criteria: there is no Android SDK
    here, so the phone checks are iOS only (Maestro).
 

@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { buildAccent, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
+import { buildAccent, currentColorScheme, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
 
 import { prefs } from '../ports/prefs'
 import { ACCENT_KEY, readHue, readTheme, THEME_KEY, type ThemeChoice } from './appearancePrefs'
+import { applyAccentHue, applyThemeChoice, onSchemeChange } from './theme/unistyles'
 
 export type { ThemeChoice }
 
@@ -53,6 +54,8 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   const [hue, setHueState] = useState<number>(() => readHue())
 
   useEffect(() => {
+    // Every themed stylesheet follows the accent, without a reload.
+    applyAccentHue(hue)
     // Nothing to write for a default nobody has chosen yet.
     if (hue === DEFAULT_ACCENT_HUE && prefs.get(ACCENT_KEY) === null) return
     prefs.set(ACCENT_KEY, JSON.stringify({ hue }))
@@ -63,14 +66,23 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   }, [])
 
   const [theme, setThemeState] = useState<ThemeChoice>(readTheme)
-  const setTheme = useCallback((next: ThemeChoice) => {
-    setThemeState(next)
-    prefs.set(THEME_KEY, next)
-  }, [])
+  const setTheme = useCallback(
+    (next: ThemeChoice) => {
+      setThemeState(next)
+      prefs.set(THEME_KEY, next)
+      applyThemeChoice(next, hue)
+    },
+    [hue],
+  )
+
+  // The accent's shades differ between dark and light, and "System" can flip
+  // the scheme with nobody touching this provider.
+  const [scheme, setScheme] = useState(currentColorScheme)
+  useEffect(() => onSchemeChange(setScheme), [])
 
   const value = useMemo<AccentApi>(
-    () => ({ hue, setHue, theme, setTheme, ...buildAccent(hue) }),
-    [hue, setHue, theme, setTheme],
+    () => ({ hue, setHue, theme, setTheme, ...buildAccent(hue, scheme) }),
+    [hue, setHue, theme, setTheme, scheme],
   )
 
   return <AccentContext.Provider value={value}>{children}</AccentContext.Provider>

@@ -1,19 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { formatLongDuration, type Playlist } from '@selfmp3/shared'
-import { clientApi, colors, HIT_TARGET, radius, space, type, useGems } from '@selfmp3/client'
+import { clientApi, HIT_TARGET, radius, space, type, useGems } from '@selfmp3/client'
 import { useCreatePlaylist, useUpdatePlaylist } from '../../api/queries'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -38,6 +31,7 @@ const GAP = 14
  * playlist, where a smart one's rules are written.
  */
 export function PlaylistsScreen(): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
   const { wide } = useLayout()
@@ -91,7 +85,7 @@ export function PlaylistsScreen(): ReactNode {
           <View style={[styles.actions, !wide && styles.actionsCompact]}>
             <Button
               label="New playlist"
-              icon={<Plus size={15} color={colors.textPrimary} />}
+              icon={<Plus size={15} color={theme.colors.textPrimary} />}
               active={creating === 'manual'}
               onPress={() => toggleCreating('manual')}
             />
@@ -113,7 +107,7 @@ export function PlaylistsScreen(): ReactNode {
                 onChangeText={setName}
                 onSubmitEditing={() => void create()}
                 placeholder={creating === 'smart' ? 'e.g. Chill, most played' : 'Playlist name'}
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={theme.colors.textMuted}
                 accessibilityLabel={creating === 'smart' ? 'Smart playlist name' : 'Playlist name'}
                 autoFocus
                 autoCorrect={false}
@@ -193,6 +187,7 @@ export function PlaylistsScreen(): ReactNode {
  * gems would be lying about being stable. Hidden when there are none.
  */
 function GemsPlaylistCard({ width }: { width: number | undefined }): ReactNode {
+  const { theme } = useUnistyles()
   const gems = useGems(30)
   const player = usePlayer()
   const accent = useAccent()
@@ -230,10 +225,10 @@ function GemsPlaylistCard({ width }: { width: number | undefined }): ReactNode {
       </Pressable>
       <View style={[styles.cardActions, { opacity: revealed ? 1 : 0 }]}>
         <IconButton onPress={() => player.playFrom(ids, 0)} label="Play forgotten gems">
-          <Play size={16} color={colors.textSecondary} />
+          <Play size={16} color={theme.colors.textSecondary} />
         </IconButton>
         <IconButton onPress={() => player.addToQueue(ids)} label="Add forgotten gems to the queue">
-          <Queue size={16} color={colors.textSecondary} />
+          <Queue size={16} color={theme.colors.textSecondary} />
         </IconButton>
       </View>
     </View>
@@ -251,6 +246,7 @@ function PlaylistCard({
   width: number | undefined
   onOpen: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const player = usePlayer()
   const { finePointer } = useLayout()
@@ -308,7 +304,7 @@ function PlaylistCard({
             label={`Play ${playlist.name}`}
             disabled={playlist.songCount === 0}
           >
-            <Play size={16} color={colors.textSecondary} />
+            <Play size={16} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
         <View style={{ opacity: revealed || playlist.pinned ? 1 : 0 }}>
@@ -320,7 +316,10 @@ function PlaylistCard({
             active={playlist.pinned}
           >
             <Text
-              style={[styles.pin, { color: playlist.pinned ? accent.accent : colors.textMuted }]}
+              style={[
+                styles.pin,
+                { color: playlist.pinned ? accent.accent : theme.colors.textMuted },
+              ]}
             >
               ★
             </Text>
@@ -331,10 +330,10 @@ function PlaylistCard({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
   },
   content: {
     paddingHorizontal: space.lg,
@@ -351,13 +350,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heading: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.large,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   sub: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 13,
     marginTop: 3,
   },
@@ -370,26 +369,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: 36,
     paddingHorizontal: 10,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
-  error: { color: colors.danger, fontSize: 12 },
+  error: { color: theme.colors.danger, fontSize: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   card: {
     alignSelf: 'stretch',
     width: '100%',
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
   },
   cardHovered: {
-    backgroundColor: colors.surface2,
-    borderColor: colors.borderStrong,
+    backgroundColor: theme.colors.surface2,
+    borderColor: theme.colors.borderStrong,
   },
   cardMain: {
     padding: 18,
@@ -397,13 +396,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   cardPressed: {
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
   /* The action buttons live in this corner; the icon keeps out of their way. */
   cardIcon: { height: 26, marginBottom: space.sm },
-  cardName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  cardSub: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
-  cardDescription: { color: colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  cardName: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  cardSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  cardDescription: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 4 },
   cardActions: {
     position: 'absolute',
     top: 10,
@@ -421,8 +420,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderStyle: 'dashed',
   },
-  emptyTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  emptyHint: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
-  emptyStrong: { color: colors.textSecondary, fontWeight: '700' },
+  emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  emptyHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
+  emptyStrong: { color: theme.colors.textSecondary, fontWeight: '700' },
   emptyAction: { alignItems: 'flex-start', marginTop: 4, minHeight: HIT_TARGET - 8 },
-})
+}))

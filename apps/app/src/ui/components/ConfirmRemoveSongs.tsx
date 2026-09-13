@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { colors, HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
@@ -42,6 +43,7 @@ export function ConfirmRemoveSongs({
   onCancel: () => void
   onConfirm: (deleteFile: boolean) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const [deleteFile, setDeleteFile] = useState(false)
   const accent = useAccent()
   const { wide } = useLayout()
@@ -78,7 +80,7 @@ export function ConfirmRemoveSongs({
               : `Remove ${count} ${songWord} from your library?`}
           </Text>
           <IconButton onPress={cancel} label="Cancel">
-            <X size={16} color={colors.textSecondary} />
+            <X size={16} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
 
@@ -150,7 +152,7 @@ export function ConfirmRemoveSongs({
                   ? `Delete ${count} ${fileWord}`
                   : `Remove ${count} ${songWord}`
             }
-            icon={<Trash size={15} color={deleteFile ? colors.danger : accent.onAccent} />}
+            icon={<Trash size={15} color={deleteFile ? theme.colors.danger : accent.onAccent} />}
             variant={deleteFile ? 'danger' : 'primary'}
             onPress={() => onConfirm(deleteFile)}
             disabled={pending}
@@ -165,7 +167,7 @@ export function ConfirmRemoveSongs({
   return null
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
     top: 0,
@@ -180,13 +182,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 460,
     maxHeight: 620,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.lg,
     overflow: 'hidden',
   },
-  dialogDestructive: { borderColor: colors.danger },
+  dialogDestructive: { borderColor: theme.colors.danger },
   head: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -197,30 +199,30 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
     paddingLeft: 18,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   title: {
     flex: 1,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 16,
     lineHeight: 22,
     fontWeight: '700',
     paddingTop: space.sm,
   },
-  titleDestructive: { color: colors.danger },
+  titleDestructive: { color: theme.colors.danger },
   body: { paddingVertical: space.lg, paddingHorizontal: 18, gap: space.md },
-  lede: { color: colors.textSecondary, fontSize: 13, lineHeight: 20 },
-  strong: { color: colors.textPrimary, fontWeight: '600' },
-  strongDestructive: { color: colors.danger },
+  lede: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 20 },
+  strong: { color: theme.colors.textPrimary, fontWeight: '600' },
+  strongDestructive: { color: theme.colors.danger },
   list: {
     paddingVertical: space.sm,
     paddingHorizontal: 10,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
     borderRadius: radius.sm,
     gap: 2,
   },
-  listItem: { color: colors.textSecondary, fontSize: 12 },
-  listRest: { color: colors.textMuted, fontStyle: 'italic' },
+  listItem: { color: theme.colors.textSecondary, fontSize: 12 },
+  listRest: { color: theme.colors.textMuted, fontStyle: 'italic' },
   choice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -228,16 +230,19 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: space.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
-  choiceOn: { borderColor: colors.danger, backgroundColor: oklchToHexAlpha(0.3, 0.07, 22, 0.28) },
+  choiceOn: {
+    borderColor: theme.colors.danger,
+    backgroundColor: oklchToHexAlpha(0.3, 0.07, 22, 0.28),
+  },
   choiceBox: { marginTop: 1 },
   choiceCopy: { flex: 1, minWidth: 0, gap: 2 },
-  choiceTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  choiceHint: { color: colors.textMuted, fontSize: 11.5, lineHeight: 17 },
-  choiceHintOn: { color: colors.danger },
-  error: { color: colors.danger, fontSize: 12, lineHeight: 18 },
+  choiceTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  choiceHint: { color: theme.colors.textMuted, fontSize: 11.5, lineHeight: 17 },
+  choiceHintOn: { color: theme.colors.danger },
+  error: { color: theme.colors.danger, fontSize: 12, lineHeight: 18 },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -246,7 +251,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: space.lg,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
   },
   actionsCompact: { flexDirection: 'column-reverse', minHeight: HIT_TARGET },
-})
+}))

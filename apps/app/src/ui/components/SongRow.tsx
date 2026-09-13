@@ -1,11 +1,11 @@
 import { memo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import {
-  colors,
   HIT_TARGET,
   motion,
   oklchToHexAlpha,
@@ -101,6 +101,7 @@ export const SongRow = memo(function SongRow({
   /** The dashed + beside the chips. */
   onEditTags?: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense, width } = useLayout()
   const [hovered, setHovered] = useState(false)
@@ -166,9 +167,9 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 {/* The web calls this "On this device", and draws exactly this. */}
                 {downloaded ? (
-                  <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+                  <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
                 ) : notDownloadedMark ? (
-                  <NotDownloaded size={13} color={colors.textMuted} />
+                  <NotDownloaded size={13} color={theme.colors.textMuted} />
                 ) : null}
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {song.artist || 'Unknown artist'}
@@ -192,7 +193,7 @@ export const SongRow = memo(function SongRow({
                 accessibilityLabel={`More actions for ${song.title}`}
                 style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
               >
-                <More size={16} color={colors.textMuted} />
+                <More size={16} color={theme.colors.textMuted} />
               </Pressable>
             </View>
           ) : null}
@@ -235,7 +236,7 @@ export const SongRow = memo(function SongRow({
             accessibilityLabel={`Play ${song.title}`}
             style={styles.indexPlay}
           >
-            <Play size={16} color={colors.textPrimary} />
+            <Play size={16} color={theme.colors.textPrimary} />
           </Pressable>
         ) : (
           <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
@@ -261,9 +262,9 @@ export const SongRow = memo(function SongRow({
           </View>
           <View style={styles.subtitleRow}>
             {downloaded ? (
-              <Downloaded size={13} color={accent.accent} knockout={colors.surface0} />
+              <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
             ) : notDownloadedMark ? (
-              <NotDownloaded size={13} color={colors.textMuted} />
+              <NotDownloaded size={13} color={theme.colors.textMuted} />
             ) : null}
             <Text style={styles.artist} numberOfLines={1}>
               {song.artist || 'Unknown artist'}
@@ -305,7 +306,7 @@ export const SongRow = memo(function SongRow({
             accessibilityLabel={`Edit tags for ${song.title}`}
             style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
           >
-            <Plus size={13} color={colors.textMuted} />
+            <Plus size={13} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
       </View>
@@ -332,7 +333,7 @@ export const SongRow = memo(function SongRow({
                 pressed && styles.controlPressed,
               ]}
             >
-              <More size={16} color={colors.textMuted} />
+              <More size={16} color={theme.colors.textMuted} />
             </Pressable>
           </View>
         ) : null}
@@ -376,6 +377,7 @@ function Love({
   size: number
   visible: boolean
 }): ReactNode {
+  const { theme } = useUnistyles()
   return (
     <Pressable
       onPress={onPress}
@@ -388,7 +390,11 @@ function Love({
         pressed && styles.controlPressed,
       ]}
     >
-      <Heart size={16} filled={song.loved} color={song.loved ? colors.danger : colors.textMuted} />
+      <Heart
+        size={16}
+        filled={song.loved}
+        color={song.loved ? theme.colors.danger : theme.colors.textMuted}
+      />
     </Pressable>
   )
 }
@@ -432,7 +438,7 @@ function RowWash({ color }: { color: string }): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -456,7 +462,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   rowHovered: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
   },
   /* The press target: everything from the cover to the end of the title. */
   main: {
@@ -476,7 +482,7 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   pressed: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
   },
   missing: {
     opacity: 0.55,
@@ -490,14 +496,14 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   title: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     fontWeight: '600',
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
   titleWide: {
     flexShrink: 1,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     fontWeight: '500',
   },
@@ -508,21 +514,21 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 4,
-    color: colors.warning,
+    color: theme.colors.warning,
     backgroundColor: oklchToHexAlpha(0.36, 0.09, 78, 0.5),
     overflow: 'hidden',
   },
   subtitle: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
     flexShrink: 1,
   },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   /* The artist is what is scanned for, so it never shrinks; the album does. */
-  artist: { flexShrink: 0, color: colors.textMuted, fontSize: type.small },
-  albumInline: { flexShrink: 1, minWidth: 0, color: colors.textMuted, fontSize: type.small },
+  artist: { flexShrink: 0, color: theme.colors.textMuted, fontSize: type.small },
+  albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
   badges: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
-  tempo: { color: colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
+  tempo: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   playingOverlay: {
     position: 'absolute',
     top: 0,
@@ -551,7 +557,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   index: { width: 28, alignItems: 'center', justifyContent: 'center' },
-  indexNumber: { color: colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  indexNumber: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
   indexPlay: {
     width: 28,
     height: 28,
@@ -564,7 +570,7 @@ const styles = StyleSheet.create({
     flexBasis: '20%',
     flexGrow: 0,
     flexShrink: 0,
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
@@ -577,7 +583,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
   },
   rowTag: { borderRadius: 20, paddingVertical: 4, paddingHorizontal: space.sm },
   rowTagText: { fontSize: 11 },
@@ -595,20 +601,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   controlPressed: {
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
   duration: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
     minWidth: 34,
     textAlign: 'right',
   },
   durationWide: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
     minWidth: 40,
     textAlign: 'right',
   },
-})
+}))

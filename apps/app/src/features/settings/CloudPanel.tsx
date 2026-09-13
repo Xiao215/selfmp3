@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Linking, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
   formatBytes,
@@ -12,7 +13,7 @@ import {
   type CloudConnect,
   type CloudStatus,
 } from '@selfmp3/shared'
-import { colors, useCloudActions, useCloudStatus } from '@selfmp3/client'
+import { useCloudActions, useCloudStatus } from '@selfmp3/client'
 import { signInReturnUrl, takeSignInCode } from '../../ports/signInReturn'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
@@ -92,6 +93,7 @@ const attemptId = (): string => newUid(into => into.set(Crypto.getRandomBytes(in
  * doorman shows the code and it is typed in.
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }): ReactNode {
+  const { theme } = useUnistyles()
   const { signIn, cancelSignIn, enterCode } = useCloudActions()
   const [code, setCode] = useState('')
   const parsedCode = SignInCodeSchema.safeParse(code.trim())
@@ -117,7 +119,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
             style={[partStyles.input, styles.code]}
             accessibilityLabel="Sign-in code"
             placeholder="XXXX-XXXX"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="characters"
             autoCorrect={false}
             autoComplete="one-time-code"
@@ -139,7 +141,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
           />
           <Button
             label="Cancel"
-            icon={<X size={15} color={colors.textPrimary} />}
+            icon={<X size={15} color={theme.colors.textPrimary} />}
             onPress={() => cancelSignIn.mutate()}
           />
         </Row>
@@ -155,10 +157,10 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
         hint="Finish signing in where Google opened, then come back here."
         last
       >
-        <ActivityIndicator color={colors.textMuted} />
+        <ActivityIndicator color={theme.colors.textMuted} />
         <Button
           label="Cancel"
-          icon={<X size={15} color={colors.textPrimary} />}
+          icon={<X size={15} color={theme.colors.textPrimary} />}
           onPress={() => cancelSignIn.mutate()}
         />
       </Row>
@@ -233,6 +235,7 @@ function SignInReturn(): ReactNode {
 }
 
 function Connected({ status, onChange }: { status: CloudStatus; onChange: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   const { sync, disconnect } = useCloudActions()
   const [confirming, setConfirming] = useState(false)
   const target = status.target
@@ -260,7 +263,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       >
         <Button
           label={syncing ? 'Uploading…' : 'Publish now'}
-          icon={<Refresh size={15} color={colors.textPrimary} />}
+          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
           disabled={syncing || sync.isPending}
           onPress={() => sync.mutate()}
         />
@@ -295,7 +298,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         <Button label={account ? 'Change bucket…' : 'Change…'} onPress={onChange} />
         <Button
           label={account ? 'Sign out' : 'Disconnect'}
-          icon={<Trash size={15} color={colors.danger} />}
+          icon={<Trash size={15} color={theme.colors.danger} />}
           variant="danger"
           disabled={disconnect.isPending}
           onPress={() => setConfirming(true)}
@@ -338,6 +341,7 @@ function BucketForm({
   onDone: () => void
   onCancel: (() => void) | null
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { connect, connectStorage, disconnect } = useCloudActions()
   const account = status.account
   const action = account ? connectStorage : connect
@@ -385,7 +389,7 @@ function BucketForm({
         value={value}
         onChangeText={onChange}
         placeholder={options.placeholder}
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={theme.colors.textMuted}
         secureTextEntry={options.secret}
         autoCapitalize="none"
         autoCorrect={false}
@@ -459,13 +463,13 @@ function BucketForm({
         {onCancel ? (
           <Button
             label="Cancel"
-            icon={<X size={15} color={colors.textPrimary} />}
+            icon={<X size={15} color={theme.colors.textPrimary} />}
             onPress={onCancel}
           />
         ) : null}
         <Button
           label={action.isPending ? 'Checking the bucket…' : 'Connect'}
-          icon={<CloudUpload size={15} color={colors.onAccent} />}
+          icon={<CloudUpload size={15} color={theme.colors.onAccent} />}
           variant="primary"
           disabled={!complete || action.isPending}
           onPress={submit}
@@ -476,10 +480,10 @@ function BucketForm({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   code: { minWidth: 140, letterSpacing: 1.5, fontVariant: ['tabular-nums'] },
   field: { minWidth: 280 },
   where: { marginBottom: 6 },
   progress: { marginVertical: 14, gap: 8 },
-  progressText: { color: colors.textSecondary, fontSize: 13 },
-})
+  progressText: { color: theme.colors.textSecondary, fontSize: 13 },
+}))

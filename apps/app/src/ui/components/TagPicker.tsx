@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
-import { colors, HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useCreateTag, useLibrary, useSetSongTags } from '../../api/queries'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
@@ -41,6 +42,7 @@ export function TagPicker({
 }
 
 function Picker({ song }: { song: Song }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
@@ -105,7 +107,7 @@ function Picker({ song }: { song: Song }): ReactNode {
         onChangeText={setQuery}
         onSubmitEditing={submit}
         placeholder="Search or create a tag…"
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={theme.colors.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus
@@ -163,17 +165,17 @@ function Picker({ song }: { song: Song }): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   input: {
     minHeight: HIT_TARGET,
     marginHorizontal: space.md,
     marginBottom: space.xs,
     paddingHorizontal: 10,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
   list: { maxHeight: 320 },
@@ -185,17 +187,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.sm,
   },
-  itemPressed: { backgroundColor: colors.surface2 },
+  itemPressed: { backgroundColor: theme.colors.surface2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  itemLabel: { flex: 1, color: colors.textPrimary, fontSize: 14 },
-  count: { color: colors.textMuted, fontSize: 11 },
+  itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: 14 },
+  count: { color: theme.colors.textMuted, fontSize: 11 },
   create: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
     borderRadius: 0,
     marginTop: space.xs,
   },
   createName: { fontWeight: '700' },
-  hint: { color: colors.textMuted, fontSize: 12, padding: space.md },
-  error: { color: colors.danger, fontSize: 12, paddingHorizontal: space.md, paddingTop: space.xs },
-})
+  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.md },
+  error: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    paddingHorizontal: space.md,
+    paddingTop: space.xs,
+  },
+}))

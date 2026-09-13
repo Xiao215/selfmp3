@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, StyleSheet, View } from 'react-native'
+import { Animated, Easing, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 
 /**

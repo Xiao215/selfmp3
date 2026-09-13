@@ -1,21 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { formatDuration } from '@selfmp3/shared'
 import {
   clearTagFilter,
   clientApi,
-  colors,
   includeTag,
   oklchToHexAlpha,
   queryKeys,
@@ -49,6 +41,7 @@ interface Entry {
  * library, which is why it exists at all.
  */
 export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
   const player = usePlayer()
@@ -162,7 +155,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       </View>
     ) : null
 
-  const icon = (Glyph: typeof Music): ReactNode => <Glyph size={16} color={colors.textSecondary} />
+  const icon = (Glyph: typeof Music): ReactNode => (
+    <Glyph size={16} color={theme.colors.textSecondary} />
+  )
   const commandIcon: Record<PaletteCommandId, ReactNode> = {
     'nav-library': icon(Music),
     'nav-playlists': icon(ListMusic),
@@ -191,7 +186,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         ]}
       >
         <View style={styles.inputRow}>
-          <Search size={18} color={colors.textMuted} />
+          <Search size={18} color={theme.colors.textMuted} />
           <TextInput
             autoFocus
             value={query}
@@ -207,7 +202,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             }}
             onSubmitEditing={() => activate(active)}
             placeholder="Search songs, playlists, tags — or type a command"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
@@ -357,7 +352,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   return null
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
     top: 0,
@@ -368,9 +363,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   panel: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.lg,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -385,10 +380,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 18,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
-  input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.textPrimary, padding: 0 },
-  count: { color: colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  input: { flex: 1, minWidth: 0, fontSize: 16, color: theme.colors.textPrimary, padding: 0 },
+  count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   results: { padding: 6 },
   group: { marginBottom: 6 },
   groupTitle: {
@@ -399,7 +394,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 5,
   },
-  groupText: { color: colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  groupText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
   groupCount: { opacity: 0.75, letterSpacing: 0 },
   item: {
     flexDirection: 'row',
@@ -412,14 +407,14 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: 'transparent',
   },
-  itemOn: { backgroundColor: colors.surface3 },
+  itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
-  label: { flex: 1, minWidth: 0, color: colors.textSecondary, fontSize: 13 },
+  label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: 13 },
   mark: { fontWeight: '700' },
-  sub: { color: colors.textMuted, fontSize: 11 },
-  hint: { color: colors.textMuted, fontSize: 11 },
+  sub: { color: theme.colors.textMuted, fontSize: 11 },
+  hint: { color: theme.colors.textMuted, fontSize: 11 },
   empty: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
     padding: 20,
@@ -432,16 +427,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface0,
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.surface0,
   },
-  footText: { color: colors.textMuted, fontSize: 11 },
+  footText: { color: theme.colors.textMuted, fontSize: 11 },
   kbd: {
     fontSize: 10,
-    color: colors.textPrimary,
-    backgroundColor: colors.surface2,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: 5,
   },
-})
+}))

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useAccent } from '../accent'
 
@@ -14,6 +15,7 @@ import { useAccent } from '../accent'
  * says anything until a download is actually running.
  */
 export function SyncStatus(): ReactNode {
+  const { theme } = useUnistyles()
   const downloads = useDownloads()
   const accent = useAccent()
   const header = syncHeader(downloads.situation)
@@ -58,7 +60,7 @@ export function SyncStatus(): ReactNode {
             accessibilityRole="button"
             accessibilityLabel={action}
           >
-            <Text style={[styles.action, { color: warn ? colors.warning : accent.accent }]}>
+            <Text style={[styles.action, { color: warn ? theme.colors.warning : accent.accent }]}>
               {action}
             </Text>
           </Pressable>
@@ -68,11 +70,11 @@ export function SyncStatus(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   bar: {
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderRadius: radius.md,
     marginHorizontal: space.lg,
     marginBottom: space.sm,
@@ -84,15 +86,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.md,
   },
-  text: { color: colors.textSecondary, fontSize: type.small, flexShrink: 1 },
+  text: { color: theme.colors.textSecondary, fontSize: type.small, flexShrink: 1 },
   // The device's accent, or amber on mobile data.
   action: { fontSize: type.small, fontWeight: '600' },
-  error: { color: colors.danger, fontSize: type.small, flex: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small, flex: 1 },
   progressTrack: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     overflow: 'hidden',
   },
   progressFill: { height: 3 },
-})
+}))

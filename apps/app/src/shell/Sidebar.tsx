@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
-  colors,
   downloadedCount,
   excludeTag,
   includeTag,
@@ -66,6 +66,7 @@ export const SIDEBAR_WIDTH = 244
 const HOVERS = Platform.OS === 'web'
 
 export function Sidebar(): ReactNode {
+  const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
   const accent = useAccent()
@@ -93,7 +94,7 @@ export function Sidebar(): ReactNode {
               accessibilityState={{ selected: active }}
               testID={`nav-${destination.label.toLowerCase()}`}
             >
-              <destination.Icon size={18} color={active ? accent.accent : colors.textMuted} />
+              <destination.Icon size={18} color={active ? accent.accent : theme.colors.textMuted} />
               <Text
                 style={[styles.label, active && { color: accent.accent, fontWeight: '600' }]}
                 numberOfLines={1}
@@ -112,6 +113,7 @@ export function Sidebar(): ReactNode {
 }
 
 function Tags(): ReactNode {
+  const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
@@ -165,7 +167,7 @@ function Tags(): ReactNode {
               accessibilityRole="button"
               accessibilityLabel="Clear tag filters"
             >
-              <X size={13} color={colors.textMuted} />
+              <X size={13} color={theme.colors.textMuted} />
             </Pressable>
           ) : null}
           <Pressable
@@ -174,7 +176,7 @@ function Tags(): ReactNode {
             accessibilityRole="button"
             accessibilityLabel="New tag"
           >
-            <Plus size={14} color={colors.textMuted} />
+            <Plus size={14} color={theme.colors.textMuted} />
           </Pressable>
         </View>
       </View>
@@ -190,7 +192,7 @@ function Tags(): ReactNode {
               if (!name) setAdding(false)
             }}
             placeholder="tag name"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             autoFocus
             autoCapitalize="none"
             autoCorrect={false}
@@ -230,7 +232,7 @@ function Tags(): ReactNode {
         ))}
         {tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
-            <TagIcon size={16} color={colors.textMuted} />
+            <TagIcon size={16} color={theme.colors.textMuted} />
             <Text style={styles.hint}>
               No tags yet. Tags are how you find things later — try “chill”.
             </Text>
@@ -260,6 +262,7 @@ function TagRow({
   onInclude: () => void
   onExclude: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const moreRef = useRef<View>(null)
@@ -271,7 +274,7 @@ function TagRow({
     <View
       style={[
         styles.tagRow,
-        (hovered || excluded) && { backgroundColor: colors.surface2 },
+        (hovered || excluded) && { backgroundColor: theme.colors.surface2 },
         included && { backgroundColor: oklchToHexAlpha(0.35, 0.09, tag.hue, 0.32) },
       ]}
       onPointerEnter={() => setHovered(true)}
@@ -310,7 +313,7 @@ function TagRow({
         accessibilityLabel={excluded ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
         accessibilityState={{ selected: excluded }}
       >
-        <Minus size={13} color={excluded ? colors.danger : colors.textMuted} />
+        <Minus size={13} color={excluded ? theme.colors.danger : theme.colors.textMuted} />
       </Pressable>
       <View ref={moreRef} collapsable={false}>
         <Pressable
@@ -320,7 +323,7 @@ function TagRow({
           accessibilityLabel={`Edit tag ${tag.name}`}
           accessibilityState={{ expanded: editing }}
         >
-          <More size={13} color={colors.textMuted} />
+          <More size={13} color={theme.colors.textMuted} />
         </Pressable>
       </View>
 
@@ -341,6 +344,7 @@ function TagRow({
 }
 
 function Foot(): ReactNode {
+  const { theme } = useUnistyles()
   const router = useRouter()
   const scan = useScanLibrary()
   const { state } = useDownloads()
@@ -354,7 +358,7 @@ function Foot(): ReactNode {
         accessibilityRole="button"
         accessibilityLabel="Offline"
       >
-        <CloudDownload size={15} color={colors.textMuted} />
+        <CloudDownload size={15} color={theme.colors.textMuted} />
         <Text style={styles.footLabel}>Offline</Text>
         <Text style={styles.count}>{downloadedCount(state.index)}</Text>
       </Pressable>
@@ -366,7 +370,7 @@ function Foot(): ReactNode {
           disabled={scan.isPending}
           accessibilityRole="button"
         >
-          <Refresh size={15} color={colors.textMuted} />
+          <Refresh size={15} color={theme.colors.textMuted} />
           <Text style={styles.footLabel}>{scan.isPending ? 'Scanning…' : 'Rescan library'}</Text>
         </Pressable>
       )}
@@ -374,12 +378,12 @@ function Foot(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   rail: {
     width: SIDEBAR_WIDTH,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightColor: theme.colors.border,
     paddingHorizontal: space.md,
     paddingTop: space.xl,
     paddingBottom: space.md,
@@ -392,7 +396,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   wordmark: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.title,
     fontWeight: '700',
   },
@@ -408,7 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   label: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: type.body,
   },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   groupTitleText: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.77,
@@ -436,11 +440,11 @@ const styles = StyleSheet.create({
   },
   tagForm: { paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
   tagInput: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.sm,
     paddingVertical: 6,
     paddingHorizontal: 9,
@@ -453,12 +457,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   suggestion: {
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
     borderRadius: 20,
     paddingVertical: 2,
     paddingHorizontal: space.sm,
   },
-  suggestionText: { color: colors.textSecondary, fontSize: 11 },
+  suggestionText: { color: theme.colors.textSecondary, fontSize: 11 },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.sm },
@@ -474,10 +478,10 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  tagName: { flex: 1, color: colors.textSecondary, fontSize: 13 },
-  tagNameIncluded: { color: colors.textPrimary, fontWeight: '500' },
-  not: { color: colors.danger, fontWeight: '600' },
-  count: { color: colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+  tagNameIncluded: { color: theme.colors.textPrimary, fontWeight: '500' },
+  not: { color: theme.colors.danger, fontWeight: '600' },
+  count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
   tagActionLast: { paddingRight: space.sm },
   tagEmpty: {
@@ -488,12 +492,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
-  hint: { color: colors.textMuted, fontSize: 12 },
-  link: { color: colors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
-  foot: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, gap: 1 },
+  hint: { color: theme.colors.textMuted, fontSize: 12 },
+  link: { color: theme.colors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
+  foot: { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 10, gap: 1 },
   footItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -502,5 +506,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: radius.md,
   },
-  footLabel: { flex: 1, color: colors.textSecondary, fontSize: 13 },
-})
+  footLabel: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+}))

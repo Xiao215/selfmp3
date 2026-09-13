@@ -1,8 +1,9 @@
 import { memo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
-import { colors, radius } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -24,6 +25,7 @@ const ROW = 46
  * somewhere else, and the bin to clear the lot.
  */
 export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const artFor = useArt()
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
@@ -49,12 +51,12 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
         <View style={styles.actions}>
           {count > 0 ? (
             <IconButton onPress={player.clearQueue} label="Clear queue">
-              <Trash size={17} color={colors.textSecondary} />
+              <Trash size={17} color={theme.colors.textSecondary} />
             </IconButton>
           ) : null}
           <View style={styles.divider} />
           <IconButton onPress={onClose} label="Close queue">
-            <X size={17} color={colors.textSecondary} />
+            <X size={17} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
       </View>
@@ -63,7 +65,7 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
         {count === 0 ? (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
-              <Queue size={20} color={colors.textMuted} />
+              <Queue size={20} color={theme.colors.textMuted} />
             </View>
             <Text style={styles.emptyTitle}>Nothing queued</Text>
             <Text style={styles.emptyText}>
@@ -144,6 +146,7 @@ const QueueRow = memo(function QueueRow({
   onPlay: () => void
   onRemove: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
@@ -190,7 +193,7 @@ const QueueRow = memo(function QueueRow({
         accessibilityLabel={`Reorder ${song.title}`}
         style={[styles.grip, !finePointer && styles.gripTouch]}
       >
-        <Grip size={16} color={hovered ? colors.textSecondary : colors.textMuted} />
+        <Grip size={16} color={hovered ? theme.colors.textSecondary : theme.colors.textMuted} />
       </View>
       <Pressable
         style={styles.main}
@@ -222,13 +225,13 @@ const QueueRow = memo(function QueueRow({
         label={`Remove ${song.title} from queue`}
         size={finePointer ? 28 : 36}
       >
-        <X size={15} color={colors.textMuted} />
+        <X size={15} color={theme.colors.textMuted} />
       </IconButton>
     </View>
   )
 })
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   panel: { flex: 1, minHeight: 0 },
   head: {
     flexDirection: 'row',
@@ -240,13 +243,13 @@ const styles = StyleSheet.create({
     paddingRight: 10,
     paddingLeft: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.colors.border,
   },
   titles: { flex: 1, minWidth: 0 },
-  title: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  sub: { color: colors.textMuted, fontSize: 12 },
+  title: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  sub: { color: theme.colors.textMuted, fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  divider: { width: 1, height: 18, marginHorizontal: 4, backgroundColor: colors.border },
+  divider: { width: 1, height: 18, marginHorizontal: 4, backgroundColor: theme.colors.border },
   list: { padding: 8, gap: 1 },
   row: {
     flexDirection: 'row',
@@ -256,7 +259,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: 'transparent',
   },
-  rowHighlighted: { backgroundColor: colors.surface2 },
+  rowHighlighted: { backgroundColor: theme.colors.surface2 },
   rowDragging: { opacity: 0.4 },
   dropLine: { position: 'absolute', left: 0, right: 0, height: 2 },
   dropTop: { top: -1 },
@@ -275,10 +278,10 @@ const styles = StyleSheet.create({
   marker: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   pastArt: { opacity: 0.55 },
   meta: { flex: 1, minWidth: 0, gap: 1 },
-  songTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  pastTitle: { color: colors.textMuted, fontWeight: '500' },
-  artist: { color: colors.textMuted, fontSize: 11 },
-  duration: { color: colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  songTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  pastTitle: { color: theme.colors.textMuted, fontWeight: '500' },
+  artist: { color: theme.colors.textMuted, fontSize: 11 },
+  duration: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   empty: { alignItems: 'center', gap: 6, paddingVertical: 40, paddingHorizontal: 24 },
   emptyIcon: {
     width: 40,
@@ -286,8 +289,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
-  emptyTitle: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
-  emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
-})
+  emptyTitle: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  emptyText: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center' },
+}))

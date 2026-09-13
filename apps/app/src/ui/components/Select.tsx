@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Popover } from './Popover'
@@ -54,6 +55,7 @@ export function Select<T extends string | number>({
   testID?: string
   size?: 'normal' | 'small' | 'inline'
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { dense } = useLayout()
   const [open, setOpen] = useState(false)
@@ -114,7 +116,7 @@ export function Select<T extends string | number>({
           {current?.label ?? label}
         </Text>
         <View style={open && styles.chevronOpen}>
-          <ChevronDown size={size === 'normal' ? 15 : 12} color={colors.textMuted} />
+          <ChevronDown size={size === 'normal' ? 15 : 12} color={theme.colors.textMuted} />
         </View>
       </Pressable>
 
@@ -140,7 +142,7 @@ export function Select<T extends string | number>({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   control: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -148,9 +150,9 @@ const styles = StyleSheet.create({
     gap: space.sm,
     minHeight: HIT_TARGET,
     paddingHorizontal: space.md,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
   /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
@@ -173,7 +175,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingLeft: 6,
     paddingRight: 4,
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   valueDense: {
     fontSize: 13,
@@ -187,18 +189,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   controlPressed: {
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
   /* Every option keeps the room, so the labels line up whether ticked or not. */
   checkSlot: { width: 14, alignItems: 'center' },
   value: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     flexShrink: 1,
   },
   groupLabel: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.7,
@@ -208,8 +210,8 @@ const styles = StyleSheet.create({
   },
   groupDivided: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
     marginTop: 4,
     paddingTop: 9,
   },
-})
+}))

@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native'
+import { PanResponder, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
-import { colors, oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
+import { oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { useArt } from '../offline/useArt'
@@ -64,6 +65,7 @@ const REPEAT_LABEL = {
 } as const
 
 export function PlayerBar(): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const artFor = useArt()
@@ -158,7 +160,7 @@ export function PlayerBar(): ReactNode {
               <Heart
                 size={17}
                 filled={song.loved}
-                color={song.loved ? colors.danger : colors.textSecondary}
+                color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
               />
             </IconButton>
             <View>
@@ -167,7 +169,7 @@ export function PlayerBar(): ReactNode {
                 label={`Tags for ${song.title}`}
                 active={tagsOpen}
               >
-                <TagPlus size={17} color={tagsOpen ? accent.accent : colors.textSecondary} />
+                <TagPlus size={17} color={tagsOpen ? accent.accent : theme.colors.textSecondary} />
               </IconButton>
               {song.tagIds.length > 0 ? (
                 <View
@@ -191,11 +193,11 @@ export function PlayerBar(): ReactNode {
           <IconButton onPress={player.toggleShuffle} label="Shuffle" active={player.queue.shuffle}>
             <Shuffle
               size={17}
-              color={player.queue.shuffle ? accent.accent : colors.textSecondary}
+              color={player.queue.shuffle ? accent.accent : theme.colors.textSecondary}
             />
           </IconButton>
           <IconButton onPress={player.previous} label="Previous" disabled={!song}>
-            <Prev size={20} color={colors.textSecondary} />
+            <Prev size={20} color={theme.colors.textSecondary} />
           </IconButton>
           <Pressable
             onPress={player.toggle}
@@ -205,18 +207,18 @@ export function PlayerBar(): ReactNode {
             accessibilityState={{ disabled: !song, busy: player.stalled }}
             style={({ pressed }) => [
               styles.playButton,
-              { backgroundColor: song ? colors.textPrimary : colors.surface3 },
+              { backgroundColor: song ? theme.colors.textPrimary : theme.colors.surface3 },
               pressed && styles.playPressed,
             ]}
           >
             {player.isPlaying ? (
-              <Pause size={20} color={colors.surface0} />
+              <Pause size={20} color={theme.colors.surface0} />
             ) : (
-              <Play size={20} color={song ? colors.surface0 : colors.textMuted} />
+              <Play size={20} color={song ? theme.colors.surface0 : theme.colors.textMuted} />
             )}
           </Pressable>
           <IconButton onPress={player.next} label="Next" disabled={!song}>
-            <Next size={20} color={colors.textSecondary} />
+            <Next size={20} color={theme.colors.textSecondary} />
           </IconButton>
           <IconButton
             onPress={player.cycleRepeatMode}
@@ -228,7 +230,7 @@ export function PlayerBar(): ReactNode {
             ) : (
               <Repeat
                 size={17}
-                color={player.queue.repeat === 'off' ? colors.textSecondary : accent.accent}
+                color={player.queue.repeat === 'off' ? theme.colors.textSecondary : accent.accent}
               />
             )}
           </IconButton>
@@ -246,10 +248,13 @@ export function PlayerBar(): ReactNode {
       <View style={styles.right}>
         <View style={styles.group} role="group" aria-label="Panels">
           <IconButton onPress={toggleLyrics} label="Lyrics" active={pageMode === 'focus'}>
-            <Mic size={17} color={pageMode === 'focus' ? accent.accent : colors.textSecondary} />
+            <Mic
+              size={17}
+              color={pageMode === 'focus' ? accent.accent : theme.colors.textSecondary}
+            />
           </IconButton>
           <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
-            <Queue size={17} color={queueOpen ? accent.accent : colors.textSecondary} />
+            <Queue size={17} color={queueOpen ? accent.accent : theme.colors.textSecondary} />
           </IconButton>
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Playback">
@@ -259,7 +264,7 @@ export function PlayerBar(): ReactNode {
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Output">
           <View ref={devicesRef} collapsable={false}>
             <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
-              <Devices size={17} color={colors.textSecondary} />
+              <Devices size={17} color={theme.colors.textSecondary} />
             </IconButton>
           </View>
           <VolumeControl compact={width < COMPACT_WIDTH} />
@@ -277,6 +282,7 @@ export function PlayerBar(): ReactNode {
 }
 
 function SpeedButton(): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const [open, setOpen] = useState(false)
@@ -288,7 +294,7 @@ function SpeedButton(): ReactNode {
         label={`Playback speed: ${player.rate}×`}
         active={player.rate !== 1}
       >
-        <Speed size={17} color={player.rate !== 1 ? accent.accent : colors.textSecondary} />
+        <Speed size={17} color={player.rate !== 1 ? accent.accent : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}
@@ -317,6 +323,7 @@ function SpeedButton(): ReactNode {
 }
 
 function SleepButton(): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const [open, setOpen] = useState(false)
@@ -326,7 +333,7 @@ function SleepButton(): ReactNode {
   return (
     <View ref={anchorRef} collapsable={false}>
       <IconButton onPress={() => setOpen(value => !value)} label="Sleep timer" active={running}>
-        <Moon size={17} color={running ? accent.accent : colors.textSecondary} />
+        <Moon size={17} color={running ? accent.accent : theme.colors.textSecondary} />
       </IconButton>
       <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
     </View>
@@ -334,6 +341,7 @@ function SleepButton(): ReactNode {
 }
 
 function VolumeControl({ compact }: { compact: boolean }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const [open, setOpen] = useState(false)
@@ -348,7 +356,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
       label={player.muted ? 'Unmute' : 'Mute'}
       active={player.muted}
     >
-      <Icon size={17} color={colors.textSecondary} />
+      <Icon size={17} color={theme.colors.textSecondary} />
     </IconButton>
   )
   const slider = <VolumeSlider value={player.volume} onChange={player.setVolume} />
@@ -369,7 +377,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
         label={`Volume: ${percent}%`}
         active={player.muted}
       >
-        <Icon size={17} color={player.muted ? accent.accent : colors.textSecondary} />
+        <Icon size={17} color={player.muted ? accent.accent : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}
@@ -430,7 +438,7 @@ function VolumeSlider({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   /* Open, the cover says the same button now closes the page. */
   openChevron: {
     position: 'absolute',
@@ -449,9 +457,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.lg,
     paddingHorizontal: 18,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
     overflow: 'hidden',
   },
   wash: { position: 'absolute', left: 0, top: 0, bottom: 0 },
@@ -467,8 +475,8 @@ const styles = StyleSheet.create({
   },
   open: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1, minWidth: 0 },
   meta: { flexShrink: 1, minWidth: 0 },
-  title: { color: colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  artist: { color: colors.textMuted, fontSize: type.small },
+  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  artist: { color: theme.colors.textMuted, fontSize: type.small },
   tagCount: {
     position: 'absolute',
     top: 2,
@@ -508,16 +516,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  groupDivided: { paddingLeft: space.sm, borderLeftWidth: 1, borderLeftColor: colors.border },
+  groupDivided: { paddingLeft: space.sm, borderLeftWidth: 1, borderLeftColor: theme.colors.border },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   volumePopover: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
-  readout: { color: colors.textMuted, fontSize: 11, minWidth: 32, textAlign: 'right' },
+  readout: { color: theme.colors.textMuted, fontSize: 11, minWidth: 32, textAlign: 'right' },
   slider: { width: 88, height: 24, justifyContent: 'center' },
   sliderTrack: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
   sliderFill: { height: 4, borderRadius: radius.sm },
-})
+}))

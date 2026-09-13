@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
-import { colors, NAV_HEIGHT, type } from '@selfmp3/client'
+import { NAV_HEIGHT, type } from '@selfmp3/client'
 import { ListMusic, Music, Settings } from './Icons'
 
 /**
@@ -29,6 +30,7 @@ const TABS: { href: '/' | '/playlists' | '/settings'; label: string; Icon: typeo
 ]
 
 export function BottomNav(): ReactNode {
+  const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
@@ -54,7 +56,7 @@ export function BottomNav(): ReactNode {
             accessibilityState={{ selected: active }}
           >
             <View style={[styles.pill, active && { backgroundColor: accent.accentPill }]}>
-              <tab.Icon size={20} color={active ? accent.accent : colors.textMuted} />
+              <tab.Icon size={20} color={active ? accent.accent : theme.colors.textMuted} />
             </View>
             <Text
               style={[styles.label, active && { color: accent.accent, fontWeight: '600' }]}
@@ -69,12 +71,12 @@ export function BottomNav(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   bar: {
     flexDirection: 'row',
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
   },
   tab: {
     flex: 1,
@@ -91,8 +93,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.label,
     fontWeight: '500',
   },
-})
+}))

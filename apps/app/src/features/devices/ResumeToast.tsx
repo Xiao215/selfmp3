@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { pickResumeState, type Device } from '@selfmp3/shared'
-import { colors, handoffTarget, shortDeviceName, useLibrary } from '@selfmp3/client'
+import { handoffTarget, shortDeviceName, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -19,6 +20,7 @@ import { useDeviceContext } from './DevicesProvider'
  * audio on its own is what every music app gets shouted at for.
  */
 export function ResumeToast(): ReactNode {
+  const { theme } = useUnistyles()
   const { deviceId, devices } = useDeviceContext()
   const player = usePlayer()
   const library = useLibrary()
@@ -85,13 +87,13 @@ export function ResumeToast(): ReactNode {
         </Text>
       </Pressable>
       <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>
-        <X size={15} color={colors.textMuted} />
+        <X size={15} color={theme.colors.textMuted} />
       </IconButton>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -101,9 +103,9 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
     paddingRight: 7,
     borderRadius: 999,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -121,8 +123,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   mainTouch: { paddingVertical: 10 },
-  mainHovered: { backgroundColor: colors.surface3 },
+  mainHovered: { backgroundColor: theme.colors.surface3 },
   label: { fontSize: 13, fontWeight: '600' },
-  song: { color: colors.textPrimary, fontSize: 13, flexShrink: 1 },
-  from: { color: colors.textMuted, fontSize: 11 },
-})
+  song: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  from: { color: theme.colors.textMuted, fontSize: 11 },
+}))

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatRelative } from '@selfmp3/shared'
-import { colors, radius, space, useGems } from '@selfmp3/client'
+import { radius, space, useGems } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
@@ -24,6 +25,7 @@ const COLLAPSED_KEY = 'gems.collapsed'
  * be worse than no row at all.
  */
 export function GemsRow(): ReactNode {
+  const { theme } = useUnistyles()
   const gems = useGems(12)
   const player = usePlayer()
   const artFor = useArt()
@@ -78,9 +80,9 @@ export function GemsRow(): ReactNode {
           style={styles.title}
         >
           {collapsed ? (
-            <ChevronRight size={15} color={colors.textMuted} />
+            <ChevronRight size={15} color={theme.colors.textMuted} />
           ) : (
-            <ChevronDown size={15} color={colors.textMuted} />
+            <ChevronDown size={15} color={theme.colors.textMuted} />
           )}
           <Text style={styles.titleLabel}>Forgotten gems</Text>
           <Text style={styles.hint} numberOfLines={1}>
@@ -92,7 +94,7 @@ export function GemsRow(): ReactNode {
           <View style={styles.actions}>
             <Button
               label="Play all"
-              icon={<Play size={13} color={colors.textPrimary} />}
+              icon={<Play size={13} color={theme.colors.textPrimary} />}
               onPress={() => player.playFrom(ids, 0)}
             />
             <Button label="Add to queue" onPress={() => player.addToQueue(ids)} />
@@ -115,16 +117,16 @@ export function GemsRow(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   row: {
     marginHorizontal: space.lg,
     marginBottom: space.lg,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
   },
   head: {
     flexDirection: 'row',
@@ -135,13 +137,13 @@ const styles = StyleSheet.create({
   },
   headStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 },
-  titleLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  hint: { color: colors.textMuted, fontSize: 12, flexShrink: 1 },
+  titleLabel: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
   actions: { flexDirection: 'row', gap: 8 },
   list: { gap: 10, marginTop: 10, paddingBottom: 4 },
   listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   card: { width: 92, padding: 4, gap: 3, borderRadius: radius.sm },
-  cardPressed: { backgroundColor: colors.surface2 },
+  cardPressed: { backgroundColor: theme.colors.surface2 },
   cardFew: {
     flexGrow: 1,
     flexBasis: 200,
@@ -151,12 +153,12 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
-  cardFewPressed: { backgroundColor: colors.surface3 },
+  cardFewPressed: { backgroundColor: theme.colors.surface3 },
   cardText: { flex: 1, minWidth: 0, gap: 1 },
-  cardTitle: { color: colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
   cardTitleFew: { fontSize: 12, marginTop: 0 },
-  cardArtist: { color: colors.textSecondary, fontSize: 11 },
-  cardWhen: { color: colors.textMuted, fontSize: 10 },
-})
+  cardArtist: { color: theme.colors.textSecondary, fontSize: 11 },
+  cardWhen: { color: theme.colors.textMuted, fontSize: 10 },
+}))

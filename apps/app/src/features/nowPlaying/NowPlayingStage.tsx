@@ -7,16 +7,15 @@ import {
   Image,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import {
-  colors,
   oklchToHex,
   radius,
   rgba,
@@ -99,12 +98,13 @@ export function NowPlayingStage(): ReactNode {
 }
 
 function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   useEscape(true, onClose)
   return (
     <View style={styles.page} accessibilityLabel="Now playing">
       <View style={styles.head}>
         <IconButton onPress={onClose} label="Close">
-          <ChevronDown size={22} color={colors.textSecondary} />
+          <ChevronDown size={22} color={theme.colors.textSecondary} />
         </IconButton>
       </View>
       <View style={styles.empty}>
@@ -130,6 +130,7 @@ function Stage({
   onTab: (tab: StageTab) => void
   onMode: (mode: PageMode) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
   const artFor = useArt()
@@ -203,9 +204,9 @@ function Stage({
         <Svg width="100%" height="100%">
           <Defs>
             <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor={colors.surface0} stopOpacity={0.35} />
-              <Stop offset="0.55" stopColor={colors.surface0} stopOpacity={0.82} />
-              <Stop offset="1" stopColor={colors.surface0} stopOpacity={0.82} />
+              <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
+              <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.82} />
+              <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.82} />
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
@@ -213,7 +214,10 @@ function Stage({
       </Animated.View>
       <Animated.View
         pointerEvents="none"
-        style={[styles.fill, { opacity: move, backgroundColor: hexAlpha(colors.surface0, 0.55) }]}
+        style={[
+          styles.fill,
+          { opacity: move, backgroundColor: hexAlpha(theme.colors.surface0, 0.55) },
+        ]}
       />
 
       <Animated.View
@@ -295,7 +299,7 @@ function Stage({
               accessibilityRole="button"
               style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
             >
-              <TagPlus size={14} color={colors.textSecondary} />
+              <TagPlus size={14} color={theme.colors.textSecondary} />
               <Text style={styles.tagButtonText}>{tags.length > 0 ? 'Edit tags' : 'Add tags'}</Text>
             </Pressable>
           </View>
@@ -315,7 +319,7 @@ function Stage({
         {shownTab === 'lyrics' ? (
           words.status === 'loading' ? (
             <View style={styles.status}>
-              <ActivityIndicator size="small" color={colors.textMuted} />
+              <ActivityIndicator size="small" color={theme.colors.textMuted} />
               <Text style={styles.statusText}>Looking for lyrics…</Text>
             </View>
           ) : words.status === 'lyrics' ? (
@@ -364,7 +368,7 @@ function Stage({
           onPress={focus ? () => onMode('stage') : onClose}
           label={focus ? 'Back to the full page' : 'Close now playing'}
         >
-          <ChevronDown size={22} color={colors.textSecondary} />
+          <ChevronDown size={22} color={theme.colors.textSecondary} />
         </IconButton>
         {focus ? (
           <View style={styles.headSong} pointerEvents="none">
@@ -426,7 +430,7 @@ function Stage({
           >
             <Romanize
               size={14}
-              color={lyrics.romanizationOn ? colors.surface0 : colors.textSecondary}
+              color={lyrics.romanizationOn ? theme.colors.surface0 : theme.colors.textSecondary}
             />
             <Text style={[styles.toolText, lyrics.romanizationOn && styles.toolTextOn]}>
               {romanName(lyrics.language)}
@@ -448,9 +452,9 @@ function Stage({
           ]}
         >
           {focus ? (
-            <Collapse size={18} color={colors.textSecondary} />
+            <Collapse size={18} color={theme.colors.textSecondary} />
           ) : (
-            <Expand size={18} color={colors.textSecondary} />
+            <Expand size={18} color={theme.colors.textSecondary} />
           )}
         </Pressable>
       ) : null}
@@ -472,7 +476,7 @@ function Stage({
               {upNext.artist || 'Unknown artist'}
             </Text>
           </View>
-          <Next size={16} color={colors.textSecondary} />
+          <Next size={16} color={theme.colors.textSecondary} />
         </Pressable>
       ) : null}
 
@@ -481,8 +485,8 @@ function Stage({
   )
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, overflow: 'hidden', backgroundColor: colors.surface0 },
+const styles = StyleSheet.create(theme => ({
+  page: { flex: 1, overflow: 'hidden', backgroundColor: theme.colors.surface0 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   glow: {
     position: 'absolute',
@@ -530,14 +534,14 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   headSong: { position: 'absolute', left: 116, top: 12, maxWidth: '40%' },
-  headTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
-  headArtist: { color: colors.textSecondary, fontSize: 12 },
+  headTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  headArtist: { color: theme.colors.textSecondary, fontSize: 12 },
   context: {
     position: 'absolute',
     left: 0,
     right: 0,
     textAlign: 'center',
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
   },
   tabs: {
@@ -546,12 +550,12 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: 3,
     borderRadius: 9,
-    backgroundColor: hexAlpha(colors.textPrimary, 0.07),
+    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.07),
   },
   tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 7 },
-  tabActive: { backgroundColor: hexAlpha(colors.textPrimary, 0.13) },
-  tabText: { color: colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
-  tabTextActive: { color: colors.textPrimary },
+  tabActive: { backgroundColor: hexAlpha(theme.colors.textPrimary, 0.13) },
+  tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
+  tabTextActive: { color: theme.colors.textPrimary },
   cover: {
     position: 'absolute',
     zIndex: 3,
@@ -563,16 +567,16 @@ const styles = StyleSheet.create({
   },
   coverImage: { width: '100%', height: '100%' },
   meta: { position: 'absolute', zIndex: 2, gap: 10 },
-  title: { color: colors.textPrimary, fontWeight: '800' },
-  byline: { color: colors.textSecondary, fontSize: 14, marginTop: -4 },
+  title: { color: theme.colors.textPrimary, fontWeight: '800' },
+  byline: { color: theme.colors.textSecondary, fontSize: 14, marginTop: -4 },
   facts: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tempo: { color: colors.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] },
+  tempo: { color: theme.colors.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] },
   key: {
     height: 20,
     paddingHorizontal: 8,
     borderRadius: 5,
     justifyContent: 'center',
-    backgroundColor: hexAlpha(colors.textPrimary, 0.08),
+    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
   },
   keyText: { fontSize: 12, fontWeight: '600' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
@@ -586,10 +590,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
   },
-  tagButtonPressed: { backgroundColor: colors.surface2 },
-  tagButtonText: { color: colors.textSecondary, fontSize: 12.5 },
+  tagButtonPressed: { backgroundColor: theme.colors.surface2 },
+  tagButtonText: { color: theme.colors.textSecondary, fontSize: 12.5 },
   words: { position: 'absolute', zIndex: 1, bottom: 0 },
   status: {
     flex: 1,
@@ -599,8 +603,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 9,
   },
-  statusText: { color: colors.textMuted, fontSize: 13 },
-  statusStrong: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  statusText: { color: theme.colors.textMuted, fontSize: 13 },
+  statusStrong: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
   statusLink: { fontSize: 13, fontWeight: '600' },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
   aboutBody: { maxWidth: 600 },
@@ -612,11 +616,11 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 11,
     borderRadius: 999,
-    backgroundColor: hexAlpha(colors.textPrimary, 0.08),
+    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
   },
-  toolOn: { backgroundColor: colors.textPrimary },
-  toolText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  toolTextOn: { color: colors.surface0 },
+  toolOn: { backgroundColor: theme.colors.textPrimary },
+  toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  toolTextOn: { color: theme.colors.surface0 },
   expand: {
     position: 'absolute',
     zIndex: 4,
@@ -625,9 +629,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: hexAlpha(colors.textPrimary, 0.08),
+    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
   },
-  expandPressed: { backgroundColor: hexAlpha(colors.textPrimary, 0.14) },
+  expandPressed: { backgroundColor: hexAlpha(theme.colors.textPrimary, 0.14) },
   upNext: {
     position: 'absolute',
     zIndex: 5,
@@ -638,7 +642,7 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     paddingRight: 12,
     borderRadius: radius.md,
-    backgroundColor: hexAlpha(colors.surface2, 0.88),
+    backgroundColor: hexAlpha(theme.colors.surface2, 0.88),
     shadowColor: '#000',
     shadowOpacity: 0.4,
     shadowRadius: 18,
@@ -646,14 +650,14 @@ const styles = StyleSheet.create({
   },
   upNextText: { minWidth: 0, maxWidth: 220 },
   upNextLabel: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 10.5,
     letterSpacing: 0.6,
     fontVariant: ['tabular-nums'],
   },
-  upNextTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  upNextArtist: { color: colors.textMuted, fontSize: 12 },
+  upNextTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  upNextArtist: { color: theme.colors.textMuted, fontSize: 12 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  emptyTitle: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
-  emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
-})
+  emptyTitle: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  emptyText: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center' },
+}))

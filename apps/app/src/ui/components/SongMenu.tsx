@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { formatBytes, type Song } from '@selfmp3/shared'
-import { clientApi, colors, isDownloaded, space } from '@selfmp3/client'
+import { clientApi, isDownloaded, space } from '@selfmp3/client'
 import { useAddToPlaylist, useDeleteSong, useLibrary, usePatchSong } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -132,6 +133,7 @@ function Items({
   onStartSelecting?: (song: Song) => void
   onOpen: (kind: 'tags' | 'details') => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const player = usePlayer()
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
@@ -157,7 +159,7 @@ function Items({
       .catch(() => undefined)
   }
 
-  const icon = (Glyph: typeof Queue) => <Glyph size={16} color={colors.textSecondary} />
+  const icon = (Glyph: typeof Queue) => <Glyph size={16} color={theme.colors.textSecondary} />
 
   return (
     <>
@@ -254,7 +256,7 @@ function Items({
 
       {!confirmingDelete ? (
         <SheetItem
-          icon={<Trash size={16} color={colors.danger} />}
+          icon={<Trash size={16} color={theme.colors.danger} />}
           label="Remove from library…"
           danger
           onPress={() => setConfirmingDelete(true)}
@@ -267,7 +269,7 @@ function Items({
             onPress={then(() => deleteSong.mutate({ id: song.id, deleteFile: false }))}
           />
           <SheetItem
-            icon={<Trash size={16} color={colors.danger} />}
+            icon={<Trash size={16} color={theme.colors.danger} />}
             label="Delete the file too"
             danger
             onPress={then(() => deleteSong.mutate({ id: song.id, deleteFile: true }))}
@@ -279,13 +281,13 @@ function Items({
   )
 }
 
-const styles = StyleSheet.create({
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: space.xs },
+const styles = StyleSheet.create(theme => ({
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   nested: { paddingLeft: space.lg },
   hint: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 12,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-})
+}))

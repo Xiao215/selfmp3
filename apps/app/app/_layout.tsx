@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { Stack, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -16,8 +17,6 @@ import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvi
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
 import { AccentProvider } from '../src/ui/accent'
-import { launchScheme } from '../src/ui/themeAtLaunch'
-import { colors } from '@selfmp3/client'
 
 /**
  * The app shell.
@@ -48,7 +47,7 @@ const FULL_SCREEN_ROUTES = ['/onboarding', '/now-playing']
 export default function RootLayout(): ReactNode {
   return (
     <SafeAreaProvider>
-      <StatusBar style={launchScheme === 'light' ? 'dark' : 'light'} />
+      <ThemedStatusBar />
       {/* Outermost of the app's own providers: everything below draws with it. */}
       <AccentProvider>
         <QueryClientProvider client={queryClient}>
@@ -78,6 +77,7 @@ export default function RootLayout(): ReactNode {
 }
 
 function Shell(): ReactNode {
+  const { theme } = useUnistyles()
   const { status } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
@@ -107,7 +107,7 @@ function Shell(): ReactNode {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: colors.surface0 },
+          contentStyle: { backgroundColor: theme.colors.surface0 },
           animation: 'fade',
         }}
       >
@@ -118,4 +118,10 @@ function Shell(): ReactNode {
       </Stack>
     </Frame>
   )
+}
+
+/** Light text over the dark theme, dark text over the light one, following a switch. */
+function ThemedStatusBar(): ReactNode {
+  const { rt } = useUnistyles()
+  return <StatusBar style={rt.themeName === 'light' ? 'dark' : 'light'} />
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
   EMPTY_SMART_RULES,
   SmartRulesSchema,
@@ -8,7 +9,7 @@ import {
   type SmartRules,
   type Tag,
 } from '@selfmp3/shared'
-import { clientApi, colors, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { clientApi, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { IconButton } from '../../ui/components/IconButton'
@@ -55,6 +56,7 @@ export function SmartRuleBuilder({
   tags: readonly Tag[]
   onChange: (rules: SmartRules) => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide } = useLayout()
   const [rules, setRules] = useState<SmartRules>(initial ?? EMPTY_SMART_RULES)
@@ -125,7 +127,7 @@ export function SmartRuleBuilder({
 
   const preview = matchLabel(matchCount)
   const empty = matchCount === 0
-  const countInk = empty ? colors.warning : accent.accent
+  const countInk = empty ? theme.colors.warning : accent.accent
 
   return (
     <View style={styles.builder} testID="rule-builder">
@@ -185,7 +187,7 @@ export function SmartRuleBuilder({
           accessibilityRole="button"
           style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
         >
-          <Plus size={13} color={colors.textPrimary} />
+          <Plus size={13} color={theme.colors.textPrimary} />
           <Text style={styles.addText}>Add rule</Text>
         </Pressable>
       </View>
@@ -222,7 +224,7 @@ export function SmartRuleBuilder({
             style={[styles.input, styles.limit]}
             keyboardType="number-pad"
             placeholder="no limit"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             value={rules.limit === null ? '' : String(rules.limit)}
             onChangeText={text => {
               const trimmed = text.trim()
@@ -260,6 +262,7 @@ function RuleRow({
   onChange: (rule: SmartRule) => void
   onRemove: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const unit = unitFor(rule.field)
@@ -300,7 +303,7 @@ function RuleRow({
           value={rule.value}
           onChangeText={text => onChange({ ...rule, value: text })}
           placeholder="text"
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={theme.colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}
           accessibilityLabel="Value"
@@ -363,7 +366,9 @@ function RuleRow({
         />
       )
       value =
-        rule.op === 'never' ? null : numberInput(rule.days ?? 30, days => onChange({ ...rule, days }), 'Days')
+        rule.op === 'never'
+          ? null
+          : numberInput(rule.days ?? 30, days => onChange({ ...rule, days }), 'Days')
       break
     case 'key':
       op = (
@@ -417,7 +422,7 @@ function RuleRow({
   const remove = (
     <View style={{ opacity: !finePointer || hovered || !wide ? 1 : 0 }}>
       <IconButton onPress={onRemove} label="Remove this rule" size={24}>
-        <X size={14} color={colors.textMuted} />
+        <X size={14} color={theme.colors.textMuted} />
       </IconButton>
     </View>
   )
@@ -458,11 +463,11 @@ function RuleRow({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   builder: {
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.md,
     padding: space.lg,
     marginBottom: 22,
@@ -476,7 +481,7 @@ const styles = StyleSheet.create({
   },
   headCompact: { flexDirection: 'column', alignItems: 'flex-start' },
   sentence: { flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 1 },
-  sentenceText: { color: colors.textSecondary, fontSize: 13 },
+  sentenceText: { color: theme.colors.textSecondary, fontSize: 13 },
   count: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -484,9 +489,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: space.md,
     borderRadius: 999,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
   },
   countStale: { opacity: 0.55 },
   countNumber: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
@@ -499,8 +504,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.sm,
   },
-  rowHovered: { backgroundColor: colors.surface2 },
-  join: { color: colors.textMuted, fontSize: 11, letterSpacing: 0.5 },
+  rowHovered: { backgroundColor: theme.colors.surface2 },
+  join: { color: theme.colors.textMuted, fontSize: 11, letterSpacing: 0.5 },
   joinWide: { width: 46, textAlign: 'right', paddingRight: 2 },
   fieldCell: { width: 148 },
   opCell: { width: 152 },
@@ -509,9 +514,9 @@ const styles = StyleSheet.create({
   card: {
     gap: 6,
     padding: 10,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -519,17 +524,17 @@ const styles = StyleSheet.create({
     minHeight: 30,
     paddingVertical: 5,
     paddingHorizontal: space.sm,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 12,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
   number: { width: 96 },
   grow: { flex: 1, minWidth: 0 },
-  unit: { color: colors.textMuted, fontSize: 12 },
-  hint: { color: colors.textMuted, fontSize: 12, paddingVertical: 10 },
+  unit: { color: theme.colors.textMuted, fontSize: 12 },
+  hint: { color: theme.colors.textMuted, fontSize: 12, paddingVertical: 10 },
   indent: { marginLeft: 53 },
   addRow: { flexDirection: 'row', marginTop: space.sm },
   add: {
@@ -541,10 +546,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
   },
-  addPressed: { backgroundColor: colors.surface2 },
-  addText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  addPressed: { backgroundColor: theme.colors.surface2 },
+  addText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
   foot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -553,10 +558,15 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
   },
   field: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  fieldLabel: { color: colors.textMuted, fontSize: 12 },
+  fieldLabel: { color: theme.colors.textMuted, fontSize: 12 },
   limit: { width: 76 },
-  description: { marginTop: space.md, color: colors.textMuted, fontSize: 12, fontStyle: 'italic' },
-})
+  description: {
+    marginTop: space.md,
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+}))

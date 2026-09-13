@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
+import { PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
 import { useAccent } from '../accent'
-import { colors, space, type } from '@selfmp3/client'
+import { space, type } from '@selfmp3/client'
 
 /**
  * Scrubber: the web's `.scrubber-large`, a 6px track with a 16px thumb that
@@ -167,7 +168,7 @@ export function SeekBar({
 const THUMB = 16
 const THUMB_INLINE = 12
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   /* `.player-progress`: the times either side, 11-point and tabular. */
   inline: {
     flexDirection: 'row',
@@ -177,7 +178,7 @@ const styles = StyleSheet.create({
   },
   inlineTrack: { flex: 1, minWidth: 0 },
   timeInline: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     minWidth: 36,
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
   track: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
     justifyContent: 'center',
   },
   fill: {
@@ -209,7 +210,7 @@ const styles = StyleSheet.create({
     width: THUMB,
     height: THUMB,
     borderRadius: THUMB / 2,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: theme.colors.textPrimary,
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 2,
@@ -221,8 +222,8 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   time: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.tiny,
     fontVariant: ['tabular-nums'],
   },
-})
+}))

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { useAccent } from '../accent'
-import { colors, MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
+import { MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
 import { DevicesSheet } from '../../features/devices/DevicesSheet'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
@@ -22,6 +23,7 @@ import { Devices, Next, Pause, Play } from './Icons'
  * transport on the phone's home screen.
  */
 export function MiniPlayer(): ReactNode {
+  const { theme } = useUnistyles()
   const artFor = useArt()
   const accent = useAccent()
   const player = usePlayer()
@@ -103,7 +105,7 @@ export function MiniPlayer(): ReactNode {
       {/* Where else this could be playing, first in the row as on the web's
           mini player: beside the transport, not buried in a menu. */}
       <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
-        <Devices size={19} color={colors.textSecondary} />
+        <Devices size={19} color={theme.colors.textSecondary} />
       </IconButton>
       {/*
         The transport carries whether it is playing in its own testID, rather
@@ -118,13 +120,13 @@ export function MiniPlayer(): ReactNode {
         label={player.isPlaying ? 'Pause' : 'Play'}
       >
         {player.isPlaying ? (
-          <Pause size={22} color={colors.textPrimary} />
+          <Pause size={22} color={theme.colors.textPrimary} />
         ) : (
-          <Play size={22} color={colors.textPrimary} />
+          <Play size={22} color={theme.colors.textPrimary} />
         )}
       </IconButton>
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
-        <Next size={20} color={colors.textSecondary} />
+        <Next size={20} color={theme.colors.textSecondary} />
       </IconButton>
 
       <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
@@ -132,16 +134,16 @@ export function MiniPlayer(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   bar: {
     height: MINI_PLAYER_HEIGHT + 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
     overflow: 'hidden',
   },
   wash: {
@@ -166,12 +168,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
   artist: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 11,
   },
-})
+}))

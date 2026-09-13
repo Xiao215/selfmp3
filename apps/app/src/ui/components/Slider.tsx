@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { colors, oklchToHex } from '@selfmp3/client'
+import { oklchToHex } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { fractionOf, valueAt } from './slider.model'
 import type { SliderProps } from './slider.types'
@@ -26,6 +27,7 @@ export function Slider({
   hue = false,
   width = 140,
 }: SliderProps): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const range = { min, max, step }
   const [local, setLocal] = useState<{ value: number; from: number } | null>(null)
@@ -87,16 +89,16 @@ export function Slider({
         style={[
           styles.thumb,
           { left: fraction * width - THUMB / 2 },
-          hue && { borderWidth: 2, borderColor: colors.surface0 },
+          hue && { borderWidth: 2, borderColor: theme.colors.surface0 },
         ]}
       />
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   hit: { height: 36, justifyContent: 'center' },
-  track: { height: 4, borderRadius: 2, backgroundColor: colors.surface3, overflow: 'hidden' },
+  track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   hueTrack: { height: 6, borderRadius: 3 },
   fill: { height: '100%' },
   thumb: {
@@ -105,6 +107,6 @@ const styles = StyleSheet.create({
     width: THUMB,
     height: THUMB,
     borderRadius: THUMB / 2,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: theme.colors.textPrimary,
   },
-})
+}))

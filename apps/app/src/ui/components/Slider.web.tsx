@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { colors, oklchToHex } from '@selfmp3/client'
+import { oklchToHex } from '@selfmp3/client'
+import { useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 import { fractionOf } from './slider.model'
 import type { SliderProps } from './slider.types'
@@ -18,18 +19,18 @@ const CSS = `
   height: 20px; padding: 8px 0; border-radius: 2px; cursor: pointer; background-clip: content-box;
   background-color: transparent;
   background-image: linear-gradient(to right, var(--range-fill) 0%, var(--range-fill) var(--progress),
-    ${colors.surface3} var(--progress), ${colors.surface3} 100%); }
+    var(--range-track) var(--progress), var(--range-track) 100%); }
 .selfmp3-range::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px;
-  border-radius: 50%; background: ${colors.textPrimary}; border: none; opacity: 0;
+  border-radius: 50%; background: var(--range-thumb); border: none; opacity: 0;
   transition: opacity 120ms; }
 .selfmp3-range:hover::-webkit-slider-thumb, .selfmp3-range:active::-webkit-slider-thumb,
 .selfmp3-range:focus-visible::-webkit-slider-thumb { opacity: 1; }
 .selfmp3-range::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%;
-  background: ${colors.textPrimary}; border: none; }
+  background: var(--range-thumb); border: none; }
 .selfmp3-range.is-hue { height: 22px; border-radius: 999px;
   background-image: linear-gradient(to right, ${HUE_STOPS}); }
 .selfmp3-range.is-hue::-webkit-slider-thumb { opacity: 1; width: 15px; height: 15px;
-  border: 2px solid ${colors.surface0}; }
+  border: 2px solid var(--range-ring); }
 `
 
 if (typeof document !== 'undefined' && !document.getElementById('selfmp3-range')) {
@@ -51,6 +52,7 @@ export function Slider({
   width = 140,
 }: SliderProps): ReactNode {
   const accent = useAccent()
+  const { theme } = useUnistyles()
   const ref = useRef<HTMLInputElement>(null)
   // What the thumb shows while it is ahead of the saved value. Tied to the
   // value it moved away from, so a new value from anywhere wins.
@@ -75,6 +77,10 @@ export function Slider({
     width,
     '--progress': `${fractionOf(shown, { min, max, step }) * 100}%`,
     '--range-fill': accent.accent,
+    // The theme's colours, so the stylesheet added once follows a theme change.
+    '--range-track': theme.colors.surface3,
+    '--range-thumb': theme.colors.textPrimary,
+    '--range-ring': theme.colors.surface0,
   } as React.CSSProperties
 
   return (

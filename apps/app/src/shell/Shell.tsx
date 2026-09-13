@@ -1,17 +1,12 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Appearance, StyleSheet, View } from 'react-native'
-import { colors } from '@selfmp3/client'
+import { View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { ResumeToast } from '../features/devices/ResumeToast'
 import { CommandPalette } from '../features/palette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
-import { usePlayer } from '../player/PlayerProvider'
-import { reloadApp } from '../ports/reload'
-import { useAccent } from '../ui/accent'
-import { resolveScheme } from '../ui/appearancePrefs'
-import { launchScheme } from '../ui/themeAtLaunch'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
@@ -56,7 +51,6 @@ export function Shell({
       {frame(wide, chrome, sidebar, barHidden, children)}
       <PlaybackNotices />
       <PaletteHost />
-      <SystemThemeWatcher />
     </OverlayProvider>
   )
 }
@@ -102,28 +96,6 @@ function frame(
   )
 }
 
-/**
- * "System" follows the device: when its own setting flips, start again in the
- * new scheme — unless a song is playing, in which case the next launch does.
- */
-function SystemThemeWatcher(): null {
-  const { theme } = useAccent()
-  const player = usePlayer()
-  const playing = useRef(player.isPlaying)
-  useEffect(() => {
-    playing.current = player.isPlaying
-  }, [player.isPlaying])
-
-  useEffect(() => {
-    if (theme !== 'system') return undefined
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      if (resolveScheme('system', colorScheme) !== launchScheme && !playing.current) reloadApp()
-    })
-    return () => subscription.remove()
-  }, [theme])
-  return null
-}
-
 /** ⌘K, or Ctrl+K, anywhere: the command palette. */
 function PaletteHost(): ReactNode {
   const [open, setOpen] = useState(false)
@@ -145,7 +117,7 @@ function Toasts(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   toasts: {
     position: 'absolute',
     left: 0,
@@ -157,7 +129,7 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
   },
   columns: {
     flex: 1,
@@ -169,4 +141,4 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: 0,
   },
-})
+}))

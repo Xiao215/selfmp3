@@ -1,8 +1,8 @@
 /**
  * The app's entry.
  *
- * The theme first: the palette must be filled before any screen's stylesheet
+ * The themes first: Unistyles must be configured before any screen's stylesheet
  * is made, and imports run in order. Then expo-router, which loads the routes.
  */
-import './src/ui/themeAtLaunch'
+import './src/ui/theme/unistyles'
 import 'expo-router/entry'

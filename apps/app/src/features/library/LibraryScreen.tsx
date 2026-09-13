@@ -1,19 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song, type Tag } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
 import { useArt } from '../../offline/useArt'
-import { isDownloaded, colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
@@ -44,6 +37,7 @@ import { useLibraryModel } from './library.model'
  * an array and no round trip.
  */
 export function LibraryScreen(): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense } = useLayout()
   const player = usePlayer()
@@ -151,13 +145,13 @@ export function LibraryScreen(): ReactNode {
 
         <View style={[styles.controls, wide && styles.controlsWide]}>
           <View style={[styles.searchBox, wide && styles.searchWide, dense && styles.searchDense]}>
-            <Search size={15} color={colors.textMuted} />
+            <Search size={15} color={theme.colors.textMuted} />
             <TextInput
               style={styles.search}
               value={filter.query}
               onChangeText={model.setQuery}
               placeholder="Search"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={theme.colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
@@ -170,7 +164,7 @@ export function LibraryScreen(): ReactNode {
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <X size={13} color={colors.textMuted} />
+                <X size={13} color={theme.colors.textMuted} />
               </Pressable>
             ) : null}
           </View>
@@ -209,14 +203,14 @@ export function LibraryScreen(): ReactNode {
               <Button
                 label={selection.active ? 'Done' : 'Select'}
                 active={selection.active}
-                icon={<CheckSquare size={15} color={colors.textPrimary} />}
+                icon={<CheckSquare size={15} color={theme.colors.textPrimary} />}
                 disabled={visible.length === 0}
                 onPress={() => (selection.active ? selection.clear() : selection.enter())}
                 testID="library-select"
               />
               <Button
                 label="Play"
-                icon={<Play size={15} color={colors.onAccent} />}
+                icon={<Play size={15} color={theme.colors.onAccent} />}
                 variant="primary"
                 disabled={visible.length === 0}
                 onPress={() => player.playFrom(songIds, 0, false)}
@@ -224,7 +218,7 @@ export function LibraryScreen(): ReactNode {
               {/* Worded at desktop width, as on the web; an icon on a phone. */}
               <Button
                 label={wide ? 'Shuffle' : undefined}
-                icon={<Shuffle size={15} color={colors.textPrimary} />}
+                icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                 disabled={visible.length === 0}
                 onPress={() => player.playShuffled(songIds)}
               />
@@ -249,8 +243,10 @@ export function LibraryScreen(): ReactNode {
               icon={
                 <Downloaded
                   size={12}
-                  color={filter.downloadedOnly ? colors.textPrimary : colors.textSecondary}
-                  knockout={colors.surface1}
+                  color={
+                    filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.textSecondary
+                  }
+                  knockout={theme.colors.surface1}
                 />
               }
               onPress={model.toggleDownloadedOnly}
@@ -376,10 +372,10 @@ const EMPTY_TEXT = {
   'no-matches': 'Nothing matches.',
 } as const
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface0,
+    backgroundColor: theme.colors.surface0,
   },
   head: {
     paddingHorizontal: space.lg,
@@ -387,13 +383,13 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   heading: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.large,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   sub: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: 13,
     marginTop: 3,
   },
@@ -427,9 +423,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
     paddingLeft: 10,
     paddingRight: 10,
@@ -437,7 +433,7 @@ const styles = StyleSheet.create({
   },
   search: {
     flex: 1,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.body,
     paddingVertical: 8,
   },
@@ -463,15 +459,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
   },
   sortButtonPressed: {
-    backgroundColor: colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   sortLabel: {
     flexShrink: 1,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -482,11 +478,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
   },
   directionArrow: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 17,
     lineHeight: 20,
   },
@@ -522,7 +518,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
   },
   filteredBy: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.small,
   },
   clear: {
@@ -537,11 +533,11 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
   },
   empty: {
-    color: colors.textMuted,
+    color: theme.colors.textMuted,
     fontSize: type.body,
     textAlign: 'center',
     marginTop: space.xl,
     paddingHorizontal: space.xl,
     lineHeight: 20,
   },
-})
+}))

@@ -1,16 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import type { Tag } from '@selfmp3/shared'
-import {
-  colors,
-  HIT_TARGET,
-  oklchToHexAlpha,
-  radius,
-  space,
-  type TagFilterState,
-} from '@selfmp3/client'
+import { HIT_TARGET, oklchToHexAlpha, radius, space, type TagFilterState } from '@selfmp3/client'
 import { useDeleteTag, useRenameTag, useSetTagHue } from '../../api/queries'
 import { useAccent } from '../accent'
 import { Button } from './Button'
@@ -93,6 +87,7 @@ function Editor({
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const [name, setName] = useState(tag.name)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -141,7 +136,7 @@ function Editor({
         >
           <Plus
             size={14}
-            color={filter === 'include' ? colors.textPrimary : colors.textSecondary}
+            color={filter === 'include' ? theme.colors.textPrimary : theme.colors.textSecondary}
           />
           <Text style={[styles.filterText, filter === 'include' && styles.filterTextOn]}>
             Show only these
@@ -158,7 +153,7 @@ function Editor({
         >
           <Minus
             size={14}
-            color={filter === 'exclude' ? colors.textPrimary : colors.textSecondary}
+            color={filter === 'exclude' ? theme.colors.textPrimary : theme.colors.textSecondary}
           />
           <Text style={[styles.filterText, filter === 'exclude' && styles.filterTextOn]}>
             Hide these
@@ -227,7 +222,7 @@ function Editor({
 
       {!confirmingDelete ? (
         <SheetItem
-          icon={<Trash size={15} color={colors.danger} />}
+          icon={<Trash size={15} color={theme.colors.danger} />}
           label="Delete tag…"
           danger
           onPress={() => setConfirmingDelete(true)}
@@ -239,7 +234,7 @@ function Editor({
             {tag.songCount === 1 ? 'song stays' : 'songs stay'} in your library.
           </Text>
           <SheetItem
-            icon={<Trash size={15} color={colors.danger} />}
+            icon={<Trash size={15} color={theme.colors.danger} />}
             label="Delete tag"
             danger
             onPress={() => {
@@ -255,7 +250,7 @@ function Editor({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   title: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,9 +259,9 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  titleText: { color: colors.textSecondary, fontSize: 13, flexShrink: 1 },
-  titleName: { color: colors.textPrimary, fontWeight: '700' },
-  hint: { color: colors.textMuted, fontSize: 12 },
+  titleText: { color: theme.colors.textSecondary, fontSize: 13, flexShrink: 1 },
+  titleName: { color: theme.colors.textPrimary, fontWeight: '700' },
+  hint: { color: theme.colors.textMuted, fontSize: 12 },
   filters: {
     flexDirection: 'row',
     gap: 6,
@@ -283,31 +278,31 @@ const styles = StyleSheet.create({
     padding: space.sm,
     minHeight: 36,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
   },
   filterExcludeOn: {
     backgroundColor: oklchToHexAlpha(0.4, 0.12, 22, 0.3),
     borderColor: oklchToHexAlpha(0.5, 0.14, 22, 0.6),
   },
-  filterText: { color: colors.textSecondary, fontSize: 12 },
-  filterTextOn: { color: colors.textPrimary },
+  filterText: { color: theme.colors.textSecondary, fontSize: 12 },
+  filterTextOn: { color: theme.colors.textPrimary },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
-  fieldLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', marginBottom: 5 },
+  fieldLabel: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600', marginBottom: 5 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   input: {
     flex: 1,
     minHeight: HIT_TARGET,
     paddingHorizontal: 10,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
-  error: { color: colors.danger, fontSize: 12, marginTop: 5 },
+  error: { color: theme.colors.danger, fontSize: 12, marginTop: 5 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   swatchRing: {
     borderWidth: 2,
@@ -322,6 +317,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: space.xs },
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
-})
+}))

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
-import { colors, oklchToHexAlpha } from '@selfmp3/client'
+import { View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { oklchToHexAlpha } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Check, Minus } from './Icons'
 
@@ -25,8 +26,9 @@ export function Checkbox({
   mixed?: boolean
   tone?: 'accent' | 'danger'
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
-  const fill = tone === 'danger' ? colors.danger : accent.accent
+  const fill = tone === 'danger' ? theme.colors.danger : accent.accent
 
   if (checked) {
     return (
@@ -50,21 +52,21 @@ export function Checkbox({
           },
         ]}
       >
-        <Minus size={12} color={colors.textPrimary} />
+        <Minus size={12} color={theme.colors.textPrimary} />
       </View>
     )
   }
   return <View style={styles.box} />
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   box: {
     width: 17,
     height: 17,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+}))

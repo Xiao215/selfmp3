@@ -1,7 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
-import { colors, oklchToHex } from '@selfmp3/client'
+import { Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { oklchToHex } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
 import { IconButton } from './IconButton'
@@ -20,6 +21,7 @@ export function ToastHost(): ReactNode {
 }
 
 function ToastItem({ toast }: { toast: Toast }): ReactNode {
+  const { theme } = useUnistyles()
   const { finePointer } = useLayout()
 
   useEffect(() => {
@@ -34,13 +36,13 @@ function ToastItem({ toast }: { toast: Toast }): ReactNode {
       : toast.tone === 'warn'
         ? oklchToHex(0.55, 0.12, 78)
         : toast.tone === 'error'
-          ? colors.danger
-          : colors.borderStrong
+          ? theme.colors.danger
+          : theme.colors.borderStrong
 
   return (
     <View style={[styles.toast, { borderColor: border }]} role="status">
       <Text
-        style={[styles.text, toast.tone === 'error' && { color: colors.danger }]}
+        style={[styles.text, toast.tone === 'error' && { color: theme.colors.danger }]}
         numberOfLines={2}
       >
         {toast.text}
@@ -50,13 +52,13 @@ function ToastItem({ toast }: { toast: Toast }): ReactNode {
         label="Dismiss"
         size={finePointer ? 28 : 40}
       >
-        <X size={14} color={colors.textMuted} />
+        <X size={14} color={theme.colors.textMuted} />
       </IconButton>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -67,12 +69,12 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     borderRadius: 999,
     borderWidth: 1,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  text: { color: colors.textPrimary, fontSize: 13, flexShrink: 1 },
-})
+  text: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
+}))

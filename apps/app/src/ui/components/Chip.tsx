@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
-import { colors, oklchToHexAlpha, tagColors, type } from '@selfmp3/client'
+import { oklchToHexAlpha, tagColors, type } from '@selfmp3/client'
 
 /**
  * A tag, as the web draws it: a pill in the tag's own hue, brighter when it
@@ -39,19 +40,20 @@ export function Chip({
   onLongPress?: () => void
   onRemove?: () => void
 }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const palette = tagColors(hue ?? accent.hue)
   const background = excluded
-    ? colors.surface2
+    ? theme.colors.surface2
     : hue === undefined && !selected
-      ? colors.surface2
+      ? theme.colors.surface2
       : selected
         ? palette.activeBackground
         : palette.background
   const text = excluded
-    ? colors.textSecondary
+    ? theme.colors.textSecondary
     : hue === undefined && !selected
-      ? colors.textSecondary
+      ? theme.colors.textSecondary
       : selected
         ? palette.activeText
         : palette.text
@@ -105,7 +107,7 @@ export function Chip({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -131,8 +133,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.24,
-    color: colors.danger,
+    color: theme.colors.danger,
   },
   remove: { paddingLeft: 2, paddingRight: 8 },
   removeGlyph: { fontSize: 14, opacity: 0.6 },
-})
+}))

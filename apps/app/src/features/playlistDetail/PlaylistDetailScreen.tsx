@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TextInput, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import Svg, { Path } from 'react-native-svg'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
-import { bytesToDownload, clientApi, colors, queryKeys, radius, space, type } from '@selfmp3/client'
+import { bytesToDownload, clientApi, queryKeys, radius, space, type } from '@selfmp3/client'
 import {
   useDeletePlaylist,
   useLibrary,
@@ -54,6 +55,7 @@ import { dropIndex, moveItem } from './playlistDetail.model'
  * songs. On a phone it also keeps the whole list on the device, and a way back.
  */
 export function PlaylistDetailScreen(): ReactNode {
+  const { theme } = useUnistyles()
   const artFor = useArt()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
@@ -169,7 +171,7 @@ export function PlaylistDetailScreen(): ReactNode {
         {wide ? null : (
           <View style={styles.backRow}>
             <IconButton onPress={() => router.back()} label="Back to playlists">
-              <ChevronLeft size={22} color={colors.textSecondary} />
+              <ChevronLeft size={22} color={theme.colors.textSecondary} />
             </IconButton>
             <Text style={styles.backLabel}>Playlists</Text>
           </View>
@@ -221,7 +223,7 @@ export function PlaylistDetailScreen(): ReactNode {
             <Button
               label={selection.active ? 'Done' : 'Select'}
               active={selection.active}
-              icon={<CheckSquare size={15} color={colors.textPrimary} />}
+              icon={<CheckSquare size={15} color={theme.colors.textPrimary} />}
               disabled={songs.length === 0}
               onPress={() => (selection.active ? selection.clear() : selection.enter())}
             />
@@ -234,7 +236,7 @@ export function PlaylistDetailScreen(): ReactNode {
             />
             <Button
               label="Shuffle"
-              icon={<Shuffle size={15} color={colors.textPrimary} />}
+              icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
               disabled={songs.length === 0}
               onPress={() => player.playShuffled(songIds)}
             />
@@ -250,9 +252,9 @@ export function PlaylistDetailScreen(): ReactNode {
               label={pendingBytes > 0 ? formatBytes(pendingBytes) : 'On this phone'}
               icon={
                 pendingBytes > 0 ? (
-                  <CloudDownload size={15} color={colors.textPrimary} />
+                  <CloudDownload size={15} color={theme.colors.textPrimary} />
                 ) : (
-                  <Downloaded size={15} color={accent.accent} knockout={colors.surface2} />
+                  <Downloaded size={15} color={accent.accent} knockout={theme.colors.surface2} />
                 )
               }
               disabled={pendingBytes === 0}
@@ -260,7 +262,7 @@ export function PlaylistDetailScreen(): ReactNode {
             />
             {playlist ? (
               <Button
-                icon={<Trash size={15} color={colors.danger} />}
+                icon={<Trash size={15} color={theme.colors.danger} />}
                 variant="danger"
                 accessibilityLabel={`Delete the playlist ${playlist.name}`}
                 onPress={() => setConfirmingDelete(true)}
@@ -383,12 +385,13 @@ export function PlaylistDetailScreen(): ReactNode {
 
 /** A pencil, for the rename affordance, as the web draws it. */
 function Pencil(): ReactNode {
+  const { theme } = useUnistyles()
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 20h9" stroke={colors.textMuted} strokeWidth={2} strokeLinecap="round" />
+      <Path d="M12 20h9" stroke={theme.colors.textMuted} strokeWidth={2} strokeLinecap="round" />
       <Path
         d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
-        stroke={colors.textMuted}
+        stroke={theme.colors.textMuted}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -397,8 +400,8 @@ function Pencil(): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface0 },
+const styles = StyleSheet.create(theme => ({
+  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
   backRow: {
     flexDirection: 'row',
@@ -406,7 +409,7 @@ const styles = StyleSheet.create({
     marginLeft: -space.md,
     marginTop: space.xs,
   },
-  backLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginLeft: -6 },
+  backLabel: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginLeft: -6 },
   head: { paddingTop: space.sm, paddingBottom: space.lg, gap: space.md },
   headWide: {
     paddingTop: 18,
@@ -419,29 +422,34 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   heading: {
     flexShrink: 1,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.large,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   renameInput: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: type.large,
     fontWeight: '700',
     paddingVertical: 2,
     paddingHorizontal: space.sm,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface2,
+    backgroundColor: theme.colors.surface2,
   },
-  meta: { color: colors.textMuted, fontSize: 13, marginTop: 3 },
+  meta: { color: theme.colors.textMuted, fontSize: 13, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   list: { gap: 0 },
   spinner: { marginTop: space.xl },
   empty: { alignItems: 'center', gap: space.sm, paddingTop: 60 },
   emptyEmoji: { fontSize: 34 },
-  emptyTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: '700' },
-  emptyHint: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginBottom: space.sm },
+  emptyTitle: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '700' },
+  emptyHint: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: space.sm,
+  },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
-})
+}))

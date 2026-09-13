@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
-  colors,
   formatAddedDate,
   formatName,
   isDownloaded,
@@ -36,6 +36,7 @@ import { X } from './Icons'
  * path and "Show in Finder" — belongs to the Mac, and is left out.
  */
 export function SongDetails({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const artFor = useArt()
   useEscape(true, onClose, { layer: true })
@@ -65,7 +66,7 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
             <Text style={styles.byline}>{byline}</Text>
           </View>
           <IconButton onPress={onClose} label="Close">
-            <X size={16} color={colors.textSecondary} />
+            <X size={16} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
         <ScrollView>
@@ -84,6 +85,7 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
  * and so does the About tab on a computer's Now Playing page.
  */
 export function SongDetailsBody({ song }: { song: Song }): ReactNode {
+  const { theme } = useUnistyles()
   const accent = useAccent()
   const { state: downloads, queue } = useDownloads()
   const features = song.features
@@ -190,7 +192,7 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
             {formatName(song.mime, song.path)} · {formatDuration(song.duration)}
           </Text>
           {song.missing ? (
-            <Text style={[styles.note, { color: colors.warning }]}>
+            <Text style={[styles.note, { color: theme.colors.warning }]}>
               The file is missing from your library folder.
             </Text>
           ) : null}
@@ -239,7 +241,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }): Reac
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
     top: 0,
@@ -254,9 +256,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 460,
     maxHeight: 720,
-    backgroundColor: colors.surface1,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: theme.colors.borderStrong,
     borderRadius: radius.lg,
     overflow: 'hidden',
   },
@@ -270,28 +272,33 @@ const styles = StyleSheet.create({
     paddingLeft: 18,
   },
   titles: { flex: 1, minWidth: 0 },
-  title: { color: colors.textPrimary, fontSize: 17, fontWeight: '600', lineHeight: 21 },
-  byline: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  title: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '600', lineHeight: 21 },
+  byline: { color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 },
   group: {
     gap: 10,
     paddingTop: space.md,
     paddingHorizontal: 18,
     paddingBottom: space.lg,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: theme.colors.border,
   },
-  groupTitle: { color: colors.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.66 },
+  groupTitle: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.66,
+  },
   fact: { flexDirection: 'row', gap: space.md },
-  factLabel: { width: 76, color: colors.textMuted, fontSize: 13.5 },
+  factLabel: { width: 76, color: theme.colors.textMuted, fontSize: 13.5 },
   factValue: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },
   strong: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 13.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
-  note: { color: colors.textMuted, fontSize: 12 },
+  note: { color: theme.colors.textMuted, fontSize: 12 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
-  empty: { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
-})
+  empty: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+}))

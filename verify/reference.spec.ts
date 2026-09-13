@@ -491,6 +491,39 @@ test.describe('reference', () => {
     }
   })
 
+  test('import', async ({ page }, info) => {
+    test.setTimeout(90_000)
+    const project = info.project.name
+    await page.goto('/import')
+    await page.getByRole('heading', { name: 'Import', exact: true }).waitFor({ timeout: 30_000 })
+    await dismissToasts(page)
+    await restMouse(page)
+    await settle(page, 900)
+    await shot(page, project, 'import-top')
+
+    // The review, from a song the reference library already has. Needs yt-dlp.
+    const fetch = page.getByRole('button', { name: 'Fetch details' })
+    await page
+      .getByPlaceholder(/music\.youtube\.com\/watch/)
+      .fill('https://www.youtube.com/watch?v=dGZqpVCJP3k')
+    await fetch.click()
+    const found = page.getByText('1 track found')
+    // `isVisible` does not wait, whatever its timeout says; the fetch takes seconds.
+    const reviewed = await found
+      .waitFor({ timeout: 60_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (reviewed) {
+      // The resume toast comes back on its own, over the review's buttons.
+      await dismissToasts(page)
+      await restMouse(page)
+      await settle(page, 900)
+      await shot(page, project, 'import-review')
+      await dismissToasts(page)
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    }
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

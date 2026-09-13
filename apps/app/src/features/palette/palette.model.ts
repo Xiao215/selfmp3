@@ -6,7 +6,8 @@ import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
  * The web's `CommandPalette`, less the destinations this app does not have yet.
  */
 
-export type PaletteCommandId = 'nav-library' | 'nav-playlists' | 'nav-settings' | 'shuffle-all'
+export type PaletteCommandId =
+  'nav-library' | 'nav-playlists' | 'nav-import' | 'nav-settings' | 'shuffle-all'
 
 export interface PaletteCommand {
   readonly id: PaletteCommandId
@@ -14,10 +15,12 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-export function paletteCommands(songCount: number): readonly PaletteCommand[] {
+/** `fromCloud`: a cloud library has no Mac to import with, so no Import. */
+export function paletteCommands(songCount: number, fromCloud = false): readonly PaletteCommand[] {
   return [
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
+    ...(fromCloud ? [] : [{ id: 'nav-import' as const, label: 'Import music' }]),
     { id: 'nav-settings', label: 'Settings' },
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
   ]
@@ -38,9 +41,10 @@ export interface PaletteResults {
 export function paletteResults(
   query: string,
   library: Pick<Library, 'songs' | 'playlists' | 'tags'> | undefined,
+  fromCloud = false,
 ): PaletteResults {
   const songs = library?.songs ?? []
-  const commands = paletteCommands(songs.length)
+  const commands = paletteCommands(songs.length, fromCloud)
   const trimmed = query.trim()
   if (!trimmed) return { commands, songs: [], playlists: [], tags: [] }
   const top = <T>(items: readonly T[], text: (item: T) => string, count: number): T[] =>

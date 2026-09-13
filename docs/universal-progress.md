@@ -1352,3 +1352,57 @@ for bit-perfect output.
    either looks different, which is why it is a question and not a fix.
    The web build of `apps/app` has lost the toast too, so on the web it would
    be restoring the reference rather than a new design.
+
+## Phase 5 — the desktop tools — branch `universal/phase-5`
+
+Started 2026-09-13, stacked on `universal/phase-4` at `f0ced51` (the theme
+rewrite). Phase 4 is not merged into main yet: a push to main runs the Pages
+workflow, which publishes the new app, and publishing is a stop-and-ask. That
+merge waits for Xiao.
+
+Each tool moves on its own, in the plan's order. Until one has moved, the old
+app still serves it, now under `/classic` on the Mac.
+
+### Import
+
+The web's `ImportView`, with the YouTube library panel under it.
+
+- `features/import/import.model.ts` holds the screen's rules with nothing
+  drawn: what each queue state is called, telling an upload still to come from
+  a failure, pre-ticking all but what the library already has, the headings,
+  what a job row offers, the request `/api/import/enqueue` gets (a chosen
+  playlist wins over "also create playlist"), and reading shared links
+  (14 tests).
+- `ImportScreen.tsx`: the tools notices, the links box, the review (a table at
+  desktop width; on a phone each track stacks its title and length, then artist
+  and album, as the web does), tags, playlist, and the queue, which takes the
+  review's place once it is sent. `YouTubeLibraryPanel.tsx`: signed-in status
+  with Test, Liked Music, and a playlist of yours.
+- Links shared to the app arrive as `/import?url=…&text=…`, the web's Web Share
+  Target, and are fetched at once and cleared from the URL.
+- `ui/components/TagChooser.tsx`: tags for songs not yet in the library. The
+  song tag picker's list became `TagSearchList`, which both use.
+- Import is in the sidebar and the ⌘K palette ("Import music"), and in neither
+  for a cloud library, as on the web.
+- Checked: `verify/flows/import.spec.ts` fetches a link, unticks and reticks
+  it, corrects a title and cancels, at both widths against both apps. The
+  reference set gains `import-top` and `import-review` at both widths, taken
+  from the old app (`docs/reference/README.md` says why under `fb882e0`), and
+  the new app is captured in the same states. On the iPhone simulator the same
+  fetch, review and cancel ran under Maestro.
+
+Where it differs from the web, on purpose for now:
+
+- **No listening before importing.** The web plays a preview in an audio
+  element of its own. The phone's player has one queue, so a preview needs a
+  port and probably `expo-audio`, which is a new dependency; it comes with its
+  own Stack line.
+- **No "Migrate a playlist" card.** It comes back with the migration screen,
+  the next tool.
+- **A cloud library gets a notice**, not the web's cloud import screen.
+- The links box is not in a monospace face, the phone's review thumbnail is the
+  desktop's size, and the phone still has no Import tab (see `BottomNav`).
+
+Noticed, not changed: on every route the web build's root is 8 px taller than
+the window. `body` hides the overflow, so nobody can scroll it, but a test that
+forces an element into view scrolls the whole frame.

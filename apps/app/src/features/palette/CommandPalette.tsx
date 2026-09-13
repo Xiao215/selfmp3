@@ -57,7 +57,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
-  const results = useMemo(() => paletteResults(query, library.data), [query, library.data])
+  const results = useMemo(
+    () => paletteResults(query, library.data, fromCloud),
+    [query, library.data, fromCloud],
+  )
 
   const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
   const lyrics = useQuery({
@@ -78,6 +81,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         return
       case 'nav-playlists':
         router.navigate('/playlists')
+        return
+      case 'nav-import':
+        router.navigate('/import')
         return
       case 'nav-settings':
         router.navigate('/settings')
@@ -161,6 +167,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const commandIcon: Record<PaletteCommandId, ReactNode> = {
     'nav-library': icon(Music),
     'nav-playlists': icon(ListMusic),
+    'nav-import': icon(Search),
     'nav-settings': icon(Settings),
     'shuffle-all': icon(Shuffle),
   }

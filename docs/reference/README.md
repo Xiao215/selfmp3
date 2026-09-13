@@ -48,8 +48,14 @@ pointer sitting on the bottom row).
 | Now playing | stage (desktop) / art (phone) · lyrics · romanisation on · up next · about (desktop) · focus (desktop) · nothing playing |
 | Player bar / mini player | playing · paused · progress at ~40% |
 | Settings | top · bottom · accent changed · light theme |
+| Import | at rest (the queue) · a link's review, fetched and not imported |
 | Devices | popover · resume toast |
 | Sheets and popovers | sleep timer · speed (desktop) · practice (phone) |
+
+Import was added in phase 5, from the same app: the one commit to `apps/web`
+after `fb882e0` (2df5771) touched devices and nothing the Import screen draws.
+Its review needs yt-dlp on the Mac and YouTube to answer; the link is a song
+the dev library already has, and the capture cancels rather than imports.
 
 Where the two widths carry the same thing under different names, the name here
 is the one that describes what was captured: the phone has no About tab (the

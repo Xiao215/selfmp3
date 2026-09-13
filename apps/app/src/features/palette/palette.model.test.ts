@@ -17,11 +17,14 @@ describe('the command palette', () => {
     expect(results.commands.map(command => command.id)).toEqual([
       'nav-library',
       'nav-playlists',
+      'nav-import',
       'nav-settings',
       'shuffle-all',
     ])
     expect(results.songs).toEqual([])
-    expect(paletteCommands(13)[3]?.hint).toBe('13 songs')
+    expect(paletteCommands(13)[4]?.hint).toBe('13 songs')
+    // A cloud library has no Mac to import with.
+    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-import')
   })
 
   it('finds songs, playlists and tags by what is typed', () => {

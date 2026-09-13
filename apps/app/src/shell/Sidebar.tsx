@@ -26,6 +26,7 @@ import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
   CloudDownload,
+  Download,
   ListMusic,
   Minus,
   More,
@@ -51,12 +52,15 @@ import { TagEditor } from '../ui/components/TagEditor'
  * edits it. At the foot, what is on this device and a rescan.
  */
 const DESTINATIONS: {
-  href: '/' | '/playlists' | '/settings'
+  href: '/' | '/playlists' | '/import' | '/settings'
   label: string
   Icon: typeof Music
+  /** Needs the Mac's own tools: a cloud library has none, as on the web. */
+  mac?: boolean
 }[] = [
   { href: '/', label: 'Library', Icon: Music },
   { href: '/playlists', label: 'Playlists', Icon: ListMusic },
+  { href: '/import', label: 'Import', Icon: Download, mac: true },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -70,6 +74,7 @@ export function Sidebar(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const accent = useAccent()
+  const { fromCloud } = useConnection()
 
   return (
     <View style={styles.rail} testID="sidebar">
@@ -79,7 +84,7 @@ export function Sidebar(): ReactNode {
       </View>
 
       <View accessibilityRole="tablist" style={styles.nav}>
-        {DESTINATIONS.map(destination => {
+        {DESTINATIONS.filter(destination => !fromCloud || !destination.mac).map(destination => {
           const active =
             destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href)
           return (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -42,30 +42,57 @@ export function TagPicker({
 }
 
 function Picker({ song }: { song: Song }): ReactNode {
+  const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
+  const setSongTags = useSetSongTags()
+  return (
+    <TagSearchList
+      selected={selected}
+      onChange={next => {
+        setSelected(next)
+        setSongTags.mutate({ songId: song.id, tagIds: [...next] })
+      }}
+      autoFocus
+    />
+  )
+}
+
+/**
+ * The picker itself, for tags on a song or tags for songs not yet here (an
+ * import, a migration): search as you type, tick, and make a tag on the spot.
+ * It holds no choice of its own; whoever shows it keeps `selected`.
+ */
+export function TagSearchList({
+  selected,
+  onChange,
+  autoFocus = false,
+}: {
+  selected: ReadonlySet<number>
+  onChange: (next: ReadonlySet<number>) => void
+  autoFocus?: boolean
+}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
-  const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const setSongTags = useSetSongTags()
   const createTag = useCreateTag()
+  // The set as it is now: a tag ticked while a create waited must survive it.
+  const latest = useRef(selected)
+  useEffect(() => {
+    latest.current = selected
+  }, [selected])
 
   const ranked = useMemo(() => fuzzyRank(query, tags, tag => tag.name), [query, tags])
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
 
-  const apply = (next: ReadonlySet<number>): void => {
-    setSelected(next)
-    setSongTags.mutate({ songId: song.id, tagIds: [...next] })
-  }
-
   const toggle = (tagId: number): void => {
-    const next = new Set(selected)
+    const next = new Set(latest.current)
     if (next.has(tagId)) next.delete(tagId)
     else next.add(tagId)
-    apply(next)
+    latest.current = next
+    onChange(next)
   }
 
   const create = async (): Promise<void> => {
@@ -74,12 +101,9 @@ function Picker({ song }: { song: Song }): ReactNode {
     try {
       const tag = await createTag.mutateAsync(trimmed)
       setQuery('')
-      // Read the set as it is now: a tag ticked while this waited must survive.
-      setSelected(current => {
-        const next = new Set([...current, tag.id])
-        setSongTags.mutate({ songId: song.id, tagIds: [...next] })
-        return next
-      })
+      const next = new Set([...latest.current, tag.id])
+      latest.current = next
+      onChange(next)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
       setError(`Couldn’t create “${trimmed}”: ${(caught as Error).message}`)
@@ -88,7 +112,7 @@ function Picker({ song }: { song: Song }): ReactNode {
 
   const submit = (): void => {
     // With nothing typed there is no best match: an empty query ranks the whole
-    // list, and submitting would silently tag the song with its first entry.
+    // list, and submitting would silently tick its first entry.
     if (!trimmed) return
     const best = ranked[0]
     if (best) {
@@ -110,7 +134,7 @@ function Picker({ song }: { song: Song }): ReactNode {
         placeholderTextColor={theme.colors.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
-        autoFocus
+        autoFocus={autoFocus}
         accessibilityLabel="Search or create a tag"
       />
 

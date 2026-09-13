@@ -11,12 +11,12 @@ const base = { songIds: [], error: null, requestedAt: '2026-09-13T11:55:00Z' }
 describe('describeCloudImport', () => {
   it('says how long a waiting request has waited', () => {
     expect(describeCloudImport({ ...base, state: 'waiting' }, now)).toBe(
-      'Waiting for your Mac · asked 5m ago',
+      'Waiting for your server · asked 5m ago',
     )
   })
 
   it('says the Mac is on it', () => {
-    expect(describeCloudImport({ ...base, state: 'working' }, now)).toBe('Downloading on your Mac…')
+    expect(describeCloudImport({ ...base, state: 'working' }, now)).toBe('Downloading on your server…')
   })
 
   it('counts what a finished request added', () => {

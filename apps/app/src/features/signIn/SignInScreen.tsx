@@ -183,7 +183,7 @@ export function SignInScreen({
           <Text style={styles.wordmark}>self.mp3</Text>
           <Text style={styles.blurb}>
             Your music, from the bucket that belongs to your Google account — on this phone,
-            offline, with or without your Mac.
+            offline, with or without your server running.
           </Text>
 
           {stage.kind === 'idle' && (

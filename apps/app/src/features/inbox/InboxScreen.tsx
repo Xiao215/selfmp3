@@ -100,7 +100,7 @@ export function InboxScreen(): ReactNode {
         </View>
 
         {fromCloud ? (
-          <Text style={styles.hint}>Tagging from the inbox is done on the Mac for now.</Text>
+          <Text style={styles.hint}>Tagging from the inbox needs a connection to your server for now.</Text>
         ) : null}
 
         {untagged.length > 0 ? (

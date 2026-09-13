@@ -335,7 +335,7 @@ export function SettingsScreen(): ReactNode {
               >
                 <Row
                   label="Show pinyin / romaji"
-                  hint="A romanized line under each Chinese or Japanese lyric, generated on your Mac — nothing leaves your library."
+                  hint="A romanized line under each Chinese or Japanese lyric, generated on your server — nothing leaves your library."
                   last
                 >
                   <Toggle
@@ -353,7 +353,7 @@ export function SettingsScreen(): ReactNode {
 
             <Panel
               title="Keyboard shortcuts"
-              hint="on a Mac"
+              hint="on the server"
               onTop={top => onTop('shortcuts', top)}
             >
               <Text style={partStyles.hint}>Everything else is done with the mouse.</Text>
@@ -436,7 +436,7 @@ function OfflinePanel({
       <Lead>
         {fromCloud
           ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'
-          : 'Downloaded songs play with no connection at all — which is the point, since your Mac won’t always be awake. Plays you make offline are kept here and sent to your Mac when it’s back.'}
+          : 'Downloaded songs play with no connection at all — which is the point, since your server won’t always be reachable. Plays you make offline are kept here and sent to your server when it’s back.'}
       </Lead>
 
       {installed ? (
@@ -457,7 +457,7 @@ function OfflinePanel({
             hint={
               fromCloud
                 ? 'A library in the cloud can’t stream yet, so only downloaded songs play.'
-                : 'Streams them from your Mac while it’s reachable. Off, only what is on this device plays.'
+                : 'Streams them from your server while it’s reachable. Off, only what is on this device plays.'
             }
             last
           >
@@ -614,7 +614,7 @@ function ImportingPanel({
       </Row>
       <Row
         label="YouTube login cookies"
-        hint="Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login from a browser on this Mac; “File” reads a Netscape cookies.txt."
+        hint="Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login from a browser on the computer running the server; “File” reads a Netscape cookies.txt."
         last={settings.ytCookieSource === 'none'}
       >
         <Select<Settings['ytCookieSource']>
@@ -718,7 +718,7 @@ function LibraryPanel({
       </Row>
       <Row
         label="Audio analysis"
-        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on this Mac. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${songs.length} songs analysed.`}
+        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${songs.length} songs analysed.`}
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}

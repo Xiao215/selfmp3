@@ -161,7 +161,7 @@ export function MigrateScreen(): ReactNode {
         {fromCloud ? (
           <View style={styles.notice}>
             <Text style={styles.noticeText}>
-              Migrating into a cloud library is done on the Mac for now.
+              Migrating into a cloud library needs a connection to your server for now.
             </Text>
           </View>
         ) : null}

@@ -156,7 +156,7 @@ export function WrappedScreen(): ReactNode {
       <View style={styles.empty}>
         <Text style={styles.chapterTitle}>Wrapped needs your library</Text>
         <Text style={[styles.hint, styles.center]}>
-          It’ll be here when your Mac is reachable again.
+          It’ll be here when your server is reachable again.
         </Text>
       </View>,
     )

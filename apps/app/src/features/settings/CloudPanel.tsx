@@ -37,7 +37,7 @@ export function CloudPanel({ onTop }: { onTop: (top: number) => void }): ReactNo
 
   let body: ReactNode
   if (!status) {
-    body = <Lead>{error ? 'Could not ask this Mac about the cloud right now.' : 'Loading…'}</Lead>
+    body = <Lead>{error ? 'Could not ask the server about the cloud right now.' : 'Loading…'}</Lead>
   } else if (status.connected && !editing) {
     body = <Connected status={status} onChange={() => setEditing(true)} />
   } else if (status.doormanUrl !== null && !status.account) {
@@ -113,7 +113,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
       <>
         <Row
           label="Enter the sign-in code"
-          hint="Google showed it when it finished. It proves this Mac is the one you signed in for."
+          hint="Google showed it when it finished. It proves this server is the one you signed in for."
         >
           <TextInput
             style={[partStyles.input, styles.code]}
@@ -173,7 +173,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
       {again ? null : (
         <Lead>
           Keep your library in a storage bucket that belongs to your Google account, so every device
-          you sign in on gets the same music and your changes — even while this Mac is asleep.
+          you sign in on gets the same music and your changes — even while this server is off.
         </Lead>
       )}
       <Row
@@ -290,7 +290,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
 
       <Row
         label={account ? 'Google account' : 'Connection'}
-        hint={`${account ? `Signed in as ${account.email}` : `Key ${target?.keyIdHint ?? ''}`} · this Mac is ${
+        hint={`${account ? `Signed in as ${account.email}` : `Key ${target?.keyIdHint ?? ''}`} · this server is ${
           status.deviceId ?? 'unnamed'
         } in the bucket`}
         last
@@ -307,7 +307,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
 
       <ConfirmDialog
         open={confirming}
-        title={account ? `Sign this Mac out of ${account.email}?` : `Stop publishing to ${folder}?`}
+        title={account ? `Sign this server out of ${account.email}?` : `Stop publishing to ${folder}?`}
         body={
           account
             ? 'Your music stays in the bucket.'
@@ -404,7 +404,7 @@ function BucketForm({
       <Lead>
         {account
           ? `Signed in as ${account.email}. Now the bucket that belongs to this account — Backblaze B2 is free up to 10 GB: a private bucket, and an application key for it with read and write access. The doorman tries the key, then keeps it; no device sees it again.`
-          : 'Keep your library in a storage bucket you own, so your other devices can get new songs and edits while this Mac is asleep. Backblaze B2 is free up to 10 GB: create a private bucket, then an application key for it with read and write access.'}
+          : 'Keep your library in a storage bucket you own, so your other devices can get new songs and edits while this server is off. Backblaze B2 is free up to 10 GB: create a private bucket, then an application key for it with read and write access.'}
       </Lead>
       <Text style={[partStyles.hint, styles.where]}>
         The endpoint and the name are on the bucket’s own page, under Buckets. The key is a new one
@@ -440,7 +440,7 @@ function BucketForm({
         'Application key',
         account
           ? 'B2 shows it once, when the key is made. It goes to the doorman, sealed.'
-          : 'B2 shows it once, when the key is made. It stays on this Mac.',
+          : 'B2 shows it once, when the key is made. It stays on this server.',
         applicationKey,
         setApplicationKey,
         { secret: true },

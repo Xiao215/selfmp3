@@ -20,6 +20,8 @@ import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { GemsRow } from './GemsRow'
+import { PendingImports } from './PendingImports'
+import { useConnection } from '../../server/ConnectionProvider'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
@@ -38,6 +40,7 @@ import { useLibraryModel } from './library.model'
  * an array and no round trip.
  */
 export function LibraryScreen(): ReactNode {
+  const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense } = useLayout()
@@ -316,6 +319,9 @@ export function LibraryScreen(): ReactNode {
 
       <SyncStatus />
 
+      {/* Links asked of the server, until what they bring is published. */}
+      {fromCloud ? <PendingImports /> : null}
+
       {selection.active ? (
         <SelectionBar
           songs={selectedSongs}
@@ -374,7 +380,7 @@ export function LibraryScreen(): ReactNode {
  */
 const EMPTY_TEXT = {
   unreachable: 'Could not reach the server, and nothing is cached yet.',
-  'no-library': 'Nothing here yet. Import a song on the Mac and it turns up here.',
+  'no-library': 'Nothing here yet. Import a song and it turns up here once your server has it.',
   'no-matches': 'Nothing matches.',
 } as const
 

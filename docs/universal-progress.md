@@ -1977,3 +1977,28 @@ the Dockerfile rewritten at phase 5's exit had never been built.
 - Not checked: the workflow itself, which runs once this is on main, and the
   amd64 image. The published package may start private on GHCR; making it public
   lets a Pi pull without logging in.
+
+### Import from any device, and "your server" rather than "your Mac"
+
+On `universal/cloud-import`. The server is to move to a Raspberry Pi, and the
+app said "your Mac" wherever it meant the server.
+
+- **Import on a phone.** The tab bar gains Import. Connected to the server, it
+  looks a link up and offers its tracks; signed in to the cloud, it asks the
+  server to fetch the link the next time it is on, as the web's cloud build
+  did. Only the server runs yt-dlp, so no device needs to do more.
+- **Songs on their way.** A cloud library now shows this device's requests at
+  the top of the library, drawn as a missing file is and not playable: the title
+  once the server has looked the link up (the link until then), a YouTube video's
+  thumbnail worked out from its link, and where it is (waiting, downloading,
+  almost ready, or why it failed). A finished request stays until every song it
+  brought is in the library, since the server publishes a song only once its
+  audio is in the bucket. `pendingImports.model.ts` (3 tests) and a component
+  test (2) hold the rules.
+- **Wording.** Every user-facing "Mac" in the app now says "server" (about 28
+  strings in 14 files); the flows' comments, which describe the dev setup, are
+  unchanged.
+- Checked: on the cloud-signed iPhone 17 Pro the Import tab opens the cloud
+  import screen, which says "Your server downloads it". No request was sent,
+  because one would download a real song into the library; the pending rows are
+  checked by the component test.

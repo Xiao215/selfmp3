@@ -15,9 +15,9 @@ type Request = Pick<ImportRequestView, 'state' | 'songIds' | 'error' | 'requeste
 export function describeCloudImport(item: Request, now = new Date()): string {
   switch (item.state) {
     case 'waiting':
-      return `Waiting for your Mac · asked ${formatRelative(item.requestedAt, now)}`
+      return `Waiting for your server · asked ${formatRelative(item.requestedAt, now)}`
     case 'working':
-      return 'Downloading on your Mac…'
+      return 'Downloading on your server…'
     case 'done':
       return item.songIds.length === 0
         ? 'Already in your library'

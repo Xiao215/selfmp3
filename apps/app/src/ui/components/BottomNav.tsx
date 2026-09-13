@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
 import { NAV_HEIGHT, type } from '@selfmp3/client'
-import { ListMusic, Music, Settings } from './Icons'
+import { Download, ListMusic, Music, Settings } from './Icons'
 
 /**
  * The tab bar: the web's `.mobile-nav`, drawn with the same icons.
@@ -14,18 +14,19 @@ import { ListMusic, Music, Settings } from './Icons'
  * and a mini player that has to sit directly above them, and a custom bar is
  * both less code and an exact match for the web app's mobile nav.
  *
- * Three destinations rather than the web's five: Import and Stats both want a
- * Mac — Stats is marked `needsMac` there too — and a tab that is dark more
- * often than not is worse than no tab. They come back when the phone can do
- * that work itself.
+ * Four destinations rather than the web's five: Stats needs a live connection
+ * to the server, which a phone signed in to the cloud does not have. Import
+ * works anywhere: connected, it looks a link up; signed in to the cloud, it
+ * asks the server to fetch it next time it is on.
  *
  * The current tab is marked twice, as on the web: the accent colour, and a
  * filled pill behind the icon. Colour alone is a weak signal at 20px and no
  * signal at all to anyone who cannot separate the accent from the grey.
  */
-const TABS: { href: '/' | '/playlists' | '/settings'; label: string; Icon: typeof Music }[] = [
+const TABS: { href: '/' | '/playlists' | '/import' | '/settings'; label: string; Icon: typeof Music }[] = [
   { href: '/', label: 'Library', Icon: Music },
   { href: '/playlists', label: 'Playlists', Icon: ListMusic },
+  { href: '/import', label: 'Import', Icon: Download },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 

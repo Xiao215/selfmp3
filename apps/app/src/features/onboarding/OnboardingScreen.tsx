@@ -65,7 +65,7 @@ export function OnboardingScreen(): ReactNode {
         if (caught instanceof ApiError && caught.status === 401) {
           setError('The server is there, but it rejected that token.')
         } else if (caught instanceof ApiError && caught.isOffline) {
-          setError('Could not reach the server. Is Tailscale connected and the Mac awake?')
+          setError('Could not reach the server. Is Tailscale connected and the server running?')
         } else {
           setError(caught instanceof Error ? caught.message : 'Could not connect')
         }
@@ -81,7 +81,7 @@ export function OnboardingScreen(): ReactNode {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.wordmark}>self.mp3</Text>
           <Text style={styles.blurb}>
-            Point this at the Mac running the server. On a phone that means the Tailscale name, so
+            Point this at the computer running the server. On a phone that means the Tailscale name, so
             it keeps working away from home.
           </Text>
 

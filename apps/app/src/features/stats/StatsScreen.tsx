@@ -102,7 +102,7 @@ export function StatsScreen(): ReactNode {
         ) : !stats ? (
           <Empty
             title="Stats need your library"
-            hint="They’ll be here when your Mac is reachable again."
+            hint="They’ll be here when your server is reachable again."
           />
         ) : stats.totals.plays === 0 ? (
           <Empty

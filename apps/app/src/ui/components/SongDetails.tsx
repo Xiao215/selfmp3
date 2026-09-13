@@ -154,9 +154,9 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
             </>
           ) : (
             <>
-              <Text style={styles.strong}>Only on your Mac · {formatBytes(song.sizeBytes)}</Text>
+              <Text style={styles.strong}>Only on your server · {formatBytes(song.sizeBytes)}</Text>
               <Text style={styles.note}>
-                {queued ? 'Waiting to download.' : 'Plays only while your Mac is reachable.'}
+                {queued ? 'Waiting to download.' : 'Plays only while your server is reachable.'}
               </Text>
               {queued ? null : (
                 <View style={styles.action}>

@@ -81,7 +81,7 @@ export function CloudImportScreen(): ReactNode {
           Import
         </Text>
         <Text style={styles.sub}>
-          Paste a YouTube or YouTube Music link — a song, or a whole playlist. Your Mac downloads it
+          Paste a YouTube or YouTube Music link — a song, or a whole playlist. Your server downloads it
           the next time it is on, and it appears on every device.
         </Text>
 

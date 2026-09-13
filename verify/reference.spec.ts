@@ -524,6 +524,34 @@ test.describe('reference', () => {
     }
   })
 
+  test('migrate', async ({ page }, info) => {
+    test.setTimeout(120_000)
+    const project = info.project.name
+    await page.goto('/import/migrate')
+    await page.getByRole('heading', { name: 'Migrate a playlist' }).waitFor({ timeout: 30_000 })
+    await dismissToasts(page)
+    await restMouse(page)
+    await settle(page, 900)
+    await shot(page, project, 'migrate-top')
+
+    // The review, from two songs the reference library already has. Needs yt-dlp.
+    await page.getByPlaceholder(/Get Lucky/).fill('YOASOBI - 群青\nアイドル by YOASOBI')
+    await page.getByRole('button', { name: 'Find matches' }).click()
+    const matched = await page
+      .getByText('2 of 2 songs matched')
+      .waitFor({ timeout: 90_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (matched) {
+      await dismissToasts(page)
+      await restMouse(page)
+      await settle(page, 1200)
+      await shot(page, project, 'migrate-review')
+      await dismissToasts(page)
+      await page.getByRole('button', { name: 'Start over' }).click()
+    }
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

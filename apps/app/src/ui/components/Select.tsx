@@ -12,6 +12,8 @@ import { Check, ChevronDown } from './Icons'
 export interface SelectOption<T> {
   readonly value: T
   readonly label: string
+  /** A quieter note beside the label, e.g. how sure a match is. */
+  readonly hint?: string
   readonly disabled?: boolean
 }
 
@@ -67,6 +69,7 @@ export function Select<T extends string | number>({
     <SheetItem
       key={String(option.value)}
       label={option.label}
+      detail={option.hint}
       role="option"
       disabled={option.disabled}
       icon={

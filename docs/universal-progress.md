@@ -1406,3 +1406,49 @@ Where it differs from the web, on purpose for now:
 Noticed, not changed: on every route the web build's root is 8 px taller than
 the window. `body` hides the overflow, so nobody can scroll it, but a test that
 forces an element into view scrolls the whole frame.
+
+### Migrate a playlist
+
+The web's `MigrateView`, at `/import/migrate`, reached from the card on Import
+as before.
+
+- `features/migrate/migrate.model.ts` holds the rules with nothing drawn: which
+  stage a match job is in, ticking only confident matches the library does not
+  already have (once per job, so a late poll does not re-tick what was
+  unticked), the upload chosen for each song, confidence as a tone, a word and
+  a mark, the headings, the lines the parser could not read, and the request
+  `/api/migrate/enqueue` gets: the source's names with the upload's audio, and
+  no playlist when the name is left empty (9 tests).
+- `MigrateScreen.tsx`: paste, then a polled match with a progress bar and
+  "stop", then the review — a table at desktop width; on a phone each song
+  stacks its source and confidence over the upload picker, with no thumbnail,
+  as the web does — with tags, "Create playlist named", and a notice when the
+  songs are queued that links to Import and to the new playlist.
+- `Select` options can carry a hint, drawn as the item's detail: each upload's
+  confidence in the picker.
+- The route moved: `app/import.tsx` is now `app/import/index.tsx`, beside
+  `app/import/migrate.tsx`.
+- Checked: `verify/flows/migrate.spec.ts` matches two songs, selects them and
+  starts over, at both widths against both apps. The reference set gains
+  `migrate-top` and `migrate-review` from the old app, and the new app is
+  captured in the same states. On the iPhone simulator a match ran to its
+  review and back under Maestro.
+
+Where it differs: a cloud library gets a notice rather than the screen, as with
+Import.
+
+### A layout regression from the theme rewrite, found and fixed
+
+Found writing the migration flow: at phone width in a browser, "Start over" sat
+under the tab bar and could not be reached. Since the Unistyles rewrite
+(`f0ced51`) every screen's safe-area style is a Unistyles sheet, and on the web
+Unistyles applies a sheet as a CSS class that only the views its Babel plugin
+rewrites carry. The library's safe-area view is not one, so each screen lost
+its `flex: 1`, grew to the height of its content, slid under the tab bar and
+stopped scrolling; the shell's matching background hid it. The flows passed
+because none of them clicked near the bottom of a long page.
+
+In a browser `SafeAreaView` is now a plain `View`, which does carry the class
+(safe-area insets there are all but always zero). The phone keeps the
+`withUnistyles` wrapper. Measured after: the library, Import and migration
+screens are the height of the space above the tabs and scroll inside it.

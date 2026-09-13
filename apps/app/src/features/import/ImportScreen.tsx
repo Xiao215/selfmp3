@@ -21,7 +21,15 @@ import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { IconButton } from '../../ui/components/IconButton'
-import { CheckCircle, Clock, Download, Refresh, X } from '../../ui/components/Icons'
+import {
+  CheckCircle,
+  ChevronRight,
+  Clock,
+  Download,
+  ListMusic,
+  Refresh,
+  X,
+} from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
 import { TagChooser } from '../../ui/components/TagChooser'
@@ -226,6 +234,25 @@ export function ImportScreen(): ReactNode {
           Links from <Text style={styles.strong}>music.youtube.com</Text> carry proper track, artist
           and album metadata. Regular youtube.com links usually just have a video title.
         </Text>
+
+        {fromCloud ? null : (
+          <Pressable
+            style={({ pressed }) => [styles.migrateCard, pressed && styles.migrateCardPressed]}
+            onPress={() => router.push('/import/migrate')}
+            accessibilityRole="link"
+            accessibilityLabel="Migrate a playlist from another app"
+          >
+            <ListMusic size={18} color={accent.accent} />
+            <View style={styles.migrateText}>
+              <Text style={styles.migrateTitle}>Migrate a playlist from another app</Text>
+              <Text style={styles.migrateSub}>
+                Paste a Spotify link, a CSV export or a list of songs; each one is matched to a
+                YouTube upload for you to check before importing.
+              </Text>
+            </View>
+            <ChevronRight size={16} color={theme.colors.textMuted} />
+          </Pressable>
+        )}
 
         {error ? (
           <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
@@ -638,6 +665,25 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sm,
   },
   linksInputWide: { flex: 1 },
+  migrateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: radius.md,
+    backgroundColor: theme.colors.surface1,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  migrateCardPressed: {
+    backgroundColor: theme.colors.surface2,
+    borderColor: theme.colors.borderStrong,
+  },
+  migrateText: { flex: 1, minWidth: 0, gap: 3 },
+  migrateTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  migrateSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   review: {
     marginTop: 26,
     padding: 18,

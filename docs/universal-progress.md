@@ -1535,3 +1535,27 @@ Two things found while bringing Practice across, both older than it:
   open the page is 340 narrower, and the album column was drawn into a page too
   narrow for it, over the tempo. The shell now measures the page column
   (`shell/contentWidth.tsx`) and a row decides by that.
+
+### Fix metadata, and finding missing cover art
+
+The web's `MetadataDialog`, opened from a song's menu ("Fix metadata…"), and its
+`FixCoversPanel`, a row of Settings → Library.
+
+- `features/metadata/metadata.model.ts` holds the rules with nothing drawn
+  (8 tests): which fields a suggestion would change, the cover included; what
+  starts ticked (every text correction, and a cover only when the song has
+  none, since replacing one is a choice to make by looking); the request
+  `/api/songs/:id/apply-metadata` gets, numbers as numbers; the button and the
+  change rows in words; and the cover-art pass's hint, progress and result.
+- `ui/components/MetadataDialog.tsx`: the song as the library has it beside the
+  suggestions from iTunes and MusicBrainz, with their source and score, and the
+  changes the picked one would make. Centred at desktop width; the whole screen
+  on a phone, clear of the status bar and the home bar.
+- "Fix metadata…" is in the song menu, and not for a cloud library: the lookup
+  runs on the Mac. The cover-art row starts and stops the pass on the Mac and
+  refetches the library as covers land.
+- Checked: `verify/flows/metadata.spec.ts` opens the dialog from a row's menu,
+  unticks the changes and cancels, against both apps at desktop width; nothing
+  is applied. The reference set gains `metadata-dialog`, and the new app is
+  captured in the same state. On the iPhone simulator a long press opens it and
+  Cancel closes it.

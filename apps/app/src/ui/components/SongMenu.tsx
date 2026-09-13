@@ -23,8 +23,10 @@ import {
 } from './Icons'
 import { Popover } from './Popover'
 import { Sheet, SheetItem } from './Sheet'
+import { MetadataDialog } from './MetadataDialog'
 import { SongDetails } from './SongDetails'
 import { TagPicker } from './TagPicker'
+import { useConnection } from '../../server/ConnectionProvider'
 
 /**
  * The ⋯ menu for a song: the web's `SongMenu`, in its order.
@@ -61,7 +63,10 @@ export function SongMenu({
 }): ReactNode {
   const { data: library } = useLibrary()
   const { wide } = useLayout()
-  const [opened, setOpened] = useState<{ kind: 'tags' | 'details'; songId: number } | null>(null)
+  const [opened, setOpened] = useState<{
+    kind: 'tags' | 'details' | 'metadata'
+    songId: number
+  } | null>(null)
   // The song as the library has it now, so a dialog opened from the menu shows
   // the tags or the play count after a change rather than a snapshot.
   const openedSong =
@@ -118,6 +123,9 @@ export function SongMenu({
       {opened?.kind === 'details' && openedSong ? (
         <SongDetails song={openedSong} onClose={() => setOpened(null)} />
       ) : null}
+      {opened?.kind === 'metadata' && openedSong ? (
+        <MetadataDialog song={openedSong} onClose={() => setOpened(null)} />
+      ) : null}
     </>
   )
 }
@@ -131,7 +139,7 @@ function Items({
   song: Song
   onClose: () => void
   onStartSelecting?: (song: Song) => void
-  onOpen: (kind: 'tags' | 'details') => void
+  onOpen: (kind: 'tags' | 'details' | 'metadata') => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
@@ -142,6 +150,7 @@ function Items({
   const { state: downloads, downloadByHand, removeByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const { fromCloud } = useConnection()
 
   const held = isDownloaded(downloads.index, song.id)
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
@@ -228,6 +237,10 @@ function Items({
       <View style={styles.divider} />
 
       <SheetItem icon={icon(Info)} label="Song details" onPress={() => onOpen('details')} />
+      {/* The lookup runs on the Mac, against iTunes and MusicBrainz. */}
+      {fromCloud ? null : (
+        <SheetItem icon={icon(Sparkles)} label="Fix metadata…" onPress={() => onOpen('metadata')} />
+      )}
       {/* An instrumental gets a visual instead of "no lyrics found", and is not
           looked up again. Easy to take back: lyrics added later win. */}
       <SheetItem

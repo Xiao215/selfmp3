@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatBytes, type Settings } from '@selfmp3/shared'
+import { formatBytes, type Settings, type Song } from '@selfmp3/shared'
 import {
   buildAccent,
   clientApi,
@@ -30,7 +30,7 @@ import {
   useStartAnalysis,
   useUpdateSettings,
 } from '@selfmp3/client'
-import { useLibrary, useManifest } from '../../api/queries'
+import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -67,6 +67,12 @@ import {
   sectionsFor,
   type SectionId,
 } from './settings.model'
+import {
+  coverArtHint,
+  coverProgress,
+  coverResult,
+  missingArtCount,
+} from '../metadata/metadata.model'
 
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
@@ -703,7 +709,6 @@ function LibraryPanel({
       <Row
         label="Audio analysis"
         hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on this Mac. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${songs.length} songs analysed.`}
-        last={!running && missing === 0}
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}
@@ -727,6 +732,7 @@ function LibraryPanel({
           </Text>
         </View>
       ) : null}
+      <CoverArtRow songs={songs} last={missing === 0} />
       {missing > 0 ? (
         <View>
           <Notice tone="warn">
@@ -745,6 +751,61 @@ function LibraryPanel({
         </View>
       ) : null}
     </Panel>
+  )
+}
+
+/**
+ * "Find missing cover art": the web's `FixCoversPanel`. The pass runs on the
+ * Mac; this starts, stops and watches it, so leaving Settings interrupts
+ * nothing. Covers land one at a time, so the library is refetched as they do.
+ */
+function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean }): ReactNode {
+  const { theme } = useUnistyles()
+  const client = useQueryClient()
+  const { data: status } = useFixCoversStatus()
+  const fixCovers = useFixCovers()
+  const missingArt = missingArtCount(songs)
+  const running = status?.status === 'running'
+  const result = status ? coverResult(status) : null
+
+  const found = status?.found ?? 0
+  const state = status?.status
+  useEffect(() => {
+    if (found > 0 || state === 'done' || state === 'cancelled') {
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    }
+  }, [client, found, state])
+
+  return (
+    <>
+      <Row
+        label="Cover art"
+        hint={coverArtHint(missingArt)}
+        last={last && !running && result === null}
+      >
+        {running ? (
+          <Button
+            label="Stop looking"
+            icon={<X size={15} color={theme.colors.textPrimary} />}
+            disabled={fixCovers.isPending}
+            onPress={() => fixCovers.mutate('cancel')}
+          />
+        ) : (
+          <Button
+            label="Find missing art"
+            icon={<Sparkles size={15} color={theme.colors.textPrimary} />}
+            disabled={fixCovers.isPending || missingArt === 0}
+            onPress={() => fixCovers.mutate('start')}
+          />
+        )}
+      </Row>
+      {status && running ? (
+        <View style={styles.progress} accessibilityLiveRegion="polite">
+          <Text style={styles.progressText}>{coverProgress(status)}</Text>
+        </View>
+      ) : null}
+      {result ? <Notice tone="good">{result}</Notice> : null}
+    </>
   )
 }
 

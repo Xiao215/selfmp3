@@ -588,6 +588,27 @@ test.describe('reference', () => {
     await page.getByRole('button', { name: 'Close practice' }).click()
   })
 
+  test('metadata', async ({ page }, info) => {
+    const project = info.project.name
+    test.skip(project === 'phone', 'the row menu is a desktop hover here')
+    test.setTimeout(90_000)
+    await home(page)
+    await rowFor(page, SONG).hover()
+    await moreButton(page, SONG).click()
+    await page.getByRole('menuitem', { name: /Fix metadata/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Fix metadata' })
+    // The suggestions come from iTunes and MusicBrainz, a few seconds away.
+    await dialog
+      .getByRole('radio')
+      .first()
+      .waitFor({ timeout: 60_000 })
+      .catch(() => {})
+    await restMouse(page)
+    await settle(page, 1500)
+    await shot(page, project, 'metadata-dialog')
+    await page.keyboard.press('Escape')
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

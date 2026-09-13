@@ -1,42 +1,73 @@
-# self.mp3 — for a small always-on box (VPS, NAS, Raspberry Pi).
+# self.mp3 — for a small always-on box (Raspberry Pi, NAS, VPS).
 #
-#   docker compose up -d          # or:
-#   docker build -t selfmp3 . && docker run -p 4600:4600 -v ./library:/app/library -v ./data:/app/data selfmp3
+#   docker compose up -d                         # pulls ghcr.io/xiao215/selfmp3
+#   docker build -t selfmp3 .                    # or build it yourself
 #
-# Two stages: the first has compilers (better-sqlite3 is native), the second
-# has only the built app plus ffmpeg and yt-dlp, and runs as an ordinary user.
+# Three stages:
+#   web      the app's web build: static files, made once on the builder's own
+#            CPU, so an arm64 image is not built under emulation.
+#   server   the server and its production dependencies, on Alpine, where
+#            better-sqlite3 is compiled for the runtime's C library.
+#   runtime  those two, plus ffmpeg, yt-dlp and tini, running as an ordinary user.
 
-# --- build ------------------------------------------------------------------
-FROM node:22-alpine AS build
-
-# better-sqlite3 falls back to compiling from source when no prebuilt binary
-# matches the platform (musl on arm64, for one).
-RUN apk add --no-cache python3 make g++
+# --- web --------------------------------------------------------------------
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS web
 
 WORKDIR /app
 
-# Manifests first so dependency installation is cached across source edits.
+# Every workspace's manifest, so `npm ci` finds the lockfile's workspaces.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/cloud/package.json packages/cloud/
 COPY packages/client/package.json packages/client/
 COPY apps/server/package.json apps/server/
+COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
-RUN npm ci --no-audit --no-fund
+# No install scripts: the web export needs none of them (the Pages build does
+# the same), and the native modules are the server's and the phone's.
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/shared packages/shared
-# The app is built against it, so it has to be here even though nothing the
-# server runs imports it and none of it reaches the runtime image.
 COPY packages/cloud packages/cloud
-COPY apps/server apps/server
 COPY packages/client packages/client
 COPY apps/app apps/app
-RUN npm run build
+RUN npm run build --workspace @selfmp3/shared \
+ && npm run build --workspace @selfmp3/cloud \
+ && npm run build --workspace @selfmp3/client \
+ && npm run export:web --workspace @selfmp3/app
 
-# Keep only what the server needs at runtime. The S3 SDK is optional and large;
-# `npm install` it into the image yourself if you use the s3 storage driver.
-RUN npm prune --omit=dev --omit=optional --no-audit --no-fund
+# --- server -----------------------------------------------------------------
+FROM node:22-alpine AS server
+
+# better-sqlite3 compiles from source when no prebuilt binary matches the
+# platform (musl on arm64, for one).
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/cloud/package.json packages/cloud/
+COPY packages/client/package.json packages/client/
+COPY apps/server/package.json apps/server/
+COPY apps/doorman/package.json apps/doorman/
+COPY apps/app/package.json apps/app/
+# Only the server's workspaces, plus the root's tooling (TypeScript) to build
+# them: Expo and React Native never enter this stage.
+RUN npm ci --workspace @selfmp3/shared --workspace @selfmp3/server --include-workspace-root \
+      --no-audit --no-fund
+
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY apps/server apps/server
+RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/server
+
+# Production dependencies alone, freshly installed. The S3 SDK is optional and
+# large; `npm install` it into the image yourself if you use the s3 driver.
+RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
+ && npm ci --workspace @selfmp3/shared --workspace @selfmp3/server \
+      --omit=dev --omit=optional --no-audit --no-fund
 
 # --- runtime ----------------------------------------------------------------
 FROM node:22-alpine
@@ -53,13 +84,13 @@ WORKDIR /app
 
 # The layout mirrors the repo so config.ts finds the web build and the
 # workspace symlinks in node_modules keep resolving.
-COPY --from=build --chown=node:node /app/package.json ./
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/packages/shared/package.json ./packages/shared/
-COPY --from=build --chown=node:node /app/packages/shared/dist ./packages/shared/dist
-COPY --from=build --chown=node:node /app/apps/server/package.json ./apps/server/
-COPY --from=build --chown=node:node /app/apps/server/dist ./apps/server/dist
-COPY --from=build --chown=node:node /app/apps/app/dist ./apps/app/dist
+COPY --from=server --chown=node:node /app/package.json ./
+COPY --from=server --chown=node:node /app/node_modules ./node_modules
+COPY --from=server --chown=node:node /app/packages/shared/package.json ./packages/shared/
+COPY --from=server --chown=node:node /app/packages/shared/dist ./packages/shared/dist
+COPY --from=server --chown=node:node /app/apps/server/package.json ./apps/server/
+COPY --from=server --chown=node:node /app/apps/server/dist ./apps/server/dist
+COPY --from=web --chown=node:node /app/apps/app/dist ./apps/app/dist
 
 # Music and database live outside the image. Owned by the runtime user so a
 # fresh bind mount is writable without any chown on the host.

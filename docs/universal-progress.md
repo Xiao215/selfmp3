@@ -1951,3 +1951,29 @@ declined control of the Simulator app, and `simctl` cannot rotate.
 provides them (React Native uses `UIKeyCommand` only in its dev menu), so this
 needs a new native dependency and a dev client rebuild: a Stack line and
 Xiao's call.
+
+### A server image for the Raspberry Pi
+
+On `universal/docker`. The server is to move from the Mac to a Raspberry Pi;
+the Dockerfile rewritten at phase 5's exit had never been built.
+
+- **Three stages.** `web` builds the app's web export on Debian, on the builder's
+  own CPU (`--platform=$BUILDPLATFORM`), since it only makes static files.
+  `server` installs only `@selfmp3/shared` and `@selfmp3/server` with the root's
+  TypeScript on Alpine, builds them, and reinstalls production dependencies, so
+  Expo and React Native never reach the image and better-sqlite3 is compiled for
+  musl. The runtime is those plus ffmpeg, yt-dlp and tini.
+- **Published, not built on the Pi.** `.github/workflows/docker.yml` builds
+  `linux/arm64` and `linux/amd64` on pushes to main and pushes
+  `ghcr.io/xiao215/selfmp3:latest` and the commit hash. `docker-compose.yml`
+  pulls that image; `docker compose build` still builds locally.
+- **Docs.** `docs/INSTALL.md` gains "On a Raspberry Pi" (64-bit OS, SSD, Docker,
+  compose, moving the two folders from the Mac) and updates by pulling.
+- Checked on this Mac (arm64, so natively): the build finished in 328 s, 532 MB.
+  A container on port 4700 with empty folders answered `/api/health`, `/`,
+  `/sw.js`, `/manifest.webmanifest` and `/api/library` with 200 and the right
+  types; yt-dlp 2026.08.19 and ffmpeg 8.1.2 run inside and better-sqlite3 loads.
+  The container was removed.
+- Not checked: the workflow itself, which runs once this is on main, and the
+  amd64 image. The published package may start private on GHCR; making it public
+  lets a Pi pull without logging in.

@@ -1,0 +1,60 @@
+# The server image, for a Raspberry Pi (arm64) and anything else (amd64).
+#
+# Built on every push to main that could change it, and on demand. Published to
+# ghcr.io/<owner>/selfmp3 as `latest` and as the commit's short hash, so a Pi
+# runs `docker compose pull` rather than building anything itself.
+#
+# The web stage of the Dockerfile runs on the runner's own CPU (it only makes
+# static files); the server stage runs under emulation for arm64, which is the
+# slow part, and is cached between runs.
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Registry names must be lowercase; the owner here is not.
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/selfmp3" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

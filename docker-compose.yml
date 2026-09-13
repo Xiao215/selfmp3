@@ -2,7 +2,7 @@
 #
 #   docker compose up -d
 #   docker compose logs -f
-#   docker compose pull && docker compose up -d --build   # update
+#   docker compose pull && docker compose up -d           # update
 #
 # library/ and data/ next to this file are bind-mounted in, so a backup is
 # still "copy those two folders" — see docs/INSTALL.md.
@@ -11,8 +11,10 @@ name: selfmp3
 
 services:
   selfmp3:
+    # Built for arm64 (a Raspberry Pi) and amd64 by .github/workflows/docker.yml.
+    # To build it on this machine instead: `docker compose build`.
+    image: ghcr.io/xiao215/selfmp3:latest
     build: .
-    image: selfmp3:latest
     container_name: selfmp3
     restart: unless-stopped
     # The image runs as uid 1000. If your host account is a different uid, either

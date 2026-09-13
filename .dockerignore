@@ -10,6 +10,8 @@ data
 # tree is hundreds of megabytes of build context for nothing.
 apps/app/ios
 apps/app/android
+apps/app/.expo
+apps/app/public/sw.js
 .git
 .claude
 .env

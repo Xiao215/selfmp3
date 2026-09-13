@@ -81,8 +81,9 @@ then Settings → **Download everything**.
 
 ## With Docker
 
-For a machine that is always on — a small VPS, a Synology, a Raspberry Pi. The image
-carries `ffmpeg` and `yt-dlp`, so there is nothing else to install.
+For a machine that is always on — a Raspberry Pi, a Synology, a small VPS. The image
+carries `ffmpeg` and `yt-dlp`, so there is nothing else to install. It is published for
+arm64 and amd64 as `ghcr.io/xiao215/selfmp3`, so the machine pulls it rather than building.
 
 ```bash
 mkdir -p library data
@@ -99,13 +100,15 @@ those two folders", and moving to a different machine is still "copy those two f
 Without compose:
 
 ```bash
-docker build -t selfmp3 .
+docker pull ghcr.io/xiao215/selfmp3:latest
 docker run -d --name selfmp3 --restart unless-stopped \
   -p 127.0.0.1:4600:4600 \
   -v "$PWD/library:/app/library" \
   -v "$PWD/data:/app/data" \
-  selfmp3
+  ghcr.io/xiao215/selfmp3:latest
 ```
+
+To build the image yourself instead: `docker build -t selfmp3 .` from a checkout.
 
 A few things worth knowing:
 
@@ -119,8 +122,35 @@ A few things worth knowing:
 - **There is a `HEALTHCHECK`** against `/api/health`, so `docker ps` tells you whether the
   app is actually up rather than merely running. That route stays open even when
   `SELFMP3_AUTH_TOKEN` is set, so a monitor never needs the secret.
-- **The image is multi-stage.** Compilers live in the build stage only; the runtime image is
-  the built app, its production dependencies, `ffmpeg`, `yt-dlp` and `tini`.
+- **The image is multi-stage.** The web app is built once, as static files; the server is
+  built with its compilers in a stage of its own. The runtime image is the built server, its
+  production dependencies, the web app, `ffmpeg`, `yt-dlp` and `tini`.
+
+### On a Raspberry Pi
+
+A Pi 4 or 5 with 4 GB or more, running a **64-bit** OS (Raspberry Pi OS Lite 64-bit is
+enough; the image is arm64 only on a Pi). Keep the music on a USB SSD rather than the SD
+card: the library is read constantly and the database written often.
+
+```bash
+curl -fsSL https://get.docker.com | sh            # Docker, from Docker's own script
+sudo usermod -aG docker "$USER"                   # then log out and in again
+mkdir -p /mnt/ssd/selfmp3 && cd /mnt/ssd/selfmp3
+curl -fsSLO https://raw.githubusercontent.com/Xiao215/selfmp3/main/docker-compose.yml
+mkdir -p library data
+docker compose up -d
+```
+
+The Pi never builds the image; it pulls the one GitHub builds for it. Moving from the Mac is
+copying the two folders across while the Mac's server is stopped:
+
+```bash
+rsync -a --info=progress2 ~/Music/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/library/
+rsync -a ~/Library/Application\ Support/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/data/
+```
+
+(The folders are wherever `npm run cli -- doctor` says they are on the Mac.) Then point
+Tailscale at the Pi as below, and each device at the Pi's address.
 
 ### Tailscale in front of it
 
@@ -268,8 +298,8 @@ git pull
 With Docker:
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Database migrations run automatically at startup and only ever go forwards. Take a backup
@@ -280,7 +310,7 @@ something:
 
 ```bash
 brew upgrade yt-dlp             # on a Mac
-docker compose up -d --build    # in Docker, it comes from the image
+docker compose pull && docker compose up -d   # in Docker, it comes from the image
 ```
 
 ---

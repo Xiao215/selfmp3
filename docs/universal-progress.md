@@ -1018,6 +1018,9 @@ from review. The captured states still have to pass check 2 by eye.
   - The sleep timer's menu moved out of the player bar into a shared
     `SleepMenu`: anchored above the button on a computer, a sheet on a
     phone.
+  - The playlists grid starts with the web's built-in Forgotten gems card.
+    Pressing it plays the list; it is not a playlist, so there is nothing to
+    rename or delete, and it hides itself when there are no gems.
 
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
@@ -1111,7 +1114,6 @@ seven states at 1280, and the phone's five.
 - **Library and Now Playing, still to come.**
   - The tag inbox link on a phone goes to `/inbox`, the tag inbox, which is
     phase 5's.
-  - The web's Forgotten gems card among the playlists is not there yet.
   - The phone toolbar has no Practice, and the web's similar-songs shelf
     under the art is not there: both belong to later phases.
 - **Saved rules update the song list.** The web leaves the old list under

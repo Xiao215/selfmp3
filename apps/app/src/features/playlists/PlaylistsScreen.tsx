@@ -13,14 +13,14 @@ import type { LayoutChangeEvent } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatLongDuration, type Playlist } from '@selfmp3/shared'
-import { clientApi, colors, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { clientApi, colors, HIT_TARGET, radius, space, type, useGems } from '@selfmp3/client'
 import { useCreatePlaylist, useUpdatePlaylist } from '../../api/queries'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ListMusic, Play, Plus, Sparkles } from '../../ui/components/Icons'
+import { ListMusic, Play, Plus, Queue, Sparkles } from '../../ui/components/Icons'
 import { newPlaylist, usePlaylistsModel } from './playlists.model'
 
 /** The web's `.playlist-grid`: cards at least this wide, as many as fit. */
@@ -144,6 +144,8 @@ export function PlaylistsScreen(): ReactNode {
             style={styles.grid}
             onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
           >
+            {/* Built in, and not a playlist: nothing to delete or rename. */}
+            <GemsPlaylistCard width={cardWidth} />
             {playlists.map((playlist, index) => (
               <PlaylistCard
                 key={playlist.id}
@@ -178,6 +180,63 @@ export function PlaylistsScreen(): ReactNode {
         )}
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+/**
+ * Forgotten gems, as a built-in card among the playlists: the web's
+ * `GemsPlaylistCard`.
+ *
+ * It is not a row in the database, so there is nothing to rename or delete.
+ * Pressing it starts the list rather than opening a page, because the list is
+ * different every time it is asked for, and a page showing "the" forgotten
+ * gems would be lying about being stable. Hidden when there are none.
+ */
+function GemsPlaylistCard({ width }: { width: number | undefined }): ReactNode {
+  const gems = useGems(30)
+  const player = usePlayer()
+  const accent = useAccent()
+  const { finePointer } = useLayout()
+  const [hovered, setHovered] = useState(false)
+  const revealed = !finePointer || hovered
+
+  const data = gems.data
+  if (gems.isError || !data || data.songs.length === 0) return null
+  const ids = data.songs.map(song => song.id)
+  const duration = data.songs.reduce((sum, song) => sum + song.duration, 0)
+
+  return (
+    <View
+      style={[styles.card, hovered && styles.cardHovered, width ? { width } : null]}
+      onPointerEnter={finePointer ? () => setHovered(true) : undefined}
+      onPointerLeave={finePointer ? () => setHovered(false) : undefined}
+    >
+      <Pressable
+        style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}
+        onPress={() => player.playFrom(ids, 0)}
+        accessibilityRole="button"
+        accessibilityLabel="Play forgotten gems"
+      >
+        <View style={styles.cardIcon}>
+          <Sparkles size={22} color={accent.accent} />
+        </View>
+        <Text style={styles.cardName}>Forgotten gems</Text>
+        <Text style={styles.cardSub}>
+          {data.songs.length} songs · {formatLongDuration(duration)}
+        </Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          Built in · loved or well played, quiet for {data.minDays}+ days
+        </Text>
+      </Pressable>
+      <View style={[styles.cardActions, { opacity: revealed ? 1 : 0 }]}>
+        <IconButton onPress={() => player.playFrom(ids, 0)} label="Play forgotten gems">
+          <Play size={16} color={colors.textSecondary} />
+        </IconButton>
+        <IconButton onPress={() => player.addToQueue(ids)} label="Add forgotten gems to the queue">
+          <Queue size={16} color={colors.textSecondary} />
+        </IconButton>
+      </View>
+    </View>
   )
 }
 

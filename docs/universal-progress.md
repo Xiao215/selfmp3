@@ -2104,3 +2104,110 @@ songs; a browser streams.
 - A browser no longer keeps copies of songs it played (`keepPlayed`).
 - The Electron shell, if it is ever built, sets `installedApp` and gets
   downloads back.
+
+### The stage's lyrics follow a seek — branch `universal/lyrics-seek`
+
+Found by Xiao: in the stage view, dragging the progress bar left the lyrics
+behind. Two causes, found with a Playwright probe in Chrome at 1280 on
+夜に駆ける that grabs the thumb where it is, drags it, and reads the song
+position and where the sung line sits in the lyrics box.
+
+1. **The glide, and then a pause.** A seek smooth-scrolled the words for about
+   1.2 s, and the end of that scroll arrived after the 700 ms `StageLyrics`
+   allowed for a scroll it began, so it counted as a hand scroll and the words
+   stopped following for `MANUAL_SCROLL_MS` (4 s). Now (`lyricFollow.model.ts`,
+   two tests) a move of more than one line jumps and is followed even while
+   reading ahead by hand, and scroll events count as the page's own for as long
+   as they keep coming (each extends the window by 250 ms).
+2. **Where the line was.** That fixed some seeks and not others — Xiao found
+   backwards ones still failing. Logging the effect showed why: the scroll
+   target came from each line's `onLayout`, and on the web a line that moves
+   without changing size reports no new layout. A ♪ break below lines whose
+   font arrived late kept its first position (line 35 recorded at 1864 px, laid
+   out at about 3220), so a seek landing on it scrolled to the wrong place and
+   the sung line stayed off screen until the next line. Whether it failed
+   depended on the line landed on, not the direction. Now the sung line is
+   measured against the lines' container with `measureLayout` when it is
+   scrolled to, and the container changing size re-centres it.
+
+Checked with the probe, five drags from the thumb (2→60, 62→30, 32→25, 27→50,
+52→10, two of them landing on ♪ breaks): 150 ms after letting go the sung
+line is at 40% of the box every time, and the words keep following the song.
+
+Later the same day Xiao, testing on 4600, found the words stopped following
+after switching the bar around many times. 4600 was still serving the build
+exported before either fix; rebuilt, a rapid probe (24 drags from the thumb,
+120–800 ms apart, forwards and back) kept the sung line at 40% after every one
+and for 12 s after the last, and a mixed one (drags, clicks on the bar, clicked
+lines, Up next and back) did too. The words stand still only after a scroll
+by hand — the mouse wheel or a trackpad over the lyrics — for
+`MANUAL_SCROLL_MS`, as designed, and the next seek brings them back.
+
+### A refresh comes back to the song — branch `universal/lyrics-seek`
+
+Also from Xiao: playing on the web showed only `/` or `/now-playing` in the
+address, and a refresh lost the song ("Nothing playing"). The player kept
+nothing about what this device was playing; the resume toast only offers
+other devices.
+
+- `player/session.model.ts` (six tests): the queue, the song and the position,
+  and `launchPlayback`, which decides what to load when the app opens: the
+  saved session trimmed to songs still in the library, or, when the address
+  names another song, that song alone.
+- `player/usePlaybackMemory.ts`, in the root layout: once the library is
+  known and nothing is loaded, it loads that paused where it was (opening a
+  page never starts audio), skipping a song that could not start without a
+  question. It writes the session down when the queue, the song or play/pause
+  changes, every 5 s while playing, and as a browser tab closes. Kept through
+  the prefs port: `localStorage` in a browser, a file on a phone, so the phone
+  app comes back to its song too.
+- Now Playing keeps the song in its address (`/now-playing?song=13`), so a
+  copied link opens on it.
+- `verify/flows/restore.spec.ts`, at both widths: play, open Now Playing and
+  see `song=` in the address, reload and see the song, then clear what was
+  remembered and open the address alone. A probe on 4600 also checked the
+  position (a seek to 91 s came back at 92 s, within a second) and that it
+  came back paused.
+
+### The phone's seek bar holds still under a finger — branch `universal/lyrics-seek`
+
+Found by Xiao on the simulator: holding the progress bar on the phone and
+dragging it made the thumb act strangely. Not a simulator quirk. Logged from
+the seek bar during Maestro drags (each touch sent to the server as a request,
+since this React Native no longer prints `console.log` to Metro):
+
+- A drag that began on the track read positions smoothly: `locationX` was the
+  finger's `pageX` minus the bar's left edge, 16.
+- A drag that began on the thumb did not. On iOS `locationX` is measured from
+  the innermost view under the finger, so the press read 7 (the thumb's own
+  edge, 4 s into the song), and as the finger moved smoothly from 330 to 88 the
+  readings alternated between the two views: 262, 49, 226, 78, 200, 96… — the
+  thumb flickering between two places. No drag was ever terminated, so the
+  sheet's own gesture was not involved.
+
+Now the track, fill and thumb have `pointerEvents="none"`, so the touch is
+always on the bar itself. Checked the same way: a drag from the thumb at 330
+back to 88 read `pageX − 16` at every one of 160 moves. The web was never
+affected, since react-native-web measures from the responder.
+
+The Maestro smoke also failed twice today right after the Playwright flows
+had run against the same server, both times on a screen nothing had tapped
+(the Import tab; Now Playing after a tag chip), and passed when run on its
+own. Device commands do not navigate, so the cause is not found; the gate now
+runs the smoke before the flows.
+
+### The newest song load wins — branch `universal/lyrics-seek`
+
+The smoke failed three more times while the refresh work was on the branch,
+each time with the wrong song or state after a tap. Logged from the app (taps
+and restores sent to the server as requests): the app restored the saved song
+at 12:40:54.0, a moment after the flow tapped song 1 at 12:40:53.8, and both
+loads ran at once. A load awaits at every step — reset, add the track, seek,
+play — and one that carried on past a newer one put its own song back, paused,
+or its start position on the song just picked (もう少しだけ opened at 3:23, the
+restored 三原色's position). Two Now Playing opens seen in the logs at 12:42
+were real taps on the mini player, from someone using the simulator by hand.
+
+Both engines now count loads and stop a load at its next await once a newer
+one has started, so the last request wins. Checked: the smoke passed three
+times in a row on the simulator.

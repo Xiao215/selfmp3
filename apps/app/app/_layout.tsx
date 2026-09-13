@@ -12,6 +12,7 @@ import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
+import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
@@ -83,6 +84,8 @@ function Shell(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
+  // What was playing comes back when the app opens again, paused where it was.
+  usePlaybackMemory()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.

@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ListRenderItem } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useSimilar, useToggleLoved } from '../../api/queries'
@@ -85,6 +85,16 @@ type Panel = 'none' | 'queue'
  */
 export function NowPlayingScreen(): ReactNode {
   const { wide } = useLayout()
+  const player = usePlayer()
+  const router = useRouter()
+  const { song: songParam } = useLocalSearchParams<{ song?: string }>()
+  const songId = player.current?.id
+  // The address names the song, so a refresh or a copied link comes back to it
+  // (usePlaybackMemory reads it when the app opens).
+  useEffect(() => {
+    if (songId === undefined || songParam === String(songId)) return
+    router.setParams({ song: String(songId) })
+  }, [songId, songParam, router])
   // A computer gets the web's page, with the lyrics beside the art; a phone
   // keeps its own screen.
   // A phone presents this page as a native modal, above the whole app, the

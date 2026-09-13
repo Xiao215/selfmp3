@@ -65,7 +65,7 @@ export function PlaylistsScreen(): ReactNode {
       const created = await createPlaylist.mutateAsync(input)
       setName('')
       setCreating(null)
-      router.push(`/playlist/${created.id}`)
+      router.push(`/playlists/${created.id}`)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
       setError(`Couldn’t create “${input.name}”: ${(caught as Error).message}`)
@@ -150,7 +150,7 @@ export function PlaylistsScreen(): ReactNode {
                 playlist={playlist}
                 index={index}
                 width={cardWidth}
-                onOpen={() => router.push(`/playlist/${playlist.id}`)}
+                onOpen={() => router.push(`/playlists/${playlist.id}`)}
               />
             ))}
             {/* The empty state is a cell of the grid, so it lines up like one. */}

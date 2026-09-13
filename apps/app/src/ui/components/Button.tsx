@@ -22,6 +22,7 @@ export function Button({
   busy = false,
   grow = false,
   active = false,
+  accessibilityLabel,
 }: {
   testID?: string
   label?: string
@@ -37,6 +38,8 @@ export function Button({
    * an accent edge, for a button that toggles a mode.
    */
   active?: boolean
+  /** What a screen reader says when there is no label, or a fuller one: a square icon button. */
+  accessibilityLabel?: string
 }): ReactNode {
   const accent = useAccent()
   const { dense } = useLayout()
@@ -54,7 +57,7 @@ export function Button({
       disabled={inactive}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inactive, selected: active }}
       style={({ pressed }) => [
         styles.button,

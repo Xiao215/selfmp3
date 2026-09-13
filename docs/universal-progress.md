@@ -1807,3 +1807,36 @@ Not checked: a sign-out carried through against the doorman, and a play kept in
 a browser signed in to the cloud. Both need a Google account signed in on a
 device that may be signed out, which this run does not have; the orders and
 rules are covered by the tests above.
+
+### A browser's name, and the old app's tests
+
+Before deleting `apps/web`, its test files were checked one by one against the
+new app, since `npm run check` runs them and deleting the folder would drop
+them silently.
+
+| `apps/web` test | Where it is now |
+|---|---|
+| `player/autoMix.test.ts` | `packages/client/src/queue/autoMix.test.ts` |
+| `player/practice.test.ts` | `packages/client/src/practice/practice.test.ts` |
+| `offline/recentCache.test.ts` | `packages/client/src/downloads/recentCopies.test.ts` |
+| `lib/energyWave.test.ts` | `packages/client/src/songs/facts.test.ts`, which lacked "stays inside the drawing"; added |
+| `lib/shareTarget.test.ts` | `apps/app/src/features/import/import.model.test.ts`, which lacked a link in both `url` and `text`; added |
+| `lib/coverColor.test.ts` | nowhere: the new app's cover colour is `packages/client/src/art/palette.ts`, a different method with its own tests, and nothing uses the old one |
+| `lib/visuals.test.ts` | nowhere: the drawn song visual did not come across (a deliberate difference recorded in phase 4) |
+| `lib/device.test.ts` | `packages/client/src/devices/userAgent.test.ts`, see below |
+
+`apps/mobile`'s one test file, `car/browseTree.test.ts`, is already
+`apps/app/src/ports/car/browseTree.test.ts`.
+
+**A browser called itself "self.mp3".** `ports/device.ts` names a phone from
+`Platform.OS`, and had no web counterpart, so in a browser every tab of the new
+app appeared in other devices' lists as "self.mp3", and a phone's browser
+counted as a desktop. The web app read the user agent.
+
+- `packages/client/src/devices/userAgent.ts` is its `describeUserAgent`
+  ("iPhone · Safari", "Mac · Chrome", an iPad told from a Mac by touch), with its
+  4 tests.
+- `ports/device.web.ts` names and classifies a browser with it; the id and a
+  name set in Settings are kept as on a phone.
+- Checked: a fresh Chromium tab on the web build appeared in the server's
+  `/api/devices` as "Mac · Chrome", a desktop.

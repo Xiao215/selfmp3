@@ -163,4 +163,10 @@ describe('shared links', () => {
     expect(sharedLinks({ text: 'just a title' })).toBeNull()
     expect(sharedLinks({})).toBeNull()
   })
+
+  it('merges the url and the text without saying a link twice', () => {
+    expect(
+      sharedLinks({ url: 'https://a.example/x', text: 'https://a.example/x https://b.example/y' }),
+    ).toBe('https://a.example/x\nhttps://b.example/y')
+  })
 })

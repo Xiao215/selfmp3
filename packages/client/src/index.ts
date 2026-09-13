@@ -45,6 +45,8 @@ export * from './library/filter.js'
 
 /** Presence and handoff: pure rules, shared by every client. */
 export * from './devices/handoff.js'
+// A browser's name for itself, from its user agent.
+export * from './devices/userAgent.js'
 
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 

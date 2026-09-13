@@ -42,6 +42,14 @@ describe('song facts', () => {
     expect(path).toContain('L22.00 ')
   })
 
+  it('keeps the energy wave inside its drawing, however intense', () => {
+    const ys = [...energyWavePath(1, 22, 12).matchAll(/[ML][\d.]+ ([\d.]+)/g)].map(match =>
+      Number(match[1]),
+    )
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...ys)).toBeLessThanOrEqual(12)
+  })
+
   it('names formats rather than MIME types', () => {
     expect(formatName('audio/mp4', 'a.m4a')).toBe('AAC (.m4a)')
     expect(formatName('application/x-unknown', 'song.aiff')).toBe('AIFF')

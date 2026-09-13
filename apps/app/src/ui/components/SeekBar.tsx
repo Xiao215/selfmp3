@@ -44,8 +44,11 @@ export function SeekBar({
   const [dragging, setDragging] = useState<number | null>(null)
 
   const responder = useMemo(() => {
-    // locationX is relative to the view that captured the gesture, which is
-    // the one thing that stays correct as the bar moves around the screen.
+    // locationX is relative to the view the finger is on. On iOS that is the
+    // innermost one, so the track, fill and thumb take no touches: a drag that
+    // began on the thumb read positions from the thumb's own edge, and the thumb
+    // flickered between two places as it moved. With them out of the way it is
+    // always the bar, and stays correct as the bar moves around the screen.
     const secondsAt = (x: number): number => {
       if (width <= 0 || duration <= 0) return 0
       return Math.max(0, Math.min(1, x / width)) * duration
@@ -113,7 +116,8 @@ export function SeekBar({
                 ]}
               />
             ) : null}
-            <View style={[styles.track, inline && styles.trackInline]}>
+            {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
+            <View pointerEvents="none" style={[styles.track, inline && styles.trackInline]}>
               <View
                 style={[
                   styles.fill,
@@ -176,7 +180,8 @@ export function SeekBar({
             ]}
           />
         ) : null}
-        <View style={styles.track}>
+        {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
+        <View pointerEvents="none" style={styles.track}>
           <View style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]} />
           <View
             style={[

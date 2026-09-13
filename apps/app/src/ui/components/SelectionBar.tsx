@@ -15,6 +15,7 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { showToast } from '../toast'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { ConfirmRemoveSongs } from './ConfirmRemoveSongs'
@@ -114,9 +115,11 @@ export function SelectionBar({
     setMenuOpen(false)
     setNested(null)
   }
-  const act = (run: () => void) => (): void => {
+  /** Run a menu action, close the menu, and say what happened, as the web does. */
+  const act = (run: () => void, message?: string) => (): void => {
     run()
     closeMenu()
+    if (message) showToast(message, 'good')
   }
   const toggleNested = (which: 'playlists' | 'tag' | 'untag') => (): void =>
     setNested(open => (open === which ? null : which))
@@ -186,7 +189,10 @@ export function SelectionBar({
             <Button
               label={wide ? 'Remove from playlist' : 'Remove'}
               icon={<X size={13} color={colors.textPrimary} />}
-              onPress={() => removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })}
+              onPress={() => {
+                removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
+                showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
+              }}
               disabled={count === 0}
               grow={!wide}
             />
@@ -228,14 +234,20 @@ export function SelectionBar({
           <SheetItem
             icon={<Heart size={15} color={colors.textSecondary} />}
             label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
-            onPress={act(() => bulkLoved.mutate({ songIds: ids, loved: true }))}
+            onPress={act(
+              () => bulkLoved.mutate({ songIds: ids, loved: true }),
+              `Loved ${count - lovedCount} ${count - lovedCount === 1 ? 'song' : 'songs'}`,
+            )}
           />
         ) : null}
         {lovedCount > 0 ? (
           <SheetItem
             icon={<Heart size={15} filled color={colors.danger} />}
             label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
-            onPress={act(() => bulkLoved.mutate({ songIds: ids, loved: false }))}
+            onPress={act(
+              () => bulkLoved.mutate({ songIds: ids, loved: false }),
+              `Removed ${lovedCount} from loved`,
+            )}
           />
         ) : null}
 
@@ -256,7 +268,10 @@ export function SelectionBar({
                 <SheetItem
                   key={list.id}
                   label={list.name}
-                  onPress={act(() => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }))}
+                  onPress={act(
+                    () => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }),
+                    `Added ${count} ${songWord} to ${list.name}`,
+                  )}
                 />
               ))
             )}
@@ -277,7 +292,10 @@ export function SelectionBar({
               <SheetItem
                 key={tag.id}
                 label={tag.name}
-                onPress={act(() => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'add' }))}
+                onPress={act(
+                  () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'add' }),
+                  `Tagged ${count} ${songWord} “${tag.name}”`,
+                )}
               />
             ))}
           </View>
@@ -297,8 +315,9 @@ export function SelectionBar({
               <SheetItem
                 key={tag.id}
                 label={tag.name}
-                onPress={act(() =>
-                  bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'remove' }),
+                onPress={act(
+                  () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'remove' }),
+                  `Removed “${tag.name}” from ${count} ${songWord}`,
                 )}
               />
             ))}
@@ -320,7 +339,17 @@ export function SelectionBar({
             label={`Remove ${held.length === count ? '' : `${held.length} `}${
               held.length === 1 ? 'download' : 'downloads'
             }`}
-            onPress={act(() => void downloadQueue.remove(held.map(song => song.id)))}
+            onPress={act(() => {
+              const removing = held.length
+              void downloadQueue
+                .remove(held.map(song => song.id))
+                .then(() =>
+                  showToast(
+                    `Removed ${removing} ${removing === 1 ? 'download' : 'downloads'}`,
+                    'good',
+                  ),
+                )
+            })}
           />
         ) : null}
 
@@ -348,9 +377,26 @@ export function SelectionBar({
             bulkDelete.mutate(
               { songIds: ids, deleteFile },
               {
-                onSuccess: () => {
+                onSuccess: result => {
                   setConfirming(false)
                   onDone()
+                  // The web's summary: what went, what was deleted, what did not.
+                  const parts = [
+                    `Removed ${result.removed} ${result.removed === 1 ? 'song' : 'songs'}`,
+                  ]
+                  if (result.filesDeleted > 0) {
+                    parts.push(
+                      `deleted ${result.filesDeleted} ${result.filesDeleted === 1 ? 'file' : 'files'}`,
+                    )
+                  }
+                  const trouble = result.failed.length
+                  if (trouble > 0) parts.push(`${trouble} needed attention`)
+                  showToast(
+                    trouble > 0
+                      ? `${parts.join(', ')} — ${result.failed[0]?.reason ?? 'see the server log'}`
+                      : parts.join(', '),
+                    trouble > 0 ? 'warn' : 'good',
+                  )
                 },
                 onError: error => setDeleteError(error.message),
               },

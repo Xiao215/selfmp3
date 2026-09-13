@@ -12,6 +12,7 @@ import { reloadApp } from '../ports/reload'
 import { useAccent } from '../ui/accent'
 import { resolveScheme } from '../ui/appearancePrefs'
 import { launchScheme } from '../ui/themeAtLaunch'
+import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
@@ -130,6 +131,7 @@ function Toasts(): ReactNode {
   return (
     <View style={styles.toasts} pointerEvents="box-none">
       <ResumeToast />
+      <ToastHost />
     </View>
   )
 }
@@ -141,6 +143,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 10,
     alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 16,
   },
   root: {

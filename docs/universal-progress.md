@@ -1022,6 +1022,18 @@ from review. The captured states still have to pass check 2 by eye.
     Pressing it plays the list; it is not a playlist, so there is nothing to
     rename or delete, and it hides itself when there are no gems.
 
+- **Toasts.** The web's toast row now carries its messages as well as the
+  resume offer:
+  - `ui/toast.ts` is a store that outlives whatever raised the message, and
+    `ToastHost` draws each message as the web's pill. Errors stay until
+    dismissed; everything else leaves after five seconds.
+  - The selection bar says what it did, in the web's words: "Tagged 3 songs
+    “chill”", "Added 3 songs to Evening", "Removed 3 songs, deleted 3 files",
+    and the rest.
+  - This closes the gap noted above, where batch actions finished silently.
+    Creation errors in the tag picker and the new-playlist form still show
+    under their fields, as they already did.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all

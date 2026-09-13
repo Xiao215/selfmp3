@@ -968,6 +968,17 @@ from review. The captured states still have to pass check 2 by eye.
     download, taps the song, sees the explanation, and puts the settings
     back. It passes on the Pro Max.
 
+- **The resume toast.** "Continue もう少しだけ — YOASOBI from iPhone", offered
+  once per launch when another device has somewhere to carry on from and
+  nothing is playing here. It sits at the foot of the content column, above
+  the player bar or the mini player, as the web's toast row does. Taking it
+  loads the song paused: `playFrom` gained an `autoplay` argument for exactly
+  this. The devices capture now finds its Dismiss button at both widths.
+- **The player bar at 40%.** The reference capture set the web's range-input
+  scrubber with `fill`. The new app's scrubber is a slider role on a view, so
+  the capture now presses it 40% of the way along, and the state is taken at
+  both widths.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all

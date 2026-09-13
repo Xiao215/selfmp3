@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
+import { ResumeToast } from '../features/devices/ResumeToast'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
@@ -59,7 +60,10 @@ function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: React
       <View style={styles.root} testID="shell-wide">
         <View style={styles.columns}>
           {sidebar ? <Sidebar /> : null}
-          <View style={styles.content}>{children}</View>
+          <View style={styles.content}>
+            {children}
+            <Toasts />
+          </View>
         </View>
         <PlayerBar />
       </View>
@@ -68,14 +72,37 @@ function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: React
 
   return (
     <View style={styles.root} testID="shell-compact">
-      <View style={styles.content}>{children}</View>
+      <View style={styles.content}>
+        {children}
+        <Toasts />
+      </View>
       <MiniPlayer />
       <BottomNav />
     </View>
   )
 }
 
+/**
+ * The web's toast row: at the foot of the content column, above the player bar
+ * or the mini player, so a message never covers the transport.
+ */
+function Toasts(): ReactNode {
+  return (
+    <View style={styles.toasts} pointerEvents="box-none">
+      <ResumeToast />
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
+  toasts: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 10,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
   root: {
     flex: 1,
     backgroundColor: colors.surface0,

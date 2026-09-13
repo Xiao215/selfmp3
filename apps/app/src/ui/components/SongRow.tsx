@@ -2,6 +2,7 @@ import { memo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import {
   colors,
@@ -116,7 +117,6 @@ export const SongRow = memo(function SongRow({
   }
 
   const tint = [
-    active && { backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.13) },
     // The web's `.song-row.is-selected`: a translucent accent that reads as
     // picked on the dark UI.
     selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
@@ -134,6 +134,7 @@ export const SongRow = memo(function SongRow({
           siblings.
         */}
         <View testID={testID} role="row" style={[styles.row, ...tint]}>
+          {active ? <RowWash color={accent.accent} /> : null}
           {selecting && onToggleSelect ? (
             <SelectBox song={song} selected={selected} onToggle={onToggleSelect} phone />
           ) : null}
@@ -217,6 +218,7 @@ export const SongRow = memo(function SongRow({
       onPointerEnter={dense ? () => setHovered(true) : undefined}
       onPointerLeave={dense ? () => setHovered(false) : undefined}
     >
+      {active ? <RowWash color={accent.accent} /> : null}
       {onToggleSelect ? (
         <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
           <SelectBox song={song} selected={selected} onToggle={onToggleSelect} />
@@ -408,6 +410,28 @@ function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode 
   )
 }
 
+/**
+ * Now playing: the web's `.song-row.is-current`, a wash that comes in from the
+ * right, where the row is empty — the cover already fills the left. It stays
+ * while the song is paused, so the row still says "this is the one".
+ */
+function RowWash({ color }: { color: string }): ReactNode {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id="song-row-wash" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0.34" stopColor={color} stopOpacity={0} />
+            <Stop offset="0.62" stopColor={color} stopOpacity={0.15} />
+            <Stop offset="1" stopColor={color} stopOpacity={0.38} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#song-row-wash)" />
+      </Svg>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -418,6 +442,7 @@ const styles = StyleSheet.create({
     paddingRight: space.sm,
     marginHorizontal: space.xs,
     borderRadius: radius.sm,
+    overflow: 'hidden',
   },
   /* `.song-row` at desktop width: 7 by 10, 12 between cells. */
   rowWide: {
@@ -428,6 +453,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginHorizontal: space.sm,
     borderRadius: radius.sm,
+    overflow: 'hidden',
   },
   rowHovered: {
     backgroundColor: colors.surface1,

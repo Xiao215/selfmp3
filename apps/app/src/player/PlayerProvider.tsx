@@ -69,6 +69,8 @@ export interface PlayerApi {
     startIndex: number,
     shuffle?: boolean,
     position?: number,
+    /** False loads the song paused: a resume offer, which never starts audio by itself. */
+    autoplay?: boolean,
   ) => void
   playShuffled: (songIds: readonly number[]) => void
   jumpTo: (index: number) => void
@@ -287,14 +289,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // --- commands ------------------------------------------------------------
 
   const play = useCallback(
-    (songIds: readonly number[], startIndex: number, shuffle?: boolean, position?: number) => {
+    (
+      songIds: readonly number[],
+      startIndex: number,
+      shuffle?: boolean,
+      position?: number,
+      autoplay = true,
+    ) => {
       const start = (): void => {
         // "Play" on a list means in order, as on the web; a tapped row keeps
         // whatever mode is on.
         const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
         const next = playFrom(from, songIds, startIndex)
         setQueue(next)
-        loadIndex(next, true, position)
+        loadIndex(next, autoplay, position)
       }
       // A song that cannot play here says why, rather than loading and sitting
       // paused; one that needs a yes (mobile data) starts once it has one.

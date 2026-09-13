@@ -399,6 +399,16 @@ test.describe('reference', () => {
         await seek.dispatchEvent('pointerup')
         await settle(page, 900)
         await shot(page, project, 'player-progress-40')
+      } else {
+        // The new app's scrubber is a slider role on a view, not a range
+        // input: there is nothing to fill, so press it 40% of the way along.
+        const box = await seek.boundingBox()
+        const valueMax = Number((await seek.getAttribute('aria-valuemax')) ?? '0')
+        if (box && valueMax > 0) {
+          await page.mouse.click(box.x + box.width * 0.4, box.y + box.height / 2)
+          await settle(page, 900)
+          await shot(page, project, 'player-progress-40')
+        }
       }
     }
   })

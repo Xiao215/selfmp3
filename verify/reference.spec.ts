@@ -609,6 +609,38 @@ test.describe('reference', () => {
     await page.keyboard.press('Escape')
   })
 
+  test('inbox', async ({ page, request }, info) => {
+    const project = info.project.name
+    test.setTimeout(90_000)
+    // Every reference song is tagged; one is untagged for the capture and put back.
+    const library = (await (await request.get(`${API}/api/library`)).json()) as {
+      songs: { id: number; tagIds: number[]; missing?: boolean }[]
+    }
+    const song = library.songs.find(item => item.tagIds.length === 1 && !item.missing)
+    test.skip(!song, 'no song carries exactly one tag')
+    const target = song as { id: number; tagIds: number[] }
+    await request.put(`${API}/api/songs/${target.id}/tags`, { data: { tagIds: [] } })
+    try {
+      await page.goto('/')
+      await page.evaluate(() => {
+        localStorage.setItem('selfmp3:triage-play-along', 'false')
+        localStorage.setItem('selfmp3.triage-play-along', 'false')
+      })
+      await page.goto('/inbox')
+      await page.getByRole('button', { name: 'Start tagging' }).waitFor({ timeout: 30_000 })
+      await dismissToasts(page)
+      await restMouse(page)
+      await settle(page, 900)
+      await shot(page, project, 'inbox-list')
+      await page.getByRole('button', { name: 'Start tagging' }).click()
+      await restMouse(page)
+      await settle(page, 900)
+      await shot(page, project, 'inbox-triage')
+    } finally {
+      await request.put(`${API}/api/songs/${target.id}/tags`, { data: { tagIds: target.tagIds } })
+    }
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

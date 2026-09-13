@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { lyricsQueryFor, paletteCommands, paletteResults, stepIndex } from './palette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
-  ({ id, title, artist, album: '' }) as never
+  ({ id, title, artist, album: '', tagIds: [7], missing: false }) as never
 
 const library = {
   songs: [song(1, 'アイドル'), song(2, 'Racing into the Night'), song(3, 'Monster')],
@@ -20,13 +20,16 @@ describe('the command palette', () => {
       'nav-import',
       'nav-stats',
       'nav-settings',
+      'nav-inbox',
       'shuffle-all',
     ])
     expect(results.songs).toEqual([])
-    expect(paletteCommands(13)[5]?.hint).toBe('13 songs')
-    // A cloud library has no Mac to import with or count plays on.
+    expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
+    expect(paletteCommands(13, false, 2)[5]?.hint).toBe('2 untagged')
+    // A cloud library has no Mac to import with, count plays on, or tag from.
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-import')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-stats')
+    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-inbox')
   })
 
   it('finds songs, playlists and tags by what is typed', () => {

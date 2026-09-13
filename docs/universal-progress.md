@@ -1559,3 +1559,28 @@ The web's `MetadataDialog`, opened from a song's menu ("Fix metadata…"), and i
   is applied. The reference set gains `metadata-dialog`, and the new app is
   captured in the same state. On the iPhone simulator a long press opens it and
   Cancel closes it.
+
+### The tag inbox
+
+The web's `TriageView`: the songs without a tag, and a pass through them one at
+a time, playing each while you tap its tags.
+
+- `features/inbox/inbox.model.ts` holds the rules with nothing drawn (7 tests):
+  which songs count as untagged (not missing, no tags), newest first; the
+  subtitle; the tag order the chips keep through a session; the number keys;
+  the next button's word (Next, Skip, Finish); and the summary at the end.
+- `features/inbox/InboxScreen.tsx` at `/inbox`: the list with Start tagging,
+  then the pass. Its head has Done, how far through you are and Play along;
+  below them the song's card, the tag chips with a new tag field, Back and
+  Next. The keys 1–9, → and Enter, ←, n and / work at desktop width, and Escape
+  leaves. Play along is remembered under the web's own key.
+- It is reached from an Untagged row at the top of the sidebar's tags and from
+  the palette ("Tag untagged songs"), both only when a song has no tag and the
+  library is not a cloud one: tagging writes to the Mac.
+- Checked: `verify/flows/inbox.spec.ts` untags one song, tags it back through
+  the pass and restores it whatever happens, against both apps at both widths.
+  The reference set gains `inbox-list` and `inbox-triage`, and the new app is
+  captured in the same state. On the iPhone simulator the same pass runs: a
+  chip tap, Finish, "Tagged 1 of 1", Done. The chips carry a `triage-tag-<id>`
+  test id, because Maestro's text match ignores case and "yoasobi" also finds
+  the artist line.

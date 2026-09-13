@@ -7,7 +7,13 @@ import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
  */
 
 export type PaletteCommandId =
-  'nav-library' | 'nav-playlists' | 'nav-import' | 'nav-stats' | 'nav-settings' | 'shuffle-all'
+  | 'nav-library'
+  | 'nav-playlists'
+  | 'nav-import'
+  | 'nav-stats'
+  | 'nav-settings'
+  | 'nav-inbox'
+  | 'shuffle-all'
 
 export interface PaletteCommand {
   readonly id: PaletteCommandId
@@ -15,8 +21,12 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-/** `fromCloud`: a cloud library has no Mac to import with or count plays on. */
-export function paletteCommands(songCount: number, fromCloud = false): readonly PaletteCommand[] {
+/** `fromCloud`: a cloud library has no Mac to import with, count plays on, or tag from. */
+export function paletteCommands(
+  songCount: number,
+  fromCloud = false,
+  untaggedCount = 0,
+): readonly PaletteCommand[] {
   return [
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
@@ -27,6 +37,15 @@ export function paletteCommands(songCount: number, fromCloud = false): readonly 
           { id: 'nav-stats' as const, label: 'Listening stats' },
         ]),
     { id: 'nav-settings', label: 'Settings' },
+    ...(fromCloud
+      ? []
+      : [
+          {
+            id: 'nav-inbox' as const,
+            label: 'Tag untagged songs',
+            hint: `${untaggedCount} untagged`,
+          },
+        ]),
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
   ]
 }
@@ -49,7 +68,8 @@ export function paletteResults(
   fromCloud = false,
 ): PaletteResults {
   const songs = library?.songs ?? []
-  const commands = paletteCommands(songs.length, fromCloud)
+  const untagged = songs.filter(song => song.tagIds.length === 0 && !song.missing).length
+  const commands = paletteCommands(songs.length, fromCloud, untagged)
   const trimmed = query.trim()
   if (!trimmed) return { commands, songs: [], playlists: [], tags: [] }
   const top = <T>(items: readonly T[], text: (item: T) => string, count: number): T[] =>

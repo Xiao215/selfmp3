@@ -54,10 +54,11 @@ pointer sitting on the bottom row).
 | Wrapped | top · bottom (last 30 days) |
 | Practice | the side panel, opened from the player bar (desktop) |
 | Fix metadata | a song's suggestions and changes, looked up and not applied (desktop) |
+| Tag inbox | the list · one song's tagging, with one song untagged for the capture |
 | Devices | popover · resume toast |
 | Sheets and popovers | sleep timer · speed (desktop) · practice (phone) |
 
-Import, Migrate, Stats, Wrapped, Practice and Fix metadata were added in phase 5, from the same app: the one commit to `apps/web`
+Import, Migrate, Stats, Wrapped, Practice, Fix metadata and the tag inbox were added in phase 5, from the same app: the one commit to `apps/web`
 after `fb882e0` (2df5771) touched devices and nothing the Import screen draws.
 Their reviews need yt-dlp on the Mac and YouTube to answer; the songs are ones
 the dev library already has, and the captures back out rather than import.

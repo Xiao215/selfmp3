@@ -21,6 +21,7 @@ import {
 import { useCreateTag, useLibrary, useScanLibrary } from '../api/queries'
 import { useLibraryFilter } from '../features/library/libraryFilter'
 import { useDownloads } from '../offline/DownloadsProvider'
+import { isUntagged } from '../features/inbox/inbox.model'
 import { useConnection } from '../server/ConnectionProvider'
 import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
@@ -28,6 +29,7 @@ import {
   BarChart,
   CloudDownload,
   Download,
+  Inbox,
   ListMusic,
   Minus,
   More,
@@ -130,6 +132,8 @@ function Tags(): ReactNode {
   const [name, setName] = useState('')
 
   const tags = library?.tags ?? []
+  const untaggedCount = (library?.songs ?? []).filter(isUntagged).length
+  const { fromCloud } = useConnection()
   const trimmed = name.trim()
   const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
   const exact = suggestions.find(match => match.exact)
@@ -228,6 +232,24 @@ function Tags(): ReactNode {
       ) : null}
 
       <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
+        {untaggedCount > 0 && !fromCloud ? (
+          <Pressable
+            onPress={() => router.navigate('/inbox')}
+            accessibilityRole="link"
+            accessibilityLabel={`Untagged, ${untaggedCount}`}
+            testID="nav-inbox"
+            style={({ pressed }) => [
+              styles.inboxRow,
+              (pressed || pathname === '/inbox') && { backgroundColor: theme.colors.surface2 },
+            ]}
+          >
+            <Inbox size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.inboxName, pathname === '/inbox' && styles.inboxNameOn]}>
+              Untagged
+            </Text>
+            <Text style={styles.inboxCount}>{untaggedCount}</Text>
+          </Pressable>
+        ) : null}
         {tags.map(tag => (
           <TagRow
             key={tag.id}
@@ -470,6 +492,17 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   suggestionText: { color: theme.colors.textSecondary, fontSize: 11 },
+  inboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+  },
+  inboxName: { flex: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  inboxNameOn: { fontWeight: '700' },
+  inboxCount: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.sm },

@@ -24,6 +24,7 @@ import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import {
   BarChart,
+  Inbox,
   ListMusic,
   Mic,
   Music,
@@ -96,6 +97,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         return
       case 'nav-stats':
         router.navigate('/stats')
+        return
+      case 'nav-inbox':
+        router.navigate('/inbox')
         return
       case 'nav-settings':
         router.navigate('/settings')
@@ -181,6 +185,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'nav-playlists': icon(ListMusic),
     'nav-import': icon(Search),
     'nav-stats': icon(BarChart),
+    'nav-inbox': icon(Inbox),
     'nav-settings': icon(Settings),
     'shuffle-all': icon(Shuffle),
   }

@@ -141,6 +141,7 @@ way both apps are today.
 | Audio, web | the existing two-`<audio>` engine | Moved as-is behind the engine port. Gapless, crossfade, rate, pitch lock, analyser. |
 | Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto, rate; pitch lock on iOS via `pitchAlgorithm`. It is an alpha. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
 | Offline, web | Cache API + service worker | Existing code behind the offline port. |
+| Service worker build | esbuild, as `apps/web` did | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. Moved with the worker from `apps/web`, which declared it. |
 | Offline, native | files + JSON index | Existing code behind the same port. |
 | Icons | `react-native-svg` | Already ported. One file for all three platforms. |
 | Canvas work | Expo DOM components (`'use dom'`) on native | The song visual, the wrapped card and the energy wave are canvas drawings. On web they run as they do now; on the phone the same React DOM component renders in a webview. Reserved for genuinely DOM-only pieces — never for ordinary UI. |

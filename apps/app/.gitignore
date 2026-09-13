@@ -12,3 +12,6 @@
 *.mobileprovision
 *.orig.*
 dist-pages/
+
+# The service worker, bundled from sw/sw.ts by `npm run build:sw`.
+public/sw.js

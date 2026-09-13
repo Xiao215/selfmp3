@@ -1,0 +1,23 @@
+{
+  /**
+   * The service worker, type-checked on its own.
+   *
+   * It runs in a ServiceWorkerGlobalScope, where `self` is a different type
+   * than lib.dom's. Checking it in the app's project would make the two
+   * declarations of `self` collide, so it gets its own lib set. esbuild
+   * bundles it (the build:sw script) and does not type-check, so this is what
+   * keeps sw.ts honest.
+   */
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["sw/sw.ts"]
+}

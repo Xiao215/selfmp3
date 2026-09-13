@@ -10,11 +10,12 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --clean",
     "doctor": "npx --yes expo-doctor",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
     "clean": "rm -rf .expo ios android",
     "web": "expo start --web",
-    "export:web": "expo export -p web",
+    "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
+    "export:web": "npm run build:sw && expo export -p web",
     "test": "jest"
   },
   "dependencies": {
@@ -55,6 +56,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "@playwright/test": "^1.56.0",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^30.0.0",

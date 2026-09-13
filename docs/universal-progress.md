@@ -1670,3 +1670,39 @@ session could not have been kept. GitHub Pages serves this build.
   library, still signed in.
 - Not checked: a whole sign-in in a browser, which needs Xiao's Google
   account.
+
+### The installable web app: manifest and service worker
+
+Also found before deleting `apps/web`: the new app's web build had neither.
+The Mac and Pages served it, but it could not be installed, could not take a
+shared link from a phone's share sheet (the manifest's `share_target`), and did
+not open, or play a downloaded song, without a network. `/sw.js` and
+`/manifest.webmanifest` answered with the page's HTML.
+
+- `apps/app/sw/sw.ts` is the web app's `sw.ts`, bundled by `npm run build:sw`
+  to `public/sw.js`, which `export:web` now runs first; Expo copies `public/`
+  as it is. It is type-checked on its own (`tsconfig.sw.json`, part of the
+  app's `typecheck`). esbuild moves with it into `apps/app`'s dev dependencies
+  at the version already installed, with a Stack line.
+- Two changes to the worker. The new app keeps a download under its whole
+  stream address, `?v=` and any token included, where the web app kept a bare
+  path, so the worker matches audio on the path (`ignoreSearch`); without that
+  a downloaded song would never have played offline. And Expo's bundles live
+  under `_expo/`, which joins `assets/` and `icons/` as the build's own files.
+- `public/manifest.webmanifest` and `public/icons/` are the web app's. The
+  manifest's paths are relative to itself, so one file serves `/` and
+  `/selfmp3/`.
+- `ports/serviceWorker.web.ts` registers the worker from the shell once the
+  connection is known (`sw.js?cloud=1` signed in to the cloud, so it fetches
+  missing songs from the bucket), production only, and adds the manifest and
+  touch-icon links under the base, since Expo's template has no base
+  placeholder. `ports/serviceWorker.ts` does nothing on a phone.
+- Checked against the build the Mac serves on 4600, after `export:web`:
+  `verify/flows/pwa.spec.ts` reads the manifest and its share target, waits
+  for the worker to control the page and fill its shell cache, and reloads
+  offline; it passes at both widths. A probe went further: offline, the reload
+  came from the service worker, and a song kept under
+  `/api/stream/…?v=stored-rev&token=t` answered a request for
+  `?v=player-rev` with `Range: bytes=2-5` as a 206 with `bytes 2-5/10` and the
+  right bytes; a song not downloaded answered 503.
+- The flow skips on a build with no manifest or worker, such as the dev server.

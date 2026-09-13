@@ -16,6 +16,7 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
+import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { AccentProvider } from '../src/ui/accent'
 
 /**
@@ -78,10 +79,16 @@ export default function RootLayout(): ReactNode {
 
 function Shell(): ReactNode {
   const { theme } = useUnistyles()
-  const { status } = useConnection()
+  const { status, fromCloud } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
+
+  // In a browser: the manifest, and the service worker, told whether there is a
+  // bucket to fetch songs from. Nothing on a phone.
+  useEffect(() => {
+    if (status !== 'loading') registerServiceWorker({ cloud: fromCloud })
+  }, [status, fromCloud])
 
   useEffect(() => {
     // hideAsync is safe to call more than once, so no "already hidden" flag is

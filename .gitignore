@@ -48,7 +48,6 @@ npm-debug.log*
 _to_delete/
 
 # A local build of the web app for GitHub Pages
-apps/web/dist-pages/
 
 # Playwright
 test-results/

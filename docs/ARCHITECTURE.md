@@ -9,7 +9,14 @@ touches this next — most likely you, six months from now.
 
 ```
 packages/shared          the API contract (zod schemas + pure helpers)
-  └── imported by both the server and the web app
+  └── imported by the server, the app and the cloud client
+
+packages/cloud           a device's copy of the library in the bucket: session,
+                         replica, outbox, the routes that answer from it
+
+packages/client          what the app shares across platforms: API client, React
+                         Query hooks, download queue, practice and auto-mix rules,
+                         theme tokens, and the ports each platform implements
 
 apps/server
   main.ts                boot, shutdown, signals
@@ -23,18 +30,20 @@ apps/server
   services/              behaviour: scanning, metadata, lyrics, imports
   routes/                thin — validate, call a service, return
 
-apps/mobile              the phone app (docs/MOBILE.md); shares packages/*, not screens
-                         — docs/UNIVERSAL.md is the plan to fold it and apps/web into one
+apps/app                 one Expo app for iOS, Android and the web (docs/UNIVERSAL.md)
+  app/                   expo-router file routes, one per screen
+  src/features/          a folder per screen or tool; each model file is pure and tested
+  src/ports/             what differs by platform: engine, offline store, prefs,
+                         secrets, cloud platform, device; `name.ts` on a phone,
+                         `name.web.ts` in a browser
+  src/player/            queue (from packages/shared), engine port, provider (React glue)
+  src/offline/           downloads, the saved library, the listen outbox
+  src/shell/             the width-decided frame: tab bar or sidebar, mini player or bar
+  src/ui/                components, icons, the Unistyles theme
+  sw/sw.ts               service worker, bundled to public/sw.js by esbuild
+  public/                manifest, icons: copied into the web export as they are
 
-apps/web
-  main.tsx               providers, service worker registration
-  App.tsx                shell + routes + hotkeys
-  lib/                   typed API client, query hooks, small hooks
-  player/                engine (imperative), queue (pure), provider (React glue)
-  offline/               IndexedDB mirror, Cache API audio, offline context
-  components/            presentational pieces
-  views/                 one per route
-  sw.ts                  service worker, bundled separately by esbuild
+apps/doorman             Cloudflare Worker: Google sign-in and bucket access for devices
 ```
 
 ---

@@ -19,17 +19,19 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/cloud/package.json packages/cloud/
+COPY packages/client/package.json packages/client/
 COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
+COPY apps/app/package.json apps/app/
 RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/shared packages/shared
-# The web app is built against it, so it has to be here even though nothing
-# the server runs imports it and none of it reaches the runtime image.
+# The app is built against it, so it has to be here even though nothing the
+# server runs imports it and none of it reaches the runtime image.
 COPY packages/cloud packages/cloud
 COPY apps/server apps/server
-COPY apps/web apps/web
+COPY packages/client packages/client
+COPY apps/app apps/app
 RUN npm run build
 
 # Keep only what the server needs at runtime. The S3 SDK is optional and large;
@@ -57,7 +59,7 @@ COPY --from=build --chown=node:node /app/packages/shared/package.json ./packages
 COPY --from=build --chown=node:node /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build --chown=node:node /app/apps/server/package.json ./apps/server/
 COPY --from=build --chown=node:node /app/apps/server/dist ./apps/server/dist
-COPY --from=build --chown=node:node /app/apps/web/dist ./apps/web/dist
+COPY --from=build --chown=node:node /app/apps/app/dist ./apps/app/dist
 
 # Music and database live outside the image. Owned by the runtime user so a
 # fresh bind mount is writable without any chown on the host.

@@ -17,7 +17,7 @@ const config = {
   newArchEnabled: true,
   backgroundColor: '#14121a',
 
-  // Rendered from apps/web/public/icons/icon.svg, so the phone and the web app
+  // Rendered from public/icons/icon.svg, so the phone and the web build
   // wear the same mark. Square and opaque, because iOS rounds and masks it
   // itself and rejects an icon with an alpha channel.
   icon: './assets/icon.png',

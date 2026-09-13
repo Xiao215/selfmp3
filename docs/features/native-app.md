@@ -1,64 +1,47 @@
-# Native app (iOS and Android)
+# The app on a phone (iOS and Android)
 
-`apps/mobile` is an Expo / React Native app: the same library, the same server,
-but with the three things a PWA cannot do — dependable background audio on iOS,
-and real downloaded files instead of an evictable cache.
+`apps/app` is one Expo / React Native app for iOS, Android and the web. On a
+phone it has what a browser cannot give: dependable background audio on iOS, and
+real downloaded files instead of an evictable cache. The screens are the web's,
+drawn at phone width; the layout is decided by width, not by platform.
 
-**The full guide is [`docs/MOBILE.md`](../MOBILE.md)** — prerequisites, running
-it on a phone, local builds, Android
-Auto testing with the Desktop Head Unit, and an explicit list of what has and
-has not been verified. This page is the short version.
+**The full guide is [`docs/MOBILE.md`](../MOBILE.md)**: prerequisites, running
+it on a phone, local builds, Android Auto testing with the Desktop Head Unit.
+[`docs/universal-progress.md`](../universal-progress.md) records what has been
+checked, on which simulator, and how.
 
 ## Using it
 
-First launch asks for the server address — the Tailscale name, so it keeps
-working away from home (`mac-mini.tail1234.ts.net`) — and a bearer token
-if the server has one. Both go in the device keychain. The address is tested
-before it is saved, and a bad token is reported differently from a bad address.
-
-Four screens:
-
-- **Library** — search, sort chips, tag chips, and a "downloaded only" filter,
-  all applied locally to the one `/api/library` response.
-- **Playlists** and one playlist — play, shuffle, or download the whole thing.
-- **Now playing** — artwork, scrubber, transport, and a panel that switches
-  between synced lyrics (karaoke highlight, self-scrolling) and the queue.
-- **Settings** — server, downloads, storage used, about.
-
-Tap a song to play the list from there; long-press to play it next.
+First launch offers Google sign-in, which makes the library the one in your
+bucket and needs no Mac awake; or it can point at a Mac by its address (the
+Tailscale name, so it works away from home) and a bearer token if the server
+has one. A server address and token go in the device keychain.
 
 ## Offline
 
-Nothing is downloaded by accident. "Download everything" in Settings, or
-"Download" on a playlist, queues files into the app's document directory one at
-a time, resumable and pausable. A downloaded song plays from disk; anything else
-streams. Settings shows the count, the bytes, and how much the rest would take.
-
-The last library response is cached to disk too, so the app opens and browses
-with no server at all.
+A phone downloads what it keeps: automatically on Wi-Fi if that is on, asking
+first on mobile data and over 500 MB, or by hand from a song or playlist. A
+downloaded song plays from disk; anything else streams while the Mac is
+reachable. A song removed by hand stays removed. The last library response is
+saved too, so the app opens and browses with no connection.
 
 ## In the car
 
 **CarPlay has been removed.** It needed Apple's `carplay-audio` entitlement,
-which is granted only to a paid developer team and only on request — and this
-is a personal app built on a free account. The browse tree it used is still
-here, and still unit-tested, because Android Auto resolves against the same one.
+which is granted only to a paid developer team and only on request, and this is
+a personal app built on a free account. The browse tree it used is still here
+and unit-tested (`apps/app/src/ports/car/browseTree.ts`), because Android Auto
+resolves against the same one.
 
-**Android Auto** gets transport, metadata, artwork and voice search ("play Kind
-of Blue"), which is what react-native-track-player currently exposes. The
-browsable menu inside the car's own UI is not there yet, because the library has
-no API to publish one — `docs/MOBILE.md` explains what was found and what the
-alternatives are. The tree itself is built and unit-tested regardless.
+**Android Auto** gets transport, metadata, artwork and voice search, which is
+what react-native-track-player exposes. The browsable menu inside the car's own
+UI is not there yet; `docs/MOBILE.md` explains what was found.
 
 ## Notes for whoever touches it next
 
-- Queue mechanics moved to `packages/shared/src/queue.ts` so both clients share
-  them; `apps/web/src/player/queue.ts` is now a one-line re-export.
-- Gapless is the native player's job. Crossfade is not implemented and cannot
-  be with one player — the server's `crossfadeSeconds` does nothing here.
-- The workspace is deliberately outside the root TypeScript project graph and
-  the root ESLint config (React Native's globals versus the DOM's). Use
-  `npm run check:mobile`. Its pure tests still run in the root vitest suite.
-- No binary has ever been built from this code; it has been type-checked, linted
-  and prebuild-tested only. `docs/MOBILE.md` lists exactly what that leaves
-  unproven.
+- The queue rules are `packages/shared/src/queue.ts`, shared with the web build.
+- Gapless is the native player's job. Crossfade cannot be done with one native
+  player, so the Mac's crossfade setting applies in a browser and not on a phone.
+- The app is outside the root TypeScript project graph and the root ESLint config
+  (React Native's globals versus the server's). `npm run check:app` checks it,
+  and `npm run check` runs that too. Its pure tests run in the root vitest suite.

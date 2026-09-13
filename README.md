@@ -40,14 +40,16 @@ Open <http://localhost:4600>.
 For development with hot reload:
 
 ```bash
-npm run dev                    # api on :4600, web on :4601
+npm run dev                    # api on :4600, the app's web dev server on :4601
 ```
 
 To reach it from your phone anywhere in the world, see **[docs/SETUP.md](docs/SETUP.md)** —
 it walks through Tailscale, HTTPS, and running the server in the background.
 **[docs/INSTALL.md](docs/INSTALL.md)** covers Docker, backups, updating, and migrating from
 the old `hum` app. Every feature has a page under
-**[docs/features/](docs/features)**. **[docs/SYNC.md](docs/SYNC.md)** is how every device
+**[docs/features/](docs/features)**; pages written before the one app name files in
+`apps/web` and `apps/mobile`, and [docs/universal-progress.md](docs/universal-progress.md)
+says where each moved. **[docs/SYNC.md](docs/SYNC.md)** is how every device
 keeps in step through a storage bucket you own — sign in with Google, and your library, your
 edits and your imports reach every device whether or not the Mac is awake.
 
@@ -144,8 +146,10 @@ packages/shared     zod schemas — the single source of truth for the API contr
                     plus the pure helpers every client needs: queue mechanics, LRC
                     parsing, fuzzy search, feature distances
 apps/server         Express 5 + better-sqlite3, layered: routes → services → repositories
-apps/web            React 19 + Vite + TanStack Query, plus a hand-written service worker
-apps/mobile         Expo / React Native — iOS and Android, CarPlay and Android Auto
+packages/client     what every client shares: the API client, React Query hooks, the
+                    download queue, practice and auto-mix rules, theme tokens
+apps/app            Expo / React Native — one app for iOS, Android and the web, with
+                    a hand-written service worker; CarPlay and Android Auto
 ```
 
 A few decisions worth knowing about:
@@ -186,11 +190,11 @@ the app did before rather than breaking.
 | `npm run dev` | API and web with hot reload |
 | `npm run build` | Type-check and build everything |
 | `npm start` | Run the built server |
-| `npm run check` | Typecheck + lint + tests |
+| `npm run check` | Typecheck + lint + tests, the app included |
 | `npm test` | Unit tests |
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
-| `npm run check:mobile` | Typecheck + lint the native app |
+| `npm run check:app` | Typecheck + lint + component tests for the app alone |
 | `npm run cli -- <command>` | The `selfmp3` CLI (`scan`, `import`, `backup`, `doctor`) |
 
 ---

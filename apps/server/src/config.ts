@@ -119,11 +119,6 @@ const ConfigSchema = z.object({
   serveWeb: BooleanFromEnv.default(true),
   webDir: z.string().default(path.join(REPO_ROOT, 'apps/app/dist')),
 
-  /**
-   * The old web app, served at /classic while its last tools move across
-   * (docs/UNIVERSAL.md, phase 5). Built with VITE_BASE=/classic/.
-   */
-  classicWebDir: z.string().default(path.join(REPO_ROOT, 'apps/web/dist')),
 
   /**
    * Optional shared secret. Tailscale already restricts who can reach the
@@ -188,7 +183,6 @@ function readEnv(): unknown {
     dataDir: env['SELFMP3_DATA_DIR'] ?? undefined,
     serveWeb: env['SELFMP3_SERVE_WEB'] ?? undefined,
     webDir: env['SELFMP3_WEB_DIR'] ?? undefined,
-    classicWebDir: env['SELFMP3_CLASSIC_WEB_DIR'] ?? undefined,
     authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,
     corsOrigins: env['SELFMP3_CORS_ORIGINS'] ?? undefined,
     storageDriver: env['SELFMP3_STORAGE_DRIVER'] ?? undefined,

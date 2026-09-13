@@ -7,9 +7,9 @@ checks the thing the other three cannot: that the app still *behaves* the same
 after everything moved into `packages/client`. The other three prove it
 compiles, lints and passes its unit tests.
 
-The same flows are what phase 2 runs against `apps/app` at 375, and what phase 4
-runs against both widths. They are written once, here, against the app that is
-known to be right.
+They were written against the web app, which was known to be right, and have
+run against `apps/app` since phase 2. The web app is gone now (phase 5); the
+reference captures under `docs/reference/` are what is left of it.
 
 ## What they need
 
@@ -17,12 +17,20 @@ A **running server with a library in it**, which is the whole reason these
 could not be run when they were written:
 
 ```
-npm run dev          # the reference: server on 4600, web on 4601
-npm run verify:flows # in another terminal
+npm run build        # the server, and the app's web export it serves
+SELFMP3_PROFILE=dev npm start
+npm run verify:flows # in another terminal: the app the Mac serves, on 4600
 ```
 
-Point them elsewhere with `SELFMP3_WEB_URL`, which is how the same flows are
-run against `apps/app` from phase 2 onwards.
+Or against a dev server, which has to be told where its Mac is:
+
+```
+npm run dev          # the server on 4600, the app's dev server on 4601
+SELFMP3_WEB_URL=http://localhost:4601 SELFMP3_APP_API=http://localhost:4600 npm run verify:flows
+```
+
+`verify/flows/pwa.spec.ts` needs the built app either way, since only a
+production build registers the service worker; it skips on a dev server.
 
 `npm run dev` sets `SELFMP3_PROFILE=dev`, so this is the thirteen-song dev
 library in `~/Music/selfmp3-dev`, never the real one. The flows need at least

@@ -3,10 +3,6 @@
 # Also called by the Pages workflow before it builds, so nothing reaches the
 # published web app without having passed here first. `workflow_call` is what
 # makes that one definition rather than two that drift.
-#
-# The phone app is checked separately because it is not in the root TypeScript
-# project — `npm run check` leaves it out, which is exactly how a rename of a
-# shared export it alone uses can pass everything else and still break it.
 name: Check
 
 on:
@@ -51,5 +47,5 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Check the phone app
-        run: npm run check:mobile
+      - name: Check the app
+        run: npm run check:app

@@ -67,7 +67,8 @@ song bytes stream through it without it holding them.
    ahead — the point of it is music with no signal. A browser tab streams from the bucket a
    range at a time and keeps only the songs you listened to, because a library of a thousand
    songs is not something a tab should quietly copy. Either way, a song already on the device
-   plays from the device: see `apps/web/src/offline/recentCache.ts`.
+   plays from the device: see `packages/client/src/downloads/recentCopies.ts` and
+   `apps/app/src/ports/recentCopies.web.ts`.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The Mac is special only because it can
@@ -170,7 +171,7 @@ something, and on demand. An import is not done until its song is in a snapshot.
 
 The web app builds for GitHub Pages (`VITE_CLOUD=1`, under `/selfmp3/`), with no Mac behind
 it. It signs in with Google, connects the account's bucket if no device has yet, and shows the
-library from the newest snapshot. The service worker (`apps/web/src/sw.ts`) stands between the
+library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
 player and the bucket: a song already on the device is served from there, ranges and all, and
 one that is not is streamed from the bucket through the doorman, which passes `Range` straight
 to B2 and its `206` straight back. Nothing is kept on the way past. A song you listen to all
@@ -311,9 +312,9 @@ the Mac that is *Settings → Cloud*; everywhere else it is the first thing the 
 | Applying other devices' changes to the Mac | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the Mac to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (migrations 9, 10, 11) |
-| The Mac's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/web/src/cloud/CloudSettings.tsx` |
-| A device's own copy of the library, and its outbox | `apps/web/src/lib/cloud/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
-| Signing in, in the web app | `apps/web/src/cloud/CloudGate.tsx`, `apps/web/src/lib/cloud/session.ts` |
-| Importing from the web app | `apps/web/src/cloud/CloudImportView.tsx` |
+| The Mac's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
+| A device's own copy of the library, and its outbox | `packages/cloud/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
+| Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/cloud/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
+| Importing from a device | `apps/app/src/features/import/CloudImportScreen.tsx` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the Mac and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |

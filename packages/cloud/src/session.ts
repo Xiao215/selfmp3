@@ -25,7 +25,7 @@ import type { CloudPlatform, CloudResponse } from './platform.js'
  * the bucket when the player asks for one this device does not have yet.
  */
 
-/** Also read by apps/web/src/sw.ts, straight out of IndexedDB. Keep in step. */
+/** Also read by apps/app/sw/sw.ts, straight out of IndexedDB. Keep in step. */
 export const SESSION_KEY = 'cloud-session'
 const PENDING_KEY = 'cloud-pending-sign-in'
 /** As long as the doorman keeps an attempt. */

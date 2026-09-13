@@ -3,26 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 /**
  * Selectors, derived from the app's accessible names rather than test ids.
  *
- * Deliberate: `apps/web` is read-only reference until phase 5, so these flows
- * cannot add hooks to it. It turns out not to be a compromise — every row
- * carries the song's name in a real `aria-label` already, and a selector built
- * on a role and a name is the one kind that will still work when these same
- * flows are pointed at `apps/app`, where the DOM is React Native Web's and
- * every class name is different.
+ * Written first against the web app, which these flows could not add hooks to,
+ * and kept that way: a selector built on a role and a name survives React
+ * Native Web's DOM, where every class name is generated.
  */
-
-/**
- * Which app these flows are pointed at.
- *
- * They are written once and run against both: the old web app, where they are
- * phase 1's gate, and `apps/app`, where they are phase 2's. A few things are
- * genuinely not there yet in the new app — not broken, not yet built — and a
- * flow that cannot tell the difference between "missing" and "wrong" is worth
- * less than one that says which. `SELFMP3_APP_API` is set only when pointing
- * them at `apps/app`, because that is the app that has to be told where its Mac
- * is (see verify/playwright.config.ts).
- */
-export const againstUniversalApp = Boolean(process.env.SELFMP3_APP_API)
 
 /** The songs table, which is labelled `<heading> songs`. */
 export function songTable(page: Page): Locator {
@@ -77,8 +61,8 @@ export async function libraryReady(page: Page): Promise<void> {
     // nothing, and a green run would be a lie. Skipping is for a library that
     // is genuinely empty.
     throw new Error(
-      'The app could not reach the server. Start it with `npm run dev` (server on ' +
-        '4600, web on 4601) before running these flows. See verify/README.md.',
+      'The app could not reach the server. Start the server (`npm run dev`, or `npm start` ' +
+        'after `npm run build`) before running these flows. See verify/README.md.',
     )
   }
 }

@@ -18,16 +18,11 @@ export default tseslint.config(
       '.claude/**',
       'data/**',
       /*
-       * The native app lints itself with eslint-config-expo (see
-       * apps/mobile/eslint.config.js). This config is type-aware and resolves
-       * types through the root tsconfig project graph, which deliberately does
-       * not include apps/mobile — pulling React Native's globals and JSX types
-       * into that graph would leak them into the web app.
+       * The app lints itself with eslint-config-expo (apps/app/eslint.config.js).
+       * This config is type-aware and resolves types through the root tsconfig
+       * project graph, which deliberately does not include apps/app: React
+       * Native's globals and JSX types would leak into the server's.
        */
-      'apps/mobile/**',
-      // Same reasoning for the universal app, which is the phone app's
-      // successor and carries the same React Native toolchain: it lints itself
-      // with eslint-config-expo from apps/app/eslint.config.js.
       'apps/app/**',
     ],
   },
@@ -81,14 +76,13 @@ export default tseslint.config(
      * typescript-eslint's project service therefore cannot resolve types for
      * them, so type-aware rules are switched off here.
      *
-     * sw.ts is still fully type-checked, by `npm run typecheck:sw`. The tests
-     * are not: vitest transpiles them with esbuild and never checks their
+     * The tests are not type-checked: vitest transpiles them with esbuild and never checks their
      * types, so a test that does not compile fails when it runs rather than
      * when it is written. Checking them would want a tsconfig per workspace —
      * they cannot share one, for the same reason the workspaces cannot (see
      * the note in the root tsconfig.json).
      */
-    files: ['**/*.test.ts', '**/*.test.tsx', 'apps/web/src/sw.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx'],
     extends: [tseslint.configs.disableTypeChecked],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',

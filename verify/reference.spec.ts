@@ -10,7 +10,7 @@ import { SEEDED, seedReferenceLibrary } from './reference/seed.js'
  * The reference set: the old web app, at 1280 and 375, before it is deleted.
  *
  * `docs/UNIVERSAL.md` — *The reference set* — asks for this to be captured once
- * and committed, because phase 5 deletes `apps/web` and these images are what
+ * and committed, because phase 5 deleted `apps/web` and these images are what
  * outlives it. Every screen of the new app is checked against them, and phase 4
  * cannot begin without them.
  *

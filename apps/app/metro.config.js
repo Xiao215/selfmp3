@@ -3,7 +3,7 @@
 // Two things are needed for a workspace package to work: Metro has to *watch*
 // the repository root (otherwise edits to packages/shared never trigger a
 // reload), and it has to know both node_modules folders, because npm hoists
-// most dependencies to the root while some may stay nested under apps/mobile.
+// most dependencies to the root while some may stay nested under apps/app.
 //
 // `disableHierarchicalLookup` is deliberately NOT set. It is the usual way to
 // stop a monorepo bundling two copies of react, but it also stops Metro

@@ -14,26 +14,24 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH
  * Two widths, because the app has two layouts and the plan checks both.
  *
  * 1280 is the desktop layout — sidebar, player bar. 375 is the phone layout,
- * which is also the reference for the phone app: `apps/mobile` was built to
- * this CSS in the first place, so a flow that passes here is the flow the
- * simulator is checked against.
+ * the same one the simulator draws.
  */
 /**
  * Where the app under test should look for its Mac.
  *
- * `apps/web` is served by the server itself, so it asks its own origin and
- * there is nothing to configure. `apps/app` is a separate build on a separate
- * port and has to be told — it keeps the address through the `secrets` port,
+ * Served by the Mac (`npm run build`, then the server on 4600), the app asks
+ * its own origin and there is nothing to configure. A dev server on another
+ * port has to be told — it keeps the address through the `secrets` port,
  * which in a browser is `localStorage`. A fresh Playwright context has none, so
  * without this the app quite correctly shows its sign-in screen and every flow
  * times out waiting for a library.
  *
- * Set it when pointing these flows at `apps/app`:
+ * Set it when pointing these flows at a dev server:
  *
  *   SELFMP3_WEB_URL=http://localhost:8090 \
  *   SELFMP3_APP_API=http://localhost:4600 npm run verify:flows
  */
-const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4601'
+const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4600'
 const appApi = process.env.SELFMP3_APP_API
 
 const storageState = appApi

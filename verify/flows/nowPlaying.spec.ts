@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test'
 
 import {
-  againstUniversalApp,
   libraryReady,
   playSong,
   skipIfNoLibrary,
@@ -70,10 +69,6 @@ test.describe('now playing', () => {
 
   test('in Focus the player bar steps aside while the mouse is still', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'Focus is the computer layout')
-    test.skip(
-      !againstUniversalApp,
-      'the old app slides its bar away with a transform, which a visibility check cannot see',
-    )
     await page.goto('/')
     await libraryReady(page)
     await skipIfNoLibrary(page)

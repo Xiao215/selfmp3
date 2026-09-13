@@ -107,7 +107,7 @@ ok "npm packages installed"
 
 step "Build"
 npm run build --silent
-ok "built apps/server/dist and apps/web/dist"
+ok "built apps/server/dist and apps/app/dist"
 
 # --- folders ----------------------------------------------------------------
 

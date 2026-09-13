@@ -1,7 +1,8 @@
 # The native app
 
-`apps/mobile` is an Expo (React Native) app for iOS and Android: a player and
-sync client for the library in your bucket, with Android Auto.
+`apps/app` is one Expo (React Native) app for iOS, Android and the web. This
+guide is about running it on a phone: the player and sync client for the library
+in your bucket, with Android Auto.
 
 It exists because a PWA cannot do three things that matter in practice —
 reliable background audio on iOS, and real offline files rather than a Cache API
@@ -40,8 +41,8 @@ numbers.
 
 - Node 22+ and a working `npm install` at the repository root.
 - The shared package must be built before Metro or `tsc` can resolve it:
-  `npm run build --workspace @selfmp3/shared`. `npm run dev:mobile` and
-  `npm run typecheck:mobile` from the root do this for you.
+  `npm run build --workspace @selfmp3/shared`, and likewise `@selfmp3/cloud` and
+  `@selfmp3/client`. `npm run check:app` from the root does this for you.
 
 **iOS**
 
@@ -65,8 +66,10 @@ numbers.
 # once, from the repository root
 npm install
 npm run build --workspace @selfmp3/shared
+npm run build --workspace @selfmp3/cloud
+npm run build --workspace @selfmp3/client
 
-cd apps/mobile
+cd apps/app
 npx expo run:ios        # or: npx expo run:android
 ```
 
@@ -76,9 +79,8 @@ folders are generated and **git-ignored** — everything that has to survive liv
 in `app.config.js` and `plugins/`. If a native folder ever looks wrong, delete
 it and let `npx expo prebuild --clean` rebuild it rather than editing it.
 
-After the first build, `npm run start --workspace @selfmp3/mobile` (or
-`npm run dev:mobile` from the root, which also rebuilds `@selfmp3/shared`) is
-enough for day-to-day work.
+After the first build, `npm run start --workspace @selfmp3/app` is enough for
+day-to-day work; rebuild the three packages first if one of them changed.
 
 On first launch the app asks for the server address. Use the Tailscale name so
 it keeps working away from home — `mac-mini.tail1234.ts.net` — and the
@@ -95,7 +97,7 @@ different messages.
 ```bash
 npm install -g eas-cli
 eas login
-cd apps/mobile
+cd apps/app
 eas build --platform ios --profile production
 ```
 
@@ -108,7 +110,7 @@ workspaces.
 **Locally, which is free and often faster:**
 
 ```bash
-cd apps/mobile
+cd apps/app
 npx expo run:ios --configuration Release
 npx expo run:android --variant release
 ```
@@ -182,27 +184,23 @@ session. Google's page is at
 ## How it fits together
 
 ```
-apps/mobile
-  app/                    expo-router file routes: library, playlists,
-                          playlist/[id], now-playing, settings, onboarding
-  src/api/                typed client (shared zod schemas) + react-query hooks
-  src/server/             the server address and token, in the keychain
-  src/player/             setup, the playback service, Song → Track mapping,
-                          and the React glue
-  src/offline/            the download queue, its pure index, the library cache
-  src/car/                the browse tree (pure), Android Auto
-  src/cloud/              the phone's half of @selfmp3/cloud's platform port
-  src/ui/                 theme + StyleSheet components
+apps/app
+  app/                    expo-router file routes, one per screen, at every width
+  src/features/           a folder per screen or tool, with a pure model beside it
+  src/ports/              what differs by platform (engine, offline store, prefs,
+                          secrets, cloud platform, device, the car)
+  src/player/             the provider: queue state, engine port, play counting
+  src/offline/            downloads, the saved library, the listen outbox
+  src/cloud/              @selfmp3/cloud, with this device's platform behind it
+  src/ui/                 components, icons, the Unistyles theme
   plugins/                config plugins run at prebuild time
 ```
 
 The player keeps the same three-way split as the web app, with one piece
 swapped:
 
-- **Queue rules** are `packages/shared/src/queue.ts` — the *same* pure functions
-  the web app uses. They were moved out of `apps/web/src/player/` for this;
-  `apps/web/src/player/queue.ts` is now a one-line re-export, so nothing in the
-  web app changed.
+- **Queue rules** are `packages/shared/src/queue.ts`, the same pure functions
+  the web build uses.
 - **The engine** is react-native-track-player instead of two `<audio>` elements.
   It owns buffering, auto-advance and the lock screen.
 - **The glue** is `src/player/PlayerProvider.tsx`: `QueueState` is the source of
@@ -227,10 +225,6 @@ folder; a JSON file can be printed, diffed and deleted by hand when something
 goes wrong. `src/offline/downloadIndex.ts` is pure and unit-tested;
 `downloads.ts` is the effectful half.
 
-**There is no devices/heartbeat endpoint** on the server (`docs/features/` has
-no such feature, and `apps/server/src/routes/` has no such route), so the app
-does not call one. If one is added later, `src/api/client.ts` is where it goes.
-
 ---
 
 ## Repository plumbing worth knowing
@@ -238,13 +232,13 @@ does not call one. If one is added later, `src/api/client.ts` is where it goes.
 **The mobile workspace is excluded from the root TypeScript project and the root
 ESLint config**, both with comments saying why. React Native's type definitions
 declare globals that conflict with the DOM ones the web app relies on, so
-sharing a project graph would leak them. `apps/mobile` is type-checked on its
-own:
+sharing a project graph would leak them. `apps/app` is checked on its own, and
+`npm run check` runs that too:
 
 ```bash
-npm run typecheck:mobile   # builds @selfmp3/shared first, then tsc --noEmit
-npm run lint:mobile
-npm run check:mobile       # both
+npm run typecheck:app      # builds the packages first, then tsc for the app and its worker
+npm run lint:app
+npm run check:app          # both, and the component tests
 ```
 
 Its *pure* unit tests (`downloadIndex`, `browseTree`) do run in the root vitest
@@ -255,7 +249,7 @@ fixes a real failure:
 
 - `react` and `react-dom` pinned to `19.2.3` — the version Expo SDK 57 ships
   with. This is what keeps npm from installing a second copy of React nested
-  under `apps/mobile`, which Metro would happily bundle alongside the root one,
+  under `apps/app`, which Metro would happily bundle alongside the root one,
   producing the "invalid hook call" that eats an evening. The web app's
   `^19.0.0` is satisfied either way; it just gets a slightly older patch.
 - `react-native-reanimated` / `react-native-worklets` pinned exactly — see
@@ -264,7 +258,7 @@ fixes a real failure:
 None of these are cosmetic. Removing any one of them either breaks
 `npm install` or ships two copies of a package that must be a singleton.
 
-`apps/mobile` is picked up by the existing `apps/*` workspace glob; nothing was
+`apps/app` is picked up by the existing `apps/*` workspace glob; nothing was
 added to `workspaces`.
 
 **`metro.config.js` deliberately does not set `disableHierarchicalLookup`.**
@@ -302,7 +296,7 @@ bundled versions exactly (`expo/bundledNativeModules.json`):
   invalid, and it is the kind of mismatch that surfaces as a native crash
   rather than an error message.
 
-Run `npx expo-doctor` in `apps/mobile` on your Mac to check this against Expo's
+Run `npx expo-doctor` in `apps/app` on your Mac to check this against Expo's
 current view of the world.
 
 ### Why the track-player alpha
@@ -326,6 +320,11 @@ Auto events.
 ---
 
 ## What was and was not verified
+
+*This is the record from when the phone app was a separate workspace, before
+any binary was built. The dev client has been built and run on iOS simulators
+since; [docs/universal-progress.md](universal-progress.md) is the current
+record, phase by phase.*
 
 Everything below was actually run in the sandbox this was written in — Linux, no
 Xcode, no Android SDK.

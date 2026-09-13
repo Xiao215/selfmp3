@@ -1,11 +1,12 @@
 {
   "files": [],
   /*
-   * `apps/mobile` is deliberately absent. It is an Expo app: its tsconfig uses
+   * `apps/app` is deliberately absent. It is an Expo app: its tsconfig uses
    * bundler resolution and pulls in React Native's type definitions, whose
-   * global declarations (a different `fetch`, `setTimeout` returning a number,
-   * no DOM) would conflict with the web app's if the two shared a project
-   * graph. It is type-checked on its own with `npm run typecheck:mobile`.
+   * global declarations (a different `fetch`, `setTimeout` returning a number)
+   * would conflict with the server's and the packages' if they shared a project
+   * graph. It is type-checked on its own by `npm run check:app`, which
+   * `npm run check` runs.
    *
    * `apps/doorman` runs on Cloudflare Workers, another runtime with its own
    * globals, but it can be here: its tsconfig names its types explicitly and
@@ -16,7 +17,6 @@
     { "path": "./packages/cloud" },
     { "path": "./packages/client" },
     { "path": "./apps/server" },
-    { "path": "./apps/web" },
     { "path": "./apps/doorman" }
   ]
 }

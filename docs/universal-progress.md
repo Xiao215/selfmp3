@@ -1840,3 +1840,49 @@ counted as a desktop. The web app read the user agent.
   name set in Settings are kept as on a phone.
 - Checked: a fresh Chromium tab on the web build appeared in the server's
   `/api/devices` as "Mac · Chrome", a desktop.
+
+### Deleting `apps/web` and `apps/mobile`
+
+Phase 5's exit: the last tool has moved, so both are deleted, the Dockerfile
+copies `apps/app/dist`, and CI runs one check.
+
+Looked at first: `apps/web` held 145 tracked files and nothing untracked but its
+build output (`dist`, `dist-types`, `node_modules`); `apps/mobile` 56 tracked
+files and its `node_modules`. The old web app's Vite server on 4601, started from
+this worktree as the reference, was stopped. The two Metro servers on 8081 and
+8082 belong to other worktrees and were left alone.
+
+What changed with them:
+
+- **Scripts.** `npm run build` builds the packages, the server and the app's web
+  export; `npm run dev` runs the server and the app's web dev server on 4601;
+  `npm run check` runs `check:app` too. The `*:mobile` scripts and `dev:cloud`
+  are gone.
+- **CI** runs `npm run check` and `check:app`, no longer `check:mobile`.
+- **The server** no longer serves the old app at `/classic`: its mount, its
+  `/classic/api` rewrite and `classicWebDir` (`SELFMP3_CLASSIC_WEB_DIR`) are
+  removed.
+- **The Dockerfile** copies `packages/client` and `apps/app` into the build stage
+  and `apps/app/dist` into the image; `.dockerignore` leaves out a prebuilt
+  `apps/app/ios` or `android`.
+- **The root TypeScript project and ESLint config** lose `apps/web`, and their
+  comments say why `apps/app` checks itself.
+- **Theme parity.** Two tests in `packages/client` compared the tokens with
+  `apps/web`'s stylesheet; it is kept beside them as
+  `packages/client/src/theme/tokens.reference.css`.
+- **The flows** default to the build the Mac serves on 4600; the old-app branch
+  in `nowPlaying.spec.ts` and `againstUniversalApp` are gone, and
+  `verify/README.md` says how to run them against the build or a dev server.
+- **Docs.** `docs/MOBILE.md`, `docs/features/native-app.md`,
+  `docs/ARCHITECTURE.md`, `docs/SYNC.md` and the README describe `apps/app`.
+  Feature pages written earlier still name old files; the README says so and
+  points here. `docs/reference/` stays, as the plan asks.
+- **The lockfile** was updated in place: 66 entries removed (the two workspaces
+  and what only they used), none added, no version changed.
+
+Checked: `npm run check` (116 test files, 1285 tests and 1 skipped, then the
+app's typecheck, lint and 7 component tests) and `npm run build` (the export
+includes `sw.js` and the manifest), then the gates below.
+
+Not checked: building the Docker image, which needs its base images pulled;
+that waits for Xiao.

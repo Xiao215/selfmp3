@@ -18,7 +18,7 @@ import {
  */
 
 const CSS = readFileSync(
-  new URL('../../../../apps/web/src/styles/parts/tokens.css', import.meta.url),
+  new URL('./tokens.reference.css', import.meta.url),
   'utf8',
 )
 const LIGHT = (() => {

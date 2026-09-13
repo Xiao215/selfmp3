@@ -3,8 +3,8 @@ import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 /**
  * The web app's palette, resolved to hex.
  *
- * `apps/web/src/styles/parts/tokens.css` builds every colour from `oklch(L C
- * var(--accent-hue))`. React Native has neither OKLCH nor custom properties,
+ * The web app's stylesheet built every colour from `oklch(L C var(--accent-hue))`;
+ * it is kept beside the tests as `tokens.reference.css`. React Native has neither OKLCH nor custom properties,
  * so the same lightness/chroma pairs are converted here instead, and the two
  * apps stay visually identical.
  *
@@ -144,7 +144,7 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
 export type ThemePalette = ReturnType<typeof darkPalette>
 
 /**
- * The web's light theme, `:root[data-theme='light']` in tokens.css. Its
+ * The web's light theme, `:root[data-theme='light']` in tokens.reference.css. Its
  * surfaces are tinted by the hue, faintly, as the web's are. Danger, warning
  * and good are the same in both.
  */

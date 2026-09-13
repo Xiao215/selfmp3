@@ -119,7 +119,7 @@ export function SyncStatus({ songs }: { songs: readonly Song[] }): ReactNode {
       <View style={styles.row}>
         <Text style={styles.text}>
           {missing.length} new{held > 0 ? ` · ${held} on this phone` : ''}
-          {onData ? ' · on mobile data' : ''}
+          {onData ? ' · on data' : ''}
         </Text>
         <Pressable
           onPress={() => queue.enqueue(missing)}

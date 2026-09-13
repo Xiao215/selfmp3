@@ -911,8 +911,8 @@ and streaming work builds to. Recorded here so it is not re-litigated.
 
 - On Wi-Fi, a device whose downloads are out of date downloads automatically.
   The header line says "Downloading 12 of 40".
-- On mobile data it does not. The header says "40 not downloaded · on mobile
-  data · Download". Tapping Download asks once — "Download on mobile data?",
+- On mobile data it does not. The header says "40 not downloaded · on data ·
+  Download" (Xiao: "on data", not "on mobile data"). Tapping Download asks once — "Download on mobile data?",
   Download / Not now — and the answer holds until the device is back on Wi-Fi.
 - Offline, the header says "40 not downloaded · offline".
 - **Any sync over 500 MB waits for a tap, on any connection.** It is never

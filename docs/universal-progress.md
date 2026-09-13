@@ -2385,3 +2385,19 @@ From Xiao on 4600:
   installed PWA and iOS home-screen icons are build-time files and keep their
   colour (iOS would need alternate app icons, a native rebuild).
 - Energy's caption: "Energy 86%".
+
+### The stage's key and energy in the song's colour — branch `universal/stage-song-colour`
+
+From Xiao: on the stage, 群青's "7A" was a pale olive and its energy wave
+another colour, neither the song's. The key was `oklchToHex(0.8, 0.1, accent.hue)`
+(+120° for a B key) and the wave the accent. Both are now `useSongColor(song,
+uri).color`, as the player bar's seek bar and lit toggles are.
+
+On the phone's home-screen icon following the accent: iOS has no way to draw an
+app icon at runtime, only `setAlternateIconName` over icons bundled at build
+time, with a system alert each change. A free hue could at best snap to the
+nearest of the seven presets. Xiao's call: the phone keeps the one default icon
+and does not follow the accent; only the browser tab does.
+
+Checked on the dev server: 群青's 7A reads rgb(216, 120, 123) and its wave is
+drawn the same pink, the cover's colour.

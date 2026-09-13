@@ -16,7 +16,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import {
-  oklchToHex,
   radius,
   rgba,
   tagColors,
@@ -35,6 +34,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, Collapse, Expand, Next, Romanize, TagPlus } from '../../ui/components/Icons'
 import { SongDetailsBody } from '../../ui/components/SongDetails'
 import { TagPicker } from '../../ui/components/TagPicker'
+import { useSongColor } from '../../ui/useSongColor'
 import {
   contextLine,
   hexAlpha,
@@ -140,6 +140,8 @@ function Stage({
   const lyrics = useSongWords(song)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
+  // The key and the energy wave, like the player bar's lit controls.
+  const songColor = useSongColor(song, uri)
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -268,24 +270,18 @@ function Stage({
               ) : null}
               {features.camelot ? (
                 <View style={styles.key}>
-                  <Text
-                    style={[
-                      styles.keyText,
-                      {
-                        color: oklchToHex(
-                          0.8,
-                          0.1,
-                          features.camelot.endsWith('A') ? accent.hue : accent.hue + 120,
-                        ),
-                      },
-                    ]}
-                  >
+                  <Text style={[styles.keyText, { color: songColor.color }]}>
                     {features.camelot}
                   </Text>
                 </View>
               ) : null}
               {features.energy != null ? (
-                <EnergyWave energy={features.energy} width={34} height={16} />
+                <EnergyWave
+                  energy={features.energy}
+                  width={34}
+                  height={16}
+                  color={songColor.color}
+                />
               ) : null}
             </View>
           ) : null}

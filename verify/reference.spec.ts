@@ -577,6 +577,17 @@ test.describe('reference', () => {
     await shot(page, project, 'wrapped-bottom')
   })
 
+  test('practice', async ({ page }, info) => {
+    const project = info.project.name
+    test.skip(project === 'phone', 'the phone’s practice sheet is captured with the sheets')
+    await home(page)
+    await page.getByRole('button', { name: 'Practice tools' }).click()
+    await settle(page, 900)
+    await restMouse(page)
+    await shot(page, project, 'practice-panel')
+    await page.getByRole('button', { name: 'Close practice' }).click()
+  })
+
   test('settings', async ({ page }, info) => {
     const project = info.project.name
     await page.goto('/settings')

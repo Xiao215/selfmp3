@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
-import { oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
+import { loopRegionPercent, oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { useArt } from '../offline/useArt'
@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Devices,
   Heart,
+  Metronome,
   Mic,
   Moon,
   Next,
@@ -38,6 +39,7 @@ import { SeekBar } from '../ui/components/SeekBar'
 import { SheetItem } from '../ui/components/Sheet'
 import { TagPicker } from '../ui/components/TagPicker'
 import { useLayout } from './useLayout'
+import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 
 /**
  * The transport across the foot of the desktop layout: the web's `.player-bar`.
@@ -65,6 +67,7 @@ const REPEAT_LABEL = {
 } as const
 
 export function PlayerBar(): ReactNode {
+  const practiceOpen = usePracticeOpen()
   const { theme } = useUnistyles()
   const player = usePlayer()
   const accent = useAccent()
@@ -237,6 +240,7 @@ export function PlayerBar(): ReactNode {
         </View>
         <View style={styles.progress}>
           <SeekBar
+            loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
             inline
             position={player.position}
             duration={player.duration}
@@ -255,6 +259,18 @@ export function PlayerBar(): ReactNode {
           </IconButton>
           <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
             <Queue size={17} color={queueOpen ? accent.accent : theme.colors.textSecondary} />
+          </IconButton>
+          <IconButton
+            onPress={() => setPracticeOpen(!practiceOpen)}
+            label="Practice tools"
+            active={practiceOpen || player.loopB !== null}
+          >
+            <Metronome
+              size={17}
+              color={
+                practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textSecondary
+              }
+            />
           </IconButton>
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Playback">

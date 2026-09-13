@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
+import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { space, type } from '@selfmp3/client'
 
@@ -24,6 +25,7 @@ export function SeekBar({
   duration,
   onSeek,
   inline = false,
+  loop = null,
 }: {
   position: number
   duration: number
@@ -34,6 +36,8 @@ export function SeekBar({
    * thick track with the times beneath it.
    */
   inline?: boolean
+  /** The practice loop, as percentages of the bar, drawn behind the track. */
+  loop?: LoopRegion | null
 }): ReactNode {
   const accent = useAccent()
   const [width, setWidth] = useState(0)
@@ -94,6 +98,21 @@ export function SeekBar({
             aria-valuenow={Math.round(shown)}
             {...responder.panHandlers}
           >
+            {loop ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.loop,
+                  inline && styles.loopInline,
+                  {
+                    left: `${loop.left}%`,
+                    width: `${loop.width}%`,
+                    borderColor: accent.accent,
+                    backgroundColor: `${accent.accent}29`,
+                  },
+                ]}
+              />
+            ) : null}
             <View style={[styles.track, inline && styles.trackInline]}>
               <View
                 style={[
@@ -143,6 +162,20 @@ export function SeekBar({
         aria-valuenow={Math.round(shown)}
         {...responder.panHandlers}
       >
+        {loop ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.loop,
+              {
+                left: `${loop.left}%`,
+                width: `${loop.width}%`,
+                borderColor: accent.accent,
+                backgroundColor: `${accent.accent}29`,
+              },
+            ]}
+          />
+        ) : null}
         <View style={styles.track}>
           <View style={[styles.fill, { width: width * ratio, backgroundColor: accent.accent }]} />
           <View
@@ -188,6 +221,18 @@ const styles = StyleSheet.create(theme => ({
   trackInline: { height: 4, borderRadius: 2 },
   fillInline: { height: 4, borderRadius: 2 },
   thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
+  /* `.loop-region`: low-contrast, a little taller than the track, edged in the accent. */
+  loop: {
+    position: 'absolute',
+    top: '50%',
+    height: 14,
+    marginTop: -7,
+    minWidth: 2,
+    borderRadius: 2,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+  },
+  loopInline: { height: 10, marginTop: -5 },
   wrapper: {
     width: '100%',
   },

@@ -1490,3 +1490,48 @@ Where it differs, on purpose for now:
   walks its columns with the arrow keys; here a chart is one image to a screen
   reader, named with its highest value.
 - **Wrapped's big number is plain text**, not the web's gradient-filled type.
+
+### Practice
+
+The web's `PracticePanel`: an A–B loop with a count-in, speed with pitch lock,
+and the key transposed, in collapsible groups.
+
+- The practice helpers (`tapLoop`, `loopRegionPercent`, `countInMs`,
+  `PRACTICE_SPEEDS`) moved from `apps/web/src/player/practice.ts` into
+  `packages/client`, with their 8 tests, so both apps use the same ones.
+- The player gains the loop points, the count-in, pitch lock and their
+  setters. Pitch lock and the count-in are kept on this device as the web keeps
+  them, and the count-in is one beat of whatever song is playing.
+- The engine port declares a new capability, `loop`: the web engine loops to
+  within a frame; track-player reports progress once a second, so the phone's
+  engine says no rather than land up to a second past B.
+- At desktop width the panel opens beside the page from the player bar's
+  metronome ("Practice tools"), as on the web. On a phone it opens as a sheet
+  from Practice in Now Playing's foot.
+- The seek bars draw the loop region behind the track, in the player bar and on
+  the phone's Now Playing.
+- Checked: `verify/flows/practice.spec.ts` plays a song, sets and clears a loop,
+  changes the speed and puts it back, against both apps at desktop width. The
+  reference set gains `practice-panel` (desktop; the phone sheet was already
+  there as `sheet-practice`), and the new app is captured in the same state.
+
+Where it differs, on purpose for now:
+
+- **A phone has no A–B loop and no pitch-lock switch.** Its panel offers speed
+  and transpose, and says the loop waits for the desktop app. A loop needs the
+  playhead finer than track-player reports it.
+- **Practice sits in Now Playing's foot beside Keep**, where the web's phone
+  toolbar has no Keep: six actions rather than five.
+
+Two things found while bringing Practice across, both older than it:
+
+- **Sheets opened from a phone's Now Playing never showed.** Sleep, Devices and
+  Practice all draw through the shell's overlay host, and a phone presents Now
+  Playing as a native modal above the whole app, host included, so the sheet
+  sat under the page. The phone's Now Playing now has an overlay host of its
+  own, inside the modal. Checked on the iPhone simulator: Practice opens with
+  Speed and Transpose, and Sleep opens over the page.
+- **Library rows chose their columns from the window.** With the practice panel
+  open the page is 340 narrower, and the album column was drawn into a page too
+  narrow for it, over the tempo. The shell now measures the page column
+  (`shell/contentWidth.tsx`) and a row decides by that.

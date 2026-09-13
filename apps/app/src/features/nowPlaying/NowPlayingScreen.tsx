@@ -15,7 +15,15 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useToggleLoved } from '../../api/queries'
-import { isDownloaded, HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import {
+  HIT_TARGET,
+  isDownloaded,
+  loopRegionPercent,
+  motion,
+  radius,
+  space,
+  type,
+} from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
@@ -25,9 +33,10 @@ import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronDown,
   CloudDownload,
+  Devices,
   Downloaded,
   Heart,
-  Devices,
+  Metronome,
   Mic,
   Moon,
   Next,
@@ -41,10 +50,13 @@ import {
   Shuffle,
   X,
 } from '../../ui/components/Icons'
+import { Sheet } from '../../ui/components/Sheet'
 import { SleepMenu } from '../../ui/components/SleepMenu'
 import { DevicesSheet } from '../devices/DevicesSheet'
+import { PracticePanel } from '../practice/PracticePanel'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { useArt } from '../../offline/useArt'
+import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
 import { romanName } from './nowPlaying.model'
@@ -72,7 +84,17 @@ export function NowPlayingScreen(): ReactNode {
   const { wide } = useLayout()
   // A computer gets the web's page, with the lyrics beside the art; a phone
   // keeps its own screen.
-  return wide ? <NowPlayingStage /> : <PhoneNowPlaying />
+  // A phone presents this page as a native modal, above the whole app, the
+  // shell's overlay host included: a sheet drawn there sat under the page and
+  // never showed (Sleep, Devices, Practice). So the phone's page has a host of
+  // its own, inside the modal.
+  return wide ? (
+    <NowPlayingStage />
+  ) : (
+    <OverlayProvider>
+      <PhoneNowPlaying />
+    </OverlayProvider>
+  )
 }
 
 function PhoneNowPlaying(): ReactNode {
@@ -88,6 +110,7 @@ function PhoneNowPlaying(): ReactNode {
   const [panel, setPanel] = useState<Panel>('none')
   const [showWords, setShowWords] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
+  const [practiceOpen, setPracticeOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
 
   const song = player.current
@@ -216,6 +239,7 @@ function PhoneNowPlaying(): ReactNode {
 
             <View style={styles.progress}>
               <SeekBar
+                loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
                 position={player.position}
                 duration={player.duration}
                 onSeek={player.seekTo}
@@ -295,6 +319,17 @@ function PhoneNowPlaying(): ReactNode {
         />
         <FootAction
           icon={
+            <Metronome
+              size={19}
+              color={practiceOpen || player.loopB !== null ? accent.accent : theme.colors.textMuted}
+            />
+          }
+          label="Practice"
+          active={practiceOpen}
+          onPress={() => setPracticeOpen(true)}
+        />
+        <FootAction
+          icon={
             held ? (
               <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
             ) : (
@@ -333,6 +368,11 @@ function PhoneNowPlaying(): ReactNode {
           onPress={() => setPanel(current => (current === 'queue' ? 'none' : 'queue'))}
         />
       </View>
+      <Sheet open={practiceOpen} onClose={() => setPracticeOpen(false)} testID="practice-sheet">
+        <View style={styles.practiceSheet}>
+          <PracticePanel onClose={() => setPracticeOpen(false)} />
+        </View>
+      </Sheet>
       <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
       <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </SafeAreaView>
@@ -698,6 +738,7 @@ const styles = StyleSheet.create(theme => ({
   playButtonPressed: {
     transform: [{ scale: 0.96 }],
   },
+  practiceSheet: { height: 560 },
   foot: {
     flexDirection: 'row',
     gap: 2,

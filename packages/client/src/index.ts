@@ -52,6 +52,9 @@ export * from './theme/tokens.js'
 
 export * from './listens/counting.js'
 
+// The A–B loop and count-in, what the practice panel decides before the engine acts.
+export * from './practice/practice.js'
+
 export type {
   EngineCapabilities,
   EngineState,

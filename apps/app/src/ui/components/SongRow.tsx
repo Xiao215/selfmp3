@@ -15,6 +15,7 @@ import {
   tempoMark,
   type,
 } from '@selfmp3/client'
+import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
@@ -23,8 +24,13 @@ import { EnergyWave } from './EnergyWave'
 import { Equalizer } from './Equalizer'
 import { Downloaded, Heart, More, NotDownloaded, Play, Plus } from './Icons'
 
-/** Past this width the album leaves the second line for a column of its own. */
-const ALBUM_COLUMN_WIDTH = 1160
+/**
+ * Past this width of page the album leaves the second line for a column of its
+ * own. It was 1160 of window, of which the sidebar takes 244; measured against
+ * the page itself, it stays right when the practice panel narrows the page.
+ */
+const ALBUM_COLUMN_CONTENT_WIDTH = 916
+const SIDEBAR_WIDTH = 244
 
 /**
  * One song in a list: the web's `.song-row`.
@@ -104,6 +110,7 @@ export const SongRow = memo(function SongRow({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense, width } = useLayout()
+  const contentWidth = useContentWidth()
   const [hovered, setHovered] = useState(false)
   const moreRef = useRef<View>(null)
   // The held-finger state, as on the web: the row gives a little under the
@@ -206,7 +213,7 @@ export const SongRow = memo(function SongRow({
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered
-  const albumColumn = width >= ALBUM_COLUMN_WIDTH
+  const albumColumn = (contentWidth ?? width - SIDEBAR_WIDTH) >= ALBUM_COLUMN_CONTENT_WIDTH
   const features = song.features
   const badges = features && (features.bpm != null || features.energy != null)
   const controlSize = dense ? 34 : HIT_TARGET

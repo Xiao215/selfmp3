@@ -64,6 +64,8 @@ export interface EngineCapabilities {
   readonly analyser: boolean
   /** Change speed without changing pitch. */
   readonly pitchLock: boolean
+  /** Loop A to B to within a frame, with a count-in before each restart. */
+  readonly loop: boolean
   /** Put metadata and transport controls on the lock screen or in the car. */
   readonly lockScreen: boolean
   /** The platform owns the queue, so handing it songs ahead is its job. */

@@ -18,10 +18,12 @@ import {
 } from '@selfmp3/shared'
 import {
   advancePlayable,
+  countInMs,
+  type EngineState,
   listenedDelta,
   peekPlayable,
   secondsToCount,
-  type EngineState,
+  tapLoop,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
@@ -104,10 +106,29 @@ export interface PlayerApi {
   setRate: (rate: number) => void
   /** Minutes from now, or null to cancel. */
   setSleepTimer: (minutes: number | null) => void
+
+  // --- practice ------------------------------------------------------------
+  /** Whether this engine can loop A to B closely; a phone's cannot, yet. */
+  readonly canLoop: boolean
+  readonly loopA: number | null
+  readonly loopB: number | null
+  /** The pause before a loop starts again, while it is happening. */
+  readonly countingIn: boolean
+  readonly preservesPitch: boolean
+  /** Whether a restart of the loop waits one beat first. */
+  readonly countIn: boolean
+  /** Set A or B of the loop from where the song is now. */
+  tapLoopPoint: (which: 'A' | 'B') => void
+  clearLoop: () => void
+  setPreservesPitch: (on: boolean) => void
+  setCountIn: (on: boolean) => void
 }
 
 /** Where this device keeps its volume, as the web app does. */
 const VOLUME_KEY = 'volume'
+/** Practice preferences, kept on this device as the web keeps them. */
+const PITCH_LOCK_KEY = 'pitchlock'
+const COUNT_IN_KEY = 'countin'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
 
@@ -139,6 +160,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
+  const [countIn, setCountInState] = useState(() => prefs.get(COUNT_IN_KEY) === '1')
 
   const songsById = useMemo(() => {
     const map = new Map<number, Song>()
@@ -468,6 +490,36 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const toggleMute = useCallback(() => engine.setMuted(!engine.state.muted), [engine])
   const setRate = useCallback((rate: number) => engine.setRate(rate), [engine])
 
+  // --- practice ---------------------------------------------------------------
+
+  const tapLoopPoint = useCallback(
+    (which: 'A' | 'B') => {
+      const { a, b } = tapLoop(which, engine.state.currentTime, {
+        a: engine.state.loopA,
+        b: engine.state.loopB,
+      })
+      engine.setLoop(a, b)
+    },
+    [engine],
+  )
+  const clearLoop = useCallback(() => engine.clearLoop(), [engine])
+  const setPreservesPitch = useCallback(
+    (on: boolean) => {
+      engine.setPreservesPitch(on)
+      prefs.set(PITCH_LOCK_KEY, on ? '1' : '0')
+    },
+    [engine],
+  )
+  const setCountIn = useCallback((on: boolean) => {
+    setCountInState(on)
+    prefs.set(COUNT_IN_KEY, on ? '1' : '0')
+  }, [])
+
+  // Pitch lock is on unless this device was told otherwise.
+  useEffect(() => {
+    if (prefs.get(PITCH_LOCK_KEY) === '0') engine.setPreservesPitch(false)
+  }, [engine])
+
   const setSleepTimer = useCallback((minutes: number | null) => {
     setSleepTimerEndsAt(minutes === null ? null : Date.now() + minutes * 60_000)
   }, [])
@@ -508,6 +560,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     return { queueSongs, currentSong: current }
   }, [queue, songsById])
 
+  const currentBpm = resolved.currentSong?.features?.bpm ?? null
+  useEffect(() => {
+    engine.setCountIn(countIn ? countInMs(currentBpm) : 0)
+  }, [engine, countIn, currentBpm])
+
   const value = useMemo<PlayerApi>(
     () => ({
       queue,
@@ -541,6 +598,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       toggleMute,
       setRate,
       setSleepTimer,
+      canLoop: engine.capabilities.loop,
+      loopA: engineState.loopA,
+      loopB: engineState.loopB,
+      countingIn: engineState.countingIn,
+      preservesPitch: engineState.preservesPitch,
+      countIn,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      setCountIn,
     }),
     [
       engineState.volume,
@@ -552,6 +619,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       toggleMute,
       setRate,
       setSleepTimer,
+      engine,
+      engineState.loopA,
+      engineState.loopB,
+      engineState.countingIn,
+      engineState.preservesPitch,
+      countIn,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      setCountIn,
       queue,
       resolved,
       engineState.playing,

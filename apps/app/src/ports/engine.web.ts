@@ -111,6 +111,7 @@ export class AudioEngine implements PlaybackEngine {
     crossfade: true,
     analyser: true,
     pitchLock: true,
+    loop: true,
     lockScreen: false,
     nativeQueue: false,
   }

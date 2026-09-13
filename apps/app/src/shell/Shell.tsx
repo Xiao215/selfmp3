@@ -14,6 +14,9 @@ import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
+import { PracticePanel } from '../features/practice/PracticePanel'
+import { ContentWidthContext } from './contentWidth'
+import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 
 /**
  * The frame around every screen, and the only thing that knows the width.
@@ -71,16 +74,9 @@ function frame(
 
   if (wide) {
     return (
-      <View style={styles.root} testID="shell-wide">
-        <View style={styles.columns}>
-          {sidebar ? <Sidebar /> : null}
-          <View style={styles.content}>
-            {children}
-            <Toasts />
-          </View>
-        </View>
-        {barHidden ? null : <PlayerBar />}
-      </View>
+      <WideFrame sidebar={sidebar} barHidden={barHidden}>
+        {children}
+      </WideFrame>
     )
   }
 
@@ -94,6 +90,43 @@ function frame(
       <BottomNav />
     </View>
   )
+}
+
+/** The desktop frame, which measures the page column for the screens inside it. */
+function WideFrame({
+  sidebar,
+  barHidden,
+  children,
+}: {
+  sidebar: boolean
+  barHidden: boolean
+  children: ReactNode
+}): ReactNode {
+  const [contentWidth, setContentWidth] = useState<number | null>(null)
+  return (
+    <View style={styles.root} testID="shell-wide">
+      <View style={styles.columns}>
+        {sidebar ? <Sidebar /> : null}
+        <View
+          style={styles.content}
+          onLayout={event => setContentWidth(Math.round(event.nativeEvent.layout.width))}
+        >
+          <ContentWidthContext.Provider value={contentWidth}>
+            {children}
+          </ContentWidthContext.Provider>
+          <Toasts />
+        </View>
+        <PracticeSide />
+      </View>
+      {barHidden ? null : <PlayerBar />}
+    </View>
+  )
+}
+
+/** The practice panel beside the page, while the player bar's metronome has it open. */
+function PracticeSide(): ReactNode {
+  const open = usePracticeOpen()
+  return open ? <PracticePanel side onClose={() => setPracticeOpen(false)} /> : null
 }
 
 /** ⌘K, or Ctrl+K, anywhere: the command palette. */

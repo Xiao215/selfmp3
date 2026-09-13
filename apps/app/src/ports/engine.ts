@@ -53,6 +53,9 @@ const capabilities: EngineCapabilities = {
   // iOS preserves pitch when the rate changes; Android's player does not.
   // Declared from the platform the port is compiled for, not asked at runtime.
   pitchLock: true,
+  // Progress arrives once a second from track-player, so a loop would land up to
+  // a second past B. Not offered rather than offered badly.
+  loop: false,
   lockScreen: true,
   nativeQueue: true,
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Pressable,
@@ -117,6 +117,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     ...lyricHits.map(hit => ({ key: `lyric-${hit.songId}`, run: () => playSong(hit.songId) })),
   ]
   const active = Math.min(highlighted, Math.max(0, entries.length - 1))
+  // Keep the highlighted row in view as the arrow keys move through a long list.
+  const rows = useRef(new Map<number, unknown>())
+  useEffect(() => {
+    const row = rows.current.get(active) as
+      { scrollIntoView?: (options: { block: 'nearest' }) => void } | undefined
+    row?.scrollIntoView?.({ block: 'nearest' })
+  }, [active])
 
   const activate = (index: number): void => {
     entries[index]?.run()
@@ -130,6 +137,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     return (
       <Pressable
         key={key}
+        ref={node => {
+          rows.current.set(index, node)
+        }}
         role="option"
         aria-selected={on}
         accessibilityLabel={label}

@@ -27,6 +27,7 @@ import {
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
+import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
@@ -144,6 +145,11 @@ function Stage({
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
   const idle = useIdle(focus)
+  // The player bar steps aside too, and comes back when anything moves.
+  useEffect(() => {
+    setStageIdle(idle)
+  }, [idle])
+  useEffect(() => () => setStageIdle(false), [])
   const width = size?.width ?? window.width
   const height = size?.height ?? window.height - BAR
   const g = stageGeometry(width, height)

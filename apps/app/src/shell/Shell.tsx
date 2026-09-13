@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Appearance, StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
@@ -16,6 +16,7 @@ import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
+import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
 
@@ -47,10 +48,12 @@ export function Shell({
   sidebar?: boolean
 }): ReactNode {
   const { wide } = useLayout()
+  // Focus with a still mouse: the bar folds away and the page takes its room.
+  const barHidden = useSyncExternalStore(subscribeStageIdle, stageIdle, stageIdle)
 
   return (
     <OverlayProvider>
-      {frame(wide, chrome, sidebar, children)}
+      {frame(wide, chrome, sidebar, barHidden, children)}
       <PlaybackNotices />
       <PaletteHost />
       <SystemThemeWatcher />
@@ -63,7 +66,13 @@ export function Shell({
  * and popovers land above the tab bar and the player bar rather than inside
  * whichever screen opened them.
  */
-function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: ReactNode): ReactNode {
+function frame(
+  wide: boolean,
+  chrome: boolean,
+  sidebar: boolean,
+  barHidden: boolean,
+  children: ReactNode,
+): ReactNode {
   if (!chrome) return <View style={styles.root}>{children}</View>
 
   if (wide) {
@@ -76,7 +85,7 @@ function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: React
             <Toasts />
           </View>
         </View>
-        <PlayerBar />
+        {barHidden ? null : <PlayerBar />}
       </View>
     )
   }

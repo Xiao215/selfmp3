@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, playSong, skipIfNoLibrary, songRows } from './helpers.js'
+import {
+  againstUniversalApp,
+  libraryReady,
+  playSong,
+  skipIfNoLibrary,
+  songRows,
+} from './helpers.js'
 
 /**
  * Now Playing on a computer, driven from the player bar.
@@ -51,5 +57,26 @@ test.describe('now playing', () => {
     await page.getByRole('button', { name: 'Close now playing' }).first().click()
     await expect(page.getByRole('button', { name: /^Open now playing: / })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Pause' }).last()).toBeVisible()
+  })
+
+  test('in Focus the player bar steps aside while the mouse is still', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'Focus is the computer layout')
+    test.skip(
+      !againstUniversalApp,
+      'the old app slides its bar away with a transform, which a visibility check cannot see',
+    )
+    await page.goto('/')
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+    await playSong(page, songRows(page).first())
+
+    await page.getByRole('button', { name: 'Lyrics', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Back to the full page' }).first()).toBeVisible()
+
+    const bar = page.getByTestId('player-bar')
+    await expect(bar).toBeHidden({ timeout: 8_000 })
+    await page.mouse.move(400, 300)
+    await page.mouse.move(420, 320)
+    await expect(bar).toBeVisible()
   })
 })

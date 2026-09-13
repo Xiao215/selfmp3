@@ -1034,6 +1034,11 @@ from review. The captured states still have to pass check 2 by eye.
     Creation errors in the tag picker and the new-playlist form still show
     under their fields, as they already did.
 
+- **Two differences closed.** In Focus, the player bar now folds away with
+  the page's own controls once the mouse is still, and comes back when
+  anything moves; `nowPlaying.spec.ts` checks it against this app. In the
+  palette, the arrow keys keep the highlighted row in view.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -1065,7 +1070,6 @@ seven states at 1280, and the phone's five.
     word, estimated between timestamps, every frame.
   - The lyrics have no fade at the top and bottom. An SVG gradient over them
     darkened the whole column instead, so it came out.
-  - The player bar stays in Focus; only the page's own controls step aside.
   - A song with no words shows a quiet line ("Instrumental", or "No lyrics
     found · It's instrumental") rather than the web's drawn visual, and the
     tab is always "Lyrics", never "Visual".
@@ -1110,7 +1114,6 @@ seven states at 1280, and the phone's five.
     songs wait for those screens.
   - A tag result sets the library's filter to that tag, where the web
     navigates to `/?tag=`.
-  - Arrow keys don't scroll the highlighted row into view on a long list.
 - **The light theme, and a question for Xiao.** The plan's route is
   Unistyles, which switches themes without re-rendering. It is installed,
   with its Babel plugin and native pods, but no screen uses it, and moving

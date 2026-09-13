@@ -892,6 +892,61 @@ seven library states at each width.
 
 ---
 
+## Downloading and streaming — decided by Xiao, 2026-09-12
+
+Asked in conversation, after question 6. This is the design the downloading
+and streaming work builds to. Recorded here so it is not re-litigated.
+
+**Where each kind of client stands**
+
+- **Web** (a browser, at any width) always streams. Keeping songs offline stays
+  optional.
+- **Phone, and a desktop app** download by default and play from the files.
+  "Desktop" means an app installed on a computer — macOS first — not the web app
+  in a wide window. There is no such app yet: the plan's phase 6 names "a
+  desktop shell if one is ever wanted", and which toolkit it uses needs a line
+  in the Stack table before any work starts.
+
+**Downloading**
+
+- On Wi-Fi, a device whose downloads are out of date downloads automatically.
+  The header line says "Downloading 12 of 40".
+- On mobile data it does not. The header says "40 not downloaded · on mobile
+  data · Download". Tapping Download asks once — "Download on mobile data?",
+  Download / Not now — and the answer holds until the device is back on Wi-Fi.
+- Offline, the header says "40 not downloaded · offline".
+- **Any sync over 500 MB waits for a tap, on any connection.** It is never
+  automatic.
+- An iPhone on a personal hotspot reports Wi-Fi, and is treated as Wi-Fi.
+  Accepted.
+- Downloading in the background is preferred. If it cannot be made to work,
+  downloading only while the app is open is acceptable. Today it is
+  foreground-only: iOS's background session failed every transfer with
+  `UnableToDownloadException` (see `src/ports/downloadStorage.ts`), so that
+  is the thing to retry.
+
+**Streaming**
+
+- Two separate settings, not one tied to the other: "Download automatically on
+  Wi-Fi" and "Play songs that aren't downloaded". With both on, a song tapped
+  before it has synced still plays at once.
+- Streaming over mobile data asks the same once-until-Wi-Fi question as
+  downloading.
+- Songs, one or a selection, can always be downloaded by hand, whatever the
+  settings.
+- A phone signed in only to the cloud cannot stream: the player cannot send the
+  doorman's sign-in. That waits for the dedicated server (signed links, most
+  likely), and until then such a phone plays downloads only.
+
+**What a song that cannot play looks like**
+
+- A small "not downloaded" mark, the counterpart of the downloaded one, on
+  every song that is not on the device.
+- Where such a song cannot play — offline, or with streaming off — tapping it
+  says why instead of loading it and sitting paused. That answers question 6.
+
+---
+
 ## Open questions for the morning
 
 1. **Should the phone record skips?** The web does: a manual skip past the
@@ -935,7 +990,8 @@ seven library states at each width.
    its framing and reconnect tested under vitest, but has not run against a
    Mac: a second simulator set up for that wedged and was shut down.
 
-6. **Should the phone say so when a song cannot play?** Found running the
+6. **Answered 2026-09-12 — yes; see "Downloading and streaming" above.**
+   **Should the phone say so when a song cannot play?** Found running the
    offline check in phase 3. With the Mac out of reach, tapping a song that is
    not downloaded loads it into the mini player, where it sits paused with no
    message. The plan's offline check asks for the web app's behaviour:

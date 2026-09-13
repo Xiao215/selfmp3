@@ -25,6 +25,8 @@ export class CoverService {
   readonly #dir: string
   readonly #songs: SongRepository
   readonly #logger: Logger
+  /** A cover was written: its colour wants reading. */
+  onSaved: ((songId: number) => void) | null = null
 
   constructor(config: Config, songs: SongRepository, logger: Logger) {
     this.#dir = path.join(config.dataDir, 'covers')
@@ -50,6 +52,7 @@ export class CoverService {
         ),
       )
       this.#songs.setArt(songId, true, ext)
+      this.onSaved?.(songId)
     } catch (error) {
       // Missing art is cosmetic; a placeholder gradient is shown instead.
       this.#logger.warn('could not cache cover art', {

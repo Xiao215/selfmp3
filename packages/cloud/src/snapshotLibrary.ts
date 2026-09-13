@@ -104,6 +104,7 @@ export function snapshotToLibrary(
       sizeBytes: song.audio.size,
       mime: song.audio.mime,
       hasArt: song.cover !== null,
+      coverTone: song.coverTone ?? null,
       // Changes exactly when the audio or the cover does, so media URLs never
       // serve an old file: both are named by their hash.
       rev: `${hashOf(song.audio.key)}.${song.cover ? hashOf(song.cover.key) : '0'}`,

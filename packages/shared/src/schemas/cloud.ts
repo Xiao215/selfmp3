@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
@@ -93,6 +94,8 @@ export const CloudSongSchema = z.object({
   duration: z.number().nonnegative(),
   audio: CloudAudioSchema,
   cover: CloudCoverSchema.nullable(),
+  /** The cover's colour, as the server picked it (schemas/song.ts). Absent from older snapshots. */
+  coverTone: CoverToneSchema.nullable().optional(),
   lyrics: CloudLyricsSchema.nullable(),
   instrumental: z.boolean(),
   loved: z.boolean(),

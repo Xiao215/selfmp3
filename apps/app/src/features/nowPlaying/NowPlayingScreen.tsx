@@ -27,6 +27,7 @@ import {
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
+import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
@@ -524,7 +525,7 @@ function QueuePanel({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
+  const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
   const listRef = useRef<FlatList<Song>>(null)
 
   const upcoming = player.songs.slice(player.queue.index + 1)
@@ -552,7 +553,7 @@ function QueuePanel({
       <View
         style={[
           styles.queueRow,
-          isCurrent && { backgroundColor: theme.colors.surface2, borderLeftColor: accent.accent },
+          isCurrent && { backgroundColor: theme.colors.surface2, borderLeftColor: songColor.color },
         ]}
       >
         <Pressable
@@ -563,7 +564,7 @@ function QueuePanel({
         >
           {isCurrent ? (
             <View style={styles.queueMarker}>
-              <Equalizer paused={!player.isPlaying} size={14} />
+              <Equalizer paused={!player.isPlaying} size={14} color={songColor.tint} />
             </View>
           ) : (
             <View style={isPast && styles.queuePastArt}>

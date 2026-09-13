@@ -30,6 +30,7 @@ import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
+import { CoverToneService } from './services/coverTones.js'
 import { DeviceRepository } from './repositories/devices.js'
 import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
@@ -264,6 +265,12 @@ export function createContainer(config: Config): Container {
     },
   })
 
+  // The colour of each cover, for devices to draw the playing song in: read
+  // once for the covers already here, and again whenever one is saved.
+  const coverTones = new CoverToneService({ songs, covers, logger, onChange: bump })
+  covers.onSaved = () => coverTones.kick()
+  coverTones.kick()
+
   // Analysis runs after the work that matters: new and changed files are
   // queued as they are ingested, and a finished scan nudges the loop.
   scanner.onIngested = (songId, change) => {
@@ -363,6 +370,7 @@ export function createContainer(config: Config): Container {
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()
+      coverTones.stop()
       importQueue.stop()
       cloudSync.stop()
       migrate.stop()

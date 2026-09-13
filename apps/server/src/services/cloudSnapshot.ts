@@ -90,6 +90,9 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       duration: song.duration,
       audio: { key: state.audioKey, size: state.audioSize, mime: song.mime },
       cover: state.coverKey !== null ? { key: state.coverKey, size: state.coverSize ?? 0 } : null,
+      // The cover's colour, when there is a cover to be the colour of and it has
+      // been read. Left out otherwise, as an older snapshot would.
+      ...(state.coverKey !== null && song.coverTone ? { coverTone: song.coverTone } : {}),
       lyrics:
         state.lyricsKey !== null && state.lyricsKind !== null
           ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }

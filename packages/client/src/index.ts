@@ -52,6 +52,8 @@ export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 
 /** The colours a cover lends Now Playing. */
 export * from './art/palette.js'
+/** The colour a cover lends what is playing: the row, the bars. */
+export * from './art/coverColor.js'
 
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'

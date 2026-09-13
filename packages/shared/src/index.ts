@@ -44,6 +44,7 @@ export * from './cloud.js'
 export * from './hlc.js'
 export * from './sync.js'
 export * from './smartRules.js'
+export * from './coverTone.js'
 
 /** Audio file extensions the scanner will pick up. */
 export const AUDIO_EXTENSIONS = [

@@ -7,6 +7,16 @@ export const LyricsKindSchema = z.enum(['none', 'plain', 'synced'])
 export type LyricsKind = z.infer<typeof LyricsKindSchema>
 
 /**
+ * The most vivid colour in a song's cover, as OKLCH hue and chroma, picked by
+ * the server (`coverTone.ts`). Devices draw the playing song in it.
+ */
+export const CoverToneSchema = z.object({
+  hue: z.number().min(0).max(360),
+  chroma: z.number().nonnegative(),
+})
+export type CoverTone = z.infer<typeof CoverToneSchema>
+
+/**
  * A song as the API returns it.
  *
  * `path` is deliberately relative to the library root and never absolute — the
@@ -33,6 +43,11 @@ export const SongSchema = z.object({
    * older servers do not send it.
    */
   rev: z.string().optional(),
+  /**
+   * The cover's colour. Null for a song with no cover, a cover with no colour
+   * in it, or one the server has not read yet. Absent from older servers.
+   */
+  coverTone: CoverToneSchema.nullable().optional(),
   lyricsKind: LyricsKindSchema,
   /**
    * True when the song is known to have no words: lrclib said so, or you

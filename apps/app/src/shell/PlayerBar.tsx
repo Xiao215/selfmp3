@@ -6,13 +6,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
-import { loopRegionPercent, oklchToHexAlpha, radius, space, type } from '@selfmp3/client'
+import { loopRegionPercent, radius, space, type } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { useArt } from '../offline/useArt'
 import { usePlayer } from '../player/PlayerProvider'
 import { useAccent } from '../ui/accent'
+import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
+import { ProgressWash } from '../ui/components/ProgressWash'
 import { IconButton } from '../ui/components/IconButton'
 import {
   ChevronDown,
@@ -51,8 +53,9 @@ import { setPracticeOpen, usePracticeOpen } from './practicePanel'
  * row read as a wall of icons and they are three jobs: what is on screen, how
  * it plays, and where it comes out.
  *
- * The bar fills with the accent up to where the song has got, with a bright
- * line along its top edge, as the web's does in the cover's colour.
+ * The bar fills with the cover's colour up to where the song has got, fading
+ * out at its leading edge, with a bright line along its top edge, as the web's
+ * did.
  */
 export const PLAYER_BAR_HEIGHT = 84
 
@@ -83,6 +86,7 @@ export function PlayerBar(): ReactNode {
   // drawn for: the song and the transport give up width before the tools go.
   const tight = width < TIGHT_WIDTH
   const song = player.current
+  const songColor = useSongColor(song, song ? artFor(song) : null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const devicesRef = useRef<View>(null)
@@ -124,19 +128,10 @@ export function PlayerBar(): ReactNode {
     >
       {song ? (
         <>
+          <ProgressWash fraction={percent / 100} color={songColor.color} alpha={0.2} fade={40} />
           <View
             pointerEvents="none"
-            style={[
-              styles.wash,
-              {
-                width: `${percent}%`,
-                backgroundColor: oklchToHexAlpha(0.72, 0.16, accent.hue, 0.2),
-              },
-            ]}
-          />
-          <View
-            pointerEvents="none"
-            style={[styles.playedLine, { width: `${percent}%`, backgroundColor: accent.accent }]}
+            style={[styles.playedLine, { width: `${percent}%`, backgroundColor: songColor.color }]}
           />
         </>
       ) : null}
@@ -491,7 +486,6 @@ const styles = StyleSheet.create(theme => ({
     borderTopColor: theme.colors.border,
     overflow: 'hidden',
   },
-  wash: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   playedLine: { position: 'absolute', left: 0, top: -1, height: 2 },
   left: {
     flexGrow: 1,

@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
-import { useAccent } from '../accent'
-import { MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
+import { useSongColor } from '../useSongColor'
+import { currentColorScheme, MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
 import { DevicesSheet } from '../../features/devices/DevicesSheet'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
+import { ProgressWash } from './ProgressWash'
 import { Devices, Next, Pause, Play } from './Icons'
 
 /**
@@ -17,19 +18,20 @@ import { Devices, Next, Pause, Play } from './Icons'
  *
  * Nothing when there is no current track, so the list gets the full screen
  * until something is playing; then it rises into place. The progress wash is
- * the web's: the accent fills the card from the left as the song plays, with
- * a thin line along its foot. Tapping anywhere but the two transport buttons
- * opens the song's own page, and those two are full touch targets — the only
- * transport on the phone's home screen.
+ * the web's: the cover's colour fills the card from the left as the song
+ * plays, fading out at its leading edge, with a thin line along its foot.
+ * Tapping anywhere but the two transport buttons opens the song's own page,
+ * and those two are full touch targets — the only transport on the phone's
+ * home screen.
  */
 export function MiniPlayer(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
-  const accent = useAccent()
   const player = usePlayer()
   const router = useRouter()
   const song = player.current
   const [devicesOpen, setDevicesOpen] = useState(false)
+  const songColor = useSongColor(song, song ? artFor(song) : null)
 
   // Slides up when a song first appears; the words fade over when it changes.
   const [rise] = useState(() => new Animated.Value(0))
@@ -78,12 +80,13 @@ export function MiniPlayer(): ReactNode {
         },
       ]}
     >
-      <View
-        style={[styles.wash, { width: `${progress * 100}%`, backgroundColor: accent.accentWash }]}
-        pointerEvents="none"
-      >
-        <View style={[styles.washLine, { backgroundColor: accent.accent }]} />
-      </View>
+      <ProgressWash
+        fraction={progress}
+        color={songColor.color}
+        alpha={currentColorScheme() === 'light' ? 0.18 : 0.26}
+        fade={24}
+        footLine
+      />
 
       <Pressable
         style={styles.expand}
@@ -145,16 +148,6 @@ const styles = StyleSheet.create(theme => ({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     overflow: 'hidden',
-  },
-  wash: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  washLine: {
-    height: 2,
   },
   expand: {
     position: 'absolute',

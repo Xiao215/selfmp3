@@ -2024,3 +2024,40 @@ in and no longer matched how the app works.
 Later: once the server is on the Pi, a signed-in device could use a live
 connection to it automatically when it can reach it, so those features come back
 to phones without anyone typing an address.
+
+### What is playing wears its cover's colour — branch `universal/artwork-tint`
+
+The playing row and both player bars had fallen back to the accent: the web
+app took their colour from the cover (`useCoverColor`), and that did not come
+across. Now it does, on every platform.
+
+- **Where the colour comes from.** The server picks it once per cover:
+  `CoverToneService` has ffmpeg draw the cover at 24×24 and runs the shared
+  `pickCoverTone` (moved from the web app, unchanged). It is stored per song
+  against the cover's revision (migration "songs: the colour of each cover"),
+  read in the background for covers already there and again whenever one is
+  saved, and sent as `coverTone` in the API and the snapshot. Decided by Xiao:
+  a field on the song rather than each device reading the image.
+- **Why not on the device.** A phone has no canvas. Decoding a cover in
+  JavaScript was measured with the JIT off, as on the phone's interpreter:
+  0.36 s for a 600×600 JPEG, 0.6–0.75 s for the 1280×720 PNGs most covers
+  are, all on the JS thread at every change of song. ffmpeg does it in about
+  60 ms on the Mac.
+- **Schema.** `CoverToneSchema` (hue, chroma); `coverTone` is optional on
+  `SongSchema` and `CloudSongSchema`, so older servers and snapshots still
+  parse, and older clients ignore it.
+- **Drawing.** `songColors` (packages/client) turns a tone into a wash colour
+  and a text tint, for the dark theme and the light one. `useSongColor` uses
+  the song's `coverTone`; in a browser talking to a server that has not sent
+  one it reads the cover with a canvas; a song with no cover takes its letter
+  tile's colour; otherwise the accent.
+- **Where it shows.** The playing song row's wash, title and equaliser (phone
+  and desktop), a playlist row's title, the current row's edge in both queues,
+  and the progress wash in the mini player and the player bar.
+- **The progress wash** fades out over its last 24 points (mini player) or 40
+  (player bar) instead of stopping at a hard edge, as the web's mask did;
+  `ProgressWash` draws it.
+- Checked: `/api/library` on the dev server carries a tone for 12 of 13 songs
+  (祝福's cover has no colour in it, so it keeps the accent); on the iPhone
+  17 Pro Max the playing 三原色 row and mini player are green like its cover;
+  in the browser at desktop width 夜に駆ける's row and bar are red.

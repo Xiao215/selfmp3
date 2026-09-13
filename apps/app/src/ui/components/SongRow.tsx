@@ -18,6 +18,7 @@ import {
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
@@ -109,6 +110,8 @@ export const SongRow = memo(function SongRow({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
+  // The playing row wears its cover's colour; every other row asks for nothing.
+  const songColor = useSongColor(active ? song : null, artUri)
   const { wide, dense, width } = useLayout()
   const contentWidth = useContentWidth()
   const [hovered, setHovered] = useState(false)
@@ -142,7 +145,7 @@ export const SongRow = memo(function SongRow({
           siblings.
         */}
         <View testID={testID} role="row" style={[styles.row, ...tint]}>
-          {active ? <RowWash color={accent.accent} /> : null}
+          {active ? <RowWash color={songColor.color} /> : null}
           {selecting && onToggleSelect ? (
             <SelectBox song={song} selected={selected} onToggle={onToggleSelect} phone />
           ) : null}
@@ -162,13 +165,13 @@ export const SongRow = memo(function SongRow({
               <Cover uri={artUri} title={song.album || song.title} size={40} />
               {active ? (
                 <View style={styles.playingOverlay}>
-                  <Equalizer paused={!playing} size={12} />
+                  <Equalizer paused={!playing} size={12} color={songColor.tint} />
                 </View>
               ) : null}
             </View>
 
             <View style={styles.text}>
-              <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
+              <Text style={[styles.title, active && { color: songColor.tint }]} numberOfLines={1}>
                 {song.title}
               </Text>
               <View style={styles.subtitleRow}>
@@ -226,7 +229,7 @@ export const SongRow = memo(function SongRow({
       onPointerEnter={dense ? () => setHovered(true) : undefined}
       onPointerLeave={dense ? () => setHovered(false) : undefined}
     >
-      {active ? <RowWash color={accent.accent} /> : null}
+      {active ? <RowWash color={songColor.color} /> : null}
       {onToggleSelect ? (
         <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
           <SelectBox song={song} selected={selected} onToggle={onToggleSelect} />
@@ -235,7 +238,7 @@ export const SongRow = memo(function SongRow({
 
       <View style={styles.index}>
         {active ? (
-          <Equalizer paused={!playing} size={14} />
+          <Equalizer paused={!playing} size={14} color={songColor.tint} />
         ) : revealed && dense ? (
           <Pressable
             onPress={onPress}
@@ -262,7 +265,7 @@ export const SongRow = memo(function SongRow({
         <Cover uri={artUri} title={song.album || song.title} size={40} />
         <View style={styles.text}>
           <View style={styles.titleRow}>
-            <Text style={[styles.titleWide, active && { color: accent.accent }]} numberOfLines={1}>
+            <Text style={[styles.titleWide, active && { color: songColor.tint }]} numberOfLines={1}>
               {song.title}
             </Text>
             {song.missing ? <Text style={styles.badge}>FILE MISSING</Text> : null}

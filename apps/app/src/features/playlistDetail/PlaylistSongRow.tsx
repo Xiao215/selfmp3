@@ -7,6 +7,7 @@ import { formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { useSongColor } from '../../ui/useSongColor'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -73,6 +74,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
+  const songColor = useSongColor(active ? song : null, artUri)
   const { wide, finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const revealed = !finePointer || hovered
@@ -153,7 +155,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
         <Text style={styles.index}>{index + 1}</Text>
         <Cover uri={artUri} title={song.album || song.title} size={36} />
         <View style={styles.meta}>
-          <Text style={[styles.title, active && { color: accent.accent }]} numberOfLines={1}>
+          <Text style={[styles.title, active && { color: songColor.tint }]} numberOfLines={1}>
             {song.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>

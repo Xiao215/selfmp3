@@ -8,6 +8,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
@@ -164,6 +165,7 @@ const QueueRow = memo(function QueueRow({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
+  const songColor = useSongColor(current ? song : null, artUri)
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
 
@@ -176,7 +178,7 @@ const QueueRow = memo(function QueueRow({
       style={[
         styles.row,
         (hovered || current) && styles.rowHighlighted,
-        current && { borderLeftColor: accent.accent },
+        current && { borderLeftColor: songColor.color },
         dragging && styles.rowDragging,
       ]}
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
@@ -219,7 +221,7 @@ const QueueRow = memo(function QueueRow({
       >
         {current ? (
           <View style={styles.marker}>
-            <Equalizer paused={!playing} size={14} />
+            <Equalizer paused={!playing} size={14} color={songColor.tint} />
           </View>
         ) : (
           <View style={past && styles.pastArt}>

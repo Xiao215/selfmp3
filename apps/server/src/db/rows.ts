@@ -26,6 +26,9 @@ export interface SongRow {
   has_art: number
   art_ext: string | null
   art_rev: number
+  cover_hue: number | null
+  cover_chroma: number | null
+  cover_tone_rev: number | null
   lyrics_kind: string
   instrumental: number
   play_count: number
@@ -114,6 +117,12 @@ export function toSong(row: SongRow): Song {
     mime: row.mime,
     hasArt: row.has_art === 1,
     rev: songRev(row),
+    // Only the colour of the cover the song has now: one read from a cover
+    // since replaced is not sent while the new one waits to be read.
+    coverTone:
+      row.cover_hue !== null && row.cover_tone_rev === row.art_rev
+        ? { hue: row.cover_hue, chroma: row.cover_chroma ?? 0 }
+        : null,
     lyricsKind: toLyricsKind(row.lyrics_kind),
     instrumental: row.instrumental === 1,
     playCount: row.play_count,

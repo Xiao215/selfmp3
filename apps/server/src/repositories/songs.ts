@@ -1,4 +1,4 @@
-import type { Song, SongPatch } from '@selfmp3/shared'
+import type { CoverTone, Song, SongPatch } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import { toSong, type SongRow } from '../db/rows.js'
 
@@ -369,6 +369,31 @@ export class SongRepository {
       .prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 AND s.missing = 0 ORDER BY s.id`)
       .all()
       .map(toSong)
+  }
+
+  /** The next song whose cover has not had its colour read, as the cover is now. */
+  nextWithoutCoverTone(): { id: number; artRev: number } | null {
+    const row = this.#db
+      .prepare<[], { id: number; art_rev: number }>(
+        `SELECT id, art_rev FROM songs
+          WHERE has_art = 1 AND missing = 0
+            AND (cover_tone_rev IS NULL OR cover_tone_rev != art_rev)
+          ORDER BY id LIMIT 1`,
+      )
+      .get()
+    return row ? { id: row.id, artRev: row.art_rev } : null
+  }
+
+  /**
+   * Keep a cover's colour, or that it has none. Only against the cover it was
+   * read from: one replaced meanwhile has a newer revision, and is read again.
+   */
+  setCoverTone(id: number, artRev: number, tone: CoverTone | null): void {
+    this.#db
+      .prepare(
+        'UPDATE songs SET cover_hue = ?, cover_chroma = ?, cover_tone_rev = ? WHERE id = ? AND art_rev = ?',
+      )
+      .run(tone?.hue ?? null, tone?.chroma ?? null, artRev, id, artRev)
   }
 
   /** Paths of every song currently in the database, for scan reconciliation. */

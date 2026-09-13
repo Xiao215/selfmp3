@@ -429,6 +429,19 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
     `,
   },
+  {
+    name: 'songs: the colour of each cover',
+    sql: `
+      -- The cover's most vivid colour, picked here from a 24×24 drawing of it
+      -- so no device has to decode the image to draw the playing song in it.
+      -- cover_tone_rev is the art_rev it was picked from: a new cover makes it
+      -- stale. A cover with no colour in it keeps a null hue with the revision
+      -- set, so it is not read again.
+      ALTER TABLE songs ADD COLUMN cover_hue REAL;
+      ALTER TABLE songs ADD COLUMN cover_chroma REAL;
+      ALTER TABLE songs ADD COLUMN cover_tone_rev INTEGER;
+    `,
+  },
 ]
 
 /**

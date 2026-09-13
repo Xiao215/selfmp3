@@ -1,0 +1,93 @@
+/**
+ * Small things a browser keeps, in IndexedDB: the web app's `offline/mirror.ts`
+ * key-value half.
+ *
+ * IndexedDB rather than `localStorage` because the service worker reads the
+ * same values (the cloud session and each song's files) to fetch a song from
+ * the bucket, and a worker cannot see `localStorage` at all. The database, its
+ * version and its store are the web app's, so a browser that used it keeps
+ * what it had; the worker opens them with the same upgrade.
+ */
+
+const DB_NAME = 'selfmp3'
+/** The service worker opens the same database with the same version and upgrade: change both together. */
+const DB_VERSION = 1
+const STORE = 'kv'
+
+let dbPromise: Promise<IDBDatabase> | null = null
+
+function openDb(): Promise<IDBDatabase> {
+  /*
+   * A failure is not remembered: a cached rejection would lock the page out of
+   * its own storage after one bad moment (a private window, an upgrade another
+   * tab was holding) for as long as it stayed open.
+   */
+  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('could not open IndexedDB'))
+    request.onblocked = () => reject(new Error('IndexedDB upgrade blocked by another tab'))
+  }).catch((error: unknown) => {
+    dbPromise = null
+    throw error
+  })
+  return dbPromise
+}
+
+export async function readStored(key: string): Promise<unknown> {
+  const db = await openDb()
+  return new Promise<unknown>((resolve, reject) => {
+    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(key)
+    request.onsuccess = () => resolve((request.result as unknown) ?? null)
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB read failed'))
+  })
+}
+
+export async function writeStored(key: string, value: unknown): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).put(value, key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB write aborted'))
+  })
+}
+
+/**
+ * Read, change and write one key in a single transaction.
+ *
+ * IndexedDB runs read-write transactions on a store one at a time across every
+ * tab of the origin, so two tabs appending to the outbox cannot each read the
+ * old one and overwrite the other's addition.
+ */
+export async function updateStored<T>(key: string, change: (current: unknown) => T): Promise<T> {
+  const db = await openDb()
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    let next: T
+    const request = store.get(key)
+    request.onsuccess = () => {
+      next = change(request.result)
+      store.put(next, key)
+    }
+    tx.oncomplete = () => resolve(next)
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB update failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB update aborted'))
+  })
+}
+
+export async function deleteStored(key: string): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).delete(key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
+  })
+}

@@ -1637,3 +1637,36 @@ on the review, and a bar with what is playing, a playhead and Stop.
   `audio/mp4`, playback began after 0.8 s, and the playhead read 0:03 of 4:08
   before Stop. On the iPhone simulator Import still opens, with plain
   thumbnails.
+
+### The cloud in a browser
+
+Found while checking what `apps/web` still does that the new app does not,
+before deleting it. The new app's web build used the phone's cloud platform,
+whose store writes JSON files through `expo-file-system`. In a browser that
+module is the spike's stub, and its `write` throws, so signing in to the cloud
+failed at its first write: starting a sign-in never left for Google, and a
+session could not have been kept. GitHub Pages serves this build.
+
+- `ports/cloudPlatform.web.ts` is the web app's `lib/cloud/webPlatform.ts`:
+  IndexedDB for the store, the Cache API for lyrics, gzip undone by hand, and
+  `online` and `visibilitychange` as the wake-up. The phone's file keeps its
+  shape; the export is `cloudPlatform` in both now, not `nativePlatform`.
+- `ports/idbStore.web.ts` is the key-value half of the web app's
+  `offline/mirror.ts`, with its database, version and store (`selfmp3`, 1,
+  `kv`), so a browser that used the old app keeps what it had, and the service
+  worker can read the session and the song files as it did.
+- `ports/appPath.ts` puts an address under the build's base
+  (`process.env.EXPO_BASE_URL`: empty on the Mac, `/selfmp3` on Pages). The
+  sign-in return uses it, to the sign-in screen, which already reads the code
+  from the address; so does the Mac's settings return, which dropped the base.
+- The doorman keeps a return address's path when its origin is allowed
+  (`safeReturn` in `apps/doorman/src/auth.ts`), and Expo keeps `extra` in the
+  web manifest, so the doorman address set at build time reaches the browser.
+- Checked: a Chromium probe of the new app pressed "Sign in with Google" with
+  the doorman's start page stood in for, so nothing reached Google. The
+  request carried an attempt and `return=http://localhost:8090/sign-in`, and
+  the pending sign-in (attempt and expiry) was in IndexedDB `selfmp3`/`kv`,
+  with no storage errors. The cloud-signed iPhone 17 Pro relaunched to its
+  library, still signed in.
+- Not checked: a whole sign-in in a browser, which needs Xiao's Google
+  account.

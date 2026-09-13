@@ -1,5 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system'
-import { library, nativePlatform, session as cloudSession } from '../cloud'
+import { library, cloudPlatform, session as cloudSession } from '../cloud'
 
 /**
  * Cover art from the bucket, as files this phone can hand to the OS.
@@ -77,7 +77,7 @@ export async function ensureCover(songId: number): Promise<string | null> {
       // `idempotent` because the name is the hash of the contents: the same
       // file twice is the same file, and racing to write it is not an error.
       const written = await File.downloadFileAsync(
-        `${nativePlatform.doormanUrl}/v1/files/${key}`,
+        `${cloudPlatform.doormanUrl}/v1/files/${key}`,
         file,
         { headers: { Authorization: `Bearer ${signedIn.token}` }, idempotent: true },
       )

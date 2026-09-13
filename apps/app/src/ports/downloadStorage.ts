@@ -11,7 +11,7 @@ import {
 } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../api/client'
-import { nativePlatform, session as cloudSession } from '../cloud'
+import { cloudPlatform, session as cloudSession } from '../cloud'
 
 /**
  * Where the phone keeps songs: files on disk, beside a JSON index.
@@ -53,7 +53,7 @@ async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<st
   const signedIn = await cloudSession.loadSession().catch(() => null)
   if (signedIn) {
     return {
-      url: `${nativePlatform.doormanUrl}/v1/files/${song.path}`,
+      url: `${cloudPlatform.doormanUrl}/v1/files/${song.path}`,
       headers: { Authorization: `Bearer ${signedIn.token}` },
     }
   }

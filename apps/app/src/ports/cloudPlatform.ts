@@ -13,7 +13,7 @@ import { AppState, Platform } from 'react-native'
  * of the library — signing in, replaying a snapshot, the outbox and its
  * sequence numbers — is the same code the browser already runs.
  *
- * The browser's version of this file is apps/web/src/lib/cloud/webPlatform.ts.
+ * The browser's version of this file is cloudPlatform.web.ts.
  * Between them they are the whole difference between the two apps.
  */
 
@@ -125,7 +125,7 @@ const configured = (Constants.expoConfig?.extra as { doormanUrl?: unknown } | un
 const doormanUrl =
   typeof configured === 'string' && configured.length > 0 ? configured : DEFAULT_DOORMAN_URL
 
-export const nativePlatform: CloudPlatform = {
+export const cloudPlatform: CloudPlatform = {
   doormanUrl,
   store: documentStore(),
   fetch: (url, init) => fetch(url, init as RequestInit),

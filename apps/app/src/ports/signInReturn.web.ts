@@ -1,3 +1,5 @@
+import { appPath } from './appPath'
+
 /**
  * Coming back from Google to Settings → Cloud, in a browser: the web app's
  * `SignInReturn`. Google's sign-in sends the tab back to this page with the
@@ -5,7 +7,7 @@
  * from the address so a reload cannot spend it twice.
  */
 export function signInReturnUrl(): string | null {
-  return `${window.location.origin}/settings`
+  return `${window.location.origin}${appPath('settings')}`
 }
 
 export function takeSignInCode(): string | null {

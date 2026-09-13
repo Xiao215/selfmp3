@@ -2002,3 +2002,25 @@ app said "your Mac" wherever it meant the server.
   import screen, which says "Your server downloads it". No request was sent,
   because one would download a real song into the library; the pending rows are
   checked by the component test.
+
+### No more connecting by address
+
+Every device starts with Google sign-in; the library is the bucket's, and the
+server does not have to be running. Typing a server's address was the older way
+in and no longer matched how the app works.
+
+- `app/onboarding.tsx` renders the address screen in development builds only,
+  where the simulator tests use it (they cannot sign in to a Google account); a
+  normal build redirects it to sign-in.
+- Settings loses "Change server" and its confirmation.
+- The server's own page still connects to itself with nothing typed, so the
+  things that need the server (its settings, Stats, the tag inbox, metadata,
+  importing with track picking) stay one browser tab away.
+- `docs/MOBILE.md` and `docs/features/native-app.md` say so.
+- Checked: in the exported (production) build served on 4600, Settings has no
+  "Change server", and `/onboarding` ends at `/sign-in` with no address field.
+  Navigation and Settings flows pass against the dev server.
+
+Later: once the server is on the Pi, a signed-in device could use a live
+connection to it automatically when it can reach it, so those features come back
+to phones without anyone typing an address.

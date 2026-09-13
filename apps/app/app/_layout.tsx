@@ -97,10 +97,9 @@ function Shell(): ReactNode {
   }, [status])
 
   useEffect(() => {
-    // Google is the front door: a phone's library is the bucket's, and no Mac
-    // has to be awake or even exist. `/onboarding` is still reachable for
-    // anyone pointing this at a Mac on purpose, but it is no longer the
-    // question a new phone is asked first.
+    // Google sign-in is the only way in: the library is the bucket's, and the
+    // server does not have to be running. `/onboarding`, typing a server's
+    // address, exists in development builds only, for the simulator tests.
     const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
     if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])

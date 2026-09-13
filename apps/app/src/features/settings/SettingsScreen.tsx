@@ -82,7 +82,6 @@ import {
 const INDEX_COLUMN = 1080
 
 type Confirming =
-  | 'change-server'
   | 'remove-downloads'
   | 'redo-analysis'
   | 'forget-missing'
@@ -871,13 +870,6 @@ function ConnectionPanel({
           icon={<Refresh size={15} color={theme.colors.textPrimary} />}
           onPress={() => void library.refetch()}
         />
-        {fromCloud ? null : (
-          <Button
-            label="Change server"
-            variant="danger"
-            onPress={() => onConfirm('change-server')}
-          />
-        )}
       </ButtonRow>
     </Panel>
   )
@@ -1020,7 +1012,7 @@ function Confirmations({
 }): ReactNode {
   const router = useRouter()
   const client = useQueryClient()
-  const { disconnect, signedOutOfCloud } = useConnection()
+  const { signedOutOfCloud } = useConnection()
   const { removeAll, queue: downloadQueue } = useDownloads()
   const startAnalysis = useStartAnalysis()
 
@@ -1028,12 +1020,6 @@ function Confirmations({
     Exclude<Confirming, null>,
     { title: string; body: string; label: string; run: () => void }
   > = {
-    'change-server': {
-      title: 'Change server?',
-      body: 'Downloads stay on this device. You will need the address again.',
-      label: 'Change server',
-      run: () => void disconnect().then(() => router.replace('/onboarding')),
-    },
     'remove-downloads': {
       title: 'Remove all downloaded songs from this device?',
       body: 'The library itself is not touched. Downloading automatically is turned off too, or they would just come back.',

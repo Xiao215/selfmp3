@@ -30,7 +30,7 @@ done without a Mac and an Android SDK.
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
 | **Android Auto** | See [Android Auto](#android-auto), which is the one place where the honest answer is "partly". |
 
-Settings holds the server address, the download controls and the storage
+Settings holds the Google account, the download controls and the storage
 numbers.
 
 ---
@@ -82,13 +82,10 @@ it and let `npx expo prebuild --clean` rebuild it rather than editing it.
 After the first build, `npm run start --workspace @selfmp3/app` is enough for
 day-to-day work; rebuild the three packages first if one of them changed.
 
-On first launch the app asks for the server address. Use the Tailscale name so
-it keeps working away from home — `mac-mini.tail1234.ts.net` — and the
-bearer token only if `SELFMP3_AUTH_TOKEN` is set on the server. Both are stored
-in the iOS keychain / Android keystore, not in plain storage. The address is
-tested before it is saved: `/api/health` proves the address, and a second
-authenticated request proves the token, so "wrong address" and "wrong token" are
-different messages.
+On first launch the app asks you to sign in with Google, and the library is the
+one in your bucket. There is no server address to type: the phone never talks
+to the server directly. Development builds keep an address screen
+(`selfmp3://onboarding`) for the simulator tests, which cannot sign in.
 
 ### Building for real
 

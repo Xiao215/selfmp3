@@ -12,10 +12,10 @@ checked, on which simulator, and how.
 
 ## Using it
 
-First launch offers Google sign-in, which makes the library the one in your
-bucket and needs no Mac awake; or it can point at a Mac by its address (the
-Tailscale name, so it works away from home) and a bearer token if the server
-has one. A server address and token go in the device keychain.
+First launch asks you to sign in with Google; the library is then the one in
+your bucket, and the server does not have to be running. The things that need
+the server itself (Stats, the tag inbox, looking metadata up, picking tracks
+while importing) are on the server's own page: its address in a browser.
 
 ## Offline
 

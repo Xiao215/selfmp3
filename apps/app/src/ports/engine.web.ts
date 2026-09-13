@@ -146,6 +146,8 @@ export class AudioEngine implements PlaybackEngine {
    * follows `onTrackEnd` to acknowledge it rather than reload it.
    */
   #handedOverId: number | null = null
+  /** Counts loads, so one overtaken by a newer load stops after its await. */
+  #loadGeneration = 0
 
   #fadeTimer: ReturnType<typeof setInterval> | null = null
   #handoverArmed = false
@@ -252,6 +254,7 @@ export class AudioEngine implements PlaybackEngine {
     options: { autoplay?: boolean; startAt?: number } = {},
   ): Promise<void> {
     const { autoplay = true, startAt = 0 } = options
+    const generation = ++this.#loadGeneration
 
     // A crossfade that just finished has already put this track on and faded
     // it in. Anything else means we really are changing tracks.
@@ -273,6 +276,9 @@ export class AudioEngine implements PlaybackEngine {
       if (startAt > 0) {
         // Seeking before metadata is ready is ignored, so wait for it.
         await once(this.#primary, 'loadedmetadata', 5_000)
+        // A newer load has the element now: a song restored at 3:23 put that
+        // position on the song the person had just clicked.
+        if (generation !== this.#loadGeneration) return
         this.#primary.currentTime = startAt
       }
     }

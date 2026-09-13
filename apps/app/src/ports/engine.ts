@@ -98,6 +98,8 @@ export class NativeEngine implements PlaybackEngine {
   #queuedNextId: number | null = null
   /** Set while `load` is driving the player, so its own changes are not "ended". */
   #loading = false
+  /** Counts loads, so one overtaken by a newer load stops at its next await. */
+  #loadGeneration = 0
   #destroyed = false
   #volume = 1
   #muted = false
@@ -142,14 +144,21 @@ export class NativeEngine implements PlaybackEngine {
 
   async load(songId: number, options: LoadOptions = {}): Promise<void> {
     const { autoplay = true, startAt } = options
+    // Loads overlap: the app opening restores a song while a tap starts
+    // another. Every step below awaits, and a load that carried on past a newer
+    // one used to reset the player back to its own song, or put its start
+    // position on the song the person had just picked.
+    const generation = ++this.#loadGeneration
+    const overtaken = (): boolean => generation !== this.#loadGeneration
     await ensurePlayer()
-    if (this.#destroyed) return
+    if (this.#destroyed || overtaken()) return
 
     // Already the song that is sounding. This is the ordinary case right after
     // the player advanced by itself and the provider agreed with it, and
     // reloading here is what would turn a gapless join into a stutter.
     if (this.#currentSongId === songId) {
       if (startAt !== undefined) await TrackPlayer.seekTo(startAt)
+      if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
       return
     }
@@ -168,19 +177,25 @@ export class NativeEngine implements PlaybackEngine {
         await TrackPlayer.skipToNext()
       } else {
         await TrackPlayer.reset()
+        if (overtaken()) return
         await TrackPlayer.add(track)
       }
+      if (overtaken()) return
 
       this.#currentSongId = songId
       this.#queuedNextId = null
       if (startAt !== undefined && startAt > 0) await TrackPlayer.seekTo(startAt)
+      if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
       this.#patch({ error: null })
     } catch (error) {
-      this.#patch({ error: error instanceof Error ? error.message : 'could not play that song' })
+      if (!overtaken()) {
+        this.#patch({ error: error instanceof Error ? error.message : 'could not play that song' })
+      }
     } finally {
-      this.#loading = false
+      if (!overtaken()) this.#loading = false
     }
+    if (overtaken()) return
     await this.#topUpLookahead()
   }
 

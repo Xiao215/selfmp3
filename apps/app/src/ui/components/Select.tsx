@@ -65,6 +65,7 @@ export function Select<T extends string | number>({
     <SheetItem
       key={String(option.value)}
       label={option.label}
+      role="option"
       disabled={option.disabled}
       icon={
         <View style={styles.checkSlot}>

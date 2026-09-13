@@ -138,6 +138,7 @@ export function SheetItem({
   active = false,
   danger = false,
   disabled = false,
+  role = 'menuitem',
 }: {
   icon?: ReactNode
   label: string
@@ -146,6 +147,8 @@ export function SheetItem({
   active?: boolean
   danger?: boolean
   disabled?: boolean
+  /** A menu's action, or one of a list's choices (a `Select`'s options). */
+  role?: 'menuitem' | 'option'
 }): ReactNode {
   const accent = useAccent()
   const dense = usePanelDense()
@@ -164,7 +167,8 @@ export function SheetItem({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="menuitem"
+      role={role}
+      aria-selected={role === 'option' ? active : undefined}
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [
         styles.item,

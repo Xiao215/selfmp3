@@ -1,363 +1,1010 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native'
 import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { formatBytes } from '@selfmp3/shared'
-import { useLibrary, useManifest } from '../../api/queries'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { formatBytes, type Settings } from '@selfmp3/shared'
 import {
+  buildAccent,
   bytesToDownload,
+  clientApi,
+  colors,
   downloadedCount,
+  queryKeys,
+  radius,
+  relativeTime,
   staleIds,
   totalBytes,
-  buildAccent,
-  colors,
-  radius,
-  space,
-  type,
+  useAnalysisStatus,
+  useScanLibrary,
+  useSettings,
+  useStartAnalysis,
+  useUpdateSettings,
 } from '@selfmp3/client'
+import { useLibrary, useManifest } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useConnection } from '../../server/ConnectionProvider'
-import { ACCENT_PRESETS, useAccent } from '../../ui/accent'
-import { BrandMark } from '../../ui/components/BrandMark'
+import { useLayout } from '../../shell/useLayout'
+import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
+import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
+import { IconButton } from '../../ui/components/IconButton'
+import { CloudDownload, Refresh, Sparkles, Trash, X } from '../../ui/components/Icons'
+import { Select } from '../../ui/components/Select'
+import { Slider } from '../../ui/components/Slider'
+import { Toggle } from '../../ui/components/Toggle'
+import { useDeviceContext } from '../devices/DevicesProvider'
+import {
+  ButtonRow,
+  Kbd,
+  Lead,
+  Meter,
+  Notice,
+  Panel,
+  partStyles,
+  Row,
+  SliderSetting,
+  StackedRows,
+  Stats,
+} from './SettingsParts'
+import {
+  accentName,
+  activeSection,
+  crossfadeLabel,
+  healthLine,
+  percentLabel,
+  scanHint,
+  sectionsFor,
+  type SectionId,
+} from './settings.model'
 
-/** Server, downloads, about — the three things worth a settings screen. */
+/** At this width the index is a column beside the panels; below it, a row of chips. */
+const INDEX_COLUMN = 1080
+
+type Confirming = 'change-server' | 'remove-downloads' | 'redo-analysis' | 'forget-missing' | null
+
+/**
+ * Settings: the web's `SettingsView`.
+ *
+ * What syncs and what does not, kept apart. Playback, importing and lyrics
+ * live on the server so the Mac and every phone agree; downloads, the accent
+ * and the theme belong to this device. The page carries its own index — a
+ * column beside the panels on a wide screen, a sticky row of chips above them
+ * on a narrow one — and every setting has the same anatomy.
+ */
 export function SettingsScreen(): ReactNode {
-  const { connection, fromCloud, disconnect } = useConnection()
+  const { fromCloud } = useConnection()
+  const { width, wide } = useLayout()
+  const settings = useSettings()
+  const updateSettings = useUpdateSettings()
+  const health = useQuery({
+    queryKey: queryKeys.health,
+    queryFn: () => clientApi().health(),
+    retry: false,
+    staleTime: 60_000,
+  })
+
+  const sections = sectionsFor(fromCloud)
+  const column = width >= INDEX_COLUMN
+  const scrollRef = useRef<ScrollView>(null)
+  const tops = useRef(new Map<SectionId, number>())
+  const panelsTop = useRef(0)
+  const metrics = useRef({ view: 0, content: 0 })
+  const pinned = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [active, setActive] = useState<SectionId>('playback')
+  const accent = useAccent()
+  const chipsRef = useRef<ScrollView>(null)
+  const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
+  const chipsWidth = useRef(0)
+
+  // At narrow widths the chip for the section being read is often scrolled out
+  // of its row. Bring it back — sideways only, as the web does.
+  useEffect(() => {
+    const chip = chipAt.current.get(active)
+    if (!chip || chipsWidth.current === 0) return
+    chipsRef.current?.scrollTo({
+      x: Math.max(0, chip.x - (chipsWidth.current - chip.width) / 2),
+      animated: true,
+    })
+  }, [active])
+  const [confirming, setConfirming] = useState<Confirming>(null)
+
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
+    updateSettings.mutate({ [key]: value } as Partial<Settings>)
+  }
+  const onTop = (id: SectionId, top: number): void => {
+    tops.current.set(id, top)
+  }
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    // Chosen from the index: held until the jump has landed.
+    if (pinned.current !== null) return
+    const list = sections.map(section => ({
+      id: section.id,
+      top: panelsTop.current + (tops.current.get(section.id) ?? Number.POSITIVE_INFINITY),
+    }))
+    const next = activeSection(
+      list,
+      event.nativeEvent.contentOffset.y,
+      metrics.current.view,
+      metrics.current.content,
+    )
+    if (next !== null && next !== active) setActive(next)
+  }
+
+  const go = (id: SectionId): void => {
+    const top = tops.current.get(id)
+    if (top === undefined) return
+    setActive(id)
+    if (pinned.current !== null) clearTimeout(pinned.current)
+    pinned.current = setTimeout(() => {
+      pinned.current = null
+    }, 900)
+    scrollRef.current?.scrollTo({ y: Math.max(0, panelsTop.current + top - 28), animated: true })
+  }
+
+  const index = sections.map(section => {
+    const on = active === section.id
+    return (
+      <Pressable
+        key={section.id}
+        onPress={() => go(section.id)}
+        onLayout={
+          column
+            ? undefined
+            : event => {
+                const { x, width: chipWidth } = event.nativeEvent.layout
+                chipAt.current.set(section.id, { x, width: chipWidth })
+              }
+        }
+        accessibilityRole="link"
+        accessibilityState={{ selected: on }}
+        style={({ pressed }) => [
+          column ? styles.indexItem : styles.chip,
+          on &&
+            (column
+              ? [styles.indexItemOn, { borderLeftColor: accent.accent }]
+              : { borderColor: accent.accent }),
+          pressed && styles.indexPressed,
+        ]}
+      >
+        <Text style={[styles.indexText, on && styles.indexTextOn]}>{section.label}</Text>
+      </Pressable>
+    )
+  })
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView
+        ref={scrollRef}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        onLayout={event => {
+          metrics.current.view = event.nativeEvent.layout.height
+        }}
+        onContentSizeChange={(_, height) => {
+          metrics.current.content = height
+        }}
+        stickyHeaderIndices={column ? undefined : [1]}
+        contentContainerStyle={[
+          styles.content,
+          column ? styles.contentColumn : styles.contentNarrow,
+        ]}
+      >
+        <View style={styles.head}>
+          <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
+            Settings
+          </Text>
+          <Text style={styles.sub}>{healthLine(health.data)}</Text>
+        </View>
+
+        {column ? null : (
+          <View style={styles.chipBar}>
+            <ScrollView
+              ref={chipsRef}
+              onLayout={event => {
+                chipsWidth.current = event.nativeEvent.layout.width
+              }}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chips}
+            >
+              {index}
+            </ScrollView>
+          </View>
+        )}
+
+        <StackedRows value={!wide}>
+          <View
+            style={styles.panels}
+            onLayout={event => {
+              panelsTop.current = event.nativeEvent.layout.y
+            }}
+          >
+            {settings.data ? (
+              <Panel
+                title="Playback"
+                hint="shared across your devices"
+                onTop={top => onTop('playback', top)}
+              >
+                <Row
+                  label="Crossfade"
+                  hint="Overlap the end of one track with the start of the next. Zero turns it off."
+                >
+                  <SliderSetting
+                    value={settings.data.crossfadeSeconds}
+                    min={0}
+                    max={12}
+                    step={1}
+                    label="Crossfade"
+                    format={crossfadeLabel}
+                    onCommit={value => set('crossfadeSeconds', value)}
+                  />
+                </Row>
+                <Row
+                  label="Count a play after"
+                  hint="How much of a song you have to hear before it counts in your stats."
+                >
+                  <SliderSetting
+                    value={settings.data.playThreshold}
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                    label="Count a play after"
+                    format={percentLabel}
+                    onCommit={value => set('playThreshold', value)}
+                  />
+                </Row>
+                <Row
+                  label="Look up lyrics automatically"
+                  hint="Fetches synced lyrics from lrclib.net when a song is imported, and saves them next to the audio so they work offline."
+                  last
+                >
+                  <Toggle
+                    value={settings.data.autoFetchLyrics}
+                    onChange={value => set('autoFetchLyrics', value)}
+                    label="Look up lyrics automatically"
+                  />
+                </Row>
+              </Panel>
+            ) : null}
+
+            <OfflinePanel onTop={top => onTop('offline', top)} onConfirm={setConfirming} />
+
+            {settings.data && !fromCloud ? (
+              <ImportingPanel
+                settings={settings.data}
+                set={set}
+                onTop={top => onTop('importing', top)}
+              />
+            ) : null}
+
+            {fromCloud ? null : (
+              <LibraryPanel
+                libraryPath={health.data?.libraryPath}
+                onTop={top => onTop('library', top)}
+                onConfirm={setConfirming}
+              />
+            )}
+
+            <ConnectionPanel onTop={top => onTop('connection', top)} onConfirm={setConfirming} />
+
+            {settings.data && !fromCloud ? (
+              <Panel
+                title="Lyrics"
+                hint="shared across your devices"
+                onTop={top => onTop('lyrics', top)}
+              >
+                <Row
+                  label="Show pinyin / romaji"
+                  hint="A romanized line under each Chinese or Japanese lyric, generated on your Mac — nothing leaves your library."
+                  last
+                >
+                  <Toggle
+                    value={settings.data.lyricsRomanization === 'on'}
+                    onChange={on => set('lyricsRomanization', on ? 'on' : 'off')}
+                    label="Show pinyin / romaji"
+                  />
+                </Row>
+              </Panel>
+            ) : null}
+
+            {fromCloud ? null : <DevicesPanel onTop={top => onTop('devices', top)} />}
+
+            <AppearancePanel onTop={top => onTop('appearance', top)} />
+
+            <Panel
+              title="Keyboard shortcuts"
+              hint="on a Mac"
+              onTop={top => onTop('shortcuts', top)}
+            >
+              <Text style={partStyles.hint}>Everything else is done with the mouse.</Text>
+              <View style={styles.shortcut}>
+                <View style={styles.keys}>
+                  <Kbd>⌘</Kbd>
+                  <Kbd>K</Kbd>
+                </View>
+                <Text style={partStyles.hint}>Search everything</Text>
+              </View>
+            </Panel>
+
+            <Panel title="About" onTop={top => onTop('about', top)}>
+              <Row label="Version" last>
+                <Text style={styles.valueText}>
+                  {String(Constants.expoConfig?.version ?? '1.0.0')}
+                </Text>
+              </Row>
+              <Text style={partStyles.hint}>
+                Crossfade is the web app&rsquo;s: it overlaps two audio elements to do it, and this
+                app plays gapless instead, so the crossfade setting above has no effect here yet.
+              </Text>
+            </Panel>
+          </View>
+        </StackedRows>
+      </ScrollView>
+
+      {column ? (
+        <View style={styles.indexColumn} accessibilityLabel="Settings sections">
+          <Text style={styles.indexTitle}>ON THIS PAGE</Text>
+          {index}
+        </View>
+      ) : null}
+
+      <Confirmations confirming={confirming} onDone={() => setConfirming(null)} />
+    </SafeAreaView>
+  )
+}
+
+// ---------------------------------------------------------------- offline
+
+function OfflinePanel({
+  onTop,
+  onConfirm,
+}: {
+  onTop: (top: number) => void
+  onConfirm: (what: Confirming) => void
+}): ReactNode {
+  const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
-  const router = useRouter()
-  const accent = useAccent()
+  const { state: downloads, queue } = useDownloads()
   const [busy, setBusy] = useState(false)
 
   const songIds = useMemo(
     () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
     [library.data],
   )
-
-  const everythingBytes = manifest.data
-    ? bytesToDownload(downloads.index, manifest.data, songIds)
-    : 0
+  const held = downloadedCount(downloads.index)
+  const missingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
   const stale = manifest.data ? staleIds(downloads.index, manifest.data) : []
-  const active = downloads.activeSongId
-  const activeSong = active === null ? null : library.data?.songs.find(song => song.id === active)
+  const activeSong =
+    downloads.activeSongId === null
+      ? null
+      : library.data?.songs.find(song => song.id === downloads.activeSongId)
+  const working = downloads.queue.length > 0
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.heading} accessibilityRole="header">
-          Settings
+    <Panel title="Offline music" hint="on this device" onTop={onTop}>
+      <Lead>
+        {fromCloud
+          ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'
+          : 'Downloaded songs play with no connection at all — which is the point, since your Mac won’t always be awake. Plays you make offline are kept here and sent to your Mac when it’s back.'}
+      </Lead>
+
+      <Stats
+        items={[
+          { value: String(held), label: `of ${songIds.length} songs downloaded` },
+          { value: formatBytes(totalBytes(downloads.index)), label: 'used' },
+        ]}
+      />
+      {songIds.length > 0 ? (
+        <Meter fraction={held / songIds.length} label="Songs downloaded" />
+      ) : null}
+
+      {working ? (
+        <View style={styles.progress}>
+          <Text style={styles.progressText} numberOfLines={1}>
+            {downloads.paused ? 'Paused' : 'Downloading'}
+            {activeSong ? ` — ${activeSong.title}` : ''} · {downloads.queue.length} left
+          </Text>
+          <Meter
+            fraction={downloads.totalBytes > 0 ? downloads.bytesWritten / downloads.totalBytes : 0}
+          />
+        </View>
+      ) : null}
+
+      {downloads.error ? <Notice tone="error">{downloads.error}</Notice> : null}
+      {stale.length > 0 ? (
+        <Text style={partStyles.hint}>
+          {stale.length} downloaded {stale.length === 1 ? 'file has' : 'files have'} changed on the
+          server since.
         </Text>
-        <Text style={styles.sub}>Server, downloads, and how this phone looks</Text>
+      ) : null}
 
-        <Section title={fromCloud ? 'Library' : 'Server'}>
-          {fromCloud ? (
-            <Row label="Signed in" value="With Google — the library is the bucket's" />
-          ) : (
-            <>
-              <Row label="Address" value={connection?.baseUrl ?? 'Not set'} />
-              <Row label="Token" value={connection?.token ? 'Saved in the keychain' : 'None'} />
-            </>
-          )}
-          <Row
-            label="Library"
-            value={
-              library.data
-                ? `${library.data.songs.length} songs · version ${library.data.version}`
-                : library.isError
-                  ? 'Unreachable — showing the cached copy'
-                  : 'Loading…'
-            }
-          />
-          <View style={styles.actions}>
-            <Button label="Refresh" onPress={() => void library.refetch()} />
+      <ButtonRow>
+        {working ? (
+          <>
             <Button
-              label="Change server"
-              variant="danger"
-              onPress={() => {
-                Alert.alert(
-                  'Change server',
-                  'Downloads stay on the phone. You will need the address again.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Change',
-                      style: 'destructive',
-                      onPress: () => {
-                        void disconnect().then(() => router.replace('/onboarding'))
-                      },
-                    },
-                  ],
-                )
-              }}
+              label={downloads.paused ? 'Resume' : 'Pause'}
+              onPress={() => (downloads.paused ? queue.resume() : queue.pause())}
             />
-          </View>
-        </Section>
-
-        <Section title="Downloads">
-          <Row
-            label="On this phone"
-            value={`${downloadedCount(downloads.index)} songs · ${formatBytes(totalBytes(downloads.index))}`}
-          />
-          <Row
-            label="Not downloaded"
-            value={
-              manifest.data
-                ? `${songIds.length - downloadedCount(downloads.index)} songs · ${formatBytes(everythingBytes)}`
-                : 'Needs the server'
-            }
-          />
-          {stale.length > 0 ? (
-            <Row label="Out of date" value={`${stale.length} files changed on the server`} />
-          ) : null}
-
-          {downloads.queue.length > 0 ? (
-            <View style={styles.progressBlock}>
-              <Text style={styles.progressLabel} numberOfLines={1}>
-                {activeSong ? activeSong.title : 'Preparing…'} · {downloads.queue.length} left
-              </Text>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${
-                        downloads.totalBytes > 0
-                          ? Math.min(100, (downloads.bytesWritten / downloads.totalBytes) * 100)
-                          : 0
-                      }%`,
-                      backgroundColor: accent.accent,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {downloads.error ? <Text style={styles.error}>{downloads.error}</Text> : null}
-
-          <View style={styles.actions}>
             <Button
-              label={
-                everythingBytes > 0
-                  ? `Download everything (${formatBytes(everythingBytes)})`
-                  : 'Everything is downloaded'
-              }
-              variant="primary"
-              disabled={everythingBytes === 0 || !manifest.data}
-              onPress={() => downloadQueue.enqueue(songIds)}
+              label="Stop downloading"
+              icon={<X size={15} color={colors.textPrimary} />}
+              onPress={() => queue.cancelAll()}
             />
-            {downloads.queue.length > 0 ? (
-              <>
-                <Button
-                  label={downloads.paused ? 'Resume' : 'Pause'}
-                  onPress={() =>
-                    downloads.paused ? downloadQueue.resume() : downloadQueue.pause()
-                  }
-                />
-                <Button label="Stop" onPress={() => downloadQueue.cancelAll()} />
-              </>
-            ) : null}
-            {stale.length > 0 ? (
-              <Button
-                label="Remove out-of-date files"
-                busy={busy}
-                onPress={() => {
-                  setBusy(true)
-                  void downloadQueue.remove(stale).finally(() => setBusy(false))
-                }}
+          </>
+        ) : (
+          <Button
+            label={
+              missingBytes === 0
+                ? 'Everything is downloaded'
+                : `${held === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
+            }
+            icon={
+              <CloudDownload
+                size={15}
+                color={missingBytes === 0 ? colors.textMuted : colors.onAccent}
               />
-            ) : null}
+            }
+            variant="primary"
+            disabled={missingBytes === 0 || !manifest.data}
+            onPress={() => queue.enqueue(songIds)}
+          />
+        )}
+        {stale.length > 0 ? (
+          <Button
+            label="Remove out-of-date files"
+            busy={busy}
+            onPress={() => {
+              setBusy(true)
+              void queue.remove(stale).finally(() => setBusy(false))
+            }}
+          />
+        ) : null}
+        {held > 0 ? (
+          <Button
+            label="Remove all downloads"
+            icon={<Trash size={15} color={colors.danger} />}
+            variant="danger"
+            onPress={() => onConfirm('remove-downloads')}
+          />
+        ) : null}
+      </ButtonRow>
+    </Panel>
+  )
+}
+
+// -------------------------------------------------------------- importing
+
+function ImportingPanel({
+  settings,
+  set,
+  onTop,
+}: {
+  settings: Settings
+  set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
+  onTop: (top: number) => void
+}): ReactNode {
+  return (
+    <Panel title="Importing" hint="shared across your devices" onTop={onTop}>
+      <Row
+        label="Downloads at once"
+        hint="More is rarely faster and makes YouTube throttle. Two is a good default."
+      >
+        <Select<number>
+          value={settings.importConcurrency}
+          onChange={value => set('importConcurrency', value)}
+          options={[1, 2, 3, 4].map(value => ({ value, label: String(value) }))}
+          label="Downloads at once"
+        />
+      </Row>
+      <Row
+        label="Rescan automatically"
+        hint="Watch the library folder for files you dropped in by hand. Takes effect on restart."
+      >
+        <Select<number>
+          value={settings.autoScanMinutes}
+          onChange={value => set('autoScanMinutes', value)}
+          options={[
+            { value: 0, label: 'Never' },
+            { value: 5, label: 'Every 5 minutes' },
+            { value: 15, label: 'Every 15 minutes' },
+            { value: 60, label: 'Every hour' },
+          ]}
+          label="Rescan automatically"
+        />
+      </Row>
+      <Row
+        label="Watch the library folder"
+        hint="Rescan the moment a file is added, removed or renamed — drag something into the folder in Finder and it shows up here. No timer needed."
+      >
+        <Toggle
+          value={settings.watchLibrary}
+          onChange={value => set('watchLibrary', value)}
+          label="Watch the library folder"
+        />
+      </Row>
+      <Row
+        label="YouTube login cookies"
+        hint="Lets yt-dlp see Liked Music and private playlists. “Browser” borrows the login from a browser on this Mac; “File” reads a Netscape cookies.txt."
+        last={settings.ytCookieSource === 'none'}
+      >
+        <Select<Settings['ytCookieSource']>
+          value={settings.ytCookieSource}
+          onChange={value => set('ytCookieSource', value)}
+          options={[
+            { value: 'none', label: 'Off' },
+            { value: 'browser', label: 'From a browser' },
+            { value: 'file', label: 'From a cookies.txt file' },
+          ]}
+          label="YouTube login cookies"
+        />
+      </Row>
+      {settings.ytCookieSource === 'browser' ? (
+        <Row
+          label="Browser"
+          hint={
+            settings.ytCookieBrowser === 'safari'
+              ? 'Must be signed in to YouTube Music. Safari’s cookie file is protected by macOS: give the process running self.mp3 (Terminal or node) Full Disk Access in System Settings → Privacy & Security.'
+              : 'Must be signed in to YouTube Music. Chromium browsers may ask for keychain access the first time; Firefox needs to be closed while cookies are read.'
+          }
+          last
+        >
+          <Select<Settings['ytCookieBrowser']>
+            value={settings.ytCookieBrowser}
+            onChange={value => set('ytCookieBrowser', value)}
+            options={[
+              { value: 'chrome', label: 'Chrome' },
+              { value: 'safari', label: 'Safari' },
+              { value: 'firefox', label: 'Firefox' },
+              { value: 'brave', label: 'Brave' },
+              { value: 'edge', label: 'Edge' },
+              { value: 'chromium', label: 'Chromium' },
+            ]}
+            label="Browser"
+          />
+        </Row>
+      ) : null}
+      {settings.ytCookieSource === 'file' ? (
+        <Row
+          label="Cookies file"
+          hint="Full path to a Netscape-format cookies.txt exported from a browser where you are logged in to YouTube Music."
+          last
+        >
+          <TextInput
+            key={settings.ytCookieFile}
+            style={partStyles.input}
+            defaultValue={settings.ytCookieFile}
+            placeholder="/Users/you/cookies.txt"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Cookies file"
+            onEndEditing={event => {
+              const next = event.nativeEvent.text.trim()
+              if (next !== settings.ytCookieFile) set('ytCookieFile', next)
+            }}
+          />
+        </Row>
+      ) : null}
+    </Panel>
+  )
+}
+
+// ---------------------------------------------------------------- library
+
+function LibraryPanel({
+  libraryPath,
+  onTop,
+  onConfirm,
+}: {
+  libraryPath: string | undefined
+  onTop: (top: number) => void
+  onConfirm: (what: Confirming) => void
+}): ReactNode {
+  const library = useLibrary()
+  const scan = useScanLibrary()
+  const analysis = useAnalysisStatus(true)
+  const startAnalysis = useStartAnalysis()
+  const songs = library.data?.songs ?? []
+  const analysed = songs.filter(song => song.features !== null).length
+  const missing = songs.filter(song => song.missing).length
+  const running = analysis.data?.running === true
+
+  return (
+    <Panel title="Library" hint={`${songs.length} songs`} onTop={onTop}>
+      {libraryPath !== undefined ? (
+        <Lead>
+          Your music lives at <Text style={partStyles.code}>{libraryPath}</Text>. It is just a
+          folder of files — copy it anywhere and you have a complete backup.
+        </Lead>
+      ) : null}
+      <Row label="Rescan the folder" hint={scanHint(scan.data)}>
+        <Button
+          label={scan.isPending ? 'Scanning…' : 'Rescan'}
+          icon={<Refresh size={15} color={colors.textPrimary} />}
+          disabled={scan.isPending}
+          onPress={() => scan.mutate()}
+        />
+      </Row>
+      <Row
+        label="Audio analysis"
+        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on this Mac. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${songs.length} songs analysed.`}
+        last={!running && missing === 0}
+      >
+        <Button
+          label={running ? 'Analysing…' : 'Analyse new songs'}
+          icon={<Sparkles size={15} color={colors.textPrimary} />}
+          disabled={running || startAnalysis.isPending}
+          onPress={() => startAnalysis.mutate(false)}
+        />
+        {analysed > 0 && !running ? (
+          <Button
+            label="Redo all"
+            icon={<Refresh size={15} color={colors.textPrimary} />}
+            onPress={() => onConfirm('redo-analysis')}
+          />
+        ) : null}
+      </Row>
+      {running ? (
+        <View style={styles.progress} accessibilityLiveRegion="polite">
+          <Text style={styles.progressText}>
+            Analysing{analysis.data?.current ? ` — ${analysis.data.current.title}` : '…'}
+            {analysis.data && analysis.data.pending > 0 ? ` · ${analysis.data.pending} to go` : ''}
+          </Text>
+        </View>
+      ) : null}
+      {missing > 0 ? (
+        <View>
+          <Notice tone="warn">
+            {missing} {missing === 1 ? 'song is' : 'songs are'} in your library but the{' '}
+            {missing === 1 ? 'file is' : 'files are'} gone. Their tags and play counts are kept in
+            case the files come back.
+          </Notice>
+          <ButtonRow>
             <Button
-              label="Delete all downloads"
+              label="Forget missing songs"
+              icon={<Trash size={15} color={colors.danger} />}
               variant="danger"
-              disabled={downloadedCount(downloads.index) === 0}
-              onPress={() => {
-                Alert.alert('Delete all downloads', 'The library itself is not touched.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => {
-                      void downloadQueue.removeAll()
-                    },
-                  },
-                ])
-              }}
+              onPress={() => onConfirm('forget-missing')}
             />
-          </View>
-        </Section>
-
-        <Section title="Appearance">
-          <View style={styles.accentRow}>
-            <View style={styles.accentLabel}>
-              <BrandMark size={20} />
-              <Text style={styles.rowLabel}>Accent</Text>
-            </View>
-            <View style={styles.swatches}>
-              {ACCENT_PRESETS.map(preset => (
-                <Pressable
-                  key={preset.hue}
-                  onPress={() => accent.setHue(preset.hue)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={preset.name}
-                  accessibilityState={{ selected: accent.hue === preset.hue }}
-                  style={[
-                    styles.swatch,
-                    { backgroundColor: buildAccent(preset.hue).accent },
-                    accent.hue === preset.hue && [
-                      styles.swatchOn,
-                      { borderColor: colors.textPrimary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-          <Text style={styles.note}>
-            This phone&rsquo;s colour, kept on this phone. The Mac and any other device keep their
-            own.
-          </Text>
-        </Section>
-
-        <Section title="About">
-          <Row label="Version" value={String(Constants.expoConfig?.version ?? '1.0.0')} />
-          <Text style={styles.note}>
-            Gapless playback is handled by the native player. Crossfade is not: the web app overlaps
-            two audio elements to do it, and there is no equivalent here — the `crossfadeSeconds`
-            setting on the server has no effect on this app.
-          </Text>
-        </Section>
-      </ScrollView>
-    </SafeAreaView>
+          </ButtonRow>
+        </View>
+      ) : null}
+    </Panel>
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
+// ------------------------------------------------------------- connection
+
+function ConnectionPanel({
+  onTop,
+  onConfirm,
+}: {
+  onTop: (top: number) => void
+  onConfirm: (what: Confirming) => void
+}): ReactNode {
+  const { connection, fromCloud } = useConnection()
+  const library = useLibrary()
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
+    <Panel title="Connection" hint="on this device" onTop={onTop}>
+      {fromCloud ? (
+        <Row label="Signed in" hint="With Google — the library is the bucket’s." />
+      ) : (
+        <>
+          <Row label="Address">
+            <Text style={styles.valueText} numberOfLines={1}>
+              {connection?.baseUrl ?? 'Not set'}
+            </Text>
+          </Row>
+          <Row label="Token">
+            <Text style={styles.valueText}>
+              {connection?.token ? 'Saved in the keychain' : 'None'}
+            </Text>
+          </Row>
+        </>
+      )}
+      <Row label="Library" last>
+        <Text style={styles.valueText}>
+          {library.data
+            ? `${library.data.songs.length} songs · version ${library.data.version}`
+            : library.isError
+              ? 'Unreachable — showing the cached copy'
+              : 'Loading…'}
+        </Text>
+      </Row>
+      <ButtonRow>
+        <Button
+          label="Refresh"
+          icon={<Refresh size={15} color={colors.textPrimary} />}
+          onPress={() => void library.refetch()}
+        />
+        {fromCloud ? null : (
+          <Button
+            label="Change server"
+            variant="danger"
+            onPress={() => onConfirm('change-server')}
+          />
+        )}
+      </ButtonRow>
+    </Panel>
   )
 }
 
-function Row({ label, value }: { label: string; value: string }): ReactNode {
+// ---------------------------------------------------------------- devices
+
+function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const { deviceId, name, rename, devices, connected } = useDeviceContext()
+  const client = useQueryClient()
+  const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
+  const shown = draft && draft.from === name ? draft.text : name
+
+  const forget = (id: string): void => {
+    void clientApi()
+      .forgetDevice(id)
+      .then(() => client.invalidateQueries({ queryKey: queryKeys.devices }))
+      .catch(() => undefined)
+  }
+
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue} numberOfLines={2}>
-        {value}
-      </Text>
-    </View>
+    <Panel title="Devices" hint={connected ? 'live updates' : 'polling'} onTop={onTop}>
+      <Lead>
+        Every device you open self.mp3 on shows up here and can hand playback to any of the others.
+        Nothing is stored beyond a name and what was last playing.
+      </Lead>
+      <Row label="This device’s name" hint="Shown on your other devices when handing off.">
+        <TextInput
+          style={partStyles.input}
+          value={shown}
+          maxLength={60}
+          accessibilityLabel="This device’s name"
+          onChangeText={text => setDraft({ text, from: name })}
+          onEndEditing={() => {
+            if (draft && draft.text.trim() && draft.text !== name) rename(draft.text.trim())
+            setDraft(null)
+          }}
+        />
+      </Row>
+      <View style={styles.devices}>
+        {devices.map((device, position) => (
+          <View
+            key={device.id}
+            style={[styles.device, position === devices.length - 1 && styles.deviceLast]}
+          >
+            <View style={[styles.dot, device.online && { backgroundColor: colors.good }]} />
+            <View style={styles.deviceName}>
+              <Text style={styles.deviceText} numberOfLines={1}>
+                {device.name}
+              </Text>
+              {device.id === deviceId ? <Text style={styles.deviceTag}>this device</Text> : null}
+            </View>
+            <Text style={styles.deviceWhen}>
+              {device.online ? 'online' : `last seen ${relativeTime(device.lastSeenAt)}`}
+            </Text>
+            <IconButton onPress={() => forget(device.id)} label={`Forget ${device.name}`} size={28}>
+              <Trash size={14} color={colors.textMuted} />
+            </IconButton>
+          </View>
+        ))}
+        {devices.length === 0 ? (
+          <Text style={partStyles.hint}>No devices registered yet.</Text>
+        ) : null}
+      </View>
+    </Panel>
+  )
+}
+
+// ------------------------------------------------------------- appearance
+
+function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const accent = useAccent()
+  return (
+    <Panel title="Appearance" hint="on this device" onTop={onTop}>
+      <Row
+        label="Theme"
+        hint="“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way."
+      >
+        <Select<ThemeChoice>
+          value={accent.theme}
+          onChange={accent.setTheme}
+          options={[
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
+            { value: 'system', label: 'System' },
+          ]}
+          label="Theme"
+        />
+      </Row>
+      <Row
+        label="Accent colour"
+        hint={`Drives every colour in the app — the surfaces are tinted from it too, so a change is felt rather than spotted. ${accentName(accent.hue, ACCENT_PRESETS)}.`}
+        last
+      >
+        <View style={styles.swatches}>
+          {ACCENT_PRESETS.map(preset => (
+            <Pressable
+              key={preset.hue}
+              onPress={() => accent.setHue(preset.hue)}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={preset.name}
+              accessibilityState={{ selected: accent.hue === preset.hue }}
+              style={[
+                styles.swatch,
+                { backgroundColor: buildAccent(preset.hue).accent },
+                accent.hue === preset.hue && { borderColor: colors.textPrimary },
+              ]}
+            />
+          ))}
+        </View>
+        <Slider
+          value={accent.hue}
+          min={0}
+          max={359}
+          step={1}
+          label="Accent hue"
+          hue
+          width={156}
+          onChange={accent.setHue}
+        />
+      </Row>
+    </Panel>
+  )
+}
+
+// ---------------------------------------------------------- confirmations
+
+function Confirmations({
+  confirming,
+  onDone,
+}: {
+  confirming: Confirming
+  onDone: () => void
+}): ReactNode {
+  const router = useRouter()
+  const client = useQueryClient()
+  const { disconnect } = useConnection()
+  const { queue } = useDownloads()
+  const startAnalysis = useStartAnalysis()
+
+  const dialogs: Record<
+    Exclude<Confirming, null>,
+    { title: string; body: string; label: string; run: () => void }
+  > = {
+    'change-server': {
+      title: 'Change server?',
+      body: 'Downloads stay on this device. You will need the address again.',
+      label: 'Change server',
+      run: () => void disconnect().then(() => router.replace('/onboarding')),
+    },
+    'remove-downloads': {
+      title: 'Remove all downloaded songs from this device?',
+      body: 'The library itself is not touched.',
+      label: 'Remove all downloads',
+      run: () => void queue.removeAll(),
+    },
+    'redo-analysis': {
+      title: 'Throw away existing analysis and redo every song?',
+      body: 'Tempo, key, energy and loudness are worked out again from each file.',
+      label: 'Redo all',
+      run: () => startAnalysis.mutate(true),
+    },
+    'forget-missing': {
+      title: 'Permanently forget missing songs?',
+      body: 'Their tags and play history go with them.',
+      label: 'Forget missing songs',
+      run: () =>
+        void clientApi()
+          .purgeMissing()
+          .then(() => client.invalidateQueries({ queryKey: queryKeys.library })),
+    },
+  }
+  const dialog = confirming === null ? null : dialogs[confirming]
+
+  return (
+    <ConfirmDialog
+      open={dialog !== null}
+      title={dialog?.title ?? ''}
+      body={dialog?.body ?? ''}
+      confirmLabel={dialog?.label ?? ''}
+      danger
+      onConfirm={() => {
+        dialog?.run()
+        onDone()
+      }}
+      onCancel={onDone}
+    />
   )
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
+  screen: { flex: 1, backgroundColor: colors.surface0 },
+  content: { paddingBottom: 40 },
+  contentColumn: { paddingTop: 28, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
+  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
+  head: { marginBottom: 20 },
+  title: { color: colors.textPrimary, fontSize: 26, fontWeight: '700', letterSpacing: -0.4 },
+  titleNarrow: { fontSize: 22 },
+  sub: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
+  panels: { gap: 14, maxWidth: 780 },
+  indexColumn: { position: 'absolute', top: 28, left: 32, width: 172, gap: 1 },
+  indexTitle: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    paddingTop: 4,
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  indexItem: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  indexItemOn: { backgroundColor: colors.surface1 },
+  indexPressed: { backgroundColor: colors.surface1 },
+  indexText: { color: colors.textMuted, fontSize: 13 },
+  indexTextOn: { color: colors.textPrimary, fontWeight: '600' },
+  chipBar: {
+    marginHorizontal: -16,
+    paddingVertical: 10,
+    marginBottom: 14,
     backgroundColor: colors.surface0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  content: {
-    paddingHorizontal: space.lg,
-    paddingTop: 18,
-    paddingBottom: space.xl,
-  },
-  heading: {
-    color: colors.textPrimary,
-    fontSize: type.large,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  sub: {
-    color: colors.textMuted,
-    fontSize: 13,
-    marginTop: 3,
-    marginBottom: 22,
-  },
-  section: {
-    marginBottom: space.xl,
-  },
-  sectionTitle: {
-    color: colors.textMuted,
-    fontSize: type.tiny,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: space.sm,
-  },
-  card: {
-    backgroundColor: colors.surface1,
+  chips: { gap: 6, paddingHorizontal: 16 },
+  chip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: space.md,
-    gap: space.sm,
+    backgroundColor: colors.surface1,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: space.md,
-  },
-  rowLabel: {
-    color: colors.textMuted,
-    fontSize: type.small,
-  },
-  rowValue: {
-    color: colors.textPrimary,
-    fontSize: type.small,
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-  actions: {
-    gap: space.sm,
-    marginTop: space.sm,
-  },
-  progressBlock: {
-    gap: space.xs,
-    marginTop: space.xs,
-  },
-  progressLabel: {
-    color: colors.textSecondary,
-    fontSize: type.small,
-  },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.surface3,
-  },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
-  },
-  accentRow: {
+  valueText: { color: colors.textPrimary, fontSize: 13 },
+  progress: { marginVertical: 14, gap: 8 },
+  progressText: { color: colors.textSecondary, fontSize: 13 },
+  shortcut: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
+  keys: { flexDirection: 'row', gap: 3, minWidth: 92 },
+  devices: { marginTop: 6 },
+  device: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: space.sm,
-    gap: space.md,
+    gap: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  accentLabel: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  swatches: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  swatch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  swatchOn: { borderWidth: 2 },
-  error: {
-    color: colors.danger,
-    fontSize: type.small,
-  },
-  note: {
+  deviceLast: { borderBottomWidth: 0 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.borderStrong },
+  deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  deviceText: { color: colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  deviceTag: {
     color: colors.textMuted,
-    fontSize: type.small,
-    lineHeight: 18,
+    fontSize: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: colors.surface3,
+    overflow: 'hidden',
   },
+  deviceWhen: { color: colors.textMuted, fontSize: 12 },
+  swatches: { flexDirection: 'row', gap: 6 },
+  swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'transparent' },
 })

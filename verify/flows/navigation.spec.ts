@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { againstUniversalApp, libraryReady } from './helpers.js'
+import { libraryReady } from './helpers.js'
 
 /**
  * Getting to the other screens.
@@ -27,14 +27,6 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
-    // The Mac's own settings — crossfade, what counts as a play — are not on
-    // the phone's Settings screen yet: it carries the server, downloads,
-    // appearance and about. They come across with the shared surfaces in phase
-    // 4, and until then there is no such control in `apps/app` to look for.
-    test.skip(
-      againstUniversalApp,
-      'apps/app has no server-settings controls until phase 4 brings Settings across',
-    )
     await expect(
       page
         .getByRole('spinbutton')

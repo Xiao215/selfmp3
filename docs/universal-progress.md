@@ -915,6 +915,31 @@ from review. The captured states still have to pass check 2 by eye.
   `verify/flows/nowPlaying.spec.ts` passes against both apps. A phone keeps
   its own full-screen player, unchanged.
 
+- **Settings.** The web's page. Its index is a column beside the panels
+  from 1080 up, and below that a sticky row of chips that scrolls to follow
+  the section being read. Every setting has the web's one-row anatomy, and on
+  a phone the control drops under the words.
+  - **Server settings:** Playback (crossfade, what counts as a play, lyric
+    lookup), Importing (downloads at once, rescan, watching the folder,
+    YouTube cookies) and Lyrics (romaji and pinyin). Sliders save once, where
+    the drag ends.
+  - **Library:** rescan, audio analysis with Redo all, and forgetting missing
+    songs. These three and the destructive offline actions ask first through
+    `ConfirmDialog`: the old screen's `Alert.alert` does nothing in a
+    browser.
+  - **Devices:** rename this one, forget others.
+  - **Appearance:** Theme and the accent, as swatches plus a hue slider.
+  - **Also:** Offline music (this device's downloads), Keyboard shortcuts,
+    Connection (the server or the Google sign-in) and About.
+
+  New controls: `Toggle`, a `switch` to assistive technology, and `Slider`, a
+  real `<input type="range">` on the web and a touch track on a phone. The
+  arithmetic is in `slider.model.ts` (3 tests). Select's choices are now
+  `option`s, as on the web. The section list, the rule for which section is
+  being read, and the row wording are in `settings.model.ts` (5 tests). The
+  navigation flow's Settings check no longer skips the new app, and passes
+  against both.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -961,6 +986,20 @@ seven states at 1280, and the phone's five.
 - **About offers "Download now" on the web.** Song details say what is on
   this device, and in a browser that still offers a download, although the
   web always streams (decided above). It goes with the download settings.
+- **Settings, where this app differs.**
+  - The accent and the theme are this device's, kept on this device; the
+    web shares them across devices. The accent already worked this way
+    (`ui/accent.tsx`), and the theme follows it for the same reason: how a
+    screen looks belongs to the screen.
+  - Choosing Light saves the choice, but the app is still drawn dark. The
+    light theme needs the colours to come from a theme rather than fixed
+    tokens, and is its own piece of work.
+  - Cloud (the Mac's connection to the bucket, and uploads) is not here yet.
+    Its place is taken by Connection, which shows what this device talks to.
+  - Fix covers is not here yet.
+  - Offline music is this device's download queue. The two new settings
+    ("Download automatically on Wi-Fi", "Play songs that aren't downloaded")
+    come with the downloading work that follows.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

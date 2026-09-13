@@ -21,6 +21,10 @@ import { prefs } from '../ports/prefs'
  */
 
 const ACCENT_KEY = 'accent'
+const THEME_KEY = 'theme'
+
+/** Dark, light, or whatever this device's own setting is. */
+export type ThemeChoice = 'dark' | 'light' | 'system'
 
 /** The presets the picker offers, and their hues. The web app offers these. */
 export const ACCENT_PRESETS: readonly { hue: number; name: string }[] = [
@@ -36,6 +40,12 @@ export const ACCENT_PRESETS: readonly { hue: number; name: string }[] = [
 interface AccentApi extends Accent {
   readonly hue: number
   setHue: (hue: number) => void
+  /**
+   * The theme this device asked for. Kept with the accent, and for the same
+   * reason: how a screen looks belongs to the screen.
+   */
+  readonly theme: ThemeChoice
+  setTheme: (theme: ThemeChoice) => void
 }
 
 const AccentContext = createContext<AccentApi | null>(null)
@@ -72,7 +82,19 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
     setHueState(Math.round(Math.min(359, Math.max(0, next))))
   }, [])
 
-  const value = useMemo<AccentApi>(() => ({ hue, setHue, ...buildAccent(hue) }), [hue, setHue])
+  const [theme, setThemeState] = useState<ThemeChoice>(() => {
+    const stored = prefs.get(THEME_KEY)
+    return stored === 'light' || stored === 'system' ? stored : 'dark'
+  })
+  const setTheme = useCallback((next: ThemeChoice) => {
+    setThemeState(next)
+    prefs.set(THEME_KEY, next)
+  }, [])
+
+  const value = useMemo<AccentApi>(
+    () => ({ hue, setHue, theme, setTheme, ...buildAccent(hue) }),
+    [hue, setHue, theme, setTheme],
+  )
 
   return <AccentContext.Provider value={value}>{children}</AccentContext.Provider>
 }
@@ -87,6 +109,8 @@ export function useAccent(): AccentApi {
     context ?? {
       hue: DEFAULT_ACCENT_HUE,
       setHue: () => undefined,
+      theme: 'dark',
+      setTheme: () => undefined,
       ...buildAccent(DEFAULT_ACCENT_HUE),
     }
   )

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Pressable, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
@@ -57,6 +58,8 @@ export const PLAYER_BAR_HEIGHT = 84
 
 /** Below this the volume slider folds into a popover on the speaker. */
 const COMPACT_WIDTH = 1160
+/** Below this the song and the transport shrink, so the tools on the right still fit. */
+const TIGHT_WIDTH = 900
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const
 
@@ -75,6 +78,10 @@ export function PlayerBar(): ReactNode {
   const router = useRouter()
   const toggleLoved = useToggleLoved()
   const { width } = useLayout()
+  const insets = useSafeAreaInsets()
+  // An iPad at 834 points has less room than any desktop window the bar was
+  // drawn for: the song and the transport give up width before the tools go.
+  const tight = width < TIGHT_WIDTH
   const song = player.current
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -108,7 +115,13 @@ export function PlayerBar(): ReactNode {
   }
 
   return (
-    <View style={styles.bar} testID="player-bar">
+    <View
+      style={[
+        styles.bar,
+        insets.bottom > 0 && { height: PLAYER_BAR_HEIGHT + insets.bottom, paddingBottom: insets.bottom },
+      ]}
+      testID="player-bar"
+    >
       {song ? (
         <>
           <View
@@ -128,7 +141,7 @@ export function PlayerBar(): ReactNode {
         </>
       ) : null}
 
-      <View style={styles.left}>
+      <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
           <>
             <Pressable
@@ -191,7 +204,7 @@ export function PlayerBar(): ReactNode {
         )}
       </View>
 
-      <View style={styles.centre}>
+      <View style={[styles.centre, tight && styles.centreTight]}>
         <View style={styles.buttons}>
           <IconButton onPress={player.toggleShuffle} label="Shuffle" active={player.queue.shuffle}>
             <Shuffle
@@ -524,6 +537,8 @@ const styles = StyleSheet.create(theme => ({
   },
   playPressed: { transform: [{ scale: 0.96 }] },
   progress: { alignSelf: 'stretch' },
+  centreTight: { minWidth: 250 },
+  leftTight: { minWidth: 150 },
   right: {
     flexShrink: 0,
     flexDirection: 'row',

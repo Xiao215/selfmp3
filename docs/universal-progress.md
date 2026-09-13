@@ -1920,3 +1920,34 @@ controls, while the art is showing.
 library opens the tag editor as a sheet. Checked on the iPhone 17 Pro Max: it
 shows the tag and its song count, Show only these and Hide these, Name with
 Rename, the colours and Delete tag, and a tap outside closes it untouched.
+
+### The iPad as a width of its own
+
+The dev client was installed on an iPad Pro 11-inch simulator (834 × 1194
+points, iOS 26.5), connected to the Mac through onboarding. At 834 it gets the
+desktop layout with a finger, and three things were wrong in portrait:
+
+- **The sidebar ran under the status bar.** No part of the wide frame used the
+  safe area; the screens pad their own top, the sidebar did not. It now adds
+  the top inset. A browser's inset is 0, so the web is unchanged.
+- **The player bar was cut off on the right.** Its song and transport keep 200
+  and 300 points, and the tools do not shrink: at 834 the volume and devices
+  went past the edge. Below 900 points the song and transport give up width
+  (150 and 250). The bar also clears the home indicator.
+- **The library's header clipped its sort.** One row needs about 760 points
+  and the column beside the sidebar is 590. Below 760 it stacks as a phone's
+  does; before the column is measured the row is kept, so a desktop does not
+  flash.
+
+Checked: on the iPad simulator the rail starts under the status bar, the
+header stacks and the whole bar fits above the home indicator; the web build at
+834 × 1194 in Chromium has no control past the right edge; the library,
+navigation and playback flows pass at 1280 and 375.
+
+Not checked: landscape (1194 wide), which needs the Simulator rotated; Xiao
+declined control of the Simulator app, and `simctl` cannot rotate.
+
+**Keyboard shortcuts on an iPad** need native key commands. No installed module
+provides them (React Native uses `UIKeyCommand` only in its dev menu), so this
+needs a new native dependency and a dev client rebuild: a Stack line and
+Xiao's call.

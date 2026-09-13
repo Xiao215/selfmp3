@@ -24,6 +24,7 @@ import { TagEditor } from '../../ui/components/TagEditor'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
+import { useContentWidth } from '../../shell/contentWidth'
 import { useLibraryModel } from './library.model'
 
 /**
@@ -40,6 +41,11 @@ export function LibraryScreen(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense } = useLayout()
+  // One row needs about 760 points: title, search, order and play. An iPad's
+  // column beside the sidebar is 590, so there it stacks as a phone's does.
+  // Before the column is measured the row is kept, so a desktop never flashes.
+  const contentWidth = useContentWidth()
+  const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
   const { state: downloads, installed } = useDownloads()
@@ -135,16 +141,16 @@ export function LibraryScreen(): ReactNode {
         title on the left, and search, order and play along from it, with the
         search giving up width before the row wraps.
       */}
-      <View style={[styles.head, wide && styles.headWide]}>
-        <View style={wide ? styles.titlesWide : undefined}>
+      <View style={[styles.head, headWide && styles.headWide]}>
+        <View style={headWide ? styles.titlesWide : undefined}>
           <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
             {heading}
           </Text>
           <Text style={styles.sub}>{model.subtitle}</Text>
         </View>
 
-        <View style={[styles.controls, wide && styles.controlsWide]}>
-          <View style={[styles.searchBox, wide && styles.searchWide, dense && styles.searchDense]}>
+        <View style={[styles.controls, headWide && styles.controlsWide]}>
+          <View style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}>
             <Search size={15} color={theme.colors.textMuted} />
             <TextInput
               style={styles.search}
@@ -169,8 +175,8 @@ export function LibraryScreen(): ReactNode {
             ) : null}
           </View>
 
-          <View style={[styles.actions, wide && styles.actionsWide]}>
-            <View style={[styles.sortSlot, wide && styles.sortSlotWide]}>
+          <View style={[styles.actions, headWide && styles.actionsWide]}>
+            <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
               <Select
                 value={filter.sort}
                 options={model.sortOptions.map(option => ({
@@ -195,7 +201,7 @@ export function LibraryScreen(): ReactNode {
               <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
             </Pressable>
 
-            <View style={[styles.transport, wide ? styles.transportWide : styles.transportCompact]}>
+            <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
               {/*
               The way in, on every device: multi-select used to be reachable
               only by knowing that Cmd-click did something.
@@ -371,6 +377,9 @@ const EMPTY_TEXT = {
   'no-library': 'Nothing here yet. Import a song on the Mac and it turns up here.',
   'no-matches': 'Nothing matches.',
 } as const
+
+/** The narrowest page column that takes the header on one row. */
+const HEAD_ROW_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
   screen: {

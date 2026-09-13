@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
@@ -75,6 +76,8 @@ export const SIDEBAR_WIDTH = 244
 const HOVERS = Platform.OS === 'web'
 
 export function Sidebar(): ReactNode {
+  // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
+  const insets = useSafeAreaInsets()
   const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
@@ -82,7 +85,7 @@ export function Sidebar(): ReactNode {
   const { fromCloud } = useConnection()
 
   return (
-    <View style={styles.rail} testID="sidebar">
+    <View style={[styles.rail, { paddingTop: space.xl + insets.top }]} testID="sidebar">
       <View style={styles.brand}>
         <BrandMark size={20} />
         <Text style={styles.wordmark}>self.mp3</Text>

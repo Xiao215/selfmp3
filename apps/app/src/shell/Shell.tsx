@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { colors } from '@selfmp3/client'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { ResumeToast } from '../features/devices/ResumeToast'
+import { CommandPalette } from '../features/palette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
 import { Sidebar } from './Sidebar'
+import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
 
 /**
@@ -43,6 +46,7 @@ export function Shell({
     <OverlayProvider>
       {frame(wide, chrome, sidebar, children)}
       <PlaybackNotices />
+      <PaletteHost />
     </OverlayProvider>
   )
 }
@@ -80,6 +84,14 @@ function frame(wide: boolean, chrome: boolean, sidebar: boolean, children: React
       <BottomNav />
     </View>
   )
+}
+
+/** ⌘K, or Ctrl+K, anywhere: the command palette. */
+function PaletteHost(): ReactNode {
+  const [open, setOpen] = useState(false)
+  useHotkeys({ 'meta+k': () => setOpen(true), 'ctrl+k': () => setOpen(true) })
+  // Mounted only while open, so each opening starts with an empty box.
+  return open ? <CommandPalette onClose={() => setOpen(false)} /> : null
 }
 
 /**

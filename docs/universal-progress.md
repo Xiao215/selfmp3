@@ -979,6 +979,18 @@ from review. The captured states still have to pass check 2 by eye.
   the capture now presses it 40% of the way along, and the state is taken at
   both widths.
 
+- **The ⌘K palette.** The web's command palette, opened with ⌘K or Ctrl+K
+  anywhere. One box searches songs, playlists, tags and lyrics, and runs
+  commands. Arrow keys move through every group as one list, Enter takes
+  the highlighted row, and Escape closes it.
+  - `shell/useHotkeys` listens on the window in a browser and does nothing
+    on a phone. Like the web's, it ignores keys while someone is typing or
+    a menu has the keyboard.
+  - Ranking, the commands and when lyrics are worth searching are in
+    `palette.model.ts` (4 tests).
+  - `verify/flows/palette.spec.ts` finds a song by its title and plays it,
+    then runs Settings, against both apps.
+
 The reference library capture now runs to the end at 1280 and at 375: all
 seven library states at each width. The playlists capture does too, with all
 five playlist states at each width. So does the now playing capture: all
@@ -1048,6 +1060,13 @@ seven states at 1280, and the phone's five.
     still the thing to retry (see `src/ports/downloadStorage.ts`).
   - `offline.yaml`'s note that an undownloaded song "sits paused with no
     word" is now true only for the queue moving on by itself.
+- **The palette, where this app differs.**
+  - It offers Go to Library, Go to Playlists, Settings and Shuffle
+    everything. The web's Import music, Listening stats and Tag untagged
+    songs wait for those screens.
+  - A tag result sets the library's filter to that tag, where the web
+    navigates to `/?tag=`.
+  - Arrow keys don't scroll the highlighted row into view on a long list.
 - **Saved rules update the song list.** The web leaves the old list under
   the builder until the page reloads: after tightening the rules to match
   nothing, it still shows 13 songs. Here the list is fetched again after each

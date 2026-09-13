@@ -907,7 +907,13 @@ and streaming work builds to. Recorded here so it is not re-litigated.
   desktop shell if one is ever wanted". **Toolkit: Electron** (Xiao,
   2026-09-12), wrapping the universal app's web export, with disk, keychain
   and updates supplied behind the ports. It gets its line in the Stack table
-  when the work starts.
+  when the work starts. Also settled the same day:
+  - Not for the Mac App Store, so the sandbox is not a constraint.
+  - Windows is a possible future, with no plan for it. Nothing should close
+    that door, and nothing is built for it.
+  - On a Mac every connection counts as Wi-Fi. A browser cannot tell a hotspot
+    apart, native detection is not worth the code yet, and the 500 MB rule is
+    the guardrail. (Xiao left this to Claude.)
 
 **Downloading**
 

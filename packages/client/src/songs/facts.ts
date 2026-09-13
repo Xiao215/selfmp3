@@ -20,6 +20,20 @@ export function tempoMark(bpm: number): string {
   return `♩${NBSP}=${NBSP}${Math.round(bpm)}`
 }
 
+/**
+ * Tempo and energy in words, for the hover caption on a song's badges: the web
+ * app's `FeatureBadges`, word for word. Empty when neither is known.
+ */
+export function describeFeatures(features: {
+  readonly bpm?: number | null
+  readonly energy?: number | null
+}): string {
+  const parts: string[] = []
+  if (features.bpm != null) parts.push(`${Math.round(features.bpm)} beats a minute`)
+  if (features.energy != null) parts.push(`energy ${Math.round(features.energy * 100)} of 100`)
+  return parts.join(' · ')
+}
+
 /** A plain word for the pace, not an Italian one. */
 export function tempoWords(bpm: number): string {
   if (bpm < 70) return 'slow'

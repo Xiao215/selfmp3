@@ -42,6 +42,7 @@ import {
   X,
 } from '../ui/components/Icons'
 import { TagEditor } from '../ui/components/TagEditor'
+import { tip } from '../ui/tip'
 
 /**
  * The desktop's left rail: the web app's `.sidebar`.
@@ -181,6 +182,7 @@ function Tags(): ReactNode {
               onPress={() => setFilter(clearTagFilter)}
               accessibilityRole="button"
               accessibilityLabel="Clear tag filters"
+              {...tip('Clear filters')}
             >
               <X size={13} color={theme.colors.textMuted} />
             </Pressable>
@@ -190,6 +192,7 @@ function Tags(): ReactNode {
             onPress={() => setAdding(open => !open)}
             accessibilityRole="button"
             accessibilityLabel="New tag"
+            {...tip('New tag')}
           >
             <Plus size={14} color={theme.colors.textMuted} />
           </Pressable>
@@ -344,6 +347,7 @@ function TagRow({
         onPress={onExclude}
         accessibilityRole="button"
         accessibilityLabel={excluded ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
+        {...tip(excluded ? 'Stop hiding' : 'Hide these songs')}
         accessibilityState={{ selected: excluded }}
       >
         <Minus size={13} color={excluded ? theme.colors.danger : theme.colors.textMuted} />
@@ -354,6 +358,7 @@ function TagRow({
           onPress={() => setEditing(open => !open)}
           accessibilityRole="button"
           accessibilityLabel={`Edit tag ${tag.name}`}
+          {...tip('Rename, recolour or delete')}
           accessibilityState={{ expanded: editing }}
         >
           <More size={13} color={theme.colors.textMuted} />

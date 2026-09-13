@@ -10,6 +10,7 @@ import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
+import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useHotkeys } from './useHotkeys'
@@ -54,6 +55,8 @@ export function Shell({
       {frame(wide, chrome, sidebar, barHidden, children)}
       <PlaybackNotices />
       <PaletteHost />
+      {/* Hover captions in a browser; nothing on a phone. */}
+      <TooltipHost />
     </OverlayProvider>
   )
 }

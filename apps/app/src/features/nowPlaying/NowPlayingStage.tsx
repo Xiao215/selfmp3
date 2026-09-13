@@ -51,6 +51,7 @@ import { StageQueue } from './StageQueue'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
+import { tip } from '../../ui/tip'
 
 /** The player bar's height: the page is the window above it. */
 const BAR = 84
@@ -444,6 +445,7 @@ function Stage({
           onPress={() => onMode(focus ? 'stage' : 'focus')}
           accessibilityRole="button"
           accessibilityLabel={focus ? 'Back to the full page' : 'Show only the words'}
+          {...tip(focus ? 'Back to the full page' : 'Only the words, big')}
           style={({ pressed }) => [
             styles.expand,
             chrome,

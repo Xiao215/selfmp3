@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { tip } from '../tip'
 import { HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
 
 /**
@@ -60,6 +61,8 @@ export function Button({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      // An icon-only button has nothing on it to read; one with a label has said it.
+      {...tip(label === undefined ? accessibilityLabel : undefined)}
       accessibilityState={{ disabled: inactive, selected: active }}
       style={({ pressed }) => [
         styles.button,

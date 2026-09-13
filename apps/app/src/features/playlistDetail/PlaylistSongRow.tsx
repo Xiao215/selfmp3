@@ -7,6 +7,7 @@ import { formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { dragCursor } from '../../ports/dragCursor'
+import { tip } from '../../ui/tip'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -144,6 +145,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
             { opacity: revealed ? 1 : 0.45 },
             dragCursor(dragging),
           ]}
+          {...tip('Drag to reorder')}
         >
           <Grip size={16} color={revealed ? theme.colors.textSecondary : theme.colors.textMuted} />
         </View>

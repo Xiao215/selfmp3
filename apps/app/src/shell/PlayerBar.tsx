@@ -15,6 +15,7 @@ import { useAccent } from '../ui/accent'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
 import { ProgressWash } from '../ui/components/ProgressWash'
+import { tip } from '../ui/tip'
 import { IconButton } from '../ui/components/IconButton'
 import {
   ChevronDown,
@@ -147,6 +148,7 @@ export function PlayerBar(): ReactNode {
               onPress={togglePage}
               accessibilityRole="button"
               accessibilityLabel={onPage ? 'Close now playing' : `Open now playing: ${song.title}`}
+              {...tip(onPage ? 'Close' : 'Open the song: lyrics, up next, details')}
               accessibilityState={{ expanded: onPage }}
             >
               <View>
@@ -218,6 +220,7 @@ export function PlayerBar(): ReactNode {
             disabled={!song}
             accessibilityRole="button"
             accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
+            {...tip(player.isPlaying ? 'Pause' : 'Play')}
             accessibilityState={{ disabled: !song, busy: player.stalled }}
             style={({ pressed }) => [
               styles.playButton,
@@ -457,6 +460,7 @@ function VolumeSlider({
       accessibilityRole="adjustable"
       accessibilityLabel="Volume"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
+      {...tip(`Volume: ${Math.round(value * 100)}%`)}
       {...responder.panHandlers}
     >
       <View style={styles.sliderTrack}>

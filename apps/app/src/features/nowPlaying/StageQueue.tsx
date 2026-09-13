@@ -8,6 +8,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { dragCursor } from '../../ports/dragCursor'
+import { tip } from '../../ui/tip'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
@@ -216,6 +217,7 @@ const QueueRow = memo(function QueueRow({
         accessibilityRole="button"
         accessibilityLabel={`Reorder ${song.title}`}
         style={[styles.grip, !finePointer && styles.gripTouch, dragCursor(dragging)]}
+        {...tip('Drag to reorder')}
       >
         <Grip size={16} color={hovered ? theme.colors.textSecondary : theme.colors.textMuted} />
       </View>

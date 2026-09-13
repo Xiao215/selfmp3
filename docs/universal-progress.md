@@ -2308,3 +2308,27 @@ four seconds.
   200 ms each time, then following.
 - The queue's and a playlist's drag handles show a grab cursor in a browser,
   and a grabbing one while held (`ports/dragCursor`).
+
+### Hover captions are back — branch `universal/hover-captions`
+
+Noticed by Xiao on 4600: hovering an icon, or a song's tempo and energy, no
+longer said what it was. The web app had a `TooltipHost` reading `data-tip`
+from 77 places in 29 files, and it did not come across; the new app kept
+screen-reader labels, which a browser does not show.
+
+- `shell/TooltipHost.web.tsx` is the web app's host, moved as it was — the
+  pointer rests 300 ms, the next caption along a row opens at once, keyboard
+  focus shows it, a touch never does, a trailing `(key)` becomes a key cap —
+  drawn in the theme's colours. `TooltipHost.tsx` renders nothing on a phone.
+  Mounted once in the shell.
+- `ui/tip.ts` sets `data-tip` through `dataSet`, which React Native for web
+  turns into the attribute.
+- Captions: every `IconButton` (its label) and icon-only `Button`; a song's
+  badges ("100 beats a minute · energy 88 of 100", `describeFeatures` in
+  packages/client, with a test); the row's ⋯, heart, + and play; the player
+  bar's song and play; the sidebar's clear, new tag, hide and edit; the stage's
+  lyrics-only; drag handles; the volume; a forgotten gem. A caption that only
+  repeats text already on screen is not shown, as before.
+- Checked by hovering in Chrome against the dev server: the badges, the row's
+  ⋯ ("More actions") and heart ("Love this song"), the bar's Next, the sidebar's
+  New tag, and no caption on the worded Shuffle button.

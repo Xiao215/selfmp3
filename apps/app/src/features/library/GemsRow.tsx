@@ -11,6 +11,7 @@ import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { ChevronDown, ChevronRight, Play } from '../../ui/components/Icons'
+import { tip } from '../../ui/tip'
 
 const COLLAPSED_KEY = 'gems.collapsed'
 
@@ -50,6 +51,7 @@ export function GemsRow(): ReactNode {
       onPress={() => player.playFrom(ids, index)}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} — ${song.artist || 'Unknown artist'}`}
+      {...tip(`${song.title} — ${song.artist || 'Unknown artist'}`)}
       style={({ pressed }) => [
         few ? styles.cardFew : styles.card,
         pressed && (few ? styles.cardFewPressed : styles.cardPressed),

@@ -14,10 +14,12 @@ import {
   tagColors,
   tempoMark,
   type,
+  describeFeatures,
 } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
@@ -206,6 +208,7 @@ export const SongRow = memo(function SongRow({
                 onPress={() => onMore?.(moreRef.current)}
                 accessibilityRole="button"
                 accessibilityLabel={`More actions for ${song.title}`}
+                {...tip('More actions')}
                 style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
               >
                 <More size={16} color={theme.colors.textMuted} />
@@ -249,6 +252,7 @@ export const SongRow = memo(function SongRow({
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={`Play ${song.title}`}
+            {...tip('Play')}
             style={styles.indexPlay}
           >
             <Play size={16} color={theme.colors.textPrimary} />
@@ -291,7 +295,10 @@ export const SongRow = memo(function SongRow({
               </Text>
             ) : null}
             {badges ? (
-              <View style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}>
+              <View
+                style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}
+                {...tip(describeFeatures(features))}
+              >
                 <Text style={styles.subtitle}>·</Text>
                 {features.bpm != null ? (
                   <Text style={styles.tempo}>{tempoMark(features.bpm)}</Text>
@@ -319,6 +326,7 @@ export const SongRow = memo(function SongRow({
             onPress={onEditTags}
             accessibilityRole="button"
             accessibilityLabel={`Edit tags for ${song.title}`}
+            {...tip('Edit tags')}
             style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
           >
             <Plus size={13} color={theme.colors.textMuted} />
@@ -342,6 +350,7 @@ export const SongRow = memo(function SongRow({
               onPress={() => onMore?.(moreRef.current)}
               accessibilityRole="button"
               accessibilityLabel={`More actions for ${song.title}`}
+              {...tip('More actions')}
               style={({ pressed }) => [
                 styles.controlWide,
                 { width: controlSize, height: controlSize },
@@ -398,6 +407,7 @@ function Love({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`}
+      {...tip(song.loved ? 'Loved' : 'Love this song')}
       accessibilityState={{ selected: song.loved }}
       style={({ pressed }) => [
         styles.controlWide,

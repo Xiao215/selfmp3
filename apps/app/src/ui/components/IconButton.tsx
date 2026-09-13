@@ -3,6 +3,7 @@ import { Pressable } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
+import { tip } from '../tip'
 
 /**
  * The web's `.icon-button`: a square target that darkens while pressed.
@@ -42,6 +43,7 @@ export function IconButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
+      {...tip(label)}
       accessibilityState={{ disabled, selected: active }}
       style={({ pressed }) => [
         styles.button,

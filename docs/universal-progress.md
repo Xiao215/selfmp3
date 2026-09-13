@@ -904,8 +904,10 @@ and streaming work builds to. Recorded here so it is not re-litigated.
 - **Phone, and a desktop app** download by default and play from the files.
   "Desktop" means an app installed on a computer — macOS first — not the web app
   in a wide window. There is no such app yet: the plan's phase 6 names "a
-  desktop shell if one is ever wanted", and which toolkit it uses needs a line
-  in the Stack table before any work starts.
+  desktop shell if one is ever wanted". **Toolkit: Electron** (Xiao,
+  2026-09-12), wrapping the universal app's web export, with disk, keychain
+  and updates supplied behind the ports. It gets its line in the Stack table
+  when the work starts.
 
 **Downloading**
 

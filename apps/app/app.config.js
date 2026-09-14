@@ -29,6 +29,33 @@ const config = {
       // Background audio. Without this the player stops the moment the screen
       // locks, which is most of what this app is for.
       UIBackgroundModes: ['audio'],
+      /*
+       * The iPad turns; the iPhone does not.
+       *
+       * `orientation: 'portrait'` above stays as it is. Expo's plugin writes
+       * only `UISupportedInterfaceOrientations`, which iOS reads on a phone,
+       * and never touches the `~ipad` key — so the two can disagree, which is
+       * exactly what is wanted. A phone held sideways gets a layout drawn for a
+       * hand; an iPad sideways gets the desktop layout it has the room for.
+       *
+       * Upside-down is in the list because an iPad has no wrong way up: the
+       * home indicator moves and the camera is wherever you left it.
+       *
+       * `ios.requireFullScreen` stays at its default, false, which is what lets
+       * the app be split-screened at all. Apple deprecated `UIRequiresFullScreen`
+       * in iPadOS 26 (TN3192), and iPadOS 26 rotates an iPad regardless of this
+       * mask when rotation lock is off — so these keys are for older iPads and
+       * for the App Store's multitasking rule, not a switch the app relies on.
+       *
+       * No `expo-screen-orientation`: a static mask needs no module, and
+       * react-native-screens 4.23+ conflicts with its lock.
+       */
+      'UISupportedInterfaceOrientations~ipad': [
+        'UIInterfaceOrientationPortrait',
+        'UIInterfaceOrientationPortraitUpsideDown',
+        'UIInterfaceOrientationLandscapeLeft',
+        'UIInterfaceOrientationLandscapeRight',
+      ],
       // The server is a Tailscale hostname on a private network over plain
       // HTTP. ATS has to allow that or every request fails silently.
       NSAppTransportSecurity: {

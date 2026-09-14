@@ -32,7 +32,9 @@
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo",
     "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone",
     "verify:reference": "playwright test -c verify/playwright.config.ts reference --project=desktop --project=phone",
-    "test:app": "npm run test --workspace @selfmp3/app"
+    "test:app": "npm run test --workspace @selfmp3/app",
+    "verify:ipad": "playwright test -c verify/playwright.config.ts flows --project=ipad --project=ipad-split",
+    "verify:widths": "playwright test -c verify/widths.config.ts"
   },
   "overrides": {
     "react": "19.2.3",

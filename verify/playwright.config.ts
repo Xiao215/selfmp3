@@ -43,7 +43,12 @@ const appApi = process.env.SELFMP3_APP_API
  * says it runs on Windows). With a fixed id per project a run is two devices,
  * and `flows/teardown.ts` forgets those two when it ends.
  */
-export const FLOW_DEVICE_IDS = { desktop: 'playwright-desktop', phone: 'playwright-phone' } as const
+export const FLOW_DEVICE_IDS = {
+  desktop: 'playwright-desktop',
+  phone: 'playwright-phone',
+  ipad: 'playwright-ipad',
+  ipadSplit: 'playwright-ipad-split',
+} as const
 
 function storageStateFor(deviceId: string) {
   return {
@@ -91,6 +96,37 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: storageStateFor(FLOW_DEVICE_IDS.phone),
         viewport: { width: 375, height: 812 },
+        ...(executablePath ? { launchOptions: { executablePath } } : {}),
+      },
+    },
+    /*
+     * The iPad's two widths, as a browser stands in for them.
+     *
+     * `simctl` cannot rotate a simulator or put it in Split View, so the
+     * landscape width and the narrower Split View width are checked here, where
+     * a viewport is just a number — which is the right place anyway, since the
+     * layout is decided by width and by nothing else.
+     *
+     * 1194 is an 11-inch iPad in landscape and is above the 820 breakpoint, so
+     * it should draw the desktop layout. 507 is the narrower half of a 50/50
+     * Split View and is below it, so it should draw the phone's. Neither is a
+     * new layout; the point is that they are not.
+     */
+    {
+      name: 'ipad',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: storageStateFor(FLOW_DEVICE_IDS.ipad),
+        viewport: { width: 1194, height: 834 },
+        ...(executablePath ? { launchOptions: { executablePath } } : {}),
+      },
+    },
+    {
+      name: 'ipad-split',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: storageStateFor(FLOW_DEVICE_IDS.ipadSplit),
+        viewport: { width: 507, height: 834 },
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
     },

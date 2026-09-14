@@ -2956,3 +2956,107 @@ From Xiao's review of the lettered mocks (A1, B1, C2, D2, E1, F2, G1; H dropped)
    borderless input is marked `focusWithin()` (`ui/focusRing.ts`) and takes it
    while the input has focus. Checked on the library search, the import box,
    renaming a playlist and Add songs: outline `none`, accent border.
+
+## Phase 6 — the iPad, finished — branch `ipad/phase-6`
+
+Off `main` at `ba90234`, independent of the desktop phases as the plan says.
+`npm run check` green; the six widths pass; the simulator's half is Xiao's.
+
+### Orientation
+
+`app.config.js` gains `ios.infoPlist['UISupportedInterfaceOrientations~ipad']`
+with all four, and `orientation: 'portrait'` stays exactly as it was. The two
+keys disagree on purpose, and that is what makes "the phone stays put, the
+tablet turns" expressible at all: Expo's plugin writes only
+`UISupportedInterfaceOrientations` and never touches the `~ipad` key.
+
+Upside-down is in the iPad's list because an iPad has no wrong way up — the home
+indicator moves and the camera is wherever you left it.
+
+**Checked, with a prebuild that ran here.** `npx expo prebuild --platform ios`
+completes on Linux with no Xcode (as `docs/MOBILE.md` already records for the
+phone), and the generated `ios/selfmp3/Info.plist` reads:
+
+```
+UISupportedInterfaceOrientations       Portrait, PortraitUpsideDown
+UISupportedInterfaceOrientations~ipad  Portrait, PortraitUpsideDown,
+                                       LandscapeLeft, LandscapeRight
+UIRequiresFullScreen                   false
+```
+
+`ios/` was deleted again afterwards; it is not committed.
+
+**One correction to the plan's gate.** It says the iPhone's key should hold
+exactly one orientation (`grep -c … | grep -qx 1`). It holds **two**: Expo's
+plugin writes `Portrait` *and* `PortraitUpsideDown` for `orientation:
+'portrait'`, and it does that on `main` already, before this branch. That is
+pre-existing and inert — a Face ID iPhone does not rotate to upside-down
+whatever the mask says — so the assertion that matters is "no landscape on the
+phone", which is what the new test makes. Written down rather than quietly
+changed.
+
+`/usr/libexec/PlistBuddy` is macOS-only, so the plist above was read with
+Python's `plistlib`, which parses the same file.
+
+### The gate that now runs everywhere
+
+`apps/app/src/shell/orientation.test.ts` asserts the *input* to the prebuild —
+`app.config.js` — rather than its output: the iPhone portrait, the iPad's four,
+`supportsTablet`, no `requireFullScreen` (its absence is what allows Split
+View), and no `expo-screen-orientation` (a static mask needs no module, and
+react-native-screens 4.23+ conflicts with its lock). Five tests in the ordinary
+`npm run check`, on any machine. A change that quietly takes the iPad's
+landscape away fails there rather than on a device weeks later.
+
+### Widths
+
+Two new things, because the plan's width check needed a library it could not
+have here and the answer was to split it.
+
+**`npm run verify:widths`** — new, and it needs nothing but
+`npm run export:web`. It starts a twenty-line static server on 4699, loads the
+export at each of the six widths, and asserts the app draws and that nothing
+spills sideways. All seven pass:
+
+| Width | What it is | Result |
+|---|---|---|
+| 1194 | iPad 11-inch, landscape | pass |
+| 834 | iPad 11-inch, portrait | pass |
+| 678 | Split View, the wider half | pass |
+| 507 | Split View, the narrower half | pass |
+| 375 | a phone | pass |
+| 320 | Slide Over — narrower than the app has ever been drawn | pass |
+
+and the seventh drops a marker on the page, resizes 1194 → 507 → 1194, and finds
+it still there, which is `Shell.tsx`'s promise that crossing 820 does not
+remount the tree. Nobody is signed in, so what is drawn is the sign-in screen;
+that is a real limit on what this proves and it is also the exact case where an
+unfamiliar width goes wrong, namely something off the side.
+
+**`npm run verify:ipad`** — the phone flows at 1194 and at 507, as two new
+Playwright projects with device ids of their own (and `teardown.ts` forgets
+them, so a run does not leave four rows in the device list). **Not run here**:
+they need the thirteen-song library. This is the command for the Mac.
+
+### What is left, and it is all the simulator
+
+- **Maestro on an "iPad Pro 11-inch" simulator**, portrait. No simulator here.
+- **Landscape and Split View by hand**, with screenshots. `simctl` cannot rotate
+  or split a simulator even where there is one; the plan already says this is
+  Xiao's.
+- **The `Dimensions` hazard is not addressed, deliberately.** The plan says
+  React Native's change event has failed to fire on the *first* entry into Split
+  View (facebook/react-native #28935, its state under Fabric unconfirmed), and
+  that *if the simulator shows it*, `useLayout` should also take a width from an
+  `onLayout` on the root view. Nothing here can show it. Changing `useLayout` —
+  the one place in the app that knows the width — on the chance that a bug from
+  2020 still bites under the New Architecture would be a guess in the most
+  load-bearing file of the layout. If Xiao sees the app keep the wide layout on
+  the first Split View entry and come right on the second, that is this bug, and
+  the fix is the one the plan names.
+
+### Keyboard shortcuts
+
+Not done, as decided (Xiao, 2026-09-14). `useHotkeys.ts` and `useEscape.ts` stay
+no-ops on native and Settings keeps hiding its Shortcuts section there. What it
+would take is under "Later" in `docs/DESKTOP.md` so the research is not redone.

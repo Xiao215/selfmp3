@@ -53,5 +53,8 @@ _to_delete/
 test-results/
 playwright-report/
 
+# The packaged desktop app: a few hundred MB of Electron, never committed.
+apps/desktop/release/
+
 # The new app photographed for phase 4 comparison; attached to PRs, not committed.
 verify/captures/

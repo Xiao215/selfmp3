@@ -35,6 +35,14 @@ export const desktopInfoSchema = z.object({
    * than the app refusing to sign in.
    */
   secretsSealed: z.boolean(),
+  /**
+   * How much room the window's own chrome takes at the top of the page, in
+   * CSS pixels. `titleBarStyle: 'hiddenInset'` puts the traffic lights over the
+   * sidebar, so the sidebar pads itself by this much and nothing sits under
+   * them. Zero everywhere else, including in a browser tab, which is why the
+   * page asks rather than checking the platform.
+   */
+  titleBarInset: z.number().min(0).max(200),
 })
 export type DesktopInfo = z.infer<typeof desktopInfoSchema>
 
@@ -101,6 +109,9 @@ export type Command = z.infer<typeof commandSchema>
 /** Told to the shell so it can hold a power-save blocker and label the Dock. */
 export const playbackStateSchema = z.object({
   playing: z.boolean(),
+  /** What is playing, for the Dock menu to name. Null when nothing is. */
+  title: z.string().max(300).nullable(),
+  artist: z.string().max(300).nullable(),
 })
 export type PlaybackState = z.infer<typeof playbackStateSchema>
 

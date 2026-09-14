@@ -2,7 +2,7 @@ import { Menu, app, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { APP_MENU_ITEMS, MENU_SECTIONS } from '@selfmp3/desktop-bridge'
 
-import { sendCommand } from './ipc.js'
+import { sendCommand } from './commands.js'
 
 /**
  * The application menu.
@@ -12,12 +12,12 @@ import { sendCommand } from './ipc.js'
  * `packages/desktop-bridge`'s menu model: an item that sends a command the
  * contract does not know is a failing test there rather than a dead key here.
  *
- * Only the sections in `DRAWN` are built. The model holds the whole menu the
- * plan settled, and Playback's items need a player the page has not been wired
- * to yet — that is phase 4, together with the media session port. A menu item
- * that does nothing is worse than one that is not there, so it waits.
+ * Every section is drawn now that the page answers Playback's commands as well
+ * as View's. An item marked `pageKeeps` is drawn with `registerAccelerator:
+ * false`: the key is shown beside the label, and the page goes on handling it,
+ * because a registered accelerator fires inside text fields too and Space would
+ * never reach the search box again.
  */
-const DRAWN: ReadonlySet<string> = new Set(['View'])
 export function buildMenu(window_: () => BrowserWindow | null): void {
   const mac = process.platform === 'darwin'
 
@@ -58,12 +58,13 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
         { role: 'selectAll' },
       ],
     },
-    ...MENU_SECTIONS.filter(section => DRAWN.has(section.title)).map(section => ({
+    ...MENU_SECTIONS.map(section => ({
       label: section.title,
       submenu: [
         ...section.items.map(item => ({
           label: item.label,
           accelerator: item.accelerator,
+          registerAccelerator: item.pageKeeps !== true,
           click: () => sendCommand(window_(), item.command),
         })),
         ...(section.title === 'View'

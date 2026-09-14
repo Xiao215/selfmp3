@@ -537,7 +537,20 @@ export class AudioEngine implements PlaybackEngine {
   }
 
   readonly #onPlay = (): void => this.#update({ playing: true, stalled: false })
-  readonly #onPause = (): void => this.#update({ playing: false })
+  /*
+   * The outgoing song running out mid-crossfade is not a pause.
+   *
+   * During a fade the listeners are on the element that is *ending*: it reaches
+   * its own end, fires `pause`, and this used to report the player as paused
+   * while the next song was already audible. Nothing put it right afterwards
+   * either — the incoming element started playing before it was attached, so
+   * its `play` event had already been and gone. The bar showed a play button
+   * over a song that was playing, and pressing it paused the music.
+   */
+  readonly #onPause = (): void => {
+    if (this.#fadeTimer !== null && !this.#secondary.paused) return
+    this.#update({ playing: false })
+  }
   readonly #onWaiting = (): void => this.#update({ stalled: true })
   readonly #onPlaying = (): void => this.#update({ stalled: false })
 
@@ -688,6 +701,9 @@ export class AudioEngine implements PlaybackEngine {
     this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
     this.#primary.playbackRate = this.#state.rate
     applyPreservesPitch(this.#primary, this.#state.preservesPitch)
+    // The element being promoted has been playing for a whole crossfade
+    // already, so no `play` event is coming: take the truth from the element.
+    this.#update({ playing: !this.#primary.paused })
   }
 }
 

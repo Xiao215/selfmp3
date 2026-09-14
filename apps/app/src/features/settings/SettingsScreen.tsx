@@ -39,6 +39,7 @@ import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanization
 import { clearCachedLyrics } from '../../offline/lyricsCache'
 import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { downloadsFolder } from '../../ports/downloadsFolder'
+import { loginItem } from '../../ports/loginItem'
 import { installedApp } from '../../ports/install'
 import { canConnectByAddress } from '../../ports/serverAddress'
 import { clearRecent } from '../../ports/recentCopies'
@@ -116,7 +117,7 @@ export function SettingsScreen(): ReactNode {
   })
 
   // A mouse or trackpad stands in for a keyboard: a phone has no ⌘K to explain.
-  const sections = sectionsFor(fromCloud, installedApp, finePointer)
+  const sections = sectionsFor(fromCloud, installedApp, finePointer, loginItem.available)
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
   const tops = useRef(new Map<SectionId, number>())
@@ -339,6 +340,7 @@ export function SettingsScreen(): ReactNode {
 
             {fromCloud ? null : <DevicesPanel onTop={top => onTop('devices', top)} />}
 
+            {loginItem.available ? <DesktopPanel onTop={top => onTop('desktop', top)} /> : null}
             <AppearancePanel onTop={top => onTop('appearance', top)} />
 
             {finePointer ? (
@@ -1059,6 +1061,48 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
 }
 
 // ------------------------------------------------------------- appearance
+
+/**
+ * The things only an installed desktop app has. Drawn nowhere else, because
+ * `loginItem.available` is false anywhere else — a tab cannot open at login.
+ *
+ * The toggle shows what the operating system currently has rather than what was
+ * last asked for, so turning it off in System Settings › General › Login Items
+ * is reflected here the next time Settings is opened.
+ */
+function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const [open, setOpen] = useState<boolean | null>(null)
+  useEffect(() => {
+    let alive = true
+    void loginItem.get().then(value => {
+      if (alive) setOpen(value)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  return (
+    <Panel title="Desktop app" hint="on this computer" onTop={onTop}>
+      <Row
+        label="Open at login"
+        hint="Starts self.mp3 when you log in to this computer. macOS keeps this in System Settings › General › Login Items, and turning it off there turns it off here."
+        last
+      >
+        <Toggle
+          value={open ?? false}
+          label="Open at login"
+          onChange={next => {
+            setOpen(next)
+            // What the OS ends up with, not what was asked: it can refuse.
+            void loginItem.set(next).then(setOpen)
+          }}
+          testID="setting-login-item"
+        />
+      </Row>
+    </Panel>
+  )
+}
 
 function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   const { theme: ui } = useUnistyles()

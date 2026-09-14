@@ -25,6 +25,7 @@ import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
+import { TITLE_BAR_DRAG_ID, titleBarInset } from '../ports/titleBarInset'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { isUntagged } from '../features/inbox/inbox.model'
@@ -93,7 +94,15 @@ export function Sidebar(): ReactNode {
   const { fromCloud } = useConnection()
 
   return (
-    <View style={[styles.rail, { paddingTop: space.xl + insets.top }]} testID="sidebar">
+    <View style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]} testID="sidebar">
+      {/*
+        The installed Mac app's traffic lights sit over this corner. The strip
+        is what the window is dragged by, since there is no title bar above it
+        any more; it is nothing at all in a browser, where the inset is zero.
+      */}
+      {titleBarInset > 0 ? (
+        <View nativeID={TITLE_BAR_DRAG_ID} style={[styles.titleBarDrag, { height: titleBarInset }]} />
+      ) : null}
       <View style={styles.brand}>
         <BrandMark size={20} />
         <Text style={styles.wordmark}>self.mp3</Text>
@@ -571,6 +580,7 @@ function Foot(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
+  titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
   rail: {
     width: SIDEBAR_WIDTH,
     backgroundColor: theme.colors.surface1,

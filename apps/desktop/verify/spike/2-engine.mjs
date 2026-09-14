@@ -65,14 +65,14 @@ report('2 — the engine plays and analyses from app://', [
   { ok: page.analyserMade === true, what: 'the analyser was built' },
   { ok: (page.analyserPeak ?? 0) > 0, what: 'the analyser reads real samples (CORS satisfied)', note: `peak bin ${page.analyserPeak}` },
   { ok: page.crossfaded === true && page.stillAdvancing === true, what: 'crossfade handed over and the next song keeps playing', note: JSON.stringify(page.afterCrossfade) },
+  // Was a note under this report until phase 4, not a verdict: `engine.web.ts`
+  // reported `playing: false` after a crossfade, because the outgoing element
+  // fires `pause` at its natural end (which the HTML spec requires) a moment
+  // before the fade timer swaps the elements, and nothing set the flag back.
+  // The music was audibly playing; only the flag was wrong. Phase 4 fixed it —
+  // the flag drives Now Playing there — so it is asserted from here on.
+  { ok: page.playingFlagSurvived === true, what: 'the playing flag survived the handover' },
   { ok: page.preservesPitch === true && page.rate === 1.25, what: 'rate and pitch lock take', note: `rate ${page.rate}` },
 ], {
   'state trace': JSON.stringify(page.trace),
-  // Not a desktop question and not part of the verdict: `engine.web.ts` reports
-  // `playing: false` after a crossfade, because the outgoing element fires
-  // `pause` at its natural end (which the HTML spec requires) a moment before
-  // the fade timer swaps the elements, and nothing sets the flag back. The
-  // music is audibly playing; only the flag is wrong. Written up in the
-  // progress file; fixed in phase 4, where the flag drives Now Playing.
-  'playing flag survived the handover': String(page.playingFlagSurvived),
 })

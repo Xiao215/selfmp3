@@ -21,6 +21,17 @@ export interface MenuCommand {
   readonly command: Command
   /** Electron's spelling. `CmdOrCtrl` so a Windows build is not a rewrite. */
   readonly accelerator?: string
+  /**
+   * The menu shows this key but does not take it: the page keeps listening.
+   *
+   * A registered accelerator fires wherever the focus is, text fields included.
+   * Space would then never reach the search box, and ⌘← — which is "go to the
+   * start of the line" in every Mac text field there has ever been — would skip
+   * to the previous song while someone was editing the server address. So these
+   * are drawn with `registerAccelerator: false`, and `useHotkeys` handles them
+   * as it handles every other key: not while someone is typing.
+   */
+  readonly pageKeeps?: boolean
 }
 
 export interface MenuSection {
@@ -50,11 +61,21 @@ export const MENU_SECTIONS: readonly MenuSection[] = [
   {
     title: 'Playback',
     items: [
-      { label: 'Play / Pause', command: 'play-pause', accelerator: 'Space' },
-      { label: 'Next', command: 'next', accelerator: 'CmdOrCtrl+Right' },
-      { label: 'Previous', command: 'previous', accelerator: 'CmdOrCtrl+Left' },
-      { label: 'Seek forward', command: 'seek-forward', accelerator: 'Alt+CmdOrCtrl+Right' },
-      { label: 'Seek back', command: 'seek-back', accelerator: 'Alt+CmdOrCtrl+Left' },
+      { label: 'Play / Pause', command: 'play-pause', accelerator: 'Space', pageKeeps: true },
+      { label: 'Next', command: 'next', accelerator: 'CmdOrCtrl+Right', pageKeeps: true },
+      { label: 'Previous', command: 'previous', accelerator: 'CmdOrCtrl+Left', pageKeeps: true },
+      {
+        label: 'Seek forward',
+        command: 'seek-forward',
+        accelerator: 'Alt+CmdOrCtrl+Right',
+        pageKeeps: true,
+      },
+      {
+        label: 'Seek back',
+        command: 'seek-back',
+        accelerator: 'Alt+CmdOrCtrl+Left',
+        pageKeeps: true,
+      },
       { label: 'Shuffle', command: 'shuffle' },
       { label: 'Repeat', command: 'repeat' },
       { label: 'Volume up', command: 'volume-up', accelerator: 'CmdOrCtrl+Up' },
@@ -123,16 +144,35 @@ const KEY_NAMES: Readonly<Record<string, string>> = {
 }
 
 /**
- * Every combination the menu has taken, in the page's spelling.
+ * Every combination the menu has actually taken, in the page's spelling.
  *
  * `useHotkeys.web.ts` skips these when the bridge is present, so a menu item
- * and a page shortcut cannot both fire.
+ * and a page shortcut cannot both fire. A `pageKeeps` item is not one of them:
+ * the menu draws its key and leaves it alone, so the page must keep handling
+ * it — which is the whole point of the flag.
  */
 export function menuOwnedCombinations(): ReadonlySet<string> {
   const owned = new Set<string>()
   for (const item of ALL_MENU_COMMANDS) {
-    if (!item.accelerator) continue
+    if (!item.accelerator || item.pageKeeps) continue
     for (const combination of pageCombinations(item.accelerator)) owned.add(combination)
   }
   return owned
+}
+
+/**
+ * What `useHotkeys` should listen for in the installed app, by command.
+ *
+ * The page's own shortcuts are the browser's, and the browser has none of
+ * these: playback keys are a thing an *application* has, not a tab. So they
+ * arrive with the menu, and this is how the page learns which key goes with
+ * which command without repeating the table.
+ */
+export function pageKeptCombinations(): ReadonlyMap<string, Command> {
+  const kept = new Map<string, Command>()
+  for (const item of ALL_MENU_COMMANDS) {
+    if (!item.accelerator || !item.pageKeeps) continue
+    for (const combination of pageCombinations(item.accelerator)) kept.set(combination, item.command)
+  }
+  return kept
 }

@@ -14,6 +14,7 @@ export type SectionId =
   | 'connection'
   | 'lyrics'
   | 'devices'
+  | 'desktop'
   | 'appearance'
   | 'shortcuts'
   | 'about'
@@ -28,6 +29,7 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
   { id: 'connection', label: 'Connection' },
   { id: 'lyrics', label: 'Lyrics', mac: true },
   { id: 'devices', label: 'Devices', mac: true },
+  { id: 'desktop', label: 'Desktop app' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'shortcuts', label: 'Shortcuts' },
   { id: 'about', label: 'About' },
@@ -36,17 +38,21 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
 /**
  * `installed`: a browser streams and keeps no songs, so it has no Offline music.
  * `keyboard`: a finger has no ⌘K, so a phone has no Shortcuts.
+ * `shell`: only the installed desktop app can open at login, and a section with
+ * nothing in it is worse than one that is not there — so it defaults to absent.
  */
 export function sectionsFor(
   fromCloud: boolean,
   installed = true,
   keyboard = true,
+  shell = false,
 ): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
       (!fromCloud || !section.mac) &&
       (installed || section.id !== 'offline') &&
-      (keyboard || section.id !== 'shortcuts'),
+      (keyboard || section.id !== 'shortcuts') &&
+      (shell || section.id !== 'desktop'),
   )
 }
 

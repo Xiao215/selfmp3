@@ -3260,3 +3260,104 @@ a network.
 | `npm run verify:desktop -- --grep "downloads\|offline\|reveal"` | **pass** — 3 of them. The whole smoke is 12 passed, 1 skipped, against the packaged binary. |
 | The by-hand smoke: 13 songs download themselves, quit, stop the server, relaunch, a song plays from disk, a cover shows | **blocked** — needs `~/Music/selfmp3-dev`, which this container does not have. What stands in for it: a local range server and three megabytes of random bytes, with the offline half done honestly — the server is closed mid-test, the page confirms the network is gone, and the file still comes back whole from `app://selfmp3/_media/…` with a matching SHA-256. The cover test does the same with a route that answers 401 without a bearer token. |
 | The same, signed in to the cloud | **Xiao's.** |
+
+## Phase 4 — being a Mac app — branch `desktop/phase-4`
+
+The window stopped being a page in a frame. It has a menu with everything in it,
+it tells macOS what is playing, it opens where it was left, it keeps the machine
+awake while music is on, and the red button hides it instead of stopping the
+music.
+
+### What changed
+
+**The menu draws all of it now**, and one thing about it is worth reading before
+anyone changes it. Five of Playback's accelerators are drawn but not
+*registered*: Space, ⌘← and ⌘→, ⌥⌘← and ⌥⌘→. A registered Electron accelerator
+fires wherever the focus is, text fields included — so registering Space would
+have taken the space bar out of the search box and the server-address field, and
+⌘← is "go to the start of the line" in every Mac text field there has ever been.
+They are in the menu because that is where a person learns their app has them,
+and `useHotkeys` handles them as it handles every other key: not while someone is
+typing. The model in `packages/desktop-bridge` carries a `pageKeeps` flag,
+`menuOwnedCombinations()` excludes those, `pageKeptCombinations()` hands them to
+the page, and a test asserts every accelerator belongs to exactly one of the two.
+
+**Now Playing is `navigator.mediaSession`, not a bridge channel.** Chromium turns
+the page's media session into macOS's Now Playing card and handles the media keys
+itself, so a channel for it would have been a second, worse source of the same
+facts — and one the browser would not share. What the shell has that the page has
+not is `powerSaveBlocker` and the Dock, so `setPlaybackState` carries the song's
+title and artist as well as whether it is playing, and the main process draws the
+Dock menu (the song, then Play/Pause, Next, Previous) and holds the blocker.
+
+`prevent-app-suspension`, not `prevent-display-sleep`: a music player that stops
+the display sleeping is a laptop that is flat by lunchtime, and closing the lid
+should still sleep the Mac, as it does with any player.
+
+**The window remembers where it was**, in `userData/window.json`, debounced
+because a drag fires `move` on every frame, and never while full-screen or
+maximised — that frame is the display's, not the window's. The part worth the
+test it has is the clamp: a window remembered on a monitor that is now unplugged
+opens at coordinates no display covers, which on macOS is a window you cannot see
+and cannot reach, and which looks exactly like an app that failed to start. A
+remembered frame is used only if a strip of its top lands on a display that is
+there now.
+
+**`titleBarStyle: 'hiddenInset'`** is the one deliberate visual difference from
+the browser, and the plan named it. The sidebar pads its top by
+`info.titleBarInset` — a number from the shell, not a platform check, because a
+browser tab's is zero — and renders a strip of exactly that height that the
+window can be dragged by. `-webkit-app-region` is not a React Native style
+property, so the rule is attached by id from the web port.
+
+**Deep links grew a second kind.** `selfmp3://playlist/<id>` and
+`selfmp3://now-playing` route inside the app. They needed the queue splitting in
+two: the sign-in poller used to `shift()` the only queue there was, so any other
+link that arrived while Settings was waiting for a code was taken by the poller
+and thrown away. An id that is not a number is refused rather than handed to the
+router — these links come from outside the app.
+
+**Launch at login** is a Settings toggle in a new Desktop app section, which
+appears only where there is a shell to ask. It reads back what the operating
+system has rather than what was last set, because System Settings › General ›
+Login Items can turn it off and a toggle that then still says "on" is one nobody
+believes again.
+
+### The engine bug from the spike is fixed
+
+Spike 2 found, and recorded rather than hid, that `engine.web.ts` reported
+`playing: false` after every crossfade. The outgoing element reaches its own end
+and fires `pause` — which the HTML spec requires — a moment before the fade timer
+swaps the elements, and nothing put the flag back: the incoming element started
+playing *before* it was attached, so its `play` event had already been and gone.
+The music was audibly playing and the bar showed a play button over it; pressing
+that button paused the song.
+
+Two lines, in the place the spike pointed at. A `pause` from the outgoing element
+while a fade is running and the incoming one is playing is not a pause, and the
+swap takes the flag from the element it just promoted rather than waiting for an
+event that is not coming. The spike's own check now asserts it instead of noting
+it, and passes.
+
+### The gates
+
+| Gate | Result |
+|---|---|
+| `npm run check` | **pass** — the menu model's tests among them: no duplicate accelerator, every command in the contract, and every accelerator owned by the menu or the page but never both. |
+| `npm run verify:desktop -- --grep "command\|window bounds"` | **pass** — a real menu item, clicked in the main process, arrives at the page as its command; bounds set in one launch come back in the next. The whole smoke is 16 passed, 1 skipped. |
+| By hand, once: media keys, Now Playing in Control Center with artwork, the Dock menu, hide and show, ⌘Q, full screen, the lid | **blocked, and this is the phase where that bites hardest.** None of it exists off macOS: `app.dock` is undefined on Linux, there is no Control Center, and no media keys to press. What did run here is everything underneath them — the menu is built and its items send their commands, the power-save blocker starts and stops with playback, the bounds survive a relaunch, and the page's media session is Chromium's own code path, the same one a browser runs. |
+
+### For Xiao, when this is opened on a Mac
+
+Four things this container could not see, in the order they are quickest to check:
+
+1. Right-click the Dock icon while a song plays: the song's title and artist,
+   then Pause, Next, Previous.
+2. ⌘← and ⌘→ in the library's search box: the caret should move to the start and
+   end of the line, not skip a track. Then the same keys with the list focused:
+   they should skip.
+3. The red button, then the Dock icon: the window comes back and the song never
+   stopped. Then ⌘Q, which should actually quit.
+4. Now Playing in Control Center: the title, the artist, and the artwork — the
+   artwork is the one most likely to be missing, because a cover only has a URL
+   the OS can fetch once it is on disk.

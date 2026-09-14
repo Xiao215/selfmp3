@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { router } from 'expo-router'
 import { View } from 'react-native'
@@ -18,6 +18,8 @@ import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
+import { onDeepLinkRoute } from '../ports/deepLinks'
+import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { ContentWidthContext } from './contentWidth'
 import { practiceOpen, setPracticeOpen, usePracticeOpen } from './practicePanel'
@@ -59,6 +61,7 @@ export function Shell({
       <PlaybackNotices />
       <PaletteHost />
       <MenuCommands />
+      <DeepLinkRoutes />
       {/* Hover captions in a browser; nothing on a phone. */}
       <TooltipHost />
       {/* A focused field in the accent, not the browser's own ring. */}
@@ -147,13 +150,54 @@ function PracticeSide(): ReactNode {
  * today; the Playback items are phase 4's, and the menu does not draw them
  * until their handlers exist, so there is never a menu item that does nothing.
  */
+/**
+ * `selfmp3://playlist/12` and `selfmp3://now-playing`, from the operating
+ * system: a link in a note, or one the app sent itself. Nothing on a phone or
+ * in a browser, which have their own ways of being pointed at a page.
+ */
+function DeepLinkRoutes(): ReactNode {
+  useEffect(
+    () =>
+      onDeepLinkRoute(route => {
+        if (route.kind === 'now-playing') router.navigate('/now-playing')
+        else router.navigate(`/playlists/${route.id}`)
+      }),
+    [],
+  )
+  return null
+}
+
+/** What a seek item moves the song by. Ten seconds is the podcast convention. */
+const SEEK_STEP = 10
+/** One notch of the volume keys, on the engine's 0–1 scale. */
+const VOLUME_STEP = 0.05
+
+/**
+ * Everything the desktop's application menu can ask for.
+ *
+ * Nothing on a phone or in a browser tab: `useCommands` has no shell to listen
+ * to there, and the keys the menu draws but does not take are only registered
+ * where the menu exists. So this component is the frame's wiring for a window
+ * with a menu bar, and a no-op everywhere else.
+ */
 function MenuCommands(): ReactNode {
+  const player = usePlayer()
   useCommands({
     library: () => router.navigate('/'),
     playlists: () => router.navigate('/playlists'),
     'now-playing': () => router.navigate('/now-playing'),
     settings: () => router.navigate('/settings'),
     practice: () => setPracticeOpen(!practiceOpen()),
+    'play-pause': () => player.toggle(),
+    next: () => player.next(),
+    previous: () => player.previous(),
+    'seek-forward': () => player.seekBy(SEEK_STEP),
+    'seek-back': () => player.seekBy(-SEEK_STEP),
+    shuffle: () => player.toggleShuffle(),
+    repeat: () => player.cycleRepeatMode(),
+    'volume-up': () => player.setVolume(Math.min(1, player.volume + VOLUME_STEP)),
+    'volume-down': () => player.setVolume(Math.max(0, player.volume - VOLUME_STEP)),
+    mute: () => player.toggleMute(),
   })
   return null
 }

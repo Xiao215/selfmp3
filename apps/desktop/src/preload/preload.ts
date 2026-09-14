@@ -125,6 +125,11 @@ const bridge: DesktopBridge = {
   setPlaybackState: async (state: PlaybackState) => {
     await ipcRenderer.invoke(CHANNELS.setPlaybackState, state)
   },
+
+  loginItem: {
+    get: () => ipcRenderer.invoke(CHANNELS.loginItemGet) as Promise<boolean>,
+    set: (open: boolean) => ipcRenderer.invoke(CHANNELS.loginItemSet, open) as Promise<boolean>,
+  },
 }
 
 contextBridge.exposeInMainWorld(BRIDGE_GLOBAL, bridge)

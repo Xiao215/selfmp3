@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { appApi, launchApp, serverHasSongs } from './launch'
+import { appApi, freshUserData, launchApp, serverHasSongs } from './launch'
 
 /**
  * The desktop smoke.
@@ -487,6 +487,182 @@ test.describe('files on disk', () => {
   })
 })
 
+/**
+ * Being an application rather than a page: the menu, the Dock, the power-save
+ * blocker, and a window that opens where it was left.
+ *
+ * All of it read from the main process, because that is where it lives. What
+ * cannot be checked here is what any of it looks like — the Dock menu is
+ * macOS-only and this is Linux — so these test that the wiring carries, and
+ * the plan's by-hand list covers the rest.
+ */
+test.describe('an application, not a page', () => {
+  test('a menu item sends its command to the page', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      // The page listens the way the app itself does, through the bridge.
+      await page.evaluate(() => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const seen: string[] = []
+        ;(window as unknown as { seen: string[] }).seen = seen
+        desktop.onCommand(command => seen.push(command))
+      })
+
+      // Clicked in the real application menu, by label, from the main process.
+      const clicked = await app.evaluate(({ Menu }, labels) => {
+        const menu = Menu.getApplicationMenu()
+        return labels.map(([section, item]) => {
+          const found = menu
+            ?.items.find(one => one.label === section)
+            ?.submenu?.items.find(one => one.label === item)
+          if (!found) return 'missing'
+          // Electron types `MenuItem.click` as the bare `Function`, which is
+          // not callable under the repo's lint rules without saying what it is.
+          ;(found.click as unknown as () => void)()
+          return found.accelerator ?? 'none'
+        })
+      }, [
+        ['Playback', 'Play / Pause'],
+        ['View', 'Now Playing'],
+      ] as [string, string][])
+
+      expect(clicked).toEqual(['Space', 'CmdOrCtrl+3'])
+      await expect
+        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
+        .toEqual(['play-pause', 'now-playing'])
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('draws the whole menu, and leaves the typing keys to the page', async () => {
+    const app = await launchApp()
+    try {
+      const menu = await app.evaluate(({ Menu }) =>
+        Menu.getApplicationMenu()?.items.map(section => ({
+          label: section.label,
+          items:
+            section.submenu?.items
+              .filter(item => item.type === 'normal')
+              .map(item => ({
+                label: item.label,
+                accelerator: item.accelerator ?? null,
+                registered: item.registerAccelerator,
+              })) ?? [],
+        })),
+      )
+      const playback = menu?.find(section => section.label === 'Playback')
+      expect(playback?.items.map(item => item.label)).toEqual([
+        'Play / Pause',
+        'Next',
+        'Previous',
+        'Seek forward',
+        'Seek back',
+        'Shuffle',
+        'Repeat',
+        'Volume up',
+        'Volume down',
+        'Mute',
+      ])
+      // Space and the ⌘-arrows are drawn but not taken: registering them would
+      // pull them out of every text field in the app.
+      const unregistered = playback?.items.filter(item => item.registered === false)
+      expect(unregistered?.map(item => item.accelerator)).toEqual([
+        'Space',
+        'CmdOrCtrl+Right',
+        'CmdOrCtrl+Left',
+        'Alt+CmdOrCtrl+Right',
+        'Alt+CmdOrCtrl+Left',
+      ])
+      // Everything else is a real accelerator.
+      const view = menu?.find(section => section.label === 'View')
+      expect(view?.items.every(item => item.registered !== false)).toBe(true)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('holds the machine awake only while something is playing', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const tell = async (playing: boolean): Promise<boolean> => {
+        await page.evaluate(async state => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.setPlaybackState(state)
+        }, { playing, title: playing ? 'A song' : null, artist: playing ? 'Someone' : null })
+        /*
+         * Electron has no API that lists blockers, so this asks about the
+         * handful of ids one could have. They are handed out from zero and
+         * counting, a new one each time the shell starts a blocker again, and
+         * the shell is the only thing in this process that starts any.
+         */
+        return app.evaluate(({ powerSaveBlocker }) =>
+          [0, 1, 2, 3, 4, 5].some(id => powerSaveBlocker.isStarted(id)),
+        )
+      }
+
+      expect(await tell(true)).toBe(true)
+      expect(await tell(false)).toBe(false)
+      expect(await tell(true)).toBe(true)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('window bounds survive a relaunch, and a window off every display does not', async () => {
+    const userDataDir = freshUserData()
+
+    const first = await launchApp({ userDataDir })
+    try {
+      await (await first.firstWindow()).waitForLoadState('domcontentloaded')
+      await first.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.setBounds({ x: 120, y: 90, width: 1000, height: 700 })
+      })
+      // The write is debounced: a drag fires `move` on every frame.
+      await new Promise(resolve => setTimeout(resolve, 900))
+    } finally {
+      await first.close()
+    }
+
+    const second = await launchApp({ userDataDir })
+    try {
+      await (await second.firstWindow()).waitForLoadState('domcontentloaded')
+      const bounds = await second.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]?.getBounds(),
+      )
+      expect(bounds).toEqual({ x: 120, y: 90, width: 1000, height: 700 })
+    } finally {
+      await second.close()
+    }
+
+    // And the rule that keeps a window reachable, on the real display list.
+    const third = await launchApp({ userDataDir })
+    try {
+      const reachable = await third.evaluate(({ screen }) => {
+        const displays = screen.getAllDisplays()
+        const far = { x: 99_000, y: 99_000, width: 1000, height: 700 }
+        return displays.some(display => {
+          const area = display.workArea
+          return (
+            far.x < area.x + area.width &&
+            far.x + far.width > area.x &&
+            far.y < area.y + area.height
+          )
+        })
+      })
+      expect(reachable).toBe(false)
+    } finally {
+      await third.close()
+    }
+  })
+})
+
 test.describe('connects and plays', () => {
   test('a row plays from a server, and the bar shows it', async () => {
     test.skip(
@@ -514,6 +690,12 @@ interface DesktopForTest {
   info: Record<string, unknown>
   mediaUrl(kind: string, name: string): string
   onProgress(listener: (progress: { id: string; bytesWritten: number; totalBytes: number }) => void): () => void
+  onCommand(listener: (command: string) => void): () => void
+  setPlaybackState(state: {
+    playing: boolean
+    title: string | null
+    artist: string | null
+  }): Promise<void>
   files: {
     download(request: { id: string; kind: string; name: string; url: string }): Promise<{ state: string; bytes: number }>
     cancel(id: string): Promise<void>

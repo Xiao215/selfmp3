@@ -9,17 +9,18 @@ import {
   externalUrlSchema,
   fileKindSchema,
   fileNameSchema,
+  loginItemSchema,
   playbackStateSchema,
   secretKeySchema,
   secretValueSchema,
   transferIdSchema,
-  type Command,
   type DesktopInfo,
 } from '@selfmp3/desktop-bridge'
 
 import * as files from './files.js'
 
 import type { DeepLinks } from './deepLinks.js'
+import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
 
 /**
@@ -43,6 +44,9 @@ export function desktopInfo({ development }: { development: boolean }): DesktopI
     songsDir: join(userData, 'songs'),
     development,
     secretsSealed: encryptionAvailable(),
+    // The traffic lights, and a little air under them. Only macOS hides the
+    // title bar into the page; every other platform draws its own frame.
+    titleBarInset: process.platform === 'darwin' ? 28 : 0,
   }
 }
 
@@ -121,23 +125,26 @@ export function registerIpc({
    * the page can publish its state from the moment the provider is wired,
    * rather than gaining a new call later.
    */
+  /*
+   * Open at login. Reading it back from the OS rather than remembering what was
+   * asked for: System Settings can turn it off behind the app's back, and a
+   * toggle that then still shows "on" is a toggle nobody trusts again.
+   */
+  ipcMain.handle(CHANNELS.loginItemGet, () => app.getLoginItemSettings().openAtLogin)
+  ipcMain.handle(CHANNELS.loginItemSet, (_event, value: unknown) => {
+    const { open } = loginItemSchema.parse({ open: value })
+    // Just `openAtLogin`. `openAsHidden` — which would have opened it without
+    // a window — was removed when macOS moved login items to ServiceManagement,
+    // and Electron dropped it with the rest of that API.
+    app.setLoginItemSettings({ openAtLogin: open })
+    return app.getLoginItemSettings().openAtLogin
+  })
+
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
-    playing = playbackStateSchema.parse(state).playing
+    setPlaybackState(playbackStateSchema.parse(state), window_)
   })
 
   deepLinks.listen(url => {
     window_()?.webContents.send(EVENTS.deepLink, url)
   })
-}
-
-let playing = false
-
-/** What the shell believes is going on, for the phases that act on it. */
-export function isPlaying(): boolean {
-  return playing
-}
-
-/** Menu items and media keys, sent to whichever window is there to act. */
-export function sendCommand(window_: BrowserWindow | null, command: Command): void {
-  window_?.webContents.send(EVENTS.command, command)
 }

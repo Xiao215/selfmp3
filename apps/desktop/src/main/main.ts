@@ -6,6 +6,7 @@ import type { BrowserWindow } from 'electron'
 import { DeepLinks, deepLinkFromArgv } from './deepLinks.js'
 import { desktopInfo, registerIpc } from './ipc.js'
 import { buildMenu } from './menu.js'
+import { startNowPlaying } from './nowPlaying.js'
 import { handleAppScheme, registerAppScheme } from './protocol.js'
 import { createWindow, preloadPath } from './window.js'
 
@@ -28,6 +29,29 @@ const deepLinks = new DeepLinks()
 let mainWindow: BrowserWindow | null = null
 const currentWindow = (): BrowserWindow | null => mainWindow
 
+/*
+ * Set by `before-quit`, and read by the window's `close` handler: on macOS the
+ * red button hides the window, and the only thing that may really close it is
+ * the app going away. Without the flag, ⌘Q would hide the window and leave the
+ * app running with no way to get it back except the Dock.
+ */
+let quitting = false
+const isQuitting = (): boolean => quitting
+
+/** One window, reused: hidden rather than closed, so this shows it again. */
+function showWindow(): void {
+  if (mainWindow === null) {
+    mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
+    mainWindow.on('closed', () => {
+      mainWindow = null
+    })
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
 registerAppScheme()
 
 /*
@@ -39,10 +63,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_event, argv) => {
     deepLinks.deliver(deepLinkFromArgv(argv))
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
+    showWindow()
   })
 
   // macOS delivers a URL to a running app this way, and to a cold one just
@@ -70,13 +91,14 @@ if (!app.requestSingleInstanceLock()) {
       handleAppScheme({ web: WEB_ROOT })
 
       const info = desktopInfo({ development: devUrl !== null })
-      mainWindow = createWindow({ preload: preloadPath(), devUrl })
+      mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
       mainWindow.on('closed', () => {
         mainWindow = null
       })
 
       registerIpc({ info, deepLinks, window: currentWindow })
       buildMenu(currentWindow)
+      startNowPlaying(currentWindow)
 
       deepLinks.deliver(deepLinkFromArgv(process.argv))
     })
@@ -85,20 +107,17 @@ if (!app.requestSingleInstanceLock()) {
       app.exit(1)
     })
 
-  // The Dock icon, with every window closed.
-  app.on('activate', () => {
-    if (mainWindow === null) {
-      mainWindow = createWindow({ preload: preloadPath(), devUrl })
-      mainWindow.on('closed', () => {
-        mainWindow = null
-      })
-    }
+  // The Dock icon, with the window hidden or gone.
+  app.on('activate', () => showWindow())
+
+  app.on('before-quit', () => {
+    quitting = true
   })
 
   /*
    * A Mac app outlives its windows; everywhere else closing the last window is
-   * quitting. Phase 4 makes the red button hide rather than close, which is
-   * what a player should do, and this stays as the other platforms' rule.
+   * quitting. On macOS the red button only hides the window (`window.ts`), so
+   * this is reached there solely on the way out.
    */
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()

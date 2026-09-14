@@ -1,4 +1,5 @@
 import { appPath } from './appPath'
+import { takeSignInCode as takeFromLink } from './deepLinks'
 import { desktop } from './desktop/bridge'
 
 /**
@@ -10,13 +11,10 @@ import { desktop } from './desktop/bridge'
  * The installed app has no address to be sent back to — the sign-in happened in
  * the person's own browser, because Google refuses to sign in inside an
  * embedded window — so it comes back by `selfmp3://`, the same scheme and the
- * same fragment the phone already uses. The shell holds a link that arrives
- * before the page is listening, which a cold launch from a sign-in always is.
+ * same fragment the phone already uses. `ports/deepLinks` holds the links,
+ * including the ones that arrive before the page is listening — which a cold
+ * launch from a sign-in always is — and hands the codes over here.
  */
-
-/** Links the shell delivered, oldest first, until something takes them. */
-const arrived: string[] = []
-if (desktop) desktop.onDeepLink(url => arrived.push(url))
 
 export function signInReturnUrl(): string | null {
   if (desktop) return 'selfmp3://sign-in'
@@ -24,12 +22,7 @@ export function signInReturnUrl(): string | null {
 }
 
 export function takeSignInCode(): string | null {
-  if (desktop) {
-    const url = arrived.shift()
-    return url === undefined
-      ? null
-      : (/(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(url)?.[1] ?? null)
-  }
+  if (desktop) return takeFromLink()
   const raw = /(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(window.location.hash)?.[1]
   if (raw === undefined) return null
   window.history.replaceState(null, '', window.location.pathname + window.location.search)

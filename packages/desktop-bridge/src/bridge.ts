@@ -70,6 +70,18 @@ export interface DesktopBridge {
     clear(kind: FileKind): Promise<void>
   }
 
+  /**
+   * Open at login, as a Settings toggle.
+   *
+   * `get` answers what the operating system currently has, not what was asked
+   * for: someone can turn this off in System Settings › General › Login Items,
+   * and the toggle should show that rather than what the app last set.
+   */
+  loginItem: {
+    get(): Promise<boolean>
+    set(open: boolean): Promise<boolean>
+  }
+
   /** Progress on a download in flight. */
   onProgress(listener: (progress: TransferProgress) => void): () => void
 
@@ -104,12 +116,11 @@ export interface DesktopBridge {
 }
 
 /*
- * Deliberately not here yet: `loginItem` and `updates` (phases 4 and 5). Their
- * channel names and schemas are already in this package, because they are the
- * vocabulary the plan settled, but a member of this interface is a promise that
- * something answers it — and nothing does until the phase that writes the
- * handler. A bridge that declares what it cannot do is worse than one that
- * grows.
+ * Deliberately not here yet: `updates` (phase 5). Its channel names and schemas
+ * are already in this package, because they are the vocabulary the plan
+ * settled, but a member of this interface is a promise that something answers
+ * it — and nothing does until the phase that writes the handler. A bridge that
+ * declares what it cannot do is worse than one that grows.
  */
 
 export type {

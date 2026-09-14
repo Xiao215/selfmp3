@@ -33,6 +33,11 @@ describe('settings', () => {
     expect(sectionsFor(false).map(section => section.id)).toContain('shortcuts')
   })
 
+  it('shows the desktop section only where there is a shell to ask', () => {
+    expect(sectionsFor(false).map(section => section.id)).not.toContain('desktop')
+    expect(sectionsFor(false, true, true, true).map(section => section.id)).toContain('desktop')
+  })
+
   it('picks the last section past the reading line', () => {
     expect(activeSection(TOPS, 0, 800, 2400)).toBe('a')
     expect(activeSection(TOPS, 520, 800, 2400)).toBe('b')

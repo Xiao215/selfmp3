@@ -31,10 +31,12 @@ import {
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
 import { useLibrary, useServerSettings } from '../api/queries'
+import { coversNow } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../server/ConnectionProvider'
+import { useNowPlaying } from './useNowPlaying'
 
 /**
  * The React glue between the queue rules and whatever makes a sound.
@@ -85,6 +87,13 @@ export interface PlayerApi {
   next: () => void
   previous: () => void
   seekTo: (seconds: number) => void
+  /**
+   * Forward or back from where the song is now: the menu's seek items, and the
+   * OS's own skip buttons. Separate from `seekTo` because the position ticks
+   * once a second in its own context, and everything that only wants to *move*
+   * the song would otherwise have to re-render on every tick to know where it is.
+   */
+  seekBy: (delta: number) => void
   toggleShuffle: () => void
   cycleRepeatMode: () => void
   playNext: (songIds: readonly number[]) => void
@@ -445,6 +454,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [engine],
   )
 
+  const seekBy = useCallback(
+    (delta: number) => {
+      // The engine clamps the far end itself — an `<audio>` will not seek past
+      // its duration — and this keeps the near one off negative numbers, which
+      // some engines answer by refusing to seek at all.
+      engine.seek(Math.max(0, lastPositionRef.current + delta))
+    },
+    [engine],
+  )
+
   const toggleShuffle = useCallback(() => {
     const next = setShuffle(queueRef.current, !queueRef.current.shuffle)
     setQueue(next)
@@ -635,6 +654,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       next,
       previous,
       seekTo,
+      seekBy,
       toggleShuffle,
       cycleRepeatMode,
       playNext,
@@ -699,6 +719,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       next,
       previous,
       seekTo,
+      seekBy,
       toggleShuffle,
       cycleRepeatMode,
       playNext,
@@ -721,6 +742,22 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     }),
     [engineState.currentTime, engineState.duration, resolved.currentSong?.duration],
   )
+
+  /*
+   * What the operating system is shown: the lock screen on a phone, Control
+   * Center and the Dock in the installed app, nothing in a tab that has no
+   * media session. The artwork is a cover already on this device where there is
+   * one — the OS fetches the URL itself and cannot send the doorman's header —
+   * and the Mac's own address otherwise.
+   */
+  const nowPlayingArt = (() => {
+    const song = resolved.currentSong
+    if (!song?.hasArt) return null
+    const kept = coversNow().get(song.id)
+    if (kept) return kept
+    return connection ? mediaUrlFor(connection).art(song.id, song.rev) : null
+  })()
+  useNowPlaying(value, progress, nowPlayingArt)
 
   return (
     <PlayerContext.Provider value={value}>

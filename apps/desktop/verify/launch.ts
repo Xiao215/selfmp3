@@ -27,14 +27,28 @@ const rootFlags = process.getuid?.() === 0 ? ['--no-sandbox'] : []
  * download index all live there, and a test that inherits the last run's is a
  * test that passes for the wrong reason.
  */
-export async function launchApp(
-  { env = {} }: { env?: Record<string, string> } = {},
-): Promise<ElectronApplication> {
+export async function launchApp({
+  env = {},
+  userDataDir,
+}: {
+  env?: Record<string, string>
+  /** Pass the same directory twice to test what a relaunch remembers. */
+  userDataDir?: string
+} = {}): Promise<ElectronApplication> {
   return electron.launch({
     executablePath: join(repoRoot, 'node_modules', 'electron', 'dist', 'electron'),
-    args: [...rootFlags, join(desktopRoot, 'dist', 'main.cjs'), `--user-data-dir=${mkdtempSync(join(tmpdir(), 'selfmp3-smoke-'))}`],
+    args: [
+      ...rootFlags,
+      join(desktopRoot, 'dist', 'main.cjs'),
+      `--user-data-dir=${userDataDir ?? freshUserData()}`,
+    ],
     env: { ...process.env, ...env } as Record<string, string>,
   })
+}
+
+/** A `userData` nothing else has used. */
+export function freshUserData(): string {
+  return mkdtempSync(join(tmpdir(), 'selfmp3-smoke-'))
 }
 
 /** The dev server the "connects and plays" flow needs, when there is one. */

@@ -19,6 +19,7 @@ import { useImportTools, useLibrary, useMigrateJob } from '../../api/queries'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { BackRow, useBackTo } from '../../ui/components/BackRow'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { IconButton } from '../../ui/components/IconButton'
@@ -65,6 +66,7 @@ export function MigrateScreen(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
+  const backTo = useBackTo()
   const { wide } = useLayout()
   const { fromCloud } = useConnection()
   const queryClient = useQueryClient()
@@ -150,6 +152,7 @@ export function MigrateScreen(): ReactNode {
         keyboardShouldPersistTaps="handled"
         testID="migrate-screen"
       >
+        <BackRow label="Import" href="/import" testID="back-to-import" />
         <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
           Migrate a playlist
         </Text>
@@ -181,7 +184,7 @@ export function MigrateScreen(): ReactNode {
               <Text style={styles.strong}>{queuedMessage(done.count)}</Text> Watch progress on the{' '}
               <Text
                 style={[styles.linkText, { color: accent.accent }]}
-                onPress={() => router.push('/import')}
+                onPress={() => backTo('/import')}
                 accessibilityRole="link"
               >
                 Import page

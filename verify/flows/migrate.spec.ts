@@ -56,5 +56,11 @@ test.describe('migrating a playlist', () => {
     await dismissToasts(page)
     await page.getByRole('button', { name: 'Start over' }).click()
     await expect(page.getByRole('button', { name: 'Find matches' })).toBeVisible()
+
+    // Opened straight on its address, "‹ Import" takes Import's place rather
+    // than leaving the app's history for wherever the browser was before.
+    await page.getByRole('button', { name: 'Back to Import' }).click()
+    await expect(page).toHaveURL(/\/import$/)
+    await expect(page.getByRole('heading', { name: 'Import', exact: true })).toBeVisible()
   })
 })

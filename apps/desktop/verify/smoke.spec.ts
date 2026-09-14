@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
+import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
-import { appApi, freshUserData, launchApp, serverHasSongs } from './launch'
+import { appApi, desktopRoot, executable, freshUserData, launchApp, serverHasSongs } from './launch'
 
 /**
  * The desktop smoke.
@@ -429,6 +431,23 @@ test.describe('files on disk', () => {
     } finally {
       await app.close()
     }
+  })
+
+  /*
+   * Regression. `verify:desktop` and `dev:desktop` both used to name
+   * `node_modules/electron/dist/electron`, which is the *Linux* binary, so both
+   * died with ENOENT on a Mac before a single test ran. The electron package
+   * writes the per-platform relative path into `path.txt` when it installs —
+   * `electron` on Linux, `Electron.app/Contents/MacOS/Electron` on macOS — and
+   * that is what the launcher must end up with.
+   */
+  test('launches the Electron binary this platform actually has', () => {
+    const pathFile = join(desktopRoot, '..', '..', 'node_modules', 'electron', 'path.txt')
+    const named = readFileSync(pathFile, 'utf8').trim()
+
+    expect(named).not.toBe('')
+    expect(executable().endsWith(named)).toBe(true)
+    expect(existsSync(executable())).toBe(true)
   })
 
   test('offline, a song that was downloaded still plays, and reveal answers', async () => {

@@ -11,9 +11,10 @@ import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { electronBinary } from './electronPath.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
-const repoRoot = join(root, '..', '..')
 
 const devUrl = process.env.SELFMP3_DESKTOP_DEV_URL ?? 'http://localhost:4601'
 
@@ -23,8 +24,7 @@ const built = spawn(process.execPath, [join(here, 'build.mjs')], { stdio: 'inher
 built.on('exit', code => {
   if (code !== 0) process.exit(code ?? 1)
 
-  const electron = join(repoRoot, 'node_modules', 'electron', 'dist', 'electron')
-  const child = spawn(electron, [join(root, 'dist', 'main.cjs')], {
+  const child = spawn(electronBinary(), [join(root, 'dist', 'main.cjs')], {
     stdio: 'inherit',
     env: { ...process.env, SELFMP3_DESKTOP_DEV_URL: devUrl },
   })

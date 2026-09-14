@@ -131,19 +131,16 @@ export const downloadStorage: DownloadStorage = {
   async writeIndex(index) {
     if (!desktop) return
     /*
-     * Written through `fetchTo` from a `blob:` URL rather than a channel of its
-     * own. The shell already knows how to put a fetched body in a file, and a
-     * blob URL is same-process and costs no copy through IPC; adding a
-     * `files.write` would be a second way to put bytes on disk, and a second
-     * thing to get the atomic rename right in.
+     * Through `files.write`, which is the shell's channel for the page's own
+     * text. This was once a `blob:` URL handed to `fetchTo`, on the reasoning
+     * that the shell already knew how to put a fetched body in a file — but it
+     * is the *main* process that fetches, and a blob URL belongs to the
+     * renderer that created it, so the main process could not read one at all
+     * (`net::ERR_UNKNOWN_URL_SCHEME`, and the URL schema rejected it before
+     * even that). Every write was refused, which meant downloads never survived
+     * a relaunch: the files were on disk and no index said so.
      */
-    const blob = new Blob([JSON.stringify(index)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    try {
-      await desktop.files.fetchTo(INDEX_KIND, INDEX_NAME, url)
-    } finally {
-      URL.revokeObjectURL(url)
-    }
+    await desktop.files.write(INDEX_KIND, INDEX_NAME, JSON.stringify(index))
   },
 
   localUri(entry) {

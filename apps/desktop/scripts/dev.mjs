@@ -11,9 +11,10 @@ import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { electronBinary } from './electronPath.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
-const repoRoot = join(root, '..', '..')
 
 const devUrl = process.env.SELFMP3_DESKTOP_DEV_URL ?? 'http://localhost:4601'
 
@@ -23,8 +24,20 @@ const built = spawn(process.execPath, [join(here, 'build.mjs')], { stdio: 'inher
 built.on('exit', code => {
   if (code !== 0) process.exit(code ?? 1)
 
-  const electron = join(repoRoot, 'node_modules', 'electron', 'dist', 'electron')
-  const child = spawn(electron, [join(root, 'dist', 'main.cjs')], {
+  /*
+   * Whatever was asked for on the way in, handed straight to Electron. The
+   * window used to take no arguments at all, and the one that matters is
+   * `--user-data-dir`: the single-instance lock is keyed on `userData`, so two
+   * development windows at once are two `userData` directories, and without a
+   * way to name one the second launch hands its arguments to the first and
+   * exits. Electron reads its own switches wherever they appear, which is why
+   * these can follow the app path.
+   *
+   * npm eats a bare `--`, so it is
+   * `npm run dev --workspace @selfmp3/desktop -- --user-data-dir=…`, or
+   * `node apps/desktop/scripts/dev.mjs --user-data-dir=…`.
+   */
+  const child = spawn(electronBinary(), [join(root, 'dist', 'main.cjs'), ...process.argv.slice(2)], {
     stdio: 'inherit',
     env: { ...process.env, SELFMP3_DESKTOP_DEV_URL: devUrl },
   })

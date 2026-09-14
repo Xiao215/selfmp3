@@ -161,6 +161,17 @@ export const fileNameSchema = z
   .regex(/^[A-Za-z0-9][A-Za-z0-9 ._'()-]*$/, 'a file name is one flat segment')
   .refine(value => !value.includes('..'), { message: 'no climbing out' })
 
+/**
+ * The text of a small file the page writes itself: the download index.
+ *
+ * A megabyte is far more than an index of a personal library will ever be, and
+ * far less than a page could use this channel to fill a disk with. Text and not
+ * bytes on purpose — the only thing the page has to write is JSON, and a
+ * channel that took arbitrary bytes would be a channel for putting an
+ * executable on someone's computer.
+ */
+export const fileTextSchema = z.string().max(1024 * 1024)
+
 /** A download's id, the page's own handle on it, used to cancel. */
 export const transferIdSchema = z.string().min(1).max(128)
 

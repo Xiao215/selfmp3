@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
+import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
-import { appApi, freshUserData, launchApp, serverHasSongs } from './launch'
+import { appApi, desktopRoot, executable, freshUserData, launchApp, serverHasSongs } from './launch'
 
 /**
  * The desktop smoke.
@@ -455,6 +457,132 @@ test.describe('files on disk', () => {
     }
   })
 
+  /*
+   * Regression. `verify:desktop` and `dev:desktop` both used to name
+   * `node_modules/electron/dist/electron`, which is the *Linux* binary, so both
+   * died with ENOENT on a Mac before a single test ran. The electron package
+   * writes the per-platform relative path into `path.txt` when it installs —
+   * `electron` on Linux, `Electron.app/Contents/MacOS/Electron` on macOS — and
+   * that is what the launcher must end up with.
+   */
+  test('launches the Electron binary this platform actually has', () => {
+    const pathFile = join(desktopRoot, '..', '..', 'node_modules', 'electron', 'path.txt')
+    const named = readFileSync(pathFile, 'utf8').trim()
+
+    expect(named).not.toBe('')
+    expect(executable().endsWith(named)).toBe(true)
+    expect(existsSync(executable())).toBe(true)
+  })
+
+  /*
+   * Regression. `files.list` returned every regular file and the preload parses
+   * the whole array against `fileNameSchema`, which refuses a leading dot — so
+   * a single `.DS_Store`, which macOS writes the first time Settings' "Reveal
+   * in Finder" opens the songs directory, made every `files.list` call throw
+   * from then on. The app then showed no downloads at all, on a machine whose
+   * disk was full of them.
+   */
+  test('lists the app\'s own files past whatever else is in the directory', async () => {
+    const userDataDir = freshUserData()
+    const songs = join(userDataDir, 'songs')
+    mkdirSync(songs, { recursive: true })
+    // What Finder leaves behind, and a couple of other names the contract
+    // could never have written.
+    writeFileSync(join(songs, '.DS_Store'), 'x')
+    writeFileSync(join(songs, '._1.m4a'), 'x')
+    writeFileSync(join(songs, '5.m4a'), 'hello')
+    writeFileSync(join(songs, '6.m4a.part'), 'half a download')
+
+    const app = await launchApp({ userDataDir })
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const result = await page.evaluate(async () => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        return { list: await desktop.files.list('songs'), usage: await desktop.files.usage() }
+      })
+
+      expect(result.list).toEqual([{ name: '5.m4a', bytes: 5 }])
+      expect(result.usage.songs).toBe(5)
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * Regression. The download index was saved by handing a `blob:` URL to
+   * `files.fetchTo`, but it is the main process that fetches and a blob URL
+   * belongs to the renderer that made it, so the main process cannot read one
+   * at all. Every write was refused and `downloads.json` was never written,
+   * which meant a relaunch found the song files on disk and no index saying
+   * they were there. `files.write` is the channel that actually persists it.
+   */
+  test('the page can write its download index, and a relaunch finds it', async () => {
+    const userDataDir = freshUserData()
+    const index = JSON.stringify({
+      version: 1,
+      entries: {
+        '7': {
+          songId: 7,
+          fileName: '7.m4a',
+          sizeBytes: 4096,
+          etag: 'a1b2',
+          downloadedAt: '2026-09-14T00:00:00.000Z',
+        },
+      },
+    })
+
+    const first = await launchApp({ userDataDir })
+    try {
+      const page = await first.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const wrote = await page.evaluate(async text => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+
+        // What it used to do, kept here so the reason for the channel stays
+        // written down: a blob URL never leaves the renderer.
+        const blob = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+        let viaBlob = 'wrote it'
+        try {
+          await desktop.files.fetchTo('songs', 'downloads.json', blob)
+        } catch {
+          viaBlob = 'refused'
+        } finally {
+          URL.revokeObjectURL(blob)
+        }
+
+        await desktop.files.write('songs', 'downloads.json', text)
+        const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
+        return { viaBlob, immediately: await back.text() }
+      }, index)
+
+      expect(wrote.viaBlob).toBe('refused')
+      expect(wrote.immediately).toBe(index)
+    } finally {
+      await first.close()
+    }
+
+    // The whole point: it is still there next time the app opens.
+    const second = await launchApp({ userDataDir })
+    try {
+      const page = await second.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const afterRelaunch = await page.evaluate(async () => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
+        return { text: await back.text(), stat: await desktop.files.stat('songs', 'downloads.json') }
+      })
+
+      expect(afterRelaunch.text).toBe(index)
+      expect(afterRelaunch.stat).toEqual({ name: 'downloads.json', bytes: index.length })
+    } finally {
+      await second.close()
+    }
+  })
+
   test('offline, a song that was downloaded still plays, and reveal answers', async () => {
     const app = await launchApp()
     try {
@@ -756,6 +884,7 @@ interface DesktopForTest {
     fetchTo(kind: string, name: string, url: string, headers?: Record<string, string>): Promise<void>
     stat(kind: string, name: string): Promise<{ name: string; bytes: number } | null>
     list(kind: string): Promise<{ name: string; bytes: number }[]>
+    write(kind: string, name: string, text: string): Promise<void>
     reveal(kind: string, name?: string): Promise<void>
     usage(): Promise<{ songs: number; covers: number; free: number }>
     clear(kind: string): Promise<void>

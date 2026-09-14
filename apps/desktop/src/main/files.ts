@@ -3,7 +3,14 @@ import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { app, net, shell } from 'electron'
-import type { DownloadRequest, DownloadResult, FileKind, FileStat, Usage } from '@selfmp3/desktop-bridge'
+import {
+  fileNameSchema,
+  type DownloadRequest,
+  type DownloadResult,
+  type FileKind,
+  type FileStat,
+  type Usage,
+} from '@selfmp3/desktop-bridge'
 
 import { resolveWithinRoot } from './paths.js'
 
@@ -123,6 +130,24 @@ export async function fetchTo(
   await rename(part, target)
 }
 
+/**
+ * The page's own text, in a file of its own: the download index.
+ *
+ * Through `.part` and a rename, the same as a download, so a relaunch that
+ * happens mid-write reads either the old index or the new one and never half
+ * of either.
+ */
+export async function writeText(kind: FileKind, name: string, text: string): Promise<void> {
+  const target = await pathFor(kind, name)
+  const part = `${target}.part`
+  await new Promise<void>((resolve, reject) => {
+    const sink = createWriteStream(part)
+    sink.on('error', reject)
+    sink.end(Buffer.from(text, 'utf8'), () => resolve())
+  })
+  await rename(part, target)
+}
+
 export async function remove(kind: FileKind, name: string): Promise<void> {
   const target = await pathFor(kind, name)
   await rm(target, { force: true })
@@ -143,6 +168,17 @@ export async function list(kind: FileKind): Promise<{ name: string; bytes: numbe
   for (const entry of entries) {
     // A `.part` is an unfinished download, not a file anyone has.
     if (!entry.isFile() || entry.name.endsWith('.part')) continue
+    /*
+     * Only names the contract admits. This directory is a real directory on
+     * someone's computer and other things write to it: `.DS_Store` appears the
+     * first time "Reveal in Finder" opens it, and `fileNameSchema` — which the
+     * preload parses the whole array against — refuses a leading dot. One such
+     * file used to make every `files.list` call throw, permanently, so the app
+     * lost its downloads the moment a person looked at where they were kept.
+     * A name the app could never have written is not the page's file, and
+     * dropping it here is what makes the listing describe the app's own files.
+     */
+    if (!fileNameSchema.safeParse(entry.name).success) continue
     out.push({ name: entry.name, bytes: await sizeOf(join(root, entry.name)) })
   }
   return out

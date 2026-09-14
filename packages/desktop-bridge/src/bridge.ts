@@ -64,6 +64,17 @@ export interface DesktopBridge {
       url: string,
       headers?: Record<string, string>,
     ): Promise<void>
+    /**
+     * Put text in a file of this kind, atomically.
+     *
+     * The page's own small documents — the download index, and nothing else so
+     * far. `fetchTo` cannot stand in for this: it is the *main* process that
+     * fetches, and a `blob:` URL belongs to the renderer that made it, so the
+     * main process cannot read one (`net::ERR_UNKNOWN_URL_SCHEME`). Written to
+     * `<name>.part` and renamed, like a download, so a reader never sees half
+     * an index.
+     */
+    write(kind: FileKind, name: string, text: string): Promise<void>
     usage(): Promise<Usage>
     /** `shell.showItemInFolder`. */
     reveal(kind: FileKind, name?: string): Promise<void>

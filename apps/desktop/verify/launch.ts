@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,7 +12,6 @@ import { _electron as electron, type ElectronApplication } from '@playwright/tes
  * there.
  */
 export const desktopRoot = join(__dirname, '..')
-export const repoRoot = join(desktopRoot, '..', '..')
 
 /**
  * Chromium refuses its own sandbox when the process is root, which a container
@@ -19,6 +19,43 @@ export const repoRoot = join(desktopRoot, '..', '..')
  * never something the shipped app asks for.
  */
 const rootFlags = process.getuid?.() === 0 ? ['--no-sandbox'] : []
+
+/**
+ * The Electron binary to launch, and the app to launch with it.
+ *
+ * `node_modules/electron/dist/electron` is the *Linux* binary name — on a Mac
+ * the package puts it at `dist/Electron.app/Contents/MacOS/Electron` — so the
+ * path is asked of the electron package, which writes the per-platform relative
+ * path into `path.txt` at install time and whose main export is the resolved
+ * string. Spelling it out here is what made `verify:desktop` die with ENOENT
+ * before a single test ran on macOS.
+ *
+ * Both halves are overridable, because "the app under test is the unpackaged
+ * `dist/main.cjs`" is a default rather than a fact about the suite: pointing
+ * `SELFMP3_DESKTOP_EXECUTABLE` at an installed `self.mp3.app/Contents/MacOS/
+ * self.mp3` and clearing `SELFMP3_DESKTOP_APP_PATH` runs these same tests
+ * against a packaged build, where `app.isPackaged` is true and the web root and
+ * the preload are read from inside `app.asar`.
+ */
+// `electron`'s main export is the path string, but its types describe the
+// module an Electron process gets, so the cast says which of the two this is.
+const defaultExecutable = createRequire(__filename)('electron') as unknown as string
+
+export function executable(): string {
+  return process.env['SELFMP3_DESKTOP_EXECUTABLE'] ?? defaultExecutable
+}
+
+/**
+ * The argument that names the app, or nothing when the executable *is* the app.
+ *
+ * An empty `SELFMP3_DESKTOP_APP_PATH` means "the executable carries its own
+ * app", which is what a packaged build is.
+ */
+function appArgs(): string[] {
+  const configured = process.env['SELFMP3_DESKTOP_APP_PATH']
+  if (configured === undefined) return [join(desktopRoot, 'dist', 'main.cjs')]
+  return configured === '' ? [] : [configured]
+}
 
 /**
  * Launch the built shell with a `userData` of its own.
@@ -36,24 +73,10 @@ export async function launchApp({
   userDataDir?: string
 } = {}): Promise<ElectronApplication> {
   return electron.launch({
-    executablePath: electronBinary(),
-    args: [
-      ...rootFlags,
-      join(desktopRoot, 'dist', 'main.cjs'),
-      `--user-data-dir=${userDataDir ?? freshUserData()}`,
-    ],
+    executablePath: executable(),
+    args: [...rootFlags, ...appArgs(), `--user-data-dir=${userDataDir ?? freshUserData()}`],
     env: { ...process.env, ...env } as Record<string, string>,
   })
-}
-
-/**
- * The Electron binary `npm ci` unpacked: `dist/electron` on Linux, inside
- * `Electron.app` on a Mac. `path.txt` is the electron package's own answer, the
- * one its `index.js` reads.
- */
-function electronBinary(): string {
-  const electronDir = join(repoRoot, 'node_modules', 'electron')
-  return join(electronDir, 'dist', readFileSync(join(electronDir, 'path.txt'), 'utf8').trim())
 }
 
 /**

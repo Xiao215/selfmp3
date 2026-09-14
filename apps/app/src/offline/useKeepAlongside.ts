@@ -71,7 +71,9 @@ export function useKeepAlongside(): void {
   const done = useRef<string | null>(null)
 
   const data = library.data
-  const reachable = data !== undefined && !library.isError
+  // A copy saved on this device is shown dated 0 while the Mac is asked; it says
+  // nothing about whether the Mac answers, so the pass waits for a real answer.
+  const reachable = data !== undefined && !library.isError && library.dataUpdatedAt !== 0
   const key = useMemo(() => (data === undefined ? null : contentsKey(data)), [data])
 
   /*
@@ -102,14 +104,11 @@ export function useKeepAlongside(): void {
           if (song.hasArt) {
             if (fromCloud) await ensureCover(song.id)
             else if (connection) {
-              // Waited on when it says when it is done; today it starts its
-              // work and returns, and this is no worse than before.
-              await Promise.resolve(
-                ensureServerCover(
-                  song.id,
-                  song.rev,
-                  mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE),
-                ),
+              // Waited on, so the Mac is asked for AT_ONCE covers at a time.
+              await ensureServerCover(
+                song.id,
+                song.rev,
+                mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE),
               )
             }
           }

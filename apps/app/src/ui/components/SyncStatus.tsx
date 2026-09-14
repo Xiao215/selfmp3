@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useAccent } from '../accent'
 
 /**
@@ -17,12 +17,14 @@ import { useAccent } from '../accent'
 export function SyncStatus(): ReactNode {
   const { theme } = useUnistyles()
   const downloads = useDownloads()
+  // Bytes from their own store: a moving bar redraws this line, not every reader of the queue.
+  const progress = useDownloadProgress()
   const accent = useAccent()
   const header = syncHeader(downloads.situation)
   if (header.kind === 'none') return null
 
   const { text, action } = syncHeaderText(header)
-  const { state, queue } = downloads
+  const { queue } = downloads
   const onAction = (): void => {
     if (header.kind === 'downloading') {
       if (header.paused) queue.resume()
@@ -31,7 +33,8 @@ export function SyncStatus(): ReactNode {
       downloads.requestDownload(downloads.missingIds)
     }
   }
-  const fraction = state.totalBytes > 0 ? Math.min(1, state.bytesWritten / state.totalBytes) : 0
+  const fraction =
+    progress.totalBytes > 0 ? Math.min(1, progress.bytesWritten / progress.totalBytes) : 0
   const warn = header.kind === 'waiting' && header.reason === 'data'
 
   return (

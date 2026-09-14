@@ -48,7 +48,7 @@ export function useArt(): (song: Song) => string | null {
         // answers. The copy is what is drawn once it exists: it is there when
         // the Mac is not, and it is the same picture when it is.
         const url = mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE)
-        ensureServerCover(song.id, song.rev, url)
+        void ensureServerCover(song.id, song.rev, url)
         return coverFor(song.id) ?? url
       }
       void ensureCover(song.id)

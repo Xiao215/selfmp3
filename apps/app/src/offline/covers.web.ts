@@ -103,17 +103,20 @@ export function coverFor(songId: number): string | undefined {
  * Keep a Mac's cover on this device, from the address the Mac serves it at.
  * Safe to call for every visible row: a cover already kept, or an address
  * already tried, costs a map lookup.
+ *
+ * Settles when the cover is kept or given up on, so a pass over the whole
+ * library can hold how many run at once; a row drawing it need not wait.
  */
-export function ensureServerCover(songId: number, rev: string | undefined, url: string): void {
+export function ensureServerCover(songId: number, rev: string | undefined, url: string): Promise<void> {
   const files = coverFiles
-  if (!files) return
+  if (!files) return Promise.resolve()
   prime()
   const revision = rev ?? ''
   const have = served.get(songId)
-  if (have && have.rev === revision) return
-  if (tried.has(url)) return
+  if (have && have.rev === revision) return Promise.resolve()
+  if (tried.has(url)) return Promise.resolve()
   tried.add(url)
-  void (async () => {
+  return (async () => {
     // Off the current frame first. This is called while a row renders, and a
     // cover found on disk would otherwise set state in every list in the
     // middle of that render.

@@ -33,7 +33,7 @@ import {
   useUpdateSettings,
 } from '@selfmp3/client'
 import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../../api/queries'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
@@ -509,9 +509,7 @@ function OfflinePanel({
             {downloads.paused ? 'Paused' : 'Downloading'}
             {activeSong ? ` — ${activeSong.title}` : ''} · {downloads.queue.length} left
           </Text>
-          <Meter
-            fraction={downloads.totalBytes > 0 ? downloads.bytesWritten / downloads.totalBytes : 0}
-          />
+          <DownloadMeter />
         </View>
       ) : null}
 
@@ -574,6 +572,14 @@ function OfflinePanel({
         ) : null}
       </ButtonRow>
     </Panel>
+  )
+}
+
+/** The running download's bar, on its own so the bytes redraw it and not the whole panel. */
+function DownloadMeter(): ReactNode {
+  const progress = useDownloadProgress()
+  return (
+    <Meter fraction={progress.totalBytes > 0 ? progress.bytesWritten / progress.totalBytes : 0} />
   )
 }
 

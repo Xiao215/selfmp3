@@ -13,7 +13,7 @@ import {
   tempoMark,
   tempoWords,
 } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
@@ -88,12 +88,13 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { state: downloads, queue, installed } = useDownloads()
+  const progress = useDownloadProgress()
   const features = song.features
   const held = isDownloaded(downloads.index, song.id)
   const downloading = downloads.activeSongId === song.id
   const fraction =
-    downloading && downloads.totalBytes > 0
-      ? Math.min(1, downloads.bytesWritten / downloads.totalBytes)
+    downloading && progress.totalBytes > 0
+      ? Math.min(1, progress.bytesWritten / progress.totalBytes)
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
 

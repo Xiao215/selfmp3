@@ -3667,6 +3667,44 @@ Electron names that folder after the app, and without a `productName` in
 and the name in the app menu's About and Quit. The only data in the old folder
 was the smoke tests'.
 
+**Performance, on every platform.** Xiao saw a stutter opening the lyrics-only
+page from the stage. Before anything was changed, the cause was found: the shell
+listened to the playback clock, so on the web the whole frame redrew about four
+times a second while a song played, and each Focus open added a redraw on top of
+that. The fixes were made in five branches, merged here without conflicts.
+- *Player* (`perf/player`). The song's clock lives in a store outside React, so
+  a tick redraws only what shows the time. The engines and the shell ignore
+  states that did not change. A song row's memo holds, and a playlist's songs are
+  drawn as a list.
+- *Focus* (`perf/focus`). Now Playing and the lyrics page move with transforms
+  and opacity (the Web Animations API on the web), not layout. The stage no
+  longer redraws on each tick.
+- *Search* (`perf/search`). Search, the sidebar and covers do less work per
+  keystroke and per cover.
+- *Downloads* (`perf/downloads`). Byte progress has its own store
+  (`useDownloadProgress`), limited to four updates a second. Only the three
+  bars that move redraw: the sync line, Song details, and Settings' offline
+  panel. `useDownloads()` stays the same while bytes arrive.
+- *Cloud data* (`perf/cloud-data`). A device with a stored cloud library
+  answers from it at once and looks in the background. A look that finds
+  nothing new rewrites nothing. An edit patches the library with its answer
+  instead of fetching all of it again. `generatedAt` stays the same until the
+  library changes. The service worker slices cached songs instead of reading
+  them whole.
+
+After the merge, `ensureServerCover` returns a promise, so the keep-alongside
+pass really does ask a Mac for a few covers at a time; before, it started all
+of them at once. The same pass also waits while the library shown is only the
+copy saved on this device (dated 0), since that copy says nothing about whether
+the Mac is answering.
+
+Gates on the merged tree:
+- `npm run check`: 1518 tests passed, 1 skipped.
+- `npm run build:desktop`: an ad-hoc build, one arm64 dmg.
+- `npm run verify:desktop`: 22 passed, including the packaged app opening in
+  4.1 s. The one skip is "a row plays from a server", which needs a server
+  answering.
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

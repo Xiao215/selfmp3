@@ -119,7 +119,7 @@ function transferFor(
       // covers are fetched on their own path (offline/covers.ts); a Mac's are
       // fetched here, while the Mac is known to be answering.
       if (finished !== null && song.hasArt && from.headers === undefined && connection) {
-        ensureServerCover(
+        void ensureServerCover(
           song.id,
           song.rev,
           mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE),

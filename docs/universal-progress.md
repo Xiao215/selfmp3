@@ -3836,6 +3836,14 @@ and the server reads those covers again at start. And a device that failed to fe
 had a bad minute at 22:17 — remembered "no cover" for the whole session; it
 asks again after thirty seconds.
 
+**An orange ring on Caps Lock.** Pressing Caps Lock drew a two-tone orange and
+white ring round the sidebar's Settings, the last thing clicked. That is the
+browser's own keyboard-focus ring, in macOS's accent colour, and any key —
+Caps Lock included — is keyboard use to it. `FocusStyle.web.tsx` already
+replaced it for text fields; it replaces it for everything now: one line in
+the app's accent, for keyboard focus only, so Tab still shows where you are
+and a click shows nothing.
+
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each
 install asked for the keychain password again. Built with it set, the tier

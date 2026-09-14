@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
-import { ApiError, useLibrary, useLyrics, useUpdateSettings } from '@selfmp3/client'
+import { ApiError, useLibrary, useLyrics } from '@selfmp3/client'
 import { useConnection } from '../../server/ConnectionProvider'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
-import { useRomanizationOn } from './romanizationPref'
+import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
 /** A tag called "instrumental" counts, since that is how many people already say it. */
 const INSTRUMENTAL_TAG = 'instrumental'
@@ -23,7 +23,6 @@ export function useSongWords(song: Song): {
 } {
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const updateSettings = useUpdateSettings()
   const lyrics = useLyrics(song.id)
 
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
@@ -58,6 +57,6 @@ export function useSongWords(song: Song): {
     words,
     language,
     romanizationOn,
-    setRomanization: on => updateSettings.mutate({ lyricsRomanization: on ? 'on' : 'off' }),
+    setRomanization: setRomanizationOn,
   }
 }

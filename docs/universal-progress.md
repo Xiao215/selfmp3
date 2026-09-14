@@ -2864,3 +2864,14 @@ Xiao: romaji on the phone needed a connection. It was a second request,
   into `prefs` (`lyricsRomanization`) from the first frame, and the words read
   it back when the query is empty. Checked on the Pro Max with 4600 killed:
   三原色 shows romaji under each line.
+
+### The romaji switch belongs to the device — same branch
+
+Xiao: romaji is always downloaded with the lyrics; the switch should only
+decide whether it is drawn. So it is a device preference now
+(`romanizationPref.ts`: a small external store over `prefs`), flipped at once
+by the page's pill or Settings › Lyrics ("on this device"), with no server
+round-trip, so it works offline. A device that never chose starts from the
+server's old synced `lyricsRomanization` once (`useRomanizationSeed` in the
+shell); after that its own choice is the only one. The server setting stays
+in the schema for that seed and for older clients.

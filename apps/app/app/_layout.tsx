@@ -12,7 +12,7 @@ import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
-import { useRomanizationMirror } from '../src/features/nowPlaying/romanizationPref'
+import { useRomanizationSeed } from '../src/features/nowPlaying/romanizationPref'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
@@ -95,8 +95,8 @@ function Shell(): ReactNode {
   usePlaybackMemory()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
-  // And the romaji switch's last value, for when the server cannot be asked.
-  useRomanizationMirror()
+  // A device that never chose whether to draw romaji starts from the server's old setting.
+  useRomanizationSeed()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.

@@ -2467,3 +2467,27 @@ From Xiao on 4600:
 - Checked in Chrome against the dev server: the buttons read
   ["7d","1m","3m","1y","All"], /stats/wrapped lands on /stats/report, and the
   downloaded card was looked at.
+
+### Menus that fit, and a small tag window — branch `universal/menus`
+
+From Xiao on 4600: a song's ⋯ menu near the bottom was a short box with a
+white scrollbar, and Edit tags filled the width of the window.
+
+- **`Popover` picks its side.** It used to open below unless told `above`, and
+  held its `ScrollView` to the room below the control: for the last rows that
+  was a few items and a bar. `placement` now defaults to `auto`: the panel is
+  drawn off screen until it has measured its natural height, then opens below
+  if that fits, above if that fits, and otherwise on the roomier side,
+  scrolling with `showsVerticalScrollIndicator={false}`. A panel for a control
+  near the left edge starts at the control instead of being clamped against the
+  edge. It has a shadow and a little horizontal padding.
+- **`SheetItem`** lights up under the mouse in a panel (`onHoverIn`), in the
+  danger colour for Remove.
+- **`Sheet` at desktop width is a window**: centred, at most 420 wide and 80% of
+  the height, with the panel's dense items. Phones keep the bottom sheet.
+- **`TagPicker`** takes an `anchorRef`; the player bar passes its tags button,
+  so there it is a 320-wide popover over the button. Opened from a song's menu
+  (which closes as it opens) it is the centred window.
+- Checked in Chrome at 1280×900: the last row's menu opened above its ⋯
+  (240×407, no scroll, no scrollbar); Edit tags from it was 402 wide and
+  centred; the bar's picker was 320 wide above the button.

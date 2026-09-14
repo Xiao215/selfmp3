@@ -88,6 +88,7 @@ export function PlayerBar(): ReactNode {
   const tight = width < TIGHT_WIDTH
   const song = player.current
   const songColor = useSongColor(song, song ? artFor(song) : null)
+  const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const devicesRef = useRef<View>(null)
@@ -179,7 +180,7 @@ export function PlayerBar(): ReactNode {
                 color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
               />
             </IconButton>
-            <View>
+            <View ref={tagsRef} collapsable={false}>
               <IconButton
                 onPress={() => setTagsOpen(true)}
                 label={`Tags for ${song.title}`}
@@ -303,7 +304,12 @@ export function PlayerBar(): ReactNode {
         </View>
       </View>
 
-      <TagPicker song={tagsOpen ? song : null} onClose={() => setTagsOpen(false)} />
+      {/* A small window over its button, not a sheet across the window. */}
+      <TagPicker
+        song={tagsOpen ? song : null}
+        onClose={() => setTagsOpen(false)}
+        anchorRef={tagsRef}
+      />
       <DevicesSheet
         open={devicesOpen}
         onClose={() => setDevicesOpen(false)}

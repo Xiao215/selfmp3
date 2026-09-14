@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
 import { useCreateTag, useLibrary, useSetSongTags } from '../../api/queries'
+import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
 import { Plus } from './Icons'
+import { Popover } from './Popover'
 import { Sheet } from './Sheet'
 
 /**
@@ -18,16 +20,35 @@ import { Sheet } from './Sheet'
  * A near-match is shown first, though, because free-form tagging usually goes
  * wrong as "chill", "Chill" and "chilled" becoming three tags.
  *
- * A sheet at every width for now, like the song menu it opens from, which has
- * no control of its own to hang a popover off.
+ * A small window, as on the web: over the button that opened it when there is
+ * one (the player bar's), and otherwise — opened from a song's menu, which
+ * closes as it opens — a sheet, which on a computer is a small centred window.
  */
 export function TagPicker({
   song,
   onClose,
+  anchorRef,
 }: {
   song: Song | null
   onClose: () => void
+  /** The control that opened it, for a window attached to it at desktop width. */
+  anchorRef?: RefObject<View | null>
 }): ReactNode {
+  const { wide } = useLayout()
+  const picker = song ? <Picker key={song.id} song={song} /> : null
+  if (wide && anchorRef) {
+    return (
+      <Popover
+        open={song !== null}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        width={320}
+        testID="tag-picker"
+      >
+        {picker}
+      </Popover>
+    )
+  }
   return (
     <Sheet
       open={song !== null}
@@ -36,7 +57,7 @@ export function TagPicker({
       titleTone="label"
       testID="tag-picker"
     >
-      {song ? <Picker key={song.id} song={song} /> : null}
+      {picker}
     </Sheet>
   )
 }

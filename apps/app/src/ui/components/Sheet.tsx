@@ -7,16 +7,23 @@ import { useAccent } from '../accent'
 import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
-import { usePanelDense } from './panel'
+import { useLayout } from '../../shell/useLayout'
+import { PanelDenseContext, usePanelDense } from './panel'
 
 /**
- * A menu, as a sheet from the bottom of the screen.
+ * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
+ * small window in the middle of it.
  *
  * The web's popovers become sheets on a phone (`.popover-sheet`): a song's ⋯
  * menu, the sort field, a sleep timer. This is that sheet. It rises with the
  * web's slow curve, dims what is behind it, and goes back down the way it
  * came before it unmounts — the same "hold the leaving state" the web does
  * with `is-leaving`, so it never blinks out.
+ *
+ * At desktop width a sheet across the whole foot of the window is a phone's
+ * gesture on a screen that has none: a tag list opened from a song's menu ran
+ * two thousand pixels wide. There it is a window the size of its content,
+ * centred, as the web's dialogs are.
  *
  * Detached from whatever opened it, so a title names the thing it is about.
  */
@@ -43,6 +50,7 @@ export function Sheet({
   testID?: string
 }): ReactNode {
   const insets = useSafeAreaInsets()
+  const { wide, dense } = useLayout()
   // Mounted from the moment it is asked for until its exit has played out.
   // Adjusted during render rather than in an effect, so opening never costs
   // a frame drawn without the sheet.
@@ -74,6 +82,33 @@ export function Sheet({
     })
   }, [open, progress])
 
+  const head = title ? (
+    <View style={styles.head}>
+      <Text style={[styles.title, titleTone === 'label' && styles.titleLabel]} numberOfLines={1}>
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
+  ) : null
+
+  /*
+    The id sits on the content rather than on the panel or the `Modal`.
+    A `Modal` is its own window on iOS and an id on it never reaches the
+    hierarchy a flow reads; an id on the animated panel did not either,
+    though the text inside it did. A plain view around the items is the
+    thing that is actually there, and it is what "the menu is open" means
+    anyway.
+  */
+  const content = (
+    <View testID={testID} style={styles.content}>
+      {children}
+    </View>
+  )
+
   // Drawn by the shell's overlay host rather than in a `Modal` of its own.
   // See src/shell/Overlay.tsx for why there are no windows any more.
   useOverlay(
@@ -81,48 +116,46 @@ export function Sheet({
       <Animated.View style={[styles.backdrop, { opacity: progress }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       </Animated.View>
-      <Animated.View
-        style={[
-          styles.panel,
-          {
-            paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
-            transform: [
+      {wide ? (
+        <View pointerEvents="box-none" style={styles.dialogFrame}>
+          <Animated.View
+            style={[
+              styles.dialog,
               {
-                translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }),
+                opacity: progress,
+                transform: [
+                  {
+                    translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+                  },
+                ],
               },
-            ],
-            opacity: progress,
-          },
-        ]}
-      >
-        <View style={styles.grabber} />
-        {title ? (
-          <View style={styles.head}>
-            <Text
-              style={[styles.title, titleTone === 'label' && styles.titleLabel]}
-              numberOfLines={1}
-            >
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-        {/*
-          The id sits on the content rather than on the panel or the `Modal`.
-          A `Modal` is its own window on iOS and an id on it never reaches the
-          hierarchy a flow reads; an id on the animated panel did not either,
-          though the text inside it did. A plain view around the items is the
-          thing that is actually there, and it is what "the menu is open" means
-          anyway.
-        */}
-        <View testID={testID} style={styles.content}>
-          {children}
+            ]}
+          >
+            {head}
+            {/* A window with a mouse to hand: the panel's items, not a finger's list. */}
+            <PanelDenseContext.Provider value={dense}>{content}</PanelDenseContext.Provider>
+          </Animated.View>
         </View>
-      </Animated.View>
+      ) : (
+        <Animated.View
+          style={[
+            styles.panel,
+            {
+              paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
+              transform: [
+                {
+                  translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }),
+                },
+              ],
+              opacity: progress,
+            },
+          ]}
+        >
+          <View style={styles.grabber} />
+          {head}
+          {content}
+        </Animated.View>
+      )}
     </>,
     mounted,
   )
@@ -154,12 +187,14 @@ export function SheetItem({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const dense = usePanelDense()
+  // With a mouse the row under it lights up, as the web's menus do.
+  const [hovered, setHovered] = useState(false)
   // In a panel the web's items are quiet until pointed at or chosen; in a
   // sheet they are a finger's list and read at full strength.
   const ink = danger
     ? theme.colors.danger
     : dense
-      ? active
+      ? active || hovered
         ? theme.colors.textPrimary
         : theme.colors.textSecondary
       : active
@@ -169,13 +204,16 @@ export function SheetItem({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      onHoverIn={dense ? () => setHovered(true) : undefined}
+      onHoverOut={dense ? () => setHovered(false) : undefined}
       role={role}
       aria-selected={role === 'option' ? active : undefined}
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [
         styles.item,
         dense && styles.itemDense,
-        dense && active && styles.itemActiveDense,
+        dense && (active || hovered) && styles.itemActiveDense,
+        dense && danger && hovered && styles.itemDangerDense,
         pressed && styles.itemPressed,
         disabled && styles.itemDisabled,
       ]}
@@ -217,6 +255,28 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.border,
     paddingTop: space.sm,
     paddingHorizontal: space.sm,
+  },
+  dialogFrame: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space.xl,
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '80%',
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: space.sm,
+    overflow: 'hidden',
+    boxShadow: '0 20px 48px rgba(0, 0, 0, 0.5)',
   },
   content: {
     alignSelf: 'stretch',
@@ -269,6 +329,9 @@ const styles = StyleSheet.create(theme => ({
   },
   itemActiveDense: {
     backgroundColor: theme.colors.surface3,
+  },
+  itemDangerDense: {
+    backgroundColor: `${theme.colors.danger}1f`,
   },
   itemLabelDense: {
     fontSize: 13,

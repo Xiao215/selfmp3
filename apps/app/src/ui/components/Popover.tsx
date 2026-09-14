@@ -22,7 +22,8 @@ import { Sheet } from './Sheet'
  * React Native has no `position: fixed`, so above the breakpoint the anchor is
  * measured with `measureInWindow` and the panel is drawn by the shell's
  * overlay host at those coordinates. It is kept on screen: a control near the
- * right edge opens a panel that ends at the edge rather than past it.
+ * right edge opens a panel that ends at the edge rather than past it, and a
+ * control near the foot of the window opens its panel upwards.
  */
 export function Popover({
   open,
@@ -32,7 +33,7 @@ export function Popover({
   titleTone,
   children,
   width = 240,
-  placement = 'below',
+  placement = 'auto',
   testID,
 }: {
   open: boolean
@@ -45,10 +46,11 @@ export function Popover({
   children: ReactNode
   width?: number
   /**
-   * `above` for a control at the foot of the window — the player bar — where a
-   * panel opening downwards would open off the screen.
+   * `auto` opens below the control when the panel fits there and above it when
+   * it does not — a song's ⋯ near the bottom of the list. `above` is for a
+   * control that is always at the foot of the window: the player bar.
    */
-  placement?: 'below' | 'above'
+  placement?: 'below' | 'above' | 'auto'
   testID?: string
 }): ReactNode {
   const { wide } = useLayout()
@@ -91,7 +93,7 @@ function AnchoredPopover({
   width,
   testID,
 }: {
-  placement: 'below' | 'above'
+  placement: 'below' | 'above' | 'auto'
   open: boolean
   onClose: () => void
   anchorRef: RefObject<RNView | null>
@@ -102,8 +104,8 @@ function AnchoredPopover({
   const { width: screenWidth, dense } = useLayout()
   const { height: screenHeight } = useWindowDimensions()
   const [anchor, setAnchor] = useState<Anchor | null>(null)
-  // Opening upwards needs the panel's own height, which is only known once it
-  // has laid out; until then it is drawn transparent where it will land.
+  // Which side it opens on needs the panel's own height, which is only known
+  // once it has laid out; until then it is drawn transparent, off screen.
   const [panelHeight, setPanelHeight] = useState(0)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
@@ -115,6 +117,7 @@ function AnchoredPopover({
     // Measured on open rather than on every render: the control does not move
     // while its panel is up, and measuring is a round trip to the shadow tree.
     anchorRef.current?.measureInWindow((x, y, w, h) => {
+      setPanelHeight(0)
       setAnchor({ x, y, width: w, height: h })
     })
   }, [open, anchorRef])
@@ -132,10 +135,30 @@ function AnchoredPopover({
 
   // Right-aligned to the anchor, then pulled back inside the screen. A control
   // near the edge is the common case for these — a sort button sits at the end
-  // of its row — so the panel ends where the control does.
+  // of its row — so the panel ends where the control does. A control on the
+  // left (the player bar's tags) would push it off that side: it starts where
+  // the control does instead.
+  const rightAligned = anchor ? anchor.x + anchor.width - width : 0
   const left = anchor
-    ? Math.max(space.sm, Math.min(anchor.x + anchor.width - width, screenWidth - width - space.sm))
+    ? rightAligned < space.sm
+      ? Math.max(space.sm, Math.min(anchor.x, screenWidth - width - space.sm))
+      : Math.min(rightAligned, screenWidth - width - space.sm)
     : 0
+  const roomBelow = anchor ? screenHeight - (anchor.y + anchor.height) - space.sm * 2 : 0
+  const roomAbove = anchor ? anchor.y - space.sm * 2 : 0
+  // Below when it fits; above when it fits there instead; otherwise whichever
+  // side has more room, where it scrolls — without a bar, which on a menu of
+  // ten actions read as a broken window rather than a list.
+  const side: 'below' | 'above' =
+    placement !== 'auto'
+      ? placement
+      : panelHeight <= roomBelow
+        ? 'below'
+        : panelHeight <= roomAbove || roomAbove > roomBelow
+          ? 'above'
+          : 'below'
+  const room = side === 'above' ? roomAbove : roomBelow
+  const shownHeight = Math.min(panelHeight, room)
 
   useOverlay(
     <>
@@ -143,43 +166,43 @@ function AnchoredPopover({
       {anchor ? (
         <Animated.View
           testID={testID}
-          onLayout={event => setPanelHeight(event.nativeEvent.layout.height)}
+          onLayout={event => {
+            // The panel's natural height, taken once per opening before it is
+            // held to the room on its side.
+            const height = event.nativeEvent.layout.height
+            setPanelHeight(current => (current === 0 ? height : current))
+          }}
           style={[
             styles.panel,
             {
               width,
               left,
-              // Opening upwards, the panel waits off-screen until it has
-              // measured itself. Its opacity stays the animated value all the
-              // while: swapping a plain 0 for an Animated value after mount
-              // leaves react-native-web drawing the 0.
+              // Waits off screen until it has measured itself. Its opacity stays
+              // the animated value all the while: swapping a plain 0 for an
+              // Animated value after mount leaves react-native-web drawing the 0.
               top:
-                placement === 'above'
-                  ? panelHeight === 0
-                    ? -10000
-                    : anchor.y - panelHeight - space.xs
-                  : anchor.y + anchor.height + space.xs,
+                panelHeight === 0
+                  ? -10000
+                  : side === 'above'
+                    ? anchor.y - shownHeight - space.xs
+                    : anchor.y + anchor.height + space.xs,
               opacity: progress,
               transform: [
                 {
                   translateY: progress.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [placement === 'above' ? 4 : -4, 0],
+                    outputRange: [side === 'above' ? 4 : -4, 0],
                   }),
                 },
               ],
             },
           ]}
         >
-          {/* Never taller than the room on its side of the control; a long list
-              — every device on the account — scrolls inside it. */}
           <ScrollView
-            style={{
-              maxHeight:
-                placement === 'above'
-                  ? anchor.y - space.sm * 2
-                  : screenHeight - (anchor.y + anchor.height) - space.sm * 2,
-            }}
+            showsVerticalScrollIndicator={false}
+            style={
+              panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 - PANEL_BORDER * 2 }
+            }
           >
             <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
           </ScrollView>
@@ -192,14 +215,18 @@ function AnchoredPopover({
   return null
 }
 
+const PANEL_BORDER = 1
+
 const styles = StyleSheet.create(theme => ({
   panel: {
     position: 'absolute',
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
+    borderWidth: PANEL_BORDER,
     borderColor: theme.colors.border,
     borderRadius: radius.md,
     paddingVertical: space.xs,
+    paddingHorizontal: space.xs,
     overflow: 'hidden',
+    boxShadow: '0 14px 36px rgba(0, 0, 0, 0.45)',
   },
 }))

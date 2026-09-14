@@ -1,6 +1,7 @@
 import {
   extractUrls,
   youtubeChannel,
+  youtubeMusicSearch,
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
@@ -10,11 +11,13 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
+import type { YouTubeMusicSearch } from './youtubeMusicSearch.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
   songs: Pick<SongRepository, 'all'>
   youtubeMusicArtists: Pick<YouTubeMusicArtists, 'topSongs'>
+  youtubeMusicSearch: Pick<YouTubeMusicSearch, 'songs'>
 }
 
 type Probed = { kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }
@@ -70,9 +73,20 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
 /**
  * One link's tracks. An artist's channel means their songs, not the channel's
  * tabs: the "Top songs" list from YouTube Music, read by yt-dlp as the
- * playlist it is, and named after the artist.
+ * playlist it is, and named after the artist. A search page means the songs
+ * it finds — YouTube Music's own answer, with artist, album, length and
+ * cover, where yt-dlp's listing has titles alone — named after the search.
  */
 async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
+  const query = youtubeMusicSearch(url)
+  if (query) {
+    const tracks = await deps.youtubeMusicSearch.songs(query)
+    if (!tracks) {
+      throw HttpError.unprocessable('YouTube Music did not answer that search. Try again in a moment.')
+    }
+    return { kind: 'playlist', playlistTitle: query, tracks }
+  }
+
   const channel = youtubeChannel(url)
   if (!channel) return probeWithYtDlp(deps, url)
 

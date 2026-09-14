@@ -107,6 +107,20 @@ export class TagRepository {
     this.#delete.run(id)
   }
 
+  /**
+   * Delete every tag with no songs left; how many went.
+   *
+   * Called where songs go — deleted here, purged, removed by another device —
+   * so a tag whose last song went goes with it, rather than lingering at 0 in
+   * every sidebar. Not called when a tag is made or a song untagged: a tag you
+   * just created has no songs yet, and is yours to fill.
+   */
+  pruneEmpty(): number {
+    return this.#db
+      .prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM song_tags)')
+      .run().changes
+  }
+
   /** Replace a song's tags wholesale. Caller wraps this in a transaction. */
   setSongTags(songId: number, tagIds: readonly number[]): void {
     this.#clearSongTags.run(songId)

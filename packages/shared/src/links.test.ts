@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { extractUrls, isYouTubeUrl, youtubeChannel, youtubeVideoId } from './links.js'
+import {
+  extractUrls,
+  isYouTubeUrl,
+  youtubeChannel,
+  youtubeMusicSearch,
+  youtubeVideoId,
+} from './links.js'
 
 describe('extractUrls', () => {
   it('finds one link per line', () => {
@@ -55,6 +61,19 @@ describe('youtubeVideoId', () => {
     expect(youtubeVideoId('https://soundcloud.com/x?v=fCh0qfxElm8')).toBeNull()
     expect(youtubeVideoId('https://www.youtube.com/watch?v=short')).toBeNull()
     expect(youtubeVideoId(null)).toBeNull()
+  })
+})
+
+describe('youtubeMusicSearch', () => {
+  it('reads the words searched for on YouTube Music, and nothing from any other link', () => {
+    expect(youtubeMusicSearch('https://music.youtube.com/search?q=yoasobi')).toBe('yoasobi')
+    expect(youtubeMusicSearch('https://music.youtube.com/search?q=%E5%A4%9C%E3%81%AB+%E9%A7%86%E3%81%91%E3%82%8B')).toBe(
+      '夜に 駆ける',
+    )
+    expect(youtubeMusicSearch('https://music.youtube.com/search?q=')).toBeNull()
+    expect(youtubeMusicSearch('https://www.youtube.com/results?search_query=yoasobi')).toBeNull()
+    expect(youtubeMusicSearch('https://music.youtube.com/watch?v=by4SYYWlhEs')).toBeNull()
+    expect(youtubeMusicSearch('not a link')).toBeNull()
   })
 })
 

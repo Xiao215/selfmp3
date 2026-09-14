@@ -84,6 +84,8 @@ function track(url: string, title: string, duration = 200): ProbedTrack {
 function previewDeps(options: {
   playlists?: Record<string, ProbedTrack[]>
   artist?: ArtistSongs | null
+  /** What YouTube Music's search answers for any query, or null for no answer. */
+  search?: ProbedTrack[] | null
   have?: { artist: string; title: string }[]
 }) {
   const probed: string[] = []
@@ -99,9 +101,37 @@ function previewDeps(options: {
     },
     songs: { all: () => options.have ?? [] },
     youtubeMusicArtists: { topSongs: () => Promise.resolve(options.artist ?? null) },
+    youtubeMusicSearch: { songs: () => Promise.resolve(options.search ?? null) },
   }
   return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
 }
+
+describe('buildImportPreview with a search link', () => {
+  const search = 'https://music.youtube.com/search?q=yoasobi'
+
+  it("takes the search's songs from YouTube Music, named after it, and never asks yt-dlp", async () => {
+    const { deps, probed } = previewDeps({
+      search: [
+        { ...track('https://y.test/1', '夜に駆ける'), album: '夜に駆ける', thumbnail: 'https://yt3.test/a' },
+        track('https://y.test/2', '怪物'),
+      ],
+      have: [{ artist: 'YOASOBI', title: '怪物' }],
+    })
+    const preview = await buildImportPreview(deps, search)
+    expect(probed).toEqual([])
+    expect(preview.kind).toBe('playlist')
+    expect(preview.playlistTitle).toBe('yoasobi')
+    expect(preview.items.map(item => [item.title, item.album, item.alreadyHave])).toEqual([
+      ['夜に駆ける', '夜に駆ける', false],
+      ['怪物', '', true],
+    ])
+  })
+
+  it('says so when YouTube Music does not answer', async () => {
+    const { deps } = previewDeps({ search: null })
+    await expect(buildImportPreview(deps, search)).rejects.toThrow(/did not answer/)
+  })
+})
 
 describe('buildImportPreview with an artist link', () => {
   const songsList = 'https://music.youtube.com/playlist?list=OLAK5uy_songs'

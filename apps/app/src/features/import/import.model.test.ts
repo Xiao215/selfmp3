@@ -10,6 +10,7 @@ import {
   jobLabel,
   jobSubtitle,
   jobTone,
+  matchingTag,
   patchItem,
   queueActivity,
   reviewFrom,
@@ -18,6 +19,24 @@ import {
   sharedLinks,
   toggleChosen,
 } from './import.model'
+
+describe('matchingTag', () => {
+  const tags = [
+    { id: 1, name: 'reference' },
+    { id: 2, name: 'YOASOBI' },
+  ]
+
+  it('finds the tag a link is named after, whatever the case', () => {
+    expect(matchingTag(tags, 'yoasobi')).toBe(2)
+    expect(matchingTag(tags, ' Reference ')).toBe(1)
+  })
+
+  it('finds nothing for a name you have no tag for, or no name at all', () => {
+    expect(matchingTag(tags, 'Ado')).toBeNull()
+    expect(matchingTag(tags, null)).toBeNull()
+    expect(matchingTag(tags, '  ')).toBeNull()
+  })
+})
 
 const item = (n: number, alreadyHave = false): ImportPreviewItem => ({
   url: `https://music.youtube.com/watch?v=${n}`,

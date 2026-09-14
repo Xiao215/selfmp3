@@ -413,6 +413,8 @@ export function songRoutes(container: Container): Router {
         await container.covers.delete(song.id)
         await container.lyricsCache.delete(song.id)
         container.songs.delete(song.id)
+        // A tag this was the last song of goes too.
+        container.tags.pruneEmpty()
         container.bumpLibraryVersion()
         return { ok: true as const, fileDeleted: query.deleteFile }
       },

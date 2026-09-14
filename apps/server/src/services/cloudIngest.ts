@@ -114,6 +114,9 @@ export class CloudIngest {
           })
         }
       }
+      // A tag whose last song another device removed goes too, as it would
+      // had the song been removed here.
+      if (removed.length > 0) this.#tags.pruneEmpty()
       alongside()
     })()
     return { applied, removed, requested }

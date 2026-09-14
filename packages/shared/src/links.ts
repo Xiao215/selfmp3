@@ -47,6 +47,23 @@ export function isYouTubeUrl(url: string): boolean {
   }
 }
 
+/**
+ * The words searched for, from a link to a YouTube Music search page —
+ * `music.youtube.com/search?q=yoasobi` — or null for any other link. A search
+ * is not a list of songs yt-dlp can read; YouTube Music itself is asked.
+ */
+export function youtubeMusicSearch(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname.toLowerCase() !== 'music.youtube.com') return null
+    if (parsed.pathname.replace(/\/+$/, '') !== '/search') return null
+    const query = parsed.searchParams.get('q')?.trim() ?? ''
+    return query.length > 0 ? query : null
+  } catch {
+    return null
+  }
+}
+
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
 
 /**

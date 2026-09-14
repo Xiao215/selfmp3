@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -42,6 +42,7 @@ import {
   jobLabel,
   jobSubtitle,
   jobTone,
+  matchingTag,
   patchItem,
   queueActivity,
   reviewFrom,
@@ -54,7 +55,6 @@ import {
 import { ListenBar, ListenButton, useListen } from './ImportListen'
 import { useImportSource } from './importSource'
 import { canListen, listeningLeftReview, type Listening } from './listen.model'
-import { YouTubeLibraryPanel } from './YouTubeLibraryPanel'
 import { canListenHere } from '../../ports/listen'
 
 /** "Don't add to a playlist": the playlist select holds numbers, and no playlist is 0. */
@@ -99,8 +99,13 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const preview = useMutation({
     mutationFn: (input: string) => api.importPreview(input),
     onSuccess: result => {
-      setReview(reviewFrom(result))
+      const next = reviewFrom(result)
+      setReview(next)
       setCreatePlaylist(false)
+      // A link named like a tag you already have — an artist's page, a search
+      // for them — is tagged that way without asking.
+      const match = matchingTag(tags, next.playlistTitle)
+      setTagIds(match === null ? new Set() : new Set([match]))
       setError(null)
     },
     onError: (err: Error) => setError(err.message),
@@ -310,33 +315,37 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
                   <Text style={[styles.headLabel, styles.colSide]}>Length</Text>
                 </View>
               ) : null}
-              {review.items.map((item, index) => (
-                <ReviewRow
-                  key={`${item.url}-${index}`}
-                  item={item}
-                  index={index}
-                  wide={wide}
-                  chosen={review.chosen.has(index)}
-                  onToggle={() =>
-                    setReview({ ...review, chosen: toggleChosen(review.chosen, index) })
-                  }
-                  onPatch={patch =>
-                    setReview({ ...review, items: patchItem(review.items, index, patch) })
-                  }
-                  listening={listen.listening}
-                  onListen={() => listen.toggle(item)}
-                />
-              ))}
+              {review.items.map((item, index) => {
+                const playing = listen.listening
+                return (
+                  <Fragment key={`${item.url}-${index}`}>
+                    <ReviewRow
+                      item={item}
+                      index={index}
+                      wide={wide}
+                      chosen={review.chosen.has(index)}
+                      onToggle={() =>
+                        setReview({ ...review, chosen: toggleChosen(review.chosen, index) })
+                      }
+                      onPatch={patch =>
+                        setReview({ ...review, items: patchItem(review.items, index, patch) })
+                      }
+                      listening={playing}
+                      onListen={() => listen.toggle(item)}
+                    />
+                    {/* The playhead sits right under the song it plays, not under the whole list. */}
+                    {playing && playing.track.url === item.url ? (
+                      <ListenBar
+                        listening={playing}
+                        onToggle={() => listen.toggle(playing.track)}
+                        onSeek={listen.seek}
+                        onClose={listen.close}
+                      />
+                    ) : null}
+                  </Fragment>
+                )
+              })}
             </View>
-
-            {listen.listening ? (
-              <ListenBar
-                listening={listen.listening}
-                onToggle={() => listen.listening && listen.toggle(listen.listening.track)}
-                onSeek={listen.seek}
-                onClose={listen.close}
-              />
-            ) : null}
 
             <View style={styles.options}>
               <View style={styles.option}>
@@ -427,7 +436,6 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
           </View>
         ) : null}
 
-        <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />
       </ScrollView>
     </SafeAreaView>
   )

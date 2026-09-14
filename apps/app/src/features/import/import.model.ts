@@ -106,6 +106,20 @@ export function patchItem(
   return items.map((item, i) => (i === index ? { ...item, ...patch } : item))
 }
 
+/**
+ * The tag a link is named after, if you already have one: an artist's page
+ * or a search for "yoasobi" with a `yoasobi` tag in the library. Pre-ticked,
+ * so the songs are tagged without asking; still yours to untick.
+ */
+export function matchingTag(
+  tags: readonly { id: number; name: string }[],
+  playlistTitle: string | null,
+): number | null {
+  const wanted = playlistTitle?.trim().toLowerCase()
+  if (!wanted) return null
+  return tags.find(tag => tag.name.trim().toLowerCase() === wanted)?.id ?? null
+}
+
 export function chosenItems(review: Review): readonly ImportPreviewItem[] {
   return review.items.filter((_, index) => review.chosen.has(index))
 }

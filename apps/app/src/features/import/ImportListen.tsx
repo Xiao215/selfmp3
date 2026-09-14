@@ -207,11 +207,14 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   coverOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  // Drawn in the list, under its song's row: tight to it, a little air below.
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 12,
+    marginTop: 2,
+    marginBottom: 8,
+    marginHorizontal: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: radius.sm,

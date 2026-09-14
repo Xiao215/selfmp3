@@ -3771,6 +3771,23 @@ simulator, "Mac · Chrome" as a device name. The installed Electron app is
 with the user's computer as a *player* — handoff, sort order — it now says
 "desktop", since nothing plays on the server.
 
+**The review, after the first real import through the server.** Four things
+Xiao saw at once. The playhead for a song being listened to sat under the
+whole list, far from its song: it is drawn under that song's row now. A search
+link's songs came with titles and nothing else — no artist, album, length or
+cover — because yt-dlp's flat listing of a search page has nothing else; the
+server now asks YouTube Music's own search for songs (`youtubeMusicSearch.ts`,
+the songs filter, one request) and reads each row by where its runs lead: the
+artist runs, the album run, the length, the cover at a size worth keeping.
+A link named like a tag already in the library — a search for "yoasobi" with
+a `yoasobi` tag — is tagged that way without asking (`matchingTag`,
+pre-ticked, still yours to untick). And the "Import a YouTube playlist" panel
+under the review is gone: the one box at the top reads every kind of link.
+Also, a tag whose last song goes — deleted, purged, or removed by another
+device — goes with it (`tags.pruneEmpty`), rather than lingering at 0 in every
+sidebar; a tag just made, with no songs yet, is left alone, since it is yours
+to fill.
+
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each
 install asked for the keychain password again. Built with it set, the tier

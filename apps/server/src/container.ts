@@ -15,6 +15,7 @@ import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
+import { YouTubeMusicSearch } from './services/youtubeMusicSearch.js'
 import { ListenService } from './services/listen.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
@@ -81,6 +82,7 @@ export interface Container {
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
   readonly youtubeMusicArtists: YouTubeMusicArtists
+  readonly youtubeMusicSearch: YouTubeMusicSearch
   readonly listen: ListenService
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
@@ -202,6 +204,7 @@ export function createContainer(config: Config): Container {
   // Cookie settings are read per call, so a change applies without a restart.
   const ytdlp = new YtDlpService(logger, () => settings.get())
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
+  const youtubeMusicSearch = new YouTubeMusicSearch(logger)
   const listen = new ListenService(ytdlp)
 
   // Held while a song is streaming or an import is running, so the server does
@@ -229,7 +232,8 @@ export function createContainer(config: Config): Container {
     requests: importRequests,
     imports,
     sync: syncRepo,
-    resolve: url => buildImportPreview({ ytdlp, songs, youtubeMusicArtists }, url),
+    resolve: url =>
+      buildImportPreview({ ytdlp, songs, youtubeMusicArtists, youtubeMusicSearch }, url),
     kickQueue: () => importQueue.kick(),
     changed: () => cloudSync.kick(),
     logger,
@@ -354,6 +358,7 @@ export function createContainer(config: Config): Container {
     scanner,
     ytdlp,
     youtubeMusicArtists,
+    youtubeMusicSearch,
     listen,
     importQueue,
     libraryWatcher,

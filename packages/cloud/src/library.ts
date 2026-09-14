@@ -90,6 +90,13 @@ interface Outbox {
 
 interface Replica {
   base: { key: string | null; snapshot: CloudSnapshot | null }
+  /**
+   * Whether the base is kept on the device yet. A bucket with no snapshot in
+   * it has the same base as a device that has never looked, and that first
+   * look still has to be written down: its presence is what lets the next
+   * open answer without the network.
+   */
+  baseStored: boolean
   /** Log files the base has not folded in, by key. */
   logs: Map<string, LogFile>
   outbox: Outbox
@@ -97,6 +104,12 @@ interface Replica {
   library: SyncLibrary
   view: CloudLibrary
   checkedAt: number
+  /**
+   * The next read waits for a look at the bucket rather than answering first:
+   * "Check for new songs", or a look in the background that failed in a way
+   * the app has to be told about.
+   */
+  mustCheck: boolean
 }
 
 /**
@@ -107,6 +120,12 @@ interface Replica {
 export interface CloudLibraryApi {
   loadCloudLibrary: (session: CloudSession) => Promise<CloudLibrary>
   markCloudLibraryStale: () => void
+  /**
+   * Hear about a look at the bucket, made in the background, that changed the
+   * library — so an app that was answered from this device's copy can ask
+   * again. Answers the way to stop listening.
+   */
+  onCloudLibraryChanged: (listener: () => void) => () => void
   cloudLibraryVersion: (session: CloudSession) => Promise<{ version: number; songCount: number }>
   recordChanges: <T>(
     session: CloudSession,
@@ -126,6 +145,22 @@ export interface CloudLibraryApi {
   forgetCloudLibrary: () => Promise<void>
 }
 
+/**
+ * Plain data — what IndexedDB hands back — compared by value. The library's
+ * files and playlist members are records of strings and numbers, so this is
+ * all the comparing they need.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  const aRecord = a as Record<string, unknown>
+  const bRecord = b as Record<string, unknown>
+  return aKeys.every(key => key in bRecord && sameValue(aRecord[key], bRecord[key]))
+}
+
 /** Everything below closes over one device's platform, so there is no module state. */
 export function createCloudLibrary(
   platform: CloudPlatform,
@@ -138,6 +173,32 @@ export function createCloudLibrary(
 
   let replica: Replica | null = null
   let opening: Promise<Replica> | null = null
+  /** Bumped on signing out, so a look at the bucket that began before it writes nothing after. */
+  let generation = 0
+  /**
+   * What this device last put under IDS_KEY, FILES_KEY and PLAYLISTS_KEY, or
+   * null before it has looked. Most edits change none of the three — a love, a
+   * tag, a rename — and each is the size of the library, so it is written only
+   * when it is different.
+   */
+  let written: { idsNext: number; files: unknown; playlistSongs: unknown } | null = null
+  const listeners = new Set<() => void>()
+
+  /**
+   * One change to the replica at a time.
+   *
+   * A look at the bucket replaces the replayed library wholesale, and an edit
+   * applies itself to the one there. With the look now running in the
+   * background, the two can meet: a replay that read the outbox just before an
+   * edit was added to it would drop that edit from the screen. The network is
+   * asked outside this; only the few steps that swap state in are inside.
+   */
+  let tail: Promise<unknown> = Promise.resolve()
+  function exclusive<T>(run: () => Promise<T>): Promise<T> {
+    const result = tail.then(run, run)
+    tail = result.catch(() => undefined)
+    return result
+  }
 
   // --- Opening ------------------------------------------------------------------------
 
@@ -180,16 +241,20 @@ export function createCloudLibrary(
       const storedLogs = (await store.read(LOGS_KEY)) as Record<string, LogFile> | null
       const r: Replica = {
         base: storedBase ?? { key: null, snapshot: null },
+        baseStored: storedBase !== null,
         logs: new Map(Object.entries(storedLogs ?? {})),
         outbox,
         clock: new HlcClock(outbox.device, { last: outbox.last }),
         library: replay(null, [], []),
         view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
         checkedAt: 0,
+        mustCheck: false,
       }
       await rebuild(r)
       // Never read from the bucket: there is nothing here to show without it,
-      // so a failure here leaves nothing behind to be shown instead.
+      // so a failure here leaves nothing behind to be shown instead. A device
+      // that has read it before answers from its copy at once, and looks in
+      // the background (loadCloudLibrary).
       if (!storedBase) await refresh(r, session)
       replica = r
       listenForConnection()
@@ -232,10 +297,22 @@ export function createCloudLibrary(
     const previous = replica?.view.ids ?? asLocalIds(await store.read(IDS_KEY))
     const version = (typeof state?.version === 'number' ? state.version : 0) + 1
     r.view = snapshotToLibrary(replayedSnapshot(r.library, r.base.snapshot), previous, version)
-    await store.write(IDS_KEY, r.view.ids)
-    await store.write(FILES_KEY, r.view.files)
-    await store.write(PLAYLISTS_KEY, r.view.playlistSongs)
+    // Compared with what the store holds the first time, and with what was
+    // last written after that: a read, or a walk over plain values, is much
+    // cheaper than putting the whole library through IndexedDB again.
+    const before = (written ??= {
+      idsNext: asLocalIds(await store.read(IDS_KEY)).next,
+      files: await store.read(FILES_KEY),
+      playlistSongs: await store.read(PLAYLISTS_KEY),
+    })
+    // Ids are only ever added, and every one added moves `next` on.
+    if (before.idsNext !== r.view.ids.next) await store.write(IDS_KEY, r.view.ids)
+    if (!sameValue(before.files, r.view.files)) await store.write(FILES_KEY, r.view.files)
+    if (!sameValue(before.playlistSongs, r.view.playlistSongs)) {
+      await store.write(PLAYLISTS_KEY, r.view.playlistSongs)
+    }
     await store.write(STATE_KEY, { version })
+    written = { idsNext: r.view.ids.next, files: r.view.files, playlistSongs: r.view.playlistSongs }
   }
 
   // --- Reading the bucket -------------------------------------------------------------
@@ -286,7 +363,8 @@ export function createCloudLibrary(
    * folded in. The logs are listed first: a file tidied away after the listing
    * means a newer snapshot has it, and one more look finds that snapshot.
    */
-  async function refresh(r: Replica, session: CloudSession): Promise<void> {
+  async function refresh(r: Replica, session: CloudSession): Promise<boolean> {
+    const began = generation
     for (let attempt = 0; attempt < 2; attempt++) {
       const logKeys = await listKeys(session, LOG_FOLDER)
       const newest = newestSnapshotKey(await listKeys(session, SNAPSHOTS_FOLDER))
@@ -325,17 +403,56 @@ export function createCloudLibrary(
         }
       }
 
-      r.base = base
-      r.logs = logs
-      r.checkedAt = Date.now()
-      await store.write(BASE_KEY, base)
-      await store.write(LOGS_KEY, Object.fromEntries(logs))
-      // Another tab may have added to the outbox since.
-      r.outbox = await changeOutbox(current => current)
-      await rebuild(r)
+      const changed = await exclusive(async () => {
+        // Signed out while the bucket was being asked: nothing of it is wanted now.
+        if (began !== generation) return false
+        const baseChanged = base !== r.base
+        // Every file kept here is the one already held under the same key
+        // (`r.logs.get` comes first above), so the same keys are the same logs.
+        const logsChanged =
+          logs.size !== r.logs.size || [...logs.keys()].some(key => !r.logs.has(key))
+        // Another tab may have added to the outbox since. Read, not updated:
+        // an update would write the outbox back on every look.
+        const outbox = asStoredOutbox(await store.read(OUTBOX_KEY)) ?? r.outbox
+        const outboxChanged = outboxSignature(outbox) !== outboxSignature(r.outbox)
+
+        r.outbox = outbox
+        r.checkedAt = Date.now()
+        r.mustCheck = false
+        if (baseChanged || !r.baseStored) {
+          await store.write(BASE_KEY, base)
+          r.baseStored = true
+        }
+        // The usual answer: nothing new anywhere. Replaying and rewriting the
+        // whole library to arrive where it already is was most of what a look
+        // at the bucket cost.
+        if (!baseChanged && !logsChanged && !outboxChanged) return false
+
+        r.base = base
+        r.logs = logs
+        if (logsChanged) await store.write(LOGS_KEY, Object.fromEntries(logs))
+        await rebuild(r)
+        return true
+      })
       void tidyOwnLogs(r, session, logKeys)
-      return
+      return changed
     }
+    return false
+  }
+
+  /** The outbox as stored, or null when there is none to read — never a new one. */
+  function asStoredOutbox(value: unknown): Outbox | null {
+    const stored = value as Partial<Outbox> | null
+    return stored && typeof stored.device === 'string' && typeof stored.nextSeq === 'number'
+      ? asOutbox(stored)
+      : null
+  }
+
+  /** Which changes are waiting, by stamp: every change has its own. */
+  function outboxSignature(outbox: Outbox): string {
+    return localChanges(outbox)
+      .map(change => change.hlc)
+      .join(',')
   }
 
   /** Delete this device's log files a snapshot has had long enough. Best effort. */
@@ -357,24 +474,85 @@ export function createCloudLibrary(
 
   // --- The library, as the app asks for it ---------------------------------------------
 
+  /** Offline, or the doorman having a moment: this device's copy is the library meanwhile. */
+  function passing(error: unknown): boolean {
+    return error instanceof DoormanError && (error.status === 0 || error.status >= 500)
+  }
+
+  /**
+   * The library, from this device's copy.
+   *
+   * A look at the bucket that is due happens behind the answer rather than in
+   * front of it: opening the app used to wait on two listings and every log
+   * file before showing a library that was already here. What the look finds
+   * reaches the app through `onCloudLibraryChanged`. Only a look asked for by
+   * name — or the very first, with nothing here yet (open) — is waited for.
+   */
   async function loadCloudLibrary(session: CloudSession): Promise<CloudLibrary> {
     const r = await open(session)
-    if (Date.now() - r.checkedAt > FRESH_MS) {
+    if (r.mustCheck) {
+      // A look already under way may have listed the bucket before whatever
+      // this one is being asked to find: wait for it, then look again.
+      await background?.catch(() => undefined)
       try {
         await refresh(r, session)
       } catch (error) {
-        // Offline, or the doorman having a moment: this device's copy is the library.
-        if (!(error instanceof DoormanError && (error.status === 0 || error.status >= 500))) {
-          throw error
-        }
+        if (!passing(error)) throw error
       }
+    } else if (Date.now() - r.checkedAt > FRESH_MS) {
+      lookInBackground(r, session)
     }
     return r.view
   }
 
-  /** Look at the bucket on the next read, whenever the last look was: "Check for new songs". */
+  let background: Promise<void> | null = null
+
+  function lookInBackground(r: Replica, session: CloudSession): void {
+    background ??= (async () => {
+      try {
+        if (await refresh(r, session)) announce()
+      } catch (error) {
+        if (passing(error)) {
+          // Not asked again on every read while the bucket cannot answer:
+          // after the usual wait, like a look that found nothing.
+          r.checkedAt = Date.now()
+          return
+        }
+        // Signed out elsewhere, say. Nobody was waiting to hear it, so the
+        // next read waits for a look of its own, and says so the way it
+        // always did — and the app is told to make that read.
+        warn(`the bucket could not be read: ${String(error)}`)
+        r.mustCheck = true
+        announce()
+      }
+    })().finally(() => {
+      background = null
+    })
+  }
+
+  function announce(): void {
+    for (const listener of [...listeners]) {
+      try {
+        listener()
+      } catch (error) {
+        warn(`a library listener threw: ${String(error)}`)
+      }
+    }
+  }
+
+  function onCloudLibraryChanged(listener: () => void): () => void {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
+  /** Look at the bucket on the next read, and wait for it, whenever the last look was: "Check for new songs". */
   function markCloudLibraryStale(): void {
-    if (replica) replica.checkedAt = 0
+    if (replica) {
+      replica.checkedAt = 0
+      replica.mustCheck = true
+    }
   }
 
   async function cloudLibraryVersion(
@@ -395,20 +573,22 @@ export function createCloudLibrary(
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
   ): Promise<T> {
     const r = await open(session)
-    const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
-    if (changes.length > 0) {
-      // Stamped after everything this device has seen, so applying them on top
-      // is the same as replaying from the start.
-      applyChanges(r.library, changes)
-      await changeOutbox(outbox => ({
-        ...outbox,
-        last: r.clock.last,
-        pending: [...outbox.pending, ...changes],
-      }))
-      await show(r)
-      scheduleFlush(FLUSH_DELAY_MS)
-    }
-    return answer(r.view)
+    return exclusive(async () => {
+      const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
+      if (changes.length > 0) {
+        // Stamped after everything this device has seen, so applying them on top
+        // is the same as replaying from the start.
+        applyChanges(r.library, changes)
+        await changeOutbox(outbox => ({
+          ...outbox,
+          last: r.clock.last,
+          pending: [...outbox.pending, ...changes],
+        }))
+        await show(r)
+        scheduleFlush(FLUSH_DELAY_MS)
+      }
+      return answer(r.view)
+    })
   }
 
   /** The library's songs as smart rules read them, newest first — the order a snapshot has. */
@@ -486,12 +666,16 @@ export function createCloudLibrary(
           if (!response.ok) throw new DoormanError(response.status, 'the file could not be written')
           // Signed out meanwhile: everything of this account's here is gone already.
           if (replica !== r) return
-          // Now a log file like any other device's, until a snapshot folds it in.
-          r.logs.set(key, file)
-          await store.write(LOGS_KEY, Object.fromEntries(r.logs))
-          await changeOutbox(current =>
-            current.inflight?.seq === inflight.seq ? { ...current, inflight: null } : current,
-          )
+          // Inside the lock: a look at the bucket swapping `r.logs` in between
+          // would otherwise lose this file from both the logs and the outbox.
+          await exclusive(async () => {
+            // Now a log file like any other device's, until a snapshot folds it in.
+            r.logs.set(key, file)
+            await store.write(LOGS_KEY, Object.fromEntries(r.logs))
+            await changeOutbox(current =>
+              current.inflight?.seq === inflight.seq ? { ...current, inflight: null } : current,
+            )
+          })
         }
         retries = 0
       } catch (error) {
@@ -536,7 +720,9 @@ export function createCloudLibrary(
     if (!files?.lyrics || !files.lyricsKind) return null
     const text = await cloudText(session, files.lyrics)
     if (text === null) return null
-    const romanized = files.romanized ? romanizedLines(await cloudText(session, files.romanized)) : null
+    const romanized = files.romanized
+      ? romanizedLines(await cloudText(session, files.romanized))
+      : null
     return { text, kind: files.lyricsKind, romanized }
   }
 
@@ -609,6 +795,8 @@ export function createCloudLibrary(
    */
   async function forgetCloudLibrary(): Promise<void> {
     replica = null
+    generation++
+    written = null
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = null
     for (const key of [
@@ -651,6 +839,7 @@ export function createCloudLibrary(
   return {
     loadCloudLibrary,
     markCloudLibraryStale,
+    onCloudLibraryChanged,
     cloudLibraryVersion,
     recordChanges,
     currentSongs,

@@ -25,7 +25,7 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
@@ -138,6 +138,7 @@ function Stage({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
+  const progress = usePlayerProgress()
   const accent = useAccent()
   const artFor = useArt()
   const library = useLibrary()
@@ -208,8 +209,8 @@ function Stage({
   const nextIn = upNextSeconds({
     hasNext: upNext !== undefined,
     repeatOne: player.queue.repeat === 'one',
-    duration: player.duration,
-    position: player.position,
+    duration: progress.duration,
+    position: progress.position,
   })
   const chrome = { opacity: idle ? 0 : 1 }
 

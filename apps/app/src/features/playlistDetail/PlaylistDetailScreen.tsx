@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -8,7 +8,15 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import Svg, { Path } from 'react-native-svg'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
-import { bytesToDownload, clientApi, queryKeys, radius, space, type } from '@selfmp3/client'
+import {
+  bytesToDownload,
+  clientApi,
+  isDownloaded,
+  queryKeys,
+  radius,
+  space,
+  type,
+} from '@selfmp3/client'
 import {
   useDeletePlaylist,
   useLibrary,
@@ -159,6 +167,8 @@ export function PlaylistDetailScreen(): ReactNode {
   }
 
   const totalSeconds = songs.reduce((sum, song) => sum + song.duration, 0)
+  const count = contents.data ? songs.length : (playlist?.songCount ?? 0)
+  const seconds = contents.data ? totalSeconds : (playlist?.totalDuration ?? 0)
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -167,13 +177,18 @@ export function PlaylistDetailScreen(): ReactNode {
         scrollEnabled={drag === null}
         keyboardShouldPersistTaps="handled"
       >
+        {/* One control, iOS's own shape: the chevron and the word are the same press. */}
         {wide ? null : (
-          <View style={styles.backRow}>
-            <IconButton onPress={() => router.back()} label="Back to playlists">
-              <ChevronLeft size={22} color={theme.colors.textSecondary} />
-            </IconButton>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back to playlists"
+            hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+            style={({ pressed }) => [styles.backRow, pressed && { opacity: 0.6 }]}
+          >
+            <ChevronLeft size={18} color={theme.colors.textSecondary} />
             <Text style={styles.backLabel}>Playlists</Text>
-          </View>
+          </Pressable>
         )}
 
         <View style={[styles.head, wide && styles.headWide]}>
@@ -208,8 +223,8 @@ export function PlaylistDetailScreen(): ReactNode {
               </View>
             )}
             <Text style={styles.meta}>
-              {songs.length} {songs.length === 1 ? 'song' : 'songs'} ·{' '}
-              {formatLongDuration(totalSeconds)}
+              {/* While the list is still on its way, the library already knows the size. */}
+              {count} {count === 1 ? 'song' : 'songs'} · {formatLongDuration(seconds)}
               {playlist?.kind === 'smart'
                 ? ' · updates itself'
                 : songs.length > 1 && !selection.active
@@ -302,6 +317,17 @@ export function PlaylistDetailScreen(): ReactNode {
 
         {contents.isPending ? (
           <ActivityIndicator style={styles.spinner} color={accent.accent} />
+        ) : contents.isError && songs.length === 0 ? (
+          // The list is the server's; the library knows only how long it is.
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>📡</Text>
+            <Text style={styles.emptyTitle}>Can’t reach your library</Text>
+            <Text style={styles.emptyHint}>
+              {playlist ? `${playlist.songCount} ${playlist.songCount === 1 ? 'song is' : 'songs are'} in here, ` : ''}
+              but the list lives on your server and it isn’t answering right now.
+            </Text>
+            <Button label="Try again" onPress={() => void contents.refetch()} />
+          </View>
         ) : songs.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>{playlist?.kind === 'smart' ? '✨' : '📼'}</Text>
@@ -333,6 +359,8 @@ export function PlaylistDetailScreen(): ReactNode {
                 index={index}
                 artUri={artFor(song)}
                 active={currentId === song.id}
+                // Not on this phone and no Mac to stream it from: faded.
+                unavailable={library.isError && installed && !isDownloaded(downloads.index, song.id)}
                 manual={manual}
                 playlistName={playlist?.name ?? ''}
                 selecting={selection.active}
@@ -403,12 +431,15 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
   backRow: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: -space.md,
+    gap: 2,
+    marginLeft: -4,
     marginTop: space.xs,
+    minHeight: 32,
   },
-  backLabel: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginLeft: -6 },
+  backLabel: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
   head: { paddingTop: space.sm, paddingBottom: space.lg, gap: space.md },
   headWide: {
     paddingTop: 18,

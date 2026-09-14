@@ -26,8 +26,12 @@ export function createMediaUrl(transport: ApiTransport) {
   return {
     stream: (songId: number, rev?: string) =>
       withParams(transport.url(`/api/stream/${songId}`), rev, media()),
-    art: (songId: number, rev?: string) =>
-      withParams(transport.url(`/api/art/${songId}`), rev, media()),
+    /** `size`: the longest side wanted; the server snaps it up to one it keeps. Absent, the original. */
+    art: (songId: number, rev?: string, size?: number) =>
+      withParams(transport.url(`/api/art/${songId}`), rev, {
+        ...(size === undefined ? {} : { size: String(size) }),
+        ...media(),
+      }),
     /** The live event stream; `deviceId` lets commands be addressed to this tab. */
     events: (deviceId: string) =>
       transport.url(`/api/events?deviceId=${encodeURIComponent(deviceId)}`),

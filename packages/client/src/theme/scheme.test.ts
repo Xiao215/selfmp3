@@ -42,10 +42,10 @@ function lightToken(name: string): string {
 afterEach(() => applyColorScheme('dark'))
 
 describe('the light theme', () => {
-  it('--chart-series is chartSeries, written as hex', () => {
-    expect(lightPalette(DEFAULT_ACCENT_HUE).chartSeries).toBe(
-      /--chart-series:\s*(#[0-9a-f]{6})/i.exec(LIGHT)?.[1],
-    )
+  it('--chart-series is chartSeries, in the accent hue', () => {
+    expect(lightPalette(DEFAULT_ACCENT_HUE).chartSeries).toBe(lightToken('chart-series'))
+    // A green accent draws green bars, not the blue the charts were written in.
+    expect(lightPalette(150).chartSeries).not.toBe(lightPalette(DEFAULT_ACCENT_HUE).chartSeries)
   })
 
   it.each([

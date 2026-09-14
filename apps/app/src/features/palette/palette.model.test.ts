@@ -22,6 +22,7 @@ describe('the command palette', () => {
       'nav-settings',
       'nav-inbox',
       'shuffle-all',
+      'rescan-library',
     ])
     expect(results.songs).toEqual([])
     expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
@@ -30,6 +31,7 @@ describe('the command palette', () => {
     expect(paletteCommands(13, true).map(command => command.id)).toContain('nav-import')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-stats')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-inbox')
+    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('rescan-library')
   })
 
   it('finds songs, playlists and tags by what is typed', () => {

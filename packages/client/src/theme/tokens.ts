@@ -135,8 +135,9 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     good: DARK.good,
     border: DARK.border,
     borderStrong: DARK.borderStrong,
-    // The web's charts: one series colour, and recessive gridlines tinted by the hue.
-    chartSeries: '#3987e5',
+    // One series colour in the accent's hue, so a green theme draws green bars,
+    // and recessive gridlines tinted by the hue.
+    chartSeries: oklchToHex(0.62, 0.15, hue),
     chartGrid: oklchToHex(0.29, 0.014, hue),
   }
 }
@@ -163,7 +164,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     good: DARK.good,
     border: oklchToHex(0.89, 0.008, hue),
     borderStrong: oklchToHex(0.8, 0.01, hue),
-    chartSeries: '#2a78d6',
+    chartSeries: oklchToHex(0.55, 0.16, hue),
     chartGrid: oklchToHex(0.91, 0.006, hue),
   }
 }

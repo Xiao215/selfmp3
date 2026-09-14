@@ -80,7 +80,7 @@ export function StatsScreen(): ReactNode {
           options={STATS_RANGES.map(option => ({ value: option, label: rangeButtonLabel(option) }))}
         />
         <Button
-          label="Wrapped"
+          label="Report"
           variant="primary"
           icon={<Sparkles size={15} color={accent.onAccent} />}
           onPress={() => router.push('/stats/report')}

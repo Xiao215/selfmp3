@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ListRenderItem } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import { useSimilar, useToggleLoved } from '../../api/queries'
@@ -28,7 +28,7 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
@@ -56,7 +56,7 @@ import {
   X,
 } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
-import { SleepMenu } from '../../ui/components/SleepMenu'
+import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
 import { DevicesSheet } from '../devices/DevicesSheet'
 import { PracticePanel } from '../practice/PracticePanel'
 import { SeekBar } from '../../ui/components/SeekBar'
@@ -116,6 +116,7 @@ function PhoneNowPlaying(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
+  const progress = usePlayerProgress()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue, installed } = useDownloads()
@@ -125,6 +126,8 @@ function PhoneNowPlaying(): ReactNode {
   const [panel, setPanel] = useState<Panel>('none')
   const [showWords, setShowWords] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
+  // While the timer runs the Sleep button says how long is left, not just "Sleep".
+  const sleepLeft = useSleepMinutesLeft(player.sleepTimerEndsAt)
   const [practiceOpen, setPracticeOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
 
@@ -168,8 +171,12 @@ function PhoneNowPlaying(): ReactNode {
 
   // A long pull down puts the page away, as Apple Music's does. Asked only on a
   // move, so taps, the scrubber (which refuses to let go) and the scrolling
-  // lyrics, queue and shelf keep their own touches.
+  // lyrics, queue and shelf keep their own touches. The page gives a little
+  // under the finger rather than following it: the putting-away itself is the
+  // modal's own slide, the same one the chevron plays, so the two feel alike
+  // and there is never a torn edge between the page and the frame behind it.
   const [pull] = useState(() => new Animated.Value(0))
+  const give = pull.interpolate({ inputRange: [0, 600], outputRange: [0, 150], extrapolate: 'clamp' })
   const dismiss = useMemo(() => {
     const settle = (): void => {
       Animated.spring(pull, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start()
@@ -230,9 +237,11 @@ function PhoneNowPlaying(): ReactNode {
       {...dismiss.panHandlers}
       style={[
         styles.shell,
-        { backgroundColor: songColor.color, transform: [{ translateY: pull }] },
+        { backgroundColor: songColor.color, transform: [{ translateY: give }] },
       ]}
     >
+      {/* The frame the page slides in: the song's colour too, so a pull shows no white above it. */}
+      <Stack.Screen options={{ contentStyle: { backgroundColor: songColor.color } }} />
       {/*
         The cover itself, blurred across the whole page behind everything: the
         computer's stage glow, which a phone cannot draw with a CSS filter. A
@@ -322,10 +331,10 @@ function PhoneNowPlaying(): ReactNode {
 
               <View style={styles.progress}>
                 <SeekBar
-                  loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
+                  loop={loopRegionPercent(player.loopA, player.loopB, progress.duration)}
                   color={songColor.color}
-                  position={player.position}
-                  duration={player.duration}
+                  position={progress.position}
+                  duration={progress.duration}
                   onSeek={player.seekTo}
                 />
               </View>
@@ -444,7 +453,7 @@ function PhoneNowPlaying(): ReactNode {
                 color={player.sleepTimerEndsAt !== null ? songColor.color : theme.colors.textMuted}
               />
             }
-            label="Sleep"
+            label={sleepLeft ?? 'Sleep'}
             active={player.sleepTimerEndsAt !== null}
             onPress={() => setSleepOpen(true)}
           />
@@ -548,7 +557,9 @@ function PhoneWords({
               ? 'Looking for lyrics…'
               : words.status === 'instrumental'
                 ? 'Instrumental'
-                : 'No lyrics for this one.'}
+                : words.offline
+                  ? 'Lyrics need your library — they’ll show once it’s reachable.'
+                  : 'No lyrics for this one.'}
           </Text>
         )}
       </View>

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Easing, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { useSongColor } from '../useSongColor'
 import { currentColorScheme, MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
@@ -28,6 +28,7 @@ export function MiniPlayer(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
+  const { position, duration } = usePlayerProgress()
   const router = useRouter()
   const song = player.current
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -60,7 +61,7 @@ export function MiniPlayer(): ReactNode {
 
   if (!song) return null
 
-  const progress = player.duration > 0 ? Math.min(1, player.position / player.duration) : 0
+  const progress = duration > 0 ? Math.min(1, position / duration) : 0
 
   return (
     <Animated.View

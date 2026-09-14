@@ -12,7 +12,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
+import { Downloaded, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
@@ -57,6 +57,7 @@ export function LibraryScreen(): ReactNode {
   const model = useLibraryModel(downloads.index)
   const { filter, songs, visible, songIds, tags, heading, includeTag } = model
 
+  const [searchFocused, setSearchFocused] = useState(false)
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
@@ -97,6 +98,8 @@ export function LibraryScreen(): ReactNode {
         playing={playing}
         downloaded={downloaded(item.id)}
         notDownloadedMark={installed && !downloaded(item.id)}
+        // Not here, and nowhere to stream it from: faded, so the list says so.
+        unavailable={model.unreachable && installed && !downloaded(item.id)}
         onPress={event => {
           // Shift and Cmd on the web, and a tap in selection mode, select; a
           // plain tap still plays.
@@ -140,6 +143,7 @@ export function LibraryScreen(): ReactNode {
       tagById,
       includeTag,
       menuSong,
+      model.unreachable,
     ],
   )
 
@@ -161,10 +165,20 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
-          <View style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}>
-            <Search size={15} color={theme.colors.textMuted} />
+          <View
+            style={[
+              styles.searchBox,
+              headWide && styles.searchWide,
+              dense && styles.searchDense,
+              // Focus is the box's border in the accent, and nothing else.
+              searchFocused && { borderColor: accent.accent },
+            ]}
+          >
+            <Search size={15} color={searchFocused ? accent.accent : theme.colors.textMuted} />
             <TextInput
               style={styles.search}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               value={filter.query}
               onChangeText={model.setQuery}
               placeholder="Search"
@@ -214,17 +228,10 @@ export function LibraryScreen(): ReactNode {
               <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
             </Pressable>
 
+            {/* Shuffle alone: a click on any row already plays the list from there. */}
             <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
               <Button
-                label="Play"
-                icon={<Play size={15} color={theme.colors.onAccent} />}
-                variant="primary"
-                disabled={visible.length === 0}
-                onPress={() => player.playFrom(songIds, 0, false)}
-              />
-              {/* Worded at desktop width, as on the web; an icon on a phone. */}
-              <Button
-                label={wide ? 'Shuffle' : undefined}
+                label="Shuffle"
                 icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                 disabled={visible.length === 0}
                 onPress={() => player.playShuffled(songIds)}
@@ -423,6 +430,9 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontSize: type.body,
     paddingVertical: 8,
+    // The box's accent border says it has focus. The browser's own ring drew a
+    // second outline inside it, and Chrome draws an `auto` ring at any width.
+    _web: { outlineStyle: 'none' },
   },
   actions: {
     flexDirection: 'row',

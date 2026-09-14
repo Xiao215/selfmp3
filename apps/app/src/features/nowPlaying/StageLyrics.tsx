@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
 import { radius, withAlpha } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
 
@@ -38,6 +38,7 @@ export function StageLyrics({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
+  const { position } = usePlayerProgress()
   const scrollRef = useRef<ScrollView>(null)
   const contentRef = useRef<View>(null)
   const lineRefs = useRef<(View | null)[]>([])
@@ -76,7 +77,7 @@ export function StageLyrics({
   }, [])
 
   const synced = parsed.synced ? parsed.lines : null
-  const active = synced ? activeLineIndex(synced, player.position, LYRIC_LEAD) : -1
+  const active = synced ? activeLineIndex(synced, position, LYRIC_LEAD) : -1
   const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
 
   useEffect(() => {

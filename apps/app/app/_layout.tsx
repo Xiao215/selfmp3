@@ -11,6 +11,7 @@ import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
+import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
@@ -18,6 +19,7 @@ import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvi
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
+import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { AccentProvider } from '../src/ui/accent'
 
@@ -31,6 +33,9 @@ import { AccentProvider } from '../src/ui/accent'
 TrackPlayer.registerPlaybackService(() => playbackService)
 
 void SplashScreen.preventAutoHideAsync()
+
+// Before the first paint, so no list is ever drawn with the browser's bar.
+hideScrollbars()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +92,8 @@ function Shell(): ReactNode {
   const { wide } = useLayout()
   // What was playing comes back when the app opens again, paused where it was.
   usePlaybackMemory()
+  // Every downloaded song's cover and words, kept beside it while the server answers.
+  useKeepAlongside()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.

@@ -22,7 +22,7 @@
  * time it was tested, which is a good sign for it.
  */
 
-import type { Library, OutboxEvent } from '@selfmp3/shared'
+import type { Library, LyricsResponse, OutboxEvent, PlaylistSongs } from '@selfmp3/shared'
 
 /** As much of a response as anything here reads. */
 export interface ClientResponse {
@@ -108,6 +108,28 @@ export interface ApiContext {
 export interface LibrarySnapshotStore {
   read(): Promise<Library | null>
   write(library: Library): Promise<void>
+}
+
+/**
+ * The last answer to "which songs are in this playlist", per playlist.
+ *
+ * The library snapshot carries every playlist's name and size but not its
+ * members — those are a request each — so without this a phone with every
+ * song on it still could not open a playlist while its Mac was away.
+ */
+export interface PlaylistSnapshotStore {
+  read(playlistId: number): Promise<PlaylistSongs | null>
+  write(songs: PlaylistSongs): Promise<void>
+}
+
+/**
+ * A song's words, kept from the last time the server had them. Read only when
+ * the server cannot be reached — a song whose lyrics were removed still gets
+ * its 404, not a stale copy.
+ */
+export interface LyricsSnapshotStore {
+  read(songId: number): Promise<LyricsResponse | null>
+  write(songId: number, lyrics: LyricsResponse): Promise<void>
 }
 
 /**

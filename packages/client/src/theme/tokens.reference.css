@@ -40,8 +40,8 @@
   --border: oklch(0.3 0.016 var(--accent-hue));
   --border-strong: oklch(0.38 0.02 var(--accent-hue));
 
-  /* Charts. Validated against the dark surface for contrast and CVD safety. */
-  --chart-series: #3987e5;
+  /* Charts. One series in the accent's hue, so they follow the accent picker. */
+  --chart-series: oklch(0.62 0.15 var(--accent-hue));
   --chart-grid: oklch(0.29 0.014 var(--accent-hue));
 
   --radius-sm: 6px;
@@ -115,7 +115,7 @@
   --border: oklch(0.89 0.008 var(--accent-hue));
   --border-strong: oklch(0.8 0.01 var(--accent-hue));
 
-  --chart-series: #2a78d6;
+  --chart-series: oklch(0.55 0.16 var(--accent-hue));
   --chart-grid: oklch(0.91 0.006 var(--accent-hue));
 
   --shadow-panel: 0 12px 40px oklch(0.5 0.02 var(--accent-hue) / 0.14);

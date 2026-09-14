@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -9,24 +10,42 @@ import { radius } from '@selfmp3/client'
  * derived from the title and its first letter. Deriving the hue from the text
  * means a given album always gets the same colour, which turns out to be
  * surprisingly good at making a list scannable.
+ *
+ * The placeholder also stands in for art that fails to load — a Mac that is
+ * not running, mostly. Without it, every cover on an offline phone was a
+ * blank grey square, which reads as broken rather than as "no picture".
  */
 export function Cover({
   uri,
   title,
   size = 44,
+  radius: cornerRadius,
 }: {
   uri: string | null
   title: string
   size?: number
+  /** The corners, when the size's own choice is wrong: 0 inside a mosaic. */
+  radius?: number
 }): ReactNode {
+  // The address that failed, so a new one gets its own chance: the Mac may be back.
+  const [failedUri, setFailedUri] = useState<string | null>(null)
+  const failed = uri !== null && failedUri === uri
+
   const dimensions = {
     width: size,
     height: size,
-    borderRadius: size >= 120 ? radius.lg : radius.sm,
+    borderRadius: cornerRadius ?? (size >= 120 ? radius.lg : radius.sm),
   }
 
-  if (uri) {
-    return <Image source={{ uri }} style={[styles.cover, dimensions]} resizeMode="cover" />
+  if (uri && !failed) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[styles.cover, dimensions]}
+        resizeMode="cover"
+        onError={() => setFailedUri(uri)}
+      />
+    )
   }
 
   const hue = hueFromString(title)

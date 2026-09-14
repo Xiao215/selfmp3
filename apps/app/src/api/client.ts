@@ -29,6 +29,8 @@ import {
 
 import { cloudRequest } from '../cloud'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
+import { readCachedLyrics, writeCachedLyrics } from '../offline/lyricsCache'
+import { readCachedPlaylist, writeCachedPlaylist } from '../offline/playlistCache'
 
 /** A slow request is almost always a sleeping server; do not hang forever. */
 const REQUEST_TIMEOUT_MS = 15_000
@@ -110,6 +112,18 @@ configureClient({
     // to a background task and returns — so there is nothing to await.
     write: async library => {
       writeCachedLibrary(library)
+    },
+  },
+  playlistSnapshot: {
+    read: readCachedPlaylist,
+    write: async songs => {
+      writeCachedPlaylist(songs)
+    },
+  },
+  lyricsSnapshot: {
+    read: readCachedLyrics,
+    write: async (songId, lyrics) => {
+      writeCachedLyrics(songId, lyrics)
     },
   },
 })

@@ -74,6 +74,7 @@ export const SongRow = memo(function SongRow({
   onEditTags,
   onLongPress,
   menuOpen = false,
+  unavailable = false,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -120,6 +121,11 @@ export const SongRow = memo(function SongRow({
    * clickable while invisible.
    */
   menuOpen?: boolean
+  /**
+   * Nothing could play this right now: it is not on this device and the
+   * server is not answering. Drawn faded, as a song whose file is missing is.
+   */
+  unavailable?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -145,7 +151,7 @@ export const SongRow = memo(function SongRow({
     // The web's `.song-row.is-selected`: a translucent accent that reads as
     // picked on the dark UI.
     selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
-    song.missing && styles.missing,
+    (song.missing || unavailable) && styles.missing,
   ]
 
   if (!wide) {

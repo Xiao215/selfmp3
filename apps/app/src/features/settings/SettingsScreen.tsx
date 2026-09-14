@@ -35,6 +35,8 @@ import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../..
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'
+import { clearCachedLyrics } from '../../offline/lyricsCache'
+import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { installedApp } from '../../ports/install'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../server/ConnectionProvider'
@@ -757,10 +759,12 @@ function ConnectionPanel({
       )}
       <Row label="Library" last>
         <Text style={styles.valueText}>
-          {library.data
-            ? `${library.data.songs.length} songs · version ${library.data.version}`
-            : library.isError
-              ? 'Unreachable — showing the cached copy'
+          {library.isError
+            ? library.data
+              ? `Unreachable — showing the cached copy, ${library.data.songs.length} songs`
+              : 'Unreachable, and nothing is cached yet'
+            : library.data
+              ? `${library.data.songs.length} songs · version ${library.data.version}`
               : 'Loading…'}
         </Text>
       </Row>
@@ -976,7 +980,11 @@ function Confirmations({
             clearRecent()
             return downloadQueue.removeAll()
           },
-          forgetSavedLibrary: clearCachedLibrary,
+          forgetSavedLibrary: async () => {
+            await clearCachedLibrary()
+            clearCachedPlaylists()
+            clearCachedLyrics()
+          },
           done: () => {
             signedOutOfCloud()
             router.replace('/sign-in')

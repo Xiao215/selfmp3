@@ -11,11 +11,36 @@ import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
 /**
+ * The library answer's `generatedAt`: when this server first answered with
+ * the library's current version.
+ *
+ * It used to be the time of each request, so every refetch — a window regaining
+ * focus, a play being counted — looked like a new library to anything that
+ * keys on it, and the phone's keep-alongside pass (useKeepAlongside) ran over
+ * every song and playlist again for nothing. The version moves on every edit
+ * that changes what the library holds; a restart starts the version again, and
+ * the first answer after it gets a new time, so two different libraries never
+ * share a stamp.
+ */
+export function answeredAt(
+  version: () => number,
+  now: () => Date = () => new Date(),
+): () => string {
+  let last: { version: number; at: string } | null = null
+  return () => {
+    const current = version()
+    if (last?.version !== current) last = { version: current, at: now().toISOString() }
+    return last.at
+  }
+}
+
+/**
  * Library-wide endpoints: the full snapshot, rescanning, and the sync manifest
  * the phone uses to work out what it still needs to download.
  */
 export function libraryRoutes(container: Container): Router {
   const router = Router()
+  const generatedAt = answeredAt(() => container.libraryVersion())
 
   /**
    * The whole library in one payload.
@@ -32,7 +57,7 @@ export function libraryRoutes(container: Container): Router {
         tags: container.tags.all(),
         playlists: container.playlists.all(),
         version: container.libraryVersion(),
-        generatedAt: new Date().toISOString(),
+        generatedAt: generatedAt(),
       }
     }),
   )

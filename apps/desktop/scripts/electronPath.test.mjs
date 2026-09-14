@@ -16,13 +16,18 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
  * relative path into `path.txt` when it installs — `electron` on Linux,
  * `Electron.app/Contents/MacOS/Electron` on macOS — so that is what the
  * resolved binary must end with, whatever machine this runs on.
+ *
+ * Resolved before `path.txt` is read: the electron package has no install
+ * script, and downloads the binary and writes `path.txt` on its first
+ * `require`. On a fresh `npm ci` — CI's — the file is not there until then.
  */
 describe('electronBinary', () => {
   it('ends with the relative path the electron package named for this platform', () => {
+    const binary = electronBinary()
     const named = readFileSync(join(repoRoot, 'node_modules', 'electron', 'path.txt'), 'utf8').trim()
 
     expect(named).not.toBe('')
-    expect(electronBinary().endsWith(named)).toBe(true)
+    expect(binary.endsWith(named)).toBe(true)
   })
 
   it('names a binary that is actually there', () => {

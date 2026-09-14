@@ -107,6 +107,16 @@ export function patchItem(
 }
 
 /**
+ * Whether a cover is square, from its address: YouTube Music's art is served
+ * at `=w544-h544` or `=s576`, a video's still at 16:9. A square picture is
+ * drawn square rather than cropped to the video shape.
+ */
+export function isSquareCover(url: string | null): boolean {
+  if (!url) return false
+  return /=w(\d+)-h\1(?:-|$)/.test(url) || /=s\d+(?:-|$)/.test(url)
+}
+
+/**
  * The tag a link is named after, if you already have one: an artist's page
  * or a search for "yoasobi" with a `yoasobi` tag in the library. Pre-ticked,
  * so the songs are tagged without asking; still yours to untick.

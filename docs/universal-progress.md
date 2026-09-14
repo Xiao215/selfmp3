@@ -3800,6 +3800,20 @@ songs", the rows are a hundred) is left to yt-dlp, which reads the whole; so
 are Liked Music, mixes and radios, and any page YouTube Music will not answer.
 A search has no other reading, so there no answer is an error.
 
+**Four more from the first imports.** The queue's two bars sat at different
+widths: a step with no percentage drew no number, so the bar beside it grew
+into the number's place; the place is kept, empty. Music seemed to play on
+after Import with nothing to stop it: a preview pauses whatever was playing
+and, when it ends, resumes it — right when you close the preview yourself,
+wrong when the review goes because you imported it, and the player came back
+with no bar in sight; now only your own close resumes (`close({ resume })`).
+Album art is square (`=w544-h544`, `=s576`) and was cropped to a video's
+shape; it is drawn square (`isSquareCover`), a video's still as before. And
+the whole review — links, songs chosen and corrected, tags, playlist — was
+lost on a glance at the library, since the sidebar unmounts the screen; it is
+a draft outside the screen now (`importDraft.ts`), kept for the app's life
+and per server, so a draft against one server's ids is not shown for another.
+
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each
 install asked for the keychain password again. Built with it set, the tier

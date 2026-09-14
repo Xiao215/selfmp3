@@ -12,6 +12,7 @@ import { useAccent } from '../../ui/accent'
 import { IconButton } from '../../ui/components/IconButton'
 import { Pause, Play, X } from '../../ui/components/Icons'
 import { SeekBar } from '../../ui/components/SeekBar'
+import { isSquareCover } from './import.model'
 import {
   followAudio,
   listenDetail,
@@ -90,13 +91,17 @@ export function useListen(via?: ServerConnection) {
     setListening({ ...listening, currentTime: seconds })
   }
 
-  const close = (): void => {
+  /**
+   * Stop the preview. What was playing before it carries on when you close
+   * the preview yourself; not when the review went — imported, cancelled, a
+   * new link fetched — since then nothing asked for music.
+   */
+  const close = (options: { resume?: boolean } = {}): void => {
     audio?.stop()
     setListening(null)
-    if (resume.current) {
-      resume.current = false
-      if (!player.isPlaying) player.toggle()
-    }
+    const carryOn = resume.current && (options.resume ?? true)
+    resume.current = false
+    if (carryOn && !player.isPlaying) player.toggle()
   }
 
   return { listening, toggle, seek, close }
@@ -113,13 +118,14 @@ export function ListenButton({
   onToggle: () => void
 }): ReactNode {
   const status = listening?.track.url === item.url ? listening.status : null
+  const square = isSquareCover(item.thumbnail)
 
   return (
     <Pressable
       onPress={onToggle}
       accessibilityRole="button"
       accessibilityLabel={listenLabel(item.title, status)}
-      style={({ pressed }) => [styles.thumb, pressed && styles.thumbPressed]}
+      style={({ pressed }) => [styles.thumb, square && styles.thumbSquare, pressed && styles.thumbPressed]}
     >
       {item.thumbnail ? (
         <Image source={{ uri: item.thumbnail }} style={styles.fill} />
@@ -198,6 +204,8 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     backgroundColor: theme.colors.surface2,
   },
+  // Album art is square; a video's still is not. The column stays 56 wide either way.
+  thumbSquare: { width: 40, height: 40, marginHorizontal: 8 },
   thumbPressed: { opacity: 0.85 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   cover: {

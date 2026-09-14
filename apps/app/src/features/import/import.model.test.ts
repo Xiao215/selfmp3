@@ -6,6 +6,7 @@ import {
   chosenItems,
   enqueueRequest,
   importButtonLabel,
+  isSquareCover,
   jobAction,
   jobLabel,
   jobSubtitle,
@@ -19,6 +20,16 @@ import {
   sharedLinks,
   toggleChosen,
 } from './import.model'
+
+describe('isSquareCover', () => {
+  it('knows YouTube Music art from a video still', () => {
+    expect(isSquareCover('https://yt3.test/x=w544-h544-l90-rj')).toBe(true)
+    expect(isSquareCover('https://yt3.test/x=s576')).toBe(true)
+    expect(isSquareCover('https://yt3.test/x=w336-h188-l90-rj')).toBe(false)
+    expect(isSquareCover('https://i.ytimg.test/vi/x/hqdefault.jpg')).toBe(false)
+    expect(isSquareCover(null)).toBe(false)
+  })
+})
 
 describe('matchingTag', () => {
   const tags = [

@@ -38,6 +38,7 @@ import {
   chosenItems,
   enqueueRequest,
   importButtonLabel,
+  isSquareCover,
   jobAction,
   jobLabel,
   jobSubtitle,
@@ -53,6 +54,7 @@ import {
   type Review,
 } from './import.model'
 import { ListenBar, ListenButton, useListen } from './ImportListen'
+import { useImportDraft } from './importDraft'
 import { useImportSource } from './importSource'
 import { canListen, listeningLeftReview, type Listening } from './listen.model'
 import { canListenHere } from '../../ports/listen'
@@ -83,11 +85,14 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
-  const [links, setLinks] = useState('')
-  const [review, setReview] = useState<Review | null>(null)
-  const [tagIds, setTagIds] = useState<ReadonlySet<number>>(() => new Set())
-  const [playlistId, setPlaylistId] = useState(NO_PLAYLIST)
-  const [createPlaylist, setCreatePlaylist] = useState(false)
+  // The draft outlives this screen (importDraft.ts); only the error is the screen's.
+  const [draft, patchDraft] = useImportDraft(via?.baseUrl ?? 'own')
+  const { links, review, tagIds, playlistId, createPlaylist } = draft
+  const setLinks = (next: string): void => patchDraft({ links: next })
+  const setReview = (next: Review | null): void => patchDraft({ review: next })
+  const setTagIds = (next: ReadonlySet<number>): void => patchDraft({ tagIds: next })
+  const setPlaylistId = (next: number): void => patchDraft({ playlistId: next })
+  const setCreatePlaylist = (next: boolean): void => patchDraft({ createPlaylist: next })
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
   const listen = useListen(via)
@@ -100,12 +105,14 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
     mutationFn: (input: string) => api.importPreview(input),
     onSuccess: result => {
       const next = reviewFrom(result)
-      setReview(next)
-      setCreatePlaylist(false)
       // A link named like a tag you already have — an artist's page, a search
       // for them — is tagged that way without asking.
       const match = matchingTag(tags, next.playlistTitle)
-      setTagIds(match === null ? new Set() : new Set([match]))
+      patchDraft({
+        review: next,
+        createPlaylist: false,
+        tagIds: match === null ? new Set() : new Set([match]),
+      })
       setError(null)
     },
     onError: (err: Error) => setError(err.message),
@@ -121,8 +128,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
         }),
       ),
     onSuccess: result => {
-      setReview(null)
-      setLinks('')
+      patchDraft({ review: null, links: '' })
       // The review just collapsed; bring the new jobs into view once they are drawn.
       void source.invalidateQueue().then(() => {
         requestAnimationFrame(() =>
@@ -135,8 +141,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   })
 
   const fetchLinks = (input: string): void => {
-    setLinks(input)
-    setReview(null)
+    patchDraft({ links: input, review: null })
     preview.mutate(input)
   }
 
@@ -157,10 +162,11 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   }
 
   // A preview whose track has left the review (cancelled, imported, or a new
-  // link fetched) stops with it. Editing a row keeps its url, so it plays on.
+  // link fetched) stops with it, and what played before it stays paused: you
+  // did not ask for music, you asked for songs. Editing a row keeps its url.
   const leftReview = listeningLeftReview(listen.listening, review?.items ?? null)
   useEffect(() => {
-    if (leftReview) listen.close()
+    if (leftReview) listen.close({ resume: false })
     // Only whether it left matters; `close` is a new function every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leftReview])
@@ -339,7 +345,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
                         listening={playing}
                         onToggle={() => listen.toggle(playing.track)}
                         onSeek={listen.seek}
-                        onClose={listen.close}
+                        onClose={() => listen.close()}
                       />
                     ) : null}
                   </Fragment>
@@ -503,7 +509,11 @@ function ReviewRow({
   ) : item.thumbnail ? (
     <Image
       source={{ uri: item.thumbnail }}
-      style={[styles.thumb, item.alreadyHave && styles.faded]}
+      style={[
+        styles.thumb,
+        isSquareCover(item.thumbnail) && styles.thumbSquare,
+        item.alreadyHave && styles.faded,
+      ]}
     />
   ) : (
     <View style={[styles.thumb, styles.thumbEmpty]} />
@@ -620,8 +630,11 @@ function JobRow({
           />
         </View>
       ) : null}
-      {tone === 'running' && job.progress !== null ? (
-        <Text style={styles.percent}>{Math.round(job.progress)}%</Text>
+      {/* The number's place is kept while a step has none, so the bars of two rows line up. */}
+      {tone === 'running' ? (
+        <Text style={styles.percent}>
+          {job.progress === null ? '' : `${Math.round(job.progress)}%`}
+        </Text>
       ) : null}
 
       {action === 'cancel' ? (
@@ -763,6 +776,8 @@ const styles = StyleSheet.create(theme => ({
   colSide: { width: 78, textAlign: 'right' },
   sideCell: { alignItems: 'flex-end' },
   thumb: { width: 56, height: 34, borderRadius: 4 },
+  // Album art is square; a video's still is not. The column stays 56 wide either way.
+  thumbSquare: { width: 40, height: 40, marginHorizontal: 8 },
   thumbEmpty: { backgroundColor: theme.colors.surface2 },
   faded: { opacity: 0.55 },
   itemInput: {

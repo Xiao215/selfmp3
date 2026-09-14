@@ -31,6 +31,13 @@ const APPLICATIONS_X = 400
 const ICON_Y = 190
 const ICON_SIZE = 100
 
+/*
+ * Finder sizes the window from this image but counts its title bar in that
+ * height, so the bottom of the picture is never seen: a caption at 330 was cut
+ * off. Below the icons' names (about 270) and well clear of that edge.
+ */
+const CAPTION_Y = 300
+
 const ACCENT = '#7c6ae6'
 const arrowFrom = APP_X + ICON_SIZE / 2 + 22
 const arrowTo = APPLICATIONS_X - ICON_SIZE / 2 - 24
@@ -41,7 +48,7 @@ const svg = scale => `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH * s
     <path d="M${arrowFrom} ${ICON_Y} H${arrowTo - 4}"/>
     <path d="M${arrowTo - 16} ${ICON_Y - 13} L${arrowTo} ${ICON_Y} L${arrowTo - 16} ${ICON_Y + 13}"/>
   </g>
-  <text x="${WIDTH / 2}" y="330" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#8a8594">Drag self.mp3 to Applications</text>
+  <text x="${WIDTH / 2}" y="${CAPTION_Y}" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#8a8594">Drag self.mp3 to Applications</text>
 </svg>`
 
 await mkdir(dirname(target), { recursive: true })

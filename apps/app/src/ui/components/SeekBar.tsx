@@ -272,6 +272,8 @@ const styles = StyleSheet.create(theme => ({
   hit: {
     paddingVertical: space.md,
     justifyContent: 'center',
+    // A pointing hand where there is a mouse: the bar is a control, not a picture.
+    cursor: 'pointer',
   },
   track: {
     height: 6,

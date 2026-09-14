@@ -2601,3 +2601,26 @@ bar lost its slider. The sidebar and the rows stayed right.
   never observed and needs an element that is mounted but not in the document,
   which React does not produce. The port is removed.
 - Checked: `withAlpha` unit tests for a hex and a `var()`; the app typechecks.
+
+### The bar's volume fader, no lyrics mic, captions over their controls — branch `universal/bar-tweaks`
+
+From Xiao on 4600:
+
+1. **Volume, vertical.** In the compact bar `VolumeControl` opens a 60-wide
+   popover holding the percentage, `VolumeSlider vertical`, and mute. Upright,
+   the slider measures its height, reads `1 - locationY / height` (its track,
+   fill and handle take no touches, as `SeekBar` learned), and draws a 6-wide
+   track filling from the bottom with a 14px handle. Checked: 32×128, a drag
+   to the middle reads 50%.
+2. **The bar's "Close" caption over the cover.** `TooltipHost` places a caption
+   over a `[data-tip-target]` inside its control when there is one; the player
+   bar's song button marks its cover with `tipTarget()` (ui/tip.ts). Checked:
+   caption centre 45, cover centre 45.
+3. **"Close"** as the stage chevron's caption (`caption`; the label stays
+   "Close now playing" for screen readers and the flows).
+4. **"Lyrics"** as the caption of the page's lyrics-only button.
+5. **No mic in the player bar**; `toggleLyrics` is gone. The Now Playing flow
+   uses the page's "Show only the words" button instead. The phone's Now Playing
+   keeps its Lyrics action.
+6. **A pointer over the scrubber** (`cursor: 'pointer'` on its hit area) and
+   the volume slider. Checked: the seek slider's computed cursor is `pointer`.

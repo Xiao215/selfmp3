@@ -402,6 +402,7 @@ function Stage({
         <IconButton
           onPress={focus ? () => onMode('stage') : onClose}
           label={focus ? 'Back to the full page' : 'Close now playing'}
+          caption={focus ? 'Back to the full page' : 'Close'}
         >
           <ChevronDown size={22} color={theme.colors.textSecondary} />
         </IconButton>
@@ -479,7 +480,7 @@ function Stage({
           onPress={() => onMode(focus ? 'stage' : 'focus')}
           accessibilityRole="button"
           accessibilityLabel={focus ? 'Back to the full page' : 'Show only the words'}
-          {...tip(focus ? 'Back to the full page' : 'Only the words, big')}
+          {...tip(focus ? 'Back to the full page' : 'Lyrics')}
           style={({ pressed }) => [
             styles.expand,
             chrome,

@@ -9,3 +9,12 @@
 export function tip(text: string | null | undefined): { dataSet?: { tip: string } } {
   return text ? { dataSet: { tip: text } } : {}
 }
+
+/**
+ * Marks the part of a captioned control its caption should sit over, when the
+ * whole control is wider than what it is about: spread onto the player bar's
+ * cover, inside the button that also holds the title.
+ */
+export function tipTarget(): { dataSet: { tipTarget: string } } {
+  return { dataSet: { tipTarget: 'true' } }
+}

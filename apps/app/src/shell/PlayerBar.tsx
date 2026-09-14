@@ -15,14 +15,13 @@ import { useAccent } from '../ui/accent'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
 import { ProgressWash } from '../ui/components/ProgressWash'
-import { tip } from '../ui/tip'
+import { tip, tipTarget } from '../ui/tip'
 import { IconButton } from '../ui/components/IconButton'
 import {
   ChevronDown,
   Devices,
   Heart,
   Metronome,
-  Mic,
   Moon,
   Next,
   Pause,
@@ -110,12 +109,6 @@ export function PlayerBar(): ReactNode {
       else router.replace('/')
     })
   const togglePage = (): void => (onPage ? closePage() : router.push('/now-playing'))
-  /** The mic: straight to the words, and the same again to put them away. */
-  const toggleLyrics = (): void => {
-    if (pageMode === 'focus') closePage()
-    else if (onPage) router.setParams({ mode: 'focus', tab: 'lyrics' })
-    else router.push('/now-playing?mode=focus')
-  }
   /** With the page open, the queue is one of its tabs. */
   const openQueue = (): void => {
     if (onPage) router.setParams({ mode: 'stage', tab: queueOpen ? 'lyrics' : 'queue' })
@@ -154,7 +147,8 @@ export function PlayerBar(): ReactNode {
               {...tip(onPage ? 'Close' : 'Open the song: lyrics, up next, details')}
               accessibilityState={{ expanded: onPage }}
             >
-              <View>
+              {/* The caption sits over the cover, not between it and the title. */}
+              <View {...tipTarget()}>
                 <Cover uri={artFor(song)} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
@@ -270,12 +264,6 @@ export function PlayerBar(): ReactNode {
 
       <View style={styles.right}>
         <View style={styles.group} role="group" aria-label="Panels">
-          <IconButton onPress={toggleLyrics} label="Lyrics" active={pageMode === 'focus'}>
-            <Mic
-              size={17}
-              color={pageMode === 'focus' ? songColor.color : theme.colors.textSecondary}
-            />
-          </IconButton>
           <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
             <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
           </IconButton>
@@ -433,63 +421,99 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
         placement="above"
         title="Volume"
         titleTone="label"
-        width={200}
+        width={60}
         testID="volume-popover"
       >
+        {/* A fader rising out of its button: the level on top, mute at its foot. */}
         <View style={styles.volumePopover}>
-          {mute}
-          {slider}
           <Text style={styles.readout}>{percent}%</Text>
+          <VolumeSlider value={player.volume} onChange={player.setVolume} vertical />
+          {mute}
         </View>
       </Popover>
     </View>
   )
 }
 
-/** The web's `input.volume`: a thin track that fills with the playing song's colour. */
+/**
+ * The web's `input.volume`: a thin track that fills with the playing song's
+ * colour. Flat beside the speaker when the bar has room; upright in the volume
+ * pop-up, a fader that fills from the bottom with a handle on top.
+ */
 function VolumeSlider({
   value,
   onChange,
+  vertical = false,
 }: {
   value: number
   onChange: (value: number) => void
+  vertical?: boolean
 }): ReactNode {
   const player = usePlayer()
   const artFor = useArt()
   const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
-  const [trackWidth, setTrackWidth] = useState(0)
+  // The track's length along the way it slides: its width, or its height upright.
+  const [length, setLength] = useState(0)
   const responder = useMemo(() => {
-    const valueAt = (x: number): number =>
-      trackWidth <= 0 ? value : Math.max(0, Math.min(1, x / trackWidth))
+    // The track and its fill take no touches, so the position is always the
+    // slider's own (see SeekBar).
+    const valueAt = (x: number, y: number): number => {
+      if (length <= 0) return value
+      return Math.max(0, Math.min(1, vertical ? 1 - y / length : x / length))
+    }
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: event => onChange(valueAt(event.nativeEvent.locationX)),
-      onPanResponderMove: event => onChange(valueAt(event.nativeEvent.locationX)),
+      onPanResponderGrant: event =>
+        onChange(valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)),
+      onPanResponderMove: event =>
+        onChange(valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)),
     })
-  }, [trackWidth, value, onChange])
+  }, [length, value, onChange, vertical])
 
   return (
     <View
-      style={styles.slider}
-      onLayout={(event: LayoutChangeEvent) => setTrackWidth(event.nativeEvent.layout.width)}
+      style={vertical ? styles.sliderUpright : styles.slider}
+      onLayout={(event: LayoutChangeEvent) =>
+        setLength(vertical ? event.nativeEvent.layout.height : event.nativeEvent.layout.width)
+      }
       accessibilityRole="adjustable"
       accessibilityLabel="Volume"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
-      {...tip(`Volume: ${Math.round(value * 100)}%`)}
+      {...tip(vertical ? undefined : `Volume: ${Math.round(value * 100)}%`)}
       {...responder.panHandlers}
     >
-      <View style={styles.sliderTrack}>
-        <View
-          style={[
-            styles.sliderFill,
-            { width: `${value * 100}%`, backgroundColor: songColor.color },
-          ]}
-        />
-      </View>
+      {vertical ? (
+        <View pointerEvents="none" style={styles.sliderTrackUpright}>
+          <View
+            style={[
+              styles.sliderFillUpright,
+              { height: `${value * 100}%`, backgroundColor: songColor.color },
+            ]}
+          />
+          <View
+            style={[
+              styles.sliderHandle,
+              { bottom: Math.max(-HANDLE / 2, value * length - HANDLE / 2) },
+            ]}
+          />
+        </View>
+      ) : (
+        <View pointerEvents="none" style={styles.sliderTrack}>
+          <View
+            style={[
+              styles.sliderFill,
+              { width: `${value * 100}%`, backgroundColor: songColor.color },
+            ]}
+          />
+        </View>
+      )}
     </View>
   )
 }
+
+/** The upright fader's handle. */
+const HANDLE = 14
 
 const styles = StyleSheet.create(theme => ({
   /* Open, the cover says the same button now closes the page. */
@@ -572,9 +596,14 @@ const styles = StyleSheet.create(theme => ({
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   groupDivided: { paddingLeft: space.sm, borderLeftWidth: 1, borderLeftColor: theme.colors.border },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  volumePopover: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
-  readout: { color: theme.colors.textMuted, fontSize: 11, minWidth: 32, textAlign: 'right' },
-  slider: { width: 88, height: 24, justifyContent: 'center' },
+  volumePopover: { alignItems: 'center', gap: 10, paddingTop: 10, paddingBottom: 2 },
+  readout: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  slider: { width: 88, height: 24, justifyContent: 'center', cursor: 'pointer' },
   sliderTrack: {
     height: 4,
     borderRadius: 2,
@@ -582,4 +611,23 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   sliderFill: { height: 4, borderRadius: radius.sm },
+  /* Wider than the track, so the handle is easy to catch. */
+  sliderUpright: { width: 32, height: 128, alignItems: 'center', cursor: 'pointer' },
+  sliderTrackUpright: {
+    width: 6,
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: theme.colors.surface3,
+    justifyContent: 'flex-end',
+  },
+  sliderFillUpright: { width: 6, borderRadius: 3 },
+  sliderHandle: {
+    position: 'absolute',
+    left: 3 - HANDLE / 2,
+    width: HANDLE,
+    height: HANDLE,
+    borderRadius: HANDLE / 2,
+    backgroundColor: theme.colors.textPrimary,
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4)',
+  },
 }))

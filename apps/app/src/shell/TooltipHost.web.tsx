@@ -198,7 +198,10 @@ export function TooltipHost(): ReactNode {
     if (!shown || !layer) return
     // An icon button's box is wider than its symbol; measured from the box, the
     // caption sits nearer whatever is above than the symbol it names.
-    const icon = shown.anchor.textContent?.trim() ? null : shown.anchor.querySelector('svg')
+    // A control can name the part its caption belongs over (`tipTarget`): the
+    // player bar's cover, rather than the middle of the cover and title together.
+    const target = shown.anchor.querySelector<HTMLElement>('[data-tip-target]')
+    const icon = target ?? (shown.anchor.textContent?.trim() ? null : shown.anchor.querySelector('svg'))
     const rect = (icon ?? shown.anchor).getBoundingClientRect()
     const viewportWidth = document.documentElement.clientWidth
     const width = layer.offsetWidth

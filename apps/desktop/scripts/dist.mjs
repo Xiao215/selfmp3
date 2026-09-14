@@ -30,6 +30,7 @@ const run = (command, args) => {
 }
 
 run(process.execPath, [join(here, 'icon.mjs')])
+run(process.execPath, [join(here, 'dmg-background.mjs')])
 // The bundle is told which tier it is: the updater's behaviour depends on it,
 // and a running app cannot ask about its own signature.
 env['SELFMP3_SIGNED'] = signed ? '1' : '0'

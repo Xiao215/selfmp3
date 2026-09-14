@@ -80,6 +80,30 @@ test.describe('the shell', () => {
     }
   })
 
+  test('a missing file is a 404, and only a route is answered with index.html', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const seen = await page.evaluate(async () => {
+        const ask = async (path: string): Promise<{ status: number; type: string | null }> => {
+          const response = await fetch(path)
+          return { status: response.status, type: response.headers.get('Content-Type') }
+        }
+        return {
+          chunk: await ask('/_expo/static/js/web/missing-00000000.js'),
+          route: await ask('/playlist/1'),
+        }
+      })
+      // A 200 of HTML here is what Chrome silently refuses to run as a script.
+      expect(seen.chunk.status).toBe(404)
+      expect(seen.chunk.type).not.toContain('text/html')
+      expect(seen.route).toEqual({ status: 200, type: 'text/html; charset=utf-8' })
+    } finally {
+      await app.close()
+    }
+  })
+
   test('is an installed app, so it downloads rather than streams', async () => {
     const app = await launchApp()
     try {

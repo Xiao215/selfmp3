@@ -8,7 +8,7 @@ import { answerRange } from '@selfmp3/shared'
 import { fileKindSchema, type FileKind } from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
-import { contentTypeFor, resolveWithinRoot } from './paths.js'
+import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
 
 /**
  * `app://selfmp3/` — where the page lives.
@@ -60,28 +60,38 @@ export function handleAppScheme(roots: ProtocolRoots): void {
     if (url.pathname.startsWith(MEDIA_PREFIX)) return serveMedia(request, url.pathname)
 
     const resolved = resolveWithinRoot(roots.web, url.pathname)
+    if (resolved !== null && (await isFile(resolved))) return serveWebFile(resolved)
 
-    // Everything the export does not have a file for is a route, and a route
-    // is index.html: the same rule the Mac's server and GitHub Pages follow.
-    const file = resolved !== null && (await isFile(resolved)) ? resolved : join(roots.web, 'index.html')
-
-    try {
-      const stats = await stat(file)
-      return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
-        status: 200,
-        headers: {
-          'Content-Type': contentTypeFor(file),
-          'Content-Length': String(stats.size),
-          // The export's filenames carry a content hash, so a long cache is
-          // safe; index.html is the one that must not be held, and it is
-          // re-read on every launch anyway.
-          'Cache-Control': file.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
-        },
-      })
-    } catch {
-      return new Response('not found', { status: 404 })
+    // A route is index.html. A file the export does not have is a 404, never
+    // index.html in its place — `isRoute` says what that used to hide.
+    if (isRoute(url.pathname, request.headers.get('Sec-Fetch-Mode'))) {
+      return serveWebFile(join(roots.web, 'index.html'))
     }
+    return notFound()
   })
+}
+
+async function serveWebFile(file: string): Promise<Response> {
+  try {
+    const stats = await stat(file)
+    return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
+      status: 200,
+      headers: {
+        'Content-Type': contentTypeFor(file),
+        'Content-Length': String(stats.size),
+        // The export's filenames carry a content hash, so a long cache is
+        // safe; index.html is the one that must not be held, and it is
+        // re-read on every launch anyway.
+        'Cache-Control': file.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
+      },
+    })
+  } catch {
+    return notFound()
+  }
+}
+
+function notFound(): Response {
+  return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }
 
 /**

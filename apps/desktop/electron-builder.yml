@@ -18,10 +18,6 @@
 appId: com.selfmp3.app
 productName: self.mp3
 copyright: Xiao
-# Without this the executable is named from the npm package — `@selfmp3/desktop`
-# — and an AppImage refuses the `@` and the `/`. macOS does not use it: there the
-# binary inside the bundle is named from `productName`.
-executableName: selfmp3
 
 directories:
   output: release
@@ -56,6 +52,12 @@ mac:
 
 dmg:
   # The window everyone knows: the app on the left, Applications on the right.
+  # `scripts/dmg-background.mjs` draws the background at 1× and 2× — the arrow in
+  # it runs between these two positions, so they move together — and the window
+  # takes its size from the 1× file.
+  background: resources/dmg-background.png
+  iconSize: 100
+  iconTextSize: 13
   contents:
     - x: 140
       y: 190
@@ -79,5 +81,10 @@ publish:
 win:
   target: nsis
 linux:
+  # Without this the executable is named from the npm package — `@selfmp3/desktop`
+  # — and an AppImage refuses the `@` and the `/`. Here and not at the top: set
+  # there, macOS takes it too, for the bundle as well as the binary, and the dmg
+  # offered `selfmp3.app` instead of self.mp3.
+  executableName: selfmp3
   target: AppImage
   category: AudioVideo

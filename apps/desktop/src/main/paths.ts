@@ -10,11 +10,11 @@ import { normalize, sep } from 'node:path'
 /**
  * A path inside `root`, or null.
  *
- * `null` means *serve `index.html`*, not *fail*, everywhere this is used: the
- * export is a single-page app, so `/playlist/1` is a route rather than a file.
- * What it is protecting against is the other case — `..` climbing out of the
- * web root, or an absolute path pretending to be a relative one — because the
- * page asking is a renderer, and a renderer is the thing that gets compromised.
+ * `null` means *there is no file here to serve*; whether that is `index.html`
+ * or a 404 is `isRoute`'s question. What it is protecting against is `..`
+ * climbing out of the web root, or an absolute path pretending to be a relative
+ * one — because the page asking is a renderer, and a renderer is the thing that
+ * gets compromised.
  */
 export function resolveWithinRoot(root: string, pathname: string): string | null {
   let decoded: string
@@ -34,6 +34,25 @@ export function resolveWithinRoot(root: string, pathname: string): string | null
   const candidate = normalize(`${root}${sep}${withoutLeadingSlash}`)
   const fence = root.endsWith(sep) ? root : `${root}${sep}`
   return candidate.startsWith(fence) ? candidate : null
+}
+
+/**
+ * Whether a request the export has no file for is a route, and so answered with
+ * `index.html`.
+ *
+ * The export is a single-page app, so `/playlist/1` is a screen rather than a
+ * file. But a script, a style or a chunk that is not there is missing, and has
+ * to say so: answered with a 200 of HTML, Chrome refuses to run it and says so
+ * only in a console a packaged app does not show, and what a person sees is an
+ * empty window.
+ *
+ * `Sec-Fetch-Mode: navigate` makes anything a route. Without it, a path whose
+ * last segment has no extension is one.
+ */
+export function isRoute(pathname: string, fetchMode: string | null): boolean {
+  if (fetchMode === 'navigate') return true
+  const last = pathname.slice(pathname.lastIndexOf('/') + 1)
+  return !/\.[A-Za-z0-9]+$/.test(last)
 }
 
 /**

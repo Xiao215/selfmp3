@@ -3449,6 +3449,68 @@ it.
    quarantine flag, and a file copied locally never has it.
 4. `gh workflow run desktop.yml` when you want to see the runner do it.
 
+### On the Mac — 2026-09-14
+
+**The dmg built, and the app opened to an empty window.** `npm run build:desktop`
+printed `self.mp3 desktop: ad-hoc build` and left `self.mp3-1.0.0-arm64.dmg`
+(122 MB) and the x64 one beside it, ad-hoc signed with the hardened runtime and
+`codesign --verify --deep --strict` clean. Opened, it showed the window's
+`#14121a` and never the page.
+
+How it was found, in order:
+
+1. **The binary from Terminal with `ELECTRON_ENABLE_LOGGING=1`.** Not a MIME
+   refusal and not a preload failure: `Uncaught RangeError: Maximum call stack
+   size exceeded` in the export's own bundle.
+2. **The asar.** 40 entries under `/dist/web/`, `index.html` and `preload.cjs`
+   both there.
+3. **The paths.** Read from the packaged main process through Playwright:
+   `WEB_ROOT` and `preloadPath()` both resolve inside `app.asar/dist`, the page is
+   at `app://selfmp3/`, the bridge is present and `titleBarInset` is 28.
+
+The overflowing module required *itself* (its dependency list was `[981, 1105]`
+for module 1105). `ports/titleBarInset.web.ts` imported `TITLE_BAR_DRAG_ID` from
+`./titleBarInset`, which TypeScript reads as the native file and Metro, preferring
+`.web`, reads as the web file itself; the re-export became a getter reading
+itself. Only the Mac reads it, because only the Mac has an inset — which is why
+Linux's smoke drew the page and typecheck saw nothing.
+
+What changed:
+
+- **The id has a file of its own**, `ports/titleBarDragId.ts`, with no `.web`
+  twin. `src/main/webTwins.test.ts` fails if any `.web` file imports a *value*
+  from its own base name (type imports are erased and fine; eleven do).
+- **A missing file is a 404.** `protocol.ts` answered anything without a file
+  with `index.html`, so a missing chunk would have been a 200 of HTML Chrome
+  silently refuses to run. `isRoute` in `paths.ts` now decides: a navigation, or
+  a path with no extension, gets `index.html`; everything else gets a 404. Unit
+  tests for the rule, and a smoke test that `/_expo/…/missing-….js` is a 404
+  while `/playlist/1` is still the page.
+- **The packaged app is tested.** `verify/packaged.spec.ts` launches the `.app`
+  in `apps/desktop/release` through Playwright's `executablePath` and waits for
+  the page to draw with no page errors; with no build there it skips and says
+  why. `launch.ts` also found Electron by a Linux-only path; it now reads the
+  electron package's `path.txt`, so the smoke runs on a Mac.
+- **The app is called self.mp3.** `executableName: selfmp3` at the top of the
+  config named the Mac *bundle* too — the dmg offered `selfmp3.app` — contrary to
+  what "One thing the plan did not foresee" above says. It moved under `linux:`,
+  the only target that needs it.
+- **The dmg window.** `scripts/dmg-background.mjs` draws it at 1× and 2× (the
+  app's off-white, an accent arrow, "Drag self.mp3 to Applications"), and the
+  icons are 100 px. Finder draws the two names itself in the appearance's text
+  colour, so in Dark Mode they may be white on the light background: look once
+  with the window open.
+- **`npm ci` on npm 11 left Electron without its binary** (`node_modules/electron`
+  had no `dist/`). `node node_modules/electron/install.js` fetched it; the smoke
+  cannot launch anything until it has.
+
+| Gate | Result |
+|---|---|
+| `npm run check` | pass |
+| `npm run verify:desktop` | 19 passed, 1 skipped (the thirteen-song flow), the packaged app among the passes |
+| `npm run build:desktop` | pass, `self.mp3 desktop: ad-hoc build` |
+| The packaged app opens | draws the page, from the packaged spec and from the binary with logging on |
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

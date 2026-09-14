@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -36,13 +36,53 @@ export async function launchApp({
   userDataDir?: string
 } = {}): Promise<ElectronApplication> {
   return electron.launch({
-    executablePath: join(repoRoot, 'node_modules', 'electron', 'dist', 'electron'),
+    executablePath: electronBinary(),
     args: [
       ...rootFlags,
       join(desktopRoot, 'dist', 'main.cjs'),
       `--user-data-dir=${userDataDir ?? freshUserData()}`,
     ],
     env: { ...process.env, ...env } as Record<string, string>,
+  })
+}
+
+/**
+ * The Electron binary `npm ci` unpacked: `dist/electron` on Linux, inside
+ * `Electron.app` on a Mac. `path.txt` is the electron package's own answer, the
+ * one its `index.js` reads.
+ */
+function electronBinary(): string {
+  const electronDir = join(repoRoot, 'node_modules', 'electron')
+  return join(electronDir, 'dist', readFileSync(join(electronDir, 'path.txt'), 'utf8').trim())
+}
+
+/**
+ * The app `npm run build:desktop` left in `apps/desktop/release`, or null when
+ * there is none for this platform and architecture.
+ *
+ * Whatever is there is tested as it is: a release folder older than the source
+ * tests the older build, so build before relying on it.
+ */
+export function packagedExecutable(): string | null {
+  const release = join(desktopRoot, 'release')
+  const arm = process.arch === 'arm64'
+  const candidates =
+    process.platform === 'darwin'
+      ? [arm ? 'mac-arm64' : 'mac', 'mac-universal'].map(folder =>
+          join(release, folder, 'self.mp3.app', 'Contents', 'MacOS', 'self.mp3'),
+        )
+      : process.platform === 'win32'
+        ? [join(release, 'win-unpacked', 'self.mp3.exe')]
+        : [join(release, arm ? 'linux-arm64-unpacked' : 'linux-unpacked', 'selfmp3')]
+  return candidates.find(candidate => existsSync(candidate)) ?? null
+}
+
+/** Launch the packaged app itself — its own binary, asar and all. */
+export async function launchPackaged(executablePath: string): Promise<ElectronApplication> {
+  return electron.launch({
+    executablePath,
+    args: [...rootFlags, `--user-data-dir=${freshUserData()}`],
+    env: { ...process.env } as Record<string, string>,
   })
 }
 

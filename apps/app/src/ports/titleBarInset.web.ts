@@ -1,5 +1,6 @@
 import { desktop } from './desktop/bridge'
-import { TITLE_BAR_DRAG_ID } from './titleBarInset'
+// Not from './titleBarInset': on web that is this file. See titleBarDragId.ts.
+import { TITLE_BAR_DRAG_ID } from './titleBarDragId'
 
 export { TITLE_BAR_DRAG_ID }
 

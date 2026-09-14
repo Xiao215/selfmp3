@@ -14,5 +14,4 @@
  */
 export const titleBarInset = 0
 
-/** What the draggable strip is called, where there is one. */
-export const TITLE_BAR_DRAG_ID = 'selfmp3-titlebar-drag'
+export { TITLE_BAR_DRAG_ID } from './titleBarDragId'

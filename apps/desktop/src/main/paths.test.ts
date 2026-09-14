@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { contentTypeFor, resolveWithinRoot } from './paths.js'
+import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
 
 const ROOT = '/Applications/self.mp3.app/Contents/Resources/app/web'
 
@@ -39,6 +39,25 @@ describe('resolveWithinRoot', () => {
 
   it('does not mistake a sibling directory for the root', () => {
     expect(resolveWithinRoot('/app/web', '/../web-other/secret.txt')).toBeNull()
+  })
+})
+
+describe('isRoute', () => {
+  it('takes a path with no extension for a route', () => {
+    expect(isRoute('/', null)).toBe(true)
+    expect(isRoute('/playlist/1', null)).toBe(true)
+    expect(isRoute('/settings', 'cors')).toBe(true)
+  })
+
+  it('takes any navigation for a route', () => {
+    expect(isRoute('/artist/Mr.Children', 'navigate')).toBe(true)
+  })
+
+  it('does not take a missing chunk for a route, so it 404s rather than answering HTML', () => {
+    expect(isRoute('/_expo/static/js/web/index-0000.js', null)).toBe(false)
+    expect(isRoute('/_expo/static/js/web/index-0000.js', 'no-cors')).toBe(false)
+    expect(isRoute('/_expo/static/css/web-0000.css', 'cors')).toBe(false)
+    expect(isRoute('/assets/fonts/Inter.ttf', null)).toBe(false)
   })
 })
 

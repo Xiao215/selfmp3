@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseProgress, run } from './ytdlp.js'
+import { isVideoEntry, parseProgress, run } from './ytdlp.js'
 
 /**
  * A stand-in for yt-dlp, run as a real child process: progress on stdout, the
@@ -24,6 +24,25 @@ describe('run', () => {
     expect(result.code).toBe(0)
     expect(lines).toContain('WARNING: something to mention')
     expect(lines.map(parseProgress).filter(percent => percent !== null)).toEqual([12.5, 60, 100])
+  })
+})
+
+describe('isVideoEntry', () => {
+  it('keeps the songs of a search page and drops its albums, playlists and channels', () => {
+    // What `--flat-playlist` lists for music.youtube.com/search?q=yoasobi.
+    const song = { ie_key: 'Youtube', url: 'https://music.youtube.com/watch?v=k0g04t7ZeSw' }
+    const album = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT' }
+    const playlist = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n' }
+    const artist = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw' }
+    expect([song, album, playlist, artist].map(isVideoEntry)).toEqual([true, false, false, false])
+  })
+
+  it('judges by the address when the entry names no extractor', () => {
+    expect(isVideoEntry({ url: 'https://www.youtube.com/watch?v=dGZqpVCJP3k' })).toBe(true)
+    expect(isVideoEntry({})).toBe(true)
+    expect(isVideoEntry({ url: 'https://www.youtube.com/playlist?list=PL123' })).toBe(false)
+    expect(isVideoEntry({ url: 'https://www.youtube.com/channel/UC123' })).toBe(false)
+    expect(isVideoEntry({ url: 'https://www.youtube.com/@yoasobi' })).toBe(false)
   })
 })
 

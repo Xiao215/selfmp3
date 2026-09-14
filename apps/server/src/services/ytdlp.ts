@@ -168,6 +168,8 @@ export interface ProbedTrack {
 /** The subset of yt-dlp's JSON dump this app reads. */
 interface YtDlpJson {
   _type?: string
+  /** Which extractor a flat entry belongs to: `Youtube` for a video, `YoutubeTab` for a page. */
+  ie_key?: string
   id?: string
   url?: string
   webpage_url?: string
@@ -182,6 +184,20 @@ interface YtDlpJson {
   thumbnail?: string
   entries?: YtDlpJson[]
   playlist_title?: string
+}
+
+/**
+ * Whether one entry of a flat listing is a video.
+ *
+ * A search page, or an artist's, lists albums, playlists and channels beside
+ * the songs: `YoutubeTab` entries at a `/browse/`, `/playlist` or channel
+ * address, with no title of their own. Read as a track, one of those was
+ * downloaded as a whole album into a single file — yt-dlp resumed the file for
+ * each song and YouTube answered 416 — so only videos count.
+ */
+export function isVideoEntry(entry: { ie_key?: string; url?: string }): boolean {
+  if (entry.ie_key !== undefined && entry.ie_key !== 'Youtube') return false
+  return !/\/(browse\/|playlist\?|channel\/|c\/|user\/|@)/.test(entry.url ?? '')
 }
 
 const NO_COOKIES: YtCookieSettings = {
@@ -293,7 +309,7 @@ export class YtDlpService {
 
     if (parsed._type === 'playlist' && Array.isArray(parsed.entries)) {
       const tracks = parsed.entries
-        .filter((entry): entry is YtDlpJson => entry != null)
+        .filter((entry): entry is YtDlpJson => entry != null && isVideoEntry(entry))
         .map(entry => this.#toTrack(entry, url))
         .filter(track => track.url.length > 0)
       return {

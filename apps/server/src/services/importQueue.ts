@@ -262,9 +262,22 @@ export class ImportQueueService {
     let { title, artist, album, duration } = job
     let thumbnail = job.thumbnail
 
-    if (!title.trim()) {
+    /*
+     * A search page's listing names its songs but not who sings them, so a
+     * job from one arrives with a title and no artist. Asked about on its
+     * own, the video says: `artist`, `album`, and a thumbnail, for the file's
+     * name, the lyrics lookup and the tags the download embeds.
+     */
+    if (!title.trim() || !artist.trim()) {
       this.#imports.update(job.id, { step: 'resolving' })
       const probed = await this.#ytdlp.probe(job.url, signal)
+      if (probed.kind === 'playlist') {
+        // `--no-playlist` means nothing to an album or playlist address: every
+        // song in it would be downloaded, each over the last, into one file.
+        throw new Error(
+          'that link is a playlist, not one song — paste it on the Import screen to choose its songs',
+        )
+      }
       const track = probed.tracks[0]
       if (track) {
         title = track.title || title
@@ -373,11 +386,13 @@ export class ImportQueueService {
 
       const songId = await this.#scanner.ingest(libraryKey)
 
-      // Trust the user's chosen metadata over whatever was in the file tags.
+      // Trust the user's chosen metadata over whatever was in the file tags —
+      // where there is some. A blank is nothing chosen, and the tag yt-dlp
+      // embedded from YouTube's own listing is better than no artist at all.
       this.#songs.patch(songId, {
         title: title.trim(),
-        artist: artist.trim(),
-        album: album.trim(),
+        ...(artist.trim() ? { artist: artist.trim() } : {}),
+        ...(album.trim() ? { album: album.trim() } : {}),
       })
       this.#songs.setSourceUrl(songId, job.url)
       if (instrumental) this.#songs.setInstrumental(songId, true)
@@ -457,6 +472,7 @@ function isRetryable(message: string): boolean {
     'upgrade yt-dlp',
     'no title',
     'copyright',
+    'is a playlist',
   ]
   const lower = message.toLowerCase()
   return !permanent.some(phrase => lower.includes(phrase))

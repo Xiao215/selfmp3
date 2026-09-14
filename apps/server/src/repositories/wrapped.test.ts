@@ -111,6 +111,15 @@ describe('WrappedRepository', () => {
     ])
   })
 
+  it('holds three months between the month and the year', () => {
+    // Everything but song 4's one play, three hundred days ago.
+    const quarter = repo.build('quarter')
+    expect(quarter.range).toBe('quarter')
+    expect(quarter.totals.plays).toBe(11)
+    expect(quarter.topSongs.map(song => song.songId)).toEqual([1, 3, 2])
+    expect(repo.build('year').totals.plays).toBe(12)
+  })
+
   it('finds the song you played most in one day', () => {
     const week = repo.build('week')
     expect(week.mostInOneDay?.songId).toBe(1)
@@ -180,6 +189,22 @@ describe('WrappedRepository windows', () => {
     expect(week.totals.activeDays).toBe(7)
     expect(week.totals.plays).toBe(7)
     expect(week.longestStreakDays).toBe(7)
+  })
+
+  it('counts three months as ninety local days', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.prepare(
+      "INSERT INTO songs (id, path, title, added_at) VALUES (1, 'a', 'A', datetime('now', '-200 days'))",
+    ).run()
+    const insert = db.prepare(
+      "INSERT INTO play_events (song_id, played_at, ms_played) VALUES (1, datetime('now', ?), 60000)",
+    )
+    for (let day = 0; day < 120; day++) insert.run(`-${day} days`)
+
+    const quarter = new WrappedRepository(db).build('quarter')
+    expect(quarter.totals.activeDays).toBe(90)
+    expect(quarter.totals.plays).toBe(90)
   })
 })
 

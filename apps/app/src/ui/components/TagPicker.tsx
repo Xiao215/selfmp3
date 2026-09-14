@@ -232,9 +232,10 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: radius.sm,
-    // The border says it has focus, in the accent; the browser's own ring on
-    // top of it drew a second, white outline.
-    outlineWidth: 0,
+    // The border says it has focus, in the accent. The browser's own ring on top
+    // of it drew a second, white outline, and Chrome draws an `auto` ring at any
+    // width: it has to be no outline at all.
+    _web: { outlineStyle: 'none' },
   },
   /* In a pop-up: room above the box, a menu's height. */
   inputDense: {

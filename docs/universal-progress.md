@@ -2558,3 +2558,11 @@ From Xiao on 4600, with screenshots:
 - **The tag window**: `outlineWidth: 0` with the accent as the focused border
   (the browser ring had drawn a white second outline), and in a pop-up
   (`usePanelDense`) a 36-high search box with room above it and 34-high rows.
+
+### No white ring on the tag search — branch `universal/tag-focus`
+
+The tag window's search box still drew a white ring inside its blue focus
+border. `outlineWidth: 0` was not enough: the input's outline style is Chrome's
+`auto`, and an `auto` ring is drawn at any width. `_web: { outlineStyle: 'none' }`
+removes it; the accent border alone shows focus. Checked in Chrome: `outline
+none`, border the accent.

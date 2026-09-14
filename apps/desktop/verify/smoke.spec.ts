@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
 
@@ -448,6 +448,42 @@ test.describe('files on disk', () => {
     expect(named).not.toBe('')
     expect(executable().endsWith(named)).toBe(true)
     expect(existsSync(executable())).toBe(true)
+  })
+
+  /*
+   * Regression. `files.list` returned every regular file and the preload parses
+   * the whole array against `fileNameSchema`, which refuses a leading dot — so
+   * a single `.DS_Store`, which macOS writes the first time Settings' "Reveal
+   * in Finder" opens the songs directory, made every `files.list` call throw
+   * from then on. The app then showed no downloads at all, on a machine whose
+   * disk was full of them.
+   */
+  test('lists the app\'s own files past whatever else is in the directory', async () => {
+    const userDataDir = freshUserData()
+    const songs = join(userDataDir, 'songs')
+    mkdirSync(songs, { recursive: true })
+    // What Finder leaves behind, and a couple of other names the contract
+    // could never have written.
+    writeFileSync(join(songs, '.DS_Store'), 'x')
+    writeFileSync(join(songs, '._1.m4a'), 'x')
+    writeFileSync(join(songs, '5.m4a'), 'hello')
+    writeFileSync(join(songs, '6.m4a.part'), 'half a download')
+
+    const app = await launchApp({ userDataDir })
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const result = await page.evaluate(async () => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        return { list: await desktop.files.list('songs'), usage: await desktop.files.usage() }
+      })
+
+      expect(result.list).toEqual([{ name: '5.m4a', bytes: 5 }])
+      expect(result.usage.songs).toBe(5)
+    } finally {
+      await app.close()
+    }
   })
 
   test('offline, a song that was downloaded still plays, and reveal answers', async () => {

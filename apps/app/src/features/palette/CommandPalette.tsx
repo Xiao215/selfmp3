@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -36,8 +36,14 @@ import {
   Tag,
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
-import { useLibraryFilter } from '../library/libraryFilter'
-import { lyricsQueryFor, paletteResults, stepIndex, type PaletteCommandId } from './palette.model'
+import { useSetLibraryFilter } from '../library/libraryFilter'
+import {
+  lyricsQueryFor,
+  paletteResults,
+  stepIndex,
+  type PaletteCommandId,
+  type PaletteResults,
+} from './palette.model'
 
 interface Entry {
   readonly key: string
@@ -63,16 +69,21 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const { fromCloud } = useConnection()
   const { finePointer } = useLayout()
   const window = useWindowDimensions()
-  const [, setFilter] = useLibraryFilter()
+  const setFilter = useSetLibraryFilter()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   useEscape(true, onClose, { layer: true })
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
+  // The box keeps up with the fingers; the results, a search of the whole
+  // library, follow when there is time, and are skipped for letters typed
+  // faster than they can be drawn.
+  const shownQuery = useDeferredValue(query)
+  const resultsFor = (text: string) => paletteResults(text, library.data, fromCloud)
   const results = useMemo(
-    () => paletteResults(query, library.data, fromCloud),
-    [query, library.data, fromCloud],
+    () => paletteResults(shownQuery, library.data, fromCloud),
+    [shownQuery, library.data, fromCloud],
   )
 
   const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
@@ -121,14 +132,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   }
 
   /** One flat list of everything selectable, so arrow keys work across groups. */
-  const entries: Entry[] = [
-    ...results.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
-    ...results.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
-    ...results.playlists.map(playlist => ({
+  const entriesFor = (found: PaletteResults): Entry[] => [
+    ...found.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
+    ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
+    ...found.playlists.map(playlist => ({
       key: `playlist-${playlist.id}`,
       run: () => router.navigate(`/playlists/${playlist.id}`),
     })),
-    ...results.tags.map(tag => ({
+    ...found.tags.map(tag => ({
       key: `tag-${tag.id}`,
       run: () => {
         setFilter(current => includeTag(clearTagFilter(current), tag.id))
@@ -137,6 +148,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     })),
     ...lyricHits.map(hit => ({ key: `lyric-${hit.songId}`, run: () => playSong(hit.songId) })),
   ]
+  const entries = entriesFor(results)
   const active = Math.min(highlighted, Math.max(0, entries.length - 1))
   // Keep the highlighted row in view as the arrow keys move through a long list.
   const rows = useRef(new Map<number, unknown>())
@@ -196,7 +208,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'shuffle-all': icon(Shuffle),
     'rescan-library': icon(Refresh),
   }
-  const trimmed = query.trim()
+  // What the results below were found for, so the count and "nothing matches"
+  // never describe a query the list has not caught up with.
+  const trimmed = shownQuery.trim()
 
   useOverlay(
     <View
@@ -232,7 +246,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               ;(event as unknown as { preventDefault: () => void }).preventDefault()
               setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, entries.length))
             }}
-            onSubmitEditing={() => activate(active)}
+            onSubmitEditing={() => {
+              // Enter straight after a letter can beat the deferred results to
+              // the screen. It means what was typed, so it takes the first row
+              // of that — the highlight is back at the top after any letter.
+              if (shownQuery === query) activate(active)
+              else {
+                entriesFor(resultsFor(query))[0]?.run()
+                onClose()
+              }
+            }}
             placeholder="Search songs, playlists, tags — or type a command"
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"

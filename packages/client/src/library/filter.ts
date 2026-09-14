@@ -1,4 +1,13 @@
-import { fuzzyRank, sortSongs, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
+import {
+  fuzzyRankPrepared,
+  fuzzyTopPrepared,
+  preparedTextFor,
+  sortSongs,
+  type FuzzyMatch,
+  type Song,
+  type SongSortField,
+  type Tag,
+} from '@selfmp3/shared'
 
 /**
  * Library filtering and sorting.
@@ -36,14 +45,20 @@ export const DEFAULT_FILTER: LibraryFilter = {
 /** How one tag is filtering the library right now. */
 export type TagFilterState = 'off' | 'include' | 'exclude'
 
-export function tagFilterState(filter: LibraryFilter, tagId: number): TagFilterState {
+/**
+ * The part of a filter the tags decide. The sidebar reads only this, so it
+ * need not hear about every letter typed into the search.
+ */
+export type TagFilter = Pick<LibraryFilter, 'includedTagIds' | 'excludedTagIds'>
+
+export function tagFilterState(filter: TagFilter, tagId: number): TagFilterState {
   if (filter.includedTagIds.includes(tagId)) return 'include'
   if (filter.excludedTagIds.includes(tagId)) return 'exclude'
   return 'off'
 }
 
 /** Whether any tag is filtering, either way. */
-export function tagFiltered(filter: LibraryFilter): boolean {
+export function tagFiltered(filter: TagFilter): boolean {
   return filter.includedTagIds.length > 0 || filter.excludedTagIds.length > 0
 }
 
@@ -112,6 +127,27 @@ function searchText(song: Song): string {
   return `${song.title} ${song.artist} ${song.album}`
 }
 
+/**
+ * Each song's search text, lowercased once per song object rather than once
+ * per keystroke. The library query hands back the same objects until it is
+ * refetched, so typing reuses them; a refetch brings new objects and the old
+ * text goes with the old songs.
+ */
+const preparedSearchText = preparedTextFor<Song>(searchText)
+
+/**
+ * Songs best-first for a query: the library's search, and the palette's.
+ * One matcher and one prepared text for both, so they cannot disagree.
+ */
+export function searchSongs<S extends Song>(query: string, songs: readonly S[]): FuzzyMatch<S>[] {
+  return fuzzyRankPrepared(query, songs, preparedSearchText)
+}
+
+/** The best `count` of `searchSongs`, in its order, without ranking the rest. */
+export function topSongs<S extends Song>(query: string, songs: readonly S[], count: number): S[] {
+  return fuzzyTopPrepared(query, songs, preparedSearchText, count).map(match => match.item)
+}
+
 export function filterSongs(
   songs: readonly Song[],
   filter: LibraryFilter,
@@ -131,7 +167,7 @@ export function filterSongs(
   if (filter.query.trim().length > 0) {
     // A relevance-ranked search should not then be re-sorted by title; the
     // ranking *is* the order.
-    return fuzzyRank(filter.query, result, searchText).map(match => match.item)
+    return searchSongs(filter.query, result).map(match => match.item)
   }
 
   // The shared comparison, so the phone and the Mac put the same library in

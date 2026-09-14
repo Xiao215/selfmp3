@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system'
 import { library, cloudPlatform, session as cloudSession } from '../cloud'
+import { createCoverChanges } from './coverChanges'
 
 /**
  * Cover art from the bucket, as files this phone can hand to the OS.
@@ -23,27 +24,20 @@ const known = new Map<number, string | null>()
 /** In-flight fetches, so ten rows appearing at once make one request. */
 const fetching = new Map<number, Promise<string | null>>()
 
-/** Whoever wants to know when a cover arrives — the list, mostly. */
-const listeners = new Set<() => void>()
+/**
+ * Whoever wants to know when a cover arrives — the list, mostly — told which
+ * songs' covers, a frame's worth at a time (offline/coverChanges.ts).
+ */
+const changes = createCoverChanges()
 
 export function onCoversChanged(run: () => void): () => void {
-  listeners.add(run)
-  return () => listeners.delete(run)
+  return changes.subscribe(() => run())
 }
 
-/**
- * Gathered onto one frame: thirteen covers arriving from disk at launch used to
- * be thirteen renders of every list, back to back.
- */
-let announcing = false
-function announce(): void {
-  if (announcing) return
-  announcing = true
-  setTimeout(() => {
-    announcing = false
-    for (const run of listeners) run()
-  }, 16)
-}
+/** `onCoversChanged`, naming the songs whose covers changed. */
+export const subscribeCovers = changes.subscribe
+/** Bumped once per announcement: how a reader tells it missed one. */
+export const coversVersion = changes.version
 
 /**
  * A Mac's covers, kept beside the songs in the document directory rather than
@@ -95,6 +89,15 @@ export function coversNow(): ReadonlyMap<number, string> {
 }
 
 /**
+ * One song's entry in `coversNow()`, without copying the rest: a kept Mac
+ * cover before a cloud one, as the map is built.
+ */
+export function coverFor(songId: number): string | undefined {
+  prime()
+  return served.get(songId)?.uri ?? (known.get(songId) || undefined)
+}
+
+/**
  * Keep a Mac's cover on this device, from the address the Mac serves it at.
  * Safe to call for every visible row: a cover already kept, or an address
  * already tried, costs a map lookup. The file is checked before the network,
@@ -120,7 +123,7 @@ export function ensureServerCover(songId: number, rev: string | undefined, url: 
         if (!written.exists) return
       }
       served.set(songId, { rev: revision, uri: file.uri })
-      announce()
+      changes.changed(songId)
     } catch {
       // The Mac is away. The address is drawn for now, and asked for again
       // next launch; there is a letter tile behind it either way.
@@ -185,7 +188,7 @@ export async function ensureCover(songId: number): Promise<string | null> {
   const uri = await work
   fetching.delete(songId)
   known.set(songId, uri)
-  if (uri) announce()
+  if (uri) changes.changed(songId)
   return uri
 }
 

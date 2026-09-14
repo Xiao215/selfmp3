@@ -3005,3 +3005,57 @@ depends on anything between the two.
 
 `zod` needs no line: the repository is already on `^3.24.1` (3.25.76 resolved),
 and `packages/desktop-bridge` uses the same one every other package does.
+
+## Phase 1 — the spike — branch `desktop/spike`
+
+All six checks pass. **Checks 1 and 2 are the ones the plan says decide whether
+there is a desktop app at all, and both pass**, so the rest is engineering.
+
+Every check is a script under `apps/desktop/verify/spike/` that exits non-zero
+on failure; `node apps/desktop/verify/spike/all.mjs` runs the set. They ran
+under `xvfb-run` with Electron 44.3.0, on Linux.
+
+| Check | Verdict | What ran, and what could not |
+|---|---|---|
+| 1 — the export under `app://` | **pass** | The real `apps/app/dist` in a 1280×800 window: 41 nodes mounted, "self.mp3 — Your music, from the bucket…" drawn, a secure context with IndexedDB, no console error. `app://selfmp3/playlist/1` loads and the router takes it — and *redirects to `/sign-in`*, which is the app's own guard, not a routing failure; a reload comes back to the same place. |
+| 2 — the engine from `app://` | **pass** | The repository's own `apps/app/src/ports/engine.web.ts`, bundled by esbuild and driven directly — not a copy of it. It imports only types from `@selfmp3/client`, which is what makes that possible, and is why this result is worth something. Plays cold with no gesture, seeks across a range boundary (`bytes=19038208-` answered 206), crossfades into the second file, analyser peak bin 229, rate 1.25 with pitch lock. `canPlayType` answers **"probably"** for both AAC (`mp4a.40.2`) and MP3, so the proprietary-codec worry is retired. |
+| 3 — Now Playing | **pass (API half)** | Metadata with two artwork sizes, all six action handlers registered, `setPositionState` accepted, `playbackState` reads back, and Electron leaves `HardwareMediaKeyHandling` on. The half that matters to a person — the Control Center panel, its artwork, a real media key — is macOS and a finger. `node apps/desktop/verify/spike/3-now-playing.mjs --interactive` on the Mac holds the window up for 60 seconds waiting for the key. |
+| 4 — the deep link | **pass (the cross-platform half)** | The first launch takes the single-instance lock; a second launch carrying `selfmp3://sign-in#signin-code=TEST-CODE` hands it over and exits rather than opening a second window; a cold launch finds the URL in its own argv. `open-url` — the macOS delivery — is wired and unexercised, and `setAsDefaultProtocolClient` answers false here because Linux claims a scheme through `xdg-settings` and a `.desktop` entry that this container has neither of. macOS registers from the bundle through LaunchServices and needs none of it. |
+| 5 — the keychain | **pass (the contract)** | Seal → write `userData/secrets.json` → **quit** → relaunch → open again, which is the part a token surviving a quit depends on. The strength is *not* checked here: with no secret service, `isEncryptionAvailable()` is false until `setUsePlainTextEncryption(true)`, so this container ran a plain-text store. On the Mac that same call is the login keychain. |
+| 6 — resume | **pass** | Cut off at 43% of 6 MB, resumed with `Range: bytes=2682087-`, answered `206 bytes 2682087-6291455/6291456`, appended, renamed, and the SHA-256 matches the original byte for byte. It refuses to append to a 200, which is the way this goes wrong quietly. Against a local range server rather than the dev server's `/api/stream/<id>`, there being no dev library here. |
+
+### What check 2 turned up on the way, which is not a desktop problem
+
+**`engine.web.ts` reports `playing: false` after a crossfade, while the music
+is audibly playing.** The state trace is
+`play/ready@118.60 → pause/ready@120.00`, and the next song went on and kept
+going: song 2 at t=1.6 and climbing, with `state.playing` false.
+
+The cause is a race the HTML spec guarantees. When a media element reaches the
+end of its resource the user agent *sets `paused` to true and fires `pause`*,
+then fires `ended`. The crossfade starts when `timeupdate` says the remaining
+time is under the fade length — and `timeupdate` only fires about four times a
+second, so the fade reliably finishes a beat *after* the outgoing element has
+ended. By then `#onPause` has already set `playing: false`; `#onEnded` is
+correctly ignored (the handover is armed), `#swap()` promotes the element that
+is already playing, and nothing sets the flag back.
+
+So it fires on nearly every crossfade, and it is invisible today only because
+crossfade is off by default. It is a one-line fix in `#swap()` and it is
+**deliberately not made on this branch**: the spike is thrown away, and the
+first phase that has a reason to own it is phase 4, where this same flag drives
+the Now Playing panel's play/pause button. Written down here so it is not
+rediscovered.
+
+### Two notes on how the spike ran
+
+- **Electron was installed with `--no-save`**, so this branch's `package.json`
+  does not mention it; `apps/desktop/package.json` in phase 2 is where it is
+  declared properly. Its own `postinstall` had to be run by hand, because npm
+  11 does not run install scripts without approval.
+- **Chromium refuses its sandbox as root**, which this container is and a Mac
+  is not, so the runner passes `--no-sandbox`. That is a fact about where the
+  checks ran and never something the shipped shell asks for.
+- `eslint.config.js` ignores `apps/desktop/verify/spike/**`: throwaway `.mjs`
+  and `.cjs` outside every tsconfig, which the type-aware parser has no project
+  to resolve. The ignore goes away with the branch.

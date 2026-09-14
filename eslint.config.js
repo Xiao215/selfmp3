@@ -24,6 +24,13 @@ export default tseslint.config(
        * Native's globals and JSX types would leak into the server's.
        */
       'apps/app/**',
+      /*
+       * The spike's six checks: throwaway JavaScript on a branch that is
+       * deleted once its results are in docs/universal-progress.md. They are
+       * plain .mjs and .cjs outside every tsconfig, so the type-aware parser
+       * has no project to resolve them against.
+       */
+      'apps/desktop/verify/spike/**',
     ],
   },
   js.configs.recommended,

@@ -2491,3 +2491,13 @@ white scrollbar, and Edit tags filled the width of the window.
 - Checked in Chrome at 1280×900: the last row's menu opened above its ⋯
   (240×407, no scroll, no scrollbar); Edit tags from it was 402 wide and
   centred; the bar's picker was 320 wide above the button.
+
+### CI: react-dom's types declared — branch `universal/react-dom-types`
+
+The Pages and Check workflows failed on main from the hover captions onward:
+`shell/TooltipHost.web.tsx` imports `createPortal` from `react-dom`, and
+`tsc` found no declaration for it. Locally `@types/react-dom` 19.3.0 sat in the
+root `node_modules`, left over and absent from the lockfile, so the check
+passed here and not after CI's clean install. `@selfmp3/app` now declares
+`@types/react-dom ~19.2.7` (matching `@types/react ~19.2.18`); the lockfile
+gains only that entry.

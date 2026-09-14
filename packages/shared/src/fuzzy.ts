@@ -69,22 +69,61 @@ function acronym(text: string): string {
 }
 
 /**
- * Score one candidate against a query. Returns null when it does not match at
- * all, which lets callers filter and rank in a single pass.
+ * A candidate's text with the per-candidate work done once: the lowercase copy
+ * every test reads, and the initials the acronym test reads.
+ *
+ * Kept apart from the query because a library search scores the same few
+ * thousand songs on every keystroke. Lowercasing each one, and splitting it
+ * into words for its initials, was most of what a keystroke cost — work whose
+ * answer never changes while the library does not.
  */
-export function scoreMatch(query: string, candidate: string): number | null {
+export class FuzzyText {
+  readonly text: string
+  readonly lower: string
+  #initials: string | undefined
+
+  constructor(text: string) {
+    this.text = text
+    this.lower = text.toLowerCase()
+  }
+
+  /** Worked out the first time a query gets this far, which most never do. */
+  get initials(): string {
+    this.#initials ??= acronym(this.lower)
+    return this.#initials
+  }
+}
+
+/** A query with its own once-per-keystroke work done: the trim, and the word-start pattern. */
+interface CompiledQuery {
+  readonly q: string
+  readonly wordPrefix: RegExp
+  readonly tolerance: number
+}
+
+function compileQuery(query: string): CompiledQuery {
   const q = query.trim().toLowerCase()
-  const c = candidate.toLowerCase()
+  return {
+    q,
+    // No `g` flag: a global pattern remembers where it stopped, and would
+    // answer the next candidate from the middle of it.
+    wordPrefix: new RegExp(`\\b${escapeRegExp(q)}`),
+    tolerance: q.length >= 6 ? 2 : q.length >= 4 ? 1 : 0,
+  }
+}
+
+function scoreCompiled(query: CompiledQuery, candidate: FuzzyText): number | null {
+  const { q, tolerance } = query
+  const c = candidate.lower
   if (q.length === 0) return 0
   if (c === q) return SCORE_EXACT
   if (c.startsWith(q)) return SCORE_PREFIX - c.length
-  if (new RegExp(`\\b${escapeRegExp(q)}`).test(c)) return SCORE_WORD_PREFIX - c.length
+  if (query.wordPrefix.test(c)) return SCORE_WORD_PREFIX - c.length
   if (c.includes(q)) return SCORE_SUBSTRING - c.length
-  if (acronym(c).startsWith(q)) return SCORE_ACRONYM - c.length
+  if (candidate.initials.startsWith(q)) return SCORE_ACRONYM - c.length
   if (isSubsequence(q, c)) return SCORE_SUBSEQUENCE - c.length
 
   // Last resort: tolerate typos, but only proportionally to query length.
-  const tolerance = q.length >= 6 ? 2 : q.length >= 4 ? 1 : 0
   if (tolerance > 0) {
     const distance = editDistance(q, c, tolerance)
     if (distance <= tolerance) return 200 - distance * 50 - c.length
@@ -92,8 +131,121 @@ export function scoreMatch(query: string, candidate: string): number | null {
   return null
 }
 
+/**
+ * Score one candidate against a query. Returns null when it does not match at
+ * all, which lets callers filter and rank in a single pass.
+ */
+export function scoreMatch(query: string, candidate: string): number | null {
+  return scoreCompiled(compileQuery(query), new FuzzyText(candidate))
+}
+
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * A match, with the text it was ranked by and where it stood in the input,
+ * so ordering reads fields rather than rebuilding each item's text on every
+ * comparison — a sort makes n log n of them.
+ */
+interface Scored<T> {
+  readonly match: FuzzyMatch<T>
+  readonly text: string
+  readonly index: number
+}
+
+/**
+ * Best first; equal scores alphabetically; and, as a stable sort leaves them,
+ * in input order after that — spelled out so a partial selection agrees with
+ * the full sort exactly.
+ */
+function bestFirst<T>(a: Scored<T>, b: Scored<T>): number {
+  return b.match.score - a.match.score || a.text.localeCompare(b.text) || a.index - b.index
+}
+
+function scoreAll<T>(
+  query: string,
+  items: readonly T[],
+  prepared: (item: T) => FuzzyText,
+  keep: (scored: Scored<T>) => void,
+): void {
+  const compiled = compileQuery(query)
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index] as T
+    const candidate = prepared(item)
+    const score = scoreCompiled(compiled, candidate)
+    if (score === null) continue
+    keep({
+      match: { item, score, exact: candidate.lower === compiled.q },
+      text: candidate.text,
+      index,
+    })
+  }
+}
+
+/**
+ * `fuzzyRank`, for candidates whose text is already prepared — the library,
+ * which keeps each song's `FuzzyText` for as long as the song object lives.
+ */
+export function fuzzyRankPrepared<T>(
+  query: string,
+  items: readonly T[],
+  prepared: (item: T) => FuzzyText,
+): FuzzyMatch<T>[] {
+  if (query.trim().length === 0) {
+    return items.map(item => ({ item, score: 0, exact: false }))
+  }
+  const scored: Scored<T>[] = []
+  scoreAll(query, items, prepared, one => scored.push(one))
+  scored.sort(bestFirst)
+  return scored.map(one => one.match)
+}
+
+/**
+ * The first `count` of `fuzzyRankPrepared`, in the same order, without sorting
+ * every match to throw most away: the palette shows eight songs out of a
+ * library that can match thousands on a single letter.
+ */
+export function fuzzyTopPrepared<T>(
+  query: string,
+  items: readonly T[],
+  prepared: (item: T) => FuzzyText,
+  count: number,
+): FuzzyMatch<T>[] {
+  if (count <= 0) return []
+  if (query.trim().length === 0) {
+    return items.slice(0, count).map(item => ({ item, score: 0, exact: false }))
+  }
+  // Kept best-first. A newcomer comes later in the input than everything
+  // kept, so it goes after anything it ties with, as the stable sort puts it.
+  const kept: Scored<T>[] = []
+  scoreAll(query, items, prepared, one => {
+    const last = kept[kept.length - 1]
+    if (kept.length >= count && last && bestFirst(one, last) >= 0) return
+    let at = kept.length
+    while (at > 0 && bestFirst(one, kept[at - 1] as Scored<T>) < 0) at--
+    kept.splice(at, 0, one)
+    if (kept.length > count) kept.pop()
+  })
+  return kept.map(one => one.match)
+}
+
+/**
+ * Prepared text for objects, remembered per object. Weakly, so a library that
+ * is refetched lets its old songs, and their text, go.
+ */
+export function preparedTextFor<T extends object>(
+  toText: (item: T) => string,
+): (item: T) => FuzzyText {
+  const cache = new WeakMap<T, FuzzyText>()
+  return item => {
+    let prepared = cache.get(item)
+    if (!prepared) {
+      prepared = new FuzzyText(toText(item))
+      cache.set(item, prepared)
+    }
+    return prepared
+  }
 }
 
 /**
@@ -105,19 +257,5 @@ export function fuzzyRank<T>(
   items: readonly T[],
   toText: (item: T) => string,
 ): FuzzyMatch<T>[] {
-  const q = query.trim().toLowerCase()
-  if (q.length === 0) {
-    return items.map(item => ({ item, score: 0, exact: false }))
-  }
-
-  const matches: FuzzyMatch<T>[] = []
-  for (const item of items) {
-    const text = toText(item)
-    const score = scoreMatch(q, text)
-    if (score === null) continue
-    matches.push({ item, score, exact: text.toLowerCase() === q })
-  }
-
-  matches.sort((a, b) => b.score - a.score || toText(a.item).localeCompare(toText(b.item)))
-  return matches
+  return fuzzyRankPrepared(query, items, item => new FuzzyText(toText(item)))
 }

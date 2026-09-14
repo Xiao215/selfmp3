@@ -1,5 +1,6 @@
 import { library, cloudPlatform, session as cloudSession } from '../cloud'
 import { coverFiles } from '../ports/coverFiles'
+import { createCoverChanges } from './coverChanges'
 
 /**
  * Cover art from the bucket, for the platforms Metro calls web: the installed
@@ -29,26 +30,21 @@ const served = new Map<number, { rev: string; uri: string }>()
 /** Addresses tried this launch: a Mac that is away is asked once per song. */
 const tried = new Set<string>()
 
-const listeners = new Set<() => void>()
+/**
+ * Who hears a cover arrive, told which songs' covers, a frame's worth at a
+ * time: covers arriving from disk at launch would otherwise be one render of
+ * every list each (offline/coverChanges.ts).
+ */
+const changes = createCoverChanges()
 
 export function onCoversChanged(run: () => void): () => void {
-  listeners.add(run)
-  return () => listeners.delete(run)
+  return changes.subscribe(() => run())
 }
 
-/**
- * Gathered onto one frame: covers arriving from disk at launch would otherwise
- * be one render of every list each.
- */
-let announcing = false
-function announce(): void {
-  if (announcing) return
-  announcing = true
-  setTimeout(() => {
-    announcing = false
-    for (const run of listeners) run()
-  }, 16)
-}
+/** `onCoversChanged`, naming the songs whose covers changed. */
+export const subscribeCovers = changes.subscribe
+/** Bumped once per announcement: how a reader tells it missed one. */
+export const coversVersion = changes.version
 
 /** `4f1c….jpg` from `covers/4f1c….jpg`: the hash is already the name. */
 function nameFromKey(key: string): string {
@@ -74,9 +70,11 @@ function prime(): void {
     try {
       for (const name of await coverFiles.list()) {
         const match = /^(\d+)-(.*)\.jpg$/.exec(name)
-        if (match) served.set(Number(match[1]), { rev: match[2] ?? '', uri: coverFiles.uriFor(name) })
+        if (!match) continue
+        const songId = Number(match[1])
+        served.set(songId, { rev: match[2] ?? '', uri: coverFiles.uriFor(name) })
+        changes.changed(songId)
       }
-      if (served.size > 0) announce()
     } catch {
       // Nothing kept, or nothing readable: the Mac is asked as before.
     }
@@ -90,6 +88,15 @@ export function coversNow(): ReadonlyMap<number, string> {
   for (const [songId, uri] of known) if (uri) found.set(songId, uri)
   for (const [songId, { uri }] of served) found.set(songId, uri)
   return found
+}
+
+/**
+ * One song's entry in `coversNow()`, without copying the rest: a kept Mac
+ * cover before a cloud one, as the map is built.
+ */
+export function coverFor(songId: number): string | undefined {
+  prime()
+  return served.get(songId)?.uri ?? (known.get(songId) || undefined)
 }
 
 /**
@@ -115,7 +122,7 @@ export function ensureServerCover(songId: number, rev: string | undefined, url: 
     try {
       if (!(await files.has(name))) await files.keep(name, url)
       served.set(songId, { rev: revision, uri: files.uriFor(name) })
-      announce()
+      changes.changed(songId)
     } catch {
       // The Mac is away. The address is drawn for now, and asked for again
       // next launch; there is a letter tile behind it either way.
@@ -170,7 +177,7 @@ export async function ensureCover(songId: number): Promise<string | null> {
   const uri = await work
   fetching.delete(songId)
   known.set(songId, uri)
-  if (uri) announce()
+  if (uri) changes.changed(songId)
   return uri
 }
 

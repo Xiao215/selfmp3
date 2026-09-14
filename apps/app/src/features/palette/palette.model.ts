@@ -1,4 +1,5 @@
 import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
+import { topSongs } from '@selfmp3/client'
 
 /**
  * The ⌘K palette's rules, with nothing drawn: which commands there are, what a
@@ -60,6 +61,22 @@ export interface PaletteResults {
   readonly tags: Tags
 }
 
+/**
+ * Untagged songs, counted once per library rather than once per letter typed.
+ * Keyed weakly on the songs array, which the library query keeps until it
+ * refetches.
+ */
+const untaggedCounts = new WeakMap<Songs, number>()
+
+export function untaggedCount(songs: Songs): number {
+  let count = untaggedCounts.get(songs)
+  if (count === undefined) {
+    count = songs.filter(song => song.tagIds.length === 0 && !song.missing).length
+    untaggedCounts.set(songs, count)
+  }
+  return count
+}
+
 /** Every command with no query; with one, the best few of each kind. */
 export function paletteResults(
   query: string,
@@ -67,8 +84,7 @@ export function paletteResults(
   fromCloud = false,
 ): PaletteResults {
   const songs = library?.songs ?? []
-  const untagged = songs.filter(song => song.tagIds.length === 0 && !song.missing).length
-  const commands = paletteCommands(songs.length, fromCloud, untagged)
+  const commands = paletteCommands(songs.length, fromCloud, untaggedCount(songs))
   const trimmed = query.trim()
   if (!trimmed) return { commands, songs: [], playlists: [], tags: [] }
   const top = <T>(items: readonly T[], text: (item: T) => string, count: number): T[] =>
@@ -77,7 +93,9 @@ export function paletteResults(
       .map(match => match.item)
   return {
     commands: top(commands, command => command.label, 5),
-    songs: top(songs, song => `${song.title} ${song.artist} ${song.album}`, 8),
+    // The library's own search, top eight picked without ranking the other
+    // few thousand: this runs on every letter typed.
+    songs: topSongs(trimmed, songs, 8),
     playlists: top(library?.playlists ?? [], playlist => playlist.name, 4),
     tags: top(library?.tags ?? [], tag => tag.name, 4),
   }

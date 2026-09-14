@@ -20,7 +20,7 @@ import {
   type TagFilterState,
 } from '@selfmp3/client'
 import { useAddToPlaylist, useCreateTag, useLibrary } from '../api/queries'
-import { useLibraryFilter } from '../features/library/libraryFilter'
+import { useLibraryTagFilter } from '../features/library/libraryFilter'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
@@ -278,13 +278,16 @@ function Tags(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
-  const [filter, setFilter] = useLibraryFilter()
+  // The tag half only: the search shares this filter, and a letter typed there
+  // changes nothing this list shows.
+  const [filter, setFilter] = useLibraryTagFilter()
   const createTag = useCreateTag()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
 
   const tags = library?.tags ?? []
-  const untaggedCount = (library?.songs ?? []).filter(isUntagged).length
+  // A pass over the whole library; its answer only changes when the library does.
+  const untaggedCount = useMemo(() => (library?.songs ?? []).filter(isUntagged).length, [library])
   const { fromCloud } = useConnection()
   const trimmed = name.trim()
   const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []

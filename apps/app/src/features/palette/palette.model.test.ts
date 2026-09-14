@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { fuzzyRank } from '@selfmp3/shared'
 
-import { lyricsQueryFor, paletteCommands, paletteResults, stepIndex } from './palette.model'
+import {
+  lyricsQueryFor,
+  paletteCommands,
+  paletteResults,
+  stepIndex,
+  untaggedCount,
+} from './palette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
   ({ id, title, artist, album: '', tagIds: [7], missing: false }) as never
@@ -40,6 +47,35 @@ describe('the command palette', () => {
     expect(paletteResults('evening', library).playlists).toHaveLength(1)
     expect(paletteResults('yoasobi', library).tags).toHaveLength(1)
     expect(paletteResults('settings', library).commands[0]?.id).toBe('nav-settings')
+  })
+
+  it('keeps the eight best songs in the order a full ranking gives', () => {
+    const many = {
+      ...library,
+      songs: Array.from({ length: 40 }, (_, id) =>
+        song(
+          id,
+          id % 3 === 0 ? `Night ${40 - id}` : `Midnight ${id}`,
+          id % 2 ? 'Nightcrawler' : 'x',
+        ),
+      ),
+    }
+    const ranked = fuzzyRank(
+      'night',
+      many.songs as { title: string; artist: string; album: string }[],
+      s => `${s.title} ${s.artist} ${s.album}`,
+    )
+    expect(paletteResults('night', many).songs).toEqual(ranked.slice(0, 8).map(match => match.item))
+  })
+
+  it('counts untagged songs once per library', () => {
+    const songs = [
+      song(1, 'a'),
+      { ...(song(2, 'b') as object), tagIds: [] } as never,
+      { ...(song(3, 'c') as object), tagIds: [], missing: true } as never,
+    ]
+    expect(untaggedCount(songs)).toBe(1)
+    expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
   })
 
   it('searches lyrics only once the query means something', () => {

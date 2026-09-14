@@ -40,7 +40,7 @@ export function PlaylistCover({
 
   const songIds = given ?? data?.songIds
   const covers = useMemo(() => {
-    const byId = new Map((library?.songs ?? []).map(song => [song.id, song]))
+    const byId = songsById(library?.songs ?? NO_SONGS)
     const songs = (songIds ?? []).slice(0, 24).flatMap(id => {
       const song = byId.get(id)
       return song ? [song] : []
@@ -72,6 +72,24 @@ export function PlaylistCover({
       ))}
     </View>
   )
+}
+
+const NO_SONGS: readonly Song[] = []
+
+/**
+ * The library by song id, built once per library and shared by every tile.
+ * Each tile used to build its own, of the whole library, whenever any cover
+ * arrived: a grid of forty playlists was forty copies of it per cover.
+ */
+const byIdCache = new WeakMap<readonly Song[], ReadonlyMap<number, Song>>()
+
+function songsById(songs: readonly Song[]): ReadonlyMap<number, Song> {
+  let byId = byIdCache.get(songs)
+  if (!byId) {
+    byId = new Map(songs.map(song => [song.id, song]))
+    byIdCache.set(songs, byId)
+  }
+  return byId
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Song } from '@selfmp3/shared'
+import { fuzzyRank, type Song } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -8,8 +8,10 @@ import {
   filterHeading,
   filterSongs,
   includeTag,
+  searchSongs,
   tagFilterState,
   tagFiltered,
+  topSongs,
   type LibraryFilter,
 } from './filter.js'
 
@@ -94,6 +96,26 @@ describe('tag filtering', () => {
 
   it('says "Library" first when only exclusions are on', () => {
     expect(filterHeading(excludeTag(byTitle, INSTRUMENTAL), TAGS)).toBe('Library · not instrumental')
+  })
+
+  it('searches with prepared text in the order the plain ranking gives', () => {
+    const library = [
+      song(1, 'Midnight Drive', []),
+      song(2, 'Drive', []),
+      song(3, 'Nightcall', []),
+      song(4, 'drive', []),
+      song(5, 'Dr. Ive', []),
+    ]
+    const text = (item: Song) => `${item.title} ${item.artist} ${item.album}`
+    for (const query of ['', 'drive', 'dri', 'night', 'md', 'drvie', 'nothing']) {
+      const plain = fuzzyRank(query, library, text)
+      expect(searchSongs(query, library), query).toEqual(plain)
+      expect(topSongs(query, library, 2), query).toEqual(plain.slice(0, 2).map(m => m.item))
+      if (query) {
+        const filter = { ...byTitle, query }
+        expect(filterSongs(library, filter, () => false), query).toEqual(plain.map(m => m.item))
+      }
+    }
   })
 
   it('leaves out a tag that no longer exists', () => {

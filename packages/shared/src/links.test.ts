@@ -3,7 +3,9 @@ import {
   extractUrls,
   isYouTubeUrl,
   youtubeChannel,
+  youtubeMusicAlbum,
   youtubeMusicSearch,
+  youtubePlaylistId,
   youtubeVideoId,
 } from './links.js'
 
@@ -74,6 +76,41 @@ describe('youtubeMusicSearch', () => {
     expect(youtubeMusicSearch('https://www.youtube.com/results?search_query=yoasobi')).toBeNull()
     expect(youtubeMusicSearch('https://music.youtube.com/watch?v=by4SYYWlhEs')).toBeNull()
     expect(youtubeMusicSearch('not a link')).toBeNull()
+  })
+})
+
+describe('youtubeMusicAlbum', () => {
+  it("reads an album's id from its YouTube Music page, and nothing else", () => {
+    expect(youtubeMusicAlbum('https://music.youtube.com/browse/MPREb_hqiB0KumHYT')).toBe(
+      'MPREb_hqiB0KumHYT',
+    )
+    expect(youtubeMusicAlbum('https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw')).toBeNull()
+    expect(youtubeMusicAlbum('https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n')).toBeNull()
+    expect(youtubeMusicAlbum('https://www.youtube.com/browse/MPREb_hqiB0KumHYT')).toBeNull()
+  })
+})
+
+describe('youtubePlaylistId', () => {
+  it('reads a made playlist or an album’s from any of its spellings', () => {
+    expect(youtubePlaylistId('https://music.youtube.com/playlist?list=PLcKNQQ5neMz2J5RP49n')).toBe(
+      'PLcKNQQ5neMz2J5RP49n',
+    )
+    expect(youtubePlaylistId('https://www.youtube.com/playlist?list=OLAK5uy_m9tuwAgM8iEzi')).toBe(
+      'OLAK5uy_m9tuwAgM8iEzi',
+    )
+    expect(youtubePlaylistId('https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n')).toBe(
+      'PLcKNQQ5neMz2J5RP49n',
+    )
+    expect(
+      youtubePlaylistId('https://www.youtube.com/watch?v=m9SMT5ipbxk&list=PLcKNQQ5neMz2J5RP49n'),
+    ).toBe('PLcKNQQ5neMz2J5RP49n')
+  })
+
+  it('leaves Liked Music, mixes and radios, and everything else, to yt-dlp', () => {
+    expect(youtubePlaylistId('https://music.youtube.com/playlist?list=LM')).toBeNull()
+    expect(youtubePlaylistId('https://music.youtube.com/playlist?list=RDCLAK5uy_mHAEb33pq')).toBeNull()
+    expect(youtubePlaylistId('https://music.youtube.com/watch?v=m9SMT5ipbxk')).toBeNull()
+    expect(youtubePlaylistId('https://example.com/playlist?list=PL123')).toBeNull()
   })
 })
 

@@ -64,6 +64,43 @@ export function youtubeMusicSearch(url: string): string | null {
   }
 }
 
+/**
+ * An album's id from a link to its page on YouTube Music —
+ * `music.youtube.com/browse/MPREb_…` — or null for any other link.
+ */
+export function youtubeMusicAlbum(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname.toLowerCase() !== 'music.youtube.com') return null
+    const [first = '', second = ''] = parsed.pathname.split('/').filter(Boolean)
+    return first === 'browse' && /^MPREb_[A-Za-z0-9_-]+$/.test(second) ? second : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A playlist's id from a link to it on either host — `playlist?list=PL…`,
+ * `watch?v=…&list=PL…`, or YouTube Music's `browse/VLPL…` — or null.
+ *
+ * Only a made playlist (`PL…`) or an album's (`OLAK5uy_…`): Liked Music
+ * (`LM`) needs a signed-in session, and a mix or radio (`RD…`) is made anew
+ * each time it is opened, so both are left to yt-dlp, as is everything else.
+ */
+export function youtubePlaylistId(url: string): string | null {
+  if (!isYouTubeUrl(url)) return null
+  try {
+    const parsed = new URL(url)
+    const segments = parsed.pathname.split('/').filter(Boolean)
+    const fromBrowse =
+      segments[0] === 'browse' && segments[1]?.startsWith('VL') ? segments[1].slice(2) : null
+    const id = fromBrowse ?? parsed.searchParams.get('list')
+    return id && /^(PL|OLAK5uy_)[A-Za-z0-9_-]+$/.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
 
 /**

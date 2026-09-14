@@ -3788,6 +3788,18 @@ device — goes with it (`tags.pruneEmpty`), rather than lingering at 0 in every
 sidebar; a tag just made, with no songs yet, is left alone, since it is yours
 to fill.
 
+**Albums and playlists the same way.** An album link showed its songs with no
+album and a video still for a cover, since that is all yt-dlp's flat listing
+has. The search client grew into `youtubeMusicLists.ts` — a search, an album
+(`browse/MPREb_…`), a playlist (`playlist?list=PL…`, `OLAK5uy_…`, or
+`browse/VL…`) — reading each row by where its runs lead and taking what a row
+does not say from its page: an album's rows name only title and length, so
+the page's title is every song's album, and its artist and cover theirs. A
+playlist YouTube Music answers only the first page of (its header says "250
+songs", the rows are a hundred) is left to yt-dlp, which reads the whole; so
+are Liked Music, mixes and radios, and any page YouTube Music will not answer.
+A search has no other reading, so there no answer is an error.
+
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each
 install asked for the keychain password again. Built with it set, the tier

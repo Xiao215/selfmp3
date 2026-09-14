@@ -7,6 +7,7 @@ import { PlaylistRepository } from '../repositories/playlists.js'
 import { buildImportPreview, resolveImportPlaylist } from './importPreview.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { ArtistSongs } from './youtubeMusicArtist.js'
+import type { SongList } from './youtubeMusicLists.js'
 
 /** The real schema on an in-memory database, the same way smartPlaylist.test does. */
 function makePlaylists(): PlaylistRepository {
@@ -86,6 +87,8 @@ function previewDeps(options: {
   artist?: ArtistSongs | null
   /** What YouTube Music's search answers for any query, or null for no answer. */
   search?: ProbedTrack[] | null
+  /** What YouTube Music answers for any album or playlist page, or null for no answer. */
+  list?: SongList | null
   have?: { artist: string; title: string }[]
 }) {
   const probed: string[] = []
@@ -101,10 +104,42 @@ function previewDeps(options: {
     },
     songs: { all: () => options.have ?? [] },
     youtubeMusicArtists: { topSongs: () => Promise.resolve(options.artist ?? null) },
-    youtubeMusicSearch: { songs: () => Promise.resolve(options.search ?? null) },
+    youtubeMusicLists: {
+      songs: () => Promise.resolve(options.search ?? null),
+      album: () => Promise.resolve(options.list ?? null),
+      playlist: () => Promise.resolve(options.list ?? null),
+    },
   }
   return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
 }
+
+describe('buildImportPreview with an album or playlist link', () => {
+  const albumPage = 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT'
+  const playlistPage = 'https://music.youtube.com/playlist?list=PLcKNQQ5neMz2J5RP49n'
+
+  it("takes an album from YouTube Music, named after it, with the album on every song", async () => {
+    const { deps, probed } = previewDeps({
+      list: {
+        title: 'THE BOOK',
+        tracks: [{ ...track('https://y.test/1', 'Epilogue', 51), album: 'THE BOOK' }],
+      },
+    })
+    const preview = await buildImportPreview(deps, albumPage)
+    expect(probed).toEqual([])
+    expect(preview.playlistTitle).toBe('THE BOOK')
+    expect(preview.items[0]).toMatchObject({ title: 'Epilogue', album: 'THE BOOK', duration: 51 })
+  })
+
+  it('falls back to yt-dlp when YouTube Music does not answer a playlist whole', async () => {
+    const { deps, probed } = previewDeps({
+      list: null,
+      playlists: { [playlistPage]: [track('https://y.test/1', 'アイドル')] },
+    })
+    const preview = await buildImportPreview(deps, playlistPage)
+    expect(probed).toEqual([playlistPage])
+    expect(preview.items.map(item => item.title)).toEqual(['アイドル'])
+  })
+})
 
 describe('buildImportPreview with a search link', () => {
   const search = 'https://music.youtube.com/search?q=yoasobi'

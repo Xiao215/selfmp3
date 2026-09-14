@@ -16,12 +16,12 @@ import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
-import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { ContentWidthContext } from './contentWidth'
+import { setPaletteOpen, usePaletteOpen } from './palette'
 import { practiceOpen, setPracticeOpen, usePracticeOpen } from './practicePanel'
 
 /**
@@ -216,18 +216,18 @@ function MenuCommands(): ReactNode {
 }
 
 /**
- * ⌘K, or Ctrl+K, anywhere: the command palette.
+ * The command palette, opened by the sidebar's Search row or, in the installed
+ * app, by View › Search (⌘K), which arrives here as a menu command.
  *
- * In the installed app the same key is a menu item, and macOS runs both — so
- * `useHotkeys` stands aside for anything the menu owns and the command arrives
- * through `useCommands` instead. One press, one palette, either way.
+ * A browser tab has no key for it on purpose (decided 2026-09-14): ⌘K there is
+ * the browser's own, and a page that takes it answers a key the person meant
+ * for the browser. The installed app has a menu that says ⌘K out loud.
  */
 function PaletteHost(): ReactNode {
-  const [open, setOpen] = useState(false)
-  useHotkeys({ 'meta+k': () => setOpen(true), 'ctrl+k': () => setOpen(true) })
-  useCommands({ search: () => setOpen(true) })
+  const open = usePaletteOpen()
+  useCommands({ search: () => setPaletteOpen(true) })
   // Mounted only while open, so each opening starts with an empty box.
-  return open ? <CommandPalette onClose={() => setOpen(false)} /> : null
+  return open ? <CommandPalette onClose={() => setPaletteOpen(false)} /> : null
 }
 
 /**

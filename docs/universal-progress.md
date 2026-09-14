@@ -3448,3 +3448,145 @@ it.
    and download it again through a browser first: that is what attaches the
    quarantine flag, and a file copied locally never has it.
 4. `gh workflow run desktop.yml` when you want to see the runner do it.
+
+## The run, end to end — 2026-09-14
+
+Everything above was done in one pass, in a Linux container with no macOS, no
+Xcode, no simulator and no `~/Music/selfmp3-dev`. That shaped what could be
+proved and what could only be built; this is the honest accounting of which is
+which.
+
+### The branches
+
+Stacked, each on the one before, so `desktop/phase-5` contains all of them and
+reviewing that one branch is reviewing the whole desktop app. `ipad/phase-6` is
+off `main` on its own, as the plan said it could be.
+
+| Branch | Commit | What it is |
+|---|---|---|
+| `desktop/phase-0` | `7a7721d` | The decisions written down: the Stack rows, `docs/features/desktop-app.md`, the Desktop section here |
+| `desktop/spike` | `2d98a27` | Six throwaway checks — all six pass |
+| `desktop/phase-2` | `838106c` | The shell: window, `app://`, the bridge, the keychain, sign-in |
+| `desktop/phase-3` | `df1e6da` | Files on disk, the shared range rule, covers through a port |
+| `desktop/phase-4` | `301a012` | The menu, Now Playing, the Dock, window bounds, power, login item, deep links |
+| `desktop/phase-5` | `5c36117` | Packaging, the two signing tiers, updates, the icon, the workflow, the docs |
+| `ipad/phase-6` | `7fc4ef9` | The iPad's orientations and a width sweep |
+
+Nothing is merged into `main`.
+
+### Which gates passed, and on what
+
+| Phase | Gate | Result |
+|---|---|---|
+| 0 | `npm run check` | pass |
+| 1 | the six spike checks | **6 of 6 pass**, including the two the plan called decisive: `app://` with a working 206, and the real `engine.web.ts` playing and analysing through it |
+| 2 | `npm run check`; `npm run build:desktop`; the smoke | check passes; packaging proved on Linux (`--dir`), the dmg is Xiao's; 7 smoke tests against the built shell |
+| 3 | `npm run check`; the range-rule grep; `verify:desktop --grep "downloads\|offline\|reveal"` | all three pass |
+| 4 | `npm run check`; `verify:desktop --grep "command\|window bounds"` | both pass |
+| 5 | `npm run check`; `npm run build:desktop` | check passes; the build produced a signed-tier-aware AppImage with its icon — the dmg and the workflow run are Xiao's |
+| 6 | `npm run check:app`; the width sweep; prebuild's Info.plist | pass; Maestro and rotation are Xiao's |
+
+The desktop smoke is **17 passing, 1 skipped** at the end of phase 5. The one
+skip is the flow that needs a server with the thirteen songs, and it says so
+rather than pretending.
+
+### What was checked, and how
+
+Nothing here was taken on trust that could be run:
+
+- **The range rule** has 20 tests in `packages/shared`, and both callers use it —
+  the server's `sendRange` and the shell's `serveMedia`. The 206 the shell
+  answers with is observed over `app://` from a real page, with the bytes hashed
+  and compared.
+- **A download** is proved by downloading three megabytes of random bytes from a
+  local range server, cancelling it part-way, resuming from the `.part`, and
+  hashing the result. Then the server is **closed** mid-test, the page confirms
+  the network is gone, and the file still comes back whole from `app://`.
+- **Covers** are proved against a route that answers 401 without a bearer token:
+  the page cannot fetch it, the shell can, and the file comes back as an image
+  from the app's own origin.
+- **The menu** is clicked in the main process, by label, and the command is
+  observed arriving at the page.
+- **The power-save blocker** starts and stops with playback, read back from the
+  main process.
+- **The window's bounds** are set in one launch and read in the next.
+- **The engine bug the spike found** — `playing: false` after a crossfade — is
+  fixed, and the spike's own check now asserts it rather than noting it.
+- **The update rule** has 7 tests with nothing of Electron in them.
+
+### What is waiting on Xiao, and exactly what to do
+
+In the order they are quickest:
+
+1. **Build and open the dmg.** `npm run build:desktop` on the Mac. It should
+   print `self.mp3 desktop: ad-hoc build` and leave a `.dmg` in
+   `apps/desktop/release/`. Mount it, drag to Applications, open it: expect
+   Gatekeeper's refusal, then Privacy & Security › Open Anyway. To see what
+   someone else would get, upload it and download it again through a browser
+   first — that is what attaches the quarantine flag.
+2. **Sign in to Google.** Every cloud-mode check depends on it and an agent
+   cannot do it. Settings › Cloud › Sign in opens your own browser and comes back
+   by `selfmp3://`. The deep-link half of that path was proved in spike 4 and the
+   `open-url` delivery is wired and unexercised off macOS.
+3. **The Mac-only behaviour of phase 4**, in one sitting: right-click the Dock
+   icon while a song plays; ⌘← in the search box (the caret should move, not the
+   track); the red button then the Dock icon (the song should not have stopped);
+   ⌘Q; full screen; the lid; Now Playing in Control Center, where the artwork is
+   the thing most likely to be missing.
+4. **Media keys.** Pressing one is yours, not mine.
+5. **`gh workflow run desktop.yml`**, and watch it. Dispatching a workflow on
+   your repository with your credentials is not something to do unasked.
+6. **The signed tier**, when there is a certificate: set `CSC_LINK`,
+   `CSC_KEY_PASSWORD` and the three `APPLE_API_*` secrets, and the same commit
+   produces a signed, notarised build that can replace itself.
+7. **The iPad's rotation and Split View**, with screenshots into the phase 6
+   entry, and the Maestro smoke on an iPad Pro 11-inch simulator.
+8. **The one question left open on 2026-09-12**: whether a phone signed in only
+   to the cloud should see its other devices. Nothing in this run needed an
+   answer, and nothing here assumes one.
+
+### Deliberate differences from the plan, and why
+
+- **The Playback menu's accelerators are drawn without being registered** for
+  Space and the four ⌘-arrows. The plan listed the accelerators and did not say
+  how they would be delivered; registering them would have taken the space bar
+  out of every text field in the app. `pageKeeps` in the menu model is the
+  mechanism, and a test asserts no key is claimed by both the menu and the page.
+- **`covers.desktop.ts` became `offline/covers.web.ts` behind a `coverFiles`
+  port.** The plan named a file; what the code needed was a web twin of the
+  phone's covers module, because the existing one is expo-file-system from top to
+  bottom. The port is what the plan asked for; the file it backs is the whole
+  module rather than a desktop-only fragment, and a browser's behaviour is
+  unchanged because the port is null there.
+- **`answerRange` was added to the moved range helper.** The plan said to move
+  the rule; moving `parseRange` alone would have left the shell to build a 206
+  from it by hand, which is the duplication the move was for. `answerRange` is
+  the response short of the bytes, and both callers use it.
+- **`executableName: selfmp3`** is in the packaging config for a target that is
+  not built by default. Without it the one build this container could make fails
+  outright, and it costs macOS nothing.
+- **The spike's files are still in the tree** (`apps/desktop/verify/spike/`),
+  because check 2 is the fastest way to run the real audio engine end to end and
+  it is what proved the crossfade fix. The plan called the branch throwaway; the
+  checks turned out to be worth keeping.
+- **A `Desktop app` section was added to Settings.** The plan asked for a
+  launch-at-login toggle and for the version and update state to be shown, and
+  there was nowhere they belonged. It appears only where there is a shell.
+
+### What a Linux container turned out to be able to do
+
+Worth recording, because the next agent will assume less than this:
+
+- Electron runs under `xvfb-run` with `--no-sandbox` (a fact about running as
+  root, never something the shipped app asks for).
+- The real `engine.web.ts` bundles standalone and plays audio, which is what made
+  the spike meaningful rather than theatrical.
+- Playwright drives the built shell, and `app.evaluate` reads the main process —
+  so a 206, a menu item, a power blocker and a window frame are all observed
+  rather than inferred.
+- electron-builder packages the app completely, icon and all.
+- `expo prebuild --platform ios` completes with no Xcode, which is how phase 6's
+  Info.plist gate ran.
+
+What it could not do is anything with a Mac's name on it: a dmg, a keychain, a
+Dock, a media key, Control Center, a simulator, or a Google sign-in.

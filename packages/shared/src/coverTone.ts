@@ -53,6 +53,9 @@ export function rgbToOklch(r: number, g: number, b: number): Oklch {
 const HUE_BINS = 24
 /** Below this much total colour the cover is effectively grey. */
 const MIN_COLOURFULNESS = 0.02
+/** Unless what little there is agrees on a hue: this much, and this share of it in one bin. */
+const MIN_SOFT_COLOURFULNESS = 0.012
+const SOFT_MAJORITY = 0.4
 
 /**
  * The cover's colour from RGBA pixels, or null for a cover with no real
@@ -68,8 +71,12 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   for (let i = 0; i + 3 < pixels.length; i += 4) {
     if ((pixels[i + 3] ?? 0) < 128) continue
     const { l, c, h } = rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0)
-    counted++
+    // Near-black and near-white are not the cover — a skyline, a border, the
+    // black bars either side of square art in a video's frame — so they count
+    // for nothing, not even towards how grey the cover is: counted before,
+    // they made a soft-coloured cover letterboxed on black look like none.
     if (l < 0.2 || (l > 0.95 && c < 0.04)) continue
+    counted++
 
     const bin = Math.floor((h / 360) * HUE_BINS) % HUE_BINS
     const radians = (h * Math.PI) / 180
@@ -92,7 +99,12 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   // few bins, and was taken for grey.
   let colour = 0
   for (const binWeight of weight) colour += binWeight
-  if (total === 0 || colour / counted < MIN_COLOURFULNESS) return null
+  if (total === 0) return null
+  const colourfulness = colour / counted
+  // Little colour, but all of it one colour — beige paper, a sepia print — is
+  // a colour, where the same little spread over every hue is a grey with noise.
+  const soft = colourfulness >= MIN_SOFT_COLOURFULNESS && total / colour >= SOFT_MAJORITY
+  if (colourfulness < MIN_COLOURFULNESS && !soft) return null
 
   const hue = ((Math.atan2(sinSum[best] ?? 0, cosSum[best] ?? 0) * 180) / Math.PI + 360) % 360
   // Chroma-weighted mean chroma: the vivid pixels of the winning hue decide.

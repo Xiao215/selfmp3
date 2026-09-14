@@ -25,6 +25,7 @@ export * from './schemas/wrapped.js'
 export * from './schemas/gems.js'
 export * from './schemas/cloud.js'
 export * from './origins.js'
+export * from './coverArt.js'
 export * from './schemas/doorman.js'
 export * from './schemas/sync.js'
 

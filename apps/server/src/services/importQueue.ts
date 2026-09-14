@@ -1,6 +1,11 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
+import {
+  isSquareCoverUrl,
+  sanitizeFilename,
+  type ImportJob,
+  type Settings,
+} from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { KeepAwakeService } from './keepAwake.js'
 import type { Logger } from '../logger.js'
@@ -397,8 +402,16 @@ export class ImportQueueService {
       this.#songs.setSourceUrl(songId, job.url)
       if (instrumental) this.#songs.setInstrumental(songId, true)
 
+      /*
+       * The listing's art, over what the file carries. yt-dlp embeds the
+       * video's still — for a song on YouTube Music, the square art
+       * letterboxed on black at 1280×720 — and that stood as the cover: the
+       * wrong shape in every list, and mostly black to the colour picking. A
+       * square picture from YouTube Music replaces it; anything else is kept
+       * only where the file brought none.
+       */
       const song = this.#songs.byId(songId)
-      if (song && !song.hasArt && thumbnail) {
+      if (song && thumbnail && (!song.hasArt || isSquareCoverUrl(thumbnail))) {
         await this.#covers.saveFromUrl(songId, thumbnail)
       }
 

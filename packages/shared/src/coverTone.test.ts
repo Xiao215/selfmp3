@@ -56,6 +56,27 @@ describe('pickCoverTone', () => {
     expect(shukufuku).not.toBeNull()
   })
 
+  it('finds the soft colour of square art letterboxed on black (千鳥, as a video still)', () => {
+    // Beige paper, a small drawing, and black bars over a third of the frame.
+    const plover = pickCoverTone(pixels([214, 196, 168, 400], [60, 48, 40, 40], [0, 0, 0, 240]))
+    expect(plover).not.toBeNull()
+    // A warm yellow-orange, in OKLCH.
+    expect(plover?.hue).toBeGreaterThan(50)
+    expect(plover?.hue).toBeLessThan(100)
+  })
+
+  it('keeps a soft colour when all of it is one colour, but not grey with noise', () => {
+    // Pale beige paper: below the usual bar for colour, but one hue throughout.
+    const paper = pixels([222, 214, 202, 500], [40, 36, 34, 40])
+    expect(rgbToOklch(222, 214, 202).c).toBeLessThan(0.02)
+    expect(pickCoverTone(paper)?.hue).toBeGreaterThan(40)
+    // The same little colour spread over every hue is a grey collage (Plagiarism).
+    const collage = pickCoverTone(
+      pixels([140, 132, 130, 100], [130, 138, 132, 100], [130, 132, 142, 100], [138, 130, 138, 100]),
+    )
+    expect(collage).toBeNull()
+  })
+
   it('gives up on a cover with no colour in it', () => {
     expect(
       pickCoverTone(pixels([20, 20, 20, 100], [128, 128, 128, 200], [250, 250, 250, 50])),

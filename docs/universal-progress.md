@@ -3802,7 +3802,10 @@ A search has no other reading, so there no answer is an error.
 
 **Four more from the first imports.** The queue's two bars sat at different
 widths: a step with no percentage drew no number, so the bar beside it grew
-into the number's place; the place is kept, empty. Music seemed to play on
+into the number's place — and the bar it drew was a dim one at a made-up 35%,
+which beside a real 44% read as a second kind of progress. Only the download
+draws a bar now; the steps around it are named under the title, and their
+space is kept so the row does not change width. Music seemed to play on
 after Import with nothing to stop it: a preview pauses whatever was playing
 and, when it ends, resumes it — right when you close the preview yourself,
 wrong when the review goes because you imported it, and the player came back
@@ -3813,6 +3816,25 @@ the whole review — links, songs chosen and corrected, tags, playlist — was
 lost on a glance at the library, since the sidebar unmounts the screen; it is
 a draft outside the screen now (`importDraft.ts`), kept for the app's life
 and per server, so a draft against one server's ids is not shown for another.
+
+**Covers that were video stills, and a blue that was nobody's.** Two songs
+of a fresh import drew letter tiles though the server had art for all of
+them, and 千鳥's beige cover played in the app's own blue. Three causes. The
+covers the server kept were yt-dlp's embedded pictures — the video's still,
+1280×720, the square art letterboxed on black — since the import only fetched
+the listing's picture when the file brought none; now a square picture from
+YouTube Music replaces whatever the file carried (`isSquareCoverUrl`, shared
+with the review, which draws square art square). The colour picking counted
+near-black pixels towards how grey a cover is, so soft art between black bars
+came out as "no colour" and the accent stood in; the bars count for nothing
+now. 千鳥's beige was also simply below the bar for colour, at a chroma of
+0.016 against 0.02 — but nearly half of it in one hue, where a grey collage
+(Plagiarism, three of the songs) spreads the same little over every hue. Such
+a soft, single colour counts now; the collage stays "no colour", and plays in
+the app's accent, as it should. A migration forgets every colourless reading,
+and the server reads those covers again at start. And a device that failed to fetch a cover — the bucket
+had a bad minute at 22:17 — remembered "no cover" for the whole session; it
+asks again after thirty seconds.
 
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each

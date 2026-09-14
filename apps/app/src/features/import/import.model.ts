@@ -1,6 +1,7 @@
 import {
   extractUrls,
   IMPORT_STEP_LABELS,
+  isSquareCoverUrl,
   type ImportEnqueue,
   type ImportEnqueueItem,
   type ImportJob,
@@ -106,15 +107,8 @@ export function patchItem(
   return items.map((item, i) => (i === index ? { ...item, ...patch } : item))
 }
 
-/**
- * Whether a cover is square, from its address: YouTube Music's art is served
- * at `=w544-h544` or `=s576`, a video's still at 16:9. A square picture is
- * drawn square rather than cropped to the video shape.
- */
-export function isSquareCover(url: string | null): boolean {
-  if (!url) return false
-  return /=w(\d+)-h\1(?:-|$)/.test(url) || /=s\d+(?:-|$)/.test(url)
-}
+/** A square picture is drawn square rather than cropped to the video shape. */
+export const isSquareCover = isSquareCoverUrl
 
 /**
  * The tag a link is named after, if you already have one: an artist's page

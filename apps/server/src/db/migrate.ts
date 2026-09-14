@@ -517,6 +517,24 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE cloud_songs SET lyrics_sig = '';
     `,
   },
+  {
+    name: 'cover tones: read again, without the black bars',
+    sql: `
+      -- The picking no longer counts near-black or near-white towards how grey
+      -- a cover is, so soft-coloured art letterboxed in a video's frame gets
+      -- its colour. Every cover is read once more at the next start.
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
+    `,
+  },
+  {
+    name: 'cover tones: soft colours count',
+    sql: `
+      -- The picking keeps a soft colour when all of it is one colour — beige
+      -- paper, a sepia print — where before it took anything that pale for
+      -- grey. Every cover read as colourless is read once more at the next start.
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
+    `,
+  },
 ]
 
 /**

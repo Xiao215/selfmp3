@@ -25,6 +25,9 @@ export const KEPT_COVER_SIZE = 640
 const known = new Map<number, string | null>()
 /** In-flight fetches, so ten rows appearing at once make one request. */
 const fetching = new Map<number, Promise<string | null>>()
+/** When a cover's fetch last failed, so it is asked for again after a while. */
+const failed = new Map<number, number>()
+const RETRY_FAILED_MS = 30_000
 /** What this device holds of a server's covers, and the revision each was drawn at. */
 const served = new Map<number, { rev: string; uri: string }>()
 /** Addresses tried this launch: a server that is away is asked once per song. */
@@ -146,6 +149,10 @@ export async function ensureCover(songId: number): Promise<string | null> {
   if (known.has(songId)) return known.get(songId) ?? null
   const already = fetching.get(songId)
   if (already) return already
+  // A fetch that failed is tried again after a while, not never: the bucket
+  // had a bad minute once and two covers stayed letter tiles all session.
+  const failedAt = failed.get(songId)
+  if (failedAt !== undefined && Date.now() - failedAt < RETRY_FAILED_MS) return null
 
   const work = (async (): Promise<string | null> => {
     try {
@@ -179,8 +186,13 @@ export async function ensureCover(songId: number): Promise<string | null> {
   fetching.set(songId, work)
   const uri = await work
   fetching.delete(songId)
-  known.set(songId, uri)
-  if (uri) changes.changed(songId)
+  if (uri) {
+    known.set(songId, uri)
+    failed.delete(songId)
+    changes.changed(songId)
+  } else {
+    failed.set(songId, Date.now())
+  }
   return uri
 }
 
@@ -188,6 +200,7 @@ export async function ensureCover(songId: number): Promise<string | null> {
 export function forgetCovers(): void {
   known.clear()
   fetching.clear()
+  failed.clear()
   served.clear()
   tried.clear()
   primed = false

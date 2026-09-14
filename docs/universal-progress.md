@@ -3528,11 +3528,28 @@ and one button at the bottom — beside its footnote at desktop width, full widt
 on a phone. The sentence that said "on this phone" on a Mac is gone; no stage's
 words name a device, and a test holds that.
 
-**Still typed: Settings › Cloud on the iPhone**, when a phone signs the Mac's
-server in. Native has no return link there (`ports/signInReturn.ts`), so the
-doorman shows the code and it is entered by hand. Giving native the
-`selfmp3://sign-in` return the installed Mac app already uses would remove that
-too; not done here.
+**Nothing typed in Settings › Cloud either.** The iPhone signing the Mac's
+server in used to send no return link, so the doorman showed the code and it was
+entered by hand. Every sign-in now comes back to where it started —
+`selfmp3://sign-in` or `selfmp3://settings` in an installed app, `/sign-in` or
+`/settings` in a browser — and `ports/signInCodes.ts` is the inbox both screens
+listen to: it keeps a link that arrived before its screen was listening, gives
+each code only to the screen it was sent to, and hands it over once (tested).
+Settings shows "Didn't come back?" and Try again after the same grace, and the
+code field is gone.
+
+**The Mac app's first sign-in could not have finished.** Its link came back
+through the shell into `ports/deepLinks.web.ts`, whose code queue only Settings
+read; the first-run screen listened to `expo-linking`, which never hears the
+shell. It stalled at the code box before, and would have stalled at "Didn't come
+back?" after. Both screens now take codes from the same inbox. No Google sign-in
+has run on the Mac yet, so this is fixed by reading, not by seeing it.
+
+**The Mac app keeps its files in `~/Library/Application Support/self.mp3`.**
+Electron names that folder after the app, and without a `productName` in
+`apps/desktop/package.json` the app was called `@selfmp3/desktop` — the folder,
+and the name in the app menu's About and Quit. The only data in the old folder
+was the smoke tests'.
 
 ## The run, end to end — 2026-09-14
 

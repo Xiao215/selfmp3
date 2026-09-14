@@ -2,12 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, AppState, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import * as Linking from 'expo-linking'
 import { useRouter } from 'expo-router'
 import { DoormanError, type CloudSession } from '@selfmp3/cloud'
-import { SignInCodeSchema } from '@selfmp3/shared'
 import { space, type } from '@selfmp3/client'
 import { session as cloud } from '../../cloud'
+import { onSignInCode } from '../../ports/signInReturn'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -33,15 +32,6 @@ import { afterCheck, copyFor, FOOTNOTE, TOOK_TOO_LONG, type SignInStage } from '
 
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
-
-/** The code the doorman put in the address it sent us back to, if it did. */
-function codeIn(url: string | null): string | null {
-  if (!url) return null
-  const raw = /(?:^|[#&?])signin-code=([0-9A-Za-z-]{1,32})/.exec(url)?.[1]
-  if (raw === undefined) return null
-  const parsed = SignInCodeSchema.safeParse(raw)
-  return parsed.success ? parsed.data : null
-}
 
 export function SignInScreen({
   onSignedIn,
@@ -140,28 +130,21 @@ export function SignInScreen({
   /**
    * Coming back from Google.
    *
-   * The doorman redirects to `selfmp3://sign-in#signin-code=…` (or this page's
-   * own address on the web), which reaches the app either as the link that
-   * launched it or as one delivered while it was already open — so both are
-   * watched.
+   * The doorman sends the browser back to `selfmp3://sign-in#signin-code=…` —
+   * this site's own `/sign-in` on the web — and `ports/signInReturn` keeps the
+   * code until this screen is listening, whether the link launched the app or
+   * arrived while it was open.
    */
-  useEffect(() => {
-    let cancelled = false
-    const take = (url: string | null): void => {
-      const code = codeIn(url)
-      if (cancelled || !code) return
-      // Said before the claim starts, not after: the poll is also running, and
-      // it learns "finished" from the doorman a moment earlier.
-      setStage({ kind: 'claiming' })
-      void claimWith(code)
-    }
-    void Linking.getInitialURL().then(take)
-    const sub = Linking.addEventListener('url', event => take(event.url))
-    return () => {
-      cancelled = true
-      sub.remove()
-    }
-  }, [claimWith])
+  useEffect(
+    () =>
+      onSignInCode('sign-in', code => {
+        // Said before the claim starts, not after: the poll is also running, and
+        // it learns "finished" from the doorman a moment earlier.
+        setStage({ kind: 'claiming' })
+        void claimWith(code)
+      }),
+    [claimWith],
+  )
 
   const copy = copyFor(stage)
   const busy = stage.kind === 'waiting' || stage.kind === 'claiming'

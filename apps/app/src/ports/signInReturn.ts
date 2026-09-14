@@ -1,14 +1,33 @@
+import * as Linking from 'expo-linking'
+
+import { createSignInInbox, type SignInTarget } from './signInCodes'
+
 /**
- * Coming back from Google to Settings → Cloud.
+ * Coming back from Google, on a phone: to the first-run screen, or to
+ * Settings → Cloud.
  *
- * On a phone the doorman shows the sign-in code on its own page and the code
- * is typed in here, so there is no address to come back to and nothing to
- * read on arrival.
+ * The doorman sends Safari back to `selfmp3://sign-in` or `selfmp3://settings`
+ * with the code in the fragment. Expo Router opens that screen; the link itself
+ * is read here — the one that launched the app, and any that arrive while it is
+ * open — into an inbox that keeps it until the screen is listening. Nobody types
+ * the code: the doorman never shows it when it has somewhere to send it.
  */
-export function signInReturnUrl(): string | null {
-  return null
+
+const inbox = createSignInInbox()
+
+void Linking.getInitialURL().then(url => {
+  if (url) inbox.arrive(url)
+})
+Linking.addEventListener('url', event => {
+  inbox.arrive(event.url)
+})
+
+/** Where the doorman should send Google back to, for a sign-in started from `target`. */
+export function signInReturnUrl(target: SignInTarget): string {
+  return `selfmp3://${target}`
 }
 
-export function takeSignInCode(): string | null {
-  return null
+/** Codes coming back to `target`: any that already arrived, then each as it comes. */
+export function onSignInCode(target: SignInTarget, listener: (code: string) => void): () => void {
+  return inbox.listen(target, listener)
 }

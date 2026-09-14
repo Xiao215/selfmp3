@@ -1,30 +1,42 @@
 import { appPath } from './appPath'
-import { takeSignInCode as takeFromLink } from './deepLinks'
+import { onSignInLink } from './deepLinks'
 import { desktop } from './desktop/bridge'
+import { createSignInInbox, signInLink, type SignInTarget } from './signInCodes'
 
 /**
- * Coming back from Google to Settings → Cloud, in a browser: the web app's
- * `SignInReturn`. Google's sign-in sends the tab back to this page with the
- * code that claims the session in the fragment; it is read once and cleared
- * from the address so a reload cannot spend it twice.
+ * Coming back from Google, in a browser or the installed desktop app: to the
+ * first-run screen, or to Settings → Cloud.
+ *
+ * In a browser the doorman sends the tab back to this site's `/sign-in` or
+ * `/settings` with the code in the fragment. It is read once, when the page
+ * loads, and taken out of the address so a reload cannot spend it twice.
  *
  * The installed app has no address to be sent back to — the sign-in happened in
  * the person's own browser, because Google refuses to sign in inside an
- * embedded window — so it comes back by `selfmp3://`, the same scheme and the
- * same fragment the phone already uses. `ports/deepLinks` holds the links,
- * including the ones that arrive before the page is listening — which a cold
- * launch from a sign-in always is — and hands the codes over here.
+ * embedded window — so it comes back by `selfmp3://sign-in` or
+ * `selfmp3://settings`, the phone's links. `ports/deepLinks` holds them from the
+ * moment the shell hands them over, which on a cold launch is before the page is
+ * listening.
  */
 
-export function signInReturnUrl(): string | null {
-  if (desktop) return 'selfmp3://sign-in'
-  return `${window.location.origin}${appPath('settings')}`
+const inbox = createSignInInbox()
+
+if (desktop) {
+  onSignInLink(url => {
+    inbox.arrive(url)
+  })
+} else if (typeof window !== 'undefined' && signInLink(window.location.href)) {
+  inbox.arrive(window.location.href)
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
 }
 
-export function takeSignInCode(): string | null {
-  if (desktop) return takeFromLink()
-  const raw = /(?:^|[#&])signin-code=([0-9A-Za-z-]{1,32})/.exec(window.location.hash)?.[1]
-  if (raw === undefined) return null
-  window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  return raw
+/** Where the doorman should send Google back to, for a sign-in started from `target`. */
+export function signInReturnUrl(target: SignInTarget): string {
+  if (desktop) return `selfmp3://${target}`
+  return `${window.location.origin}${appPath(target)}`
+}
+
+/** Codes coming back to `target`: any that already arrived, then each as it comes. */
+export function onSignInCode(target: SignInTarget, listener: (code: string) => void): () => void {
+  return inbox.listen(target, listener)
 }

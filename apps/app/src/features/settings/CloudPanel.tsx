@@ -6,15 +6,14 @@ import * as Crypto from 'expo-crypto'
 import {
   formatBytes,
   formatRelative,
-  formatSignInCode,
   newUid,
   parseEndpoint,
-  SignInCodeSchema,
   type CloudConnect,
   type CloudStatus,
 } from '@selfmp3/shared'
 import { useCloudActions, useCloudStatus } from '@selfmp3/client'
-import { signInReturnUrl, takeSignInCode } from '../../ports/signInReturn'
+import { onSignInCode, signInReturnUrl } from '../../ports/signInReturn'
+import { LINK_GRACE_MS } from '../signIn/signIn.model'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { CloudUpload, Refresh, Trash, X } from '../../ui/components/Icons'
@@ -70,7 +69,7 @@ export function CloudPanel({ onTop }: { onTop: (top: number) => void }): ReactNo
 
 function stateLabel(status: CloudStatus): string {
   if (status.signingIn)
-    return status.signInNeedsCode ? 'waiting for the code' : 'waiting for Google'
+    return status.signInNeedsCode ? 'finishing sign-in' : 'waiting for Google'
   switch (status.state) {
     case 'off':
       return status.account ? 'no bucket yet' : 'off'
@@ -88,65 +87,44 @@ const attemptId = (): string => newUid(into => into.set(Crypto.getRandomBytes(in
 
 /**
  * Signing in with Google, through the doorman. The doorman's page opens from
- * the press itself, and the Mac is told to wait for Google to finish. In a
- * browser Google comes back to this page with the code; on a phone the
- * doorman shows the code and it is typed in.
+ * the press itself, and the Mac is told to wait for Google to finish. Google
+ * comes back to this page — `selfmp3://settings` in an installed app, this
+ * site's `/settings` in a browser — with the code inside the link, and
+ * `SignInReturn` hands it to the Mac. Nobody types it.
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }): ReactNode {
   const { theme } = useUnistyles()
   const { signIn, cancelSignIn, enterCode } = useCloudActions()
-  const [code, setCode] = useState('')
-  const parsedCode = SignInCodeSchema.safeParse(code.trim())
+  const lost = useLinkLost(status.signingIn && status.signInNeedsCode)
 
+  // Opened from the press itself, so a browser does not block it. Starting
+  // again while the Mac is waiting replaces that sign-in (`beginSignIn`).
   const start = (): void => {
     if (!status.doormanUrl) return
     const attempt = attemptId()
-    const params = new URLSearchParams({ attempt })
-    const back = signInReturnUrl()
-    if (back) params.set('return', back)
+    const params = new URLSearchParams({ attempt, return: signInReturnUrl('settings') })
     void Linking.openURL(`${status.doormanUrl}/v1/auth/start?${params.toString()}`)
     signIn.mutate(attempt)
   }
 
-  if (status.signingIn && status.signInNeedsCode) {
+  const cancel = (
+    <Button
+      label="Cancel"
+      icon={<X size={15} color={theme.colors.textPrimary} />}
+      onPress={() => cancelSignIn.mutate()}
+    />
+  )
+
+  if (status.signingIn && lost) {
     return (
-      <>
-        <Row
-          label="Enter the sign-in code"
-          hint="Google showed it when it finished. It proves this server is the one you signed in for."
-        >
-          <TextInput
-            style={[partStyles.input, styles.code]}
-            accessibilityLabel="Sign-in code"
-            placeholder="XXXX-XXXX"
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            autoComplete="one-time-code"
-            maxLength={12}
-            value={code}
-            onChangeText={setCode}
-            onSubmitEditing={() => {
-              if (parsedCode.success) enterCode.mutate(parsedCode.data)
-            }}
-            autoFocus
-          />
-          <Button
-            label="Sign in"
-            variant="primary"
-            disabled={!parsedCode.success || enterCode.isPending}
-            onPress={() => {
-              if (parsedCode.success) enterCode.mutate(parsedCode.data)
-            }}
-          />
-          <Button
-            label="Cancel"
-            icon={<X size={15} color={theme.colors.textPrimary} />}
-            onPress={() => cancelSignIn.mutate()}
-          />
-        </Row>
-        {enterCode.error ? <Notice tone="error">{enterCode.error.message}</Notice> : null}
-      </>
+      <Row
+        label="Didn’t come back?"
+        hint="Google finished, but the browser didn’t hand the sign-in back. Start again, and choose Open when it asks."
+        last
+      >
+        <Button label="Try again" variant="primary" disabled={signIn.isPending} onPress={start} />
+        {cancel}
+      </Row>
     )
   }
 
@@ -154,15 +132,11 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
     return (
       <Row
         label="Waiting for Google"
-        hint="Finish signing in where Google opened, then come back here."
+        hint="Finish signing in where Google opened. This comes back by itself."
         last
       >
         <ActivityIndicator color={theme.colors.textMuted} />
-        <Button
-          label="Cancel"
-          icon={<X size={15} color={theme.colors.textPrimary} />}
-          onPress={() => cancelSignIn.mutate()}
-        />
+        {cancel}
       </Row>
     )
   }
@@ -198,30 +172,45 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
 }
 
 /**
- * Arriving back from Google with the code in the address: hand it to the Mac,
- * which has been waiting for it. Only ever happens in a browser.
+ * True once Google has finished and the link back has had its moment
+ * (`LINK_GRACE_MS`) without arriving. It starts over whenever the Mac stops
+ * waiting for one.
  */
-const spentCodes = new Set<string>()
+function useLinkLost(googleDone: boolean): boolean {
+  const [lost, setLost] = useState(false)
+  useEffect(() => {
+    if (!googleDone) return
+    const timer = setTimeout(() => setLost(true), LINK_GRACE_MS)
+    return () => {
+      clearTimeout(timer)
+      setLost(false)
+    }
+  }, [googleDone])
+  return googleDone && lost
+}
 
+/**
+ * Arriving back from Google with the code inside the link: hand it to the Mac,
+ * which has been waiting for it. `ports/signInReturn` keeps a link that came in
+ * before this was listening — and one that comes while it is — and hands each
+ * code over once.
+ */
 function SignInReturn(): ReactNode {
   const { enterCode } = useCloudActions()
   const { data: status } = useCloudStatus()
-  const [code] = useState(() => {
-    const raw = takeSignInCode()
-    const parsed = raw === null ? null : SignInCodeSchema.safeParse(raw)
-    return parsed?.success ? parsed.data : null
-  })
+  const [arrived, setArrived] = useState(false)
+  const { mutate } = enterCode
 
-  useEffect(() => {
-    // A code may be spent once, and development renders effects twice.
-    if (!code || spentCodes.has(code)) return
-    spentCodes.add(code)
-    enterCode.mutate(code)
-    // Once, on arrival: `code` never changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code])
+  useEffect(
+    () =>
+      onSignInCode('settings', code => {
+        setArrived(true)
+        mutate(code)
+      }),
+    [mutate],
+  )
 
-  if (!code) return null
+  if (!arrived) return null
   const failed = enterCode.isError && !status?.account
   return (
     <Notice tone={failed ? 'error' : 'good'}>
@@ -229,7 +218,7 @@ function SignInReturn(): ReactNode {
         ? `Signing in didn’t work: ${enterCode.error?.message ?? 'try again'}`
         : enterCode.isSuccess || status?.account
           ? 'Signed in.'
-          : `Signing in with code ${formatSignInCode(code)}…`}
+          : 'Signing in…'}
     </Notice>
   )
 }
@@ -481,7 +470,6 @@ function BucketForm({
 }
 
 const styles = StyleSheet.create(theme => ({
-  code: { minWidth: 140, letterSpacing: 1.5, fontVariant: ['tabular-nums'] },
   field: { minWidth: 280 },
   where: { marginBottom: 6 },
   progress: { marginVertical: 14, gap: 8 },

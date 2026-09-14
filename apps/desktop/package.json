@@ -1,5 +1,6 @@
 {
   "name": "@selfmp3/desktop",
+  "productName": "self.mp3",
   "version": "1.0.0",
   "private": true,
   "description": "The Electron shell around apps/app's web export: an installed self.mp3 on a computer.",

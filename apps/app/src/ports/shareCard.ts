@@ -10,6 +10,10 @@ import type { CardPalette } from './shareCard.types'
  */
 export const canShareCard = false
 
-export function shareWrappedCard(_wrapped: Wrapped, _palette: CardPalette): Promise<void> {
+export function shareWrappedCard(
+  _wrapped: Wrapped,
+  _palette: CardPalette,
+  _coverUri: string | null,
+): Promise<void> {
   return Promise.reject(new Error('Sharing Wrapped as an image is not on this device yet.'))
 }

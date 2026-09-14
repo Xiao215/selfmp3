@@ -27,7 +27,7 @@ test.describe('stats', () => {
     await expect(page.getByText('Most played')).toBeVisible()
 
     await page.getByText('Wrapped', { exact: true }).first().click()
-    await expect(page).toHaveURL(/\/stats\/wrapped/)
+    await expect(page).toHaveURL(/\/stats\/report/)
     await expect(page.getByRole('heading', { name: 'Wrapped', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'All time', exact: true }).click()
     await expect(page.getByText(/you listened for/i)).toBeVisible()

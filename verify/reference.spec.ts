@@ -566,7 +566,7 @@ test.describe('reference', () => {
     await settle(page, 900)
     await shot(page, project, 'stats-bottom')
 
-    await page.goto('/stats/wrapped')
+    await page.goto('/stats/report')
     await page.getByRole('heading', { name: 'Wrapped', exact: true }).waitFor({ timeout: 30_000 })
     await dismissToasts(page)
     await restMouse(page)

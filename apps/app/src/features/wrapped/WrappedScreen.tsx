@@ -77,16 +77,25 @@ export function WrappedScreen(): ReactNode {
     if (!wrapped) return
     setSharing(true)
     setShareError(null)
+    // The number one's cover, as the page shows it behind the figure and in its card.
+    const top = wrapped.topSongs[0]
+    const topSongInLibrary = top ? songById.get(top.songId) : undefined
     try {
-      await shareWrappedCard(wrapped, {
-        background: theme.colors.surface0,
-        surface: theme.colors.surface1,
-        accent: accent.accent,
-        accentDim: accent.accentDim,
-        text: theme.colors.textPrimary,
-        secondary: theme.colors.textSecondary,
-        muted: theme.colors.textMuted,
-      })
+      await shareWrappedCard(
+        wrapped,
+        {
+          background: theme.colors.surface0,
+          surface: theme.colors.surface1,
+          border: theme.colors.border,
+          accent: accent.accent,
+          accentDim: accent.accentDim,
+          bar: theme.colors.chartSeries,
+          text: theme.colors.textPrimary,
+          secondary: theme.colors.textSecondary,
+          muted: theme.colors.textMuted,
+        },
+        topSongInLibrary ? artFor(topSongInLibrary) : null,
+      )
     } catch (error) {
       setShareError(error instanceof Error ? error.message : 'could not make the image')
     } finally {

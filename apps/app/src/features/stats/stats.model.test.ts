@@ -20,8 +20,8 @@ import {
 } from './stats.model'
 
 describe('stats ranges and labels', () => {
-  it('offers the web’s five ranges, as its buttons say them', () => {
-    expect(STATS_RANGES.map(rangeButtonLabel)).toEqual(['7d', '30d', '90d', '365d', 'All'])
+  it('offers five ranges, labelled in days, months and years', () => {
+    expect(STATS_RANGES.map(rangeButtonLabel)).toEqual(['7d', '1m', '3m', '1y', 'All'])
   })
 
   it('names hours the way a clock face does', () => {

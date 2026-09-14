@@ -83,7 +83,7 @@ export function StatsScreen(): ReactNode {
           label="Wrapped"
           variant="primary"
           icon={<Sparkles size={15} color={accent.onAccent} />}
-          onPress={() => router.push('/stats/wrapped')}
+          onPress={() => router.push('/stats/report')}
         />
       </View>
     </View>

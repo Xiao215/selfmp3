@@ -2447,3 +2447,23 @@ Then two more:
    presents Now Playing as a native modal over the chrome anyway, so the
    chrome stays there (`ports/modalCoversScreen`); a browser, where the route
    is a page in the content area, still hides it.
+
+### The shared card, the report's address, the range buttons — branch `universal/stats-report`
+
+From Xiao on 4600:
+
+- **"Share as image" looked nothing like the page.** `ports/shareCard.web.ts`
+  drew a 1080 square: the minutes, three facts, two lists whose fifth row ran
+  under the personality box, no artwork. It is now 1080×1350 and follows
+  `WrappedScreen`: the eyebrow, figure and hours over the number one's cover
+  (drawn to 12px and back up, a blur that works in Safari too) under the same
+  wash and glow; the traits as pills; `facts()` as a 3×2 grid; the number one
+  with its cover; songs 2–4 beside the top artists with `rankShare` bars. The
+  page passes the cover's URL; it loads with `crossOrigin`, and a canvas it
+  taints is redrawn without it. `CardPalette` gains `border` and `bar`.
+- **The address.** `app/stats/report.tsx` renders the report; `wrapped.tsx`
+  redirects to it. The Stats button, the flow and the reference shots use it.
+- **Range buttons**: `rangeButtonLabel` says 7d, 1m, 3m, 1y, All.
+- Checked in Chrome against the dev server: the buttons read
+  ["7d","1m","3m","1y","All"], /stats/wrapped lands on /stats/report, and the
+  downloaded card was looked at.

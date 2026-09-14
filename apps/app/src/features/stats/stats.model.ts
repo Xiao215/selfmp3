@@ -10,9 +10,17 @@ import type { DailyPlays, HourlyPlays, StatsRange } from '@selfmp3/shared'
 
 export const STATS_RANGES: readonly StatsRange[] = ['7d', '30d', '90d', '365d', 'all']
 
-/** "7d" … "All", as the range buttons say it. */
+const RANGE_BUTTON_LABELS: Record<StatsRange, string> = {
+  '7d': '7d',
+  '30d': '1m',
+  '90d': '3m',
+  '365d': '1y',
+  all: 'All',
+}
+
+/** "7d", "1m", "3m", "1y", "All": short, and in the units people count them in. */
 export function rangeButtonLabel(range: StatsRange): string {
-  return range === 'all' ? 'All' : range
+  return RANGE_BUTTON_LABELS[range]
 }
 
 export interface ColumnDatum {

@@ -45,7 +45,13 @@ test.describe('importing', () => {
 
     const fetch = page.getByRole('button', { name: 'Fetch details' })
     await expect(fetch).toBeDisabled()
-    await page.getByPlaceholder(/music\.youtube\.com\/watch/).fill(LINK)
+    // Words with no link in them are answered at the box, before any fetch.
+    const box = page.getByPlaceholder(/music\.youtube\.com\/watch/)
+    await box.fill('yoasobi idol')
+    await expect(page.getByText(/doesn.t look like a link/)).toBeVisible()
+    await expect(fetch).toBeDisabled()
+    await box.fill(LINK)
+    await expect(page.getByText(/doesn.t look like a link/)).toHaveCount(0)
     await fetch.click()
 
     await expect(page.getByText('1 track found')).toBeVisible({ timeout: 60_000 })

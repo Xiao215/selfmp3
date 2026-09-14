@@ -148,6 +148,54 @@ export function importButtonLabel(count: number): string {
   return `Import ${plural(count, 'track', 'tracks')}`
 }
 
+/**
+ * Whether the box holds a link the server can read. The server takes every
+ * http(s) address in the text and ignores the rest (importPreview.ts), so a
+ * box with none of them could only ever come back as an error.
+ */
+export function hasLink(text: string): boolean {
+  return extractUrls(text, 1).length > 0
+}
+
+/**
+ * The line under the box once something is typed that holds no link: said
+ * there, while typing, rather than as an error after pressing Fetch details.
+ */
+export function linkHint(text: string): string | null {
+  return text.trim() && !hasLink(text)
+    ? 'That doesn’t look like a link. Paste a music.youtube.com or youtube.com address.'
+    : null
+}
+
+/**
+ * The queue with its finished jobs folded away. Each one added a song, which
+ * the library already shows; what still needs you — running, waiting, failed,
+ * cancelled — stays in rows.
+ */
+export function foldQueue<T extends Pick<ImportJob, 'status'>>(
+  jobs: readonly T[],
+): { open: readonly T[]; finished: readonly T[] } {
+  return {
+    open: jobs.filter(job => job.status !== 'done'),
+    finished: jobs.filter(job => job.status === 'done'),
+  }
+}
+
+/** A server's `2026-09-14 08:30:00` is UTC without saying so; an ISO time says so. */
+function stampDate(stamp: string): Date {
+  return new Date(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`)
+}
+
+/** "13 added today", or "13 added" once any of them is from an earlier day. */
+export function finishedLabel(
+  finished: readonly Pick<ImportJob, 'updatedAt'>[],
+  now = new Date(),
+): string {
+  const today = now.toDateString()
+  const allToday = finished.every(job => stampDate(job.updatedAt).toDateString() === today)
+  return `${finished.length} added${allToday ? ' today' : ''}`
+}
+
 /** "2 downloading, 5 waiting", only while something is happening. */
 export function queueActivity(queue: { active: number; queued: number }): string | null {
   return queue.active + queue.queued > 0

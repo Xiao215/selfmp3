@@ -37,12 +37,16 @@ import {
   chooseAll,
   chosenItems,
   enqueueRequest,
+  finishedLabel,
+  foldQueue,
+  hasLink,
   importButtonLabel,
   isSquareCover,
   jobAction,
   jobLabel,
   jobSubtitle,
   jobTone,
+  linkHint,
   matchingTag,
   patchItem,
   queueActivity,
@@ -94,6 +98,8 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const setPlaylistId = (next: number): void => patchDraft({ playlistId: next })
   const setCreatePlaylist = (next: boolean): void => patchDraft({ createPlaylist: next })
   const [error, setError] = useState<string | null>(null)
+  /** Whether the folded "13 added today" row is open. */
+  const [showFinished, setShowFinished] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
   const listen = useListen(via)
   const queueTop = useRef(0)
@@ -174,6 +180,8 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const activity = queue ? queueActivity(queue) : null
   const heading = review ? reviewHeading(review) : null
   const chosenCount = review ? chosenItems(review).length : 0
+  const hint = linkHint(links)
+  const folded = queue ? foldQueue(queue.jobs) : null
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -224,7 +232,11 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
 
         <View style={[styles.form, !wide && styles.formNarrow]}>
           <TextInput
-            style={[styles.linksInput, wide && styles.linksInputWide]}
+            style={[
+              styles.linksInput,
+              wide && styles.linksInputWide,
+              hint !== null && { borderColor: theme.colors.danger },
+            ]}
             value={links}
             onChangeText={setLinks}
             placeholder={
@@ -241,12 +253,18 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
             label={preview.isPending ? 'Reading…' : 'Fetch details'}
             variant="primary"
             grow={!wide}
-            disabled={preview.isPending || !links.trim() || tools?.ytdlp === false}
+            disabled={preview.isPending || !hasLink(links) || tools?.ytdlp === false}
             onPress={() => {
-              if (links.trim()) preview.mutate(links.trim())
+              if (hasLink(links)) preview.mutate(links.trim())
             }}
           />
         </View>
+
+        {hint ? (
+          <Text style={styles.linkHint} accessibilityRole="alert">
+            {hint}
+          </Text>
+        ) : null}
 
         <Text style={styles.hint}>
           Links from <Text style={styles.strong}>music.youtube.com</Text> carry proper track, artist
@@ -408,7 +426,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
          * it, a just-started import landed off-screen and looked like the
          * button had done nothing.
          */}
-        {queue && queue.jobs.length > 0 ? (
+        {queue && folded && queue.jobs.length > 0 ? (
           <View
             style={styles.queue}
             onLayout={event => {
@@ -421,16 +439,9 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
                 Queue
                 {activity ? <Text style={styles.hint}> · {activity}</Text> : null}
               </Text>
-              <Text
-                style={[styles.linkText, { color: accent.accent }]}
-                onPress={() => afterJob(api.clearImports())}
-                accessibilityRole="button"
-              >
-                clear finished
-              </Text>
             </View>
             <View style={styles.jobs} aria-live="polite">
-              {queue.jobs.map(job => (
+              {folded.open.map(job => (
                 <JobRow
                   key={job.id}
                   job={job}
@@ -438,6 +449,45 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
                   onRetry={() => afterJob(api.retryImport(job.id))}
                 />
               ))}
+              {/*
+               * Finished jobs fold into one row: each added a song the library
+               * already shows, and a morning's imports were a screen of green
+               * ticks pushing the one that failed out of sight.
+               */}
+              {folded.finished.length > 0 ? (
+                <View style={styles.job} testID="import-finished">
+                  <View style={styles.jobStatus}>
+                    <CheckCircle size={16} color={theme.colors.good} />
+                  </View>
+                  <Text style={[styles.jobTitle, styles.jobMeta]} numberOfLines={1}>
+                    {finishedLabel(folded.finished)}
+                  </Text>
+                  <FoldAction
+                    label={showFinished ? 'Hide' : 'Show'}
+                    accessibilityLabel={showFinished ? 'Hide finished imports' : 'Show finished imports'}
+                    expanded={showFinished}
+                    onPress={() => setShowFinished(open => !open)}
+                  />
+                  <FoldAction
+                    label="Clear"
+                    accessibilityLabel="Clear finished imports"
+                    onPress={() => {
+                      setShowFinished(false)
+                      afterJob(api.clearImports())
+                    }}
+                  />
+                </View>
+              ) : null}
+              {showFinished
+                ? folded.finished.map(job => (
+                    <JobRow
+                      key={job.id}
+                      job={job}
+                      onCancel={() => afterJob(api.cancelImport(job.id))}
+                      onRetry={() => afterJob(api.retryImport(job.id))}
+                    />
+                  ))
+                : null}
             </View>
           </View>
         ) : null}
@@ -552,6 +602,33 @@ function ReviewRow({
         {field('album', 'Album', styles.fullWidth)}
       </View>
     </View>
+  )
+}
+
+/** "Show" and "Clear" on the folded row: quiet, in the accent, a finger's height. */
+function FoldAction({
+  label,
+  accessibilityLabel,
+  expanded,
+  onPress,
+}: {
+  label: string
+  accessibilityLabel: string
+  expanded?: boolean
+  onPress: () => void
+}): ReactNode {
+  const accent = useAccent()
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
+      hitSlop={{ top: 8, bottom: 8 }}
+      style={({ pressed }) => [styles.foldAction, pressed && { opacity: 0.6 }]}
+    >
+      <Text style={[styles.foldActionText, { color: accent.accent }]}>{label}</Text>
+    </Pressable>
   )
 }
 
@@ -710,6 +787,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sm,
   },
   linksInputWide: { flex: 1 },
+  linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17, marginBottom: 8 },
   migrateCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -826,6 +904,8 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 12,
   },
   jobs: { gap: 4 },
+  foldAction: { paddingVertical: 4, paddingHorizontal: 6 },
+  foldActionText: { fontSize: 13, fontWeight: '600' },
   job: {
     flexDirection: 'row',
     alignItems: 'center',

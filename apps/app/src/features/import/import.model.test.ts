@@ -5,12 +5,16 @@ import {
   chooseAll,
   chosenItems,
   enqueueRequest,
+  finishedLabel,
+  foldQueue,
+  hasLink,
   importButtonLabel,
   isSquareCover,
   jobAction,
   jobLabel,
   jobSubtitle,
   jobTone,
+  linkHint,
   matchingTag,
   patchItem,
   queueActivity,
@@ -172,9 +176,54 @@ describe('import queue', () => {
     expect(jobAction(job({ status: 'done', step: 'finished' }))).toBeNull()
   })
 
+  it('folds the finished jobs away and keeps what still needs you', () => {
+    const jobs = [
+      job({ status: 'done' }),
+      job({ status: 'running', step: 'downloading' }),
+      job({ status: 'error' }),
+      job({ status: 'done' }),
+      job({ status: 'cancelled' }),
+    ]
+    const { open, finished } = foldQueue(jobs)
+    expect(open.map(j => j.status)).toEqual(['running', 'error', 'cancelled'])
+    expect(finished).toHaveLength(2)
+  })
+
+  it('says the finished ones were added today only when all of them were', () => {
+    const now = new Date('2026-09-14T15:00:00')
+    const at = (local: string) => ({ updatedAt: new Date(local).toISOString() })
+    expect(finishedLabel([at('2026-09-14T09:00:00'), at('2026-09-14T14:00:00')], now)).toBe(
+      '2 added today',
+    )
+    expect(finishedLabel([at('2026-09-13T22:00:00'), at('2026-09-14T09:00:00')], now)).toBe(
+      '2 added',
+    )
+    // The server's own stamps are UTC with a space and no zone.
+    const utc = now.toISOString().slice(0, 19).replace('T', ' ')
+    expect(finishedLabel([{ updatedAt: utc }], now)).toBe('1 added today')
+  })
+
   it('reports activity only while there is some', () => {
     expect(queueActivity({ active: 1, queued: 4 })).toBe('1 downloading, 4 waiting')
     expect(queueActivity({ active: 0, queued: 0 })).toBeNull()
+  })
+})
+
+describe('the links box', () => {
+  it('reads a link anywhere in the box, as the server does', () => {
+    expect(hasLink('https://music.youtube.com/watch?v=abc')).toBe(true)
+    expect(hasLink('YOASOBI\nhttps://youtu.be/dGZqpVCJP3k')).toBe(true)
+    expect(hasLink('music.youtube.com/watch?v=abc')).toBe(false)
+    expect(hasLink('yoasobi idol')).toBe(false)
+  })
+
+  it('says so under the box only once something without a link is typed', () => {
+    expect(linkHint('')).toBeNull()
+    expect(linkHint('   \n')).toBeNull()
+    expect(linkHint('https://youtu.be/dGZqpVCJP3k')).toBeNull()
+    expect(linkHint('not a link')).toBe(
+      'That doesn’t look like a link. Paste a music.youtube.com or youtube.com address.',
+    )
   })
 })
 

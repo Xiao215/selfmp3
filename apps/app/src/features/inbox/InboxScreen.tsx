@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
@@ -21,7 +22,7 @@ import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Check, ChevronRight, Inbox, Play, Plus, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
-import { SongRow } from '../../ui/components/SongRow'
+import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { Toggle } from '../../ui/components/Toggle'
 import {
   existingTag,
@@ -58,20 +59,33 @@ export function InboxScreen(): ReactNode {
   const untagged = useMemo(() => untaggedSongs(library?.songs ?? []), [library])
   const ids = useMemo(() => untagged.map(song => song.id), [untagged])
 
+  // One press handler for every row, reading the list at the moment of the
+  // press: a closure per row over the player redrew every row whenever the
+  // player changed. The rows ask the player themselves whether they are playing.
+  const { playFrom } = player
+  const latest = useRef({ ids, playFrom })
+  useEffect(() => {
+    latest.current = { ids, playFrom }
+  })
+  const onRowPress = useCallback((_event: GestureResponderEvent, song: Song) => {
+    const now = latest.current
+    const index = now.ids.indexOf(song.id)
+    if (index >= 0) now.playFrom(now.ids, index)
+  }, [])
+  const rowHeight = useSongRowHeight()
+
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
       <SongRow
         testID={`song-row-${index}`}
         song={item}
         artUri={artFor(item)}
-        active={player.current?.id === item.id}
-        playing={player.isPlaying}
         downloaded={isDownloaded(downloads.index, item.id)}
-        onPress={() => player.playFrom(ids, index)}
+        onPress={onRowPress}
         index={index}
       />
     ),
-    [artFor, player, downloads.index, ids],
+    [artFor, downloads.index, onRowPress],
   )
 
   if (session) return <Triage ids={session} onExit={() => setSession(null)} />
@@ -125,6 +139,7 @@ export function InboxScreen(): ReactNode {
             songs={untagged}
             label="Untagged songs"
             renderSong={renderSong}
+            rowHeight={rowHeight}
             contentContainerStyle={styles.list}
           />
         )}

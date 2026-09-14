@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song } from '@selfmp3/shared'
@@ -17,7 +18,7 @@ import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
-import { SongRow } from '../../ui/components/SongRow'
+import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
@@ -55,7 +56,7 @@ export function LibraryScreen(): ReactNode {
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
-  const { filter, songs, visible, songIds, tags, heading, includeTag } = model
+  const { filter, songs, visible, songIds, heading, includeTag, songTags } = model
 
   const [searchFocused, setSearchFocused] = useState(false)
   const [menuSong, setMenuSong] = useState<Song | null>(null)
@@ -65,7 +66,6 @@ export function LibraryScreen(): ReactNode {
   const tagAnchorRef = useRef<View | null>(null)
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
-  const tagById = useMemo(() => new Map(tags.map(tag => [tag.id, tag])), [tags])
   // Holding a chip opens its editor, as on the web's phone strip. A sheet on a
   // phone; above the breakpoint it opens beside the strip.
 
@@ -85,65 +85,95 @@ export function LibraryScreen(): ReactNode {
   )
 
   const artFor = useArt()
-  const currentId = player.current?.id ?? null
-  const playing = player.isPlaying
+  const rowHeight = useSongRowHeight()
 
+  /*
+   * A row's handlers, one of each for the whole list.
+   *
+   * They were closures made per row per render, over the player, the
+   * selection and the ids — so no row's memo ever held, and a song change, a
+   * pause or a keystroke in the search redrew every row on screen. Now each
+   * is made once and handed the row's song, and reads what it needs at the
+   * moment of the press from `latest`. Whether a row is the playing one the
+   * row asks the player itself (`useSongPlayback`).
+   */
+  const { playFrom } = player
+  const latest = useRef({ selection, songIds, playFrom, toggleLoved })
+  useEffect(() => {
+    latest.current = { selection, songIds, playFrom, toggleLoved }
+  })
+  const onRowPress = useCallback((event: GestureResponderEvent, song: Song) => {
+    const now = latest.current
+    // Shift and Cmd on the web, and a tap in selection mode, select; a plain
+    // tap still plays.
+    if (now.selection.click(song.id, modifiersOf(event))) return
+    const index = now.songIds.indexOf(song.id)
+    if (index >= 0) now.playFrom(now.songIds, index)
+  }, [])
+  const onRowMore = useCallback((anchor: View | null, song: Song) => {
+    menuAnchorRef.current = anchor
+    // The ⋯ again closes its own menu.
+    setMenuSong(current => (current?.id === song.id ? null : song))
+  }, [])
+  // Holding a row selects it; the ⋯ opens the menu.
+  const onRowLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
+  const onRowToggleLoved = useCallback(
+    (song: Song) => latest.current.toggleLoved.mutate({ id: song.id, loved: !song.loved }),
+    [],
+  )
+  const onRowToggleSelect = useCallback(
+    (song: Song) => latest.current.selection.toggle(song.id),
+    [],
+  )
+  const onRowEditTags = useCallback((anchor: View | null, song: Song) => {
+    tagAnchorRef.current = anchor
+    setTaggingSong(current => (current?.id === song.id ? null : song))
+  }, [])
+
+  const unreachable = model.unreachable
+  const menuSongId = menuSong?.id ?? null
   const renderSong = useCallback(
-    ({ item, index }: { item: Song; index: number }) => (
-      <SongRow
-        testID={`song-row-${index}`}
-        song={item}
-        artUri={artFor(item)}
-        active={currentId === item.id}
-        playing={playing}
-        downloaded={downloaded(item.id)}
-        notDownloadedMark={installed && !downloaded(item.id)}
-        // Not here, and nowhere to stream it from: faded, so the list says so.
-        unavailable={model.unreachable && installed && !downloaded(item.id)}
-        onPress={event => {
-          // Shift and Cmd on the web, and a tap in selection mode, select; a
-          // plain tap still plays.
-          if (selection.click(item.id, modifiersOf(event))) return
-          player.playFrom(songIds, index)
-        }}
-        onMore={anchor => {
-          menuAnchorRef.current = anchor
-          // The ⋯ again closes its own menu.
-          setMenuSong(current => (current?.id === item.id ? null : item))
-        }}
-        menuOpen={menuSong?.id === item.id}
-        // Holding a row selects it; the ⋯ opens the menu.
-        onLongPress={() => selection.enter(item.id)}
-        onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
-        selecting={selection.active}
-        selected={selection.has(item.id)}
-        onToggleSelect={() => selection.toggle(item.id)}
-        index={index}
-        tags={item.tagIds.flatMap(id => {
-          const tag = tagById.get(id)
-          return tag ? [tag] : []
-        })}
-        onToggleTag={includeTag}
-        onEditTags={anchor => {
-          tagAnchorRef.current = anchor
-          setTaggingSong(current => (current?.id === item.id ? null : item))
-        }}
-      />
-    ),
+    ({ item, index }: { item: Song; index: number }) => {
+      const here = downloaded(item.id)
+      return (
+        <SongRow
+          testID={`song-row-${index}`}
+          song={item}
+          artUri={artFor(item)}
+          downloaded={here}
+          notDownloadedMark={installed && !here}
+          // Not here, and nowhere to stream it from: faded, so the list says so.
+          unavailable={unreachable && installed && !here}
+          onPress={onRowPress}
+          onMore={onRowMore}
+          menuOpen={menuSongId === item.id}
+          onLongPress={onRowLongPress}
+          onToggleLoved={onRowToggleLoved}
+          selecting={selection.active}
+          selected={selection.has(item.id)}
+          onToggleSelect={onRowToggleSelect}
+          index={index}
+          tags={songTags(item)}
+          onToggleTag={includeTag}
+          onEditTags={onRowEditTags}
+        />
+      )
+    },
     [
       installed,
       artFor,
-      currentId,
-      playing,
-      songIds,
       downloaded,
-      player,
-      toggleLoved,
+      unreachable,
       selection,
-      tagById,
+      songTags,
       includeTag,
-      menuSong,
-      model.unreachable,
+      menuSongId,
+      onRowPress,
+      onRowMore,
+      onRowLongPress,
+      onRowToggleLoved,
+      onRowToggleSelect,
+      onRowEditTags,
     ],
   )
 
@@ -332,6 +362,7 @@ export function LibraryScreen(): ReactNode {
           songs={visible}
           label={`${heading} songs`}
           renderSong={renderSong}
+          rowHeight={rowHeight}
           contentContainerStyle={styles.list}
           empty={<Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>}
         />

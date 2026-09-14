@@ -1,6 +1,6 @@
 import { memo, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
@@ -17,6 +17,7 @@ import {
   describeEnergy,
   describeTempo,
 } from '@selfmp3/client'
+import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
@@ -52,17 +53,21 @@ const SIDEBAR_WIDTH = 244
  * the ⋯ — wait for the pointer, so a screen of songs reads as titles and not as
  * a grid of grey icons. Only three things are ever ink: title, artist, length.
  *
- * Memoised because the list is long and re-renders on every progress tick
- * otherwise — the one place in this app where that actually matters.
+ * Memoised because the list is long — the one place in this app where a render
+ * too many actually matters. The memo only holds if nothing handed to a row is
+ * new each render, so the handlers are given the row's song rather than being
+ * closures over it (one function serves every row), and whether this is the
+ * loaded song is asked of the player by the row itself (`useSongPlayback`)
+ * rather than handed down, which used to redraw every row on every song change.
  */
 export const SongRow = memo(function SongRow({
   testID,
   song,
   artUri,
-  active,
+  active: activeOverride,
   downloaded,
   notDownloadedMark = false,
-  playing = false,
+  playing: playingOverride,
   onPress,
   onMore,
   onToggleLoved,
@@ -81,23 +86,27 @@ export const SongRow = memo(function SongRow({
   testID?: string
   song: Song
   artUri: string | null
-  active: boolean
+  /** Draw as the loaded song. Left out, the row asks the player, which is what a list wants. */
+  active?: boolean
   downloaded: boolean
   /**
    * Mark a song that is not on this device. An installed app says so, since
    * such a song may not play; a browser streams, and leaves it unmarked.
    */
   notDownloadedMark?: boolean
-  /** Whether the song is the one actually sounding, for the equaliser. */
+  /** Whether the song is the one actually sounding, for the equaliser. Left out, the player says. */
   playing?: boolean
-  /** The press event comes through, so a list can read Shift and Cmd on the web. */
-  onPress: (event: GestureResponderEvent) => void
+  /**
+   * The press event comes through, so a list can read Shift and Cmd on the web.
+   * So does the song, so one handler can serve every row.
+   */
+  onPress: (event: GestureResponderEvent, song: Song) => void
   /**
    * The ⋯, and what a held finger opens. Handed the ⋯ itself, so at desktop
    * width the menu can open beside it.
    */
-  onMore?: (anchor: View | null) => void
-  onToggleLoved?: () => void
+  onMore?: (anchor: View | null, song: Song) => void
+  onToggleLoved?: (song: Song) => void
   /**
    * Selection mode is on, so the checkbox column is showing. On a phone the
    * column is not there until then, rather than spending 34 points of every
@@ -105,7 +114,7 @@ export const SongRow = memo(function SongRow({
    */
   selecting?: boolean
   selected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (song: Song) => void
   /** Position in the list, shown at desktop width. */
   index?: number
   /** The song's tags, drawn as chips at desktop width. */
@@ -113,9 +122,9 @@ export const SongRow = memo(function SongRow({
   /** A tag chip filters the library by that tag. */
   onToggleTag?: (tagId: number) => void
   /** The dashed + beside the chips. Handed the +, so the tag window can open over it. */
-  onEditTags?: (anchor: View | null) => void
+  onEditTags?: (anchor: View | null, song: Song) => void
   /** Holding the row on a phone. Without it, holding opens the ⋯ menu. */
-  onLongPress?: () => void
+  onLongPress?: (song: Song) => void
   /**
    * This row's menu is open. The menu covers the pointer, so the row stops
    * hearing it; without this the ⋯ faded out under its own menu and stayed
@@ -130,6 +139,9 @@ export const SongRow = memo(function SongRow({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
+  const playback = useSongPlayback(song.id)
+  const active = activeOverride ?? playback !== null
+  const playing = playingOverride ?? playback === 'playing'
   // The playing row wears its cover's colour; every other row asks for nothing.
   const songColor = useSongColor(active ? song : null, artUri)
   const { wide, dense, width } = useLayout()
@@ -171,12 +183,23 @@ export const SongRow = memo(function SongRow({
         <View testID={testID} role="row" style={[styles.row, ...tint]}>
           {active ? <RowWash color={songColor.color} /> : null}
           {selecting && onToggleSelect ? (
-            <SelectBox song={song} selected={selected} onToggle={onToggleSelect} phone />
+            <SelectBox
+              song={song}
+              selected={selected}
+              onToggle={() => onToggleSelect(song)}
+              phone
+            />
           ) : null}
 
           <Pressable
-            onPress={onPress}
-            onLongPress={onLongPress ?? (onMore ? () => onMore(moreRef.current) : undefined)}
+            onPress={event => onPress(event, song)}
+            onLongPress={
+              onLongPress
+                ? () => onLongPress(song)
+                : onMore
+                  ? () => onMore(moreRef.current, song)
+                  : undefined
+            }
             onPressIn={() => press(true)}
             onPressOut={() => press(false)}
             delayLongPress={450}
@@ -216,7 +239,7 @@ export const SongRow = memo(function SongRow({
           </Pressable>
 
           {onToggleLoved ? (
-            <Love song={song} onPress={onToggleLoved} size={HIT_TARGET} visible />
+            <Love song={song} onPress={() => onToggleLoved(song)} size={HIT_TARGET} visible />
           ) : null}
 
           <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
@@ -224,7 +247,7 @@ export const SongRow = memo(function SongRow({
           {onMore ? (
             <View ref={moreRef} collapsable={false}>
               <Pressable
-                onPress={() => onMore?.(moreRef.current)}
+                onPress={() => onMore?.(moreRef.current, song)}
                 accessibilityRole="button"
                 accessibilityLabel={`More actions for ${song.title}`}
                 {...tip('More')}
@@ -260,7 +283,7 @@ export const SongRow = memo(function SongRow({
       {active ? <RowWash color={songColor.color} /> : null}
       {onToggleSelect ? (
         <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
-          <SelectBox song={song} selected={selected} onToggle={onToggleSelect} />
+          <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
         </View>
       ) : null}
 
@@ -269,7 +292,7 @@ export const SongRow = memo(function SongRow({
           <Equalizer paused={!playing} size={14} color={songColor.tint} />
         ) : revealed && dense ? (
           <Pressable
-            onPress={onPress}
+            onPress={event => onPress(event, song)}
             accessibilityRole="button"
             accessibilityLabel={`Play ${song.title}`}
             {...tip('Play')}
@@ -283,8 +306,8 @@ export const SongRow = memo(function SongRow({
       </View>
 
       <Pressable
-        onPress={onPress}
-        onLongPress={onMore ? () => onMore(moreRef.current) : undefined}
+        onPress={event => onPress(event, song)}
+        onLongPress={onMore ? () => onMore(moreRef.current, song) : undefined}
         delayLongPress={450}
         accessibilityRole="button"
         accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
@@ -347,7 +370,7 @@ export const SongRow = memo(function SongRow({
         {onEditTags ? (
           <Pressable
             ref={tagAddRef}
-            onPress={() => onEditTags(tagAddRef.current)}
+            onPress={() => onEditTags(tagAddRef.current, song)}
             accessibilityRole="button"
             accessibilityLabel={`Edit tags for ${song.title}`}
             {...tip('Edit tags')}
@@ -362,7 +385,7 @@ export const SongRow = memo(function SongRow({
         {onToggleLoved ? (
           <Love
             song={song}
-            onPress={onToggleLoved}
+            onPress={() => onToggleLoved(song)}
             size={controlSize}
             visible={revealed || song.loved}
           />
@@ -371,7 +394,7 @@ export const SongRow = memo(function SongRow({
         {onMore ? (
           <View ref={moreRef} collapsable={false} style={{ opacity: revealed ? 1 : 0 }}>
             <Pressable
-              onPress={() => onMore?.(moreRef.current)}
+              onPress={() => onMore?.(moreRef.current, song)}
               accessibilityRole="button"
               accessibilityLabel={`More actions for ${song.title}`}
               {...tip('More')}
@@ -389,6 +412,33 @@ export const SongRow = memo(function SongRow({
     </View>
   )
 })
+
+/*
+ * How tall a row is, in each of its shapes. Every row of a shape is exactly
+ * this tall — its tallest cell is a fixed-size control, and its text is one
+ * line of each of two sizes that fit inside the cover beside it — so a list
+ * can place rows by arithmetic (`SongList`'s `rowHeight`).
+ *
+ * Phone: 5 above and below the row, 3 above and below the press target, the
+ * 40-point cover. Desktop: 7 above and below, and the heart and ⋯ at 44 with a
+ * finger or 34 with a mouse, beside a 40-point cover.
+ */
+const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 40
+const TOUCH_WIDE_ROW_HEIGHT = 7 * 2 + HIT_TARGET
+const DENSE_ROW_HEIGHT = 7 * 2 + 40
+
+/**
+ * The row height for this layout, or null when it cannot be promised: text
+ * enlarged in the system's settings can wrap past the cover, and a list that
+ * believed the old number would place every row in the wrong spot.
+ */
+export function useSongRowHeight(): number | null {
+  const { wide, dense } = useLayout()
+  const { fontScale } = useWindowDimensions()
+  if (fontScale > 1) return null
+  if (!wide) return PHONE_ROW_HEIGHT
+  return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
+}
 
 function SelectBox({
   song,

@@ -1,6 +1,12 @@
+import { useMemo } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { FlatList, type StyleProp, type ViewStyle } from 'react-native'
+import { FlatList, type FlatListProps, type StyleProp, type ViewStyle } from 'react-native'
 import type { Song } from '@selfmp3/shared'
+
+/** Module-level, so the list is not handed a new function on every render. */
+function keyOf(song: Song): string {
+  return String(song.id)
+}
 
 /**
  * A list of songs, wherever one is shown.
@@ -27,6 +33,11 @@ import type { Song } from '@selfmp3/shared'
  * same: keep the component, keep the semantics, use the list that works.
  * Revisiting is a one-file change and wants a FlashList release that fixes
  * recycled-cell accessibility on the New Architecture.
+ *
+ * `renderSong` goes to the list as it is. Wrapped in an arrow here, it was a
+ * new `renderItem` on every render of the screen, and the list redrew every
+ * cell it had for it; a screen that keeps `renderSong` stable now gets a list
+ * that stays still.
  */
 export function SongList({
   songs,
@@ -34,6 +45,13 @@ export function SongList({
   label,
   empty,
   contentContainerStyle,
+  rowHeight = null,
+  header,
+  style,
+  scrollEnabled,
+  keyboardShouldPersistTaps,
+  keyboardDismissMode = 'on-drag',
+  CellRendererComponent,
 }: {
   songs: readonly Song[]
   renderSong: (info: { item: Song; index: number }) => ReactElement | null
@@ -41,20 +59,50 @@ export function SongList({
   label: string
   empty?: ReactNode
   contentContainerStyle?: StyleProp<ViewStyle>
+  /**
+   * Every row's height, when every row is exactly that tall (`useSongRowHeight`).
+   * The list then places rows by arithmetic rather than measuring each one as
+   * it appears, which is what keeps a fast fling through thousands of songs
+   * from drawing blank. Only for a list with no header: the offsets start at
+   * the first row.
+   */
+  rowHeight?: number | null
+  /** What scrolls above the songs, such as a playlist's cover and controls. */
+  header?: ReactElement | null
+  style?: StyleProp<ViewStyle>
+  scrollEnabled?: boolean
+  keyboardShouldPersistTaps?: FlatListProps<Song>['keyboardShouldPersistTaps']
+  keyboardDismissMode?: FlatListProps<Song>['keyboardDismissMode']
+  /** Wraps each cell; a playlist lifts the row being moved with it. */
+  CellRendererComponent?: FlatListProps<Song>['CellRendererComponent']
 }): ReactNode {
+  const getItemLayout = useMemo<FlatListProps<Song>['getItemLayout']>(
+    () =>
+      rowHeight !== null && rowHeight > 0
+        ? (_data, index) => ({ length: rowHeight, offset: rowHeight * index, index })
+        : undefined,
+    [rowHeight],
+  )
+
   return (
     <FlatList
       role="table"
       aria-label={label}
       data={songs}
-      keyExtractor={song => String(song.id)}
-      renderItem={({ item, index }) => renderSong({ item, index })}
+      keyExtractor={keyOf}
+      renderItem={renderSong}
+      getItemLayout={getItemLayout}
       initialNumToRender={16}
       windowSize={11}
       removeClippedSubviews
-      keyboardDismissMode="on-drag"
+      keyboardDismissMode={keyboardDismissMode}
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      scrollEnabled={scrollEnabled}
+      style={style}
       contentContainerStyle={contentContainerStyle}
+      ListHeaderComponent={header}
       ListEmptyComponent={empty as ReactElement}
+      CellRendererComponent={CellRendererComponent}
     />
   )
 }

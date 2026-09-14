@@ -50,6 +50,8 @@ export interface LibraryModel {
   songIds: number[]
   /** Only the tags actually in use, which is what the strip offers. */
   tags: readonly Tag[]
+  /** A song's tags, the same array for the same song until the tags change, so a row's memo holds. */
+  songTags: (song: Song) => readonly Tag[]
   /** The title: "chill · not instrumental", or "Library". */
   heading: string
   /** A tag is filtering, either way. */
@@ -96,41 +98,139 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     [visible],
   )
 
-  const tagsFor = (ids: readonly number[]): Tag[] =>
-    ids.flatMap(id => allTags.filter(tag => tag.id === id))
+  const songTags = useMemo(() => songTagLookup(allTags), [allTags])
+  const includedTags = useMemo(
+    () => tagsFor(allTags, filter.includedTagIds),
+    [allTags, filter.includedTagIds],
+  )
+  const excludedTags = useMemo(
+    () => tagsFor(allTags, filter.excludedTagIds),
+    [allTags, filter.excludedTagIds],
+  )
+  const tagFilter = useCallback((tagId: number) => tagFilterState(filter, tagId), [filter])
 
-  return {
-    filter,
-    songs,
-    visible,
-    songIds,
-    tags,
-    heading: filterHeading(filter, allTags),
-    tagFiltered: tagFiltered(filter),
-    includedTags: tagsFor(filter.includedTagIds),
-    excludedTags: tagsFor(filter.excludedTagIds),
-    tagFilter: tagId => tagFilterState(filter, tagId),
-    subtitle: library.isPending
-      ? 'Loading…'
-      : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`,
-    sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
-    sortOptions: SORT_OPTIONS,
-    loading: library.isPending,
-    unreachable: library.isError,
-    emptyReason: emptyReason({
-      isError: library.isError,
-      total: songs.length,
-      shown: visible.length,
+  /*
+   * The actions, made once. They were arrows in the object below, new on
+   * every render, and a row is handed `includeTag` for its chips: every row
+   * of the library redrew whenever the screen did, whatever had changed.
+   * `setFilter` is a state setter, so none of these ever needs remaking.
+   */
+  const setQuery = useCallback(
+    (query: string) => setFilter(current => ({ ...current, query })),
+    [setFilter],
+  )
+  const clearQuery = useCallback(() => setFilter(current => ({ ...current, query: '' })), [setFilter])
+  const setSort = useCallback(
+    (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
+    [setFilter],
+  )
+  const toggleDirection = useCallback(
+    () => setFilter(current => ({ ...current, descending: !current.descending })),
+    [setFilter],
+  )
+  const includeTagId = useCallback(
+    (tagId: number) => setFilter(current => includeTag(current, tagId)),
+    [setFilter],
+  )
+  const excludeTagId = useCallback(
+    (tagId: number) => setFilter(current => excludeTag(current, tagId)),
+    [setFilter],
+  )
+  const clearTags = useCallback(() => setFilter(clearTagFilter), [setFilter])
+  const toggleDownloadedOnly = useCallback(
+    () => setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
+    [setFilter],
+  )
+
+  const { isPending, isError } = library
+  return useMemo(
+    () => ({
+      filter,
+      songs,
+      visible,
+      songIds,
+      tags,
+      songTags,
+      heading: filterHeading(filter, allTags),
+      tagFiltered: tagFiltered(filter),
+      includedTags,
+      excludedTags,
+      tagFilter,
+      subtitle: isPending
+        ? 'Loading…'
+        : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`,
+      sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
+      sortOptions: SORT_OPTIONS,
+      loading: isPending,
+      unreachable: isError,
+      emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
+      setQuery,
+      clearQuery,
+      setSort,
+      toggleDirection,
+      includeTag: includeTagId,
+      excludeTag: excludeTagId,
+      clearTags,
+      toggleDownloadedOnly,
     }),
-    setQuery: query => setFilter(current => ({ ...current, query })),
-    clearQuery: () => setFilter(current => ({ ...current, query: '' })),
-    setSort: sort => setFilter(current => ({ ...current, sort })),
-    toggleDirection: () => setFilter(current => ({ ...current, descending: !current.descending })),
-    includeTag: tagId => setFilter(current => includeTag(current, tagId)),
-    excludeTag: tagId => setFilter(current => excludeTag(current, tagId)),
-    clearTags: () => setFilter(clearTagFilter),
-    toggleDownloadedOnly: () =>
-      setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
+    [
+      filter,
+      songs,
+      visible,
+      songIds,
+      tags,
+      songTags,
+      allTags,
+      includedTags,
+      excludedTags,
+      tagFilter,
+      isPending,
+      isError,
+      seconds,
+      setQuery,
+      clearQuery,
+      setSort,
+      toggleDirection,
+      includeTagId,
+      excludeTagId,
+      clearTags,
+      toggleDownloadedOnly,
+    ],
+  )
+}
+
+/** The tags with these ids, in the order of the ids. */
+function tagsFor(allTags: readonly Tag[], ids: readonly number[]): Tag[] {
+  return ids.flatMap(id => allTags.filter(tag => tag.id === id))
+}
+
+const NO_TAGS: readonly never[] = []
+
+/**
+ * Each song's tags, looked up once per song and then kept.
+ *
+ * A row is memoised, and a fresh array of the same tags is a changed prop:
+ * building the list in the render redrew every row each time. Kept by the
+ * song object, so a song that did not change — every one but the song just
+ * loved, after a love — keeps its array, and a library refetch that hands the
+ * same songs back (React Query keeps unchanged objects) keeps them all.
+ */
+export function songTagLookup<T extends { readonly id: number }>(
+  allTags: readonly T[],
+): (song: { readonly tagIds: readonly number[] }) => readonly T[] {
+  const byId = new Map(allTags.map(tag => [tag.id, tag]))
+  const made = new WeakMap<object, readonly T[]>()
+  return song => {
+    if (song.tagIds.length === 0) return NO_TAGS
+    let found = made.get(song)
+    if (!found) {
+      found = song.tagIds.flatMap(id => {
+        const tag = byId.get(id)
+        return tag ? [tag] : []
+      })
+      made.set(song, found)
+    }
+    return found
   }
 }
 

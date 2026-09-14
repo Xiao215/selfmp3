@@ -12,7 +12,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { WRAPPED_RANGE_LABELS, type Song, type WrappedRange } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import { useLibrary, useWrapped } from '../../api/queries'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -443,7 +443,6 @@ function RankList({
 }: {
   entries: readonly { key: string; plays: number; sub?: string }[]
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   if (entries.length === 0) return <Text style={styles.hint}>Nothing here yet</Text>
   const max = entries[0]?.plays ?? 1
@@ -456,15 +455,7 @@ function RankList({
           accessible
           accessibilityLabel={`${index + 1}. ${entry.key}${entry.sub ? `, ${entry.sub}` : ''}: ${entry.plays}`}
         >
-          <View
-            style={[
-              styles.rankBar,
-              {
-                width: `${rankShare(entry.plays, max)}%`,
-                backgroundColor: `${theme.colors.chartSeries}38`,
-              },
-            ]}
-          />
+          <View style={[styles.rankBar, { width: `${rankShare(entry.plays, max)}%` }]} />
           <Text style={[styles.rank, { color: accent.accent }]}>{index + 1}</Text>
           <Text style={styles.rankName} numberOfLines={1}>
             {entry.key}
@@ -625,7 +616,14 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sm,
     overflow: 'hidden',
   },
-  rankBar: { position: 'absolute', left: 0, top: 2, bottom: 2, borderRadius: radius.sm },
+  rankBar: {
+    position: 'absolute',
+    left: 0,
+    top: 2,
+    bottom: 2,
+    borderRadius: radius.sm,
+    backgroundColor: withAlpha(theme.colors.chartSeries, 0.22),
+  },
   rank: { width: 16, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
   rankName: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 13 },
   rankValue: {

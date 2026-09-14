@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
 import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
-import { space, type } from '@selfmp3/client'
+import { space, type, withAlpha } from '@selfmp3/client'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -138,7 +138,7 @@ export function SeekBar({
                     left: `${loop.left}%`,
                     width: `${loop.width}%`,
                     borderColor: fill,
-                    backgroundColor: `${fill}29`,
+                    backgroundColor: withAlpha(fill, 0.16),
                   },
                 ]}
               />
@@ -202,7 +202,7 @@ export function SeekBar({
                 left: `${loop.left}%`,
                 width: `${loop.width}%`,
                 borderColor: fill,
-                backgroundColor: `${fill}29`,
+                backgroundColor: withAlpha(fill, 0.16),
               },
             ]}
           />

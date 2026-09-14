@@ -40,6 +40,11 @@ describe('withAlpha', () => {
     expect(withAlpha('#336699ff', 0)).toBe('#33669900')
   })
 
+  it('spells out a shorthand hex before adding the byte', () => {
+    expect(withAlpha('#abc', 0.5)).toBe('#aabbcc80')
+    expect(withAlpha('#abcd', 0.5)).toBe('#aabbcc80')
+  })
+
   // A browser's Unistyles stylesheet sees `var(--colors-x)`, not a hex: an
   // alpha byte sliced onto that broke the whole stylesheet after it.
   it('mixes a CSS variable with transparency rather than slicing it', () => {

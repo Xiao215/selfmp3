@@ -22,6 +22,7 @@ import {
   tempoMark,
   useLibrary,
   usePatchSong,
+  withAlpha,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -38,7 +39,6 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import { useSongColor } from '../../ui/useSongColor'
 import {
   contextLine,
-  hexAlpha,
   parseMode,
   parseTab,
   romanName,
@@ -256,7 +256,7 @@ function Stage({
         pointerEvents="none"
         style={[
           styles.fill,
-          { opacity: move, backgroundColor: hexAlpha(theme.colors.surface0, 0.55) },
+          { opacity: move, backgroundColor: withAlpha(theme.colors.surface0, 0.55) },
         ]}
       />
 
@@ -591,10 +591,10 @@ const styles = StyleSheet.create(theme => ({
     gap: 2,
     padding: 3,
     borderRadius: 9,
-    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.07),
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
   },
   tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 7 },
-  tabActive: { backgroundColor: hexAlpha(theme.colors.textPrimary, 0.13) },
+  tabActive: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.13) },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
   tabTextActive: { color: theme.colors.textPrimary },
   cover: {
@@ -617,7 +617,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 8,
     borderRadius: 5,
     justifyContent: 'center',
-    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   keyText: { fontSize: 12, fontWeight: '600' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
@@ -657,7 +657,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 5,
     paddingHorizontal: 11,
     borderRadius: 999,
-    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
@@ -670,9 +670,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: hexAlpha(theme.colors.textPrimary, 0.08),
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
-  expandPressed: { backgroundColor: hexAlpha(theme.colors.textPrimary, 0.14) },
+  expandPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   upNext: {
     position: 'absolute',
     zIndex: 5,
@@ -683,7 +683,7 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 8,
     paddingRight: 12,
     borderRadius: radius.md,
-    backgroundColor: hexAlpha(theme.colors.surface2, 0.88),
+    backgroundColor: withAlpha(theme.colors.surface2, 0.88),
     shadowColor: '#000',
     shadowOpacity: 0.4,
     shadowRadius: 18,

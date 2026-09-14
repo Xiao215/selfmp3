@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View, type GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Line, Path } from 'react-native-svg'
-import { radius } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import {
   barShare,
   formatNumber,
@@ -196,8 +196,7 @@ export function BarList({
           <Text style={styles.barLabel} numberOfLines={1}>
             {datum.label}
           </Text>
-          {/* The track is the series colour at 18%, as the web mixes it. */}
-          <View style={[styles.barTrack, { backgroundColor: `${theme.colors.chartSeries}2e` }]}>
+          <View style={styles.barTrack}>
             <View
               style={[
                 styles.barFill,
@@ -266,7 +265,13 @@ const styles = StyleSheet.create(theme => ({
   barList: { gap: 9 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   barLabel: { width: 100, color: theme.colors.textSecondary, fontSize: 12 },
-  barTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
+  barTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: withAlpha(theme.colors.chartSeries, 0.18),
+  },
   barFill: { height: 8, borderTopRightRadius: 4, borderBottomRightRadius: 4 },
   barValue: {
     minWidth: 34,

@@ -2624,3 +2624,11 @@ From Xiao on 4600:
    keeps its Lyrics action.
 6. **A pointer over the scrubber** (`cursor: 'pointer'` on its hit area) and
    the volume slider. Checked: the seek slider's computed cursor is `pointer`.
+- **A second helper had the same flaw.** `hexAlpha` in the Now Playing model
+  parsed bytes out of the theme colour and, on the web, wrote
+  `rgba(NaN, NaN, NaN, a)` — balanced, so only the veil vanished (the stage's
+  tab pill, its pressed states, the queue backdrop). It is gone; the stage and
+  the lyrics use `withAlpha`, which also spells out a `#rgb` before adding its
+  byte. The seek bar's loop overlay and the chart tracks stopped appending a
+  hex byte to a colour too, and the tracks are themed styles rather than a
+  string built per row.

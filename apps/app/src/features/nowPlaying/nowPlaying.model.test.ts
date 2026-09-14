@@ -3,7 +3,6 @@ import type { ParsedLyrics } from '@selfmp3/shared'
 
 import {
   contextLine,
-  hexAlpha,
   parseMode,
   parseTab,
   resolveSongWords,
@@ -104,10 +103,6 @@ describe('now playing', () => {
     expect(upNextSeconds({ ...song, repeatOne: true, position: 190 })).toBeNull()
     expect(upNextSeconds({ ...song, hasNext: false, position: 190 })).toBeNull()
     expect(upNextSeconds({ ...song, duration: 25, position: 20 })).toBeNull()
-  })
-
-  it('writes a token at an opacity', () => {
-    expect(hexAlpha('#0b0d13', 0.5)).toBe('rgba(11, 13, 19, 0.5)')
   })
 })
 

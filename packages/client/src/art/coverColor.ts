@@ -78,6 +78,11 @@ export function withAlpha(color: string, alpha: number): string {
   if (!color.startsWith('#')) {
     return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`
   }
+  // `#rgb` and `#rgba` spelt out, so slicing never leaves a five-digit colour.
+  const digits = color.slice(1)
+  const long =
+    digits.length === 3 || digits.length === 4 ? [...digits].map(d => d + d).join('') : digits
   const byte = Math.round(opacity * 255)
-  return `${color.slice(0, 7)}${byte.toString(16).padStart(2, '0')}`
+  // An alpha already there is replaced, not compounded.
+  return `#${long.slice(0, 6)}${byte.toString(16).padStart(2, '0')}`
 }

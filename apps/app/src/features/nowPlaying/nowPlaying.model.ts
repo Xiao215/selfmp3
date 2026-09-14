@@ -136,15 +136,6 @@ export function upNextSeconds({
   return Math.ceil(remaining)
 }
 
-/** A `#rrggbb` token at some opacity, for the web's `color-mix(… transparent)`. */
-export function hexAlpha(hex: string, alpha: number): string {
-  const value = hex.replace('#', '')
-  const r = parseInt(value.slice(0, 2), 16)
-  const g = parseInt(value.slice(2, 4), 16)
-  const b = parseInt(value.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
 /**
  * What auto-mix will do next, beside its switch in Up next: the web's
  * `.automix-fade`. A phone's player cannot crossfade, so there it only orders.
@@ -162,7 +153,9 @@ export function autoMixLine({
 }): string {
   if (!autoMix) return 'plays in queue order'
   if (upcoming === 0) return 'nothing to mix yet'
-  return canCrossfade ? `next crossfade ${nextCrossfadeSeconds}s` : 'ordered by tempo, key and energy'
+  return canCrossfade
+    ? `next crossfade ${nextCrossfadeSeconds}s`
+    : 'ordered by tempo, key and energy'
 }
 
 /** How tall the similar-songs shelf is on a phone: heading, cards and the gap under them. */
@@ -187,7 +180,8 @@ export function similarShelfLayout({
   sidePadding: number
   similar: number
 }): { artSize: number; showShelf: boolean } {
-  const room = (reserved: number): number => Math.min(width - sidePadding * 2, 340, height - reserved)
+  const room = (reserved: number): number =>
+    Math.min(width - sidePadding * 2, 340, height - reserved)
   const withShelf = room(500 + SIMILAR_SHELF_HEIGHT)
   if (similar > 0 && withShelf >= PHONE_ART_MIN) return { artSize: withShelf, showShelf: true }
   return { artSize: Math.max(PHONE_ART_MIN, room(500)), showShelf: false }

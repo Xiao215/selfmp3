@@ -3,9 +3,9 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { hexAlpha, LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
+import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
 
 /**
@@ -140,10 +140,10 @@ export function StageLyrics({
               : index === active
                 ? theme.colors.textPrimary
                 : hovered === index
-                  ? hexAlpha(theme.colors.textPrimary, 0.72)
+                  ? withAlpha(theme.colors.textPrimary, 0.72)
                   : index < active
-                    ? hexAlpha(theme.colors.textPrimary, 0.25)
-                    : hexAlpha(theme.colors.textPrimary, 0.4)
+                    ? withAlpha(theme.colors.textPrimary, 0.25)
+                    : withAlpha(theme.colors.textPrimary, 0.4)
             const distance = Math.min(3, Math.abs(index - active))
             const content = (
               <>

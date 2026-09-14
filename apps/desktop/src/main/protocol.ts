@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, type Stats } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -60,7 +60,8 @@ export function handleAppScheme(roots: ProtocolRoots): void {
     if (url.pathname.startsWith(MEDIA_PREFIX)) return serveMedia(request, url.pathname)
 
     const resolved = resolveWithinRoot(roots.web, url.pathname)
-    if (resolved !== null && (await isFile(resolved))) return serveWebFile(resolved)
+    const stats = resolved === null ? null : await fileStats(resolved)
+    if (resolved !== null && stats !== null) return serveWebFile(resolved, stats)
 
     // A route is index.html. A file the export does not have is a 404, never
     // index.html in its place — `isRoute` says what that used to hide.
@@ -71,9 +72,10 @@ export function handleAppScheme(roots: ProtocolRoots): void {
   })
 }
 
-async function serveWebFile(file: string): Promise<Response> {
+/** `known` is the stat the caller already made to find the file; a route's index.html has none. */
+async function serveWebFile(file: string, known?: Stats): Promise<Response> {
   try {
-    const stats = await stat(file)
+    const stats = known ?? (await stat(file))
     return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
       status: 200,
       headers: {
@@ -117,9 +119,10 @@ async function serveMedia(request: Request, pathname: string): Promise<Response>
   if (!kind.success) return new Response('not found', { status: 404 })
 
   const file = resolveWithinRoot(directoryFor(kind.data), `/${rest.slice(slash + 1)}`)
-  if (file === null || !(await isFile(file))) return new Response('not found', { status: 404 })
+  // One stat answers both "is it a file" and "how big": a seek is a request of its own.
+  const stats = file === null ? null : await fileStats(file)
+  if (file === null || stats === null) return new Response('not found', { status: 404 })
 
-  const stats = await stat(file)
   const answer = answerRange({
     rangeHeader: request.headers.get('Range') ?? undefined,
     sizeBytes: stats.size,
@@ -144,10 +147,12 @@ async function serveMedia(request: Request, pathname: string): Promise<Response>
   )
 }
 
-async function isFile(path: string): Promise<boolean> {
+/** A file's stats, or null when there is no file there — nothing, or a directory. */
+async function fileStats(path: string): Promise<Stats | null> {
   try {
-    return (await stat(path)).isFile()
+    const stats = await stat(path)
+    return stats.isFile() ? stats : null
   } catch {
-    return false
+    return null
   }
 }

@@ -20,7 +20,10 @@ import { DownloadQueue } from './queue.js'
  * wrong; they say so where they are.
  */
 
-/** Let every pending promise chain run. No timers: the queue uses none. */
+/**
+ * Let every pending promise chain run. The only timer the queue has holds back
+ * byte-progress notices, never state; the test that counts them brings a clock.
+ */
 async function settle(): Promise<void> {
   for (let tick = 0; tick < 100; tick += 1) await Promise.resolve()
 }
@@ -212,6 +215,42 @@ describe('keeping songs on this device', () => {
 
     storage.last(2).progress({ bytesWritten: 600, totalBytes: 2100 })
     expect(queue.getState()).toMatchObject({ bytesWritten: 600, totalBytes: 2100 })
+  })
+
+  it('tells listeners of byte progress at most four times a second, and never loses the latest', async () => {
+    let now = 0
+    const storage = fakeStorage()
+    const queue = new DownloadQueue(storage, { now: () => NOW, nowMs: () => now })
+    queue.configure(null, [FIRST, SECOND, THIRD])
+    const heard: number[] = []
+    queue.subscribe(state => heard.push(state.bytesWritten))
+    queue.enqueue([1])
+    await settle()
+    // Starting the song was itself a telling; let its interval pass.
+    now = 1000
+    heard.length = 0
+
+    // A burst of chunks inside one interval: the first is told, the rest are not.
+    for (let chunk = 1; chunk <= 50; chunk += 1) {
+      storage.last(1).progress({ bytesWritten: chunk * 10, totalBytes: 1000 })
+      now += 2
+    }
+    expect(heard).toEqual([10])
+    // The state itself is never behind.
+    expect(queue.getState().bytesWritten).toBe(500)
+
+    // The next chunk past the interval is told, with everything since.
+    now = 1300
+    storage.last(1).progress({ bytesWritten: 510, totalBytes: 1000 })
+    expect(heard).toEqual([10, 510])
+
+    // A change of any other kind is told at once, carrying the bytes held back.
+    storage.last(1).progress({ bytesWritten: 600, totalBytes: 1000 })
+    storage.last(1).progress({ bytesWritten: 700, totalBytes: 1000 })
+    expect(heard).toEqual([10, 510])
+    queue.pause()
+    expect(heard.at(-1)).toBe(700)
+    expect(queue.getState()).toMatchObject({ paused: true, bytesWritten: 700 })
   })
 
   it('prefers the manifest’s size to the library’s when it has one', async () => {

@@ -1,7 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { ReactNode } from 'react'
 import {
-  bytesToDownload,
   dataAnswer,
   downloadAsk,
   isDownloaded,
@@ -57,6 +65,13 @@ export type DownloadQuestion =
     }
 
 interface DownloadsContextValue {
+  /**
+   * The queue as of its last change of shape: what is kept, what is queued,
+   * which song is in flight, paused, the error. Its `bytesWritten` and
+   * `totalBytes` are as of that change too, and do not follow a transfer
+   * chunk by chunk — every screen reads this, and a download used to render
+   * all of them for every chunk. A bar that moves reads `useDownloadProgress()`.
+   */
   readonly state: DownloadState
   readonly queue: DownloadQueue
   readonly installed: boolean
@@ -137,6 +152,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     () =>
       downloadQueue.subscribe(next =>
         setView(previous => {
+          // Bytes alone are `useDownloadProgress`'s to show. The same object back
+          // is React's cue to render nothing, here or in any screen below.
+          if (sameShape(previous.state, next)) return previous
           // "12 of 40": the run grows as songs are added and ends when the queue empties.
           const before = previous.state.queue.length
           const after = next.queue.length
@@ -180,15 +198,23 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     () => pendingIds(state.index, songIds).filter(id => !excluded.has(id)),
     [state.index, songIds, excluded],
   )
+  /*
+   * Each song's size, from the manifest when there is one and the library when
+   * not — looked up once per answer. It used to be rebuilt from the whole
+   * manifest, or filtered from the whole library, on every question, and a
+   * finished download asks one.
+   */
+  const sizeById = useMemo(
+    () =>
+      manifest.data
+        ? new Map(manifest.data.entries.map(entry => [entry.id, entry.sizeBytes]))
+        : new Map((library.data?.songs ?? []).map(song => [song.id, song.sizeBytes])),
+    [manifest.data, library.data],
+  )
   const bytesFor = useCallback(
-    (ids: readonly number[]): number => {
-      if (manifest.data) return bytesToDownload(state.index, manifest.data, ids)
-      const wanted = new Set(pendingIds(state.index, ids))
-      return (library.data?.songs ?? [])
-        .filter(song => wanted.has(song.id))
-        .reduce((sum, song) => sum + song.sizeBytes, 0)
-    },
-    [manifest.data, state.index, library.data],
+    (ids: readonly number[]): number =>
+      pendingIds(state.index, ids).reduce((sum, id) => sum + (sizeById.get(id) ?? 0), 0),
+    [sizeById, state.index],
   )
   const missingBytes = useMemo(() => bytesFor(missingIds), [bytesFor, missingIds])
 
@@ -387,4 +413,54 @@ export function useDownloads(): DownloadsContextValue {
   const value = useContext(DownloadsContext)
   if (!value) throw new Error('useDownloads must be used inside a DownloadsProvider')
   return value
+}
+
+/** Everything about the queue but how far the song in flight has got. */
+function sameShape(a: DownloadState, b: DownloadState): boolean {
+  return (
+    a.index === b.index &&
+    a.queue === b.queue &&
+    a.activeSongId === b.activeSongId &&
+    a.paused === b.paused &&
+    a.error === b.error
+  )
+}
+
+/** How far the song in flight has got. */
+export interface DownloadProgress {
+  readonly activeSongId: number | null
+  readonly bytesWritten: number
+  /** The expected size when the platform does not know it; 0 with nothing in flight. */
+  readonly totalBytes: number
+}
+
+let progressNow: DownloadProgress = { activeSongId: null, bytesWritten: 0, totalBytes: 0 }
+
+/** The same object until a number changes, which is what `useSyncExternalStore` compares. */
+function readProgress(): DownloadProgress {
+  const { activeSongId, bytesWritten, totalBytes } = downloadQueue.getState()
+  if (
+    progressNow.activeSongId !== activeSongId ||
+    progressNow.bytesWritten !== bytesWritten ||
+    progressNow.totalBytes !== totalBytes
+  ) {
+    progressNow = { activeSongId, bytesWritten, totalBytes }
+  }
+  return progressNow
+}
+
+function subscribeProgress(onChange: () => void): () => void {
+  return downloadQueue.subscribe(() => onChange())
+}
+
+/**
+ * Byte progress, for the few things that draw a moving bar.
+ *
+ * Kept out of `useDownloads()` on purpose: that value reaches every list, and
+ * a transfer changes this several times a second (the queue holds it to four).
+ * Only a component that calls this renders when it moves. Read straight from
+ * the queue, so it needs no provider.
+ */
+export function useDownloadProgress(): DownloadProgress {
+  return useSyncExternalStore(subscribeProgress, readProgress, readProgress)
 }

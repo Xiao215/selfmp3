@@ -10,6 +10,13 @@ import {
   removeEntry,
   type DownloadIndex,
 } from './downloadIndex.js'
+import { createThrottle, type Throttle } from './throttle.js'
+
+/**
+ * How often byte progress alone reaches listeners: four times a second. See
+ * `throttle.ts`; anything else about the queue is told at once.
+ */
+export const PROGRESS_INTERVAL_MS = 250
 
 type Connection = Parameters<NonNullable<DownloadStorage['configure']>>[0]
 
@@ -72,10 +79,27 @@ export class DownloadQueue {
   #cancelling = false
   #songsById = new Map<number, Song>()
   #manifest: SyncManifest | null = null
+  /**
+   * Byte progress, told at most four times a second. `getState()` is always
+   * current; only the telling is skipped.
+   */
+  readonly #progressNotice: Throttle
 
-  constructor(storage: DownloadStorage, options: { now?: () => Date } = {}) {
+  constructor(
+    storage: DownloadStorage,
+    options: {
+      now?: () => Date
+      /** Milliseconds, for pacing progress; a test's own clock. */
+      nowMs?: () => number
+    } = {},
+  ) {
     this.#storage = storage
     this.#now = options.now ?? (() => new Date())
+    this.#progressNotice = createThrottle(
+      () => this.#notify(),
+      PROGRESS_INTERVAL_MS,
+      options.nowMs,
+    )
   }
 
   subscribe(listener: (state: DownloadQueueState) => void): () => void {
@@ -229,7 +253,15 @@ export class DownloadQueue {
     const listed = this.#manifest?.entries.find(entry => entry.id === songId)
     const expectedBytes = listed?.sizeBytes ?? song.sizeBytes
     const onProgress = ({ bytesWritten, totalBytes }: TransferProgress): void => {
-      this.#patch({ bytesWritten, totalBytes: totalBytes > 0 ? totalBytes : expectedBytes })
+      // Every chunk, from a fast source. The state takes each one; listeners
+      // hear of them at a pace a screen can draw, and the next change of any
+      // other kind carries the latest bytes with it.
+      this.#state = {
+        ...this.#state,
+        bytesWritten,
+        totalBytes: totalBytes > 0 ? totalBytes : expectedBytes,
+      }
+      this.#progressNotice.request()
     }
 
     try {
@@ -316,6 +348,13 @@ export class DownloadQueue {
 
   #patch(change: Partial<DownloadQueueState>): void {
     this.#state = { ...this.#state, ...change }
+    // Told now, with whatever progress was waiting folded in: a pause, a
+    // finish or a failure is never held back behind a progress interval.
+    this.#progressNotice.settle()
+    this.#notify()
+  }
+
+  #notify(): void {
     for (const listener of this.#listeners) listener(this.#state)
   }
 }

@@ -104,6 +104,26 @@ It is the same app either way. The one thing an unsigned copy cannot do is repla
 when there is a new version — Settings → **Desktop app** → Check for updates then offers
 the release page instead of a button.
 
+**If the keychain asks for your password after every install.** An unsigned build is
+signed ad-hoc, which identifies it by a hash of that exact binary, so macOS treats each
+new build as a different app asking for the first one's "self.mp3 Safe Storage" key.
+Pressing Always Allow lasts until the next build. Building it yourself with a free Apple
+Development certificate ends it: add your Apple ID in Xcode → Settings → Accounts,
+then Manage Certificates → + → Apple Development. Check that
+`security find-identity -v -p codesigning` lists it as valid — if it says 0 valid
+identities, install Apple's "Worldwide Developer Relations - G3" intermediate from
+[apple.com/certificateauthority](https://www.apple.com/certificateauthority/) with
+`security add-certificates -k ~/Library/Keychains/login.keychain-db AppleWWDRCAG3.cer`
+— and build with its name:
+
+```
+CSC_NAME="Apple Development: you@example.com (TEAMID)" npm run build:desktop
+```
+
+It prints `development-signed build`. The keychain asks once more, the first time that
+build runs; after Always Allow, every later build signed with the same certificate is
+the same app to it.
+
 Signing in is the same as anywhere: Settings → Cloud → Sign in with Google, which opens
 your own browser and comes back to the app.
 

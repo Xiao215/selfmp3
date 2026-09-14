@@ -3600,6 +3600,20 @@ and the host unmounted it the same frame. `ToastHost` now keeps a dismissed
 message drawn while it fades, fades new ones in, and keeps the order they were
 raised in. The host is the same on the phone, so it gets this too.
 
+**A keychain password after every reinstall.** The shell seals the session
+with `safeStorage`, whose key is a keychain item, "self.mp3 Safe Storage", that
+trusts the app by its designated requirement. An ad-hoc build's requirement is
+its cdhash (`codesign -dr -` on the installed copy), so every build is a new app
+to the keychain. A third signing tier, `development`, takes a certificate
+already in the keychain by name (`CSC_NAME`) — the free Apple Development one —
+whose requirement is the certificate and bundle id, the same for every build.
+Not notarised, and still treated as unable to update itself, since a CI build's
+Developer ID signature would not match it. The choice is `scripts/signingTier.mjs`,
+tested. On Xiao's Mac the certificate first showed as 0 valid identities: the
+only WWDR intermediate there was the original, expired in February 2023, and the
+G3 one had to be added to the login keychain by hand (double-clicking the .cer
+failed with -25294, "no such keychain"; `security add-certificates -k` worked).
+
 **The release folder is one build.** It held two generations of names, both
 chips, zips, blockmaps and `latest-mac.yml`, because electron-builder never
 empties it and everything in it exists for the updater or a release. `dist.mjs`

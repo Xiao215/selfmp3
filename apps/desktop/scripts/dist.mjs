@@ -9,21 +9,25 @@
  * and is not — electron-updater refuses to apply an update to a signature it
  * cannot verify (electron #36640), so the tier has to be visible.
  *
- *   signed   CSC_LINK + CSC_KEY_PASSWORD. Notarised as well when
- *            APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER are set.
- *   ad-hoc   neither. `--config.mac.identity=-` and the looser entitlements.
+ *   signed        CSC_LINK + CSC_KEY_PASSWORD. Notarised as well when
+ *                 APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER are set.
+ *   development   CSC_NAME, a certificate in this Mac's keychain.
+ *   ad-hoc        neither. `--config.mac.identity=-` and the looser entitlements.
+ *
+ * What each tier means is in `signingTier.mjs`.
  */
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { signingTier } from './signingTier.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const desktop = join(here, '..')
 
 const env = process.env
-const signed = Boolean(env['CSC_LINK'] && env['CSC_KEY_PASSWORD'])
-const notarising = Boolean(env['APPLE_API_KEY'] && env['APPLE_API_KEY_ID'] && env['APPLE_API_ISSUER'])
+const { tier, identity, notarising, canInstallUpdates } = signingTier(env)
 
 const run = (command, args) => {
   const result = spawnSync(command, args, { cwd: desktop, stdio: 'inherit', env, shell: false })
@@ -38,7 +42,7 @@ run(process.execPath, [join(here, 'icon.mjs')])
 run(process.execPath, [join(here, 'dmg-background.mjs')])
 // The bundle is told which tier it is: the updater's behaviour depends on it,
 // and a running app cannot ask about its own signature.
-env['SELFMP3_SIGNED'] = signed ? '1' : '0'
+env['SELFMP3_SIGNED'] = canInstallUpdates ? '1' : '0'
 run(process.execPath, [join(here, 'build.mjs')])
 
 const args = ['electron-builder', '--config', 'electron-builder.yml']
@@ -64,7 +68,7 @@ if (!env['CI'] && extra.length === 0 && process.platform === 'darwin') {
   )
 }
 
-if (!signed) {
+if (tier === 'ad-hoc') {
   args.push(
     '--config.mac.identity=-',
     '--config.mac.entitlements=build/entitlements.mac.adhoc.plist',
@@ -75,8 +79,24 @@ if (!signed) {
   )
 }
 
+if (tier === 'development') {
+  args.push(
+    /*
+     * The certificate's full name as `security find-identity` prints it.
+     * electron-builder takes any valid identity whose line contains this and
+     * is not a Developer ID or Mac App Store certificate, which an Apple
+     * Development one is not. The normal entitlements: a certificate's
+     * signature is one macOS validates, so the ad-hoc exceptions are not needed.
+     */
+    `--config.mac.identity=${identity}`,
+    // Notarisation is for Developer ID; Apple refuses anything else.
+    '--config.mac.notarize=false',
+  )
+}
+
 console.log(
-  `self.mp3 desktop: ${signed ? 'signed' : 'ad-hoc'} build` +
-    (signed ? `, ${notarising ? 'notarising' : 'not notarised'}` : ''),
+  `self.mp3 desktop: ${tier === 'signed' ? 'signed' : tier === 'development' ? 'development-signed' : 'ad-hoc'} build` +
+    (tier === 'signed' ? `, ${notarising ? 'notarising' : 'not notarised'}` : '') +
+    (tier === 'development' ? ` with "${identity}", for this Mac only` : ''),
 )
 run(join(desktop, '..', '..', 'node_modules', '.bin', 'electron-builder'), args.slice(1))

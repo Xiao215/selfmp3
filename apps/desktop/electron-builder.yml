@@ -5,13 +5,16 @@
 # `dist/`. That is what sidesteps electron-builder's trouble with packages npm
 # has hoisted to the root of a workspace (electron-builder #2205, #9654).
 #
-# Signing has two tiers, and which one a build gets is decided by the
-# environment rather than by a flag here (see scripts/dist.mjs):
+# Signing has three tiers, and which one a build gets is decided by the
+# environment rather than by a flag here (see scripts/signingTier.mjs):
 #
-#   signed     CSC_LINK and CSC_KEY_PASSWORD are set, and notarised when the
-#              APPLE_API_* variables are too. Opens with a double click.
-#   ad-hoc     nothing is set. `identity: "-"`, the looser entitlements, and a
-#              first launch that needs Privacy & Security › Open Anyway.
+#   signed       CSC_LINK and CSC_KEY_PASSWORD are set, and notarised when the
+#                APPLE_API_* variables are too. Opens with a double click.
+#   development  CSC_NAME names a certificate in this Mac's keychain, such as
+#                the free Apple Development one. Still needs Open Anyway, but
+#                the keychain knows every such build as the same app.
+#   ad-hoc       nothing is set. `identity: "-"`, the looser entitlements, and a
+#                first launch that needs Privacy & Security › Open Anyway.
 #
 # The ad-hoc tier is the one Xiao builds on their own Mac for their own Mac, and
 # it is a real tier rather than a failure: the app it produces is the same app.

@@ -1,29 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AppState, KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { ActivityIndicator, AppState, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import * as Linking from 'expo-linking'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { DoormanError, type CloudSession } from '@selfmp3/cloud'
-import { formatSignInCode, SignInCodeSchema } from '@selfmp3/shared'
-import { session as cloud } from '../../cloud'
-import { useConnection } from '../../server/ConnectionProvider'
 import { useRouter } from 'expo-router'
+import { DoormanError, type CloudSession } from '@selfmp3/cloud'
+import { SignInCodeSchema } from '@selfmp3/shared'
+import { space, type } from '@selfmp3/client'
+import { session as cloud } from '../../cloud'
+import { titleBarInset } from '../../ports/titleBarInset'
+import { useConnection } from '../../server/ConnectionProvider'
+import { useLayout } from '../../shell/useLayout'
+import { useAccent } from '../../ui/accent'
+import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
-import { radius, space, type } from '@selfmp3/client'
-import { keyboardAvoidBehavior } from '../../ports/keyboard'
+import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { afterCheck, copyFor, FOOTNOTE, TOOK_TOO_LONG, type SignInStage } from './signIn.model'
 
 /**
  * First run: sign in with Google.
  *
- * A phone has no page for the doorman to send Google back to, so it shows a
- * code once Google is done and this asks for it. That is not a lesser path
- * invented for native — it is the one an iPhone home-screen app already takes
- * when Google opens in a sheet whose storage is not the app's, and it is why
- * the doorman needed no changes at all to let a phone in.
+ * One door. The press opens Google — in the same tab on the web, in the
+ * person's own browser everywhere else — and the doorman sends it back with the
+ * code that claims the session inside the link. Nobody types anything: if the
+ * link never makes it back, the screen says so and starting again is the answer
+ * (`signIn.model.ts`).
  *
  * Starting a sign-in is deliberately not enough to claim it: a link somebody
- * sends you gets them nothing, because they never see your code.
+ * sends you gets them nothing, because the code only ever comes back to the
+ * browser that signed in.
  */
 
 /** How often to ask the doorman whether Google has finished. */
@@ -38,27 +43,19 @@ function codeIn(url: string | null): string | null {
   return parsed.success ? parsed.data : null
 }
 
-type Stage =
-  | { readonly kind: 'idle'; readonly message: string | null }
-  | { readonly kind: 'waiting' }
-  /** A code arrived in the link and is being spent; nothing to ask for. */
-  | { readonly kind: 'claiming' }
-  | { readonly kind: 'code'; readonly error: string | null }
-
 export function SignInScreen({
   onSignedIn,
 }: {
   onSignedIn?: (session: CloudSession) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const { wide } = useLayout()
   const { signedInToCloud } = useConnection()
   const router = useRouter()
-  const [stage, setStage] = useState<Stage>({ kind: 'idle', message: null })
-  const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [stage, setStage] = useState<SignInStage>({ kind: 'idle', message: null })
 
   const begin = useCallback((): void => {
-    setStage({ kind: 'waiting' })
+    setStage({ kind: 'waiting', googleDoneAt: null })
     void cloud.beginSignIn().catch((error: unknown) => {
       setStage({
         kind: 'idle',
@@ -81,15 +78,16 @@ export function SignInScreen({
   const check = useCallback(async (): Promise<void> => {
     const pending = await cloud.pendingSignIn()
     if (!pending) {
-      setStage({ kind: 'idle', message: 'That took too long. Try again.' })
+      setStage(current => afterCheck(current, 'gone', Date.now()))
       return
     }
     try {
       const outcome = await cloud.claimSignIn(pending.attempt)
-      // Only when nothing is already being spent: a link may have brought one.
-      if (outcome.status === 'code') {
-        setStage(current => (current.kind === 'claiming' ? current : { kind: 'code', error: null }))
-      } else if (outcome.status === 'signed-in') done(outcome.session)
+      if (outcome.status === 'signed-in') done(outcome.session)
+      else {
+        const attempt = outcome.status === 'code' ? 'done' : 'pending'
+        setStage(current => afterCheck(current, attempt, Date.now()))
+      }
     } catch {
       // Offline, or the doorman is busy. The next look will say.
     }
@@ -111,37 +109,29 @@ export function SignInScreen({
     }
   }, [stage.kind, check])
 
-  /** Claim the session with a code, whether it was typed or came in a link. */
+  /** Claim the session with the code the link brought. */
   const claimWith = useCallback(
-    async (raw: string): Promise<void> => {
-      const parsed = SignInCodeSchema.safeParse(raw.trim())
-      if (!parsed.success) {
-        setStage({ kind: 'code', error: 'That does not look like the code.' })
-        return
-      }
-      setBusy(true)
+    async (code: string): Promise<void> => {
       try {
         const pending = await cloud.pendingSignIn()
         if (!pending) {
-          setStage({ kind: 'idle', message: 'That took too long. Try again.' })
+          setStage({ kind: 'idle', message: TOOK_TOO_LONG })
           return
         }
-        const outcome = await cloud.claimSignIn(pending.attempt, parsed.data)
+        const outcome = await cloud.claimSignIn(pending.attempt, code)
         if (outcome.status === 'signed-in') done(outcome.session)
-        else setStage({ kind: 'code', error: 'Google hasn’t finished yet. Try again in a moment.' })
+        else setStage({ kind: 'idle', message: 'Google hasn’t finished yet. Try again.' })
       } catch (error) {
-        // A wrong code ends the attempt: the doorman spends it either way, so
-        // there is nothing to try again with.
-        if (error instanceof DoormanError && error.code === 'wrong_code') {
-          setStage({ kind: 'idle', message: 'That wasn’t the code. Sign in again.' })
-        } else {
-          setStage({
-            kind: 'code',
-            error: error instanceof Error ? error.message : 'Could not sign in.',
-          })
-        }
-      } finally {
-        setBusy(false)
+        // A refused code ends the attempt: the doorman spends it either way.
+        setStage({
+          kind: 'idle',
+          message:
+            error instanceof DoormanError && error.code === 'wrong_code'
+              ? 'That sign-in didn’t go through. Try again.'
+              : error instanceof Error
+                ? error.message
+                : 'Could not sign in.',
+        })
       }
     },
     [done],
@@ -150,21 +140,18 @@ export function SignInScreen({
   /**
    * Coming back from Google.
    *
-   * The doorman redirects to `selfmp3://sign-in#signin-code=…`, which reaches
-   * the app either as the link that launched it or as one delivered while it
-   * was already open — so both are watched. With nothing to read, the screen
-   * falls back to asking for the code, which is what a doorman too old to
-   * know this scheme will have shown.
+   * The doorman redirects to `selfmp3://sign-in#signin-code=…` (or this page's
+   * own address on the web), which reaches the app either as the link that
+   * launched it or as one delivered while it was already open — so both are
+   * watched.
    */
   useEffect(() => {
     let cancelled = false
     const take = (url: string | null): void => {
       const code = codeIn(url)
       if (cancelled || !code) return
-      // Said before the claim starts, not after: the poll below is also
-      // running, and it learns "code" from the doorman a moment earlier —
-      // which used to put the ask-for-the-code screen up for the two or three
-      // seconds the claim took, on a sign-in that needed nothing typed.
+      // Said before the claim starts, not after: the poll is also running, and
+      // it learns "finished" from the doorman a moment earlier.
       setStage({ kind: 'claiming' })
       void claimWith(code)
     }
@@ -176,99 +163,91 @@ export function SignInScreen({
     }
   }, [claimWith])
 
+  const copy = copyFor(stage)
+  const busy = stage.kind === 'waiting' || stage.kind === 'claiming'
+
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.wordmark}>self.mp3</Text>
-          <Text style={styles.blurb}>
-            Your music, from the bucket that belongs to your Google account — on this phone,
-            offline, with or without your server running.
+      <View style={[styles.frame, wide && styles.frameWide]}>
+        <View style={styles.brand}>
+          <BrandMark size={wide ? 26 : 24} />
+          <Text style={styles.brandName}>self.mp3</Text>
+        </View>
+
+        <View style={styles.middle}>
+          <Text style={[styles.headline, wide && styles.headlineWide]} accessibilityRole="header">
+            {copy.lead}
+            {'\n'}
+            <Text style={{ color: accent.accent }}>{copy.accent}</Text>
           </Text>
+          {copy.body ? <Text style={styles.body}>{copy.body}</Text> : null}
+          {busy ? <ActivityIndicator color={accent.accent} style={styles.spinner} /> : null}
+        </View>
 
-          {stage.kind === 'idle' && (
-            <View>
-              {stage.message ? <Text style={styles.error}>{stage.message}</Text> : null}
-              <Button label="Sign in with Google" onPress={begin} />
-            </View>
-          )}
+        {stage.kind === 'idle' && stage.message ? (
+          <Text style={styles.error}>{stage.message}</Text>
+        ) : null}
 
-          {stage.kind === 'claiming' && (
-            <View>
-              <Text style={styles.label}>Signing in…</Text>
-            </View>
-          )}
-
-          {stage.kind === 'waiting' && (
-            <View>
-              <Text style={styles.label}>Waiting for Google…</Text>
-              <Text style={styles.blurb}>
-                Finish signing in, then come back here. Google will show you a short code.
-              </Text>
-              <Button
-                label="I have the code"
-                onPress={() => setStage({ kind: 'code', error: null })}
-              />
-            </View>
-          )}
-
-          {stage.kind === 'code' && (
-            <View>
-              <Text style={styles.label}>The code Google showed</Text>
-              <TextInput
-                style={styles.input}
-                value={formatSignInCode(code)}
-                onChangeText={next => setCode(next.replace(/[^0-9A-Za-z]/g, ''))}
-                placeholder="XXXX-XXXX"
-                placeholderTextColor={theme.colors.textMuted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                autoFocus
-              />
-              {stage.error ? <Text style={styles.error}>{stage.error}</Text> : null}
-              <Button
-                label={busy ? 'Signing in…' : 'Continue'}
-                onPress={() => void claimWith(code)}
-              />
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {stage.kind === 'claiming' ? null : (
+          <View style={[styles.actions, wide && styles.actionsWide]}>
+            {stage.kind === 'idle' || stage.kind === 'lost' ? (
+              <View style={wide ? styles.primaryWide : undefined}>
+                <Button
+                  testID="sign-in-google"
+                  label={stage.kind === 'idle' ? 'Continue with Google' : 'Try again'}
+                  variant="primary"
+                  onPress={begin}
+                />
+              </View>
+            ) : (
+              <Button label="Open Google again" onPress={begin} />
+            )}
+            {stage.kind === 'idle' ? (
+              <Text style={[styles.footnote, !wide && styles.footnoteCentred]}>{FOOTNOTE}</Text>
+            ) : (
+              <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
+            )}
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { padding: space.xl, gap: space.sm, flexGrow: 1, justifyContent: 'center' },
-  wordmark: {
+  // The Mac's traffic lights sit over the top of the page; a narrow Mac window
+  // is still this layout, so the mark starts below them. Zero everywhere else.
+  frame: {
+    flex: 1,
+    paddingHorizontal: space.xl,
+    paddingTop: space.lg + titleBarInset,
+    paddingBottom: space.xl,
+  },
+  // Deep enough at the top that the Mac's traffic lights sit clear of the mark.
+  frameWide: { paddingHorizontal: 56, paddingTop: 56, paddingBottom: 48 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  brandName: {
     color: theme.colors.textPrimary,
-    fontSize: 28,
+    fontSize: type.title,
     fontWeight: '700',
-    letterSpacing: -0.5,
+    letterSpacing: -0.2,
   },
-  blurb: {
-    color: theme.colors.textSecondary,
-    fontSize: type.body,
-    lineHeight: 21,
-    marginBottom: space.lg,
-  },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    fontWeight: '600',
-    marginTop: space.md,
-  },
-  input: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+  middle: { flex: 1, justifyContent: 'center', gap: space.lg, maxWidth: 640 },
+  headline: {
     color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
-    marginBottom: space.md,
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: '700',
+    letterSpacing: -1.2,
   },
-  error: { color: theme.colors.danger, fontSize: type.small, marginBottom: space.md },
+  headlineWide: { fontSize: 60, lineHeight: 64, letterSpacing: -1.8 },
+  body: { color: theme.colors.textSecondary, fontSize: type.title, lineHeight: 24, maxWidth: 420 },
+  spinner: { alignSelf: 'flex-start' },
+  error: { color: theme.colors.danger, fontSize: type.body, marginBottom: space.md },
+  actions: { gap: space.md },
+  actionsWide: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  primaryWide: { width: 260 },
+  footnote: { color: theme.colors.textMuted, fontSize: type.small },
+  footnoteCentred: { textAlign: 'center' },
 }))

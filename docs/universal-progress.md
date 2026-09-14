@@ -3511,6 +3511,29 @@ What changed:
 | `npm run build:desktop` | pass, `self.mp3 desktop: ad-hoc build` |
 | The packaged app opens | draws the page, from the packaged spec and from the binary with logging on |
 
+### Sign-in, one door — 2026-09-14
+
+**No code to type on the first sign-in.** Every platform sends the doorman a
+return link, so the doorman never shows the code: it redirects with the code
+inside the link, and the app claims the session with it. The screen's code box
+appeared only when that link was lost, and then asked for a code nobody had been
+shown. It is gone, and so is "I have the code". When Google has finished and the
+link has not arrived within `LINK_GRACE_MS` (eight seconds), the screen says
+"Didn't come back?" and offers Try again. The rules are in
+`features/signIn/signIn.model.ts`, with tests.
+
+**Design C on every platform**, chosen from the lettered mocks: the mark and
+name top left, a large two-line headline with its second line in the accent,
+and one button at the bottom — beside its footnote at desktop width, full width
+on a phone. The sentence that said "on this phone" on a Mac is gone; no stage's
+words name a device, and a test holds that.
+
+**Still typed: Settings › Cloud on the iPhone**, when a phone signs the Mac's
+server in. Native has no return link there (`ports/signInReturn.ts`), so the
+doorman shows the code and it is entered by hand. Giving native the
+`selfmp3://sign-in` return the installed Mac app already uses would remove that
+too; not done here.
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

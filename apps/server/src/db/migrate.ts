@@ -506,6 +506,17 @@ const MIGRATIONS: readonly Migration[] = [
       END;
     `,
   },
+  {
+    name: 'cloud: romaji beside the lyrics',
+    sql: `
+      -- Each song's romanized lines go up beside its words, as JSON
+      -- (docs/SYNC.md). Every lyrics signature is forgotten, so the next pass
+      -- reads each song's words once more and puts their romaji up; the audio
+      -- and the covers are left as they are.
+      ALTER TABLE cloud_songs ADD COLUMN romanized_key TEXT;
+      UPDATE cloud_songs SET lyrics_sig = '';
+    `,
+  },
 ]
 
 /**

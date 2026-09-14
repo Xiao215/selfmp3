@@ -67,6 +67,11 @@ export function lyricsKey(sha256: string, synced: boolean): string {
   return `lyrics/${sha256}.${synced ? 'lrc' : 'txt'}`
 }
 
+/** A lyric text's romanized lines, as a JSON array, beside the words in `lyrics/`. */
+export function romanizedKey(sha256: string): string {
+  return `lyrics/${sha256}.json`
+}
+
 export const FORMAT_KEY = 'format.json'
 export const SNAPSHOTS_FOLDER = 'snapshots/'
 

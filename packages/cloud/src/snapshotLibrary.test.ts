@@ -54,7 +54,7 @@ describe('snapshotToLibrary', () => {
         songs: [
           song('a', {
             cover: { key: `covers/${hash('c')}.jpg`, size: 100 },
-            lyrics: { key: `lyrics/${hash('d')}.lrc`, size: 50, kind: 'synced' },
+            lyrics: { key: `lyrics/${hash('d')}.lrc`, size: 50, kind: 'synced', romanized: null },
             tagUids: [uid('t')],
           }),
         ],
@@ -104,7 +104,16 @@ describe('snapshotToLibrary', () => {
   it('knows where each song’s files are', () => {
     const { library, files } = snapshotToLibrary(
       snapshot({
-        songs: [song('a', { lyrics: { key: `lyrics/${hash('d')}.txt`, size: 5, kind: 'plain' } })],
+        songs: [
+          song('a', {
+            lyrics: {
+              key: `lyrics/${hash('d')}.txt`,
+              size: 5,
+              kind: 'plain',
+              romanized: `lyrics/${hash('r')}.json`,
+            },
+          }),
+        ],
       }),
       NO_IDS,
       1,
@@ -115,6 +124,7 @@ describe('snapshotToLibrary', () => {
       cover: null,
       lyrics: `lyrics/${hash('d')}.txt`,
       lyricsKind: 'plain',
+      romanized: `lyrics/${hash('r')}.json`,
     })
   })
 

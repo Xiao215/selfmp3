@@ -28,6 +28,7 @@ import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
+import { romanizedLines } from './services/romanizedLines.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { CoverToneService } from './services/coverTones.js'
@@ -152,6 +153,10 @@ export function createContainer(config: Config): Container {
     logger,
   })
 
+  // Before the sync, which uploads each song's romaji beside its words.
+  const lyricsCache = new LyricsCache(config, logger)
+  const romanization = new RomanizationService(logger)
+
   const cloudSync = new CloudSyncService({
     cloud: cloudRepo,
     songs,
@@ -167,6 +172,7 @@ export function createContainer(config: Config): Container {
     ingest,
     importRequests,
     doormanUrl: config.doormanUrl,
+    romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
   })
 
   let version = 1
@@ -223,8 +229,6 @@ export function createContainer(config: Config): Container {
   })
 
   const migrate = new MigrateService({ songs, logger })
-  const lyricsCache = new LyricsCache(config, logger)
-  const romanization = new RomanizationService(logger)
   const lyricsIndex = new LyricsIndexService({
     songs,
     search: lyricsSearch,

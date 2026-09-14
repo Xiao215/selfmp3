@@ -393,6 +393,91 @@ describe('CloudSyncService', () => {
       })
     })
 
+    /*
+     * Romaji is made on the Mac, which has the dictionaries, and goes up beside
+     * the words, so a device signed in to the cloud gets the same lyrics answer
+     * the Mac's own server gives.
+     */
+    describe('romaji', () => {
+      const JAPANESE = '[00:01.00]夜に駆ける\n[00:05.00]沈むように溶けてゆくように'
+
+      /** A sync whose romanizer answers `answer()`, counting how often it is asked. */
+      const withRomanizer = (answer: (text: string) => string[] | null) => {
+        const asked = { count: 0 }
+        const service = new CloudSyncService({
+          cloud,
+          songs,
+          tags,
+          playlists,
+          imports,
+          storage: new LocalStorageDriver(root),
+          covers,
+          lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
+          metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
+          logger: createLogger('silent'),
+          openStore: () => bucket,
+          romanize: (_songId, text) => {
+            asked.count++
+            return Promise.resolve(answer(text))
+          },
+        })
+        extras.push(service)
+        const run = async (): Promise<void> => {
+          if (service.connected) await service.syncNow()
+          else await service.connect(CONNECT)
+          await service.whenIdle()
+        }
+        return { asked, run }
+      }
+
+      it('puts the romanized lines up beside the words, and the snapshot names them', async () => {
+        const lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
+        addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
+        const { run } = withRomanizer(() => lines)
+        await run()
+
+        const romanized = `lyrics/${sha(JSON.stringify(lines))}.json`
+        expect(bucket.keys('lyrics/')).toEqual(
+          [`lyrics/${sha(JAPANESE)}.lrc`, romanized].sort(),
+        )
+        expect(bucket.objects.get(romanized)?.contentType).toBe('application/json')
+        expect(JSON.parse(bucket.objects.get(romanized)?.body.toString() ?? 'null')).toEqual(lines)
+        expect(latest().songs[0]?.lyrics).toMatchObject({
+          key: `lyrics/${sha(JAPANESE)}.lrc`,
+          kind: 'synced',
+          romanized,
+        })
+      })
+
+      it('tries Japanese words again on the next pass when their romaji could not be made', async () => {
+        let lines: string[] | null = null
+        addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
+        const { asked, run } = withRomanizer(() => lines)
+        await run()
+        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+        const before = asked.count
+
+        lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
+        await run()
+
+        expect(asked.count).toBeGreaterThan(before)
+        expect(latest().songs[0]?.lyrics?.romanized).toBe(
+          `lyrics/${sha(JSON.stringify(lines))}.json`,
+        )
+      })
+
+      it('does not ask again for words that need no romaji', async () => {
+        addSong('A - One', 'one', { lyrics: '[00:01.00] just the words' })
+        const { asked, run } = withRomanizer(() => null)
+        await run()
+        const once = asked.count
+        await run()
+
+        expect(asked.count).toBe(once)
+        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+      })
+    })
+
     it('publishes an edit that changes no file at all', async () => {
       const id = addSong('A - One', 'one')
       await connect()

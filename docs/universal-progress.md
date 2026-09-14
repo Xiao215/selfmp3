@@ -3614,6 +3614,34 @@ only WWDR intermediate there was the original, expired in February 2023, and the
 G3 one had to be added to the login keychain by hand (double-clicking the .cer
 failed with -25294, "no such keychain"; `security add-certificates -k` worked).
 
+**Romaji in the cloud.** "Romaji travels with the lyrics" (8734f43) put the
+romanized lines in the Mac server's own lyrics answer and ended on the gap it
+left: the bucket had none, so any device signed in to the cloud — the installed
+Mac app, and the phone or the web the same way — showed no romaji. Now the
+cloud sync romanizes each song's words as it uploads them (from the lyrics
+cache, or made then) and puts the lines up beside them as
+`lyrics/<sha256>.json`; the snapshot's lyrics entry names it in a required
+`romanized` field; `cloudLyrics` reads it the way it reads the words; and
+neither Now Playing nor Settings hides romaji for a cloud library any more. An
+import is uploaded the moment it is saved, so its romaji goes up with it.
+Words that are Chinese or Japanese and got no romaji (the dictionary would not
+load) are not marked done and are tried again next pass; other words are not.
+No compatibility for older snapshots, since no one else uses this yet: a
+migration adds `cloud_songs.romanized_key` and blanks every lyrics signature,
+so the Mac's next pass puts romaji up for the whole library. Bucket keys under
+`lyrics/` with a `.json` name were already allowed by the doorman and the
+snapshot schema, so nothing was deployed for it.
+
+**Tests stay off the real keychain.** With an installed copy that had been
+allowed its "self.mp3 Safe Storage" key, the packaged smoke's own ad-hoc build
+read that item, macOS raised a password prompt on the Mac running the tests,
+and the app waited on it with its main process blocked: Playwright reported a
+launch that timed out after connecting to the debugger. Both test launches in
+`verify/launch.ts` now pass Chromium's `--use-mock-keychain` on macOS, so
+secrets round-trip within a run and no test build ever asks the person's
+keychain for anything. Checked: the packaged test opened in 1.4 s and the
+secret test passed with no new SecurityAgent process.
+
 **The release folder is one build.** It held two generations of names, both
 chips, zips, blockmaps and `latest-mac.yml`, because electron-builder never
 empties it and everything in it exists for the updater or a release. `dist.mjs`
@@ -3626,8 +3654,12 @@ Also seen: the packaged smoke timed out at 90 s. The first launch of a freshly
 built binary is scanned by macOS, and this test always follows a build — 13 s
 in the morning, 46 s later, over 90 s while the Mac was also building. Later
 launches take a second. The test's budget is now five minutes, with the reason
-beside it. And the power-save blocker test failed once in the same run and
-passed on its own; noted, not chased.
+beside it. The power-save blocker test also failed once in that run; chased
+later the same day, it failed 2 runs in 10. The app's own player tells the
+shell "nothing playing" as it mounts (`ports/mediaSession.web.ts`), and the
+test sent its states before the app was up, so a late "nothing" could replace
+its "playing" just before the check. The test now waits for the app to draw
+and a frame more first: 20 runs in 20 pass.
 
 **The Mac app keeps its files in `~/Library/Application Support/self.mp3`.**
 Electron names that folder after the app, and without a `productName` in

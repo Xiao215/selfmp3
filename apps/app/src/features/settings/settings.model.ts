@@ -27,7 +27,8 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolea
   { id: 'library', label: 'Library', mac: true },
   { id: 'cloud', label: 'Cloud', mac: true },
   { id: 'connection', label: 'Connection' },
-  { id: 'lyrics', label: 'Lyrics', mac: true },
+  // Not the Mac's: romaji is kept with the words in the cloud too, and the switch is this device's.
+  { id: 'lyrics', label: 'Lyrics' },
   { id: 'devices', label: 'Devices', mac: true },
   { id: 'desktop', label: 'Desktop app' },
   { id: 'appearance', label: 'Appearance' },

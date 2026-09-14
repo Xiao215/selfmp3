@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
 import { ApiError, useLibrary, useLyrics } from '@selfmp3/client'
-import { useConnection } from '../../server/ConnectionProvider'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
@@ -11,9 +10,10 @@ const INSTRUMENTAL_TAG = 'instrumental'
 /**
  * A song's words, and the romanization switch: the web's `useSongLyrics`.
  *
- * Romanization is worked out on the Mac and is a synced setting, since it is
- * about the library rather than the device. A library read from the cloud has
- * no Mac to ask, so there it is simply not offered.
+ * The romanized lines are made on the Mac, which has the dictionaries, and
+ * come with the words from wherever the words come from: the Mac's own lyrics
+ * answer, or the bucket, where they are uploaded beside the lyrics. The switch
+ * is this device's, and only decides whether they are drawn.
  */
 export function useSongWords(song: Song): {
   words: SongWords
@@ -21,15 +21,14 @@ export function useSongWords(song: Song): {
   romanizationOn: boolean
   setRomanization: (on: boolean) => void
 } {
-  const { fromCloud } = useConnection()
   const library = useLibrary()
   const lyrics = useLyrics(song.id)
 
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
   const language: LyricsLanguage = useMemo(() => {
-    if (!parsed || fromCloud) return 'none'
+    if (!parsed) return 'none'
     return detectLyricsLanguage(parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines)
-  }, [parsed, fromCloud])
+  }, [parsed])
 
   const romanizationOn = useRomanizationOn()
   // The romaji comes with the words (LyricsResponse.romanized): nothing more

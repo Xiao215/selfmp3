@@ -119,7 +119,7 @@ export interface CloudLibraryApi {
   cloudLyrics: (
     session: CloudSession | null,
     songId: number,
-  ) => Promise<{ text: string; kind: 'plain' | 'synced' } | null>
+  ) => Promise<{ text: string; kind: 'plain' | 'synced'; romanized: string[] | null } | null>
   /** A song's cover in the bucket (`covers/<sha256>.<ext>`), or null. */
   cloudCoverKey: (songId: number) => Promise<string | null>
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
@@ -523,32 +523,56 @@ export function createCloudLibrary(
     return files?.[songId] ?? null
   }
 
-  /** A song's lyrics, from this device if it has read them before, else the bucket. */
+  /**
+   * A song's lyrics and their romanized lines, the way the Mac's own lyrics
+   * answer carries them: from this device if it has read them before, else
+   * the bucket.
+   */
   async function cloudLyrics(
     session: CloudSession | null,
     songId: number,
-  ): Promise<{ text: string; kind: 'plain' | 'synced' } | null> {
+  ): Promise<{ text: string; kind: 'plain' | 'synced'; romanized: string[] | null } | null> {
     const files = await filesOf(songId)
     if (!files?.lyrics || !files.lyricsKind) return null
+    const text = await cloudText(session, files.lyrics)
+    if (text === null) return null
+    const romanized = files.romanized ? romanizedLines(await cloudText(session, files.romanized)) : null
+    return { text, kind: files.lyricsKind, romanized }
+  }
 
-    // Named by the hash of their own bytes, so a cached copy is never stale.
-    // The cache is a convenience: one that fails is a miss, never a failure.
-    // Anything thrown here reaches the screen as "offline", and a device whose
-    // cache refused a write once said "reconnect" while the words sat in hand.
-    const cached = await platform.textCache?.read(files.lyrics).catch((error: unknown) => {
-      warn(`the lyrics cache could not be read: ${String(error)}`)
+  /**
+   * A text file from the bucket, named by the hash of its own bytes, so a
+   * cached copy is never stale. The cache is a convenience: one that fails is
+   * a miss, never a failure. Anything thrown here reaches the screen as
+   * "offline", and a device whose cache refused a write once said "reconnect"
+   * while the words sat in hand.
+   */
+  async function cloudText(session: CloudSession | null, key: string): Promise<string | null> {
+    const cached = await platform.textCache?.read(key).catch((error: unknown) => {
+      warn(`the text cache could not be read: ${String(error)}`)
       return null
     })
-    if (cached !== null && cached !== undefined) return { text: cached, kind: files.lyricsKind }
+    if (cached !== null && cached !== undefined) return cached
 
     if (!session) throw new DoormanError(0, 'Not signed in.')
-    const response = await session_.doormanFetch(session, `/v1/files/${files.lyrics}`)
+    const response = await session_.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return null
     const text = await readText(response)
-    await platform.textCache?.write(files.lyrics, text).catch((error: unknown) => {
-      warn(`the lyrics cache could not be written: ${String(error)}`)
+    await platform.textCache?.write(key, text).catch((error: unknown) => {
+      warn(`the text cache could not be written: ${String(error)}`)
     })
-    return { text, kind: files.lyricsKind }
+    return text
+  }
+
+  /** A romanized-lines file's JSON, or null when it is not a list of lines. */
+  function romanizedLines(json: string | null): string[] | null {
+    if (json === null) return null
+    try {
+      const value: unknown = JSON.parse(json)
+      return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
+    } catch {
+      return null
+    }
   }
 
   /**

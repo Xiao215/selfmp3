@@ -64,7 +64,7 @@ const LIBRARY: CloudSong[] = [
     playCount: 12,
     addedAt: '2026-08-01 09:00:00',
     features: features(90, '9A'),
-    lyrics: { key: `lyrics/${'cd'.repeat(32)}.lrc`, size: 10, kind: 'synced' },
+    lyrics: { key: `lyrics/${'cd'.repeat(32)}.lrc`, size: 10, kind: 'synced', romanized: null },
   }),
   song(1, { title: 'Old', addedAt: '2025-01-01 09:00:00', lastPlayedAt: '2025-06-01 09:00:00' }),
 ]

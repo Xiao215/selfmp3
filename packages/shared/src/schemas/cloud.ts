@@ -79,6 +79,13 @@ export const CloudLyricsSchema = z.object({
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
   kind: z.enum(['plain', 'synced']),
+  /**
+   * The words' romanized lines — romaji or pinyin, one per line of the text,
+   * empty where a line needs none — as a JSON array beside them. Made on the
+   * Mac, which has the dictionaries, so every device shows what the Mac's own
+   * lyrics answer carries. Null when the words are not Chinese or Japanese.
+   */
+  romanized: fileKey('lyrics').nullable(),
 })
 export type CloudLyrics = z.infer<typeof CloudLyricsSchema>
 

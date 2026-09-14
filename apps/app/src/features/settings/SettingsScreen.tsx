@@ -324,21 +324,19 @@ export function SettingsScreen(): ReactNode {
 
             <ConnectionPanel onTop={top => onTop('connection', top)} onConfirm={setConfirming} />
 
-            {fromCloud ? null : (
-              <Panel title="Lyrics" hint="on this device" onTop={top => onTop('lyrics', top)}>
-                <Row
+            <Panel title="Lyrics" hint="on this device" onTop={top => onTop('lyrics', top)}>
+              <Row
+                label="Show pinyin / romaji"
+                hint="A romanized line under each Chinese or Japanese lyric. It is made on the Mac and kept with the words, in the cloud too, so this only chooses whether to draw it."
+                last
+              >
+                <Toggle
+                  value={romanizationOn}
+                  onChange={setRomanizationOn}
                   label="Show pinyin / romaji"
-                  hint="A romanized line under each Chinese or Japanese lyric. It is made on your server and kept with the words, so this only chooses whether to draw it."
-                  last
-                >
-                  <Toggle
-                    value={romanizationOn}
-                    onChange={setRomanizationOn}
-                    label="Show pinyin / romaji"
-                  />
-                </Row>
-              </Panel>
-            )}
+                />
+              </Row>
+            </Panel>
 
             {fromCloud ? null : <DevicesPanel onTop={top => onTop('devices', top)} />}
 

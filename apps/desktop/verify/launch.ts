@@ -21,6 +21,18 @@ export const desktopRoot = join(__dirname, '..')
 const rootFlags = process.getuid?.() === 0 ? ['--no-sandbox'] : []
 
 /**
+ * Keep every test build away from the person's real login keychain.
+ *
+ * `safeStorage` keeps its key in a keychain item, "self.mp3 Safe Storage", that
+ * trusts the app by its signature. An ad-hoc test build is a new signature
+ * every time, so reading that item raised a password prompt on the Mac that
+ * was running the tests — and the app waited on it with its main process
+ * blocked, which Playwright saw as a launch that never finished. Chromium's
+ * mock keychain answers instead; secrets still round-trip within the run.
+ */
+const keychainFlags = process.platform === 'darwin' ? ['--use-mock-keychain'] : []
+
+/**
  * The Electron binary to launch, and the app to launch with it.
  *
  * `node_modules/electron/dist/electron` is the *Linux* binary name — on a Mac
@@ -74,7 +86,12 @@ export async function launchApp({
 } = {}): Promise<ElectronApplication> {
   return electron.launch({
     executablePath: executable(),
-    args: [...rootFlags, ...appArgs(), `--user-data-dir=${userDataDir ?? freshUserData()}`],
+    args: [
+      ...rootFlags,
+      ...keychainFlags,
+      ...appArgs(),
+      `--user-data-dir=${userDataDir ?? freshUserData()}`,
+    ],
     env: { ...process.env, ...env } as Record<string, string>,
   })
 }
@@ -104,7 +121,7 @@ export function packagedExecutable(): string | null {
 export async function launchPackaged(executablePath: string): Promise<ElectronApplication> {
   return electron.launch({
     executablePath,
-    args: [...rootFlags, `--user-data-dir=${freshUserData()}`],
+    args: [...rootFlags, ...keychainFlags, `--user-data-dir=${freshUserData()}`],
     env: { ...process.env } as Record<string, string>,
     // A newly built binary is scanned by macOS before its first launch, which
     // can take longer than Playwright's default 30 s (see packaged.spec.ts).

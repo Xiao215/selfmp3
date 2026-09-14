@@ -138,7 +138,7 @@ export function createCloudRoutes(
       async ({ session, params }) => {
         const found = await cloudLyrics(session, id(params))
         if (!found) throw new CloudRouteError(404, 'No lyrics for this song.', 'not_found')
-        return { source: 'sidecar', kind: found.kind, text: found.text }
+        return { source: 'sidecar', kind: found.kind, text: found.text, romanized: found.romanized }
       },
     ],
 

@@ -87,6 +87,7 @@ selfmp3/
   audio/<sha256>.<ext>               the music. Never changes.
   covers/<sha256>.<ext>              cover art. Never changes.
   lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
+  lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
 ```
@@ -154,7 +155,10 @@ directly with its key, as the way in.)
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
-lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags.
+lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. Beside Chinese or
+Japanese lyrics go their romanized lines, a JSON list with one line per line of the words, made
+here (romaji needs a dictionary only the Mac has) and named in the snapshot's lyrics entry, so a
+device signed in to the cloud shows them exactly as a device talking to the Mac does.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is

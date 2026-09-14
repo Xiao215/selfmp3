@@ -154,7 +154,13 @@ describe('lyrics', () => {
     const library = createCloudLibrary(platform, createCloudSession(platform))
 
     await store.write(FILES_KEY, {
-      7: { audio: 'audio/7.m4a', cover: null, lyrics: 'lyrics/7.lrc', lyricsKind: 'plain' },
+      7: {
+        audio: 'audio/7.m4a',
+        cover: null,
+        lyrics: 'lyrics/7.lrc',
+        lyricsKind: 'plain',
+        romanized: null,
+      },
     })
     bucket.files.set('lyrics/7.lrc', 'la la la')
 
@@ -162,7 +168,51 @@ describe('lyrics', () => {
     await expect(library.cloudLyrics(SESSION, 7)).resolves.toEqual({
       text: JSON.stringify('la la la'),
       kind: 'plain',
+      romanized: null,
     })
+  })
+
+  /*
+   * Romaji is made on the Mac, which has the dictionaries, and goes up beside
+   * the words. A device signed in to the cloud reads it the way it reads the
+   * words, so its lyrics answer is the same one the Mac's own server gives.
+   */
+  it('brings the romanized lines back with the words', async () => {
+    const made = build()
+    await made.store.write(FILES_KEY, {
+      9: {
+        audio: 'audio/9.m4a',
+        cover: null,
+        lyrics: 'lyrics/9.lrc',
+        lyricsKind: 'synced',
+        romanized: 'lyrics/9.json',
+      },
+    })
+    made.bucket.files.set('lyrics/9.lrc', '[00:01.00]夜に駆ける')
+    // The fake bucket answers every file as JSON of what it holds: this one is the list itself.
+    made.bucket.files.set('lyrics/9.json', ['yoru ni kakeru'])
+
+    const found = await made.library.cloudLyrics(SESSION, 9)
+
+    expect(found?.kind).toBe('synced')
+    expect(found?.romanized).toEqual(['yoru ni kakeru'])
+  })
+
+  it('answers no romanized lines when the file is not a list of lines', async () => {
+    const made = build()
+    await made.store.write(FILES_KEY, {
+      9: {
+        audio: 'audio/9.m4a',
+        cover: null,
+        lyrics: 'lyrics/9.lrc',
+        lyricsKind: 'synced',
+        romanized: 'lyrics/9.json',
+      },
+    })
+    made.bucket.files.set('lyrics/9.lrc', 'words')
+    made.bucket.files.set('lyrics/9.json', { not: 'lines' })
+
+    expect((await made.library.cloudLyrics(SESSION, 9))?.romanized).toBeNull()
   })
 })
 

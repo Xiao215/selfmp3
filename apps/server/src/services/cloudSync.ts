@@ -11,12 +11,15 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
+  detectLyricsLanguage,
   isSynced,
   lyricsKey,
   newestSnapshotKey,
   parseEndpoint,
   parseLogKey,
+  parseLyrics,
   readLogFile,
+  romanizedKey,
   snapshotKey,
   snapshotsToPrune,
   unfoldedLogKeys,
@@ -102,6 +105,21 @@ interface Signatures {
   readonly lyrics: string
 }
 
+/** A song's words in the bucket, and their romanized lines beside them. */
+interface UploadedLyrics {
+  readonly key: string
+  readonly size: number
+  readonly kind: CloudLyrics['kind']
+  readonly romanized: string | null
+}
+
+/** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
+function wantsRomanized(text: string): boolean {
+  const parsed = parseLyrics(text)
+  const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+  return detectLyricsLanguage(lines) !== 'none'
+}
+
 export interface CloudSyncDeps {
   readonly cloud: CloudRepository
   readonly songs: SongRepository
@@ -113,6 +131,13 @@ export interface CloudSyncDeps {
   readonly lyrics: LyricsService
   readonly metadata: MetadataService
   readonly logger: Logger
+  /**
+   * A lyric text's romanized lines, made once per text and cached
+   * (services/romanizedLines.ts), uploaded beside the words. Null when the
+   * words need none or the dictionary would not load. Absent where romaji is
+   * not what is being tested, which then uploads none.
+   */
+  readonly romanize?: (songId: number, text: string) => Promise<string[] | null>
   /** Other devices' changes: where this Mac keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
@@ -840,14 +865,24 @@ export class CloudSyncService {
       cover = await this.#uploadCover(store, file)
     }
 
-    let lyrics: { key: string; size: number; kind: CloudLyrics['kind'] } | null
+    let lyrics: UploadedLyrics | null
+    let lyricsSig = signatures.lyrics
     if (state && state.lyricsSig === signatures.lyrics) {
       lyrics =
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
+          ? {
+              key: state.lyricsKey,
+              size: state.lyricsSize ?? 0,
+              kind: state.lyricsKind,
+              romanized: state.romanizedKey,
+            }
           : null
     } else {
-      lyrics = await this.#uploadLyrics(store, file)
+      const uploaded = await this.#uploadLyrics(store, file)
+      lyrics = uploaded?.lyrics ?? null
+      // Chinese or Japanese words that got no romaji this time are not done:
+      // an empty signature never matches, so the next pass tries again.
+      if (uploaded?.romanizedMissing) lyricsSig = ''
     }
 
     this.#deps.cloud.saveState({
@@ -861,7 +896,8 @@ export class CloudSyncService {
       lyricsKey: lyrics?.key ?? null,
       lyricsSize: lyrics?.size ?? null,
       lyricsKind: lyrics?.kind ?? null,
-      lyricsSig: signatures.lyrics,
+      romanizedKey: lyrics?.romanized ?? null,
+      lyricsSig,
     })
   }
 
@@ -878,11 +914,16 @@ export class CloudSyncService {
     return { key, size: data.length }
   }
 
-  /** The words: the sidecar if there is one, else the audio file's own tags. */
+  /**
+   * The words — the sidecar if there is one, else the audio file's own tags —
+   * and their romanized lines beside them, as the Mac's own lyrics answer
+   * carries them. `romanizedMissing` says the words are Chinese or Japanese
+   * and no romaji could be made this time.
+   */
   async #uploadLyrics(
     store: CloudStore,
     file: SongFileInfo,
-  ): Promise<{ key: string; size: number; kind: CloudLyrics['kind'] } | null> {
+  ): Promise<{ lyrics: UploadedLyrics; romanizedMissing: boolean } | null> {
     let text: string | null = null
     let kind: CloudLyrics['kind'] = 'plain'
 
@@ -902,7 +943,19 @@ export class CloudSyncService {
     const data = Buffer.from(text, 'utf8')
     const key = lyricsKey(sha256(data), kind === 'synced')
     await this.#putOnce(store, key, data, 'text/plain; charset=utf-8')
-    return { key, size: data.length, kind }
+
+    const romanize = this.#deps.romanize
+    const lines = romanize ? await romanize(file.id, text).catch(() => null) : null
+    let romanized: string | null = null
+    if (lines) {
+      const json = Buffer.from(JSON.stringify(lines), 'utf8')
+      romanized = romanizedKey(sha256(json))
+      await this.#putOnce(store, romanized, json, 'application/json')
+    }
+    return {
+      lyrics: { key, size: data.length, kind, romanized },
+      romanizedMissing: romanize !== undefined && lines === null && wantsRomanized(text),
+    }
   }
 
   /**

@@ -95,7 +95,12 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       ...(state.coverKey !== null && song.coverTone ? { coverTone: song.coverTone } : {}),
       lyrics:
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
+          ? {
+              key: state.lyricsKey,
+              size: state.lyricsSize ?? 0,
+              kind: state.lyricsKind,
+              romanized: state.romanizedKey,
+            }
           : null,
       instrumental: song.instrumental,
       loved: song.loved,

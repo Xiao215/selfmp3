@@ -742,6 +742,17 @@ test.describe('an application, not a page', () => {
     try {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
+      /*
+       * The app's own player tells the shell what is playing too
+       * (`ports/mediaSession.web.ts`): "nothing", once, as it mounts. Sent any
+       * earlier, the test's "playing" could land first and be overwritten a
+       * moment later — which failed this about one run in five. So wait for the
+       * app to be up, then one frame more for the effects it queued at mount.
+       */
+      await expect(page.locator('body')).toContainText(/self\.mp3/i, { timeout: 30_000 })
+      await page.evaluate(
+        () => new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0))),
+      )
 
       const tell = async (playing: boolean): Promise<boolean> => {
         await page.evaluate(async state => {

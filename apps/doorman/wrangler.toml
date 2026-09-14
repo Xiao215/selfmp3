@@ -23,9 +23,11 @@ watch_dir = ["src", "../../packages/shared/src"]
 # The client ID of your OAuth client in the Google Cloud console. It is public:
 # it appears in every Google sign-in link. See README.md.
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-# The web app's address. Browsers may call the doorman only from here, and a
-# sign-in may send you back here (or to this computer, for the Mac's settings).
-APP_ORIGINS = "https://xiao215.github.io"
+# The web app's address, and the installed Mac app's own origin — its page is
+# served from app://selfmp3. Browsers may call the doorman only from these, and
+# a sign-in may send you back here (or to this computer, for the Mac's
+# settings).
+APP_ORIGINS = "https://xiao215.github.io,app://selfmp3"
 
 # Sign-ins waiting for their code, sessions, and each Google account's sealed
 # bucket. Create the namespace with
@@ -45,7 +47,7 @@ id = "ac00b5cff3df480fabc0df100615d071"
 # computer over plain http (MinIO, say). Its KV is Wrangler's local stand-in.
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-APP_ORIGINS = "https://xiao215.github.io,http://localhost:4600,http://localhost:4601"
+APP_ORIGINS = "https://xiao215.github.io,http://localhost:4600,http://localhost:4601,app://selfmp3"
 DEV = "true"
 
 [[env.dev.kv_namespaces]]

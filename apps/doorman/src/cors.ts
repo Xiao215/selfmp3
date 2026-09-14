@@ -23,9 +23,33 @@ const MAX_AGE_SECONDS = '86400'
 let parsed: { from: string; origins: ReadonlySet<string> } | null = null
 
 /**
+ * Schemes a browser hands out itself, which no installed app's page is served
+ * from. An entry with one of these is a mistake, and is dropped rather than
+ * allowed.
+ */
+const BROWSER_SCHEMES = new Set([
+  'ws:',
+  'wss:',
+  'ftp:',
+  'file:',
+  'blob:',
+  'data:',
+  'about:',
+  'javascript:',
+  'mailto:',
+])
+
+/**
  * APP_ORIGINS as a set of origins, each tidied the way a browser sends it, so
  * a trailing slash in the setting does not lock the app out. Worked out again
  * only when the setting changes.
+ *
+ * Two kinds of entry. A web address, whose origin is what the browser sends.
+ * And an installed app's own scheme — `app://selfmp3`, the Mac app's page —
+ * which a browser sends exactly as written, a made-up scheme having no origin
+ * rules of its own. Those are kept verbatim, lowercased, and only written as
+ * bare `scheme://host`: with a path, a query, or nothing after the slashes it
+ * is a mistake, not an app.
  */
 export function allowedOrigins(value: string | undefined, log: Log): ReadonlySet<string> {
   const from = value ?? ''
@@ -34,24 +58,41 @@ export function allowedOrigins(value: string | undefined, log: Log): ReadonlySet
   for (const entry of from.split(',')) {
     const trimmed = entry.trim()
     if (!trimmed) continue
-    try {
-      const url = new URL(trimmed)
-      /*
-       * Only a web address has an origin worth allowing. Anything else reports
-       * its origin as the string "null" — which is also what a browser sends
-       * from a sandboxed frame, so one mistyped entry here would have put every
-       * opaque context on the list.
-       */
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw new Error('not a web address')
-      }
-      origins.add(url.origin)
-    } catch {
+    const origin = originOf(trimmed)
+    if (origin === null) {
       log.warn('APP_ORIGINS has an entry that is not an address; it is ignored', { entry: trimmed })
+    } else {
+      origins.add(origin)
     }
   }
   parsed = { from, origins }
   return origins
+}
+
+function originOf(entry: string): string | null {
+  let url: URL
+  try {
+    url = new URL(entry)
+  } catch {
+    return null
+  }
+  if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin
+  /*
+   * A URL with any other scheme reports its origin as the string "null" —
+   * which is also what a browser sends from a sandboxed frame, so one mistyped
+   * entry here would have put every opaque context on the list. So the origin
+   * is built by hand, from a host that has to be there and nothing that must
+   * not be.
+   */
+  if (BROWSER_SCHEMES.has(url.protocol)) return null
+  const bare =
+    url.host !== '' &&
+    (url.pathname === '' || url.pathname === '/') &&
+    url.search === '' &&
+    url.hash === '' &&
+    url.username === '' &&
+    url.password === ''
+  return bare ? `${url.protocol}//${url.host}`.toLowerCase() : null
 }
 
 /** The answer to a preflight: yes for the app's own addresses, no for anyone else's. */

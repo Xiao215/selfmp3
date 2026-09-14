@@ -3545,6 +3545,44 @@ shell. It stalled at the code box before, and would have stalled at "Didn't come
 back?" after. Both screens now take codes from the same inbox. No Google sign-in
 has run on the Mac yet, so this is fixed by reading, not by seeing it.
 
+### The first real sign-in from the Mac app — 2026-09-14
+
+Xiao installed the dmg, pressed Continue with Google, and got "Failed to fetch".
+Three things were tangled together, found in this order:
+
+- **The doorman refused the installed app.** Its `APP_ORIGINS` allowed only
+  `https://xiao215.github.io`, and `allowedOrigins` dropped anything that was
+  not a web address on purpose — so the app's page at `app://selfmp3` got a 403
+  to every preflight (checked against the live doorman: 403 from
+  `app://selfmp3`, 204 from the website), which Chrome reports as "Failed to
+  fetch". The sign-in itself went through Google and back; it was the final
+  claim that was blocked. `allowedOrigins` now also takes an installed app's own
+  scheme, written as bare `scheme://host` and kept verbatim lowercased (a
+  browser sends such an origin exactly as written), while still refusing every
+  scheme a browser hands out itself; `app://selfmp3` is in `wrangler.toml`.
+  Tests at both levels. **The worker has to be redeployed for this to take
+  effect** — Xiao's, with `npx wrangler deploy` in `apps/doorman`.
+- **The Intel build was installed on an M1.** Both architectures are built, and
+  their dmgs were `self.mp3-1.0.0.dmg` and `self.mp3-1.0.0-arm64.dmg`; the
+  mounted volumes were both called "self.mp3 1.0.0". The one dragged to
+  Applications was the Intel one, running under Rosetta — which is the long
+  Dock bounce on first launch, and the five seconds the library route showed
+  before sign-in. `artifactName` now puts the arch in every name (`-arm64`,
+  `-x64`), the volume name carries it too, and INSTALL.md and the release notes
+  say which to pick.
+- **The library drew before the launch decision.** It is the first route, and
+  on a browser or the Mac app there is no splash to cover it while the app
+  works out whether it is signed in. `_layout.tsx` now paints the theme's
+  ground over everything until `status` leaves `loading`; a phone's splash
+  already did this.
+
+Also seen: the packaged smoke timed out at 90 s. The first launch of a freshly
+built binary is scanned by macOS, and this test always follows a build — 13 s
+in the morning, 46 s later, over 90 s while the Mac was also building. Later
+launches take a second. The test's budget is now five minutes, with the reason
+beside it. And the power-save blocker test failed once in the same run and
+passed on its own; noted, not chased.
+
 **The Mac app keeps its files in `~/Library/Application Support/self.mp3`.**
 Electron names that folder after the app, and without a `productName` in
 `apps/desktop/package.json` the app was called `@selfmp3/desktop` — the folder,

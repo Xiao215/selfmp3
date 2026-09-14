@@ -38,6 +38,10 @@ icon: resources/icon.png
 
 mac:
   category: public.app-category.music
+  # Both architectures are built, and without the arch in every name the Intel
+  # one was `self.mp3-1.0.0.dmg` beside `self.mp3-1.0.0-arm64.dmg` — and the one
+  # installed on an M1 was the Intel one, running under Rosetta.
+  artifactName: '${productName}-${version}-${arch}.${ext}'
   # macOS 13, as the Stack table says: Electron 44's own floor.
   minimumSystemVersion: '13.0'
   hardenedRuntime: true
@@ -51,6 +55,9 @@ mac:
       arch: [arm64, x64]
 
 dmg:
+  # The mounted volume's name, with the architecture: two of these open at
+  # once were both "self.mp3 1.0.0".
+  title: '${productName} ${version} (${arch})'
   # The window everyone knows: the app on the left, Applications on the right.
   # `scripts/dmg-background.mjs` draws the background at 1× and 2× — the arrow in
   # it runs between these two positions, so they move together — and the window

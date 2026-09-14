@@ -40,9 +40,39 @@ describe('allowedOrigins', () => {
     }
   })
 
-  it('refuses a scheme that is not http or https', () => {
+  it('refuses a scheme a browser hands out itself', () => {
     expect(origins('ftp://example.com')).toEqual([])
     expect(origins('blob:https://xiao215.github.io/abc')).toEqual([])
+    expect(origins('file://localhost')).toEqual([])
+    expect(origins('data://x')).toEqual([])
+  })
+
+  /*
+   * The installed Mac app's page is served from its own scheme, and a browser
+   * sends that origin exactly as written — a made-up scheme has no origin rules.
+   * Without this, the first sign-in from the app was refused with nothing on
+   * screen but "Failed to fetch".
+   */
+  it('takes an installed app’s own scheme, as the browser sends it', () => {
+    expect(origins('app://selfmp3')).toEqual(['app://selfmp3'])
+    expect(origins('app://selfmp3/')).toEqual(['app://selfmp3'])
+    expect(origins('APP://SelfMP3')).toEqual(['app://selfmp3'])
+    expect(origins('https://xiao215.github.io,app://selfmp3')).toEqual([
+      'app://selfmp3',
+      'https://xiao215.github.io',
+    ])
+  })
+
+  it('takes nothing but a bare scheme and host for an installed app', () => {
+    for (const entry of [
+      'app://selfmp3/page',
+      'app://selfmp3?x=1',
+      'app://selfmp3#f',
+      'app://',
+      'app://me@selfmp3',
+    ]) {
+      expect(origins(entry), entry).toEqual([])
+    }
   })
 
   it('keeps the good entries when one alongside them is bad', () => {

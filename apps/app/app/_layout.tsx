@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { Stack, usePathname, useRouter } from 'expo-router'
@@ -141,6 +142,19 @@ function Shell(): ReactNode {
           options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
         />
       </Stack>
+      {/*
+       * Nothing shows until it is decided where the library comes from — the
+       * bucket, a server, or nowhere yet. The library is the first route, and a
+       * fresh install drew it, loading, for a moment before going to sign in.
+       * A phone's splash screen covers this already; a browser and the Mac app
+       * have no splash, so this is theirs.
+       */}
+      {status === 'loading' ? (
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface0 }]}
+        />
+      ) : null}
     </Frame>
   )
 }

@@ -73,8 +73,8 @@ describe('CORS', () => {
     })
   }
 
-  it('lets the web app in', async () => {
-    for (const origin of [APP_ORIGIN, 'http://localhost:4600']) {
+  it('lets the web app in, and the installed app from its own scheme', async () => {
+    for (const origin of [APP_ORIGIN, 'http://localhost:4600', 'app://selfmp3']) {
       const response = await preflight(origin)
       expect(response.status).toBe(204)
       expect(response.headers.get('access-control-allow-origin')).toBe(origin)

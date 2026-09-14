@@ -24,6 +24,14 @@ test.describe('the packaged app', () => {
   )
 
   test('opens and draws the page', async () => {
+    /*
+     * The first launch of a freshly built app is slow — macOS scans a new
+     * unsigned binary before running it, and this test always follows a
+     * build, so it always pays that: 13 s on one run, 46 s on another, past
+     * the 90 s default on a Mac that was also building. Later launches take a
+     * second. A budget for the scan, not a sign the app is slow.
+     */
+    test.setTimeout(300_000)
     const app = await launchPackaged(String(executable))
     try {
       const page = await app.firstWindow()

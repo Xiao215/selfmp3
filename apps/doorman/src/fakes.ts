@@ -485,7 +485,7 @@ export function harness(): Harness {
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
     ALLOWED_EMAILS: 'me@example.com, Friend@Example.com',
-    APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600`,
+    APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600,app://selfmp3`,
   }
   const logs: Harness['logs'] = []
   const doorman = createDoorman({

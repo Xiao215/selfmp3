@@ -83,6 +83,9 @@ export async function launchPackaged(executablePath: string): Promise<ElectronAp
     executablePath,
     args: [...rootFlags, `--user-data-dir=${freshUserData()}`],
     env: { ...process.env } as Record<string, string>,
+    // A newly built binary is scanned by macOS before its first launch, which
+    // can take longer than Playwright's default 30 s (see packaged.spec.ts).
+    timeout: 180_000,
   })
 }
 

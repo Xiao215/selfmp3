@@ -91,7 +91,8 @@ jobs:
           body: |
             ## self.mp3 for macOS
 
-            Download the `.dmg`, open it, and drag self.mp3 to Applications.
+            Download the `.dmg` — `-arm64` for Apple silicon, `-x64` for an
+            Intel Mac — open it, and drag self.mp3 to Applications.
 
             **If this build was not signed with a Developer ID**, macOS will
             refuse it the first time. Either open System Settings › Privacy &

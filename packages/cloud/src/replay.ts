@@ -45,6 +45,9 @@ export function replayedSnapshot(
   const songs = snapshot.songs
   return {
     ...snapshot,
+    // Where the Mac listens is the snapshot's alone: no change carries it, so
+    // it is taken from the base as written, or the device would never learn it.
+    ...(base?.server ? { server: base.server } : {}),
     playlists: snapshot.playlists.map(playlist =>
       playlist.kind === 'live' && playlist.rules
         ? {

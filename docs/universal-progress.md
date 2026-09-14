@@ -3751,6 +3751,19 @@ A browser at the web app's https address still cannot ask a Mac at a plain
 http address, so in a browser away from a Mac's own page this screen will say
 the Mac is out of reach.
 
+First try on Xiao's Mac: the server had published its addresses, and the
+screen said the Mac had never said where it is. `replayedSnapshot` rebuilds
+the snapshot a device shows from the replayed library and carried over only
+`writtenAt`, `writtenBy` and `upTo`; no change ever carries the addresses, so
+they were lost on the way. It keeps the base's `server` now, tested.
+
+Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
+the build could see it — not the shell profile, not a `.env` — so each
+install asked for the keychain password again. Built with it set, the tier
+line says "development-signed build". The first launch of that build asks
+once more, for the item an ad-hoc build made; Always Allow there holds for
+every development build after.
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

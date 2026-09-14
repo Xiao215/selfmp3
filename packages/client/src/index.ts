@@ -36,6 +36,9 @@ export * from './downloads/downloadIndex.js'
 export * from './downloads/syncPolicy.js'
 // Songs kept because they were played: the budget, and the kept list as stored.
 export * from './downloads/recentCopies.js'
+// Progress at a pace a screen can draw, and background work a few at a time.
+export * from './downloads/throttle.js'
+export * from './downloads/limited.js'
 export * from './queue/playable.js'
 // Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
 export * from './queue/autoMix.js'

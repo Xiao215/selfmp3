@@ -1,3 +1,4 @@
+import { once } from 'node:events'
 import { createWriteStream } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -32,12 +33,51 @@ export function directoryFor(kind: FileKind): string {
   return join(app.getPath('userData'), kind)
 }
 
-async function pathFor(kind: FileKind, name: string): Promise<string> {
-  const root = directoryFor(kind)
-  await mkdir(root, { recursive: true })
-  const resolved = resolveWithinRoot(root, `/${name}`)
+/** Where a file is, fenced inside its directory. Touches nothing on disk. */
+function pathFor(kind: FileKind, name: string): string {
+  const resolved = resolveWithinRoot(directoryFor(kind), `/${name}`)
   if (resolved === null) throw new Error(`refusing to touch ${name}`)
   return resolved
+}
+
+/**
+ * The same, for a write, which needs the directory to exist. Only writes make
+ * it: a stat, a delete or a reveal of a file in a folder that is not there has
+ * its answer already, and every cover check used to be a `mkdir` first.
+ */
+async function writablePathFor(kind: FileKind, name: string): Promise<string> {
+  await mkdir(directoryFor(kind), { recursive: true })
+  return pathFor(kind, name)
+}
+
+/**
+ * How often a download tells the page how far it has got: four times a second.
+ * A read is a chunk of a few kilobytes, so reporting each was hundreds of IPC
+ * messages a second, each parsed in the preload and each re-rendering whatever
+ * shows downloads. The last is always sent, so the bar finishes where the file did.
+ */
+export const PROGRESS_INTERVAL_MS = 250
+
+/** Whether a report is due now, and whether one is owed for the bytes since the last. */
+export function progressGate(
+  intervalMs: number,
+  now: () => number = Date.now,
+): { due(): boolean; owed(): boolean } {
+  let last = Number.NEGATIVE_INFINITY
+  let owed = false
+  return {
+    due() {
+      const at = now()
+      if (at - last >= intervalMs) {
+        last = at
+        owed = false
+        return true
+      }
+      owed = true
+      return false
+    },
+    owed: () => owed,
+  }
 }
 
 /** Downloads in flight, so `cancel` has something to abort. */
@@ -47,7 +87,7 @@ export async function download(
   request: DownloadRequest,
   onProgress: (bytesWritten: number, totalBytes: number) => void,
 ): Promise<DownloadResult> {
-  const target = await pathFor(request.kind, request.name)
+  const target = await writablePathFor(request.kind, request.name)
   const part = `${target}.part`
 
   const resumeFrom = request.resumeFrom ?? (await sizeOf(part))
@@ -79,15 +119,26 @@ export async function download(
     if (body === null) throw new Error('no body')
 
     const reader = body.getReader()
+    const report = progressGate(PROGRESS_INTERVAL_MS)
     try {
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        sink.write(Buffer.from(value))
+        /*
+         * `write` returning false is the disk saying it is behind. Reading on
+         * regardless holds the rest of the song in memory until it catches up
+         * — on a fast network and a slow disk, most of the song. Waiting for
+         * `drain` lets the network wait instead. `once` rejects on the
+         * stream's `error`, so a disk that fails mid-wait fails the download
+         * rather than hanging it.
+         */
+        if (!sink.write(Buffer.from(value))) await once(sink, 'drain')
         written += value.byteLength
-        onProgress(written, totalBytes)
+        if (report.due()) onProgress(written, totalBytes)
       }
     } finally {
+      // Where it really stopped — finished, paused or failed — not where the last report happened to be.
+      if (report.owed()) onProgress(written, totalBytes)
       await new Promise<void>(resolve => sink.end(resolve))
     }
 
@@ -117,7 +168,7 @@ export async function fetchTo(
   url: string,
   headers?: Record<string, string>,
 ): Promise<void> {
-  const target = await pathFor(kind, name)
+  const target = await writablePathFor(kind, name)
   const response = await net.fetch(url, { headers: headers ?? {} })
   if (!response.ok) throw new Error(`${response.status} from ${hostOf(url)}`)
   const bytes = Buffer.from(await response.arrayBuffer())
@@ -138,7 +189,7 @@ export async function fetchTo(
  * of either.
  */
 export async function writeText(kind: FileKind, name: string, text: string): Promise<void> {
-  const target = await pathFor(kind, name)
+  const target = await writablePathFor(kind, name)
   const part = `${target}.part`
   await new Promise<void>((resolve, reject) => {
     const sink = createWriteStream(part)
@@ -149,22 +200,34 @@ export async function writeText(kind: FileKind, name: string, text: string): Pro
 }
 
 export async function remove(kind: FileKind, name: string): Promise<void> {
-  const target = await pathFor(kind, name)
+  const target = pathFor(kind, name)
   await rm(target, { force: true })
   await rm(`${target}.part`, { force: true })
 }
 
 export async function statOne(kind: FileKind, name: string): Promise<FileStat> {
-  const target = await pathFor(kind, name)
-  const bytes = await sizeOf(target)
-  return bytes === 0 && !(await exists(target)) ? null : { name, bytes }
+  // Outside the `try`: a name that is refused is still an error, not "no file".
+  const target = pathFor(kind, name)
+  // One stat: it either answers with a size or says there is nothing there.
+  try {
+    return { name, bytes: (await stat(target)).size }
+  } catch {
+    return null
+  }
 }
+
+/**
+ * Stats at once, but not all at once: a songs folder of thousands used to be
+ * thousands of stats one after another on every usage check, and thousands
+ * together would be as many open requests on the libuv pool.
+ */
+const STAT_BATCH = 32
 
 export async function list(kind: FileKind): Promise<{ name: string; bytes: number }[]> {
   const root = directoryFor(kind)
   await mkdir(root, { recursive: true })
   const entries = await readdir(root, { withFileTypes: true })
-  const out: { name: string; bytes: number }[] = []
+  const names: string[] = []
   for (const entry of entries) {
     // A `.part` is an unfinished download, not a file anyone has.
     if (!entry.isFile() || entry.name.endsWith('.part')) continue
@@ -179,7 +242,17 @@ export async function list(kind: FileKind): Promise<{ name: string; bytes: numbe
      * dropping it here is what makes the listing describe the app's own files.
      */
     if (!fileNameSchema.safeParse(entry.name).success) continue
-    out.push({ name: entry.name, bytes: await sizeOf(join(root, entry.name)) })
+    names.push(entry.name)
+  }
+  const out: { name: string; bytes: number }[] = []
+  for (let start = 0; start < names.length; start += STAT_BATCH) {
+    const batch = names.slice(start, start + STAT_BATCH)
+    // In the directory's order, as before: `Promise.all` keeps it.
+    out.push(
+      ...(await Promise.all(
+        batch.map(async name => ({ name, bytes: await sizeOf(join(root, name)) })),
+      )),
+    )
   }
   return out
 }
@@ -211,7 +284,7 @@ export async function reveal(kind: FileKind, name?: string): Promise<void> {
     await shell.openPath(root)
     return
   }
-  shell.showItemInFolder(await pathFor(kind, name))
+  shell.showItemInFolder(pathFor(kind, name))
 }
 
 async function sizeOf(path: string): Promise<number> {
@@ -219,15 +292,6 @@ async function sizeOf(path: string): Promise<number> {
     return (await stat(path)).size
   } catch {
     return 0
-  }
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
   }
 }
 

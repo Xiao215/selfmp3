@@ -56,12 +56,32 @@ function file(): string {
   return join(app.getPath('userData'), 'secrets.json')
 }
 
+/**
+ * The document as last read or written. This process is the only writer, so
+ * after the first read the file has nothing to add — and every `get` used to
+ * be a synchronous read and parse on the main process, which is the one that
+ * also draws the window.
+ */
+let cached: SealedSecrets | null = null
+
+/**
+ * What each sealed value opened to. Opening is a keychain call; a token is
+ * asked for on every request the page signs, and it has not changed since the
+ * last time. Keyed by the sealed text itself, so a value written again is
+ * opened again.
+ */
+const opened = new Map<string, string | null>()
+
+/** A copy: callers change what they are given, and the cache must not change with it. */
 function read(): SealedSecrets {
-  try {
-    return parseSecrets(readFileSync(file(), 'utf8'))
-  } catch {
-    return {}
+  if (cached === null) {
+    try {
+      cached = parseSecrets(readFileSync(file(), 'utf8'))
+    } catch {
+      cached = {}
+    }
   }
+  return { ...cached }
 }
 
 /**
@@ -76,6 +96,9 @@ function write(secrets: SealedSecrets): void {
   const temporary = `${target}.tmp`
   writeFileSync(temporary, serialiseSecrets(secrets), { mode: 0o600 })
   renameSync(temporary, target)
+  // Only once the file says so: a write that threw leaves the cache on what is on disk.
+  cached = { ...secrets }
+  opened.clear()
 }
 
 /**
@@ -103,13 +126,18 @@ export const secretStore = {
       return Buffer.from(stored.slice(PLAIN.length), 'base64').toString('utf8')
     }
     if (!stored.startsWith(SEALED)) return null
+    const known = opened.get(stored)
+    if (known !== undefined) return known
+    let value: string | null
     try {
-      return safeStorage.decryptString(Buffer.from(stored.slice(SEALED.length), 'base64'))
+      value = safeStorage.decryptString(Buffer.from(stored.slice(SEALED.length), 'base64'))
     } catch {
       // Sealed by a keychain this login no longer has, which is a sign-in
       // again rather than an error to show.
-      return null
+      value = null
     }
+    opened.set(stored, value)
+    return value
   },
 
   set(key: string, value: string): void {

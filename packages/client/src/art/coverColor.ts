@@ -62,8 +62,22 @@ export function songColors(
   }
 }
 
-/** `#rrggbb` with an alpha, for a wash of a colour worked out at runtime. */
-export function withAlpha(hex: string, alpha: number): string {
-  const byte = Math.round(clamp(alpha, 0, 1) * 255)
-  return `${hex.slice(0, 7)}${byte.toString(16).padStart(2, '0')}`
+/**
+ * A colour at an alpha, for a wash of a colour worked out at runtime.
+ *
+ * A `#rrggbb` gets an alpha byte. Anything else is left whole and mixed with
+ * transparency by the browser: in a browser, a Unistyles stylesheet's
+ * `theme.colors.x` is not a hex string but `var(--colors-x)`, and slicing an
+ * alpha byte onto that made `var(--c1a` — an unclosed function that Chrome's
+ * CSS parser could not recover from, so every rule written after it in the
+ * page's one stylesheet was dropped (Xiao's tag pills drawn in black, a row's
+ * title dark, the player bar without its slider, after pressing any button).
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const opacity = clamp(alpha, 0, 1)
+  if (!color.startsWith('#')) {
+    return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`
+  }
+  const byte = Math.round(opacity * 255)
+  return `${color.slice(0, 7)}${byte.toString(16).padStart(2, '0')}`
 }

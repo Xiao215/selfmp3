@@ -9,7 +9,6 @@ import {
   type ThemePalette,
 } from '@selfmp3/client'
 
-import { keepWebStyles } from '../../ports/keepWebStyles'
 import { readHue, readTheme, resolveScheme, type ThemeChoice } from '../appearancePrefs'
 
 /**
@@ -50,11 +49,6 @@ StyleSheet.configure({
   // exactly as one made before it does, on the web and on a phone alike.
   settings: { initialTheme: resolveScheme(choice, Appearance.getColorScheme()) },
 })
-
-// In a browser, a style's CSS rule outlives the elements using it: Unistyles'
-// cleanup could delete a rule a mounted screen still needed, and the page drew
-// unstyled after closing Now Playing (ports/keepWebStyles.web.ts).
-keepWebStyles()
 
 // The palette object and the scheme-aware helpers (`buildAccent`, `tagColors`)
 // follow the theme on screen, for the few things drawn outside a stylesheet.

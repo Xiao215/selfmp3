@@ -4,7 +4,7 @@ import { Animated, Easing, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
-import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
@@ -331,7 +331,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   itemDangerDense: {
-    backgroundColor: `${theme.colors.danger}1f`,
+    backgroundColor: withAlpha(theme.colors.danger, 0.12),
   },
   itemLabelDense: {
     fontSize: 13,

@@ -39,4 +39,15 @@ describe('withAlpha', () => {
     expect(withAlpha('#336699', 0.5)).toBe('#33669980')
     expect(withAlpha('#336699ff', 0)).toBe('#33669900')
   })
+
+  // A browser's Unistyles stylesheet sees `var(--colors-x)`, not a hex: an
+  // alpha byte sliced onto that broke the whole stylesheet after it.
+  it('mixes a CSS variable with transparency rather than slicing it', () => {
+    expect(withAlpha('var(--colors-text-primary)', 0.1)).toBe(
+      'color-mix(in srgb, var(--colors-text-primary) 10%, transparent)',
+    )
+    expect(withAlpha('var(--colors-danger)', 0.12)).toBe(
+      'color-mix(in srgb, var(--colors-danger) 12%, transparent)',
+    )
+  })
 })

@@ -2566,3 +2566,38 @@ border. `outlineWidth: 0` was not enough: the input's outline style is Chrome's
 `auto`, and an `auto` ring is drawn at any width. `_web: { outlineStyle: 'none' }`
 removes it; the accent border alone shows focus. Checked in Chrome: `outline
 none`, border the accent.
+
+### The stylesheet that stopped halfway — branch `universal/alpha-var`
+
+From Xiao on 4600, Chrome, with the console: after opening Now Playing from
+the bar and pressing its top-left return, the tag pills drew in black, the
+playing row's title went dark, the "Filtered by" chips stacked, and the player
+bar lost its slider. The sidebar and the rows stayed right.
+
+- **Half the stylesheet was unparsed.** Unistyles keeps every rule in one
+  `<style id="unistyles-web">`. In Xiao's tab it held 375 rule texts and Chrome
+  had parsed 191; the 183 dropped were exactly the elements gone wrong. The
+  text around the first dropped rule showed why:
+  `background-color:var(--c1a;` — an unclosed `var(`, which the CSS parser
+  cannot recover from, so every rule after it in the sheet is discarded. That
+  is `IconButton`'s `pressed` style, `withAlpha(theme.colors.textPrimary, 0.1)`:
+  in a browser a stylesheet's `theme.colors.x` is `var(--colors-x)` (Unistyles
+  writes the themes as CSS variables), and `withAlpha` sliced seven characters
+  and appended an alpha byte. On a phone the theme is hex, so it was right
+  there. `withAlpha` now leaves anything but a `#rrggbb` whole and returns
+  `color-mix(in srgb, <colour> N%, transparent)`, which follows the theme as
+  the variable does. `Sheet`'s `${theme.colors.danger}1f` had the same shape
+  (balanced, so only its own declaration was lost) and uses `withAlpha` too.
+  Colours from `useUnistyles().theme` in JSX are real hex and were fine.
+- **Why it looked like the styles were "lost after closing Now Playing".** The
+  bad rule is written the moment any `IconButton` is pressed — the return
+  button is one — and before `universal/keep-styles` it was deleted again a
+  microtask after the press ended, so the breakage was a flicker. The
+  keep-styles port made every rule permanent, so the bad rule stayed and the
+  page stayed broken. The port also let the sheet grow without bound (the
+  slider writes a new rule per frame; 4,000 rules and 550 KB after four minutes
+  of playing, rewritten in full on every addition, with a listener kept for
+  each). Its mechanism — a rule deleted from under a mounted element — was
+  never observed and needs an element that is mounted but not in the document,
+  which React does not produce. The port is removed.
+- Checked: `withAlpha` unit tests for a hex and a `var()`; the app typechecks.

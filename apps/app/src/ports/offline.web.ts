@@ -210,7 +210,7 @@ export type DownloadFraction = number | null
  * `cache: 'reload'` bypasses the browser's HTTP cache, and `REFRESH_HEADER`
  * bypasses our own service worker, which sits in front of it and would
  * otherwise hand back the very copy this is trying to replace. Both are needed
- * for a re-download after a file changed on the Mac to fetch fresh bytes. The
+ * for a re-download after a file changed on the server to fetch fresh bytes. The
  * response is only stored if it is a complete 200 — caching a partial 206
  * would poison the cache with a fragment that plays for four seconds and stops.
  *

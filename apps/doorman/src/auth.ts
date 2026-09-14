@@ -292,7 +292,7 @@ function redirectUri(ctx: Context): string {
 /**
  * Where to send the browser after signing in: an address in APP_ORIGINS, or
  * this computer (`http://localhost` or `http://127.0.0.1`, any port) for the
- * Mac's own settings page. Anything else is dropped, not refused — the
+ * server's own settings page. Anything else is dropped, not refused — the
  * sign-in still works, and ends on the doorman's page with the code — so the
  * doorman never sends anyone, or any code, to a site of someone else's
  * choosing. The loopback exception is for this redirect only, never CORS.

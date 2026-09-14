@@ -5,15 +5,15 @@ import type { SmartRules } from './schemas/smart.js'
 import { asciiLower, toSqliteTime } from './sync.js'
 
 /**
- * Live playlists on a device (docs/SYNC.md): the rules the Mac compiles to
+ * Live playlists on a device (docs/SYNC.md): the rules the server compiles to
  * SQL (apps/server/src/services/smartPlaylist.ts), run over the library in
  * memory instead. So a playlist of loved songs gains a song the moment it is
- * loved on a phone, with the Mac asleep. A test runs both over one library
+ * loved on a phone, with the server asleep. A test runs both over one library
  * and expects the same songs in the same order.
  *
  * Text matches the way SQLite's LIKE and NOCASE do: ignoring the case of A–Z
  * and only of A–Z. Songs are expected newest first, as a snapshot lists them;
- * that order stands in for the Mac's row ids when two songs tie.
+ * that order stands in for the server's row ids when two songs tie.
  */
 export function livePlaylistSongs(
   rules: CloudSmartRules,

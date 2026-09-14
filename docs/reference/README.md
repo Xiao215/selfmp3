@@ -60,9 +60,9 @@ pointer sitting on the bottom row).
 
 Import, Migrate, Stats, Wrapped, Practice, Fix metadata and the tag inbox were added in phase 5, from the same app: the one commit to `apps/web`
 after `fb882e0` (2df5771) touched devices and nothing the Import screen draws.
-Their reviews need yt-dlp on the Mac and YouTube to answer; the songs are ones
+Their reviews need yt-dlp on the server and YouTube to answer; the songs are ones
 the dev library already has, and the captures back out rather than import.
-Stats and Wrapped show what has been played on this Mac, so their numbers are
+Stats and Wrapped show what has been played on this server, so their numbers are
 those of the day they were taken (2026-09-13).
 
 Where the two widths carry the same thing under different names, the name here

@@ -62,7 +62,7 @@ export function coverKey(sha256: string, extension: string): string {
   return `covers/${sha256}.${cleanExtension(extension)}`
 }
 
-/** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the Mac. */
+/** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the server. */
 export function lyricsKey(sha256: string, synced: boolean): string {
   return `lyrics/${sha256}.${synced ? 'lrc' : 'txt'}`
 }
@@ -195,7 +195,7 @@ export function isCloudListPrefix(prefix: string): boolean {
 
 /**
  * The doorman every device signs in through, unless told otherwise
- * (SELFMP3_DOORMAN_URL on the Mac, VITE_DOORMAN_URL for a web build, or the
+ * (SELFMP3_DOORMAN_URL on the server, VITE_DOORMAN_URL for a web build, or the
  * repository variable DOORMAN_URL for the published web app). A fork deploys
  * its own doorman and changes this one line.
  */

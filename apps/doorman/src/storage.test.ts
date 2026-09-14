@@ -13,8 +13,8 @@ import {
 
 /**
  * Connecting a bucket: the key is tried against the bucket — an S3 look-alike
- * that checks every signature — before anything is kept, with the Mac's rules
- * for format.json and the Mac's words for each way it can go wrong. And the
+ * that checks every signature — before anything is kept, with the server's rules
+ * for format.json and the server's words for each way it can go wrong. And the
  * key, once kept, is never seen again outside the Worker.
  */
 
@@ -101,7 +101,7 @@ describe('connecting a bucket', () => {
       createdBy: 'doorman',
     })
     expect(h.bucket.objects.get('selfmp3/format.json')?.contentType).toBe('application/json')
-    // Listed, read, written, read back — as the Mac does it.
+    // Listed, read, written, read back — as the server does it.
     expect(h.bucket.requests.map(request => request.method)).toEqual(['GET', 'GET', 'PUT', 'GET'])
     expect(h.bucket.requests[0]?.url.searchParams.get('prefix')).toBe('selfmp3/format.json')
 
@@ -263,7 +263,7 @@ describe('connecting a bucket', () => {
     expect((await me(h, token)).storage?.prefix).toBe('')
   })
 
-  it('tidies the folder as the Mac does', async () => {
+  it('tidies the folder as the server does', async () => {
     const { h, token } = await signedIn()
     await h.connect(token, { prefix: '/music/selfmp3' })
     expect((await me(h, token)).storage?.prefix).toBe('music/selfmp3')

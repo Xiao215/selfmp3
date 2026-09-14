@@ -11,11 +11,11 @@ import { HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
 
 /**
- * This Mac's way into the cloud bucket (docs/SYNC.md): sign in with Google
+ * This server's way into the cloud bucket (docs/SYNC.md): sign in with Google
  * through the doorman and connect the bucket that belongs to that account —
  * or, with no doorman, connect a bucket directly with its key. Then: see how
  * publishing is going, publish now, disconnect. A key is accepted here and
- * never sent back, and the doorman's session never leaves this Mac.
+ * never sent back, and the doorman's session never leaves this server.
  */
 export function cloudRoutes(container: Container): Router {
   const router = Router()

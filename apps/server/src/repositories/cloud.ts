@@ -7,7 +7,7 @@ import {
 import type { Db } from '../db/index.js'
 
 /**
- * All SQL for the cloud bucket: the connection, this Mac's name in the
+ * All SQL for the cloud bucket: the connection, this server's name in the
  * bucket, and the bookkeeping that keeps the sync from re-reading files it
  * has already uploaded. See docs/SYNC.md.
  */
@@ -279,14 +279,14 @@ export class CloudRepository {
     })()
   }
 
-  /** Everything this Mac knows about one bucket: what it uploaded, and how far it read the logs. */
+  /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
       'DELETE FROM cloud_songs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors;',
     )
   }
 
-  /** This Mac's name in the bucket, made the first time it is asked for. */
+  /** This server's name in the bucket, made the first time it is asked for. */
   deviceId(kind: string): string {
     const existing = this.#getSecret.get(DEVICE_SECRET)?.value
     if (existing) return existing
@@ -342,7 +342,7 @@ export class CloudRepository {
 
   /**
    * Line the bookkeeping up with what the bucket really holds, given every
-   * file key it lists. A file this Mac thought it had uploaded but the bucket
+   * file key it lists. A file this server thought it had uploaded but the bucket
    * has lost is forgotten, and so is every song that pointed at one — so the
    * next pass uploads them again instead of publishing snapshots that name
    * files nobody can download. Files the bucket has that were not known are
@@ -370,8 +370,8 @@ export class CloudRepository {
   }
 
   /**
-   * Songs whose file is on this Mac, how many of them have their audio in
-   * the bucket, and the size of everything this Mac has uploaded.
+   * Songs whose file is on this server, how many of them have their audio in
+   * the bucket, and the size of everything this server has uploaded.
    */
   totals(): { songs: number; songsInCloud: number; bytes: number } {
     const row = this.#db

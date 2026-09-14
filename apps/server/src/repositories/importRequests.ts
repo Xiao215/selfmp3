@@ -61,7 +61,7 @@ function toRequest(row: RequestRow): ImportRequest {
 }
 
 /**
- * Links other devices asked this Mac to import (docs/SYNC.md): recorded when
+ * Links other devices asked this server to import (docs/SYNC.md): recorded when
  * their logs are read, worked on by the import queue, and published with how
  * they went.
  */

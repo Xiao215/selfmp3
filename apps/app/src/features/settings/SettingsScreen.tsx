@@ -99,7 +99,7 @@ type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sig
  * Settings: the web's `SettingsView`.
  *
  * What syncs and what does not, kept apart. Playback, importing and lyrics
- * live on the server so the Mac and every phone agree; downloads, the accent
+ * live on the server so the server and every phone agree; downloads, the accent
  * and the theme belong to this device. The page carries its own index — a
  * column beside the panels on a wide screen, a sticky row of chips above them
  * on a narrow one — and every setting has the same anatomy.
@@ -327,7 +327,7 @@ export function SettingsScreen(): ReactNode {
             <Panel title="Lyrics" hint="on this device" onTop={top => onTop('lyrics', top)}>
               <Row
                 label="Show pinyin / romaji"
-                hint="A romanized line under each Chinese or Japanese lyric. It is made on the Mac and kept with the words, in the cloud too, so this only chooses whether to draw it."
+                hint="A romanized line under each Chinese or Japanese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
                 last
               >
                 <Toggle
@@ -709,7 +709,7 @@ function LibraryPanel({
 
 /**
  * "Find missing cover art": the web's `FixCoversPanel`. The pass runs on the
- * Mac; this starts, stops and watches it, so leaving Settings interrupts
+ * server; this starts, stops and watches it, so leaving Settings interrupts
  * nothing. Covers land one at a time, so the library is refetched as they do.
  */
 function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean }): ReactNode {

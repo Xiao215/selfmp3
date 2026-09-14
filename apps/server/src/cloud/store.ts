@@ -6,7 +6,7 @@ import { loadS3, streamToBuffer, type S3ClientLike, type S3Module } from '../sto
  * The cloud bucket, as the sync sees it: a handful of operations on keys
  * relative to the bucket's folder. See docs/SYNC.md.
  *
- * Deliberately not a `StorageDriver`. That interface is where this Mac keeps
+ * Deliberately not a `StorageDriver`. That interface is where this server keeps
  * its library; this is where the library is published for every device, and
  * it needs different things — "put this exact file under this name", and
  * errors that say whether the key, the address or the connection is at fault.

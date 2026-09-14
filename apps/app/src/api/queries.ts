@@ -7,7 +7,7 @@
  * there is one set rather than two.
  *
  * Two things the phone used to do here are now done once, in
- * `ConnectionProvider`: every key carried the Mac's address so that switching
+ * `ConnectionProvider`: every key carried the server's address so that switching
  * servers could not show the previous one's library, which is a
  * `queryClient.clear()` on the change instead; and every query was gated on
  * `status === 'ready'`, which is `ClientStateProvider`.

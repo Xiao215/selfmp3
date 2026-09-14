@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import type { Logger } from '../logger.js'
 
 /**
- * Keeps the Mac awake while it is actually doing something for somebody.
+ * Keeps the server awake while it is actually doing something for somebody.
  *
  * The usual way this server fails is not a crash: it is a laptop deciding it
  * has been idle for ten minutes, at which point the phone in the next room

@@ -10,7 +10,7 @@ import { errorResponse, forbidden } from './http.js'
  * CORS headers, so its browser keeps the answer from it, and its preflight is
  * refused outright.
  *
- * Requests without an Origin — the Mac's server, curl — are not browsers, and
+ * Requests without an Origin — the self.mp3 server, curl — are not browsers, and
  * are served as they are. CORS protects people's browsers, not the doorman:
  * every request still has to bring its own session.
  */
@@ -45,7 +45,7 @@ const BROWSER_SCHEMES = new Set([
  * only when the setting changes.
  *
  * Two kinds of entry. A web address, whose origin is what the browser sends.
- * And an installed app's own scheme — `app://selfmp3`, the Mac app's page —
+ * And an installed app's own scheme — `app://selfmp3`, the desktop app's page —
  * which a browser sends exactly as written, a made-up scheme having no origin
  * rules of its own. Those are kept verbatim, lowercased, and only written as
  * bare `scheme://host`: with a path, a query, or nothing after the slashes it

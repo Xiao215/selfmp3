@@ -100,14 +100,14 @@ describe('DeviceService', () => {
     service.heartbeat(heartbeat('mac-00000001'))
     service.heartbeat(heartbeat('phone-000001'))
 
-    const mac = new BufferSink()
+    const server = new BufferSink()
     const phone = new BufferSink()
-    service.connect(mac, 'mac-00000001')
+    service.connect(server, 'mac-00000001')
     service.connect(phone, 'phone-000001')
 
     expect(service.command('mac-00000001', { type: 'pause' }, 'phone-000001')).toBe(1)
-    expect(mac.text).toContain('"command":{"type":"pause"}')
-    expect(mac.text).toContain('"fromDeviceId":"phone-000001"')
+    expect(server.text).toContain('"command":{"type":"pause"}')
+    expect(server.text).toContain('"fromDeviceId":"phone-000001"')
     expect(phone.text).not.toContain('"pause"')
 
     // Known device, but nobody listening on it.

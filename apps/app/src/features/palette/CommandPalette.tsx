@@ -90,7 +90,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const lyrics = useQuery({
     queryKey: queryKeys.lyricsSearch(lyricsQuery),
     queryFn: () => clientApi().lyricsSearch(lyricsQuery, 6),
-    // The lyrics index is the Mac's; a library in the cloud has no words to search.
+    // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
     staleTime: 60_000,

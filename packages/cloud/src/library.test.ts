@@ -9,7 +9,7 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
  * The first tests for the replica, on the part that could not be tested at all
  * while it lived inside a browser — and on the part that matters most.
  *
- * Three devices write to the same log format (the Mac, a browser, and the
+ * Three devices write to the same log format (the server, a browser, and the
  * phone next), and the one thing it cannot survive is two files written under
  * the same sequence number with different contents: every device would then
  * replay a different library depending on which it read. So that contract is
@@ -138,7 +138,7 @@ async function signedIn(made: ReturnType<typeof build>): Promise<void> {
 
 describe('lyrics', () => {
   /*
-   * The installed Mac app's cache is refused on its app:// origin, and a throw
+   * The installed desktop app's cache is refused on its app:// origin, and a throw
    * there reached the screen as "Lyrics need your library — reconnect" while
    * the words had already come down. A cache is a convenience: one that fails
    * is a miss, never a failure.
@@ -174,9 +174,9 @@ describe('lyrics', () => {
   })
 
   /*
-   * Romaji is made on the Mac, which has the dictionaries, and goes up beside
+   * Romaji is made on the server, which has the dictionaries, and goes up beside
    * the words. A device signed in to the cloud reads it the way it reads the
-   * words, so its lyrics answer is the same one the Mac's own server gives.
+   * words, so its lyrics answer is the same one the server itself gives.
    */
   it('brings the romanized lines back with the words', async () => {
     const made = build()

@@ -154,7 +154,7 @@ const ConfigSchema = z.object({
     .default({}),
 
   /**
-   * The doorman this Mac signs in to the cloud through (docs/SYNC.md). Empty
+   * The doorman this server signs in to the cloud through (docs/SYNC.md). Empty
    * means none: the bucket can then only be connected directly, with its key.
    */
   doormanUrl: z

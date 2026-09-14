@@ -55,7 +55,7 @@ describe('flushOutbox', () => {
       seen.push(event.id)
       return outcomes[event.id] ?? 'sent'
     })
-    // "c" is never tried: with the Mac asleep it would only fail the same way.
+    // "c" is never tried: with the server asleep it would only fail the same way.
     expect(seen).toEqual(['a', 'b'])
     expect(result.remaining.map(event => event.id)).toEqual(['b', 'c'])
     expect(result.sent).toBe(1)

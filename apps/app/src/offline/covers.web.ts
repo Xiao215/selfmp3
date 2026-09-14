@@ -15,19 +15,19 @@ import { createCoverChanges } from './coverChanges'
  * and `app://selfmp3/_media/covers/…` serves it back. In a tab there is no such
  * place, so `coverFiles` is null and every export here becomes the nothing a
  * browser has always done — a cloud library's rows keep their letter tiles, and
- * a Mac's covers are drawn from the Mac's own address, which needs no file.
+ * a server's covers are drawn from the server's own address, which needs no file.
  */
 
-/** The size a Mac's cover is kept at. The phone's reasoning, and its number. */
+/** The size a server's cover is kept at. The phone's reasoning, and its number. */
 export const KEPT_COVER_SIZE = 640
 
 /** Cloud covers by song id, so a list that re-renders does not re-ask. */
 const known = new Map<number, string | null>()
 /** In-flight fetches, so ten rows appearing at once make one request. */
 const fetching = new Map<number, Promise<string | null>>()
-/** What this device holds of a Mac's covers, and the revision each was drawn at. */
+/** What this device holds of a server's covers, and the revision each was drawn at. */
 const served = new Map<number, { rev: string; uri: string }>()
-/** Addresses tried this launch: a Mac that is away is asked once per song. */
+/** Addresses tried this launch: a server that is away is asked once per song. */
 const tried = new Set<string>()
 
 /**
@@ -51,14 +51,14 @@ function nameFromKey(key: string): string {
   return key.slice(key.lastIndexOf('/') + 1)
 }
 
-/** A Mac's cover, named so that priming can read the song and revision back. */
+/** A server's cover, named so that priming can read the song and revision back. */
 function servedName(songId: number, rev: string): string {
   return `${songId}-${rev.replace(/[^a-zA-Z0-9.-]/g, '_')}.jpg`
 }
 
 /**
  * Read what earlier launches kept, once. Without this the first render drew the
- * Mac's address and swapped in the kept file a moment later: a flicker on every
+ * server's address and swapped in the kept file a moment later: a flicker on every
  * cover, every launch. The list is asynchronous here — a shell call rather than
  * a directory read — so the swap is announced instead of awaited.
  */
@@ -76,7 +76,7 @@ function prime(): void {
         changes.changed(songId)
       }
     } catch {
-      // Nothing kept, or nothing readable: the Mac is asked as before.
+      // Nothing kept, or nothing readable: the server is asked as before.
     }
   })()
 }
@@ -91,7 +91,7 @@ export function coversNow(): ReadonlyMap<number, string> {
 }
 
 /**
- * One song's entry in `coversNow()`, without copying the rest: a kept Mac
+ * One song's entry in `coversNow()`, without copying the rest: a kept server
  * cover before a cloud one, as the map is built.
  */
 export function coverFor(songId: number): string | undefined {
@@ -100,7 +100,7 @@ export function coverFor(songId: number): string | undefined {
 }
 
 /**
- * Keep a Mac's cover on this device, from the address the Mac serves it at.
+ * Keep a server's cover on this device, from the address the server serves it at.
  * Safe to call for every visible row: a cover already kept, or an address
  * already tried, costs a map lookup.
  *
@@ -127,7 +127,7 @@ export function ensureServerCover(songId: number, rev: string | undefined, url: 
       served.set(songId, { rev: revision, uri: files.uriFor(name) })
       changes.changed(songId)
     } catch {
-      // The Mac is away. The address is drawn for now, and asked for again
+      // The server is away. The address is drawn for now, and asked for again
       // next launch; there is a letter tile behind it either way.
     }
   })()

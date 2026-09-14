@@ -58,15 +58,15 @@ export function parseQuery(search: string): RouteQuery {
 }
 
 /**
- * The web app's stand-in for the Mac's API (docs/SYNC.md).
+ * The web app's stand-in for the server's API (docs/SYNC.md).
  *
  * Built for the web there is no `/api` to ask, so `request()` in api.ts sends
  * every call here instead. Reading the library, a playlist, lyrics, what to
  * download: answered from this device's copy of the library. Editing it —
  * songs, tags, playlists, plays — is a change recorded here and uploaded to
  * this device's log, for every other device to replay. Settings live on this
- * device. The rest still needs the Mac, and says so. Bodies go through the
- * same schemas the Mac's routes use, and answers are the JSON the Mac would
+ * device. The rest still needs the server, and says so. Bodies go through the
+ * same schemas the server's routes use, and answers are the JSON the server would
  * send.
  */
 
@@ -387,7 +387,7 @@ export function createCloudRoutes(
         }))
       },
     ],
-    // --- Importing, by asking the Mac --------------------------------------------------
+    // --- Importing, by asking the server -----------------------------------------------
 
     [
       'GET',
@@ -426,7 +426,7 @@ export function createCloudRoutes(
           answer: () => ({ ok: true }),
         })),
     ],
-    // Where the Mac is, for a device that would rather ask it directly.
+    // Where the server is, for a device that would rather ask it directly.
     [
       'GET',
       '/api/cloud/server',
@@ -494,8 +494,8 @@ export function createCloudRoutes(
 
     throw new CloudRouteError(
       501,
-      'Not in the web app yet — this still needs your Mac.',
-      'needs-mac',
+      'Not in the web app yet — this still needs your server.',
+      'needs-server',
     )
   }
 
@@ -566,7 +566,7 @@ export function createCloudRoutes(
     }
   }
 
-  /** Kept on this device: with no Mac to share them through, they are its own. */
+  /** Kept on this device: with no server to share them through, they are its own. */
   async function saveSettings(patch: unknown): Promise<Settings> {
     const next = SettingsSchema.parse({ ...(await loadSettings()), ...(patch as object) })
     try {

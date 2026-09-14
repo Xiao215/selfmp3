@@ -12,7 +12,7 @@ import {
 } from './stageMove.model'
 
 /*
- * The move between the stage and Focus, in a browser and the Mac app.
+ * The move between the stage and Focus, in a browser and the desktop app.
  *
  * Animated has no native driver on the web: it re-renders the view on every
  * frame, and every frame's new numbers become a new Unistyles class and a

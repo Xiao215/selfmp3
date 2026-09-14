@@ -34,7 +34,7 @@ describe('the command palette', () => {
     expect(results.songs).toEqual([])
     expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
     expect(paletteCommands(13, false, 2)[5]?.hint).toBe('2 untagged')
-    // A cloud library has no Mac to count plays on or tag from; its imports wait for one.
+    // A cloud library has no server to count plays on or tag from; its imports wait for one.
     expect(paletteCommands(13, true).map(command => command.id)).toContain('nav-import')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-stats')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-inbox')

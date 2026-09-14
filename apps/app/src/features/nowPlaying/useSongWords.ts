@@ -10,8 +10,8 @@ const INSTRUMENTAL_TAG = 'instrumental'
 /**
  * A song's words, and the romanization switch: the web's `useSongLyrics`.
  *
- * The romanized lines are made on the Mac, which has the dictionaries, and
- * come with the words from wherever the words come from: the Mac's own lyrics
+ * The romanized lines are made on the server, which has the dictionaries, and
+ * come with the words from wherever the words come from: the server's own lyrics
  * answer, or the bucket, where they are uploaded beside the lyrics. The switch
  * is this device's, and only decides whether they are drawn.
  */

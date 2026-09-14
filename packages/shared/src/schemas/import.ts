@@ -21,7 +21,7 @@ export const ImportStepSchema = z.enum([
   'saving',
   /**
    * Only with a cloud bucket connected: the song is in the library on this
-   * Mac and the job is not done until it is in the bucket too. A job that
+   * server and the job is not done until it is in the bucket too. A job that
    * failed here keeps this step, so it can be told apart and finished later
    * without downloading the song again.
    */

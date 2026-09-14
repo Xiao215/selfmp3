@@ -42,7 +42,7 @@ hideScrollbars()
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // The phone is often on a flaky link to a Mac at home. Retrying twice
+      // The phone is often on a flaky link to the server at home. Retrying twice
       // and then showing the cached library beats a spinner that never ends.
       retry: 1,
       refetchOnWindowFocus: false,
@@ -154,7 +154,7 @@ function Shell(): ReactNode {
        * Nothing shows until it is decided where the library comes from — the
        * bucket, a server, or nowhere yet. The library is the first route, and a
        * fresh install drew it, loading, for a moment before going to sign in.
-       * A phone's splash screen covers this already; a browser and the Mac app
+       * A phone's splash screen covers this already; a browser and the desktop app
        * have no splash, so this is theirs.
        */}
       {status === 'loading' ? (

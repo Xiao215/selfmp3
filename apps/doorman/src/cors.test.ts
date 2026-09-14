@@ -48,7 +48,7 @@ describe('allowedOrigins', () => {
   })
 
   /*
-   * The installed Mac app's page is served from its own scheme, and a browser
+   * The installed desktop app's page is served from its own scheme, and a browser
    * sends that origin exactly as written — a made-up scheme has no origin rules.
    * Without this, the first sign-in from the app was refused with nothing on
    * screen but "Failed to fetch".

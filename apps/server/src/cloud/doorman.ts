@@ -12,8 +12,8 @@ import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } f
 /**
  * Talking to the doorman (docs/SYNC.md; the Worker is apps/doorman).
  *
- * The doorman signs this Mac in with your Google account and keeps the bucket
- * that belongs to it. Once signed in, the Mac holds only a session — never the
+ * The doorman signs this server in with your Google account and keeps the bucket
+ * that belongs to it. Once signed in, the server holds only a session — never the
  * bucket's key — and every read and write goes through the doorman, which
  * checks the session and passes it on to the bucket.
  */

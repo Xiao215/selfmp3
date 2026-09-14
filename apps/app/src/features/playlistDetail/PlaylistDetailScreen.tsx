@@ -246,7 +246,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const liftedFrom = drag?.from ?? null
   const lift = useMemo(() => ({ from: liftedFrom, dragY }), [liftedFrom, dragY])
 
-  // Not on this phone and no Mac to stream it from: faded.
+  // Not on this phone and no server to stream it from: faded.
   const unreachableHere = library.isError && installed
   const menuSongId = menuSong?.id ?? null
   const renderSong = useCallback(

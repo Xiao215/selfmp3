@@ -15,10 +15,10 @@ import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.j
 import { NO_IDS, snapshotToLibrary, type CloudLibrary } from './snapshotLibrary.js'
 
 /**
- * Editing on a device with no Mac behind it: an edit the app makes by id
+ * Editing on a device with no server behind it: an edit the app makes by id
  * becomes changes by uid, which land in the library here straight away and
  * are what every other device replays. What matters: the change says exactly
- * what the edit did, it is refused where the Mac would refuse it, and the
+ * what the edit did, it is refused where the server would refuse it, and the
  * library shows it at once — live playlists included.
  */
 
@@ -171,7 +171,7 @@ describe('editing songs', () => {
 })
 
 describe('editing tags', () => {
-  it('makes a tag once, whatever the case, as the Mac does', () => {
+  it('makes a tag once, whatever the case, as the server does', () => {
     const d = device()
     expect(edits.createTag(d.ctx(), 'CHILL', undefined)).toEqual({ changes: [], uid: uid('1') })
     const made = edits.createTag(d.ctx(), 'night drive', undefined)
@@ -258,7 +258,7 @@ describe('editing playlists', () => {
 })
 
 describe('importing', () => {
-  it('asks the Mac for a link, with its tags and playlist, and shows it waiting', () => {
+  it('asks the server for a link, with its tags and playlist, and shows it waiting', () => {
     const d = device()
     const made = edits.requestImport(d.ctx(), {
       url: 'https://music.youtube.com/watch?v=abc',

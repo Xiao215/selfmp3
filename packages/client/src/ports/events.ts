@@ -1,7 +1,7 @@
 import type { ServerEvent } from '@selfmp3/shared'
 
 /**
- * `ServerEvents` — the Mac's live stream, however this platform can hear it.
+ * `ServerEvents` — the server's live stream, however this platform can hear it.
  *
  * The stream carries three things: the device list as it changes, commands
  * addressed to this device, and a nudge when the library version moves. Only

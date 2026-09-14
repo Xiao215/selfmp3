@@ -2,7 +2,7 @@
  * How much room the window's own chrome takes at the top of the page, and the
  * id of the strip that may be dragged to move the window.
  *
- * Zero everywhere but the installed Mac app, where `titleBarStyle:
+ * Zero everywhere but the installed desktop app, where `titleBarStyle:
  * 'hiddenInset'` puts the traffic lights over the top of the sidebar instead of
  * in a bar above the app. The sidebar pads itself by this much so nothing sits
  * under them, and renders a strip of exactly that height which the window can

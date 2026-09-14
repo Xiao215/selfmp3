@@ -4,7 +4,7 @@
 the phone: see [offline-sync.md](offline-sync.md).
 
 The same app the browser draws at 1280, installed. `apps/desktop` is an Electron
-shell around `apps/app`'s web export — the identical build the Mac serves at
+shell around `apps/app`'s web export — the identical build the server serves at
 `http://localhost:4600` and GitHub Pages serves at `/selfmp3/`. Anything that
 looks different in the window and in the tab is a bug, with one named exception:
 the window's title bar is inset, so the sidebar's top is padded for the traffic
@@ -21,7 +21,7 @@ checked, on what, and how.
   downloads by default and plays from the files, the way the phone does, which
   is the point of a library you own. A laptop on a plane behaves like a phone
   with no signal.
-- **It is a Mac app.** Its own Dock icon, an application menu, the media keys
+- **It is a desktop app.** Its own Dock icon, an application menu, the media keys
   and Now Playing in Control Center, ⌘Q, a window that remembers where it was,
   and the keychain for its token. Chrome's "install as app" gives a window and
   none of that.

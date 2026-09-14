@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * User settings, stored server-side so the Mac and the phone agree.
+ * User settings, stored server-side so the desktop and the phone agree.
  *
  * Anything device-specific (volume, which songs are cached offline on *this*
  * phone) deliberately lives in browser storage instead — syncing it would be

@@ -70,7 +70,7 @@ const NO_PLAYLIST = 0
  * Links shared to the app arrive as `/import?url=…&text=…`, which is the web's
  * Web Share Target; they are fetched straight away and cleared from the URL.
  *
- * `via` is a Mac reached directly from a cloud library (ImportViaMac): every
+ * `via` is a server reached directly from a cloud library (ImportViaServer): every
  * request here goes to it, and its tags and playlists are the ones offered.
  */
 export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
@@ -80,7 +80,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const { wide } = useLayout()
   const source = useImportSource(via)
   const { api, library, tools, refetchTools, queue } = source
-  const viaMac = via !== undefined
+  const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
   const [links, setLinks] = useState('')
@@ -178,8 +178,8 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
         <Text style={styles.sub}>
           Paste one or more links, one per line. A playlist expands into its tracks, and an artist’s
           page into their top songs.
-          {viaMac
-            ? ' This goes through your Mac, which downloads the songs and syncs them to every device.'
+          {viaServer
+            ? ' This goes through your server, which downloads the songs and syncs them to every device.'
             : ''}
         </Text>
 
@@ -242,8 +242,8 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
           and album metadata. Regular youtube.com links usually just have a video title.
         </Text>
 
-        {/* Migrating asks whatever answers this device, which through a Mac is still the bucket. */}
-        {viaMac ? null : (
+        {/* Migrating asks whatever answers this device, which through a server is still the bucket. */}
+        {viaServer ? null : (
           <Pressable
             style={({ pressed }) => [styles.migrateCard, pressed && styles.migrateCardPressed]}
             onPress={() => router.push('/import/migrate')}

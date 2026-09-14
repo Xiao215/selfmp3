@@ -109,7 +109,7 @@ export function isAuthenticated(req: Request, config: Config): boolean {
  * the phone, `curl`, a shortcut — and is left alone; there is no browser there
  * to be tricked.
  *
- * The installed Mac app is one of ours, and always let through: its page is
+ * The desktop app is one of ours, and always let through: its page is
  * served from `app://selfmp3`, which no website can claim.
  */
 export function sameOriginWrites(config: Config): RequestHandler {
@@ -134,7 +134,7 @@ export function sameOriginWrites(config: Config): RequestHandler {
   }
 }
 
-/** CORS, for the origins listed in config and the installed Mac app's own. */
+/** CORS, for the origins listed in config and the desktop app's own. */
 export function cors(config: Config): RequestHandler {
   const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN])
 

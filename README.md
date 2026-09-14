@@ -3,18 +3,18 @@
 A private music library you actually own. Import from a link, tag it your way, sync it to
 your phone, listen offline.
 
-No account, no subscription, no telemetry. Your music is a folder of files on your Mac and
+No account, no subscription, no telemetry. Your music is a folder of files on your server and
 your metadata is one SQLite file next to it. Copy those two things anywhere and you have a
 complete backup.
 
 ```
-your Mac                         your phone                    your car
+your server                      your phone                    your car
 ┌──────────────────────┐        ┌──────────────────────┐      ┌──────────────┐
 │  library/  *.m4a     │        │  self.mp3 (PWA or    │      │  CarPlay /   │
 │  data/selfmp3.db     │◄──────►│  native app)         │◄────►│  Android     │
 │  self.mp3 server     │  Tail  │  downloaded audio    │      │  Auto        │
 └──────────────────────┘  scale └──────────────────────┘      └──────────────┘
-                                 plays with the Mac asleep
+                                 plays with the server asleep
 ```
 
 ---
@@ -51,7 +51,7 @@ the old `hum` app. Every feature has a page under
 `apps/web` and `apps/mobile`, and [docs/universal-progress.md](docs/universal-progress.md)
 says where each moved. **[docs/SYNC.md](docs/SYNC.md)** is how every device
 keeps in step through a storage bucket you own — sign in with Google, and your library, your
-edits and your imports reach every device whether or not the Mac is awake.
+edits and your imports reach every device whether or not the server is awake.
 
 ---
 
@@ -78,7 +78,7 @@ you can correct it and untick duplicates before anything downloads. A persistent
 handles the rest, with progress, retries, and cancel — and it survives a server restart.
 
 **Share straight from your phone.** Share a track from the YouTube Music app and it queues
-on the Mac. On Android that is a share target the app registers; on iOS it is a one-step
+on the server. On Android that is a share target the app registers; on iOS it is a one-step
 Shortcut, described in [docs/features/share-to-import.md](docs/features/share-to-import.md).
 
 **Bring your existing library.** Point yt-dlp at your browser's YouTube cookies and your
@@ -92,15 +92,15 @@ side by side with your current values, and apply only the fields you want. Missi
 can be filled in across the whole library in one pass.
 
 **Offline on your phone.** Install it to your home screen and it downloads your library on
-its own — on Wi-Fi, whenever the Mac is reachable, until the phone is nearly full — with a mark
-on every song that says whether it is there. Cached songs play with the Mac asleep, in the
-background, with lock-screen controls and artwork, and the plays you make offline are sent to
-the Mac when it wakes, dated when they happened. See
+its own — on Wi-Fi, whenever the server is reachable, until the phone is nearly full — with a
+mark on every song that says whether it is there. Cached songs play with the server asleep, in
+the background, with lock-screen controls and artwork, and the plays you make offline are sent
+to the server when it wakes, dated when they happened. See
 [docs/features/offline-sync.md](docs/features/offline-sync.md). There is also a native iOS and
 Android app — see
 [docs/MOBILE.md](docs/MOBILE.md) — which adds CarPlay and Android Auto.
 
-**An app on the Mac, not a tab.** The same build in a window of its own: a Dock icon, the
+**A desktop app, not a tab.** The same build in a window of its own: a Dock icon, the
 media keys and Now Playing in Control Center, the menu bar, your songs kept as files in
 `~/Library/Application Support/self.mp3`, and a keychain for the tokens instead of a
 browser's storage. See
@@ -109,9 +109,9 @@ browser's storage. See
 **Playback.** Gapless and crossfade via a dual-element engine, a reorderable up-next queue,
 playback speed, and a sleep timer that fades out rather than cutting off.
 
-**Every device knows about the others.** The Mac and the phone see what each other is
+**Every device knows about the others.** The desktop and the phone see what each other is
 playing. Hand a song over mid-track in either direction, use the phone as a remote for the
-Mac, or pick up where you left off on the other device when you open the app.
+desktop, or pick up where you left off on the other device when you open the app.
 
 **A page for the song that is playing.** Click the artwork in the player bar and the song
 opens into its own page: the artwork and what the app knows about it beside its synced
@@ -157,7 +157,7 @@ packages/client     what every client shares: the API client, React Query hooks,
 apps/app            Expo / React Native — one app for iOS, Android and the web, with
                     a hand-written service worker; CarPlay and Android Auto
 packages/desktop-bridge
-                    the contract between the Mac app's shell and the page: the
+                    the contract between the desktop app's shell and the page: the
                     channels, their zod schemas, and the menu as data
 apps/desktop        the Electron shell around apps/app's web export — the window, the
                     menu, the keychain, and the songs on disk
@@ -227,7 +227,7 @@ Everything is optional; the defaults work.
 
 Most day-to-day behaviour — crossfade, watched folder, YouTube cookies, romanization,
 translation provider — lives in Settings in the app rather than in environment variables, so
-the Mac and the phone agree on it.
+the desktop and the phone agree on it.
 
 For S3-compatible storage, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
 `SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`, and

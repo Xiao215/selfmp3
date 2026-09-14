@@ -4,7 +4,7 @@ import { camelotFromKey, keyName, type KeyMode } from '@selfmp3/shared'
  * Signal processing for the analyser, as pure functions over PCM.
  *
  * Deliberately dependency-free: a native DSP module would drag a compiler
- * into `npm install` on the Mac, and at the scale of a personal library —
+ * into `npm install` on the server, and at the scale of a personal library —
  * a couple of minutes of mono audio per song, analysed once, in the
  * background — plain TypeScript math finishes in well under a second.
  *

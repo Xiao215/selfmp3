@@ -45,7 +45,7 @@ apps/app                 one Expo app for iOS, Android and the web (docs/UNIVERS
 
 apps/doorman             Cloudflare Worker: Google sign-in and bucket access for devices
 
-packages/desktop-bridge  the contract between the Mac app's shell and the page:
+packages/desktop-bridge  the contract between the desktop app's shell and the page:
                          channel names, a zod schema for every argument and every
                          reply, and the application menu as data
 
@@ -60,7 +60,7 @@ apps/desktop             the Electron shell around apps/app's web export
 ```
 
 The desktop app is a *shell*, not a fourth client. The page inside it is
-`apps/app`'s web export byte for byte — the same one the Mac serves and Pages
+`apps/app`'s web export byte for byte — the same one the server serves and Pages
 serves — and everything a window can do that a tab cannot goes through a port in
 `src/ports/`, the same mechanism that separates a phone from a browser. See
 [DESKTOP.md](DESKTOP.md).

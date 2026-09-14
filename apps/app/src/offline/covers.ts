@@ -40,7 +40,7 @@ export const subscribeCovers = changes.subscribe
 export const coversVersion = changes.version
 
 /**
- * A Mac's covers, kept beside the songs in the document directory rather than
+ * A server's covers, kept beside the songs in the document directory rather than
  * in the cache the OS may reclaim: a song downloaded for the plane wants its
  * picture on the plane too. Named by song and revision, so new art replaces old.
  */
@@ -51,15 +51,15 @@ const STORE = new Directory(Paths.document, 'covers')
  * 3× one at full width; at 40 KB or so it lets a library of thousands be kept.
  */
 export const KEPT_COVER_SIZE = 640
-/** What this device holds of a Mac's covers, and the revision each was drawn at. */
+/** What this device holds of a server's covers, and the revision each was drawn at. */
 const served = new Map<number, { rev: string; uri: string }>()
-/** Addresses tried this launch: a Mac that is away is asked once per song, not per render. */
+/** Addresses tried this launch: a server that is away is asked once per song, not per render. */
 const tried = new Set<string>()
 
 /**
  * Read what earlier launches kept, once, before the first row asks. Without
- * this the first render drew the Mac's address (or the letter tile, with the
- * Mac away) and swapped in the kept file a moment later: a flicker on every
+ * this the first render drew the server's address (or the letter tile, with the
+ * server away) and swapped in the kept file a moment later: a flicker on every
  * cover, every launch.
  */
 let primed = false
@@ -75,7 +75,7 @@ function prime(): void {
       }
     }
   } catch {
-    // Nothing kept, or nothing readable: the Mac is asked as before.
+    // Nothing kept, or nothing readable: the server is asked as before.
   }
 }
 
@@ -89,7 +89,7 @@ export function coversNow(): ReadonlyMap<number, string> {
 }
 
 /**
- * One song's entry in `coversNow()`, without copying the rest: a kept Mac
+ * One song's entry in `coversNow()`, without copying the rest: a kept server
  * cover before a cloud one, as the map is built.
  */
 export function coverFor(songId: number): string | undefined {
@@ -98,10 +98,10 @@ export function coverFor(songId: number): string | undefined {
 }
 
 /**
- * Keep a Mac's cover on this device, from the address the Mac serves it at.
+ * Keep a server's cover on this device, from the address the server serves it at.
  * Safe to call for every visible row: a cover already kept, or an address
  * already tried, costs a map lookup. The file is checked before the network,
- * so a cover kept on an earlier launch is found without the Mac.
+ * so a cover kept on an earlier launch is found without the server.
  *
  * Settles when the cover is kept or given up on, so a pass over the whole
  * library can hold how many run at once; a row drawing it need not wait.
@@ -128,7 +128,7 @@ export function ensureServerCover(songId: number, rev: string | undefined, url: 
       served.set(songId, { rev: revision, uri: file.uri })
       changes.changed(songId)
     } catch {
-      // The Mac is away. The address is drawn for now, and asked for again
+      // The server is away. The address is drawn for now, and asked for again
       // next launch; there is a letter tile behind it either way.
     }
   })()

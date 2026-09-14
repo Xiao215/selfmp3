@@ -5,7 +5,7 @@
   <!--
     The hardened runtime, and the one exception it needs.
 
-    A music player that talks to a Mac on the network and to the doorman is a
+    A music player that talks to a server on the network and to the doorman is a
     network client and nothing else: no microphone, no camera, no Apple events,
     no file access outside its own container and whatever a person picks. Every
     entitlement not here is one that cannot be abused if the app is ever

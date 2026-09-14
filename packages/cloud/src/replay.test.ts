@@ -14,8 +14,8 @@ const base: CloudSnapshot = {
 }
 
 describe('replayedSnapshot', () => {
-  it('keeps where the Mac listens, which no change ever carries', () => {
-    // The Mac published its addresses; the device showed "hasn't said where it
+  it('keeps where the server listens, which no change ever carries', () => {
+    // The server published its addresses; the device showed "hasn't said where it
     // is" because the replayed snapshot was rebuilt without them.
     expect(replayedSnapshot(replay(base, [], []), base).server).toEqual(base.server)
   })

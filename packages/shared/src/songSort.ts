@@ -8,7 +8,7 @@ import type { Song } from './schemas/song.js'
  * two drifted: sorting by artist broke ties by title in one and by album in
  * the other, and "descending" was a direction in one and a `reverse()` of the
  * finished list in the other — which flips the order *within* every tied run,
- * so the same library read differently on the phone than on the Mac.
+ * so the same library read differently on the phone than on the desktop.
  *
  * Three rules, which between them are what the shape of this function is for:
  *
@@ -65,7 +65,7 @@ function compare(a: Song, b: Song, field: SongSortField): number {
       /*
        * By id, not at random.
        *
-       * `random` is only ever asked for by a smart playlist, which the Mac has
+       * `random` is only ever asked for by a smart playlist, which the server has
        * already ordered; re-rolling it here would reshuffle the list on every
        * render. A comparator that answers differently each time it is asked is
        * not a comparator anyway — sorts are entitled to assume otherwise, and

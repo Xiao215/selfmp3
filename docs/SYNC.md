@@ -1,6 +1,6 @@
 # Sync: the cloud holds the library
 
-Until now the Mac *was* the library. Every other device was a window onto it, and when the Mac
+Until now the server *was* the library. Every other device was a window onto it, and when the server
 slept, those windows went dark: no new songs, no edits, nothing you had not already
 downloaded. This document describes where the library lives instead — a storage bucket in
 the cloud that every device syncs with — and how devices stay in step without a server of
@@ -28,7 +28,7 @@ storage — no code runs there — so every rule about how changes combine lives
 | Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB, no card. $0.005/GB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
-| Fetching YouTube links (yt-dlp) | The Mac; later the Android app | — |
+| Fetching YouTube links (yt-dlp) | The server; later the Android app | — |
 
 **Why B2.** It speaks the S3 API, which the server already uses for its S3 storage driver. It
 needs no card for the free tier. Uploads, downloads and listings are free API calls. Downloads
@@ -71,7 +71,7 @@ song bytes stream through it without it holding them.
    `apps/app/src/ports/recentCopies.web.ts`.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
-   bucket until a device that can do it picks it up. The Mac is special only because it can
+   bucket until a device that can do it picks it up. The server is special only because it can
    usually do the most.
 
 ---
@@ -146,9 +146,9 @@ Deploying it, and what each setting means, is in [apps/doorman/README.md](../app
 
 ## What is built
 
-### The Mac publishes the library
+### The server publishes the library
 
-*Settings → Cloud* on the Mac signs in with Google through the doorman, and then asks for the
+*Settings → Cloud* on the server signs in with Google through the doorman, and then asks for the
 bucket if the account has none. (With no doorman set up, a bucket can still be connected
 directly with its key, as the way in.)
 
@@ -157,8 +157,8 @@ file is present and uploads what the bucket does not have: the audio, hashed as 
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
 lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. Beside Chinese or
 Japanese lyrics go their romanized lines, a JSON list with one line per line of the words, made
-here (romaji needs a dictionary only the Mac has) and named in the snapshot's lyrics entry, so a
-device signed in to the cloud shows them exactly as a device talking to the Mac does.
+here (romaji needs a dictionary only the server has) and named in the snapshot's lyrics entry, so a
+device signed in to the cloud shows them exactly as a device talking to the server does.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is
@@ -166,14 +166,14 @@ checked against the bucket's own listing on the first pass after connecting or s
 and whenever you press *Publish now*: a file the bucket has lost is forgotten, and its song
 goes up again.
 
-After uploading, the Mac writes a snapshot. It lists only songs whose audio is in the bucket —
+After uploading, the server writes a snapshot. It lists only songs whose audio is in the bucket —
 a song still uploading is not in the library yet, as far as any other device is concerned.
 Passes run at startup, a few seconds after anything changes, when another device has written
 something, and on demand. An import is not done until its song is in a snapshot.
 
 ### Every device reads the bucket
 
-The web app builds for GitHub Pages (`VITE_CLOUD=1`, under `/selfmp3/`), with no Mac behind
+The web app builds for GitHub Pages (`VITE_CLOUD=1`, under `/selfmp3/`), with no server behind
 it. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
 player and the bucket: a song already on the device is served from there, ranges and all, and
@@ -185,7 +185,7 @@ turning on for a phone with the app on its home screen, and little else.
 
 ### Editing from anywhere
 
-Every device can edit the library, not only the Mac. An edit is a small change — a song's
+Every device can edit the library, not only the server. An edit is a small change — a song's
 fields, a tag put on or taken off, a song added to a playlist, a play — written to the editing
 device's own log, and replayed by every other device.
 
@@ -199,7 +199,7 @@ changes moves its own clock past it.
 | Data | Rule |
 |---|---|
 | Audio, covers, lyrics | Files never change, so there is nothing to combine. A song points at a file; the latest pointer wins. |
-| Song fields, loved, tag names and colours, playlist names and rules | The change with the latest stamp wins, per field. Editing the title on the phone and the artist on the Mac keeps both. |
+| Song fields, loved, tag names and colours, playlist names and rules | The change with the latest stamp wins, per field. Editing the title on the phone and the artist on the server keeps both. |
 | A tag on a song, a song in a playlist | The latest of "on" and "off" wins, so a tag taken off after it was put on stays off. |
 | Playlist order | The latest order wins; songs it does not mention keep their place after the ones it does, so reordering an old view never drops a song another device added. |
 | Plays and skips | Only ever added. The same one twice counts once. |
@@ -210,15 +210,15 @@ Because the latest stamp wins whenever a change is applied, the same changes giv
 the same library, in whatever order they arrive. Snapshots carry the stamp of anything a change
 ever set, so a change that arrives late combines with them correctly.
 
-The Mac folds other devices' logs into its database on every pass, following the same rules
+The server folds other devices' logs into its database on every pass, following the same rules
 (`apps/server/src/services/cloudIngest.ts`), and publishes a snapshot saying how far it has
 read. A test runs one set of changes of every kind through both, and expects the same library.
-A song removed on another device takes its file from the Mac's library folder too — left there,
+A song removed on another device takes its file from the server's library folder too — left there,
 the next scan would add it back as a new song — and the bucket keeps its audio.
 
 Live playlists are worked out on the device (`packages/shared/src/smartRules.ts`), the same
-rules the Mac compiles to SQL, so a playlist of loved songs gains a song the moment it is loved
-on a phone with the Mac asleep.
+rules the server compiles to SQL, so a playlist of loved songs gains a song the moment it is loved
+on a phone with the server asleep.
 
 ### Importing from anywhere
 
@@ -227,12 +227,12 @@ have. *Adding it to the library* works anywhere.
 
 | Device | Import a link |
 |---|---|
-| Mac | Yes, itself |
-| iPhone, iPad, any browser | Asks the Mac, through the bucket |
+| Server | Yes, itself |
+| iPhone, iPad, any browser | Asks the server, through the bucket |
 | Android app | Later (still to come) |
 
 A link pasted in the web app becomes an `importRequested` change in that device's log, with
-the tags and playlist to put what it brings in. The Mac reads it with the rest of the log,
+the tags and playlist to put what it brings in. The server reads it with the rest of the log,
 looks the link up — one song, or a whole playlist — queues what the library does not have
 already, and downloads it as any other import. Every snapshot says how each request from the
 last week went: waiting for a device that can fetch, downloading, added, failed with the
@@ -243,7 +243,7 @@ reason, or called off.
 ## Still to come
 
 - **Adding a file from a device.** Uploading audio from a phone or a browser, for a library
-  with no Mac at all.
+  with no server at all.
 - **Android fetches links itself**, with a native module wrapping
   [youtubedl-android](https://github.com/yausername/youtubedl-android) — the library the Seal
   app is built on. It comes after the native app has been built at all, and only once it is
@@ -255,10 +255,10 @@ reason, or called off.
 ## What this gives up
 
 - **Handoff and remote control** need a live connection between devices, which a bucket
-  cannot provide. They keep working when the Mac is reachable over Tailscale, as today.
+  cannot provide. They keep working when the server is reachable over Tailscale, as today.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
-- **Some things still need the Mac**: looking metadata up, romaji and pinyin, searching inside
+- **Some things still need the server**: looking metadata up, romaji and pinyin, searching inside
   lyrics, and fetching links. The web app hides those rather than offering what it cannot do.
 - **Space.** 10 GB free is roughly 2,000–2,500 songs.
 
@@ -286,7 +286,7 @@ namespace, a Google OAuth client, three secrets, and `npx wrangler deploy`. It e
 address like `https://selfmp3-doorman.<your-subdomain>.workers.dev`.
 
 Then tell the apps about it: set `DEFAULT_DOORMAN_URL` in `packages/shared/src/cloud.ts`, or
-the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` for the Mac.
+the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` for the server.
 
 ### 3. The web app
 
@@ -297,7 +297,7 @@ Every push to `main` builds it and publishes it to GitHub Pages
 
 Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's
 endpoint, name, key ID and key. The key goes to the doorman, sealed; no device keeps it. On
-the Mac that is *Settings → Cloud*; everywhere else it is the first thing the app asks for.
+the server that is *Settings → Cloud*; everywhere else it is the first thing the app asks for.
 
 ---
 
@@ -311,14 +311,14 @@ the Mac that is *Settings → Cloud*; everywhere else it is the first thing the 
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts` |
-| Talking to the bucket, from the Mac | `apps/server/src/cloud/store.ts` (S3), `apps/server/src/cloud/doorman.ts` (through the doorman) |
+| Talking to the bucket, from the server | `apps/server/src/cloud/store.ts` (S3), `apps/server/src/cloud/doorman.ts` (through the doorman) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts` |
-| Applying other devices' changes to the Mac | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
-| Links other devices ask the Mac to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
+| Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
+| Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (migrations 9, 10, 11) |
-| The Mac's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
+| The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
 | A device's own copy of the library, and its outbox | `packages/cloud/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/cloud/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
-| Importing from a device — through the Mac, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaMac.tsx`, `macReach.model.ts`, `useMacDirect.ts`, `importSource.ts`; `apps/server/src/services/addresses.ts` |
+| Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `serverReach.model.ts`, `useServerDirect.ts`, `importSource.ts`; `apps/server/src/services/addresses.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
-| Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the Mac and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |
+| Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |

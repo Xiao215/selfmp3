@@ -12,7 +12,7 @@
  * The difference between the web app and the phone lives entirely here. The web
  * talks to its own origin under a base path and needs no credentials; the phone
  * talks to an absolute address it was told at onboarding, carries a bearer
- * token, and gives up after fifteen seconds because a sleeping Mac would
+ * token, and gives up after fifteen seconds because a sleeping server would
  * otherwise hang forever. Neither fact is visible anywhere else in the package.
  *
  * That last one is why the timeout is not a field here. `setTimeout` and
@@ -72,7 +72,7 @@ export interface ApiTransport {
 }
 
 /**
- * Answering from this device's own copy of the library rather than from a Mac.
+ * Answering from this device's own copy of the library rather than from a server.
  *
  * The route table, what each call does to the library and how an error becomes
  * a status all live in `@selfmp3/cloud`. What cannot live there is the binding:
@@ -122,7 +122,7 @@ export interface LibrarySnapshotStore {
  *
  * The library snapshot carries every playlist's name and size but not its
  * members — those are a request each — so without this a phone with every
- * song on it still could not open a playlist while its Mac was away.
+ * song on it still could not open a playlist while its server was away.
  */
 export interface PlaylistSnapshotStore {
   read(playlistId: number): Promise<PlaylistSongs | null>

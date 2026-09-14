@@ -9,7 +9,7 @@
  * onboarding and carries a bearer token; the browser talks to its own page
  * origin and carries nothing. `serverTransport` is that difference.
  *
- * The timeout. A Mac that is asleep accepts the connection and then says
+ * The timeout. A server that is asleep accepts the connection and then says
  * nothing, so without one a request hangs for as long as the OS allows. It
  * lives in the fetch below rather than in the package, which compiles without
  * a DOM and so cannot name an `AbortController`.
@@ -51,7 +51,7 @@ let current: {
  * Say whether this device answers from the bucket.
  *
  * Not the same as having no connection: an address left over from talking to a
- * Mac is still stored, and when it is on, `connection` is ignored entirely and
+ * server is still stored, and when it is on, `connection` is ignored entirely and
  * every call is answered by `@selfmp3/cloud`'s route table from this device's
  * own copy of the library — which is why none of the screens had to change.
  */
@@ -60,7 +60,7 @@ export function answerFromCloud(on: boolean): void {
 }
 
 /**
- * Say which Mac to talk to, or null when there is none.
+ * Say which server to talk to, or null when there is none.
  *
  * Not named `useServer`: it is a plain setter, and the `use` prefix would make
  * every call look like a React hook to both a reader and the lint rule.
@@ -77,7 +77,7 @@ const transport = (): ApiTransport | null =>
  *
  * The abort surfaces as a thrown error, which the package turns into an
  * `ApiError` with status 0 — the same "offline" the UI already knows how to
- * show for an unreachable Mac, which is exactly what a timeout means here.
+ * show for an unreachable server, which is exactly what a timeout means here.
  */
 const fetchWithTimeout = async (
   url: string,
@@ -136,7 +136,7 @@ configureClient({
  * the address and an authenticated call proves the token, so "wrong address"
  * and "wrong token" are different messages. It cannot use `api` for that,
  * because `api` talks to whatever is already configured, which at that moment
- * is nothing. Never answers from the bucket: the whole point is to reach a Mac.
+ * is nothing. Never answers from the bucket: the whole point is to reach a server.
  */
 export function apiFor(connection: ServerConnection) {
   return createApi({
@@ -146,9 +146,9 @@ export function apiFor(connection: ServerConnection) {
 }
 
 /**
- * Media URLs for the currently connected Mac, or null when there is none.
+ * Media URLs for the currently connected server, or null when there is none.
  *
- * Mac only, and it cannot be otherwise: these are handed to the OS audio
+ * server only, and it cannot be otherwise: these are handed to the OS audio
  * player and CarPlay's image loader, neither of which lets a header be
  * attached, so the token rides in the query string. The doorman reads the
  * bearer header and nothing else — which is why a song from the bucket has to

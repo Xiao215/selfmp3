@@ -128,7 +128,7 @@ function startLibrary(container: Container): void {
   container.importQueue.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
   container.libraryWatcher.apply()
-  // Publishing, and any links other devices asked for while this Mac was off.
+  // Publishing, and any links other devices asked for while this server was off.
   const startCloud = (): void => {
     container.cloudSync.start()
     void container.cloudImports.process()

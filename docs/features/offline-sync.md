@@ -1,12 +1,12 @@
 # Offline sync
 
-Keeping a device's music, and its listening, in step with the Mac — without being asked.
+Keeping a device's music, and its listening, in step with the server — without being asked.
 
 Before this, offline was a button. "Download everything" lived in Settings, and a song
 imported afterwards (say, one shared from the YouTube Music app on the phone) stayed on the
-Mac until you went back and pressed it again. Worse, a play made with the Mac asleep was sent,
-failed, and was thrown away: every song heard on a train was missing from play counts, stats,
-Wrapped and forgotten gems — which is exactly the listening this app exists for.
+server until you went back and pressed it again. Worse, a play made with the server asleep was
+sent, failed, and was thrown away: every song heard on a train was missing from play counts,
+stats, Wrapped and forgotten gems — which is exactly the listening this app exists for.
 
 Files:
 
@@ -24,7 +24,7 @@ Files:
 
 ## Plays made offline
 
-A play is written to the device first and sent from there: at once if the Mac answers,
+A play is written to the device first and sent from there: at once if the server answers,
 otherwise the next time it does — when the app comes back to the foreground, when the
 reachability probe succeeds, or when the browser says it is online again.
 
@@ -46,7 +46,7 @@ bounded — 5,000 events or 400 days — and in practice never trimmed.
 
 ## Automatic downloads
 
-On by default, per device. Whenever the Mac is reachable and something changes — a song
+On by default, per device. Whenever the server is reachable and something changes — a song
 imported, the app opened, the connection switching to Wi-Fi — the device works out what it is
 missing and fetches it, one song at a time.
 
@@ -62,7 +62,7 @@ missing and fetches it, one song at a time.
   downloads and all. The status then says how many songs did not fit.
 - **Songs removed by hand stay removed.** "Remove download" remembers the song, so the next
   pass does not put it straight back; downloading it again by hand forgets that.
-- **The Mac itself.** On `localhost` automatic downloads start off: the songs are already on
+- **The server itself.** On `localhost` automatic downloads start off: the songs are already on
   that disk.
 - **Remove all downloads** also turns automatic downloads off, or the cache would simply fill
   again.

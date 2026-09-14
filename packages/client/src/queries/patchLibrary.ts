@@ -5,7 +5,7 @@ import type { Library, Playlist, Song, Tag } from '@selfmp3/shared'
  *
  * Most edits answer with the song, tag or playlist they changed. Asking for
  * the whole library again after each one — which is what invalidating it does —
- * meant the whole library over the wire from a Mac, or replayed and parsed
+ * meant the whole library over the wire from a server, or replayed and parsed
  * again from the cloud copy, and on the web written to the device once more,
  * for one heart filling in.
  *

@@ -23,9 +23,9 @@ watch_dir = ["src", "../../packages/shared/src"]
 # The client ID of your OAuth client in the Google Cloud console. It is public:
 # it appears in every Google sign-in link. See README.md.
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-# The web app's address, and the installed Mac app's own origin — its page is
-# served from app://selfmp3. Browsers may call the doorman only from these, and
-# a sign-in may send you back here (or to this computer, for the Mac's
+# The web app's address, and the installed desktop app's own origin — its page
+# is served from app://selfmp3. Browsers may call the doorman only from these,
+# and a sign-in may send you back here (or to this computer, for the server's
 # settings).
 APP_ORIGINS = "https://xiao215.github.io,app://selfmp3"
 

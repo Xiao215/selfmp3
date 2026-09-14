@@ -160,7 +160,7 @@ export const PlayEventSchema = z.object({
   completed: z.boolean(),
   /**
    * When the play happened, for one reported late. A phone on a train holds
-   * its plays and sends them once the Mac is reachable, and the server must
+   * its plays and sends them once the server is reachable, and it must
    * not stamp them with the time they arrived. Absent means "just now".
    */
   playedAt: z.string().datetime({ offset: true }).optional(),

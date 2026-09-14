@@ -30,7 +30,7 @@ export function replay(
 /**
  * The replayed library as a snapshot, with each live playlist's songs worked
  * out from its rules here — so loving a song adds it to a playlist of loved
- * songs straight away, rather than when the Mac next publishes.
+ * songs straight away, rather than when the server next publishes.
  */
 export function replayedSnapshot(
   library: SyncLibrary,
@@ -45,7 +45,7 @@ export function replayedSnapshot(
   const songs = snapshot.songs
   return {
     ...snapshot,
-    // Where the Mac listens is the snapshot's alone: no change carries it, so
+    // Where the server listens is the snapshot's alone: no change carries it, so
     // it is taken from the base as written, or the device would never learn it.
     ...(base?.server ? { server: base.server } : {}),
     playlists: snapshot.playlists.map(playlist =>

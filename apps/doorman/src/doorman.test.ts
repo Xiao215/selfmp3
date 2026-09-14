@@ -132,7 +132,7 @@ describe('CORS', () => {
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 
-  it('serves the Mac’s server, which sends no Origin, as it is', async () => {
+  it('serves the self.mp3 server, which sends no Origin, as it is', async () => {
     const h = harness()
     const token = await h.signIn()
     const response = await h.call('/v1/me', { token })

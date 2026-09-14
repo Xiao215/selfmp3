@@ -97,7 +97,7 @@ export interface Container {
   readonly cloudSync: CloudSyncService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
   readonly edits: LocalEdits
-  /** Links other devices asked this Mac to import. */
+  /** Links other devices asked this server to import. */
   readonly cloudImports: CloudImportService
 
   /**
@@ -136,7 +136,7 @@ export function createContainer(config: Config): Container {
   const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
   const covers = new CoverService(config, songs, logger)
 
-  // One clock for everything this Mac stamps, named as it is in the bucket.
+  // One clock for everything this server stamps, named as it is in the bucket.
   const clock = new SyncClock({
     deviceId: () => cloudRepo.deviceId(process.platform === 'darwin' ? 'mac' : process.platform),
     latest: () => syncRepo.latestStamp(),
@@ -204,7 +204,7 @@ export function createContainer(config: Config): Container {
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const listen = new ListenService(ytdlp)
 
-  // Held while a song is streaming or an import is running, so the Mac does
+  // Held while a song is streaming or an import is running, so the server does
   // not idle-sleep out from under whoever is listening (services/keepAwake.ts).
   const keepAwake = createKeepAwake(logger)
 
@@ -294,7 +294,7 @@ export function createContainer(config: Config): Container {
   // what they changed itself, so this only moves the version clients watch —
   // and tidies up after songs removed elsewhere. A file the person chose to
   // keep is left where it is, and the next scan adds it back as a new song,
-  // exactly as it would have had they removed it on this Mac.
+  // exactly as it would have had they removed it on this server.
   cloudSync.onIngested = async ({ removed, requested }) => {
     version++
     if (requested > 0) void cloudImports.process()

@@ -1,6 +1,6 @@
 # Devices, handoff and remote control
 
-Your Mac and your phone stop being two separate players. Each open tab announces
+Your computer and your phone stop being two separate players. Each open tab announces
 itself, and any of them can pick up where another left off, push what it is
 playing somewhere else, or drive another one from across the room.
 

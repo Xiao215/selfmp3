@@ -117,8 +117,8 @@ describe('smart playlists on a device', () => {
     expect(run(rules(both, { match: 'any' }))).toEqual(ids(5, 4))
   })
 
-  it('sort with ties broken the way the Mac breaks them, nulls last, then limit', () => {
-    // 4 and 2 tie on plays; the Mac's newer row comes first going down.
+  it('sort with ties broken the way the server breaks them, nulls last, then limit', () => {
+    // 4 and 2 tie on plays; the server's newer row comes first going down.
     expect(run(rules([], { orderBy: 'playCount', order: 'desc' }))).toEqual(ids(4, 2, 3, 5, 1))
     expect(run(rules([], { orderBy: 'playCount', order: 'asc' }))).toEqual(ids(1, 5, 3, 2, 4))
     expect(run(rules([], { orderBy: 'lastPlayedAt', order: 'asc' }))).toEqual(ids(1, 4, 2, 3, 5))

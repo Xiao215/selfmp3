@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServerConnection } from '@selfmp3/client'
-import { awayCopy, candidates, reachMac } from './macReach.model'
+import { awayCopy, candidates, reachServer } from './serverReach.model'
 
 const server = {
   addresses: ['http://localhost:4600', 'http://192.168.1.20:4600', 'http://100.101.1.2:4600'],
@@ -18,7 +18,7 @@ describe('candidates', () => {
   })
 })
 
-describe('reachMac', () => {
+describe('reachServer', () => {
   const answers = (by: Record<string, Promise<boolean>>) => (connection: ServerConnection) =>
     by[connection.baseUrl] ?? Promise.resolve(false)
 
@@ -27,7 +27,7 @@ describe('reachMac', () => {
     const hanging = new Promise<boolean>(resolve => {
       hangUp = resolve
     })
-    const found = await reachMac(
+    const found = await reachServer(
       candidates(server),
       answers({
         'http://localhost:4600': hanging,
@@ -39,7 +39,7 @@ describe('reachMac', () => {
   })
 
   it('is null when no address answers, a refusal and a failure alike', async () => {
-    const found = await reachMac(
+    const found = await reachServer(
       candidates(server),
       answers({
         'http://localhost:4600': Promise.reject(new Error('connection refused')),
@@ -51,7 +51,7 @@ describe('reachMac', () => {
 
   it('is null at once with no addresses to try', async () => {
     let asked = 0
-    const found = await reachMac([], () => {
+    const found = await reachServer([], () => {
       asked++
       return Promise.resolve(true)
     })
@@ -61,9 +61,9 @@ describe('reachMac', () => {
 })
 
 describe('awayCopy', () => {
-  it('tells a Mac that is off apart from one that never said where it is', () => {
-    expect(awayCopy(true).title).toBe('Your Mac isn’t answering')
-    expect(awayCopy(false).title).toBe('Your Mac hasn’t said where it is')
+  it('tells a server that is off apart from one that never said where it is', () => {
+    expect(awayCopy(true).title).toBe('Your server isn’t answering')
+    expect(awayCopy(false).title).toBe('Your server hasn’t said where it is')
     expect(awayCopy(false).body).toContain('sync once')
   })
 })

@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 /**
  * The web app's own routes, which only the cloud build answers (routes.ts):
- * importing by asking the Mac, through the bucket.
+ * importing by asking the server, through the bucket.
  */
 
 export const CloudImportRequestSchema = z.object({
@@ -31,9 +31,9 @@ export const ImportRequestListSchema = z.object({ imports: z.array(ImportRequest
 export type ImportRequestList = z.infer<typeof ImportRequestListSchema>
 
 /**
- * Where the Mac behind this library listens, from its last snapshot — for
+ * Where the server behind this library listens, from its last snapshot — for
  * importing through it directly when this device can reach it — or null from
- * a Mac that never said.
+ * a server that never said.
  */
 export const CloudServerViewSchema = z.object({ server: CloudServerSchema.nullable() })
 export type CloudServerView = z.infer<typeof CloudServerViewSchema>

@@ -13,13 +13,13 @@ and the last section is the runbook.
 
 The universal app already draws the desktop layout: at 820 points and above a
 browser window gets the sidebar, the player bar, the popovers and the ⌘K
-palette, and the Mac has served that build at `http://localhost:4600` since
+palette, and the server has served that build at `http://localhost:4600` since
 2026-09-13. What a browser tab cannot be is *installed*:
 
 - **It streams.** A tab always streams (decided 2026-09-12); an installed app
   downloads by default and plays from files, which is the whole point of a
   library you own. A laptop on a plane should behave like the phone does.
-- **It is not a Mac app.** No Dock icon of its own, no menu bar, no media keys
+- **It is not a desktop app.** No Dock icon of its own, no menu bar, no media keys
   or Now Playing in Control Center, no ⌘Q, no window that remembers its size,
   no keychain for the token. Chrome's "install as app" gives a window and
   nothing else.
@@ -49,7 +49,7 @@ Facts about the tree this plan starts from, checked on `main` at `2ae1562`:
 
 | Thing | State |
 |---|---|
-| The web export | `npm run export:web --workspace @selfmp3/app` → `apps/app/dist`, a single-page app with absolute `/_expo/...` asset paths and a hand-written service worker copied from `public/`. The Mac's server and GitHub Pages serve the same files. |
+| The web export | `npm run export:web --workspace @selfmp3/app` → `apps/app/dist`, a single-page app with absolute `/_expo/...` asset paths and a hand-written service worker copied from `public/`. The server and GitHub Pages serve the same files. |
 | The desktop hook | `apps/app/src/ports/install.web.ts` already reads `window.selfmp3Desktop`: present means an installed app, which downloads by default. Nothing sets it yet. Settings hides the Offline section, the song menu hides Download, and `playBlock` streams, when it is absent. |
 | Platform differences | Some thirty named ports under `apps/app/src/ports/`, each a `name.ts` (phone) and `name.web.ts` (browser) pair, resolved by Metro. Screens never read `Platform.OS` (ESLint enforces it). |
 | Downloads | One shared queue in `packages/client` (`downloads/queue.ts`) over a `DownloadStorage` port. The phone's is files + a JSON index (`ports/downloadStorage.ts`); the browser's is the Cache API behind the service worker (`ports/downloadStorage.web.ts`). The player prefers `localUri` when the storage has one (`player/PlayerProvider.tsx:281`, `player/tracks.ts`). |
@@ -74,7 +74,7 @@ An installed app on a computer that:
    a red button that only hides, launch at login as a choice.
 3. **Signs in the way every device does** — Google, through the doorman —
    and, because it *is* a computer that may sit beside the server, can also
-   be pointed at a server directly, the way the browser on that Mac is.
+   be pointed at a server directly, the way the browser on that computer is.
 4. **Keeps its secrets in the keychain** (Electron's `safeStorage`) rather
    than `localStorage`.
 5. **Updates itself** when the build is signed, and says where the new one is
@@ -83,11 +83,11 @@ An installed app on a computer that:
 ### What this is not
 
 - **Not a second UI.** The renderer is `apps/app/dist`, byte for byte the
-  build the Mac serves. Anything that looks different in the app and the
+  build the server serves. Anything that looks different in the app and the
   browser is a bug, unless this document names it.
 - **Not the server.** The desktop app does not host the library, run yt-dlp
-  or open the SQLite file. The server keeps running where it runs (the Mac's
-  launchd job today, the Pi tomorrow). Embedding it is a possible later phase
+  or open the SQLite file. The server keeps running where it runs (a launchd
+  job on a Mac today, the Pi tomorrow). Embedding it is a possible later phase
   and is written up under "Later", with the reason it waits.
 - **Not a Mac App Store app.** No sandbox, no App Store review, no receipt.
 - **Not Windows or Linux, yet.** Nothing here reads `process.platform` to do
@@ -101,7 +101,7 @@ Additions to the table in `UNIVERSAL.md`. Nothing already there changes.
 | Concern | Choice | Why, and what was rejected |
 |---|---|---|
 | Shell | **Electron 44** (44.3.0 at the time of writing: Chromium 152, Node 24; macOS 13 or newer) | Decided 2026-09-12. Confirmed here for four reasons that hold even though the shell is thin: (1) one rendering engine on every OS — the desktop layout has only ever been verified in Chromium, and the reference captures are Chromium's; (2) TypeScript end to end, so the same agent works the whole stack in one language; (3) `protocol.handle` streams a file with `Range` support, `safeStorage` gives the keychain, `navigator.mediaSession` reaches macOS Now Playing, `app.setAsDefaultProtocolClient` gives the `selfmp3://` return; (4) it can host a Node process later (`utilityProcess`) if the server is ever embedded. *Tauri 2* rejected: a WebKit renderer on the Mac and WebView2 on Windows means two engines to verify; the shell would be Rust in a TypeScript repository; its only strong argument, size, is real (tens of MB against ~200) and Xiao accepted the size on the day. *react-native-macos* rejected: tracks older React Native than the app runs, Expo does not support it, neither Unistyles nor track-player build for it. *Mac Catalyst / "Designed for iPad"* rejected: a cloud-only client with the phone's engine, no server address, and distribution needs a paid account. |
-| Renderer | `apps/app/dist`, unchanged | One export serves the Mac, Pages and the app. Desktop-only code lives in `apps/app/src/ports/desktop/` and is chosen at runtime by the presence of the bridge, which is what `install.web.ts` already does. A third Metro platform (`.desktop.ts`) was considered and rejected: it would add a build target to every gate for the sake of not writing `desktop ? a : b` in a handful of port files. |
+| Renderer | `apps/app/dist`, unchanged | One export serves the server, Pages and the app. Desktop-only code lives in `apps/app/src/ports/desktop/` and is chosen at runtime by the presence of the bridge, which is what `install.web.ts` already does. A third Metro platform (`.desktop.ts`) was considered and rejected: it would add a build target to every gate for the sake of not writing `desktop ? a : b` in a handful of port files. |
 | Main and preload build | **esbuild**, two entry points, CommonJS, only `electron` external | The repository already builds the service worker with esbuild. electron-vite and Electron Forge's templates bring a second bundler and a project shape of their own; the shell is small enough that a 30-line build script is clearer than either. Bundling *everything* — electron-updater included — is also what sidesteps electron-builder's known trouble with npm workspaces: it does not reliably collect dependencies hoisted to the repository root (electron-builder #2205, #9654), so the shell has no runtime dependencies to collect. `apps/desktop/package.json` lists `electron`, `electron-builder`, `electron-updater` and `esbuild` under `devDependencies` and nothing under `dependencies`. |
 | Packaging | **electron-builder 26** (26.16.1 at the time of writing) | `dmg` and `zip` for macOS (arm64 and x64), with `nsis` and `AppImage` listed and not built. `files` names `dist/**` and `package.json`; `npmRebuild: false`. The shell has no native modules, so nothing is rebuilt and `asar` needs no unpacking. Forge rejected for the same reason as above; it is not wrong, it is more than this needs. |
 | Updates | **electron-updater 6**, from GitHub Releases | The only updater that does not need a server. On macOS Squirrel applies an update only to an app signed with a certificate — an ad-hoc signature is rejected every time (electron #36640) — so unsigned builds get "check for updates", which compares the running version with the latest release's tag and opens the release page. |
@@ -199,7 +199,7 @@ apps/app                   the renderer, with desktop branches in its ports
 
 apps/server                  unchanged, except http/range.ts imports the moved rule
 apps/doorman                 unchanged
-.github/workflows/desktop.yml  NEW — builds the Mac app on macos-latest
+.github/workflows/desktop.yml  NEW — builds the desktop app on macos-latest
 docs/DESKTOP.md              this file
 docs/features/desktop-app.md NEW — the user-facing note, with its "Where" line
 ```
@@ -259,7 +259,7 @@ correct) all stay as they are.
 | `install.web.ts` | false | true — already written |
 | `secrets.web.ts` | `localStorage` | `desktop.secrets` (keychain) |
 | `downloadStorage.web.ts` | Cache API, not resumable, `localUri` null | `downloadStorage.desktop.ts`: files through `desktop.files`, resumable, `localUri` = `desktop.mediaUrl('songs', name)`. The index is the page's, kept where the phone keeps it (a JSON document; here `userData/downloads.json` through `files`), so `parseIndex`/`DownloadIndex` from `packages/client` are reused unchanged |
-| `offline/covers.ts` | the expo-file-system stub | `covers.desktop.ts`: the phone's logic over `desktop.files` — a Mac's covers by song and rev, the bucket's by hash — behind a small `coverFiles` port so `covers.ts` is written once against `{ exists, fetchTo, uri, list, delete }` and the phone's expo-file-system and the desktop's bridge each implement it |
+| `offline/covers.ts` | the expo-file-system stub | `covers.desktop.ts`: the phone's logic over `desktop.files` — a server's covers by song and rev, the bucket's by hash — behind a small `coverFiles` port so `covers.ts` is written once against `{ exists, fetchTo, uri, list, delete }` and the phone's expo-file-system and the desktop's bridge each implement it |
 | `serviceWorker.web.ts` | registers `sw.js` in production | registers nothing. The shell is served from disk, songs and covers are files, and a second copy of audio in the Cache API would be a second truth. (The manifest and apple-touch-icon links are skipped too.) |
 | `recentCopies.web.ts` | keeps played songs in the cache | unused: `keepPlayed` is only called where `installed` is false. Left as is |
 | `device.web.ts` | user agent, `'desktop'` | `desktop.info.hostname` for the name ("Xiao's MacBook Pro"), kind `'desktop'` |
@@ -348,7 +348,7 @@ to `main`:
    `open-url` handler and, with the app closed, launches it and delivers the
    URL. A second launch focuses the first (`requestSingleInstanceLock`).
 5. **The keychain.** `safeStorage.isEncryptionAvailable()` is true on a
-   signed-in Mac session; a string round-trips through encrypt → disk →
+   signed-in macOS session; a string round-trips through encrypt → disk →
    decrypt across a relaunch.
 6. **Resume.** A download interrupted at 40% resumes with `Range:` from the
    `.part` size and the finished file's SHA-256 matches the whole. Against the
@@ -409,7 +409,7 @@ Exit:
   in Finder" opens the folder.
 - The same, signed in to the cloud — **checked by Xiao**.
 
-### Phase 4 — Being a Mac app
+### Phase 4 — Being a desktop app
 
 - **Now Playing and media keys.** The `MediaSessionPort`, `mediaSession.web.ts`,
   the provider publishing to it. The Dock menu shows the song and Play/Pause,
@@ -465,7 +465,7 @@ Exit:
   `desktop-v*`, on `macos-latest`: `npm ci`, build the packages and the web
   export, `npm run build:desktop`, upload the dmg and zip as artifacts, and
   on a tag attach them to a GitHub release. Signing secrets used when set.
-- Docs: `docs/INSTALL.md` gains "The Mac app"; `README.md` gains the two new
+- Docs: `docs/INSTALL.md` gains "The desktop app"; `README.md` gains the two new
   folders in "How it is put together" and a line under "What it does";
   `ARCHITECTURE.md` gains the shape.
 
@@ -534,7 +534,7 @@ Exit: `npm run check:app`; the phone flows pass in the browser at 1194 and at
 - **Embedding the server.** `utilityProcess.fork` of `apps/server/dist/main.js`
   with better-sqlite3 and sharp rebuilt for Electron's Node ABI, yt-dlp and
   ffmpeg found on `PATH` or bundled, the library folder chosen in Settings.
-  This is what would make the app replace `scripts/setup-mac.sh` on the Mac
+  This is what would make the app replace `scripts/setup-mac.sh` on the computer
   that holds the music. It waits because the server is moving to a Pi, and
   because it is the one thing that would put native modules and a rebuild
   step into a shell that otherwise has none.
@@ -585,7 +585,7 @@ Playwright `_electron` smoke in `apps/desktop/verify/`, which launches the
 server, so the product is what is tested, not a dev window. `firstWindow()`
 is the page; anything about the main process — did `protocol.handle` answer
 a `Range:` with 206, is the power-save blocker held while playing — is read
-with `app.evaluate`, not inferred from the page. It runs on the Mac, like the
+with `app.evaluate`, not inferred from the page. It runs on the server, like the
 flows, because it needs the dev library; CI runs `npm run check` and the
 build, and could run the smoke on `macos-latest` (no virtual display needed)
 the day a seeded library exists there.
@@ -616,7 +616,7 @@ Lines to write, from what exists:
 | 1 spike | 300, thrown away | six scripts |
 | 2 shell + bridge + sign-in + server path | 1,200 | 400 of it is the contract and its tests; the Settings screen exists |
 | 3 files on disk | 900 | half in the main process, half the two desktop ports; the range rule moves |
-| 4 Mac app | 700 | menu, window, power, media session port |
+| 4 desktop app | 700 | menu, window, power, media session port |
 | 5 shipping | 300 + config | mostly YAML and a workflow |
 | 6 iPad | 150 | the orientation entry, the width checks, and whatever they turn up |
 
@@ -636,7 +636,7 @@ dependency without a Stack line, ports before screens. Added for this work:
 
 - **The renderer is one build.** Never add a Metro platform, a second
   `expo export`, or a `process.env` switch that makes the desktop's bundle
-  differ from the Mac's. If a desktop difference cannot be expressed as a
+  differ from the server's. If a desktop difference cannot be expressed as a
   port choosing at runtime, stop and write down why.
 - **The bridge is the only door.** No `nodeIntegration`, no `remote`, no
   `ipcRenderer` on the page, no `webSecurity: false`, no
@@ -756,4 +756,4 @@ portrait — is within reach with the dev server and the simulator running.
 2. Phase 1, on a throwaway branch: six scripts, six results, in the progress
    file. Half a day. If 1 and 2 pass, the rest is engineering.
 3. Phase 2. It is the smallest phase that puts a Dock icon on the screen, and
-   the server-address path means it is useful on the Mac that day.
+   the server-address path means it is useful beside the server that day.

@@ -32,8 +32,8 @@ import { X } from './Icons'
  * this device, your history with it, and the file itself.
  *
  * "On this device" is the phone's answer, the download queue's, rather than
- * the browser cache's. The Mac-only half of the web's version — the file's
- * path and "Show in Finder" — belongs to the Mac, and is left out.
+ * the browser cache's. The server-only half of the web's version — the file's
+ * path and "Show in Finder" — belongs to the server, and is left out.
  */
 export function SongDetails({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()

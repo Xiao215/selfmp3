@@ -281,7 +281,7 @@ export class ImportRepository {
   /**
    * Finish jobs that gave up at the upload step and whose songs have since
    * reached the bucket after all. Call it once a snapshot is published: the
-   * song was already in the library on this Mac, and now every other device
+   * song was already in the library on this server, and now every other device
    * can see it too.
    */
   finishUploaded(): number {

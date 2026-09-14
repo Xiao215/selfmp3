@@ -43,7 +43,7 @@ import { MetadataService } from './metadata.js'
  * Publishing to the bucket, against a real library folder, a database built
  * from the real migrations, and a bucket in memory. What matters: every file
  * goes up once, under its hash; a snapshot says what is up there and nothing
- * that is not; and a Mac that loses the connection picks up where it left off.
+ * that is not; and a server that loses the connection picks up where it left off.
  */
 
 const sha = (content: string | Buffer): string => createHash('sha256').update(content).digest('hex')
@@ -104,7 +104,7 @@ describe('CloudSyncService', () => {
     const storage = new LocalStorageDriver(root)
     covers = new CoverService({ dataDir } as Config, songs, logger)
 
-    // One bucket per name, so a test can point the Mac somewhere else.
+    // One bucket per name, so a test can point the server somewhere else.
     buckets = new Map()
     bucket = new MemoryCloudStore()
     buckets.set(CONNECT.bucket, bucket)
@@ -394,9 +394,9 @@ describe('CloudSyncService', () => {
     })
 
     /*
-     * Romaji is made on the Mac, which has the dictionaries, and goes up beside
+     * Romaji is made on the server, which has the dictionaries, and goes up beside
      * the words, so a device signed in to the cloud gets the same lyrics answer
-     * the Mac's own server gives.
+     * the server itself gives.
      */
     describe('romaji', () => {
       const JAPANESE = '[00:01.00]夜に駆ける\n[00:05.00]沈むように溶けてゆくように'
@@ -640,7 +640,7 @@ describe('CloudSyncService', () => {
       expect(songs.byId(id)).toMatchObject({ title: 'Uno', loved: true, year: null })
       expect(latest().upTo).toEqual({ [PHONE]: 1, [LAPTOP]: 1 })
       expect(sync.status()).toMatchObject({ state: 'error' })
-      expect(sync.status().lastError).toMatch(/Update this Mac/)
+      expect(sync.status().lastError).toMatch(/Update this server/)
     })
 
     it('takes a song another device removed out, and keeps the file it was told to keep', async () => {
@@ -661,7 +661,7 @@ describe('CloudSyncService', () => {
 
     /*
      * "Remove from my list" and "destroy the file" are different answers, and
-     * a phone in cloud mode asks the same question the Mac does. Whichever was
+     * a phone in cloud mode asks the same question the server does. Whichever was
      * given has to survive the trip.
      */
     it('says to take the file away when that is what was asked for', async () => {
@@ -696,7 +696,7 @@ describe('CloudSyncService', () => {
       expect(latest().upTo).toEqual({})
     })
 
-    it('notices a change written while the Mac sits idle', async () => {
+    it('notices a change written while the server sits idle', async () => {
       sync.stop()
       const id = addSong('A - One', 'one')
       const watcher = new CloudSyncService({
@@ -876,7 +876,7 @@ describe('CloudSyncService', () => {
 
   describe('signing in through the doorman', () => {
     /**
-     * The doorman as the Mac sees it: Google "finishes" a sign-in when a test
+     * The doorman as the server sees it: Google "finishes" a sign-in when a test
      * says so, each session belongs to an account, and an account's bucket is
      * one of the memory buckets above, by name.
      */

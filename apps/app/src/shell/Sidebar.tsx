@@ -69,13 +69,13 @@ const DESTINATIONS: {
   href: '/' | '/import' | '/stats' | '/settings'
   label: string
   Icon: typeof Music
-  /** Needs the Mac's own tools: a cloud library has none, as on the web. */
-  mac?: boolean
+  /** Needs the server's own tools: a cloud library has none, as on the web. */
+  server?: boolean
 }[] = [
   { href: '/', label: 'Library', Icon: Music },
-  // A cloud library imports too: the link waits in the bucket for the Mac.
+  // A cloud library imports too, through the server when it can be reached.
   { href: '/import', label: 'Import', Icon: Download },
-  { href: '/stats', label: 'Stats', Icon: BarChart, mac: true },
+  { href: '/stats', label: 'Stats', Icon: BarChart, server: true },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -96,7 +96,7 @@ export function Sidebar(): ReactNode {
   return (
     <View style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]} testID="sidebar">
       {/*
-        The installed Mac app's traffic lights sit over this corner. The strip
+        The installed desktop app's traffic lights sit over this corner. The strip
         is what the window is dragged by, since there is no title bar above it
         any more; it is nothing at all in a browser, where the inset is zero.
       */}
@@ -109,7 +109,7 @@ export function Sidebar(): ReactNode {
       </View>
 
       <View accessibilityRole="tablist" style={styles.nav}>
-        {DESTINATIONS.filter(destination => !fromCloud || !destination.mac).map(destination => {
+        {DESTINATIONS.filter(destination => !fromCloud || !destination.server).map(destination => {
           const active =
             destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href)
           return (
@@ -548,10 +548,10 @@ function Foot(): ReactNode {
 
   // A failed refetch keeps the cached library, so an error wins over the data.
   const [dot, label] = library.isError
-    ? [theme.colors.danger, fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your Mac']
+    ? [theme.colors.danger, fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server']
     : library.isPending
       ? [theme.colors.warning, 'Connecting…']
-      : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your Mac']
+      : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your server']
   const detail = `${songs} ${songs === 1 ? 'song' : 'songs'} · ${
     saved > 0 ? `${saved} saved offline` : 'none saved offline'
   }`

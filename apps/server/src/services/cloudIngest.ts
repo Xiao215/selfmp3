@@ -23,7 +23,7 @@ import { sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
 
 /**
- * Other devices' changes, applied to this Mac's database (docs/SYNC.md).
+ * Other devices' changes, applied to this server's database (docs/SYNC.md).
  *
  * The rules are the ones every device replays with (packages/shared/src/
  * sync.ts), followed step for step against SQLite instead of against a
@@ -46,7 +46,7 @@ export interface IngestResult {
     readonly path: string
     readonly deleteFile: boolean
   }[]
-  /** Links other devices asked this Mac to import, seen for the first time. */
+  /** Links other devices asked this server to import, seen for the first time. */
   readonly requested: number
 }
 
@@ -68,7 +68,7 @@ export class CloudIngest {
     playlists: PlaylistRepository
     stats: StatsRepository
     sync: SyncRepository
-    /** Where link requests go; without it they are left for a Mac that has one. */
+    /** Where link requests go; without it they are left for a server that has one. */
     requests?: ImportRequestRepository
     clock: SyncClock
     logger: Logger
@@ -312,7 +312,7 @@ export class CloudIngest {
     }
   }
 
-  /** Rules with each tag named by this Mac's id for it. */
+  /** Rules with each tag named by this server's id for it. */
   #localRules(rules: CloudSmartRules): SmartRules {
     return fromCloudRules(rules, uid => this.#sync.tag(uid)?.id ?? null)
   }

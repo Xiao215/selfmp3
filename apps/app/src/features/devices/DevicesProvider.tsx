@@ -76,12 +76,12 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const player = usePlayer()
   const { connection, fromCloud } = useConnection()
   /*
-   * The Mac this device talks to, when it talks to one.
+   * The server this device talks to, when it talks to one.
    *
    * `fromCloud`, not `connection`, decides: an address left over from talking
-   * to a Mac stays stored after moving to the bucket, and asking whether one
+   * to a server stays stored after moving to the bucket, and asking whether one
    * exists had this device heartbeat every ten seconds, and hold a stream
-   * open, to a Mac that was not there.
+   * open, to a server that was not there.
    */
   const server = fromCloud ? null : connection
   const client = useQueryClient()
@@ -124,7 +124,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
         .heartbeat({ ...identity, state })
         .then(list => client.setQueryData(queryKeys.devices, list))
         .catch(() => {
-          // The Mac is asleep, or this phone is on a train. The next beat will
+          // The server is asleep, or this phone is on a train. The next beat will
           // do; nothing here is worth surfacing.
         })
     },
@@ -214,7 +214,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     })
   }, [server, deviceId, onEvent])
 
-  // Derived rather than stored: with no Mac there is nothing to be connected
+  // Derived rather than stored: with no server there is nothing to be connected
   // to, and saying so in an effect would be a setState during one.
   const connected = streamOpen && server !== null
 

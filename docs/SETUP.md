@@ -1,4 +1,4 @@
-# Setting up self.mp3 on your Mac and your phone
+# Setting up self.mp3 on your server and your phone
 
 This gets you to: **your whole library on your phone, playing anywhere, even with your
 MacBook closed in a bag.**
@@ -9,16 +9,16 @@ It takes about twenty minutes. You only do it once.
 
 ## What you are building, and why
 
-Your music and the server live on your Mac. Your phone talks to the Mac over
-**Tailscale**, a private network that only your own devices can join.
+Your music lives with the server (this guide runs it on a Mac). Your phone talks to the
+server over **Tailscale**, a private network that only your own devices can join.
 
-The important thing to understand up front: **when your Mac is asleep, streaming stops —
+The important thing to understand up front: **when your server is asleep, streaming stops —
 but downloaded songs keep playing.** That is why the last step of this guide is downloading
 your library to your phone, and it is the step that actually makes this work day to day.
 Music is small (a four-minute track is roughly 4 MB, so 500 songs is about 2 GB), so
 keeping everything on your phone is realistic rather than a chore.
 
-Your Mac only needs to be awake when you are importing new music or pulling down a sync.
+Your server only needs to be awake when you are importing new music or pulling down a sync.
 
 ---
 
@@ -66,7 +66,7 @@ Stop it with `Ctrl-C` for now.
 
 ## Step 3 — Install Tailscale
 
-Tailscale is a private network built on WireGuard. Your Mac and your phone each get a
+Tailscale is a private network built on WireGuard. Your server and your phone each get a
 stable address that only your own devices can reach. Nothing is exposed to the public
 internet, and you never open a port on your router.
 
@@ -83,7 +83,7 @@ same account.
 
 That is it — both devices are now on your private network. It is free for personal use.
 
-Check your Mac's Tailscale name:
+Check your server's Tailscale name:
 
 ```bash
 tailscale status
@@ -113,7 +113,7 @@ tailscale serve status
 
 You should see your app served at `https://xiaos-macbook-pro.tail1a2b.ts.net/`.
 
-Open that URL on your Mac to confirm it works. **Use this HTTPS address from now on** —
+Open that URL on the server to confirm it works. **Use this HTTPS address from now on** —
 not the `http://100.x.x.x` one.
 
 > If `tailscale serve` says HTTPS is not enabled, open the Tailscale admin console at
@@ -143,16 +143,16 @@ launchctl bootout gui/$(id -u)/com.selfmp3.server        # stop
 tail -f ~/Library/Logs/selfmp3.log                       # watch logs
 ```
 
-### Optional: keep the Mac awake while it is plugged in
+### Optional: keep the server awake while it is plugged in
 
-If you want streaming to work whenever the lid is open and the Mac is on power:
+If you want streaming to work whenever the lid is open and the server is on power:
 
 ```bash
 sudo pmset -c sleep 0        # don't sleep on AC power
 sudo pmset -c disablesleep 0 # but do allow display sleep
 ```
 
-This does not help when the lid is closed and the Mac is in your bag — nothing does. That
+This does not help when the lid is closed and the server is in your bag — nothing does. That
 is what the offline download is for.
 
 ---
@@ -180,7 +180,7 @@ In the app on your phone:
 2. Under **Offline music**, tap **Download everything**.
 3. Leave it running on wifi. It downloads one song at a time and shows progress.
 
-When it finishes, those songs play with no connection at all — Mac asleep, aeroplane mode,
+When it finishes, those songs play with no connection at all — server asleep, aeroplane mode,
 underground, anywhere.
 
 After importing new music later, tap **Download what's missing** to top it up.
@@ -211,7 +211,7 @@ optional and most people should skip it.
 
 **The phone cannot reach it.**
 Check Tailscale is connected on both devices (the app shows a green dot). Run
-`tailscale status` on the Mac and confirm your phone appears in the list.
+`tailscale status` on the server and confirm your phone appears in the list.
 
 **"Add to Home Screen" does not offer to install.**
 You are on `http://`, not `https://`. Go back to step 4.
@@ -231,14 +231,14 @@ Make sure you opened the app from the home screen icon rather than from a Safari
 
 **Everything is slow over Tailscale.**
 Your phone is probably relaying through a Tailscale server rather than connecting directly.
-`tailscale netcheck` on the Mac will tell you. It usually resolves itself; enabling UPnP on
+`tailscale netcheck` on the server will tell you. It usually resolves itself; enabling UPnP on
 your router helps.
 
 ---
 
 ## Later: moving your music to cloud storage
 
-If you decide you want your library reachable even with the Mac switched off entirely, the
+If you decide you want your library reachable even with the server switched off entirely, the
 storage layer already supports S3-compatible object storage (Cloudflare R2, Backblaze B2):
 
 ```bash

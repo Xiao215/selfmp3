@@ -134,9 +134,9 @@ describe('editing a song', () => {
         uid: SONG_A,
         fields: { title: 'On the phone' },
       },
-      { type: 'songEdited', hlc: at(2, 'mac-aaaa'), uid: SONG_A, fields: { artist: 'On the Mac' } },
+      { type: 'songEdited', hlc: at(2, 'mac-aaaa'), uid: SONG_A, fields: { artist: 'On the server' } },
     ])
-    expect(library.songs.get(SONG_A)).toMatchObject({ title: 'On the phone', artist: 'On the Mac' })
+    expect(library.songs.get(SONG_A)).toMatchObject({ title: 'On the phone', artist: 'On the server' })
   })
 
   it('lets a late change lose to a newer one the snapshot already has', () => {
@@ -295,7 +295,7 @@ describe('smart rules about tags', () => {
     expect(library.playlists.get(LIVE)?.rules).toEqual(tagged(MISSING_TAG_UID))
   })
 
-  it('name a tag the library does not have as missing, as the Mac would', () => {
+  it('name a tag the library does not have as missing, as the server would', () => {
     const library = replay([
       { type: 'playlistEdited', hlc: at(1), uid: LIVE, fields: { rules: tagged(uid(0xdead)) } },
     ])
@@ -485,7 +485,7 @@ describe('asking for a link to be imported', () => {
     const cancelled = replay([asked, { type: 'importCancelled', hlc: at(2), uid: REQUEST }])
     expect(cancelled.imports.get(REQUEST)?.state).toBe('cancelled')
 
-    // Once the Mac has said it is done, calling it off changes nothing.
+    // Once the server has said it is done, calling it off changes nothing.
     const done = replay([asked], {
       ...snapshot(),
       imports: [
@@ -513,13 +513,13 @@ describe('a replayed library', () => {
     const changes: Change[] = [
       { type: 'tagCreated', hlc: at(1, 'web-bbbb'), uid: uid(0x75), name: 'drive', hue: 5 },
       { type: 'songTagged', hlc: at(2, 'web-bbbb'), uid: SONG_A, tagUid: uid(0x75), on: true },
-      { type: 'songEdited', hlc: at(3, 'mac-aaaa'), uid: SONG_A, fields: { title: 'Mac' } },
+      { type: 'songEdited', hlc: at(3, 'mac-aaaa'), uid: SONG_A, fields: { title: 'Server' } },
       { type: 'playlistSong', hlc: at(4, 'web-cccc'), uid: LIST, songUid: SONG_C, on: true },
       { type: 'songEdited', hlc: at(5, 'web-cccc'), uid: SONG_A, fields: { title: 'Phone' } },
       { type: 'songRemoved', hlc: at(6, 'mac-aaaa'), uid: SONG_B },
     ]
     const whole = replay(changes)
-    // As the Mac would: two passes, each batch in stamp order.
+    // As the server would: two passes, each batch in stamp order.
     const inTwo = syncLibrary(snapshot())
     applyChanges(inTwo, changes.slice(0, 3))
     applyChanges(inTwo, changes.slice(3))

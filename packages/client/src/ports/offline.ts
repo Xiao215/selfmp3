@@ -128,7 +128,7 @@ export interface DownloadStorage {
   readonly available: boolean
   readonly resumable: boolean
   /**
-   * Where downloads come from — the Mac or the cloud session — and the songs
+   * Where downloads come from — the server or the cloud session — and the songs
    * they belong to. The browser's cache is keyed by stream URL, and a stream
    * URL carries the song's `rev`, so without the song list the storage cannot
    * find, size or delete a song it has kept.

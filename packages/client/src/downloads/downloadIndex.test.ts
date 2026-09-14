@@ -160,7 +160,7 @@ describe('bytesToDownload', () => {
 })
 
 describe('naming a downloaded file', () => {
-  it('leads with the id for a song from a Mac', () => {
+  it('leads with the id for a song from a server', () => {
     expect(fileNameFor({ id: 7, path: 'Artist/Album/Song.m4a' })).toBe('7.m4a')
   })
 

@@ -17,7 +17,7 @@ import type { OutboxStore } from '../platform.js'
  *
  * A play used to be sent the moment it counted and dropped if the server did
  * not answer, which on a phone is most of the time the app is actually used and
- * on a laptop is any time the Mac is asleep. Now it is written down first and
+ * on a laptop is any time the server is asleep. Now it is written down first and
  * sent from there; the server recognises a resent play by its id, so sending
  * twice is harmless.
  *

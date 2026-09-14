@@ -51,7 +51,7 @@ from a Shortcut; the header is tidier.
 2. Tap the **ⓘ** (details) → turn on **Show in Share Sheet** → under *Share Sheet Types*
    keep **URLs** and **Text** ticked. This makes the Shortcut receive whatever was shared.
 3. Add action **Get Contents of URL**:
-   - URL: `https://<your-mac>.<tailnet>.ts.net/api/imports/share`
+   - URL: `https://<your-server>.<tailnet>.ts.net/api/imports/share`
      (or `http://<tailscale-ip>:4600/api/imports/share`)
    - Method: **POST**
    - Headers: `Authorization` → `Bearer <your token>` (only if you set one)
@@ -64,7 +64,7 @@ from a Shortcut; the header is tidier.
    For failures, wrap step 3 in **If** / *Contents of URL has any value* and show the
    `error` key otherwise.
 6. Done. In the YouTube or YouTube Music app: **Share → Add to self.mp3**. The download
-   starts on the Mac within a second; open self.mp3 → Import to watch it.
+   starts on the server within a second; open self.mp3 → Import to watch it.
 
 Tip: to route everything shared this way into one tag, set that tag under
 *Settings → Importing → default import tags* rather than hard-coding `tagIds` in the

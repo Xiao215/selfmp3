@@ -9,7 +9,7 @@ import { SignInCodeSchema } from '@selfmp3/shared'
  * that claims the session in the fragment. Nobody reads or types that code: it
  * comes back inside the link, and this is where the link lands.
  *
- * Two targets rather than one, so a code meant for Settings (the Mac's server
+ * Two targets rather than one, so a code meant for Settings (the server
  * signing in) is never spent by the first-run screen, or the other way round.
  * The inbox keeps a link that arrives before its screen is listening, which a
  * cold launch from a sign-in always is, and hands each code over once.

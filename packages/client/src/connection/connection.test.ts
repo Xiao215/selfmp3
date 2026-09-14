@@ -5,7 +5,7 @@ import { normaliseBaseUrl, serverTransport } from './connection.js'
 /**
  * `normaliseBaseUrl` had no tests while it lived in the phone app, which is the
  * wrong way round: it is the one function where a wrong answer means the phone
- * cannot reach the Mac at all, and it is pure, so it is the cheapest thing in
+ * cannot reach the server at all, and it is pure, so it is the cheapest thing in
  * the repository to test.
  *
  * The cases below are the shapes a person actually types, plus the corners that

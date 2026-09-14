@@ -32,7 +32,7 @@ import {
 export function useListen(via?: ServerConnection) {
   const player = usePlayer()
   const { connection: own } = useConnection()
-  // A cloud library previews through the Mac it reached (ImportViaMac), not
+  // A cloud library previews through the server it reached (ImportViaServer), not
   // through whatever address this device happens to have stored.
   const connection = via ?? own
   const [audio] = useState(() => createListenAudio())

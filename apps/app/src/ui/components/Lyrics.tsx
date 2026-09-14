@@ -11,7 +11,7 @@ import { space, type } from '@selfmp3/client'
  *
  * The parsing and the "which line is now" search are the shared `lrc.ts`
  * helpers — the same code the web app uses, so a file that highlights
- * correctly on the Mac highlights identically here.
+ * correctly in the web app highlights identically here.
  *
  * Lines are a fixed height so the active one can be scrolled to without
  * measuring anything: `onLayout` per line would be dozens of measurements a

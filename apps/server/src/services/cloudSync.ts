@@ -78,7 +78,7 @@ const DEFAULT_DEBOUNCE_MS = 4_000
 /** After a pass fails outright — offline, or the key refused — try again after these. */
 const RETRY_DELAYS_MS = [60_000, 120_000, 300_000, 900_000, 1_800_000]
 
-/** Snapshots this Mac keeps in the bucket; older ones are deleted. */
+/** Snapshots this server keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
 
 /**
@@ -139,13 +139,13 @@ export interface CloudSyncDeps {
    * not what is being tested, which then uploads none.
    */
   readonly romanize?: (songId: number, text: string) => Promise<string[] | null>
-  /** Other devices' changes: where this Mac keeps how far it has read, and what applies them. */
+  /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
   /** Links other devices asked to import: how each is going goes in every snapshot. */
   readonly importRequests?: ImportRequestRepository
   /**
-   * Where this Mac listens right now, for the snapshot, so a device near it
+   * Where this server listens right now, for the snapshot, so a device near it
    * can import through it. Asked each time, since an address can change
    * while the library does not; the poll republishes when one has.
    */
@@ -182,7 +182,7 @@ export class CloudSyncService {
   #store: CloudStore | null = null
   /** Signed in through the doorman: the session, and what it last said about the account. */
   #session: DoormanSession | null = null
-  /** A sign-in started from this Mac that Google has not finished yet. */
+  /** A sign-in started from this server that Google has not finished yet. */
   #signIn: { attempt: string; until: number; needsCode: boolean } | null = null
   #signInTimer: NodeJS.Timeout | null = null
   /** Bumped on every connect and disconnect, so a pass for an old bucket stops. */
@@ -202,7 +202,7 @@ export class CloudSyncService {
   /** Publishing is one at a time: the import step and a pass can both ask. */
   #publishing: Promise<void> = Promise.resolve()
   #lastSnapshotHash: string | null = null
-  /** The addresses the last snapshot carried, to notice when the Mac has moved. */
+  /** The addresses the last snapshot carried, to notice when the server has moved. */
   #publishedServer: string | null = null
 
   #state: CloudStatus['state'] = 'off'
@@ -366,7 +366,7 @@ export class CloudSyncService {
    */
   beginSignIn(attempt: string): CloudStatus {
     if (!this.#doorman) {
-      throw new CloudError('other', 'No doorman is set up for this Mac to sign in through.')
+      throw new CloudError('other', 'No doorman is set up for this server to sign in through.')
     }
     this.#stopSignIn()
     this.#signIn = {
@@ -705,7 +705,7 @@ export class CloudSyncService {
    * all in one transaction with the cursors that say they have been. Returns
    * how many devices' logs could not be read to the end — a file this build
    * does not understand stops that device's log there, rather than skipping
-   * a change for good, until this Mac is updated.
+   * a change for good, until this server is updated.
    */
   async #readLogs(store: CloudStore, generation: number): Promise<number> {
     const { sync, ingest } = this.#deps
@@ -767,12 +767,12 @@ export class CloudSyncService {
       this.#lastError =
         read.ok || read.reason === 'unreadable'
           ? `A change log from ${where.deviceId} could not be read (${key}).`
-          : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this Mac.`
+          : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
       this.#logger.warn('could not use a log file', { key, reason: this.#lastError })
       return 'unreadable'
     }
     if (read.skipped > 0) {
-      this.#lastError = `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this Mac.`
+      this.#lastError = `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
       this.#logger.warn('a log file has changes this build does not know', {
         key,
         skipped: read.skipped,
@@ -783,7 +783,7 @@ export class CloudSyncService {
   }
 
   /**
-   * While the Mac sits idle, another device may write to its log. A look at
+   * While the server sits idle, another device may write to its log. A look at
    * the log folder every few minutes; a pass only when there is something new.
    */
   #startLogPoll(): void {
@@ -805,7 +805,7 @@ export class CloudSyncService {
       if (fresh) void this.#pass()
       // A new Wi-Fi network is a new address, with nothing else about the
       // library to say: the snapshot goes up again so a device can still find
-      // this Mac.
+      // this server.
       else if (this.#serverNow() !== this.#publishedServer) void this.#publish(store)
     } catch (error) {
       // The next look, or the next pass, will say what is wrong.
@@ -818,7 +818,7 @@ export class CloudSyncService {
   /**
    * Check the bookkeeping against the bucket's own listing: a thousand files
    * to a request, so a few requests for a whole library. Files can go from a
-   * bucket without this Mac knowing — deleted by hand, or the bucket made
+   * bucket without this server knowing — deleted by hand, or the bucket made
    * again under the same name — and a song that pointed at one goes up again.
    */
   async #verify(store: CloudStore): Promise<void> {
@@ -929,7 +929,7 @@ export class CloudSyncService {
 
   /**
    * The words — the sidecar if there is one, else the audio file's own tags —
-   * and their romanized lines beside them, as the Mac's own lyrics answer
+   * and their romanized lines beside them, as the server's own lyrics answer
    * carries them. `romanizedMissing` says the words are Chinese or Japanese
    * and no romaji could be made this time.
    */
@@ -990,7 +990,7 @@ export class CloudSyncService {
   /**
    * Read the newest snapshot and decide whether publishing would destroy it.
    *
-   * The one place this Mac reads a snapshot rather than only writing them. It
+   * The one place this server reads a snapshot rather than only writing them. It
    * asks a single question — how many songs does the bucket think there are —
    * and nothing else, so a snapshot written by a newer build it cannot fully
    * parse still protects the library.
@@ -1017,7 +1017,7 @@ export class CloudSyncService {
         : null
     } catch (error) {
       // Could not read it. Publishing is still the right default — refusing
-      // here would mean an unreadable bucket stops a healthy Mac syncing.
+      // here would mean an unreadable bucket stops a healthy server syncing.
       this.#logger.debug('could not check the bucket before publishing', {
         message: message(error),
       })
@@ -1070,7 +1070,7 @@ export class CloudSyncService {
     if (hash === this.#lastSnapshotHash) return
 
     // Once per run, before this device's first snapshot replaces whatever is
-    // there: is this Mac about to throw away somebody's library?
+    // there: is this server about to throw away somebody's library?
     if (!this.#checkedAgainstBucket) {
       const refusal = await this.#refuseToLoseLibrary(store, snapshot.songs.length)
       this.#checkedAgainstBucket = true
@@ -1126,7 +1126,7 @@ export class CloudSyncService {
         throw new CloudError(
           'other',
           `This bucket was set up by a newer version of self.mp3 (format ${parsed.data.format}). ` +
-            'Update this Mac before connecting it.',
+            'Update this server before connecting it.',
         )
       }
       return

@@ -62,7 +62,7 @@ const BAR = 84
 /*
  * Where the top row starts. The page covers the sidebar, which is what keeps
  * everything else clear of the Mac's traffic lights, and they sit on this
- * row's own line — so on the installed Mac app the row starts to their right
+ * row's own line — so on the installed desktop app the row starts to their right
  * rather than under them. Twenty everywhere without an inset title bar.
  */
 const HEAD_LEFT = titleBarInset > 0 ? 84 : 20

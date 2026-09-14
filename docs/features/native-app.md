@@ -21,7 +21,7 @@ while importing) are on the server's own page: its address in a browser.
 
 A phone downloads what it keeps: automatically on Wi-Fi if that is on, asking
 first on mobile data and over 500 MB, or by hand from a song or playlist. A
-downloaded song plays from disk; anything else streams while the Mac is
+downloaded song plays from disk; anything else streams while the server is
 reachable. A song removed by hand stays removed. The last library response is
 saved too, so the app opens and browses with no connection.
 
@@ -41,7 +41,7 @@ UI is not there yet; `docs/MOBILE.md` explains what was found.
 
 - The queue rules are `packages/shared/src/queue.ts`, shared with the web build.
 - Gapless is the native player's job. Crossfade cannot be done with one native
-  player, so the Mac's crossfade setting applies in a browser and not on a phone.
+  player, so the server's crossfade setting applies in a browser and not on a phone.
 - The app is outside the root TypeScript project graph and the root ESLint config
   (React Native's globals versus the server's). `npm run check:app` checks it,
   and `npm run check` runs that too. Its pure tests run in the root vitest suite.

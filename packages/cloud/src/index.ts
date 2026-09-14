@@ -1,7 +1,7 @@
 /**
  * A device's own copy of the cloud library (docs/SYNC.md).
  *
- * Every device — the Mac, a browser, the phone — keeps the whole library's
+ * Every device — the server, a browser, the phone — keeps the whole library's
  * metadata and replays other devices' changes onto it. The rules for doing
  * that are the same everywhere, so they live here rather than inside whichever
  * app happened to need them first, which was the web one.

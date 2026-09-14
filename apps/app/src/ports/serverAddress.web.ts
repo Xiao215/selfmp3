@@ -8,7 +8,7 @@ import { installedApp } from './install.web'
  * its keep: a computer may be sitting beside the server — it may *be* the
  * server — and the browser on that machine already talks to it directly with
  * nothing typed. Giving the installed app the same reach is what makes it
- * useful on the Mac the day it is built.
+ * useful on the server the day it is built.
  *
  * False in an ordinary tab, which is served by whoever served it and has
  * nothing to point anywhere.

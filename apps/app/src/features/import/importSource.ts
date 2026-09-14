@@ -7,13 +7,13 @@ import { useImportQueue, useImportTools, useLibrary } from '../../api/queries'
 
 /**
  * Whom the Import screen talks to: whatever answers this device, or — from a
- * cloud library, with the Mac within reach — that Mac directly.
+ * cloud library, with the server within reach — that server directly.
  *
  * The screen's own hooks ask whatever answers this device, which for a cloud
- * library is the bucket, and the bucket cannot read a link. A Mac reached
+ * library is the bucket, and the bucket cannot read a link. A server reached
  * directly numbers its tags and playlists its own way, so its library is read
  * from it too, rather than from this device's copy, and what is queued names
- * the Mac's ids.
+ * the server's ids.
  */
 export interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
@@ -28,31 +28,31 @@ export interface ImportSource {
 export function useImportSource(via: ServerConnection | undefined): ImportSource {
   const baseUrl = via?.baseUrl
   const token = via?.token ?? null
-  const mac = useMemo(
+  const server = useMemo(
     () => (baseUrl === undefined ? null : apiFor({ baseUrl, token })),
     [baseUrl, token],
   )
   const keys = useMemo(
     () => ({
-      library: ['via-mac', baseUrl, 'library'] as const,
-      queue: ['via-mac', baseUrl, 'queue'] as const,
-      tools: ['via-mac', baseUrl, 'tools'] as const,
+      library: ['via-server', baseUrl, 'library'] as const,
+      queue: ['via-server', baseUrl, 'queue'] as const,
+      tools: ['via-server', baseUrl, 'tools'] as const,
     }),
     [baseUrl],
   )
   const queryClient = useQueryClient()
 
-  const noMac = (): Promise<never> => Promise.reject(new Error('no Mac to ask'))
-  const macLibrary = useQuery({
+  const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
+  const serverLibrary = useQuery({
     queryKey: keys.library,
-    queryFn: () => (mac ? mac.library() : noMac()),
-    enabled: mac !== null,
+    queryFn: () => (server ? server.library() : noServer()),
+    enabled: server !== null,
     staleTime: 30_000,
   })
-  const macQueue = useQuery({
+  const serverQueue = useQuery({
     queryKey: keys.queue,
-    queryFn: () => (mac ? mac.importQueue() : noMac()),
-    enabled: mac !== null,
+    queryFn: () => (server ? server.importQueue() : noServer()),
+    enabled: server !== null,
     // The same rhythm as the screen's own queue: every second while busy, then not at all.
     refetchInterval: query => {
       const data = query.state.data
@@ -60,25 +60,25 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
       return data.active > 0 || data.queued > 0 ? 1_000 : false
     },
   })
-  const macTools = useQuery({
+  const serverTools = useQuery({
     queryKey: keys.tools,
-    queryFn: () => (mac ? mac.importTools() : noMac()),
-    enabled: mac !== null,
+    queryFn: () => (server ? server.importTools() : noServer()),
+    enabled: server !== null,
     staleTime: 60_000,
     retry: false,
   })
 
   const ownLibrary = useLibrary()
-  const ownQueue = useImportQueue(mac === null)
-  const ownTools = useImportTools(mac === null)
+  const ownQueue = useImportQueue(server === null)
+  const ownTools = useImportTools(server === null)
 
-  if (mac) {
+  if (server) {
     return {
-      api: mac,
-      library: macLibrary.data,
-      tools: macTools.data,
-      refetchTools: macTools.refetch,
-      queue: macQueue.data,
+      api: server,
+      library: serverLibrary.data,
+      tools: serverTools.data,
+      refetchTools: serverTools.refetch,
+      queue: serverQueue.data,
       invalidateQueue: () => queryClient.invalidateQueries({ queryKey: keys.queue }),
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }

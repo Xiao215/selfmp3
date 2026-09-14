@@ -6,6 +6,6 @@
  * which TypeScript resolves to the native file and Metro — preferring `.web` —
  * resolves to the web file itself. The re-export became a getter that read
  * itself until the stack ran out, and only where the inset is not zero: the
- * installed Mac app, which opened to an empty window.
+ * installed desktop app, which opened to an empty window.
  */
 export const TITLE_BAR_DRAG_ID = 'selfmp3-titlebar-drag'

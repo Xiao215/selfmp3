@@ -22,13 +22,13 @@ import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row } from './Settin
 /**
  * Settings → Cloud: the web's `CloudSettings` (docs/SYNC.md).
  *
- * With a doorman set up, this Mac signs in with Google first, and the bucket
+ * With a doorman set up, this server signs in with Google first, and the bucket
  * belongs to that Google account: connected once, and every device signed in
  * to the account gets the same library. Without one, the bucket is connected
  * directly with its key. A key is sent once and never comes back.
  *
- * This is the Mac's cloud, asked about through the Mac: it is shown wherever
- * the app talks to a Mac, and hidden for a library that is itself the cloud's.
+ * This is the server's cloud, asked about through the server: it is shown wherever
+ * the app talks to a server, and hidden for a library that is itself the cloud's.
  */
 export function CloudPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   const { data: status, error } = useCloudStatus()
@@ -87,10 +87,10 @@ const attemptId = (): string => newUid(into => into.set(Crypto.getRandomBytes(in
 
 /**
  * Signing in with Google, through the doorman. The doorman's page opens from
- * the press itself, and the Mac is told to wait for Google to finish. Google
+ * the press itself, and the server is told to wait for Google to finish. Google
  * comes back to this page — `selfmp3://settings` in an installed app, this
  * site's `/settings` in a browser — with the code inside the link, and
- * `SignInReturn` hands it to the Mac. Nobody types it.
+ * `SignInReturn` hands it to the server. Nobody types it.
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }): ReactNode {
   const { theme } = useUnistyles()
@@ -98,7 +98,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   const lost = useLinkLost(status.signingIn && status.signInNeedsCode)
 
   // Opened from the press itself, so a browser does not block it. Starting
-  // again while the Mac is waiting replaces that sign-in (`beginSignIn`).
+  // again while the server is waiting replaces that sign-in (`beginSignIn`).
   const start = (): void => {
     if (!status.doormanUrl) return
     const attempt = attemptId()
@@ -173,7 +173,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
 
 /**
  * True once Google has finished and the link back has had its moment
- * (`LINK_GRACE_MS`) without arriving. It starts over whenever the Mac stops
+ * (`LINK_GRACE_MS`) without arriving. It starts over whenever the server stops
  * waiting for one.
  */
 function useLinkLost(googleDone: boolean): boolean {
@@ -190,7 +190,7 @@ function useLinkLost(googleDone: boolean): boolean {
 }
 
 /**
- * Arriving back from Google with the code inside the link: hand it to the Mac,
+ * Arriving back from Google with the code inside the link: hand it to the server,
  * which has been waiting for it. `ports/signInReturn` keeps a link that came in
  * before this was listening — and one that comes while it is — and hands each
  * code over once.

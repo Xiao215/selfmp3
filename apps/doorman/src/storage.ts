@@ -15,11 +15,11 @@ import { badRequest, json, readJson, unprocessable } from './http.js'
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
  *
- * Connecting tries the key before anything is kept, the way the Mac's
+ * Connecting tries the key before anything is kept, the way the server's
  * `CloudSyncService.connect` does: list, then read `format.json` — or, in a
  * new bucket, write one and read it back, which proves the key can read as
  * well as write. A mistake comes back while the form is still open, as the
- * same message the Mac gives: whether it was the key, the address or the
+ * same message the server gives: whether it was the key, the address or the
  * bucket. Only a key that passes is sealed and saved.
  */
 
@@ -64,7 +64,7 @@ export async function disconnect(ctx: Context): Promise<Response> {
 }
 
 /**
- * The form's fields, tidied as the Mac tidies them, and checked for what S3
+ * The form's fields, tidied as the server tidies them, and checked for what S3
  * alone would not catch. The region and the key ID are checked for shape
  * before anything is built from them: both end up in a request header, and
  * a character no header may hold would otherwise fail deep inside the
@@ -115,7 +115,7 @@ function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
 /**
  * Make sure the bucket is one this build may write to: `format.json` says so,
  * or there is none yet and this writes it — and reads it back. The same rules,
- * and the same words, as the Mac's `#checkFormat`.
+ * and the same words, as the server's `#checkFormat`.
  */
 async function checkFormat(bucket: Bucket, now: () => number): Promise<void> {
   const existing = await bucket.read(FORMAT_KEY, FORMAT_MAX_BYTES + 1)

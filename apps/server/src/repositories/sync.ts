@@ -10,7 +10,7 @@ export interface StampRow {
 }
 
 /**
- * What this Mac keeps to combine its edits with every other device's
+ * What this server keeps to combine its edits with every other device's
  * (docs/SYNC.md): when each edited field was last set, which tag a second
  * uid for the same name means, how far into each device's log it has read,
  * and which skips from elsewhere it has already counted.
@@ -84,7 +84,7 @@ export class SyncRepository {
     this.#setStamp.run(kind, uid, field, hlc)
   }
 
-  /** The latest stamp from anywhere: where this Mac's clock carries on from. */
+  /** The latest stamp from anywhere: where this server's clock carries on from. */
   latestStamp(): string | null {
     return this.#latestStamp.get()?.hlc ?? null
   }
@@ -152,7 +152,7 @@ export class SyncRepository {
 
   // --- Reading the logs ------------------------------------------------------
 
-  /** For each other device, the last of its log files this Mac has folded in. */
+  /** For each other device, the last of its log files this server has folded in. */
   cursors(): Record<string, number> {
     return Object.fromEntries(this.#cursors.all().map(row => [row.device, row.seq]))
   }

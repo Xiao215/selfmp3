@@ -20,8 +20,8 @@ import type { CloudLibrary } from './snapshotLibrary.js'
  * Each takes the library as this device shows it, by the ids the app uses,
  * and says what changed, by uid. The replica applies them here at once and
  * uploads them; every other device replays them. Pure — the clock, new uids
- * and the time are handed in — and as strict as the Mac's routes, so an edit
- * the Mac would refuse is refused here too, before it is recorded.
+ * and the time are handed in — and as strict as the server's routes, so an edit
+ * the server would refuse is refused here too, before it is recorded.
  */
 export interface EditContext {
   readonly view: CloudLibrary
@@ -83,7 +83,7 @@ export function loveSongs(ctx: EditContext, ids: readonly number[], loved: boole
 export function setSongTags(ctx: EditContext, id: number, tagIds: readonly number[]): Change[] {
   const current = song(ctx, id)
   const uid = songUid(ctx, id)
-  // Tags that are gone are dropped quietly, as the Mac does for a stale phone.
+  // Tags that are gone are dropped quietly, as the server does for a stale phone.
   const wanted = new Set(tagIds.filter(tagId => ctx.view.uids.tags.has(tagId)))
   const had = new Set(current.tagIds)
   const flips = [
@@ -117,7 +117,7 @@ export function tagSongs(
  * Out of the library, on every device.
  *
  * `deleteFile` is what the person was asked and answered, carried through so
- * the Mac does the same thing it would have done had they asked it directly.
+ * the server does the same thing it would have done had they asked it directly.
  */
 export function removeSongs(
   ctx: EditContext,
@@ -161,7 +161,7 @@ export function skipSong(ctx: EditContext, id: number, atSeconds: number): Chang
 // --- Tags ------------------------------------------------------------------------
 
 /**
- * A new tag — or the one that already has the name, as the Mac does, so two
+ * A new tag — or the one that already has the name, as the server does, so two
  * taps of "create chill" make one tag.
  */
 export function createTag(
@@ -329,7 +329,7 @@ export function removeFromPlaylist(
 // --- Importing -------------------------------------------------------------------
 
 /**
- * A link for the Mac to import — this device cannot download it — with the
+ * A link for the server to import — this device cannot download it — with the
  * tags and the manual playlist to put what it brings in.
  */
 export function requestImport(
@@ -359,7 +359,7 @@ export function requestImport(
   }
 }
 
-/** Called off, while it is still waiting for the Mac or downloading there. */
+/** Called off, while it is still waiting for the server or downloading there. */
 export function cancelImport(ctx: EditContext, uid: string): Change[] {
   const request = ctx.view.imports.find(item => item.uid === uid)
   if (!request) throw notFound('import')

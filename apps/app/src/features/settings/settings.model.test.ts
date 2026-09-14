@@ -18,7 +18,7 @@ const TOPS = [
 ]
 
 describe('settings', () => {
-  it('leaves out the Mac sections for a library in the cloud', () => {
+  it('leaves out the server sections for a library in the cloud', () => {
     const ids = sectionsFor(true).map(section => section.id)
     expect(ids).toContain('playback')
     expect(ids).not.toContain('importing')

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  * `x.web.ts` importing from `./x` reads to TypeScript as the native twin, and to
  * Metro — which prefers `.web` on web — as the file itself. A type import is
  * erased before Metro sees it, so that is common and fine; a value import is a
- * module requiring itself. That is how the installed Mac app opened to an empty
+ * module requiring itself. That is how the installed desktop app opened to an empty
  * window (`apps/app/src/ports/titleBarDragId.ts` has the story): typecheck
  * cannot see it, and a browser tab never read the value, so it is checked here,
  * on the source.

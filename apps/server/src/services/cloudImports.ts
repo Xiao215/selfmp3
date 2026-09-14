@@ -5,10 +5,10 @@ import type { ImportRepository } from '../repositories/imports.js'
 import type { SyncRepository } from '../repositories/sync.js'
 
 /**
- * Links other devices asked this Mac to import (docs/SYNC.md).
+ * Links other devices asked this server to import (docs/SYNC.md).
  *
  * An iPhone cannot run yt-dlp, and YouTube turns data centres away, so a
- * link pasted there becomes a request in its change log; this Mac reads it
+ * link pasted there becomes a request in its change log; this server reads it
  * with the rest of the log, and here looks the link up — one song or a whole
  * playlist — and queues what the library does not have yet, with the tags
  * and playlist the request named. From then on the jobs are ordinary imports,

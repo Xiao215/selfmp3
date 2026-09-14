@@ -19,7 +19,7 @@ import type { StampRow } from '../repositories/sync.js'
  * out can be tested without a bucket or a server.
  *
  * Only songs whose audio is uploaded are in it. A song whose file has gone
- * missing on this Mac since is still in it — the bucket has its audio, which
+ * missing on this server since is still in it — the bucket has its audio, which
  * is the point of having one — until the song is forgotten for good.
  */
 export interface SnapshotInput {
@@ -42,7 +42,7 @@ export interface SnapshotInput {
   readonly upTo?: Readonly<Record<string, number>>
   /** Links other devices asked to import lately, and how each went. */
   readonly imports?: readonly ImportRequest[]
-  /** Where this Mac listens, for a device near enough to ask it directly. */
+  /** Where this server listens, for a device near enough to ask it directly. */
   readonly server?: CloudServer
 }
 
@@ -209,12 +209,12 @@ const GUARD_MAX_LOSS = 0.5
 /**
  * Should this device refuse to replace the library in the bucket?
  *
- * The Mac only ever *writes* snapshots — it has never read one — and the newest
- * snapshot is what every other device adopts. So a Mac that comes up holding
+ * The server only ever *writes* snapshots — it has never read one — and the newest
+ * snapshot is what every other device adopts. So a server that comes up holding
  * less than the bucket knows about will quietly publish its own sparse database
  * as the whole library, and every phone and browser will follow it. That is not
  * hypothetical: it is what a reinstall, a restored backup, a half-finished
- * first scan, or a second Mac signed in to the same account all look like.
+ * first scan, or another server signed in to the same account all look like.
  *
  * Today the audio survives, because nothing deletes from the bucket. Once
  * anything does, this becomes permanent, so the refusal wants to exist first.
@@ -230,12 +230,12 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
   return onThisDevice < inBucket * GUARD_MAX_LOSS
 }
 
-/** What to tell somebody whose Mac just declined to publish. */
+/** What to tell somebody whose server just declined to publish. */
 export function publishRefusedMessage(inBucket: number, onThisDevice: number): string {
   return (
-    `refused to publish: the bucket's library has ${inBucket} songs and this Mac has ` +
+    `refused to publish: the bucket's library has ${inBucket} songs and this server has ` +
     `${onThisDevice}. Publishing would have replaced the first with the second on every ` +
-    `device. If this Mac is still scanning, wait; if it was reinstalled or restored, let it ` +
+    `device. If this server is still scanning, wait; if it was reinstalled or restored, let it ` +
     `finish syncing before publishing. To publish anyway, set SELFMP3_PUBLISH_ANYWAY=1.`
   )
 }

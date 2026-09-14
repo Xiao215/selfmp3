@@ -49,7 +49,7 @@ let connection: ServerConnection | null = null
  *
  * The bucket, through the doorman, when this device is signed in — with a
  * header, since that is all the doorman reads, and `song.path` is already the
- * key there. Otherwise a Mac, where the token has to ride in the query string:
+ * key there. Otherwise a server, where the token has to ride in the query string:
  * the same URL is handed to the OS audio player, which cannot attach headers.
  */
 async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<string, string> }> {
@@ -116,8 +116,8 @@ function transferFor(
       })
       const finished = await task.downloadAsync()
       // A song kept for later wants its picture kept with it. The bucket's
-      // covers are fetched on their own path (offline/covers.ts); a Mac's are
-      // fetched here, while the Mac is known to be answering.
+      // covers are fetched on their own path (offline/covers.ts); a server's are
+      // fetched here, while the server is known to be answering.
       if (finished !== null && song.hasArt && from.headers === undefined && connection) {
         void ensureServerCover(
           song.id,

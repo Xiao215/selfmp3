@@ -304,7 +304,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   const keepPlayed = useCallback((songId: number) => {
     const now = rules.current
-    // Only where songs come from the bucket; reaching a Mac, this device either
+    // Only where songs come from the bucket; reaching a server, this device either
     // holds the files already or streams them from home. Playing a song removed
     // by hand is not asking for it back, and one downloading everything anyway
     // has nothing to second-guess.

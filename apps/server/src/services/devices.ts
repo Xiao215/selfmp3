@@ -10,7 +10,7 @@ import type { EventHub, EventSink } from './events.js'
  * the service runs two small timers: a presence sweep, so a device that
  * simply closed its tab flips to offline on everyone else's screen without
  * anyone having to send anything; and a library-version watch, so a change
- * made from the Mac shows up on the phone without a refetch on focus.
+ * made from the server shows up on the phone without a refetch on focus.
  */
 
 /** How often to check whether anyone dropped off the presence window. */

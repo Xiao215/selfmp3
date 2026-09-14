@@ -24,11 +24,11 @@ import { buildSnapshot } from './cloudSnapshot.js'
 import { LocalEdits, SyncClock } from './localEdits.js'
 
 /**
- * The Mac applies other devices' changes to its database; every other device
+ * The server applies other devices' changes to its database; every other device
  * replays them over a snapshot in memory (packages/shared/src/sync.ts). If the
  * two ever disagreed, devices would drift apart for good. So each test here
  * runs the same changes through both and expects the same library — and the
- * live playlists the Mac builds in SQL to match the ones a phone builds in
+ * live playlists the server builds in SQL to match the ones a phone builds in
  * JavaScript.
  */
 
@@ -119,8 +119,8 @@ describe('CloudIngest', () => {
     return id
   }
 
-  /** The snapshot this Mac would publish now, exactly as the sync builds it. */
-  function macSnapshot(): CloudSnapshot {
+  /** The snapshot this server would publish now, exactly as the sync builds it. */
+  function serverSnapshot(): CloudSnapshot {
     return buildSnapshot({
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
@@ -205,10 +205,10 @@ describe('CloudIngest', () => {
 
     // Edited here, later than the phone's edit of the same field below.
     now = BASE + 50_000
-    songs.patch(a, { title: 'Alpha (Mac)' })
+    songs.patch(a, { title: 'Alpha (Server)' })
     edits.songs([a], ['title'])
 
-    const before = macSnapshot()
+    const before = serverSnapshot()
     const [A, B, C] = [a, b, c].map(id => uidOf('songs', id)) as [string, string, string]
     const [CHILL, RAIN] = [chill, rain].map(id => uidOf('tags', id)) as [string, string]
     const MIX = uidOf('playlists', mix)
@@ -219,7 +219,7 @@ describe('CloudIngest', () => {
     const night = 'f'.repeat(31) + '3'
 
     const changes: Change[] = [
-      // Loses to the Mac's later edit; the artist, which the Mac did not touch, wins.
+      // Loses to the server's later edit; the artist, which the server did not touch, wins.
       {
         type: 'songEdited',
         hlc: at(10),
@@ -228,7 +228,7 @@ describe('CloudIngest', () => {
       },
       { type: 'songEdited', hlc: at(11), uid: B, fields: { loved: true, year: 1999 } },
       { type: 'songEdited', hlc: at(12, 'web-cccc2222'), uid: C, fields: { loved: true } },
-      // "Chill" made on the phone while the Mac had "chill": one tag.
+      // "Chill" made on the phone while the server had "chill": one tag.
       { type: 'tagCreated', hlc: at(13), uid: twin, name: 'Chill', hue: 5 },
       { type: 'songTagged', hlc: at(14), uid: B, tagUid: twin, on: true },
       { type: 'songTagged', hlc: at(15), uid: A, tagUid: CHILL, on: false },
@@ -289,14 +289,14 @@ describe('CloudIngest', () => {
     ]
 
     const result = ingest.apply(changes)
-    const after = macSnapshot()
+    const after = serverSnapshot()
     const phone = replayed(before, changes)
 
     expect(comparable(after)).toEqual(comparable(phone))
     expect(result.applied).toBe(19)
     // And it is the library it should be, not just the same wrong one twice.
     const song = (uid: string) => after.songs.find(s => s.uid === uid)
-    expect(song(A)).toMatchObject({ title: 'Alpha (Mac)', artist: 'Phone', tagUids: [] })
+    expect(song(A)).toMatchObject({ title: 'Alpha (Server)', artist: 'Phone', tagUids: [] })
     expect(song(B)).toMatchObject({ loved: true, year: 1999, playCount: 1, tagUids: [CHILL] })
     expect(song(C)?.skipCount).toBe(1)
     expect(after.aliases).toEqual({ [twin]: CHILL })
@@ -316,7 +316,7 @@ describe('CloudIngest', () => {
     const b = addSong('Bravo')
     const mix = playlists.create({ name: 'Mix', description: '', kind: 'manual', rules: null }).id
     playlists.add(mix, [a, b])
-    const before = macSnapshot()
+    const before = serverSnapshot()
     const A = uidOf('songs', a)
     const changes: Change[] = [
       { type: 'songEdited', hlc: at(1), uid: A, fields: { loved: true } },
@@ -327,7 +327,7 @@ describe('CloudIngest', () => {
     expect(result.removed).toEqual([{ id: a, path: 'Alpha.m4a' }])
     expect(songs.byId(a)).toBeNull()
     expect(sync.allStamps().filter(stamp => stamp.uid === A)).toEqual([])
-    expect(comparable(macSnapshot())).toEqual(comparable(replayed(before, changes)))
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 
   it('applies a change arriving late only where nothing later has been', () => {
@@ -345,17 +345,17 @@ describe('CloudIngest', () => {
     expect(songs.byId(a)).toMatchObject({ title: 'Later', year: 1990 })
   })
 
-  it('stamps what the Mac does after anything it has taken in', () => {
+  it('stamps what the server does after anything it has taken in', () => {
     const a = addSong('Alpha')
     const A = uidOf('songs', a)
-    // Another device's clock is a minute ahead of this Mac's.
+    // Another device's clock is a minute ahead of this server's.
     ingest.apply([{ type: 'songEdited', hlc: at(60), uid: A, fields: { title: 'Phone' } }])
-    songs.patch(a, { title: 'Mac' })
+    songs.patch(a, { title: 'Server' })
     edits.songs([a], ['title'])
     expect(sync.stamp('song', A, 'title')! > at(60)).toBe(true)
-    // So the phone's edit, arriving again, does not undo the Mac's.
+    // So the phone's edit, arriving again, does not undo the server's.
     ingest.apply([{ type: 'songEdited', hlc: at(60), uid: A, fields: { title: 'Phone' } }])
-    expect(songs.byId(a)?.title).toBe('Mac')
+    expect(songs.byId(a)?.title).toBe('Server')
   })
 
   it('moves the cursors with the changes, and skips one that fails without losing the rest', () => {
@@ -386,7 +386,7 @@ describe('CloudIngest', () => {
     expect(sync.cursors()).toEqual({ 'web-bbbb1111': 7 })
   })
 
-  describe('live playlists on a phone and on the Mac', () => {
+  describe('live playlists on a phone and on the server', () => {
     const rulesets: CloudSmartRules[] = []
     const base = {
       match: 'all' as const,
@@ -484,7 +484,7 @@ describe('CloudIngest', () => {
     })
 
     it('agree on every kind of rule, sort and limit', () => {
-      const snapshot = macSnapshot()
+      const snapshot = serverSnapshot()
       const uidOfSong = new Map(cloud.songFiles().map(file => [file.id, file.uid]))
       const tagIdOf = new Map([...cloud.tagUids()].map(([id, uid]) => [uid, id]))
       for (const cloudRules of rulesets) {
@@ -496,7 +496,7 @@ describe('CloudIngest', () => {
               : rule,
           ),
         }
-        const mac = playlists
+        const server = playlists
           .songIds({
             id: 0,
             name: 'check',
@@ -511,7 +511,7 @@ describe('CloudIngest', () => {
           })
           .map(id => uidOfSong.get(id))
         const phone = livePlaylistSongs(cloudRules, snapshot.songs)
-        expect({ rules: cloudRules, songs: phone }).toEqual({ rules: cloudRules, songs: mac })
+        expect({ rules: cloudRules, songs: phone }).toEqual({ rules: cloudRules, songs: server })
       }
     })
   })

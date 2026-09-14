@@ -1,7 +1,7 @@
 # Bring my YouTube Music library
 
 Liked Music (`list=LM`) and your own private playlists only resolve when YouTube sees a
-signed-in session. yt-dlp can borrow the login from a browser on the Mac
+signed-in session. yt-dlp can borrow the login from a browser on the server
 (`--cookies-from-browser`) or read a Netscape-format `cookies.txt`. self.mp3 wires that up
 as settings and applies it to **every probe and download**, so once configured, private
 links just work everywhere — the import box, the share endpoint, and the panel below.

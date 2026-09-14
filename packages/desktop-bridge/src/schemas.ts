@@ -175,7 +175,7 @@ export const fileTextSchema = z.string().max(1024 * 1024)
 /** A download's id, the page's own handle on it, used to cancel. */
 export const transferIdSchema = z.string().min(1).max(128)
 
-/** Where a song's bytes come from: the Mac, or the bucket through the doorman. */
+/** Where a song's bytes come from: the server, or the bucket through the doorman. */
 export const downloadRequestSchema = z.object({
   id: transferIdSchema,
   kind: fileKindSchema,

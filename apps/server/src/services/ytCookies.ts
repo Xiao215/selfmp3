@@ -65,7 +65,7 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
         lower,
       )
     ) {
-      return `Couldn’t find ${browser}’s cookie database. Is ${browser} installed and has it been opened at least once on this Mac?`
+      return `Couldn’t find ${browser}’s cookie database. Is ${browser} installed and has it been opened at least once on this server?`
     }
     if (/failed to decrypt|keyring|keychain|dpapi/.test(lower)) {
       return `Couldn’t decrypt ${browser}’s cookies. yt-dlp needs to read the browser’s key from the macOS keychain; allow it when prompted, or use a cookies.txt file instead.`

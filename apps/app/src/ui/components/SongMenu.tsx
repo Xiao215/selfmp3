@@ -271,7 +271,7 @@ function Items({
       <View style={styles.divider} />
 
       <SheetItem icon={icon(Info)} label="Song details" onPress={() => onOpen('details')} />
-      {/* The lookup runs on the Mac, against iTunes and MusicBrainz. */}
+      {/* The lookup runs on the server, against iTunes and MusicBrainz. */}
       {fromCloud ? null : (
         <SheetItem icon={icon(Sparkles)} label="Fix metadata…" onPress={() => onOpen('metadata')} />
       )}

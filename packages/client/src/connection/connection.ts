@@ -22,7 +22,7 @@ export interface ServerConnection {
  * origin, or null when it cannot be salvaged.
  *
  * A missing scheme is guessed from whether a port was named, because the two
- * ways of reaching the Mac differ in exactly that. `tailscale serve --bg 4600`
+ * ways of reaching the server differ in exactly that. `tailscale serve --bg 4600`
  * (docs/SETUP.md) puts the server behind Tailscale's own HTTPS on 443, so a
  * bare hostname is `https://`. A port typed out is someone reaching the server
  * directly, which is plain HTTP. Guessing `http://` for both — which is what
@@ -33,7 +33,7 @@ export interface ServerConnection {
  * supplies is only partly the standard one. Since the whole job is "make one
  * address out of one line someone typed", string work is both honest and
  * portable — and this is the function where a wrong answer means the phone
- * cannot reach the Mac at all, so it is also the one most worth being able to
+ * cannot reach the server at all, so it is also the one most worth being able to
  * test anywhere.
  *
  * The behaviour is `URL`'s, deliberately, for the parts that matter here: the

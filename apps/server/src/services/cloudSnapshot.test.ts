@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { publishRefusedMessage, publishWouldLoseLibrary } from './cloudSnapshot.js'
 
 /**
- * The Mac only ever writes snapshots, and the newest one in the bucket is what
- * every other device adopts. So a Mac that comes up holding less than the
+ * The server only ever writes snapshots, and the newest one in the bucket is what
+ * every other device adopts. So a server that comes up holding less than the
  * bucket knows about would publish its own sparse database as the whole
  * library — which is what a reinstall, a restored backup, an unfinished first
- * scan, or a second Mac on the same account all look like.
+ * scan, or another server on the same account all look like.
  */
 describe('refusing to publish over a library', () => {
   it('refuses when most of the library would vanish', () => {

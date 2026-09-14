@@ -30,7 +30,7 @@ export function isDeviceOnline(
  *
  * The freshest state that actually has a song wins, preferring a device that
  * was *playing* over one that merely had something loaded — if the phone was
- * paused on song A an hour ago and the Mac is playing song B now, B is what
+ * paused on song A an hour ago and the desktop is playing song B now, B is what
  * you want to continue. This device's own state is skipped: the local queue
  * is already restored from localStorage, so offering it back is noise.
  */

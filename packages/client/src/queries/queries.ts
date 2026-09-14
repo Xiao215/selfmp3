@@ -49,7 +49,7 @@ import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
  * became `clientApi().` and the two offline-mirror calls became the
  * `LibrarySnapshotStore` port, and that is the whole diff. Everything else that
  * differed between the two apps turned out to be the platform, not the query —
- * the phone keyed every cache entry by the Mac's address, which is now a
+ * the phone keyed every cache entry by the server's address, which is now a
  * `queryClient.clear()` when the address changes, and gated every query on
  * having an address at all, which is `ClientState.ready`.
  */
@@ -130,7 +130,7 @@ function useCloudLibraryChanges(client: QueryClient): void {
 /**
  * The library, with an offline fallback.
  *
- * When the request fails because the Mac is asleep, the last snapshot written
+ * When the request fails because the server is asleep, the last snapshot written
  * to IndexedDB is returned instead — so the app opens and plays cached music
  * rather than showing an error screen.
  */
@@ -150,7 +150,7 @@ export function useLibrary(): UseQueryResult<Library, Error> {
       const fromCloud = api.answersFromCloud()
       let answered = false
       if (!fromCloud && client.getQueryData(queryKeys.library) === undefined) {
-        // Opening the app: a Mac can take seconds to answer, or never (asleep,
+        // Opening the app: a server can take seconds to answer, or never (asleep,
         // fifteen seconds), and the saved copy is on this device. It is shown
         // meanwhile — dated 0, so it counts as stale and says it is not an
         // answer — and replaced by the answer, or kept beside the error, below.
@@ -694,7 +694,7 @@ export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList,
 }
 
 /**
- * This Mac's connection to the cloud bucket. Polled quickly while a pass is
+ * This server's connection to the cloud bucket. Polled quickly while a pass is
  * uploading, so the progress bar moves, and slowly otherwise, so a pass the
  * server starts by itself after an import still shows up.
  */
@@ -743,7 +743,7 @@ export function useCloudActions() {
 }
 
 /**
- * The web app's imports: links asked of the Mac through the bucket. Looked at
+ * The web app's imports: links asked of the server through the bucket. Looked at
  * again every half minute while one is still waiting or downloading.
  */
 export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
@@ -847,7 +847,7 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
 }
 
 /**
- * The Mac's settings, for the few the phone has to agree about.
+ * The server's settings, for the few the phone has to agree about.
  *
  * How much of a song counts as a play is one of them: it is one number deciding
  * one thing, and the two clients disagreeing means the same listening is

@@ -357,7 +357,7 @@ describe('keeping songs on this device', () => {
   })
 
   it('reports a song with nowhere to fetch it from, instead of stalling (a phone bug)', async () => {
-    // The phone looked for a Mac or a cloud session outside its try, so this
+    // The phone looked for a server or a cloud session outside its try, so this
     // error escaped the loop: nothing on screen, and nothing downloading again.
     const storage = fakeStorage()
     let attempts = 0

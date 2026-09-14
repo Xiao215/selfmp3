@@ -48,7 +48,7 @@ export interface CloudLibrary {
   readonly playlistSongs: Readonly<Record<number, readonly number[]>>
   /** Links asked to be imported from any device, and how each went, newest first. */
   readonly imports: readonly ImportRequestView[]
-  /** Where the Mac that wrote the snapshot listens, or null from one that never said. */
+  /** Where the server that wrote the snapshot listens, or null from one that never said. */
   readonly server: CloudServer | null
   /** The uid behind each id in this library, for turning an edit into a change. */
   readonly uids: {
@@ -155,7 +155,7 @@ export function snapshotToLibrary(
       pinned: playlist.pinned,
       createdAt: playlist.createdAt,
       updatedAt: playlist.updatedAt,
-      // Plays of a playlist stay on the Mac that heard them; the bucket has none.
+      // Plays of a playlist stay on the server that heard them; the bucket has none.
       lastPlayedAt: null,
     }
   })

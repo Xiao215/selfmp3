@@ -14,7 +14,7 @@ import { serverEvents } from './events'
  * fake XHR that hands over the response a piece at a time, the way a real one
  * does on readyState 3.
  *
- * What it does not show is the same code against a real Mac on a real phone.
+ * What it does not show is the same code against a real server on a real phone.
  * That is still owed.
  */
 
@@ -76,7 +76,7 @@ function validEvent(): ServerEvent {
 
 const frame = (event: unknown): string => `data: ${JSON.stringify(event)}\n\n`
 
-describe('the phone reading the Mac’s event stream', () => {
+describe('the phone reading the server’s event stream', () => {
   let events: ServerEvent[]
   let opens: number
   let closes: number

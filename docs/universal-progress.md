@@ -84,7 +84,7 @@ All recorded in the commit messages that made them. In summary:
 1. **A stale library now stands in for any failed request, on the web too.**
    The web used to fall back only when the network was gone. Xiao decided this
    one at 06:30: a music library is not a dashboard, and one song missing beats
-   all of them missing. Visible on the web: an erroring Mac shows the last
+   all of them missing. Visible on the web: an erroring server shows the last
    library rather than an error screen. Other screens still report the failure.
 2. **The phone's library refetches after 30 seconds rather than 60, and
    retries twice rather than once** — but no longer retries when offline, which
@@ -240,7 +240,7 @@ its `apps/app` is a phase behind.
 
 **The phone app now runs in a browser.** Not a spike route: the real app, on
 the shared client, booting at both widths with no uncaught errors and landing
-on the sign-in screen because nothing has told it where a Mac is.
+on the sign-in screen because nothing has told it where a server is.
 
 `verify/boot.spec.ts` is new. A successful export proves the bundle was built,
 not that it runs — a module that throws at import time exports perfectly and
@@ -441,7 +441,7 @@ The iOS build is also the device half of spike check 2: Unistyles,
 - **Playback, twice.** `react-native-track-player` has no web implementation
   this repo will take, so the web bundle stubs it. The web engine is phase 3's
   `PlaybackEngine` port. These are phase 3's gate.
-- **The Mac's settings.** The phone's Settings carries server, downloads,
+- **The server's settings.** The phone's Settings carries server, downloads,
   appearance and about; crossfade and what counts as a play arrive with phase 4.
 
 ### Finished after that was written
@@ -498,7 +498,7 @@ maestro test .maestro/smoke.yaml
 ```
 
 For the web target and its flows, the server needs to allow the origin and the
-app needs to be told where the Mac is:
+app needs to be told where the server is:
 
 ```
 SELFMP3_CORS_ORIGINS=http://localhost:8090 npm run dev
@@ -528,7 +528,7 @@ not done is at the end.
 | `verify/flows --project=phone` vs `apps/app` | **8 passed, 1 skipped** |
 | `verify/flows` vs `apps/web` | **pass** — 18, unchanged |
 
-The one skip is the Mac's settings, which phase 4 brings to the phone. **Both
+The one skip is the server's settings, which phase 4 brings to the phone. **Both
 playback flows now pass against `apps/app`** — they were phase 2's two skips,
 waiting on exactly this.
 
@@ -588,9 +588,9 @@ same-origin and reaches none of it.
   policy that belongs above it; writing that policy once means splitting the
   phone's queue, which is what makes the phone play with no signal, and that
   wants airplane-mode testing rather than a green type check.
-- **The phone's stream reader against a real Mac.** Devices and handoff are
+- **The phone's stream reader against a real server.** Devices and handoff are
   in (see below), and the reader's framing is tested, but it has not run on a
-  phone connected to a Mac.
+  phone connected to a server.
 - **`.maestro/offline.yaml` and `.maestro/devices.yaml`**, which are still the
   skeletons the spike wrote and assert against screens that do not exist yet.
 - Moving `PlayerProvider` into `packages/client`. It is one provider now, and
@@ -622,11 +622,11 @@ What is established, and where:
 | The devices sheet lists the other devices by name | a Playwright probe against the web build at 375: another tab "Playing now", and the Mac's browser, shortened from "Mac · Chrome" to "Mac" |
 | Nothing else regressed | every flow suite at both widths, and the phone smoke flow |
 | The phone's reader frames and reconnects correctly | `apps/app/src/ports/events.test.ts`, 7 tests against a fake XHR |
-| The phone's reader works against a real Mac | **not established** |
+| The phone's reader works against a real server | **not established** |
 
 The last row is owed for two reasons. The simulator the app was built on is
 signed in to the cloud, where devices do nothing by design — presence travels
-through the Mac, the same as the web app's cloud build — and it was not signed
+through the server, the same as the web app's cloud build — and it was not signed
 out, because signing back in needs Xiao's Google account (question 5). A second
 simulator set up for the test wedged: its CoreSimulator service crashed
 (`Mach error -308 — (ipc/mig) server died`), every `simctl` call against it
@@ -691,7 +691,7 @@ one and covered by those tests:
    next download that genuinely failed was treated as the cancel and said
    nothing. It is now set only for a transfer in flight.
 2. **A download with nowhere to come from failed silently.** Finding the
-   source — the Mac, or the doorman for a cloud session — happened before the
+   source — the server, or the doorman for a cloud session — happened before the
    `try`. With neither, its error escaped the download loop unreported, and
    the sync line went on saying it was adding songs while nothing downloaded.
    Starting the transfer is now inside the `try`, and the error is shown.
@@ -718,10 +718,10 @@ also decides the gates by exit code.
 ### The phone flows, run for the first time
 
 `smoke.yaml` had run before. `devices.yaml` and `offline.yaml` were still the
-spike's skeletons, and had never run. They needed a phone connected to the Mac
+spike's skeletons, and had never run. They needed a phone connected to the server
 by address, which the phone in use was not, because it was signed in to the
 cloud (question 5). So a second simulator was set up: an iPhone 17 Pro Max with
-the same dev client, connected to the Mac through `selfmp3://onboarding`. The
+the same dev client, connected to the server through `selfmp3://onboarding`. The
 cloud-signed iPhone 17 Pro was left as it was.
 
 | Check | Result |
@@ -730,7 +730,7 @@ cloud-signed iPhone 17 Pro was left as it was.
 | `maestro test .maestro/devices.yaml`, the web app playing in a browser as the other device | passed |
 | `.maestro/offline-run.sh` | passed; the server resumed and answered afterwards |
 | Handoff position, read from `GET /api/devices` | the web tab paused at 106 s; the phone was playing the same song at 109 s |
-| The phone's event-stream reader against a real Mac | a `pause` posted to the server for the phone reported one delivery, and the phone paused |
+| The phone's event-stream reader against a real server | a `pause` posted to the server for the phone reported one delivery, and the phone paused |
 
 **A handoff started the song from the top.** Found on the first run of
 `devices.yaml`. "Play here" took the other device's queue and paused it there,
@@ -750,10 +750,10 @@ phone had and fails unless the song changes.
 **Offline is a frozen server, not airplane mode.** The simulator has no
 airplane mode. A test-only switch in the app would prove the switch, not the
 player, because track-player fetches its own URLs. `offline-run.sh` sends the
-Mac's server SIGSTOP for the run and SIGCONT after, whatever happens. To the
-phone that is a sleeping Mac.
+server SIGSTOP for the run and SIGCONT after, whatever happens. To the
+phone that is a sleeping server.
 
-What the phone does with the Mac out of reach, checked by hand and then by the
+What the phone does with the server out of reach, checked by hand and then by the
 flow:
 
 - A downloaded song plays from the file and keeps playing.
@@ -770,7 +770,7 @@ flow:
 
 ### Corrections to "Phase 3, continued" above
 
-- "The phone's reader works against a real Mac — **not established**." It is
+- "The phone's reader works against a real server — **not established**." It is
   now; see the table above.
 - "A second simulator set up for the test wedged … every `simctl` call against
   it hung." The CoreSimulator crash (`Mach error -308`) was real. The hung calls
@@ -786,7 +786,7 @@ flow:
 | `npm run check:app` | exit 0 |
 | `npm run check` | exit 0, 99 test files |
 | `npx playwright test verify/flows --project=desktop`, against `apps/app` on 8090, with `--project=phone` as well | exit 0: 16 passed, 2 skipped — the settings-page flow at each width, skipped by its own condition |
-| `maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml` | all three pass on the Mac-connected simulator (offline through its runner) |
+| `maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml` | all three pass on the server-connected simulator (offline through its runner) |
 
 ### What phase 3 leaves
 
@@ -906,7 +906,7 @@ from review. The captured states still have to pass check 2 by eye.
   to the Up next tab and back, as on the web. The tab and mode live in the
   address (`/now-playing?tab=queue`), which is how the bar changes them.
 
-  Romaji and pinyin are the synced setting and the Mac's romanizer, shown
+  Romaji and pinyin are the synced setting and the server's romanizer, shown
   under each line when they line up exactly. The cover palette moved to
   `packages/client/src/art/palette.ts` (5 tests), and a port reads the
   pixels: a canvas on the web, nothing yet on a phone. The page's rules are
@@ -1045,8 +1045,8 @@ from review. The captured states still have to pass check 2 by eye.
     comes back to Settings with the code in the address (`ports/signInReturn`);
     a phone types the code the doorman shows;
   - the bucket form, with the region only for an address it cannot read.
-  Checked live against this Mac: signed in as Xiao, 13 of 13 songs in
-  `selfmp3-xiao215`. Signing in was not exercised, because the Mac is already
+  Checked live against this server: signed in as Xiao, 13 of 13 songs in
+  `selfmp3-xiao215`. Signing in was not exercised, because the server is already
   signed in and signing it out to test would be Xiao's call.
 - **Desktop users moved to the new app** (Xiao, 2026-09-13: "switch it").
   - The server's `webDir` now defaults to `apps/app/dist`. The old web app
@@ -1057,7 +1057,7 @@ from review. The captured states still have to pass check 2 by eye.
     (`/classic/api/library`), so the server rewrites those to `/api` before
     anything else sees the path. Without that the old app at `/classic`
     thought the server was offline.
-  - A browser loaded from a Mac finds it by asking the page's own origin for
+  - A browser loaded from a server finds it by asking the page's own origin for
     `/api/health` (`ports/servedBy`), as the old app assumed. The phone
     build never asks.
   - GitHub Pages now publishes `apps/app` (`EXPO_PUBLIC_BASE` for the path,
@@ -1115,7 +1115,7 @@ seven states at 1280, and the phone's five.
     web shares them across devices. The accent already worked this way
     (`ui/accent.tsx`), and the theme follows it for the same reason: how a
     screen looks belongs to the screen.
-  - Cloud (the Mac's connection to the bucket, and uploads) is not here yet.
+  - Cloud (the server's connection to the bucket, and uploads) is not here yet.
     Its place is taken by Connection, which shows what this device talks to.
   - Fix covers is not here yet.
   - Offline music is this device's download queue. The two new settings
@@ -1128,7 +1128,7 @@ seven states at 1280, and the phone's five.
     need the mobile data question is skipped rather than asked about
     mid-play; only a song started by hand asks.
   - "Offline" means the phone has no connection at all. A phone online
-    with the Mac asleep still tries to stream.
+    with the server asleep still tries to stream.
   - Downloads run only while the app is open. Background transfers are
     still the thing to retry (see `src/ports/downloadStorage.ts`).
 - **The palette, where this app differs.**
@@ -1200,10 +1200,10 @@ the app (28 passed; 2 skip by design on phone), and each new flow also
 passes against the old web app. Phone smoke passes on the Pro Max.
 
 **Waiting for Xiao.**
-1. **Cloud settings** (the Mac's connection to the bucket: sign in with
+1. **Cloud settings** (the server's connection to the bucket: sign in with
    Google, storage fields, sync, disconnect). About 600 lines on the web. It
    needs a real Google sign-in to test, which the ground rules say to ask
-   for, and a half-tested version could break the Mac's cloud link. Not
+   for, and a half-tested version could break the server's cloud link. Not
    started.
 2. **Moving desktop users.** The plan's last step for this phase: point the
    server's `webDir` at `apps/app/dist` and change the Pages workflow.
@@ -1328,8 +1328,8 @@ for bit-perfect output.
 
 5. **Should a phone signed in only to the cloud see your other devices?**
    Found while bringing devices and handoff to the phone in phase 3. Presence,
-   handoff and remote control all travel through the Mac's event stream, so a
-   phone signed in with Google and pointed at no Mac is alone: it sends no
+   handoff and remote control all travel through the server's event stream, so a
+   phone signed in with Google and pointed at no server is alone: it sends no
    heartbeat, opens no stream, and its devices sheet says it is looking. That is
    the same trade the web app makes in its cloud build (`LoneDevicesProvider`),
    and it is what the code does now. The alternative is presence relayed
@@ -1343,7 +1343,7 @@ for bit-perfect output.
 
 6. **Answered 2026-09-12 — yes; see "Downloading and streaming" above.**
    **Should the phone say so when a song cannot play?** Found running the
-   offline check in phase 3. With the Mac out of reach, tapping a song that is
+   offline check in phase 3. With the server out of reach, tapping a song that is
    not downloaded loads it into the mini player, where it sits paused with no
    message. The plan's offline check asks for the web app's behaviour:
    refuse to start it, and show "“<title>” isn't downloaded — it plays once
@@ -1361,7 +1361,7 @@ workflow, which publishes the new app, and publishing is a stop-and-ask. That
 merge waits for Xiao.
 
 Each tool moves on its own, in the plan's order. Until one has moved, the old
-app still serves it, now under `/classic` on the Mac.
+app still serves it, now under `/classic` on the server.
 
 ### Import
 
@@ -1552,7 +1552,7 @@ The web's `MetadataDialog`, opened from a song's menu ("Fix metadata…"), and i
   changes the picked one would make. Centred at desktop width; the whole screen
   on a phone, clear of the status bar and the home bar.
 - "Fix metadata…" is in the song menu, and not for a cloud library: the lookup
-  runs on the Mac. The cover-art row starts and stops the pass on the Mac and
+  runs on the server. The cover-art row starts and stops the pass on the server and
   refetches the library as covers land.
 - Checked: `verify/flows/metadata.spec.ts` opens the dialog from a row's menu,
   unticks the changes and cancels, against both apps at desktop width; nothing
@@ -1576,7 +1576,7 @@ a time, playing each while you tap its tags.
   leaves. Play along is remembered under the web's own key.
 - It is reached from an Untagged row at the top of the sidebar's tags and from
   the palette ("Tag untagged songs"), both only when a song has no tag and the
-  library is not a cloud one: tagging writes to the Mac.
+  library is not a cloud one: tagging writes to the server.
 - Checked: `verify/flows/inbox.spec.ts` untags one song, tags it back through
   the pass and restores it whatever happens, against both apps at both widths.
   The reference set gains `inbox-list` and `inbox-triage`, and the new app is
@@ -1588,7 +1588,7 @@ a time, playing each while you tap its tags.
 ### Importing into a cloud library
 
 The web's `CloudImportView`, which its cloud build showed at `/import` in place
-of the Mac's screen. The new app had a notice there instead ("done on the Mac
+of the server's screen. The new app had a notice there instead ("done on the Mac
 for now").
 
 - `features/import/cloudImport.model.ts` holds the rules with nothing drawn
@@ -1597,17 +1597,17 @@ for now").
   still be cancelled, and how many have finished, so the library is fetched
   again when one brings songs.
 - `features/import/CloudImportScreen.tsx`: one link box and Import, then the
-  requests with Cancel on those the Mac has not finished. The route picks it
+  requests with Cancel on those the server has not finished. The route picks it
   when the library is the bucket's. A link shared to the app lands in the box,
   as on the web, rather than being sent on arrival.
 - Import is back in the sidebar and the ⌘K palette for a cloud library, as the
   web's cloud build had it. Stats and the tag inbox still are not: both need
-  the Mac.
+  the server.
 - The queries and the routes (`useCloudImports`, `/api/cloud/imports`) were
   already in `packages/client` and `packages/cloud`; nothing there changed.
 - Checked on the cloud-signed iPhone 17 Pro, which was left signed in: Import
   opens this screen with "Nothing asked for yet". No request was sent, because
-  one would have the Mac download a real song into the library.
+  one would have the server download a real song into the library.
 - A shared link fills the box, checked the same way with a link inside other
   text, as a share sheet sends it. The first try failed with the screen
   already open: the box read the link only when the screen was created, so a
@@ -1656,9 +1656,9 @@ session could not have been kept. GitHub Pages serves this build.
   `kv`), so a browser that used the old app keeps what it had, and the service
   worker can read the session and the song files as it did.
 - `ports/appPath.ts` puts an address under the build's base
-  (`process.env.EXPO_BASE_URL`: empty on the Mac, `/selfmp3` on Pages). The
+  (`process.env.EXPO_BASE_URL`: empty on the server, `/selfmp3` on Pages). The
   sign-in return uses it, to the sign-in screen, which already reads the code
-  from the address; so does the Mac's settings return, which dropped the base.
+  from the address; so does the server's settings return, which dropped the base.
 - The doorman keeps a return address's path when its origin is allowed
   (`safeReturn` in `apps/doorman/src/auth.ts`), and Expo keeps `extra` in the
   web manifest, so the doorman address set at build time reaches the browser.
@@ -1674,7 +1674,7 @@ session could not have been kept. GitHub Pages serves this build.
 ### The installable web app: manifest and service worker
 
 Also found before deleting `apps/web`: the new app's web build had neither.
-The Mac and Pages served it, but it could not be installed, could not take a
+The server and Pages served it, but it could not be installed, could not take a
 shared link from a phone's share sheet (the manifest's `share_target`), and did
 not open, or play a downloaded song, without a network. `/sw.js` and
 `/manifest.webmanifest` answered with the page's HTML.
@@ -1697,7 +1697,7 @@ not open, or play a downloaded song, without a network. `/sw.js` and
   missing songs from the bucket), production only, and adds the manifest and
   touch-icon links under the base, since Expo's template has no base
   placeholder. `ports/serviceWorker.ts` does nothing on a phone.
-- Checked against the build the Mac serves on 4600, after `export:web`:
+- Checked against the build the server serves on 4600, after `export:web`:
   `verify/flows/pwa.spec.ts` reads the manifest and its share target, waits
   for the worker to control the page and fill its shell cache, and reloads
   offline; it passes at both widths. A probe went further: offline, the reload
@@ -1712,7 +1712,7 @@ not open, or play a downloaded song, without a network. `/sw.js` and
 Two more found before deleting `apps/web`, and the second was older than the
 first.
 
-**Crossfade and gapless never reached the web engine.** The Mac's settings hold
+**Crossfade and gapless never reached the web engine.** The server's settings hold
 both, Settings saves them, and the web app's player passed them to its engine
 with `engine.configure`. Nothing in the new app called `configure`, so a browser
 played gapless with no crossfade whatever the setting said. The player now tells
@@ -1739,7 +1739,7 @@ off).
   in Up next, against both apps. On the iPhone simulator the switch is in Up
   next, its line changes, and it was left off. A Chromium probe of the new app
   recorded the engine's audio elements (it never adds them to the document)
-  and sought the first song to three seconds before its end: with the Mac's
+  and sought the first song to three seconds before its end: with the server's
   crossfade set to 6 s the next song was already sounding at volume 0.03 beside
   the first; with it at 0, as a control, nothing overlapped. The setting was
   put back to 0.
@@ -1870,7 +1870,7 @@ What changed with them:
 - **Theme parity.** Two tests in `packages/client` compared the tokens with
   `apps/web`'s stylesheet; it is kept beside them as
   `packages/client/src/theme/tokens.reference.css`.
-- **The flows** default to the build the Mac serves on 4600; the old-app branch
+- **The flows** default to the build the server serves on 4600; the old-app branch
   in `nowPlaying.spec.ts` and `againstUniversalApp` are gone, and
   `verify/README.md` says how to run them against the build or a dev server.
 - **Docs.** `docs/MOBILE.md`, `docs/features/native-app.md`,
@@ -1924,7 +1924,7 @@ Rename, the colours and Delete tag, and a tap outside closes it untouched.
 ### The iPad as a width of its own
 
 The dev client was installed on an iPad Pro 11-inch simulator (834 × 1194
-points, iOS 26.5), connected to the Mac through onboarding. At 834 it gets the
+points, iOS 26.5), connected to the server through onboarding. At 834 it gets the
 desktop layout with a finger, and three things were wrong in portrait:
 
 - **The sidebar ran under the status bar.** No part of the wide frame used the
@@ -1968,7 +1968,7 @@ the Dockerfile rewritten at phase 5's exit had never been built.
   `ghcr.io/xiao215/selfmp3:latest` and the commit hash. `docker-compose.yml`
   pulls that image; `docker compose build` still builds locally.
 - **Docs.** `docs/INSTALL.md` gains "On a Raspberry Pi" (64-bit OS, SSD, Docker,
-  compose, moving the two folders from the Mac) and updates by pulling.
+  compose, moving the two folders from the old server) and updates by pulling.
 - Checked on this Mac (arm64, so natively): the build finished in 328 s, 532 MB.
   A container on port 4700 with empty folders answered `/api/health`, `/`,
   `/sw.js`, `/manifest.webmanifest` and `/api/library` with 200 and the right
@@ -2681,7 +2681,7 @@ From Xiao on the branch build:
   at https://claude.ai/code/artifact/3d96c5a5-b82e-4783-8188-6e1f111a5c49 and
   not built yet.
 
-### What a phone shows when its Mac is gone; the report's hero on solid ground — same branch
+### What a phone shows when its server is gone; the report's hero on solid ground — same branch
 
 Xiao killed and relaunched the phone app and saw grey covers, playlist tiles
 saying "5 songs · 19 min" over "No songs yet", and a playlist page with a
@@ -2723,16 +2723,16 @@ stats — failed. The app told none of this truthfully:
 ### A phone keeps its covers and its playlists — same branch
 
 Xiao, on the same relaunch: the thumbnails should be stored the way the song
-names are, and a playlist should still list its songs when the Mac is away,
+names are, and a playlist should still list its songs when the server is away,
 with the ones not on the phone greyed. Done:
 
 - **Covers kept on the device.** `offline/covers.ts` gains a `covers/`
   directory under Documents (beside `songs/`), named `<id>-<rev>.jpg`.
-  `useArt` asks `ensureServerCover` for every Mac-served song and draws the
+  `useArt` asks `ensureServerCover` for every server-served song and draws the
   kept file once there is one; `downloadStorage` fetches the cover the moment a
   song's download finishes. The work starts on a timeout, because it is called
   during a row's render and a cover found on disk announced itself into other
-  lists mid-render. A Mac that is away is asked once per launch per song.
+  lists mid-render. A server that is away is asked once per launch per song.
 - **Playlists kept on the device.** `PlaylistSnapshotStore` in
   `packages/client` (file per playlist on the phone, IndexedDB record in a
   browser), written after every successful `/api/playlists/:id/songs`, read
@@ -2756,7 +2756,7 @@ lyrics that the web showed said "No lyrics for this one" on the phone.
 - **Covers from the first frame.** `offline/covers.ts` reads `Documents/covers`
   once, before the first row asks (`prime()`), so `coversNow()` already holds
   every kept file and `useArt` draws it in the first render. The flash was the
-  Mac's address (or the letter tile) being drawn and the file swapped in a
+  server's address (or the letter tile) being drawn and the file swapped in a
   moment later.
 - **The pull-down.** The page no longer follows the finger 1:1; it gives up to
   150 points over a 600-point pull, and past the threshold the modal's own
@@ -2779,7 +2779,7 @@ Xiao: "if we can play the music, the lyrics should exist already". They did
 not for songs downloaded before the app kept lyrics, or never scrolled to.
 `offline/useKeepAlongside.ts`, mounted in the shell, runs once per library
 answer while the server is answering: for every downloaded song it asks for
-the cover (Mac or bucket path) and, when no words are kept, the lyrics — one
+the cover (server or bucket path) and, when no words are kept, the lyrics — one
 song at a time, a 404 skipped. Checked on the Pro Max: 13 of 13 covers and
 lyrics kept after one launch against 4600; with 4600 killed, a song never
 opened before shows its synced lyrics from the kept file.
@@ -2961,7 +2961,7 @@ From Xiao's review of the lettered mocks (A1, B1, C2, D2, E1, F2, G1; H dropped)
 
 # Desktop
 
-A second log, against [`docs/DESKTOP.md`](DESKTOP.md): the installed Mac app,
+A second log, against [`docs/DESKTOP.md`](DESKTOP.md): the installed desktop app,
 and the iPad finished. Same rules as above — newest phase last, one branch per
 phase, a commit only on a green gate. Times are UTC on 2026-09-14.
 
@@ -3203,7 +3203,7 @@ a file that plays for forty seconds and stops; the `.part` is thrown away and th
 pass starts over instead.
 
 **`downloadStorage.desktop.ts`** puts the existing download queue over that
-bridge — the doorman's bearer token where the library is in the cloud, the Mac's
+bridge — the doorman's bearer token where the library is in the cloud, the server's
 stream URL where it is not — and `downloadStorage.web.ts` picks it when the
 bridge is there and keeps the Cache API when it is not. The index itself is a
 JSON file in the same folder, read back through `app://` and written through a
@@ -3261,7 +3261,7 @@ a network.
 | The by-hand smoke: 13 songs download themselves, quit, stop the server, relaunch, a song plays from disk, a cover shows | **blocked** — needs `~/Music/selfmp3-dev`, which this container does not have. What stands in for it: a local range server and three megabytes of random bytes, with the offline half done honestly — the server is closed mid-test, the page confirms the network is gone, and the file still comes back whole from `app://selfmp3/_media/…` with a matching SHA-256. The cover test does the same with a route that answers 401 without a bearer token. |
 | The same, signed in to the cloud | **Xiao's.** |
 
-## Phase 4 — being a Mac app — branch `desktop/phase-4`
+## Phase 4 — being a desktop app — branch `desktop/phase-4`
 
 The window stopped being a page in a frame. It has a menu with everything in it,
 it tells macOS what is playing, it opens where it was left, it keeps the machine
@@ -3411,7 +3411,7 @@ and that release is a **draft** so nothing is published by a mistyped tag.
 `latest-mac.yml` is attached beside the files, because that is what
 electron-updater reads.
 
-**Docs.** `INSTALL.md` gained "The Mac app", including the Open Anyway
+**Docs.** `INSTALL.md` gained "The desktop app", including the Open Anyway
 instructions in plain words. `README.md` gained the two folders and a line under
 "What it does". `ARCHITECTURE.md` gained the shape of both new folders and the
 sentence that matters most: the desktop app is a shell, not a fourth client.
@@ -3472,7 +3472,7 @@ The overflowing module required *itself* (its dependency list was `[981, 1105]`
 for module 1105). `ports/titleBarInset.web.ts` imported `TITLE_BAR_DRAG_ID` from
 `./titleBarInset`, which TypeScript reads as the native file and Metro, preferring
 `.web`, reads as the web file itself; the re-export became a getter reading
-itself. Only the Mac reads it, because only the Mac has an inset — which is why
+itself. Only the desktop app reads it, because only it has an inset — which is why
 Linux's smoke drew the page and typecheck saw nothing.
 
 What changed:
@@ -3525,10 +3525,10 @@ link has not arrived within `LINK_GRACE_MS` (eight seconds), the screen says
 **Design C on every platform**, chosen from the lettered mocks: the mark and
 name top left, a large two-line headline with its second line in the accent,
 and one button at the bottom — beside its footnote at desktop width, full width
-on a phone. The sentence that said "on this phone" on a Mac is gone; no stage's
+on a phone. The sentence that said "on this phone" on a computer is gone; no stage's
 words name a device, and a test holds that.
 
-**Nothing typed in Settings › Cloud either.** The iPhone signing the Mac's
+**Nothing typed in Settings › Cloud either.** The iPhone signing the
 server in used to send no return link, so the doorman showed the code and it was
 entered by hand. Every sign-in now comes back to where it started —
 `selfmp3://sign-in` or `selfmp3://settings` in an installed app, `/sign-in` or
@@ -3538,14 +3538,14 @@ each code only to the screen it was sent to, and hands it over once (tested).
 Settings shows "Didn't come back?" and Try again after the same grace, and the
 code field is gone.
 
-**The Mac app's first sign-in could not have finished.** Its link came back
+**The desktop app's first sign-in could not have finished.** Its link came back
 through the shell into `ports/deepLinks.web.ts`, whose code queue only Settings
 read; the first-run screen listened to `expo-linking`, which never hears the
 shell. It stalled at the code box before, and would have stalled at "Didn't come
 back?" after. Both screens now take codes from the same inbox. No Google sign-in
 has run on the Mac yet, so this is fixed by reading, not by seeing it.
 
-### The first real sign-in from the Mac app — 2026-09-14
+### The first real sign-in from the desktop app — 2026-09-14
 
 Xiao installed the dmg, pressed Continue with Google, and got "Failed to fetch".
 Three things were tangled together, found in this order:
@@ -3571,12 +3571,12 @@ Three things were tangled together, found in this order:
   `-x64`), the volume name carries it too, and INSTALL.md and the release notes
   say which to pick.
 - **The library drew before the launch decision.** It is the first route, and
-  on a browser or the Mac app there is no splash to cover it while the app
+  on a browser or the desktop app there is no splash to cover it while the app
   works out whether it is signed in. `_layout.tsx` now paints the theme's
   ground over everything until `status` leaves `loading`; a phone's splash
   already did this.
 
-**Lyrics said "reconnect" on a Mac that was online.** In a cloud library the
+**Lyrics said "reconnect" in the desktop app while it was online.** In a cloud library the
 words come from the bucket, and the web and desktop builds cache them with the
 Cache API — which stores only http and https requests. On `app://selfmp3`,
 `cache.match` quietly finds nothing and `cache.put` throws "Request scheme 'app'
@@ -3592,7 +3592,7 @@ can never again read as offline. Downloaded songs get their words on the next
 
 **Now Playing's close button sat under the traffic lights.** The page covers
 the sidebar, which is what keeps everything else clear of them. On the
-installed Mac app the top row now starts at 84 pt, and the focus mode's song
+installed desktop app the top row now starts at 84 pt, and the focus mode's song
 title moves with it.
 
 **A notice faded in and out.** `dismissToast` removes a message from the store
@@ -3615,9 +3615,9 @@ G3 one had to be added to the login keychain by hand (double-clicking the .cer
 failed with -25294, "no such keychain"; `security add-certificates -k` worked).
 
 **Romaji in the cloud.** "Romaji travels with the lyrics" (8734f43) put the
-romanized lines in the Mac server's own lyrics answer and ended on the gap it
+romanized lines in the server's own lyrics answer and ended on the gap it
 left: the bucket had none, so any device signed in to the cloud — the installed
-Mac app, and the phone or the web the same way — showed no romaji. Now the
+desktop app, and the phone or the web the same way — showed no romaji. Now the
 cloud sync romanizes each song's words as it uploads them (from the lyrics
 cache, or made then) and puts the lines up beside them as
 `lyrics/<sha256>.json`; the snapshot's lyrics entry names it in a required
@@ -3628,7 +3628,7 @@ Words that are Chinese or Japanese and got no romaji (the dictionary would not
 load) are not marked done and are tried again next pass; other words are not.
 No compatibility for older snapshots, since no one else uses this yet: a
 migration adds `cloud_songs.romanized_key` and blanks every lyrics signature,
-so the Mac's next pass puts romaji up for the whole library. Bucket keys under
+so the server's next pass puts romaji up for the whole library. Bucket keys under
 `lyrics/` with a `.json` name were already allowed by the doorman and the
 snapshot schema, so nothing was deployed for it.
 
@@ -3661,7 +3661,7 @@ test sent its states before the app was up, so a late "nothing" could replace
 its "playing" just before the check. The test now waits for the app to draw
 and a frame more first: 20 runs in 20 pass.
 
-**The Mac app keeps its files in `~/Library/Application Support/self.mp3`.**
+**The desktop app keeps its files in `~/Library/Application Support/self.mp3`.**
 Electron names that folder after the app, and without a `productName` in
 `apps/desktop/package.json` the app was called `@selfmp3/desktop` — the folder,
 and the name in the app menu's About and Quit. The only data in the old folder
@@ -3693,10 +3693,10 @@ that. The fixes were made in five branches, merged here without conflicts.
   them whole.
 
 After the merge, `ensureServerCover` returns a promise, so the keep-alongside
-pass really does ask a Mac for a few covers at a time; before, it started all
+pass really does ask a server for a few covers at a time; before, it started all
 of them at once. The same pass also waits while the library shown is only the
 copy saved on this device (dated 0), since that copy says nothing about whether
-the Mac is answering.
+the server is answering.
 
 Gates on the merged tree:
 - `npm run check`: 1518 tests passed, 1 skipped.
@@ -3706,7 +3706,7 @@ Gates on the merged tree:
   answering.
 
 **A search page is not a playlist.** Xiao pasted `music.youtube.com/search?q=yoasobi`
-into the Mac app. yt-dlp lists a search the way it lists a playlist, and among
+into the desktop app. yt-dlp lists a search the way it lists a playlist, and among
 the songs are albums, the artist's page and playlists — `YoutubeTab` entries
 at `/browse/…` with no title. Each was made a job. An album job downloaded the
 whole album, song over song, into one file, and yt-dlp's resume of that file
@@ -3719,43 +3719,57 @@ and says so, a job with no artist asks about its video before downloading,
 and a blank never overwrites a tag. The four songs imported before the fix
 still say Unknown artist; their files say YOASOBI.
 
-**Importing from a cloud library goes through the Mac, directly.** The old
-cloud Import screen was one box: send a link, and the Mac downloads all of it
-whenever it next looks at the log. Xiao expected what the Mac's own screen
+**Importing from a cloud library goes through the server, directly.** The old
+cloud Import screen was one box: send a link, and the server downloads all of it
+whenever it next looks at the log. Xiao expected what the server's own screen
 has — the songs a link holds, to choose from and to listen to first — and
-both need the Mac itself, which runs yt-dlp; so the rule is now simple: a
-cloud library imports through its Mac when this device can reach it, and not
-at all when it cannot. The Mac puts the addresses it listens on, and its
+both need the server itself, which runs yt-dlp; so the rule is now simple: a
+cloud library imports through its server when this device can reach it, and not
+at all when it cannot. The server puts the addresses it listens on, and its
 token, in every snapshot (`CloudServerSchema`; `services/addresses.ts`, which
 the boot log uses too), and republishes when they change without the library
 changing (a new Wi-Fi network). A device signed in to the cloud reads them
 from its own copy (`GET /api/cloud/server`) and asks `/api/health` at all of
 them at once, three seconds each, taking the first that answers
-(`macReach.model.ts`, tested): on the Mac itself that is `localhost`. Then the
-Import screen is the Mac's own, pointed at it — fetch details, review, listen,
-tag, import — with the Mac's tags and playlists, since a cloud copy numbers
-its own (`importSource.ts`). What the Mac downloads goes up to the bucket as
+(`serverReach.model.ts`, tested): on the server itself that is `localhost`. Then the
+Import screen is the server's own, pointed at it — fetch details, review, listen,
+tag, import — with the server's tags and playlists, since a cloud copy numbers
+its own (`importSource.ts`). What the server downloads goes up to the bucket as
 every import does, and the device sees it with the next sync. With no address
-answering, the screen says the Mac is off or out of reach and keeps looking
-every twenty seconds; with a Mac that never published addresses, that it
+answering, the screen says the server is off or out of reach and keeps looking
+every twenty seconds; with a server that never published addresses, that it
 needs the current server and one sync. `CloudImportScreen` and its model are
-gone; the request-through-the-log path on the Mac stays, since the pending
+gone; the request-through-the-log path on the server stays, since the pending
 imports banner reads its results.
 
-Two things stood in the way of the installed app talking to a Mac at all,
-whichever way it got the address: the Mac's CORS answered only origins listed
+Two things stood in the way of the installed app talking to a server at all,
+whichever way it got the address: the server's CORS answered only origins listed
 in `SELFMP3_CORS_ORIGINS`, and `sameOriginWrites` refused a write from any
 other origin — and the app's page is `app://selfmp3`. That origin is now
 always let through (`DESKTOP_APP_ORIGIN`, tested), as the doorman already did.
-A browser at the web app's https address still cannot ask a Mac at a plain
-http address, so in a browser away from a Mac's own page this screen will say
-the Mac is out of reach.
+A browser at the web app's https address still cannot ask a server at a plain
+http address, so in a browser away from a server's own page this screen will say
+the server is out of reach.
 
 First try on Xiao's Mac: the server had published its addresses, and the
-screen said the Mac had never said where it is. `replayedSnapshot` rebuilds
+screen said the server had never said where it is. `replayedSnapshot` rebuilds
 the snapshot a device shows from the replayed library and carried over only
 `writtenAt`, `writtenBy` and `upTo`; no change ever carries the addresses, so
 they were lost on the way. It keeps the base's `server` now, tested.
+
+**"Mac" is "server".** Xiao's rule, and the right one: the Mac is only where
+the server happens to run today, and calling the server "the Mac" in a
+variable, a file name or a sentence made the two hard to tell apart. One
+sweep over the whole repository — identifiers and files first
+(`serverReach.model`, `useServerDirect`, `ImportViaServer`, the settings
+sections' and sidebar's `server` flag, the `serverSnapshot` test helper, the
+`needs-server` route code), then comments, copy and docs by area. What stays
+"Mac" is what means macOS or the computer as hardware: signing, the keychain,
+Gatekeeper, the dmg, `mac-arm64`, the `mac` device-id prefix, Xcode and the
+simulator, "Mac · Chrome" as a device name. The installed Electron app is
+"the desktop app", not "the Mac app". Where a sentence compared the phone
+with the user's computer as a *player* — handoff, sort order — it now says
+"desktop", since nothing plays on the server.
 
 Also seen: both of today's dmgs were ad-hoc, since `CSC_NAME` was set nowhere
 the build could see it — not the shell profile, not a `.env` — so each
@@ -3843,7 +3857,7 @@ In the order they are quickest:
    cannot do it. Settings › Cloud › Sign in opens your own browser and comes back
    by `selfmp3://`. The deep-link half of that path was proved in spike 4 and the
    `open-url` delivery is wired and unexercised off macOS.
-3. **The Mac-only behaviour of phase 4**, in one sitting: right-click the Dock
+3. **The macOS-only behaviour of phase 4**, in one sitting: right-click the Dock
    icon while a song plays; ⌘← in the search box (the caret should move, not the
    track); the red button then the Dock icon (the song should not have stopped);
    ⌘Q; full screen; the lid; Now Playing in Control Center, where the artwork is

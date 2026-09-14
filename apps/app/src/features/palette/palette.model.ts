@@ -23,7 +23,7 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-/** `fromCloud`: a cloud library has no Mac to count plays on or tag from; its imports wait for one. */
+/** `fromCloud`: a cloud library has no server to count plays on or tag from; its imports wait for one. */
 export function paletteCommands(
   songCount: number,
   fromCloud = false,

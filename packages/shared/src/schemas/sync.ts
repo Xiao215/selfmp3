@@ -138,7 +138,7 @@ export const PlaylistOrderedSchema = z.object({
 
 /**
  * A link to import, from a device that cannot fetch it itself — an iPhone,
- * a browser. The Mac picks it up, downloads it with yt-dlp, and says how it
+ * a browser. The server picks it up, downloads it with yt-dlp, and says how it
  * went in its next snapshot's `imports`.
  */
 export const ImportRequestedSchema = z.object({
@@ -155,7 +155,7 @@ export const ImportRequestedSchema = z.object({
   playlistUid: UidSchema.nullable().default(null),
 })
 
-/** Asked for, then thought better of, before the Mac got to it. */
+/** Asked for, then thought better of, before the server got to it. */
 export const ImportCancelledSchema = z.object({ type: z.literal('importCancelled'), ...at })
 
 export const ChangeSchema = z.discriminatedUnion('type', [

@@ -80,7 +80,7 @@ export type { PlayerProgress }
  * reconciliation is gone rather than moved.
  *
  * What is still the phone's here: the listen outbox flushing when the app
- * comes back to the foreground, which is a phone's nearest thing to "the Mac
+ * comes back to the foreground, which is a phone's nearest thing to "the server
  * might be awake now".
  */
 
@@ -152,7 +152,7 @@ export interface PlayerApi {
   readonly autoMix: boolean
   /** Whether this engine fades one song into the next; a phone's cannot. */
   readonly canCrossfade: boolean
-  /** The fade into the next song: auto-mix's pick, or the Mac's setting. */
+  /** The fade into the next song: auto-mix's pick, or the server's setting. */
   readonly nextCrossfadeSeconds: number
   setAutoMix: (on: boolean) => void
 
@@ -305,7 +305,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (!completed && tracking.listenedSeconds < needed) return
 
       tracking.counted = true
-      // Kept on the phone first: with the Mac asleep it goes when the Mac wakes.
+      // Kept on the phone first: with the server asleep it goes when the server wakes.
       recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
       // A song listened to is one worth having here, where songs stream from the bucket.
       keepPlayed(songId)
@@ -683,7 +683,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [queue, songsById])
 
   /*
-   * The fade into the next song, and gapless, told to the engine. The Mac's
+   * The fade into the next song, and gapless, told to the engine. The server's
    * settings hold both; nothing passed them on before this, so a browser
    * played gapless with no crossfade whatever the setting said. Auto-mix picks
    * each fade from the two songs, bounded by the setting. A phone's engine
@@ -812,7 +812,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * Center and the Dock in the installed app, nothing in a tab that has no
    * media session. The artwork is a cover already on this device where there is
    * one — the OS fetches the URL itself and cannot send the doorman's header —
-   * and the Mac's own address otherwise.
+   * and the server's own address otherwise.
    *
    * The kept covers are read when they change, not on every render: reading
    * them builds a map of every cover on this device, and this provider used

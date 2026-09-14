@@ -16,13 +16,13 @@ import { writeCachedPlaylist } from './playlistCache'
  * words and no playlist members: each is a request of its own. This pass runs
  * once per change to the library's contents, while the server is answering,
  * and asks for them in the background, a few at a time, so a phone that has
- * seen its Mac once looks and works the same when the Mac is away:
+ * seen its server once looks and works the same when the server is away:
  *
  *  - every song's cover, downloaded or not — a row wants its picture either way;
  *  - every playlist's members, so a playlist opens offline;
  *  - the words of every downloaded song. A download fetches its own words as
  *    it goes (ports/downloadStorage.ts); this catches songs downloaded before
- *    the app kept words, and words edited on the Mac since.
+ *    the app kept words, and words edited on the server since.
  *
  * A song with no words is a 404 and is simply skipped; it is asked again next
  * time. Everything here is best effort: a request that fails is left for the
@@ -40,7 +40,7 @@ const AT_ONCE = 4
  * What a pass depends on, as a short string: which songs, at which revision,
  * and which playlists, as they last changed.
  *
- * Not `generatedAt`, which named the pass before. A Mac stamps each answer
+ * Not `generatedAt`, which named the pass before. A server stamps each answer
  * with the time it was made, so every refetch looked like a new library and
  * started the whole pass again; a cloud library stamps its snapshot, which can
  * stay put while a revision underneath it moves. This changes exactly when
@@ -71,8 +71,8 @@ export function useKeepAlongside(): void {
   const done = useRef<string | null>(null)
 
   const data = library.data
-  // A copy saved on this device is shown dated 0 while the Mac is asked; it says
-  // nothing about whether the Mac answers, so the pass waits for a real answer.
+  // A copy saved on this device is shown dated 0 while the server is asked; it says
+  // nothing about whether the server answers, so the pass waits for a real answer.
   const reachable = data !== undefined && !library.isError && library.dataUpdatedAt !== 0
   const key = useMemo(() => (data === undefined ? null : contentsKey(data)), [data])
 
@@ -104,7 +104,7 @@ export function useKeepAlongside(): void {
           if (song.hasArt) {
             if (fromCloud) await ensureCover(song.id)
             else if (connection) {
-              // Waited on, so the Mac is asked for AT_ONCE covers at a time.
+              // Waited on, so the server is asked for AT_ONCE covers at a time.
               await ensureServerCover(
                 song.id,
                 song.rev,

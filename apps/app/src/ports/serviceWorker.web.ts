@@ -15,7 +15,7 @@ import { desktop } from './desktop/bridge'
  * learns there is a bucket.
  *
  * The manifest link is added here rather than in `public/index.html` because
- * the page is served from `/` on the Mac and `/selfmp3/` on Pages, and Expo's
+ * the page is served from `/` on the server and `/selfmp3/` on Pages, and Expo's
  * template has no placeholder for the base; the manifest's own paths are
  * relative to itself, so it works under either.
  *

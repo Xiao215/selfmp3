@@ -6,7 +6,7 @@ import { PlaylistSongsSchema, type PlaylistSongs } from '@selfmp3/shared'
  *
  * `library.json` names every playlist and says how long it is, but which
  * songs are in one is a request of its own. Without a copy, a phone holding
- * every song could not open a playlist while its Mac was away — it knew "5
+ * every song could not open a playlist while its server was away — it knew "5
  * songs · 19 min" and could not name one. One small file per playlist, written
  * after every successful fetch and read only when a fetch fails.
  */
@@ -37,7 +37,7 @@ export function writeCachedPlaylist(songs: PlaylistSongs): void {
     cacheDirectory().create({ intermediates: true, idempotent: true })
     cacheFile(songs.playlistId).write(JSON.stringify(songs))
   } catch {
-    // A cache that cannot be written is a playlist that needs the Mac, not a failure.
+    // A cache that cannot be written is a playlist that needs the server, not a failure.
   }
 }
 

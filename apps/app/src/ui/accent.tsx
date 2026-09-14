@@ -12,7 +12,7 @@ export type { ThemeChoice }
 /**
  * This phone's accent colour.
  *
- * Deliberately *not* the Mac's `accentHue` setting, and deliberately not
+ * Deliberately *not* the server's `accentHue` setting, and deliberately not
  * synced. Settings that describe the library — what counts as a play, which
  * tags go on an import — are the same everywhere and belong on the server.
  * What colour this screen is belongs to the screen, the same way the volume

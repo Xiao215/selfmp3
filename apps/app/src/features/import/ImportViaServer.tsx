@@ -8,27 +8,27 @@ import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportScreen } from './ImportScreen'
-import { awayCopy } from './macReach.model'
-import { useMacDirect } from './useMacDirect'
+import { awayCopy } from './serverReach.model'
+import { useServerDirect } from './useServerDirect'
 
 /**
- * Importing into a cloud library: through the Mac, when it can be reached.
+ * Importing into a cloud library: through the server, when it can be reached.
  *
  * The bucket has no yt-dlp, so a link can only be read, listened to and
- * downloaded by the Mac — and that is the whole import screen, the same one
- * the Mac shows for itself, pointed at the Mac directly (macReach.model.ts).
+ * downloaded by the server — and that is the whole import screen, the same one
+ * the server shows for itself, pointed at the server directly (serverReach.model.ts).
  * What it downloads goes up to the bucket as every import does, and this
- * device sees it with the next sync. When no address of the Mac's answers,
+ * device sees it with the next sync. When no address of the server's answers,
  * there is nothing to import with, and this says so instead.
  */
-export function ImportViaMac(): ReactNode {
-  const reach = useMacDirect()
+export function ImportViaServer(): ReactNode {
+  const reach = useServerDirect()
   if (reach.state === 'reachable') return <ImportScreen via={reach.connection} />
 
-  return <MacAway looking={reach.state === 'looking'} said={reach.state === 'away' && reach.said} onLookAgain={reach.lookAgain} />
+  return <ServerAway looking={reach.state === 'looking'} said={reach.state === 'away' && reach.said} onLookAgain={reach.lookAgain} />
 }
 
-function MacAway({
+function ServerAway({
   looking,
   said,
   onLookAgain,
@@ -45,7 +45,7 @@ function MacAway({
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        testID={looking ? 'import-mac-looking' : 'import-mac-away'}
+        testID={looking ? 'import-server-looking' : 'import-server-away'}
       >
         <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
           Import
@@ -53,7 +53,7 @@ function MacAway({
         {looking ? (
           <View style={styles.looking} accessibilityLiveRegion="polite">
             <ActivityIndicator size="small" color={accent.accent} />
-            <Text style={styles.lookingText}>Looking for your Mac…</Text>
+            <Text style={styles.lookingText}>Looking for your server…</Text>
           </View>
         ) : (
           <View style={styles.card} accessibilityLiveRegion="polite">
@@ -67,7 +67,7 @@ function MacAway({
                 icon={<Refresh size={13} color={accent.onAccent} />}
                 variant="primary"
                 onPress={onLookAgain}
-                testID="import-mac-look-again"
+                testID="import-server-look-again"
               />
             </View>
           </View>

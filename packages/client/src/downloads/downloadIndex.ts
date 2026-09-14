@@ -50,7 +50,7 @@ export function parseIndex(raw: unknown): DownloadIndex {
 /**
  * The file name a song is stored under.
  *
- * From a Mac, the id leads: it is unique and stable even when a song is
+ * From a server, the id leads: it is unique and stable even when a song is
  * renamed. From the bucket, the hash of the audio's own bytes leads instead,
  * because a song's id there is handed out by this device and starts again
  * after a sign-out — a file named `7.m4a` would then belong to whichever song

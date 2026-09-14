@@ -72,7 +72,7 @@ export interface BucketObject {
 
 /**
  * Why a request to the bucket failed, in terms of what to do about it — the
- * same kinds, and the same words, as the Mac's `CloudError`.
+ * same kinds, and the same words, as the server's `CloudError`.
  */
 export type BucketErrorKind = 'auth' | 'network' | 'missing' | 'other'
 
@@ -314,7 +314,7 @@ export class Bucket {
     return `/${parts.map(rfc3986).join('/')}`
   }
 
-  /** Turn a refusal into a message that says what to do about it, as the Mac's does. */
+  /** Turn a refusal into a message that says what to do about it, as the server's does. */
   async #explain(response: Response): Promise<BucketError> {
     const body = await readBytes(response.body, MAX_ERROR_BYTES)
     const { code, message } = parseError(fromUtf8(body))

@@ -13,7 +13,7 @@ import {
  * Library filtering and sorting.
  *
  * Pure, and built on the shared `fuzzyRank` so a search that matches on the
- * Mac matches the same way on the phone — the whole reason those helpers live
+ * desktop matches the same way on the phone — the whole reason those helpers live
  * in `packages/shared` rather than in the web app.
  */
 
@@ -170,7 +170,7 @@ export function filterSongs(
     return searchSongs(filter.query, result).map(match => match.item)
   }
 
-  // The shared comparison, so the phone and the Mac put the same library in
+  // The shared comparison, so the phone and the desktop put the same library in
   // the same order. A local copy drifted from the web app's in four places.
   return sortSongs(result, filter.sort, filter.descending)
 }

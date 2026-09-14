@@ -9,7 +9,7 @@ export type { CoverFiles }
  * An ordinary tab answers null: the Cache API could hold the bytes, but not
  * under a URL an `<img>` can be handed without a fetch first, and the service
  * worker that would do that is the one the desktop deliberately does not
- * register. So this is the desktop's, and a browser keeps drawing the Mac's
+ * register. So this is the desktop's, and a browser keeps drawing the server's
  * address as it always has.
  */
 function filesFor(bridge: NonNullable<typeof desktop>): CoverFiles {

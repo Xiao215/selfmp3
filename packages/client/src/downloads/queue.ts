@@ -58,7 +58,7 @@ const INITIAL_STATE: DownloadQueueState = {
  *     flag stayed set, and the next genuine failure — any song, any time later
  *     — was swallowed without a word. The flag is now set only for a transfer
  *     actually in flight.
- *   - Finding the source of a song (a Mac, or the cloud) happened outside the
+ *   - Finding the source of a song (a server, or the cloud) happened outside the
  *     `try`, so "no server, and not signed in" escaped the loop and stalled the
  *     queue with nothing on screen. Starting a transfer is now inside it, and
  *     that failure is reported like any other.

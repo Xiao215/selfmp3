@@ -1,7 +1,7 @@
 /**
  * The listening outbox: plays and skips that have not reached the server yet.
  *
- * Every client reports a play the moment it counts. With the Mac asleep that
+ * Every client reports a play the moment it counts. With the server asleep that
  * request fails, and before this existed the failure was swallowed — so every
  * song heard on a train was missing from play counts, stats, Wrapped and
  * forgotten gems, which is exactly the listening this app exists for.
@@ -46,7 +46,7 @@ export type SendOutcome = 'sent' | 'drop' | 'retry'
 
 /**
  * Judge one send by its HTTP status. Status 0 is the clients' convention for
- * "no response at all", which almost always means the Mac is asleep.
+ * "no response at all", which almost always means the server is asleep.
  */
 export function outcomeForStatus(status: number): SendOutcome {
   if (status >= 200 && status < 300) return 'sent'

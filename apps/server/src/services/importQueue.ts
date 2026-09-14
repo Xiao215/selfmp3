@@ -43,7 +43,7 @@ export interface ImportUploader {
 }
 
 /**
- * The song is in the library on this Mac, but not yet in the bucket. Kept
+ * The song is in the library on this server, but not yet in the bucket. Kept
  * apart from other failures because retrying it must not download the song
  * again, and because the background sync can still finish the job later.
  */
@@ -234,7 +234,7 @@ export class ImportQueueService {
         this.#imports.update(job.id, {
           status: 'error',
           step: 'uploading',
-          error: `Saved on this Mac, but not uploaded yet: ${message} It will upload by itself once the bucket can be reached.`,
+          error: `Saved on this server, but not uploaded yet: ${message} It will upload by itself once the bucket can be reached.`,
         })
         return
       }

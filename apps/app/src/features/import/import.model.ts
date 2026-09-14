@@ -26,7 +26,7 @@ export const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
 }
 
 /**
- * In the library on the Mac but not yet in the cloud bucket: not a failure,
+ * In the library on the server but not yet in the cloud bucket: not a failure,
  * and the cloud sync finishes the job by itself (docs/SYNC.md).
  */
 export function waitingToUpload(job: Pick<ImportJob, 'status' | 'step'>): boolean {

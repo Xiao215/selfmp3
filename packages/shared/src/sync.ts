@@ -31,7 +31,7 @@ import {
  * - Plays and skips only add up, and the same one twice counts once.
  *
  * Since the latest stamp wins whenever a change is applied, the same changes
- * give every device the same library. The Mac applies these rules to its
+ * give every device the same library. The server applies these rules to its
  * database (apps/server/src/services/cloudIngest.ts), and a test holds the two
  * to the same answers.
  */
@@ -208,7 +208,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       let changed = false
       const { name, hue } = change.fields
       // A name another tag already has is left alone: names are how tags are
-      // told apart, and the Mac's database holds them to it.
+      // told apart, and the server's database holds them to it.
       if (name !== undefined && hlcWins(change.hlc, stamps['name'])) {
         const same = tagNamed(library, name)
         if (!same || same.uid === uid) {
@@ -391,7 +391,7 @@ export function resolveTag(library: Pick<SyncLibrary, 'aliases'>, uid: string): 
 }
 
 /**
- * Names compare the way the Mac's database compares them: ignoring the case
+ * Names compare the way the server's database compares them: ignoring the case
  * of A–Z, and only of A–Z.
  */
 export function sameTagName(a: string, b: string): boolean {
@@ -411,7 +411,7 @@ function tagNamed(library: SyncLibrary, name: string): CloudTag | null {
 
 /**
  * Rules naming each tag as it is now: an alias by the tag it was folded into,
- * and a tag that is not in the library by `MISSING_TAG_UID` — as the Mac's
+ * and a tag that is not in the library by `MISSING_TAG_UID` — as the server's
  * database, which keeps a tag's id and not its uid, would have it.
  */
 function resolveRules(library: SyncLibrary, rules: CloudPlaylist['rules']): CloudPlaylist['rules'] {
@@ -439,7 +439,7 @@ function withoutKey<K extends string>(
   }
 }
 
-/** SQLite's own UTC format, `2026-09-11 14:22:05`, which the Mac's times are in. */
+/** SQLite's own UTC format, `2026-09-11 14:22:05`, which the server's times are in. */
 export function toSqliteTime(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ')
 }
@@ -467,7 +467,7 @@ export type ReadLog =
 /**
  * A log file as it came from the bucket. Changes this build does not know are
  * counted in `skipped` rather than failing the file — a device can show the
- * rest — but the Mac, which folds changes in for good, stops at such a file
+ * rest — but the server, which folds changes in for good, stops at such a file
  * until it is updated.
  */
 export function readLogFile(json: unknown): ReadLog {

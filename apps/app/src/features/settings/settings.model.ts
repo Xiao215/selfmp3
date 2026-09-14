@@ -19,17 +19,17 @@ export type SectionId =
   | 'shortcuts'
   | 'about'
 
-/** The index, in page order. `mac`: the section acts on the Mac, so a cloud library has none. */
-export const ALL_SECTIONS: readonly { id: SectionId; label: string; mac?: boolean }[] = [
+/** The index, in page order. `server`: the section acts on the server, so a cloud library has none. */
+export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boolean }[] = [
   { id: 'playback', label: 'Playback' },
   { id: 'offline', label: 'Offline music' },
-  { id: 'importing', label: 'Importing', mac: true },
-  { id: 'library', label: 'Library', mac: true },
-  { id: 'cloud', label: 'Cloud', mac: true },
+  { id: 'importing', label: 'Importing', server: true },
+  { id: 'library', label: 'Library', server: true },
+  { id: 'cloud', label: 'Cloud', server: true },
   { id: 'connection', label: 'Connection' },
-  // Not the Mac's: romaji is kept with the words in the cloud too, and the switch is this device's.
+  // Not the server's: romaji is kept with the words in the cloud too, and the switch is this device's.
   { id: 'lyrics', label: 'Lyrics' },
-  { id: 'devices', label: 'Devices', mac: true },
+  { id: 'devices', label: 'Devices', server: true },
   { id: 'desktop', label: 'Desktop app' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'shortcuts', label: 'Shortcuts' },
@@ -50,7 +50,7 @@ export function sectionsFor(
 ): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
-      (!fromCloud || !section.mac) &&
+      (!fromCloud || !section.server) &&
       (installed || section.id !== 'offline') &&
       (keyboard || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop'),

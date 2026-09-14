@@ -43,7 +43,7 @@ let nextId = 0
  *
  * The bucket through the doorman when this device is signed in, with a bearer
  * header — the doorman reads nothing else, and `song.path` is already the key.
- * Otherwise a Mac, where the token rides in the query string because the same
+ * Otherwise a server, where the token rides in the query string because the same
  * URL is handed to the player.
  */
 async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<string, string> }> {

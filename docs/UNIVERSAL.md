@@ -58,7 +58,7 @@ One workspace, `apps/app`, built with Expo SDK 57 on React Native 0.86 with the
 New Architecture — the phone app's toolchain, extended to the web. It exports:
 
 - an iOS app and an Android app (dev client, EAS or local build, as now);
-- a web build the Mac serves at `/`, installable as a PWA, with the service
+- a web build the server serves at `/`, installable as a PWA, with the service
   worker and offline cache it has today;
 - the same web build under `/selfmp3/` for GitHub Pages, signed in through the
   doorman (`EXPO_PUBLIC_CLOUD=1` replaces `VITE_CLOUD=1`).
@@ -120,7 +120,7 @@ reports which are present. An iPad with a keyboard gets both.
 
 **7. Features declare their platforms.** Each note in `docs/features/` gets a
 "Where" line: which platforms carry the feature and, when one does not, why
-(no Mac to import on; no pitch shifting on Android). The parity matrix at the
+(no server to import on; no pitch shifting on Android). The parity matrix at the
 end of this document is the starting point.
 
 **8. Tests at the layer that can run them.** Pure logic and model files:
@@ -145,10 +145,10 @@ way both apps are today.
 | Offline, native | files + JSON index | Existing code behind the same port. |
 | Icons | `react-native-svg` | Already ported. One file for all three platforms. |
 | Canvas work | Expo DOM components (`'use dom'`) on native | The song visual, the wrapped card and the energy wave are canvas drawings. On web they run as they do now; on the phone the same React DOM component renders in a webview. Reserved for genuinely DOM-only pieces — never for ordinary UI. |
-| Errors | `@sentry/react-native` with its Expo plugin | A phone away from the Mac fails silently otherwise. One day of work; opt-in via an env var so the personal build can leave it off. |
+| Errors | `@sentry/react-native` with its Expo plugin | A phone away from the server fails silently otherwise. One day of work; opt-in via an env var so the personal build can leave it off. |
 | Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
 | Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |
-| Desktop shell | **Electron 44.3.0** (Chromium 152, Node 24; macOS 13 or newer) | The installed Mac app wraps `apps/app`'s web export rather than drawing a second UI. One rendering engine on every OS, TypeScript end to end, and the four things the shell needs are all first-party: `protocol.handle` for `app://` with `Range`, `safeStorage` for the keychain, `navigator.mediaSession` for macOS Now Playing, `setAsDefaultProtocolClient` for the `selfmp3://` sign-in return. Tauri 2, react-native-macos and Mac Catalyst rejected; the reasoning is in [DESKTOP.md](DESKTOP.md). Pinned exactly: Electron ships a major every eight weeks and an upgrade is a commit of its own. |
+| Desktop shell | **Electron 44.3.0** (Chromium 152, Node 24; macOS 13 or newer) | The installed desktop app wraps `apps/app`'s web export rather than drawing a second UI. One rendering engine on every OS, TypeScript end to end, and the four things the shell needs are all first-party: `protocol.handle` for `app://` with `Range`, `safeStorage` for the keychain, `navigator.mediaSession` for macOS Now Playing, `setAsDefaultProtocolClient` for the `selfmp3://` sign-in return. Tauri 2, react-native-macos and Mac Catalyst rejected; the reasoning is in [DESKTOP.md](DESKTOP.md). Pinned exactly: Electron ships a major every eight weeks and an upgrade is a commit of its own. |
 | Desktop packaging | **electron-builder 26.15.3** | `dmg` and `zip` for macOS (arm64, x64), with `nsis` and `AppImage` listed and unbuilt. Electron Forge rejected as more than this needs. The shell has no runtime `dependencies` — esbuild bundles everything but `electron` — which is what sidesteps electron-builder's known trouble collecting workspace-hoisted packages (electron-builder #2205, #9654). |
 | Desktop updates | **electron-updater 6.8.9**, from GitHub Releases | The only updater that needs no server. Squirrel on macOS refuses to apply an update to an ad-hoc signature (electron #36640), so unsigned builds only check the latest release's tag and open its page. Which tier a build is gets baked in by `apps/desktop/scripts/build.mjs`, because there is no API that asks a running app whether its own signature is one macOS would validate — and `canInstall` on the status is how the page knows never to draw a button that would fail. |
 | The desktop contract | **`packages/desktop-bridge`**: zod schemas plus the `DesktopBridge` interface | The repository's rule that a contract is shared code, not documentation. `apps/desktop` implements it and `apps/app` consumes it, so a channel renamed on one side is a compile error on the other. No new dependency of its own: zod is already here. Compiled without the DOM library, like every other package. |
@@ -170,7 +170,7 @@ packages/client          NEW — what any client does that is not drawing,
                          compiled without the DOM:
   api/                   one typed client: routes, schemas, cloud answering
   queries/               react-query keys and hooks, mutations with rollback
-  connection/            Mac address + token, cloud session, which one answers
+  connection/            server address + token, cloud session, which one answers
   player/                PlayerProvider glue, the PlaybackEngine interface
   offline/               the OfflineStore interface, the download index (pure)
   devices/               heartbeat, handoff, remote transport
@@ -220,7 +220,7 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 | `DeviceStore` | small persistent values | IndexedDB (exists in `packages/cloud`) | files (exists) |
 | `Keyboard` | global shortcuts, the command palette trigger | `document` keydown | no-op, or hardware keyboard on iPad later |
 | `Share` | receive a shared link, share a wrapped card | Web Share Target, `navigator.share` | `expo-sharing`, an intent filter |
-| `Files` | reveal a song's file | server endpoint (Mac only) | unavailable, declared |
+| `Files` | reveal a song's file | server endpoint (on the server itself only) | unavailable, declared |
 | `Media session` | lock-screen metadata | `navigator.mediaSession` | track-player metadata |
 
 The engine port declares capabilities — `crossfade`, `analyser`, `pitchLock`,
@@ -329,7 +329,7 @@ one is ever wanted, pnpm + Turborepo if CI time ever hurts.
 
 ## Verification
 
-The reference is the old web app, served by the Mac at `http://localhost:4601`
+The reference is the old web app, served by the server at `http://localhost:4601`
 (`npm run dev`). Every screen of the new app is checked against it, at two
 widths: **1280** for the desktop layout and **375** for the phone layout — the
 phone app was built to the web's phone CSS in the first place, so the browser
@@ -400,7 +400,7 @@ cross screens or touch the player:
   everywhere and survives a reload.
 - Download a playlist, go offline (browser: DevTools offline; phone: airplane
   mode), play it → it plays; an undownloaded song says so instead of failing.
-- Sign in to the cloud, sign out, connect to a Mac → the right library loads.
+- Sign in to the cloud, sign out, connect to a server → the right library loads.
 - Handoff: play on the desktop, "play here" on the phone → position carries.
 - Resize the browser across 820 → the layout switches without losing state.
 
@@ -442,7 +442,7 @@ Being honest about these up front is what keeps the phases from stalling.
   as the phone does today.
 - **Pitch lock.** Web and iOS. Android's player has no pitch-preserving rate
   change; the practice panel shows speed without the lock there.
-- **Reveal in Finder.** Mac only, via the server. Declared unavailable elsewhere.
+- **Reveal in Finder.** On the server itself only. Declared unavailable elsewhere.
 - **Canvas drawings.** The song visual, wrapped card and energy wave run as
   `'use dom'` components on native. They are self-contained today, which is
   what makes this cheap; keep them that way.
@@ -456,7 +456,7 @@ Before phase 2 is committed, one throwaway branch must prove six things, each
 as a command that passes or fails:
 
 1. `apps/app` exports to web with `react-native-web` 0.21 and React 19.2, and
-   the export runs under the Mac's `express.static` at `/` and under
+   the export runs under the server's `express.static` at `/` and under
    `/selfmp3/` with `experiments.baseUrl`.
 2. Unistyles 3 builds on RN 0.86 with track-player in the same dev client, and
    a component with a `:hover` variant and an 820-point breakpoint renders
@@ -480,7 +480,7 @@ fallback is now `expo-audio` as a second native engine, not an SDK downgrade.
 
 The starting point for phase 0. *Both* means the feature belongs on every
 platform; *Desktop* means it belongs at desktop width on any platform that can
-do it; *Mac* means it needs the Mac's own disk or tools.
+do it; *Server* means it needs the server's own disk or tools.
 
 | Feature | Today: web | Today: phone | Target |
 |---|---|---|---|
@@ -503,10 +503,10 @@ do it; *Mac* means it needs the Mac's own disk or tools.
 | Crossfade, visualiser | yes | no | Web |
 | Import from a link, share to import | yes | no | Both (the server does the work) |
 | Playlist migration | yes | no | Desktop |
-| Stats, Wrapped | yes | no | Both (Mac-backed data) |
+| Stats, Wrapped | yes | no | Both (server-backed data) |
 | Metadata lookup, fix covers | yes | no | Desktop |
-| Rescan library, watched folder | yes | no | Mac |
-| Reveal file | yes | no | Mac |
+| Rescan library, watched folder | yes | no | Server |
+| Reveal file | yes | no | Server |
 | Accent colour, light/dark | yes | accent | Both |
 | Cloud sign-in, bucket library | yes | yes | Both |
 

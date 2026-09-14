@@ -7,7 +7,7 @@ import type { Request } from 'express'
  * with the song's file selected.
  *
  * This only makes sense for the browser on that same machine. A phone asking
- * would open a Finder window on a Mac across the room, so requests are
+ * would open a Finder window on the server across the room, so requests are
  * checked: they must arrive over loopback *and* ask for a loopback host.
  * The second check matters because `tailscale serve` also connects from
  * loopback — but a request through it asks for the tailnet name, not

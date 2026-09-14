@@ -163,7 +163,7 @@ describe('the connection', () => {
     expect(cloud.hasFile(`audio/${'a'.repeat(64)}.m4a`)).toBe(false)
   })
 
-  it('names this Mac once and keeps the name', () => {
+  it('names this server once and keeps the name', () => {
     const first = cloud.deviceId('mac')
     expect(first).toMatch(/^mac-[0-9a-f]{8}$/)
     expect(cloud.deviceId('mac')).toBe(first)

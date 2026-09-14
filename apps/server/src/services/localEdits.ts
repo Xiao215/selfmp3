@@ -3,9 +3,9 @@ import type { Db } from '../db/index.js'
 import type { SyncRepository } from '../repositories/sync.js'
 
 /**
- * This Mac's clock for stamping changes (packages/shared/src/hlc.ts). Made the
+ * This server's clock for stamping changes (packages/shared/src/hlc.ts). Made the
  * first time it is needed, and carrying on from the latest stamp the database
- * holds, so what the Mac does next comes after everything it has seen — even
+ * holds, so what the server does next comes after everything it has seen — even
  * after a restart with the wall clock set back.
  */
 export class SyncClock {
@@ -35,7 +35,7 @@ export class SyncClock {
 }
 
 /**
- * Edits made on this Mac, stamped as they are made (docs/SYNC.md).
+ * Edits made on this server, stamped as they are made (docs/SYNC.md).
  *
  * Every other device's edits arrive with a stamp saying when they were made,
  * and the latest one wins. An edit made here needs a stamp too, or one made

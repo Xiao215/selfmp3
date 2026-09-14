@@ -15,7 +15,7 @@ import {
 /**
  * Where a song's artwork comes from, for whichever screen is asking.
  *
- * A Mac serves it over HTTP with the token in the query string. The bucket
+ * A server serves it over HTTP with the token in the query string. The bucket
  * cannot: the image loader is handed a URL and given no chance to attach the
  * header the doorman wants, so the file has to be on this device first
  * (offline/covers.ts).
@@ -41,12 +41,12 @@ export function useArt(): (song: Song) => string | null {
       if (!song.hasArt) return null
       watch.ask(song.id)
       // `fromCloud`, not `connection`: an address left over from talking to a
-      // Mac is still stored, and asking whether one exists sends the loader to
-      // a Mac that is not running.
+      // server is still stored, and asking whether one exists sends the loader to
+      // a server that is not running.
       if (!fromCloud && connection) {
-        // The Mac's address, and a copy kept on this device the moment it
+        // The server's address, and a copy kept on this device the moment it
         // answers. The copy is what is drawn once it exists: it is there when
-        // the Mac is not, and it is the same picture when it is.
+        // the server is not, and it is the same picture when it is.
         const url = mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE)
         void ensureServerCover(song.id, song.rev, url)
         return coverFor(song.id) ?? url

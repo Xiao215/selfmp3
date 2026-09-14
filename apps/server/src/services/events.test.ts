@@ -57,10 +57,10 @@ describe('EventHub', () => {
     const hub = new EventHub(logger)
     const phone = new BufferSink()
     const phoneTab2 = new BufferSink()
-    const mac = new BufferSink()
+    const server = new BufferSink()
     hub.subscribe(phone, 'phone-000001')
     hub.subscribe(phoneTab2, 'phone-000001')
-    hub.subscribe(mac, 'mac-00000001')
+    hub.subscribe(server, 'mac-00000001')
 
     const delivered = hub.sendTo('phone-000001', {
       type: 'command',
@@ -71,7 +71,7 @@ describe('EventHub', () => {
     expect(delivered).toBe(2)
     expect(phone.text).toContain('"pause"')
     expect(phoneTab2.text).toContain('"pause"')
-    expect(mac.text).not.toContain('"pause"')
+    expect(server.text).not.toContain('"pause"')
     expect(hub.hasSubscriber('phone-000001')).toBe(true)
     expect(hub.hasSubscriber('nobody-0000')).toBe(false)
     hub.stop()

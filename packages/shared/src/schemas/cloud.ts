@@ -82,7 +82,7 @@ export const CloudLyricsSchema = z.object({
   /**
    * The words' romanized lines — romaji or pinyin, one per line of the text,
    * empty where a line needs none — as a JSON array beside them. Made on the
-   * Mac, which has the dictionaries, so every device shows what the Mac's own
+   * server, which has the dictionaries, so every device shows what the server's own
    * lyrics answer carries. Null when the words are not Chinese or Japanese.
    */
   romanized: fileKey('lyrics').nullable(),
@@ -186,7 +186,7 @@ export type CloudPlaylist = z.infer<typeof CloudPlaylistSchema>
 
 /**
  * A link some device asked to import, and how it went (docs/SYNC.md). Only a
- * device that can fetch — the Mac, with yt-dlp — works on it; what it says
+ * device that can fetch — the server, with yt-dlp — works on it; what it says
  * here is how every device, the one that asked included, finds out.
  */
 export const CloudImportSchema = z.object({
@@ -210,11 +210,11 @@ export const CloudImportSchema = z.object({
 export type CloudImport = z.infer<typeof CloudImportSchema>
 
 /**
- * Where the Mac that writes the snapshots can be reached directly, for what
+ * Where the server that writes the snapshots can be reached directly, for what
  * only it can do: reading a link, and playing a song before it is imported.
  * The addresses are the ones it listens on; a device tries them and talks to
  * the first that answers. Only whoever can read the bucket sees this, and the
- * token is the one every device of theirs already carries to that Mac.
+ * token is the one every device of theirs already carries to that server.
  */
 export const CloudServerSchema = z.object({
   addresses: z.array(z.string().url()).max(16),
@@ -248,12 +248,12 @@ export const CloudSnapshotSchema = z.object({
   aliases: z.record(UidSchema, UidSchema).optional(),
   /** Links asked for from any device in the last week, and how each went. */
   imports: z.array(CloudImportSchema).optional(),
-  /** How to reach the Mac that wrote this, when a device is near enough to. */
+  /** How to reach the server that wrote this, when a device is near enough to. */
   server: CloudServerSchema.optional(),
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 
-// --- The Mac's own API for managing its connection to the bucket ------------
+// --- The server's own API for managing its connection to the bucket ------------
 
 /**
  * Connecting to a bucket. For B2 the region is worked out from the endpoint,
@@ -284,10 +284,10 @@ export const CloudConnectSchema = z.object({
 export type CloudConnect = z.infer<typeof CloudConnectSchema>
 
 /**
- * Start signing this Mac in with Google through the doorman. The browser
+ * Start signing this server in with Google through the doorman. The browser
  * makes the attempt id, opens the doorman's sign-in page with it straight
  * away (a window opened after an await is a popup, and gets blocked), and
- * tells the Mac, which waits for Google to finish and keeps the session.
+ * tells the server, which waits for Google to finish and keeps the session.
  */
 export const CloudSignInSchema = z.object({
   attempt: z.string().regex(/^[0-9a-f]{32}$/, 'not a sign-in attempt'),
@@ -307,13 +307,13 @@ export type CloudAccount = z.infer<typeof CloudAccountSchema>
 
 export const CloudStatusSchema = z.object({
   /**
-   * The doorman this Mac signs in through, or null when none is set up — then
+   * The doorman this server signs in through, or null when none is set up — then
    * the only way in is connecting a bucket directly with its key.
    */
   doormanUrl: z.string().nullable(),
   /** The Google account signed in through the doorman. */
   account: CloudAccountSchema.nullable(),
-  /** Waiting for Google to finish a sign-in started from this Mac. */
+  /** Waiting for Google to finish a sign-in started from this server. */
   signingIn: z.boolean(),
   /** Google has finished; the code it showed is wanted, to claim the session. */
   signInNeedsCode: z.boolean().default(false),
@@ -330,7 +330,7 @@ export const CloudStatusSchema = z.object({
       keyIdHint: z.string(),
     })
     .nullable(),
-  /** This Mac's name in the bucket. */
+  /** This server's name in the bucket. */
   deviceId: z.string().nullable(),
   state: z.enum(['off', 'idle', 'syncing', 'error']),
   /** Files being uploaded in the current pass. */
@@ -342,12 +342,12 @@ export const CloudStatusSchema = z.object({
     })
     .nullable(),
   songs: z.object({
-    /** Songs whose file is on this Mac. */
+    /** Songs whose file is on this server. */
     total: z.number().int().nonnegative(),
     /** Of those, songs whose audio is in the bucket. */
     inCloud: z.number().int().nonnegative(),
   }),
-  /** Everything this Mac has uploaded that is still in the bucket. */
+  /** Everything this server has uploaded that is still in the bucket. */
   bytesInCloud: z.number().int().nonnegative(),
   lastSyncAt: z.string().nullable(),
   lastSnapshotAt: z.string().nullable(),

@@ -11,8 +11,8 @@ export interface ListenAddress {
  *
  * The boot log prints them, and the cloud snapshot carries them
  * (services/cloudSnapshot.ts) so a device signed in to the bucket can find
- * this Mac when it is near enough — the same Wi-Fi, or the same tailnet — for
- * what only the Mac can do: read a link and play a song before importing it.
+ * this server when it is near enough — the same Wi-Fi, or the same tailnet — for
+ * what only the server can do: read a link and play a song before importing it.
  */
 export function listenAddresses(host: string, port: number): ListenAddress[] {
   if (host !== '0.0.0.0' && host !== '::') return [{ url: `http://${host}:${port}`, tailscale: false }]

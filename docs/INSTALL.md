@@ -68,18 +68,18 @@ for your phone.
 ## On your phone
 
 Install self.mp3 to your home screen, download your library to the device, and it plays
-with the Mac closed and in a bag.
+with the server asleep and in a bag.
 
 That is its own walkthrough, because the interesting part is Tailscale and HTTPS rather
 than installation: **[docs/SETUP.md](SETUP.md)**. About twenty minutes, once.
 
 The short version: install Tailscale on both devices, run `tailscale serve --bg 4600` on
-the Mac, open the resulting `https://…ts.net` address in Safari, **Add to Home Screen**,
+the server, open the resulting `https://…ts.net` address in Safari, **Add to Home Screen**,
 then Settings → **Download everything**.
 
 ---
 
-## The Mac app
+## The desktop app
 
 A self.mp3 in the Dock, with its own window, the media keys, and your music on the disk
 rather than in a browser's cache. Same app as the tab — it is the same build inside a
@@ -204,15 +204,15 @@ mkdir -p library data
 docker compose up -d
 ```
 
-The Pi never builds the image; it pulls the one GitHub builds for it. Moving from the Mac is
-copying the two folders across while the Mac's server is stopped:
+The Pi never builds the image; it pulls the one GitHub builds for it. Moving from an existing
+server is copying the two folders across while that server is stopped:
 
 ```bash
 rsync -a --info=progress2 ~/Music/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/library/
 rsync -a ~/Library/Application\ Support/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/data/
 ```
 
-(The folders are wherever `npm run cli -- doctor` says they are on the Mac.) Then point
+(The folders are wherever `npm run cli -- doctor` says they are on the old server.) Then point
 Tailscale at the Pi as below, and each device at the Pi's address.
 
 ### Tailscale in front of it

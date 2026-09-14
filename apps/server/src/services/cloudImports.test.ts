@@ -21,7 +21,7 @@ import { CloudIngest } from './cloudIngest.js'
 import { SyncClock } from './localEdits.js'
 
 /**
- * A link pasted on a phone, imported by the Mac (docs/SYNC.md). What matters:
+ * A link pasted on a phone, imported by the server (docs/SYNC.md). What matters:
  * the request is recorded once, the link's songs are queued with the tags and
  * playlist asked for, a request is called off cleanly, and how it went ends up
  * where every device reads it — settled for good once its songs are done.
@@ -253,7 +253,7 @@ describe('links other devices ask to import', () => {
     expect(jobsOf(REQUEST).map(job => job.status)).toEqual(['cancelled'])
   })
 
-  it('says what a phone replaying the same changes would, until the Mac gets to it', () => {
+  it('says what a phone replaying the same changes would, until the server gets to it', () => {
     const changes: Change[] = [ask(), { type: 'importCancelled', hlc: at(4), uid: 'f2'.repeat(16) }]
     ingest.apply(changes)
     const phone = syncLibrary(null)

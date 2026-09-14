@@ -397,7 +397,7 @@ const MIGRATIONS: readonly Migration[] = [
         tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE
       );
 
-      -- How far into each other device's log this Mac has read.
+      -- How far into each other device's log this server has read.
       CREATE TABLE cloud_log_cursors (
         device TEXT    PRIMARY KEY,
         seq    INTEGER NOT NULL
@@ -413,7 +413,7 @@ const MIGRATIONS: readonly Migration[] = [
   {
     name: 'sync: links other devices ask to import',
     sql: `
-      -- A link a device that cannot fetch asked this Mac to import, and how
+      -- A link a device that cannot fetch asked this server to import, and how
       -- it went: every device reads that in the snapshot (docs/SYNC.md). Its
       -- import jobs point back at it, and once they are all finished the
       -- outcome is kept here, so clearing the jobs does not lose it.

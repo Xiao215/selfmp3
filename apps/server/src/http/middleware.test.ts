@@ -52,7 +52,7 @@ describe('sameOriginWrites', () => {
     expect(run('POST', { origin: 'http://127.0.0.1:4600', host: '127.0.0.1:4600' })).toBeNull()
   })
 
-  it('lets through the installed Mac app, whose origin no website can claim', () => {
+  it('lets through the desktop app, whose origin no website can claim', () => {
     expect(run('POST', { origin: 'app://selfmp3', host: '192.168.1.20:4600' })).toBeNull()
   })
 

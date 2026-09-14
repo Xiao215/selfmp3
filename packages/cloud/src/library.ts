@@ -708,7 +708,7 @@ export function createCloudLibrary(
   }
 
   /**
-   * A song's lyrics and their romanized lines, the way the Mac's own lyrics
+   * A song's lyrics and their romanized lines, the way the server's own lyrics
    * answer carries them: from this device if it has read them before, else
    * the bucket.
    */

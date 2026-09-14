@@ -69,7 +69,7 @@ describe('runLimited', () => {
   it('carries on past an item that fails', async () => {
     const done: number[] = []
     const finished = await runLimited([1, 2, 3], 2, index => {
-      if (index === 2) return Promise.reject(new Error('the Mac went away'))
+      if (index === 2) return Promise.reject(new Error('the server went away'))
       done.push(index)
       return Promise.resolve()
     })

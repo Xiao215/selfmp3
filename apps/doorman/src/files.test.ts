@@ -263,7 +263,7 @@ describe('reading a file', () => {
     expect(missing.body).toBeNull()
   })
 
-  it('says so, in the Mac’s words, when the bucket refuses the key it was connected with', async () => {
+  it('says so, in the server’s words, when the bucket refuses the key it was connected with', async () => {
     const { h, token } = await connected()
     h.bucket.revoked = true
     const response = await h.call(`/v1/files/${SONG}`, { token })

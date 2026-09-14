@@ -91,7 +91,7 @@ const ErrorResponseSchema = z.object({
 })
 
 /**
- * The bucket answering instead of a Mac.
+ * The bucket answering instead of a server.
  *
  * Both apps had this, worded differently and with one real difference: the web
  * mapped a `CloudRouteError` with code `offline` to status 0 and the phone did
@@ -159,7 +159,7 @@ export function createApi({ context, fetch }: ApiOptions) {
   ): Promise<z.output<S>> {
     const { transport, fromCloud, cloudRequest } = context()
 
-    // Answering from the bucket: there is no Mac to ask.
+    // Answering from the bucket: there is no server to ask.
     if (fromCloud && cloudRequest) {
       return cloudAnswer(cloudRequest, method, path, schema, body)
     }
@@ -179,7 +179,7 @@ export function createApi({ context, fetch }: ApiOptions) {
         body: body === undefined ? undefined : JSON.stringify(body),
       })
     } catch (error) {
-      // A network-level failure is almost always "the Mac is asleep" rather
+      // A network-level failure is almost always "the server is asleep" rather
       // than a bug, so it gets its own status the UI can recognise. The phone's
       // own fetch turns its fifteen-second timeout into exactly this.
       throw new ApiError(
@@ -218,7 +218,7 @@ export function createApi({ context, fetch }: ApiOptions) {
   return {
     // --- which answerer -------------------------------------------------------
 
-    /** Whether this device's copy of the cloud library is answering, rather than a Mac. */
+    /** Whether this device's copy of the cloud library is answering, rather than a server. */
     answersFromCloud: (): boolean => {
       const { fromCloud, cloudRequest } = context()
       return fromCloud && cloudRequest !== undefined
@@ -227,7 +227,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     /**
      * Hear that the cloud library changed behind an answer already given. A
      * no-op to stop on a build with no cloud; the listener only ever hears
-     * the cloud library, so it is harmless to hold while a Mac answers.
+     * the cloud library, so it is harmless to hold while a server answers.
      */
     onCloudLibraryChanged: (listener: () => void): (() => void) =>
       context().onCloudLibraryChanged?.(listener) ?? (() => undefined),
@@ -461,7 +461,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
 
-    /** Links asked of the Mac, through the bucket: the web app's own imports (lib/cloud). */
+    /** Links asked of the server, through the bucket: the web app's own imports (lib/cloud). */
     cloudImports: () => request('GET', '/api/cloud/imports', ImportRequestListSchema),
 
     requestCloudImport: (input: CloudImportRequest) =>
@@ -469,7 +469,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     cancelCloudImport: (uid: string) => request('DELETE', `/api/cloud/imports/${uid}`, OkSchema),
 
-    /** Where the Mac behind a cloud library listens, from its last snapshot. */
+    /** Where the server behind a cloud library listens, from its last snapshot. */
     cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
 
     /** The code Google's sign-in ended with, which claims the session. */

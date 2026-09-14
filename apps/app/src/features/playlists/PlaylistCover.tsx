@@ -93,7 +93,7 @@ function songsById(songs: readonly Song[]): ReadonlyMap<number, Song> {
 }
 
 /**
- * One cell. A `Cover`, so art that fails to load (a Mac that is not running)
+ * One cell. A `Cover`, so art that fails to load (a server that is not running)
  * falls back to the song's own coloured letter rather than leaving a hole. A
  * cover draws at a fixed size, so the cell measures itself and hands it on.
  */

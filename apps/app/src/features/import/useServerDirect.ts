@@ -5,13 +5,13 @@ import {
   candidates,
   LOOK_AGAIN_MS,
   PROBE_TIMEOUT_MS,
-  reachMac,
+  reachServer,
   type Reach,
-} from './macReach.model'
+} from './serverReach.model'
 
 /**
  * `/api/health` at one address, within the deadline. It needs no token, and
- * an answer is all that is asked: what it says is the Mac's business.
+ * an answer is all that is asked: what it says is the server's business.
  */
 async function probe(connection: ServerConnection): Promise<boolean> {
   const controller = new AbortController()
@@ -27,17 +27,17 @@ async function probe(connection: ServerConnection): Promise<boolean> {
 }
 
 /**
- * Whether the Mac behind this cloud library can be reached from here, and how
- * (macReach.model.ts). Looks again every little while for as long as the
- * screen that asks is open, so a Mac switched on is found without a tap.
+ * Whether the server behind this cloud library can be reached from here, and how
+ * (serverReach.model.ts). Looks again every little while for as long as the
+ * screen that asks is open, so a server switched on is found without a tap.
  */
-export function useMacDirect(): Reach & { readonly lookAgain: () => void } {
+export function useServerDirect(): Reach & { readonly lookAgain: () => void } {
   const queryClient = useQueryClient()
   const server = useQuery({
     queryKey: queryKeys.cloudServer,
     queryFn: () => clientApi().cloudServer(),
     // Answered from this device's copy of the library: cheap, and the
-    // addresses change when the Mac's next snapshot lands.
+    // addresses change when the server's next snapshot lands.
     refetchInterval: LOOK_AGAIN_MS,
   })
   const said = server.data?.server ?? null
@@ -45,7 +45,7 @@ export function useMacDirect(): Reach & { readonly lookAgain: () => void } {
 
   const reach = useQuery({
     queryKey: [...queryKeys.cloudServer, 'reach', addresses],
-    queryFn: () => reachMac(candidates(said), probe),
+    queryFn: () => reachServer(candidates(said), probe),
     enabled: server.isSuccess,
     refetchInterval: LOOK_AGAIN_MS,
     retry: false,
@@ -53,7 +53,7 @@ export function useMacDirect(): Reach & { readonly lookAgain: () => void } {
   })
 
   /*
-   * A tap asks the bucket, not just the addresses already known: the Mac was
+   * A tap asks the bucket, not just the addresses already known: the server was
    * started a moment ago and its snapshot, the first to name its addresses,
    * is not on this device yet. Stale makes the next read wait for a look.
    */

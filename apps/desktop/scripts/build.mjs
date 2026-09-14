@@ -65,7 +65,7 @@ await build({
 
 /*
  * The renderer, copied in beside the shell rather than built here. It is
- * `apps/app`'s own export, byte for byte the build the Mac serves and Pages
+ * `apps/app`'s own export, byte for byte the build the server serves and Pages
  * serves — the plan's first ground rule.
  */
 const webExport = join(repoRoot, 'apps', 'app', 'dist')

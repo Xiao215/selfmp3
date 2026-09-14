@@ -4,7 +4,7 @@ import { DoormanClient } from './doorman.js'
 import { CloudError } from './store.js'
 
 /**
- * The Mac's side of the doorman, against a stand-in that records what it was
+ * The server's side of the doorman, against a stand-in that records what it was
  * asked and answers the way the Worker does. What matters: the session goes
  * with every request, keys arrive intact, and each way of failing becomes an
  * error that says what to do about it.

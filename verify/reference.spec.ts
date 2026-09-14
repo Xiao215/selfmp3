@@ -350,8 +350,8 @@ test.describe('reference', () => {
       await shot(page, project, 'nowplaying-lyrics')
     }
 
-    // Up next, and About.
-    const queueTab = page.getByRole('tab', { name: 'Up next' })
+    // Queue, and About.
+    const queueTab = page.getByRole('tab', { name: 'Queue' })
     if (await queueTab.isVisible().catch(() => false)) {
       await queueTab.click()
       await settle(page, 800)

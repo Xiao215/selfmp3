@@ -431,7 +431,7 @@ function Stage({
               {(
                 [
                   ['lyrics', 'Lyrics'],
-                  ['queue', 'Up next'],
+                  ['queue', 'Queue'],
                   ['about', 'About'],
                 ] as const
               ).map(([value, label]) => (

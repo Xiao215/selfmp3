@@ -37,6 +37,7 @@ import { SimilarShelf } from './SimilarShelf'
 import { Toggle } from '../../ui/components/Toggle'
 import {
   ChevronDown,
+  ChevronRight,
   CloudDownload,
   Devices,
   Downloaded,
@@ -64,7 +65,14 @@ import { useArt } from '../../offline/useArt'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { NowPlayingStage } from './NowPlayingStage'
-import { romanName, autoMixLine, similarShelfLayout } from './nowPlaying.model'
+import {
+  autoMixLine,
+  queueLines,
+  romanName,
+  similarShelfLayout,
+  upNextLine,
+  type QueueLine,
+} from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { useSongWords } from './useSongWords'
 
@@ -618,11 +626,13 @@ function FootAction({
 }
 
 /**
- * Up next: the web's `QueuePanel`, over the stage.
+ * The queue: the web's `QueuePanel`, over the stage.
  *
- * A tap plays that entry; the X drops it. Dragging to reorder waits for a
- * gesture library — a thumb on a FlatList row is a scroll, and pretending
- * otherwise makes both worse.
+ * It starts at the song that is playing, as the computer's does: the played
+ * songs fold into one line above it (`queueLines`), so there is nothing to
+ * scroll past and no need to open part-way down. A tap plays that entry; the
+ * X drops it. Dragging to reorder waits for a gesture library — a thumb on a
+ * FlatList row is a scroll, and pretending otherwise makes both worse.
  */
 function QueuePanel({
   onClose,
@@ -634,27 +644,37 @@ function QueuePanel({
   const { theme } = useUnistyles()
   const player = usePlayer()
   const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
-  const listRef = useRef<FlatList<Song>>(null)
+  const [playedOpen, setPlayedOpen] = useState(false)
 
   const upcoming = player.songs.slice(player.queue.index + 1)
   const remaining = upcoming.reduce((sum, song) => sum + song.duration, 0)
+  const lines = queueLines(player.queue.index, player.songs.length, playedOpen)
 
-  // Open on the song that is playing, not the top of a long list.
-  useEffect(() => {
-    if (player.songs.length === 0) return
-    const timer = setTimeout(() => {
-      listRef.current?.scrollToIndex({
-        index: player.queue.index,
-        viewPosition: 0.2,
-        animated: false,
-      })
-    }, 50)
-    return () => clearTimeout(timer)
-    // Only on open: following the index afterwards would fight a scrolling thumb.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const renderItem: ListRenderItem<Song> = ({ item, index }) => {
+  const renderItem: ListRenderItem<QueueLine> = ({ item: line }) => {
+    if (line.kind === 'played') {
+      return (
+        <Pressable
+          onPress={() => setPlayedOpen(open => !open)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: line.open }}
+          accessibilityLabel={`${line.open ? 'Hide' : 'Show'} ${line.count} played ${line.count === 1 ? 'song' : 'songs'}`}
+          style={({ pressed }) => [styles.queuePlayed, pressed && styles.actionPressed]}
+        >
+          {line.open ? (
+            <ChevronDown size={15} color={theme.colors.textMuted} />
+          ) : (
+            <ChevronRight size={15} color={theme.colors.textMuted} />
+          )}
+          <Text style={styles.queuePlayedText}>Played · {line.count}</Text>
+        </Pressable>
+      )
+    }
+    if (line.kind === 'upNext') {
+      return <Text style={styles.queueUpNext}>{upNextLine(upcoming.length, remaining)}</Text>
+    }
+    const index = line.index
+    const item = player.songs[index]
+    if (!item) return null
     const isCurrent = index === player.queue.index
     const isPast = index < player.queue.index
     return (
@@ -704,7 +724,7 @@ function QueuePanel({
     <View style={styles.queue}>
       <View style={styles.queueHead}>
         <View style={styles.queueTitles}>
-          <Text style={styles.queueHeading}>Up next</Text>
+          <Text style={styles.queueHeading}>Queue</Text>
           <Text style={styles.queueSub} numberOfLines={1}>
             {player.songs.length === 0
               ? 'Nothing playing'
@@ -735,14 +755,15 @@ function QueuePanel({
         </Text>
       </View>
       <FlatList
-        ref={listRef}
-        data={player.songs}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
+        data={lines}
+        keyExtractor={line =>
+          line.kind === 'song'
+            ? `${player.songs[line.index]?.id ?? 0}-${line.index}`
+            : line.kind
+        }
         renderItem={renderItem}
         initialNumToRender={14}
-        getItemLayout={(_data, index) => ({ length: QUEUE_ROW, offset: QUEUE_ROW * index, index })}
         contentContainerStyle={styles.queueList}
-        onScrollToIndexFailed={() => undefined}
       />
     </View>
   )
@@ -981,6 +1002,25 @@ const styles = StyleSheet.create(theme => ({
   queueList: {
     padding: space.sm,
     gap: 1,
+  },
+  queuePlayed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: HIT_TARGET,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+  },
+  queuePlayedText: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '500' },
+  queueUpNext: {
+    color: theme.colors.textMuted,
+    fontSize: type.tiny,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    paddingTop: 10,
+    paddingBottom: 4,
+    paddingHorizontal: 10,
   },
   queueRow: {
     height: QUEUE_ROW,

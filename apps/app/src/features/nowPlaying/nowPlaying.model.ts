@@ -1,4 +1,4 @@
-import type { LyricsLanguage, ParsedLyrics } from '@selfmp3/shared'
+import { formatLongDuration, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
 
 /**
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
@@ -137,7 +137,46 @@ export function upNextSeconds({
 }
 
 /**
- * What auto-mix will do next, beside its switch in Up next: the web's
+ * One line of the queue as it is drawn: the fold that holds the songs already
+ * played, a song (by its place in the queue), or the "Up next" label between
+ * the song that is playing and the ones after it.
+ */
+export type QueueLine =
+  | { readonly kind: 'played'; readonly count: number; readonly open: boolean }
+  | { readonly kind: 'song'; readonly index: number }
+  | { readonly kind: 'upNext' }
+
+/**
+ * The queue from what is playing onwards.
+ *
+ * A long session is mostly history, and a queue that opened on its first song
+ * put what is coming a scroll away. So the played songs fold into one line
+ * above the song that is playing, and opening the fold puts them back for a
+ * jump to one of them. The label only shows when something follows.
+ */
+export function queueLines(index: number, count: number, playedOpen: boolean): QueueLine[] {
+  if (count === 0) return []
+  const current = Math.max(0, Math.min(index, count - 1))
+  const lines: QueueLine[] = []
+  if (current > 0) {
+    lines.push({ kind: 'played', count: current, open: playedOpen })
+    if (playedOpen) for (let i = 0; i < current; i++) lines.push({ kind: 'song', index: i })
+  }
+  lines.push({ kind: 'song', index: current })
+  if (current < count - 1) {
+    lines.push({ kind: 'upNext' })
+    for (let i = current + 1; i < count; i++) lines.push({ kind: 'song', index: i })
+  }
+  return lines
+}
+
+/** "Up next · 1 song · 4 min": the label over what follows the song that is playing. */
+export function upNextLine(count: number, seconds: number): string {
+  return `Up next · ${count} ${count === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`
+}
+
+/**
+ * What auto-mix will do next, beside its switch in the queue: the web's
  * `.automix-fade`. A phone's player cannot crossfade, so there it only orders.
  */
 export function autoMixLine({

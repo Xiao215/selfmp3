@@ -52,7 +52,7 @@ export function Shell({
   sidebar?: boolean
 }): ReactNode {
   const { wide } = useLayout()
-  // Focus with a still mouse: the bar folds away and the page takes its room.
+  // Focus with a still mouse: the bar fades away over the page, which runs on under it.
   const barHidden = useSyncExternalStore(subscribeStageIdle, stageIdle, stageIdle)
 
   return (
@@ -132,7 +132,20 @@ function WideFrame({
         </View>
         <PracticeSide />
       </View>
-      {barHidden ? null : <PlayerBar />}
+      {/*
+        Focus with a still mouse fades the bar rather than taking it out. Taking
+        it out remounted the whole bar at the next nudge of the mouse and
+        changed the page's height both ways, which re-centred the lyrics each
+        time; Now Playing reaches under the bar instead, so there is nothing to
+        re-lay. Later in the tree than the page, so drawn over it.
+      */}
+      <View
+        style={barHidden ? styles.barHidden : undefined}
+        pointerEvents={barHidden ? 'none' : 'auto'}
+        aria-hidden={barHidden}
+      >
+        <PlayerBar />
+      </View>
     </View>
   )
 }
@@ -253,5 +266,8 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     minHeight: 0,
+  },
+  barHidden: {
+    opacity: 0,
   },
 }))

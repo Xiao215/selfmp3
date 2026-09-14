@@ -116,7 +116,6 @@ function PhoneNowPlaying(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
-  const progress = usePlayerProgress()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
   const { state: downloads, queue: downloadQueue, installed } = useDownloads()
@@ -330,13 +329,7 @@ function PhoneNowPlaying(): ReactNode {
               )}
 
               <View style={styles.progress}>
-                <SeekBar
-                  loop={loopRegionPercent(player.loopA, player.loopB, progress.duration)}
-                  color={songColor.color}
-                  position={progress.position}
-                  duration={progress.duration}
-                  onSeek={player.seekTo}
-                />
+                <PhoneSeek color={songColor.color} />
               </View>
 
               <View style={styles.controls}>
@@ -564,6 +557,25 @@ function PhoneWords({
         )}
       </View>
     </>
+  )
+}
+
+/**
+ * The scrubber, which is the only thing on the page that moves with the song.
+ * It reads the position itself, so each tick redraws the scrubber and not the
+ * blurred cover, the controls, the foot and the sheets around it.
+ */
+function PhoneSeek({ color }: { color: string }): ReactNode {
+  const player = usePlayer()
+  const progress = usePlayerProgress()
+  return (
+    <SeekBar
+      loop={loopRegionPercent(player.loopA, player.loopB, progress.duration)}
+      color={color}
+      position={progress.position}
+      duration={progress.duration}
+      onSeek={player.seekTo}
+    />
   )
 }
 

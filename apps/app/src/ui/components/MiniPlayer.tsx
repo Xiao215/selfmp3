@@ -28,7 +28,6 @@ export function MiniPlayer(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
-  const { position, duration } = usePlayerProgress()
   const router = useRouter()
   const song = player.current
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -61,8 +60,6 @@ export function MiniPlayer(): ReactNode {
 
   if (!song) return null
 
-  const progress = duration > 0 ? Math.min(1, position / duration) : 0
-
   return (
     <Animated.View
       testID="mini-player"
@@ -81,13 +78,7 @@ export function MiniPlayer(): ReactNode {
         },
       ]}
     >
-      <ProgressWash
-        fraction={progress}
-        color={songColor.color}
-        alpha={currentColorScheme() === 'light' ? 0.18 : 0.26}
-        fade={24}
-        footLine
-      />
+      <MiniProgress color={songColor.color} />
 
       <Pressable
         style={styles.expand}
@@ -135,6 +126,23 @@ export function MiniPlayer(): ReactNode {
 
       <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </Animated.View>
+  )
+}
+
+/**
+ * The wash, on its own: the one part of the strip that moves with the song.
+ * Every tick redraws this and not the cover, the words and the buttons.
+ */
+function MiniProgress({ color }: { color: string }): ReactNode {
+  const { position, duration } = usePlayerProgress()
+  return (
+    <ProgressWash
+      fraction={duration > 0 ? Math.min(1, position / duration) : 0}
+      color={color}
+      alpha={currentColorScheme() === 'light' ? 0.18 : 0.26}
+      fade={24}
+      footLine
+    />
   )
 }
 

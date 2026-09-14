@@ -375,6 +375,17 @@ export class NativeEngine implements PlaybackEngine {
   }
 
   #patch(change: Partial<EngineState>): void {
+    // The web engine's rule: nothing changed, nobody told. Progress arrives
+    // every second and PlaybackState repeats itself, and each notify is a
+    // render of the provider.
+    let changed = false
+    for (const [key, value] of Object.entries(change)) {
+      if (this.#state[key as keyof EngineState] !== value) {
+        changed = true
+        break
+      }
+    }
+    if (!changed) return
     this.#state = { ...this.#state, ...change }
     for (const listener of this.#listeners) listener(this.#state)
   }

@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import type { GestureResponderEvent } from 'react-native'
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
+import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
+import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -25,7 +25,7 @@ import {
 } from '../../api/queries'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { useIsCurrentSong, usePlayer } from '../../player/PlayerProvider'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -54,6 +54,7 @@ import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
+import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { copyName, isLive, LIVE_NAME, newPlaylist } from '../playlists/playlists.model'
@@ -112,7 +113,10 @@ export function PlaylistDetailScreen(): ReactNode {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [editingRules, setEditingRules] = useState(params.rules === '1')
   const [adding, setAdding] = useState(false)
-  const [drag, setDrag] = useState<{ from: number; over: number; dy: number } | null>(null)
+  // The row being moved and the row it would land on. Not how far it has
+  // travelled: that is `dragY`, which moves the row without a render.
+  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
+  const [dragY] = useState(() => new Animated.Value(0))
   const [rowHeight, setRowHeight] = useState(0)
 
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
@@ -136,7 +140,10 @@ export function PlaylistDetailScreen(): ReactNode {
   )
 
   const pendingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
-  const currentId = player.current?.id ?? null
+  // A string of its own rather than a read off `playlist`: the rows' memo
+  // depends on it, and the compiler cannot vouch for a value that still points
+  // into an object handed to the mutations below.
+  const name = `${playlist?.name ?? 'Playlist'}`
 
   /**
    * Move a track, and show it moved at once. The server is told the whole new
@@ -161,14 +168,116 @@ export function PlaylistDetailScreen(): ReactNode {
     [songIds, queryClient, playlistId, contents.data],
   )
 
-  const dragStart = (index: number): void => setDrag({ from: index, over: index, dy: 0 })
-  const dragMove = (index: number, dy: number): void =>
-    setDrag({ from: index, over: dropIndex(index, dy, rowHeight, songs.length), dy })
-  const dragEnd = (index: number, dy: number): void => {
-    const to = dropIndex(index, dy, rowHeight, songs.length)
+  /*
+   * What a row's handlers read at the moment they run, so the handlers are
+   * made once (`rowActions`) and a row's memo holds. Inline closures per row
+   * redrew every row on every render of this screen.
+   */
+  const latest = useRef({ songIds, rowHeight, moveTo, selection, playback, playlistId, removeFromPlaylist })
+  useEffect(() => {
+    latest.current = { songIds, rowHeight, moveTo, selection, playback, playlistId, removeFromPlaylist }
+  })
+
+  /*
+   * A move.
+   *
+   * The pointer's travel goes into `dragY`, which the lifted cell reads
+   * (`LiftedCell`), so following the pointer is no render at all; it used to
+   * be state, and every pointer event redrew every row. State changes when
+   * the move starts, when it crosses into another row (the drop line moves),
+   * and when it ends.
+   */
+  const dragStart = useCallback(
+    (index: number) => {
+      dragY.setValue(0)
+      setDrag({ from: index, over: index })
+    },
+    [dragY],
+  )
+  const dragMove = useCallback(
+    (index: number, dy: number) => {
+      dragY.setValue(dy)
+      const now = latest.current
+      const over = dropIndex(index, dy, now.rowHeight, now.songIds.length)
+      setDrag(current =>
+        current !== null && current.from === index && current.over === over
+          ? current
+          : { from: index, over },
+      )
+    },
+    [dragY],
+  )
+  const dragEnd = useCallback((index: number, dy: number) => {
+    const now = latest.current
+    const to = dropIndex(index, dy, now.rowHeight, now.songIds.length)
+    // `dragY` is left where it is: the lift ends in the same render as the
+    // move, and resetting it first would show the row back in its old place
+    // for a frame.
     setDrag(null)
-    if (to !== index) moveTo(index, to)
-  }
+    if (to !== index) now.moveTo(index, to)
+  }, [])
+
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      dragStart,
+      dragMove,
+      dragEnd,
+      press: (event, songId, index) => {
+        const now = latest.current
+        // Cmd, Shift and selection mode select; anything else plays from here.
+        if (now.selection.click(songId, modifiersOf(event))) return
+        now.playback.playFrom(now.playlistId, now.songIds, index)
+      },
+      more: (anchor, song) => {
+        menuAnchorRef.current = anchor
+        // The ⋯ again closes its own menu.
+        setMenuSong(current => (current?.id === song.id ? null : song))
+      },
+      toggleSelect: songId => latest.current.selection.toggle(songId),
+      remove: songId => {
+        const now = latest.current
+        now.removeFromPlaylist.mutate({ playlistId: now.playlistId, songId })
+      },
+      measure: setRowHeight,
+    }),
+    [dragStart, dragMove, dragEnd],
+  )
+
+  const liftedFrom = drag?.from ?? null
+  const lift = useMemo(() => ({ from: liftedFrom, dragY }), [liftedFrom, dragY])
+
+  // Not on this phone and no Mac to stream it from: faded.
+  const unreachableHere = library.isError && installed
+  const menuSongId = menuSong?.id ?? null
+  const renderSong = useCallback(
+    ({ item, index }: { item: Song; index: number }) => (
+      <PlaylistRow
+        song={item}
+        index={index}
+        artUri={artFor(item)}
+        unavailable={unreachableHere && !isDownloaded(downloads.index, item.id)}
+        manual={manual}
+        playlistName={name}
+        selecting={selection.active}
+        selected={selection.has(item.id)}
+        dragging={drag?.from === index}
+        dropTarget={drag !== null && drag.over === index && drag.from !== index}
+        menuOpen={menuSongId === item.id}
+        actions={rowActions}
+      />
+    ),
+    [
+      artFor,
+      unreachableHere,
+      downloads.index,
+      manual,
+      name,
+      selection,
+      drag,
+      menuSongId,
+      rowActions,
+    ],
+  )
 
   const saveName = (): void => {
     const trimmed = (draftName ?? '').trim()
@@ -225,7 +334,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const seconds = contents.data
     ? songs.reduce((sum, song) => sum + song.duration, 0)
     : (playlist?.totalDuration ?? 0)
-  const name = playlist?.name ?? 'Playlist'
   const nothing = songs.length === 0
 
   const menuAction = (run: () => void) => (): void => {
@@ -350,177 +458,155 @@ export function PlaylistDetailScreen(): ReactNode {
     </View>
   )
 
+  // Above the songs, and scrolled with them: the songs are a virtualised list
+  // now — a live playlist with no rules is the whole library — and this is its
+  // header rather than the top of a ScrollView drawing every row at once.
+  const header = (
+    <>
+      {wide ? null : (
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Back to playlists"
+          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+          style={({ pressed }) => [styles.backRow, pressed && { opacity: 0.6 }]}
+        >
+          <ChevronLeft size={18} color={theme.colors.textSecondary} />
+          <Text style={styles.backLabel}>Playlists</Text>
+        </Pressable>
+      )}
+
+      {playlist ? (
+        wide ? (
+          <View style={styles.head}>
+            <View style={styles.headTop}>
+              <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={132} />
+              {titles}
+            </View>
+            <View style={styles.controls}>
+              {playButton}
+              {shuffleButton}
+              {offlineButton}
+              {moreButton}
+              <View style={styles.spacer} />
+              {manual ? (
+                <Button
+                  label="Add songs"
+                  icon={<Plus size={15} color={theme.colors.textPrimary} />}
+                  onPress={() => setAdding(true)}
+                  testID="playlist-add-songs"
+                />
+              ) : null}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.head}>
+            <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={148} />
+            {titles}
+            <View style={styles.controls}>
+              {offlineButton}
+              {manual ? (
+                <IconButton onPress={() => setAdding(true)} label="Add songs" testID="playlist-add-songs">
+                  <Plus size={20} color={theme.colors.textSecondary} />
+                </IconButton>
+              ) : null}
+              {moreButton}
+              <View style={styles.spacer} />
+              {shuffleButton}
+              {playButton}
+            </View>
+          </View>
+        )
+      ) : null}
+
+      {live && playlist ? (
+        <RulesSummary
+          rules={playlist.rules}
+          tags={tags}
+          editing={editingRules}
+          onEdit={() => setEditingRules(true)}
+        />
+      ) : null}
+
+      {selection.active && playlist ? (
+        <SelectionBar
+          songs={selectedSongs}
+          total={songs.length}
+          scope="in this playlist"
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.deselectAll}
+          onDone={selection.clear}
+          // A live playlist has no membership to edit, so removing from it
+          // would be a lie.
+          playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+        />
+      ) : null}
+    </>
+  )
+
+  // What stands where the songs would, when there are none (the list shows it
+  // only then): loading, a server that is not answering, or an empty playlist.
+  const empty = contents.isPending ? (
+    <ActivityIndicator style={styles.spinner} color={accent.accent} />
+  ) : contents.isError ? (
+    // The list is the server's; the library knows only how long it is.
+    <View style={styles.empty}>
+      <Text style={styles.emptyTitle}>Can’t reach your library</Text>
+      <Text style={styles.emptyHint}>
+        {playlist
+          ? `${playlist.songCount} ${playlist.songCount === 1 ? 'song is' : 'songs are'} in here, `
+          : ''}
+        but the list lives on your server and it isn’t answering right now.
+      </Text>
+      <Button label="Try again" onPress={() => void contents.refetch()} />
+    </View>
+  ) : (
+    <View style={styles.empty}>
+      {live ? (
+        <Live size={30} color={theme.colors.textMuted} />
+      ) : (
+        <ListMusic size={30} color={theme.colors.textMuted} />
+      )}
+      <Text style={styles.emptyTitle}>
+        {live ? 'No songs match these rules yet' : 'Nothing here yet'}
+      </Text>
+      <Text style={styles.emptyHint}>
+        {live
+          ? 'Loosen a rule and the songs that match appear here as you change it.'
+          : 'Search your library and add as many songs as you like.'}
+      </Text>
+      {/* A live playlist's Edit rules is in the sentence just above. */}
+      {live ? null : (
+        <Button
+          label="Add songs"
+          variant="primary"
+          icon={<Plus size={15} color={accent.onAccent} />}
+          onPress={() => setAdding(true)}
+        />
+      )}
+    </View>
+  )
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.split}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          scrollEnabled={drag === null}
-          keyboardShouldPersistTaps="handled"
-        >
-          {wide ? null : (
-            <Pressable
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel="Back to playlists"
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-              style={({ pressed }) => [styles.backRow, pressed && { opacity: 0.6 }]}
-            >
-              <ChevronLeft size={18} color={theme.colors.textSecondary} />
-              <Text style={styles.backLabel}>Playlists</Text>
-            </Pressable>
-          )}
-
-          {playlist ? (
-            wide ? (
-              <View style={styles.head}>
-                <View style={styles.headTop}>
-                  <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={132} />
-                  {titles}
-                </View>
-                <View style={styles.controls}>
-                  {playButton}
-                  {shuffleButton}
-                  {offlineButton}
-                  {moreButton}
-                  <View style={styles.spacer} />
-                  {manual ? (
-                    <Button
-                      label="Add songs"
-                      icon={<Plus size={15} color={theme.colors.textPrimary} />}
-                      onPress={() => setAdding(true)}
-                      testID="playlist-add-songs"
-                    />
-                  ) : null}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.head}>
-                <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={148} />
-                {titles}
-                <View style={styles.controls}>
-                  {offlineButton}
-                  {manual ? (
-                    <IconButton onPress={() => setAdding(true)} label="Add songs" testID="playlist-add-songs">
-                      <Plus size={20} color={theme.colors.textSecondary} />
-                    </IconButton>
-                  ) : null}
-                  {moreButton}
-                  <View style={styles.spacer} />
-                  {shuffleButton}
-                  {playButton}
-                </View>
-              </View>
-            )
-          ) : null}
-
-          {live && playlist ? (
-            <RulesSummary
-              rules={playlist.rules}
-              tags={tags}
-              editing={editingRules}
-              onEdit={() => setEditingRules(true)}
-            />
-          ) : null}
-
-          {selection.active && playlist ? (
-            <SelectionBar
-              songs={selectedSongs}
-              total={songs.length}
-              scope="in this playlist"
-              allSelected={selection.allSelected}
-              onSelectAll={selection.selectAll}
-              onDeselectAll={selection.deselectAll}
-              onDone={selection.clear}
-              // A live playlist has no membership to edit, so removing from it
-              // would be a lie.
-              playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
-            />
-          ) : null}
-
-          {contents.isPending ? (
-            <ActivityIndicator style={styles.spinner} color={accent.accent} />
-          ) : contents.isError && nothing ? (
-            // The list is the server's; the library knows only how long it is.
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Can’t reach your library</Text>
-              <Text style={styles.emptyHint}>
-                {playlist
-                  ? `${playlist.songCount} ${playlist.songCount === 1 ? 'song is' : 'songs are'} in here, `
-                  : ''}
-                but the list lives on your server and it isn’t answering right now.
-              </Text>
-              <Button label="Try again" onPress={() => void contents.refetch()} />
-            </View>
-          ) : nothing ? (
-            <View style={styles.empty}>
-              {live ? (
-                <Live size={30} color={theme.colors.textMuted} />
-              ) : (
-                <ListMusic size={30} color={theme.colors.textMuted} />
-              )}
-              <Text style={styles.emptyTitle}>
-                {live ? 'No songs match these rules yet' : 'Nothing here yet'}
-              </Text>
-              <Text style={styles.emptyHint}>
-                {live
-                  ? 'Loosen a rule and the songs that match appear here as you change it.'
-                  : 'Search your library and add as many songs as you like.'}
-              </Text>
-              {/* A live playlist's Edit rules is in the sentence just above. */}
-              {live ? null : (
-                <Button
-                  label="Add songs"
-                  variant="primary"
-                  icon={<Plus size={15} color={accent.onAccent} />}
-                  onPress={() => setAdding(true)}
-                />
-              )}
-            </View>
-          ) : (
-            <View style={styles.list} role="table" aria-label={`${name} songs`}>
-              {songs.map((song, index) => (
-                <PlaylistSongRow
-                  key={song.id}
-                  song={song}
-                  index={index}
-                  artUri={artFor(song)}
-                  active={currentId === song.id}
-                  // Not on this phone and no Mac to stream it from: faded.
-                  unavailable={library.isError && installed && !isDownloaded(downloads.index, song.id)}
-                  manual={manual}
-                  playlistName={name}
-                  selecting={selection.active}
-                  selected={selection.has(song.id)}
-                  dragging={drag?.from === index}
-                  dragOffset={drag?.from === index ? drag.dy : 0}
-                  dropTarget={drag !== null && drag.over === index && drag.from !== index}
-                  menuOpen={menuSong?.id === song.id}
-                  onDragStart={manual ? () => dragStart(index) : undefined}
-                  onDragMove={manual ? dy => dragMove(index, dy) : undefined}
-                  onDragEnd={manual ? dy => dragEnd(index, dy) : undefined}
-                  onToggleSelect={() => selection.toggle(song.id)}
-                  onPress={(event: GestureResponderEvent) => {
-                    // Cmd, Shift and selection mode select; anything else plays
-                    // from here.
-                    if (selection.click(song.id, modifiersOf(event))) return
-                    playback.playFrom(playlistId, songIds, index)
-                  }}
-                  onMore={anchor => {
-                    menuAnchorRef.current = anchor
-                    // The ⋯ again closes its own menu.
-                    setMenuSong(current => (current?.id === song.id ? null : song))
-                  }}
-                  onRemove={
-                    manual ? () => removeFromPlaylist.mutate({ playlistId, songId: song.id }) : undefined
-                  }
-                  onLayoutHeight={index === 0 ? setRowHeight : undefined}
-                />
-              ))}
-            </View>
-          )}
-        </ScrollView>
+        <LiftContext.Provider value={lift}>
+          <SongList
+            songs={songs}
+            label={`${name} songs`}
+            renderSong={renderSong}
+            header={header}
+            empty={empty}
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            scrollEnabled={drag === null}
+            keyboardShouldPersistTaps="handled"
+            // A name or a description being typed in the head stays open through a scroll.
+            keyboardDismissMode="none"
+            CellRendererComponent={LiftedCell}
+          />
+        </LiftContext.Provider>
 
         {wide && live && playlist && editingRules ? (
           <RulesPanel playlist={playlist} tags={tags} onDone={() => setEditingRules(false)} />
@@ -638,6 +724,131 @@ export function PlaylistDetailScreen(): ReactNode {
   )
 }
 
+/** What a row can ask of the screen. Made once, so a row's memo holds. */
+interface RowActions {
+  readonly dragStart: (index: number) => void
+  readonly dragMove: (index: number, dy: number) => void
+  readonly dragEnd: (index: number, dy: number) => void
+  readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
+  readonly more: (anchor: View | null, song: Song) => void
+  readonly toggleSelect: (songId: number) => void
+  readonly remove: (songId: number) => void
+  readonly measure: (height: number) => void
+}
+
+/**
+ * One track, with its handlers bound to its song and place.
+ *
+ * `PlaylistSongRow` takes handlers with no arguments, so something has to
+ * close over the song and the index; done here, with hooks, each handler is
+ * remade only when its row moves. Done in the list's render, every handler of
+ * every row was new each time and the row's memo never held.
+ */
+const PlaylistRow = memo(function PlaylistRow({
+  song,
+  index,
+  artUri,
+  unavailable,
+  manual,
+  playlistName,
+  selecting,
+  selected,
+  dragging,
+  dropTarget,
+  menuOpen,
+  actions,
+}: {
+  song: Song
+  index: number
+  artUri: string | null
+  unavailable: boolean
+  manual: boolean
+  playlistName: string
+  selecting: boolean
+  selected: boolean
+  dragging: boolean
+  dropTarget: boolean
+  menuOpen: boolean
+  actions: RowActions
+}): ReactNode {
+  // Asked per row, so a song change redraws two rows rather than the list.
+  const active = useIsCurrentSong(song.id)
+  const songId = song.id
+  const onDragStart = useCallback(() => actions.dragStart(index), [actions, index])
+  const onDragMove = useCallback((dy: number) => actions.dragMove(index, dy), [actions, index])
+  const onDragEnd = useCallback((dy: number) => actions.dragEnd(index, dy), [actions, index])
+  const onPress = useCallback(
+    (event: GestureResponderEvent) => actions.press(event, songId, index),
+    [actions, songId, index],
+  )
+  const onMore = useCallback((anchor: View | null) => actions.more(anchor, song), [actions, song])
+  const onToggleSelect = useCallback(() => actions.toggleSelect(songId), [actions, songId])
+  const onRemove = useCallback(() => actions.remove(songId), [actions, songId])
+
+  return (
+    <PlaylistSongRow
+      song={song}
+      index={index}
+      artUri={artUri}
+      active={active}
+      unavailable={unavailable}
+      manual={manual}
+      playlistName={playlistName}
+      selecting={selecting}
+      selected={selected}
+      dragging={dragging}
+      // The cell carries the travel, as an animated value (`LiftedCell`).
+      dragOffset={0}
+      dropTarget={dropTarget}
+      menuOpen={menuOpen}
+      onDragStart={manual ? onDragStart : undefined}
+      onDragMove={manual ? onDragMove : undefined}
+      onDragEnd={manual ? onDragEnd : undefined}
+      onToggleSelect={onToggleSelect}
+      onPress={onPress}
+      onMore={onMore}
+      onRemove={manual ? onRemove : undefined}
+      onLayoutHeight={index === 0 ? actions.measure : undefined}
+    />
+  )
+})
+
+/** Which row is lifted, and how far it has travelled. */
+const LiftContext = createContext<{ from: number | null; dragY: Animated.Value | null }>({
+  from: null,
+  dragY: null,
+})
+
+type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererComponent']>>
+
+/**
+ * A list cell that can be lifted: over its neighbours, and following the
+ * pointer by an animated value rather than by re-rendering.
+ *
+ * On the cell rather than the row because a list puts each row in a cell of
+ * its own, and on a phone a raised `zIndex` only counts among siblings — a
+ * row raised inside its cell still slid under the next cell. Reads the lift
+ * from context, so this component stays the same one for the list's life and
+ * starting a move does not remount every row, and its gesture with it.
+ */
+function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellProps): ReactNode {
+  const { from, dragY } = useContext(LiftContext)
+  return (
+    <Animated.View
+      style={[
+        style,
+        dragY !== null && from === index ? { zIndex: 2, transform: [{ translateY: dragY }] } : null,
+      ]}
+      onLayout={onLayout}
+      // The list's own cell passes this on to a View, which takes it on both
+      // platforms; the types of Animated.View just do not name it.
+      {...{ onFocusCapture }}
+    >
+      {children}
+    </Animated.View>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   split: { flex: 1, flexDirection: 'row' },
@@ -696,7 +907,6 @@ const styles = StyleSheet.create(theme => ({
   playPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
   disabled: { opacity: 0.45 },
   divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
-  list: { gap: 0 },
   spinner: { marginTop: space.xl },
   empty: { alignItems: 'center', gap: space.sm, paddingTop: 48 },
   emptyTitle: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '700' },

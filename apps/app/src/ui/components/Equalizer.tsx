@@ -35,6 +35,9 @@ export function Equalizer({
 
   useEffect(() => {
     if (paused) return
+    // A scale, on the native driver, rather than a height on the JS thread:
+    // the bar's height was a layout pass per frame per bar, for as long as a
+    // song played, on a thread that also has to scroll the list it sits in.
     const loops = bars.map((bar, index) =>
       Animated.loop(
         Animated.sequence([
@@ -42,13 +45,13 @@ export function Equalizer({
             toValue: 1,
             duration: DURATIONS[index] ?? 900,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           Animated.timing(bar, {
             toValue: 0.35,
             duration: DURATIONS[index] ?? 900,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
         ]),
       ),
@@ -68,7 +71,12 @@ export function Equalizer({
             styles.bar,
             {
               backgroundColor: barColor,
-              height: bar.interpolate({ inputRange: [0, 1], outputRange: [2, size] }),
+              // Full height, scaled down from its foot: 2 points to `size`, as before.
+              height: size,
+              transformOrigin: 'bottom',
+              transform: [
+                { scaleY: bar.interpolate({ inputRange: [0, 1], outputRange: [2 / size, 1] }) },
+              ],
             },
           ]}
         />

@@ -20,6 +20,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/cloud/package.json packages/cloud/
 COPY packages/client/package.json packages/client/
+COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
@@ -27,14 +28,18 @@ COPY apps/app/package.json apps/app/
 # the same), and the native modules are the server's and the phone's.
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
+# desktop-bridge too: the app's web shell imports it to talk to the Electron
+# shell, and does nothing with it in a plain browser.
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/shared packages/shared
 COPY packages/cloud packages/cloud
 COPY packages/client packages/client
+COPY packages/desktop-bridge packages/desktop-bridge
 COPY apps/app apps/app
 RUN npm run build --workspace @selfmp3/shared \
  && npm run build --workspace @selfmp3/cloud \
  && npm run build --workspace @selfmp3/client \
+ && npm run build --workspace @selfmp3/desktop-bridge \
  && npm run export:web --workspace @selfmp3/app
 
 # --- server -----------------------------------------------------------------
@@ -50,6 +55,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/cloud/package.json packages/cloud/
 COPY packages/client/package.json packages/client/
+COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/

@@ -66,6 +66,7 @@ jobs:
           npm run build --workspace @selfmp3/shared
           npm run build --workspace @selfmp3/cloud
           npm run build --workspace @selfmp3/client
+          npm run build --workspace @selfmp3/desktop-bridge
           npm run export:web --workspace @selfmp3/app
         env:
           # Pages serves from /<repo>; app.config.js turns this into Expo's baseUrl.

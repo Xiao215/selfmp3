@@ -9,6 +9,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
 import { Plus } from './Icons'
+import { usePanelDense } from './panel'
 import { Popover } from './Popover'
 import { Sheet } from './Sheet'
 
@@ -93,6 +94,9 @@ export function TagSearchList({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
+  // In a pop-up with a mouse the rows are a menu's, not a finger's.
+  const dense = usePanelDense()
+  const [focused, setFocused] = useState(false)
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const [query, setQuery] = useState('')
@@ -147,7 +151,9 @@ export function TagSearchList({
   return (
     <View>
       <TextInput
-        style={styles.input}
+        style={[styles.input, dense && styles.inputDense, focused && { borderColor: accent.accent }]}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         value={query}
         onChangeText={setQuery}
         onSubmitEditing={submit}
@@ -165,7 +171,11 @@ export function TagSearchList({
           return (
             <Pressable
               key={item.id}
-              style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+              style={({ pressed }) => [
+                styles.item,
+                dense && styles.itemDense,
+                pressed && styles.itemPressed,
+              ]}
               onPress={() => {
                 toggle(item.id)
                 setQuery('')
@@ -222,6 +232,20 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: radius.sm,
+    // The border says it has focus, in the accent; the browser's own ring on
+    // top of it drew a second, white outline.
+    outlineWidth: 0,
+  },
+  /* In a pop-up: room above the box, a menu's height. */
+  inputDense: {
+    minHeight: 36,
+    marginTop: space.sm,
+    marginHorizontal: space.sm,
+    marginBottom: space.sm,
+  },
+  itemDense: {
+    minHeight: 34,
+    paddingHorizontal: space.sm + 2,
   },
   list: { maxHeight: 320 },
   item: {

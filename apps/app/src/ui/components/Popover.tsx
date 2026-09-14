@@ -162,7 +162,39 @@ function AnchoredPopover({
 
   useOverlay(
     <>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      {anchor ? (
+        // Everywhere but the control itself. A backdrop over the control took
+        // the pointer off its row, so a row's ⋯ faded out under the mouse; with
+        // a hole there the row keeps its hover, and pressing the control again
+        // reaches the control, which closes what it opened.
+        <>
+          <Pressable
+            style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
+            onPress={onClose}
+            accessibilityLabel="Close"
+          />
+          <Pressable
+            style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
+            onPress={onClose}
+          />
+          <Pressable
+            style={[
+              styles.catcher,
+              { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
+            ]}
+            onPress={onClose}
+          />
+          <Pressable
+            style={[
+              styles.catcher,
+              { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
+            ]}
+            onPress={onClose}
+          />
+        </>
+      ) : (
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      )}
       {anchor ? (
         <Animated.View
           testID={testID}
@@ -222,6 +254,7 @@ function AnchoredPopover({
 const PANEL_BORDER = 1
 
 const styles = StyleSheet.create(theme => ({
+  catcher: { position: 'absolute' },
   panel: {
     position: 'absolute',
     backgroundColor: theme.colors.surface2,

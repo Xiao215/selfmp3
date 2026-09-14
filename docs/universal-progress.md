@@ -2529,3 +2529,32 @@ From Xiao on 4600:
 - Checked in Chrome against the dev server: the ⋯ stayed at opacity 1 with its
   menu open and the mouse elsewhere, a second click closed the menu, Edit tags
   opened under the ⋯, and the stage's opacity moved on open and close.
+
+### Styles that stay, a ⋯ that toggles, a tidier tag window — branch `universal/keep-styles`
+
+From Xiao on 4600, with screenshots:
+
+- **The page drew unstyled after closing Now Playing** — sidebar labels, a
+  hovered row, then the whole stage on reopening. Not reproduced in Chromium
+  by any probe (six cycles of hover, menus and the stage; focus mode with the
+  bar idling away; refresh, browser back and Stats), but the mechanism is in
+  Unistyles 3.3's web registry: `remove(ref, hash)` waits a microtask and,
+  when `document.querySelector('.hash')` finds nothing, deletes the rule and
+  forgets the hash. An element that keeps the class but is not in the document
+  at that moment is left with a class and no rule, and `add` never runs for it
+  again. `ports/keepWebStyles.web.ts`, called once after `StyleSheet.configure`,
+  replaces `remove` with one that updates `stylesCounter` and removes nothing
+  (so the theme listener stays too). The registry is not exported; it is
+  reached through `UnistylesRuntime.services`, and the port does nothing if
+  that ever moves. On the dev server the sheet held 177 rules after the stage
+  closed (on 4600 before: 147 → 140), with no class missing a rule.
+- **The ⋯ went invisible after a second click without moving the mouse.** The
+  popover's backdrop covered the ⋯, so the row saw `pointerleave` and nothing
+  told it the pointer was back. `Popover` now draws its backdrop as four pieces
+  around the anchor. The row keeps its hover; a click on the control reaches
+  the control, and the library's ⋯ and +, the player bar's tags and the stage's
+  Edit tags toggle. Checked: open, second click closes with the ⋯ at opacity 1,
+  third click reopens.
+- **The tag window**: `outlineWidth: 0` with the accent as the focused border
+  (the browser ring had drawn a white second outline), and in a pop-up
+  (`usePanelDense`) a 36-high search box with room above it and 34-high rows.

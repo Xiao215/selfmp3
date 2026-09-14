@@ -105,7 +105,8 @@ export function LibraryScreen(): ReactNode {
         }}
         onMore={anchor => {
           menuAnchorRef.current = anchor
-          setMenuSong(item)
+          // The ⋯ again closes its own menu.
+          setMenuSong(current => (current?.id === item.id ? null : item))
         }}
         menuOpen={menuSong?.id === item.id}
         // Holding a row selects it; the ⋯ opens the menu.
@@ -122,7 +123,7 @@ export function LibraryScreen(): ReactNode {
         onToggleTag={includeTag}
         onEditTags={anchor => {
           tagAnchorRef.current = anchor
-          setTaggingSong(item)
+          setTaggingSong(current => (current?.id === item.id ? null : item))
         }}
       />
     ),

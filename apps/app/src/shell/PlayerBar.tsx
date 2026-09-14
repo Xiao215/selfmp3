@@ -184,7 +184,7 @@ export function PlayerBar(): ReactNode {
             </IconButton>
             <View ref={tagsRef} collapsable={false}>
               <IconButton
-                onPress={() => setTagsOpen(true)}
+                onPress={() => setTagsOpen(open => !open)}
                 label={`Tags for ${song.title}`}
                 caption="Edit tags"
                 active={tagsOpen}

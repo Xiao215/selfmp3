@@ -330,7 +330,7 @@ function Stage({
             ))}
             <Pressable
               ref={tagsButtonRef}
-              onPress={() => setTagsOpen(true)}
+              onPress={() => setTagsOpen(open => !open)}
               accessibilityRole="button"
               style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
             >

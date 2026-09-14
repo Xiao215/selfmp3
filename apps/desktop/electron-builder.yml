@@ -48,6 +48,9 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # What a release has: both chips, and the zips electron-updater installs
+  # from. A build on your own Mac is narrowed to one dmg for that Mac by
+  # scripts/dist.mjs.
   target:
     - target: dmg
       arch: [arm64, x64]

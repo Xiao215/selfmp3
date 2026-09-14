@@ -14,6 +14,7 @@
  *   ad-hoc   neither. `--config.mac.identity=-` and the looser entitlements.
  */
 import { spawnSync } from 'node:child_process'
+import { rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -29,6 +30,10 @@ const run = (command, args) => {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
+// The whole folder is this build's. electron-builder never empties it, and a
+// dmg left from a build under an older name was the one that got installed.
+rmSync(join(desktop, 'release'), { recursive: true, force: true })
+
 run(process.execPath, [join(here, 'icon.mjs')])
 run(process.execPath, [join(here, 'dmg-background.mjs')])
 // The bundle is told which tier it is: the updater's behaviour depends on it,
@@ -39,7 +44,25 @@ run(process.execPath, [join(here, 'build.mjs')])
 const args = ['electron-builder', '--config', 'electron-builder.yml']
 // Anything after `--` on this script's own command line, so
 // `npm run dist -- --dir --linux` still works for a smoke build.
-args.push(...process.argv.slice(2))
+const extra = process.argv.slice(2)
+args.push(...extra)
+
+/*
+ * On your own Mac, one dmg for this Mac: the release folder is then the app,
+ * its dmg, and nothing to choose between. Both chips, the zips, the blockmaps
+ * and latest-mac.yml exist for the updater and for a release, and a release is
+ * made on CI (`CI` is set on every GitHub runner), which builds them all. Any
+ * argument of your own, such as `--linux` or `--x64`, is taken to mean you know
+ * what you want, and the defaults step aside.
+ */
+if (!env['CI'] && extra.length === 0 && process.platform === 'darwin') {
+  args.push(
+    process.arch === 'arm64' ? '--arm64' : '--x64',
+    '--config.mac.target=dmg',
+    // No update metadata for a dmg nobody will be updated from.
+    '--config.dmg.writeUpdateInfo=false',
+  )
+}
 
 if (!signed) {
   args.push(

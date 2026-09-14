@@ -3576,6 +3576,14 @@ Three things were tangled together, found in this order:
   ground over everything until `status` leaves `loading`; a phone's splash
   already did this.
 
+**The release folder is one build.** It held two generations of names, both
+chips, zips, blockmaps and `latest-mac.yml`, because electron-builder never
+empties it and everything in it exists for the updater or a release. `dist.mjs`
+now empties `release/` first, and a build on your own Mac (no `CI`, no
+arguments of your own) makes one dmg for that Mac's chip and no update
+metadata: the folder is `mac-arm64/`, one dmg, and electron-builder's own debug
+log. CI still builds the full set.
+
 Also seen: the packaged smoke timed out at 90 s. The first launch of a freshly
 built binary is scanned by macOS, and this test always follows a build — 13 s
 in the morning, 46 s later, over 90 s while the Mac was also building. Later

@@ -3,7 +3,13 @@ import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/cloud'
 import Constants from 'expo-constants'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
-import { deleteStored, readStored, updateStored, writeStored } from './idbStore.web'
+import {
+  deleteStored,
+  deleteStoredPrefix,
+  readStored,
+  updateStored,
+  writeStored,
+} from './idbStore.web'
 
 /**
  * What a browser gives `@selfmp3/cloud` (packages/cloud/src/platform.ts): the
@@ -33,7 +39,7 @@ const store: DeviceStore = {
 /** Lyrics, in the Cache API: out of IndexedDB, which the replica fills. */
 const FILES_CACHE = 'selfmp3-cloud-files-v1'
 
-const textCache: TextCache = {
+const cacheApiTextCache: TextCache = {
   read: async key => {
     if (typeof caches === 'undefined') return null
     const cache = await caches.open(FILES_CACHE)
@@ -53,6 +59,30 @@ const textCache: TextCache = {
     await caches.delete(FILES_CACHE)
   },
 }
+
+/** The installed app's lyrics, in IndexedDB beside the replica. */
+const TEXT_PREFIX = 'cloud-files/'
+
+const indexedDbTextCache: TextCache = {
+  read: async key => {
+    const stored = await readStored(`${TEXT_PREFIX}${key}`)
+    return typeof stored === 'string' ? stored : null
+  },
+  write: (key, text) => writeStored(`${TEXT_PREFIX}${key}`, text),
+  clear: () => deleteStoredPrefix(TEXT_PREFIX),
+}
+
+/*
+ * The Cache API takes only http and https requests. The installed desktop app's
+ * page is at `app://selfmp3`, where `cache.match` quietly finds nothing and
+ * `cache.put` throws "Request scheme 'app' is unsupported" — and that throw,
+ * after the words had already come down from the bucket, is what showed "Lyrics
+ * need your library — reconnect" on a Mac that was online the whole time.
+ */
+const textCache: TextCache =
+  typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)
+    ? cacheApiTextCache
+    : indexedDbTextCache
 
 /** The doorman this build signs in through: the phone's rule, from `extra`, which Expo inlines on web too. */
 const configured = (Constants.expoConfig?.extra as { doormanUrl?: unknown } | undefined)?.doormanUrl

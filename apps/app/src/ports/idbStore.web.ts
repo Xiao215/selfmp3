@@ -82,6 +82,18 @@ export async function updateStored<T>(key: string, change: (current: unknown) =>
   })
 }
 
+/** Every key that starts with `prefix`, gone in one transaction. */
+export async function deleteStoredPrefix(prefix: string): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    // '￿' sorts after every character a key here is made of.
+    tx.objectStore(STORE).delete(IDBKeyRange.bound(prefix, `${prefix}￿`))
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
+  })
+}
+
 export async function deleteStored(key: string): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as edits from './edits.js'
-import { createCloudLibrary } from './library.js'
+import { createCloudLibrary, FILES_KEY } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
 import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './platform.js'
 
@@ -134,6 +134,37 @@ function build(store = memoryStore()) {
 async function signedIn(made: ReturnType<typeof build>): Promise<void> {
   await made.session.saveSession(SESSION)
 }
+
+describe('lyrics', () => {
+  /*
+   * The installed Mac app's cache is refused on its app:// origin, and a throw
+   * there reached the screen as "Lyrics need your library — reconnect" while
+   * the words had already come down. A cache is a convenience: one that fails
+   * is a miss, never a failure.
+   */
+  it('still answers with the words when the cache throws on read and write', async () => {
+    const store = memoryStore()
+    const bucket = fakeBucket()
+    const refusing: TextCache = {
+      read: () => Promise.reject(new TypeError("Request scheme 'app' is unsupported")),
+      write: () => Promise.reject(new TypeError("Request scheme 'app' is unsupported")),
+      clear: () => Promise.resolve(),
+    }
+    const platform: CloudPlatform = { ...platformFor(bucket, store), textCache: refusing }
+    const library = createCloudLibrary(platform, createCloudSession(platform))
+
+    await store.write(FILES_KEY, {
+      7: { audio: 'audio/7.m4a', cover: null, lyrics: 'lyrics/7.lrc', lyricsKind: 'plain' },
+    })
+    bucket.files.set('lyrics/7.lrc', 'la la la')
+
+    // The fake bucket answers in JSON, so the text is the JSON of what it holds.
+    await expect(library.cloudLyrics(SESSION, 7)).resolves.toEqual({
+      text: JSON.stringify('la la la'),
+      kind: 'plain',
+    })
+  })
+})
 
 describe('the outbox', () => {
   it('gives every log file its own sequence number', async () => {

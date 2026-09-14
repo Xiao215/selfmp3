@@ -100,13 +100,24 @@ export interface StorageUsage {
   readonly cachedCount: number
 }
 
+/*
+ * The Cache API is there on the installed desktop app's `app://selfmp3` page,
+ * but it stores only http and https requests: `cache.put` throws "Request
+ * scheme 'app' is unsupported". So it counts only on a web page. The installed
+ * app keeps songs as files through the shell instead.
+ */
 function cachesAvailable(): boolean {
-  return typeof caches !== 'undefined'
+  return (
+    typeof caches !== 'undefined' &&
+    typeof window !== 'undefined' &&
+    /^https?:$/.test(window.location.protocol)
+  )
 }
 
 /**
  * Whether this browser can keep songs at all. The Cache API only exists in a
- * secure context, so a phone on plain `http://192.168…` has none of this.
+ * secure context, so a phone on plain `http://192.168…` has none of this — and
+ * it cannot store for the installed desktop app's own scheme either.
  */
 export function offlineStorageAvailable(): boolean {
   return cachesAvailable()

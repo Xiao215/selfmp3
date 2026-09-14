@@ -27,6 +27,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
+import { titleBarInset } from '../../ports/titleBarInset'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../../ui/accent'
@@ -56,6 +57,13 @@ import { tip } from '../../ui/tip'
 
 /** The player bar's height: the page is the window above it. */
 const BAR = 84
+/*
+ * Where the top row starts. The page covers the sidebar, which is what keeps
+ * everything else clear of the Mac's traffic lights, and they sit on this
+ * row's own line — so on the installed Mac app the row starts to their right
+ * rather than under them. Twenty everywhere without an inset title bar.
+ */
+const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
 const MOVE_MS = 520
 /** Opening and putting the page away: quick enough never to be waited for. */
 const ENTER_MS = 260
@@ -572,10 +580,12 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
+    paddingLeft: HEAD_LEFT,
+    paddingRight: 20,
     zIndex: 4,
   },
-  headSong: { position: 'absolute', left: 116, top: 12, maxWidth: '40%' },
+  // Beside the chevron, however far the row starts.
+  headSong: { position: 'absolute', left: 96 + HEAD_LEFT, top: 12, maxWidth: '40%' },
   headTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '700' },
   headArtist: { color: theme.colors.textSecondary, fontSize: 12 },
   context: {

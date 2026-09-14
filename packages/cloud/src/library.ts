@@ -532,14 +532,22 @@ export function createCloudLibrary(
     if (!files?.lyrics || !files.lyricsKind) return null
 
     // Named by the hash of their own bytes, so a cached copy is never stale.
-    const cached = await platform.textCache?.read(files.lyrics)
+    // The cache is a convenience: one that fails is a miss, never a failure.
+    // Anything thrown here reaches the screen as "offline", and a device whose
+    // cache refused a write once said "reconnect" while the words sat in hand.
+    const cached = await platform.textCache?.read(files.lyrics).catch((error: unknown) => {
+      warn(`the lyrics cache could not be read: ${String(error)}`)
+      return null
+    })
     if (cached !== null && cached !== undefined) return { text: cached, kind: files.lyricsKind }
 
     if (!session) throw new DoormanError(0, 'Not signed in.')
     const response = await session_.doormanFetch(session, `/v1/files/${files.lyrics}`)
     if (response.status === 404) return null
     const text = await readText(response)
-    await platform.textCache?.write(files.lyrics, text)
+    await platform.textCache?.write(files.lyrics, text).catch((error: unknown) => {
+      warn(`the lyrics cache could not be written: ${String(error)}`)
+    })
     return { text, kind: files.lyricsKind }
   }
 

@@ -3576,6 +3576,30 @@ Three things were tangled together, found in this order:
   ground over everything until `status` leaves `loading`; a phone's splash
   already did this.
 
+**Lyrics said "reconnect" on a Mac that was online.** In a cloud library the
+words come from the bucket, and the web and desktop builds cache them with the
+Cache API — which stores only http and https requests. On `app://selfmp3`,
+`cache.match` quietly finds nothing and `cache.put` throws "Request scheme 'app'
+is unsupported" (probed in the packaged app). The throw came after the words
+had downloaded, and `cloudAnswer` turns any non-route error into status 0, so
+the screen said offline. The same put failed inside `keepLyrics`, so no
+download kept its words, and `keepRecentlyPlayed` tried the browser's audio
+cache for every played song. The installed app's text cache is now IndexedDB,
+the Cache API counts only on an http(s) page, and `cloudLyrics` treats any
+cache failure as a miss (tested with a cache that throws both ways), so a cache
+can never again read as offline. Downloaded songs get their words on the next
+`useKeepAlongside` pass.
+
+**Now Playing's close button sat under the traffic lights.** The page covers
+the sidebar, which is what keeps everything else clear of them. On the
+installed Mac app the top row now starts at 84 pt, and the focus mode's song
+title moves with it.
+
+**A notice faded in and out.** `dismissToast` removes a message from the store
+and the host unmounted it the same frame. `ToastHost` now keeps a dismissed
+message drawn while it fades, fades new ones in, and keeps the order they were
+raised in. The host is the same on the phone, so it gets this too.
+
 **The release folder is one build.** It held two generations of names, both
 chips, zips, blockmaps and `latest-mac.yml`, because electron-builder never
 empties it and everything in it exists for the updater or a release. `dist.mjs`

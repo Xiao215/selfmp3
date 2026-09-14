@@ -517,7 +517,8 @@ export class AudioEngine implements PlaybackEngine {
     element.addEventListener('pause', this.#onPause)
     element.addEventListener('timeupdate', this.#onTimeUpdate)
     element.addEventListener('durationchange', this.#onDurationChange)
-    element.addEventListener('progress', this.#onProgressEvent)
+    // No `progress` listener: it published `buffered`, which nothing draws, and
+    // each of its events re-rendered the player for it.
     element.addEventListener('ended', this.#onEnded)
     element.addEventListener('waiting', this.#onWaiting)
     element.addEventListener('playing', this.#onPlaying)
@@ -529,7 +530,6 @@ export class AudioEngine implements PlaybackEngine {
     element.removeEventListener('pause', this.#onPause)
     element.removeEventListener('timeupdate', this.#onTimeUpdate)
     element.removeEventListener('durationchange', this.#onDurationChange)
-    element.removeEventListener('progress', this.#onProgressEvent)
     element.removeEventListener('ended', this.#onEnded)
     element.removeEventListener('waiting', this.#onWaiting)
     element.removeEventListener('playing', this.#onPlaying)
@@ -557,12 +557,6 @@ export class AudioEngine implements PlaybackEngine {
   readonly #onDurationChange = (): void => {
     const duration = this.#primary.duration
     this.#update({ duration: Number.isFinite(duration) ? duration : 0 })
-  }
-
-  readonly #onProgressEvent = (): void => {
-    const ranges = this.#primary.buffered
-    if (ranges.length === 0) return
-    this.#update({ buffered: ranges.end(ranges.length - 1) })
   }
 
   readonly #onError = (): void => {

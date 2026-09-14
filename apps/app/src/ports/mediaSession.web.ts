@@ -23,13 +23,20 @@ function session(): Session {
   return typeof navigator === 'undefined' ? undefined : navigator.mediaSession
 }
 
+/** What the shell was last told, so the same thing is not sent over IPC twice. */
+let told: { playing: boolean; title: string | null; artist: string | null } | null = null
+
 /** Told to the shell, so the Dock menu can name the song. */
 function tellTheShell(playing: boolean, now: NowPlaying | null): void {
-  void desktop?.setPlaybackState({
-    playing,
-    title: now?.title ?? null,
-    artist: now?.artist ?? null,
-  })
+  if (!desktop) return
+  const next = { playing, title: now?.title ?? null, artist: now?.artist ?? null }
+  // Artwork arriving, or play pressed on a song already playing, asks again
+  // with nothing the Dock menu draws having changed.
+  if (told?.playing === next.playing && told.title === next.title && told.artist === next.artist) {
+    return
+  }
+  told = next
+  void desktop.setPlaybackState(next)
 }
 
 let playing = false

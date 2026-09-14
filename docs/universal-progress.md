@@ -2875,3 +2875,26 @@ round-trip, so it works offline. A device that never chose starts from the
 server's old synced `lyricsRomanization` once (`useRomanizationSeed` in the
 shell); after that its own choice is the only one. The server setting stays
 in the schema for that seed and for older clients.
+
+### The stage in the last song's light — branch `universal/stage-first-frame`
+
+From Xiao on 4600, with a recording: open Now Playing for a song after another
+had been on, and for a frame or two the page glows in the wrong colours before
+settling into the cover's.
+
+- **The palette was read after the page was up.** `useCoverPalette` samples
+  the cover on a canvas, asynchronously, and until the read lands the page
+  glowed in `placeholderPalette(song.id)` — a hue from the id, nothing to do
+  with the cover. The read takes a frame or two, which is the flash. Two
+  changes: the player bar calls `warmCoverPalette` as a song starts, so by the
+  time Now Playing opens the palette is usually already known; and while it is
+  not, the page glows in `tonePalette(song.coverTone)`, built from the tone the
+  server sends with the song, so the first frame is already the cover's hue
+  and the sampled colours only move the shades. A song with no tone keeps the
+  letter-tile hue as before. One read at a time per cover: the bar's warming
+  and the stage's own request share it.
+- **The phone's dark frame on relaunch is the dev launcher, not the app.** The
+  screenshot is expo-dev-launcher's home ("Development Build", recently opened
+  servers), which a development build shows while it fetches the last-opened
+  bundle from Metro — its default already is to relaunch the last project. A
+  release build embeds the bundle and never shows it. Nothing to change here.

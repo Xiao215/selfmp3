@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -6,6 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
+import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { loopRegionPercent, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
@@ -87,6 +88,11 @@ export function PlayerBar(): ReactNode {
   const tight = width < TIGHT_WIDTH
   const song = player.current
   const songColor = useSongColor(song, song ? artFor(song) : null)
+  // Now Playing glows with the cover's colours; read them as the song starts,
+  // so the page opens in its own light rather than in a stand-in for a frame.
+  useEffect(() => {
+    if (song) void warmCoverPalette(song, artFor(song))
+  }, [song, artFor])
   const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -182,7 +188,10 @@ export function PlayerBar(): ReactNode {
                 caption="Edit tags"
                 active={tagsOpen}
               >
-                <TagPlus size={17} color={tagsOpen ? songColor.color : theme.colors.textSecondary} />
+                <TagPlus
+                  size={17}
+                  color={tagsOpen ? songColor.color : theme.colors.textSecondary}
+                />
               </IconButton>
             </View>
           </>

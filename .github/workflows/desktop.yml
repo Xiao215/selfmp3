@@ -1,0 +1,106 @@
+# The Mac app: built, packaged, and — on a tag — attached to a release.
+#
+# On macOS, because a dmg is macOS-only and because signing and notarisation
+# need Apple's own tools. Never on a push: a packaged app is a deliberate act,
+# so this runs on `workflow_dispatch` and on `desktop-v*` tags.
+#
+# Signing is by secret, and its absence is a tier rather than a failure
+# (apps/desktop/scripts/dist.mjs): with no CSC_LINK the build is ad-hoc signed
+# and the release notes say how to open it once. That is what makes this
+# workflow runnable by anyone who forks the repository.
+name: Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*']
+
+permissions: {}
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # Install scripts: sharp renders the icon, and the app's export needs its
+      # own. The server's native modules come along and are not used here.
+      - run: npm ci
+
+      - name: Build the packages, the web export, and the app
+        run: npm run build:desktop
+        env:
+          SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          # Set, the build is signed; absent, it is ad-hoc. Both are real.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Notarisation, when there is a certificate to notarise against.
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: What was built
+        run: ls -lh apps/desktop/release/*.dmg apps/desktop/release/*.zip
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: selfmp3-desktop
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    # Only a tag becomes a release. A dispatch run leaves its artifact and
+    # stops, which is what "build it and let me look at it" should do.
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: selfmp3-desktop
+          path: release
+
+      # `latest-mac.yml` is what electron-updater reads to find a new version,
+      # so it is attached alongside the files it points at.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## self.mp3 for macOS
+
+            Download the `.dmg`, open it, and drag self.mp3 to Applications.
+
+            **If this build was not signed with a Developer ID**, macOS will
+            refuse it the first time. Either open System Settings › Privacy &
+            Security and press **Open Anyway**, or run once:
+
+            ```
+            xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
+            ```
+
+            It is the same app either way; an unsigned copy simply cannot
+            replace itself when there is an update, and offers this page
+            instead.

@@ -7,6 +7,7 @@ import type {
   FileStat,
   PlaybackState,
   TransferProgress,
+  UpdateStatus,
   Usage,
 } from './schemas.js'
 
@@ -82,6 +83,20 @@ export interface DesktopBridge {
     set(open: boolean): Promise<boolean>
   }
 
+  /**
+   * Whether there is a newer version, and what can be done about it.
+   *
+   * `check` answers the same status the `update` event carries, so a caller can
+   * await it or watch. `install` only ever does anything once a status has said
+   * `ready`, which an unsigned build never reaches — it offers `releaseUrl`
+   * instead, and `canInstall` is how the page knows which to draw.
+   */
+  updates: {
+    check(): Promise<UpdateStatus>
+    install(): Promise<void>
+    on(listener: (status: UpdateStatus) => void): () => void
+  }
+
   /** Progress on a download in flight. */
   onProgress(listener: (progress: TransferProgress) => void): () => void
 
@@ -116,11 +131,10 @@ export interface DesktopBridge {
 }
 
 /*
- * Deliberately not here yet: `updates` (phase 5). Its channel names and schemas
- * are already in this package, because they are the vocabulary the plan
- * settled, but a member of this interface is a promise that something answers
- * it — and nothing does until the phase that writes the handler. A bridge that
- * declares what it cannot do is worse than one that grows.
+ * Everything the plan settled is here now. The rule that kept `loginItem` and
+ * `updates` out until their handlers existed is worth keeping for whatever
+ * comes next: a member of this interface is a promise that something answers
+ * it, and a bridge that declares what it cannot do is worse than one that grows.
  */
 
 export type {
@@ -132,5 +146,6 @@ export type {
   FileStat,
   PlaybackState,
   TransferProgress,
+  UpdateStatus,
   Usage,
 }

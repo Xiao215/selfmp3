@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron'
 import { APP_MENU_ITEMS, MENU_SECTIONS } from '@selfmp3/desktop-bridge'
 
 import { sendCommand } from './commands.js'
+import { check } from './updates.js'
 
 /**
  * The application menu.
@@ -28,6 +29,13 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
             label: app.name,
             submenu: [
               { role: 'about' as const },
+              {
+                label: 'Check for Updates…',
+                // The same call Settings makes, so both see one answer. What it
+                // can do about a newer version depends on the signing tier, and
+                // the status says which — see src/main/updates.ts.
+                click: () => void check(window_()),
+              },
               { type: 'separator' as const },
               ...APP_MENU_ITEMS.map(item => ({
                 label: item.label,

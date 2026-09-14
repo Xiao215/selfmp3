@@ -79,6 +79,48 @@ then Settings → **Download everything**.
 
 ---
 
+## The Mac app
+
+A self.mp3 in the Dock, with its own window, the media keys, and your music on the disk
+rather than in a browser's cache. Same app as the tab — it is the same build inside a
+window — so nothing is set up twice and a library downloaded in one is not downloaded
+again in the other.
+
+Download the `.dmg` from
+[the releases page](https://github.com/Xiao215/selfmp3/releases), open it, and drag
+**self.mp3** to Applications.
+
+**The first launch, if the build was not signed.** macOS refuses an app it cannot trace to
+a registered developer, and a personal project usually has no such certificate. Open
+System Settings → **Privacy & Security**, and press **Open Anyway** under the message
+about self.mp3. Or, in Terminal, once:
+
+```
+xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
+```
+
+It is the same app either way. The one thing an unsigned copy cannot do is replace itself
+when there is a new version — Settings → **Desktop app** → Check for updates then offers
+the release page instead of a button.
+
+Signing in is the same as anywhere: Settings → Cloud → Sign in with Google, which opens
+your own browser and comes back to the app.
+
+**Where things are.** `~/Library/Application Support/self.mp3` — downloaded songs under
+`songs/`, covers under `covers/`, and the window's size. Settings → Offline music shows
+the folder and has a **Reveal in Finder** button.
+
+To build it yourself on a Mac, rather than downloading it:
+
+```
+npm install
+npm run build:desktop
+```
+
+The `.dmg` lands in `apps/desktop/release/`.
+
+---
+
 ## With Docker
 
 For a machine that is always on — a Raspberry Pi, a Synology, a small VPS. The image

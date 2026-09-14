@@ -56,6 +56,9 @@ playwright-report/
 # The packaged desktop app: a few hundred MB of Electron, never committed.
 # Nor a signing certificate or an API key, which the list above already covers.
 apps/desktop/release/
+# Rendered from apps/app/public/icons/icon.svg by apps/desktop/scripts/icon.mjs,
+# which every packaging run calls first. A checked-in copy is one that drifts.
+apps/desktop/resources/
 
 # The new app photographed for phase 4 comparison; attached to PRs, not committed.
 verify/captures/

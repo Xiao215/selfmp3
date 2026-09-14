@@ -1,19 +1,31 @@
 # Packaging the shell.
 #
-# Phase 2 needs only enough of this to produce something that runs; phase 5 adds
-# the signing tiers, the icon, the entitlements and the release targets.
-#
 # `files` names `dist/**` and `package.json` and nothing else, and there are no
 # runtime `dependencies` to collect — esbuild put everything but `electron` into
 # `dist/`. That is what sidesteps electron-builder's trouble with packages npm
 # has hoisted to the root of a workspace (electron-builder #2205, #9654).
+#
+# Signing has two tiers, and which one a build gets is decided by the
+# environment rather than by a flag here (see scripts/dist.mjs):
+#
+#   signed     CSC_LINK and CSC_KEY_PASSWORD are set, and notarised when the
+#              APPLE_API_* variables are too. Opens with a double click.
+#   ad-hoc     nothing is set. `identity: "-"`, the looser entitlements, and a
+#              first launch that needs Privacy & Security › Open Anyway.
+#
+# The ad-hoc tier is the one Xiao builds on their own Mac for their own Mac, and
+# it is a real tier rather than a failure: the app it produces is the same app.
 appId: com.selfmp3.app
 productName: self.mp3
 copyright: Xiao
+# Without this the executable is named from the npm package — `@selfmp3/desktop`
+# — and an AppImage refuses the `@` and the `/`. macOS does not use it: there the
+# binary inside the bundle is named from `productName`.
+executableName: selfmp3
 
 directories:
   output: release
-  buildResources: resources
+  buildResources: build
 
 files:
   - dist/**
@@ -24,13 +36,42 @@ files:
 npmRebuild: false
 asar: true
 
+# `resources/icon.png` at 1024, rendered from the SVG the tab and the phone wear
+# by `scripts/icon.mjs`. electron-builder makes the .icns and the .ico from it.
+icon: resources/icon.png
+
 mac:
   category: public.app-category.music
+  # macOS 13, as the Stack table says: Electron 44's own floor.
+  minimumSystemVersion: '13.0'
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   target:
     - target: dmg
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
+
+dmg:
+  # The window everyone knows: the app on the left, Applications on the right.
+  contents:
+    - x: 140
+      y: 190
+      type: file
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
+
+# Where electron-updater looks, and where a tagged build publishes. `publish`
+# never runs by itself: the workflow attaches the files to the release.
+publish:
+  provider: github
+  owner: Xiao215
+  repo: selfmp3
+  releaseType: release
 
 # Present and deliberately not in any default build: nothing here reads
 # `process.platform` to do something these could not, and nothing is tested on

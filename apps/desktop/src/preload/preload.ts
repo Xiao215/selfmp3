@@ -11,11 +11,13 @@ import {
   fileStatSchema,
   secretReadSchema,
   transferProgressSchema,
+  updateStatusSchema,
   usageSchema,
   type DesktopBridge,
   type DesktopInfo,
   type FileKind,
   type PlaybackState,
+  type UpdateStatus,
 } from '@selfmp3/desktop-bridge'
 
 /**
@@ -124,6 +126,14 @@ const bridge: DesktopBridge = {
 
   setPlaybackState: async (state: PlaybackState) => {
     await ipcRenderer.invoke(CHANNELS.setPlaybackState, state)
+  },
+
+  updates: {
+    check: () => ipcRenderer.invoke(CHANNELS.updatesCheck) as Promise<UpdateStatus>,
+    install: async () => {
+      await ipcRenderer.invoke(CHANNELS.updatesInstall)
+    },
+    on: listener => subscribe(EVENTS.update, value => updateStatusSchema.parse(value), listener),
   },
 
   loginItem: {

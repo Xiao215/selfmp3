@@ -100,6 +100,12 @@ the Mac when it wakes, dated when they happened. See
 Android app — see
 [docs/MOBILE.md](docs/MOBILE.md) — which adds CarPlay and Android Auto.
 
+**An app on the Mac, not a tab.** The same build in a window of its own: a Dock icon, the
+media keys and Now Playing in Control Center, the menu bar, your songs kept as files in
+`~/Library/Application Support/self.mp3`, and a keychain for the tokens instead of a
+browser's storage. See
+[docs/features/desktop-app.md](docs/features/desktop-app.md).
+
 **Playback.** Gapless and crossfade via a dual-element engine, a reorderable up-next queue,
 playback speed, and a sleep timer that fades out rather than cutting off.
 
@@ -150,6 +156,11 @@ packages/client     what every client shares: the API client, React Query hooks,
                     download queue, practice and auto-mix rules, theme tokens
 apps/app            Expo / React Native — one app for iOS, Android and the web, with
                     a hand-written service worker; CarPlay and Android Auto
+packages/desktop-bridge
+                    the contract between the Mac app's shell and the page: the
+                    channels, their zod schemas, and the menu as data
+apps/desktop        the Electron shell around apps/app's web export — the window, the
+                    menu, the keychain, and the songs on disk
 ```
 
 A few decisions worth knowing about:

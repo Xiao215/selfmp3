@@ -18,6 +18,7 @@ import {
 } from '@selfmp3/desktop-bridge'
 
 import * as files from './files.js'
+import * as updates from './updates.js'
 
 import type { DeepLinks } from './deepLinks.js'
 import { setPlaybackState } from './nowPlaying.js'
@@ -139,6 +140,9 @@ export function registerIpc({
     app.setLoginItemSettings({ openAtLogin: open })
     return app.getLoginItemSettings().openAtLogin
   })
+
+  ipcMain.handle(CHANNELS.updatesCheck, () => updates.check(window_()))
+  ipcMain.handle(CHANNELS.updatesInstall, () => updates.install())
 
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
     setPlaybackState(playbackStateSchema.parse(state), window_)

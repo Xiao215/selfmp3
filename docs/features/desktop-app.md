@@ -64,6 +64,8 @@ offline settings behave as they do on a phone at home.
 | The desktop's ports in the renderer | `apps/app/src/ports/desktop/` |
 | The `Range` rule both the server and the shell answer with | `packages/shared/src/range.ts` |
 | The smoke flow, against the built app | `apps/desktop/verify/smoke.spec.ts` |
+| Packaging, the signing tiers, and the icon | `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/dist.mjs` |
+| The release workflow | `.github/workflows/desktop.yml` |
 
 `window.selfmp3Desktop` is the whole surface between the page and the shell,
 exposed by the preload with `contextIsolation` on, `nodeIntegration` off and
@@ -86,3 +88,12 @@ error at the boundary rather than a crash in the middle. There is no
   the quarantine flag and macOS calls it damaged until you use Privacy &
   Security › Open Anyway, or `xattr -dr com.apple.quarantine`. A build made on
   the Mac it runs on simply opens.
+- The signing tier is decided by the environment, not by a flag: `CSC_LINK` and
+  `CSC_KEY_PASSWORD` make a signed build, their absence an ad-hoc one, and
+  `scripts/dist.mjs` prints which. It is baked into the bundle as well, because
+  the updater has to know and a running app cannot ask about its own signature.
+- Five of the Playback menu's accelerators are drawn without being registered
+  (Space, ⌘←, ⌘→, ⌥⌘←, ⌥⌘→). A registered Electron accelerator fires inside text
+  fields too, so registering Space would take the space bar out of the search
+  box. `pageKeeps` in the menu model marks them; the page handles them through
+  `useHotkeys`, which already stands aside while someone is typing.

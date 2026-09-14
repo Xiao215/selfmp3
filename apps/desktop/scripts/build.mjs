@@ -2,8 +2,8 @@
  * The shell, bundled.
  *
  * Two entry points, CommonJS, `electron` the only external. Everything else —
- * zod, the contract package, electron-updater when phase 5 adds it — goes
- * *into* the bundle on purpose: it is what leaves `apps/desktop/package.json`
+ * zod, the contract package, electron-updater — goes *into* the bundle on
+ * purpose: it is what leaves `apps/desktop/package.json`
  * with no runtime `dependencies` at all, which is what sidesteps
  * electron-builder's trouble collecting packages npm has hoisted to the root of
  * a workspace (electron-builder #2205, #9654). There is nothing to collect.
@@ -24,8 +24,21 @@ const out = join(root, 'dist')
 rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 
+/*
+ * Whether this build will be signed, decided by `scripts/dist.mjs` from the
+ * environment and baked in here.
+ *
+ * There is no API that asks a running app whether its own signature is one
+ * macOS would validate, and the answer decides whether the updater may apply an
+ * update at all: Squirrel refuses an update it cannot verify (electron #36640),
+ * so an unsigned build must offer the release page instead of a button that
+ * fails. Build time is where that is actually known.
+ */
+const signed = process.env['SELFMP3_SIGNED'] === '1'
+
 const common = {
   bundle: true,
+  define: { __SELFMP3_SIGNED__: String(signed) },
   platform: 'node',
   format: 'cjs',
   // Electron 44 runs Node 24; nothing here needs downlevelling.

@@ -615,6 +615,33 @@ test.describe('an application, not a page', () => {
     }
   })
 
+  test('an unsigned build never offers to replace itself', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const status = await page.evaluate(async () => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        return desktop.updates.check()
+      })
+
+      /*
+       * The point of the test. Squirrel refuses to apply an update whose
+       * signature it cannot verify (electron #36640), so a build that was not
+       * signed must say so and offer the release page instead of a button that
+       * would fail. This one was not signed — nothing here has a certificate —
+       * and it is not packaged either.
+       */
+      expect(status.canInstall).toBe(false)
+      // It answered rather than hanging. Which answer depends on whether this
+      // machine can reach GitHub, and both are a real answer.
+      expect(['none', 'available', 'error']).toContain(status.state)
+    } finally {
+      await app.close()
+    }
+  })
+
   test('window bounds survive a relaunch, and a window off every display does not', async () => {
     const userDataDir = freshUserData()
 
@@ -696,6 +723,9 @@ interface DesktopForTest {
     title: string | null
     artist: string | null
   }): Promise<void>
+  updates: {
+    check(): Promise<{ state: string; canInstall: boolean; version: string | null }>
+  }
   files: {
     download(request: { id: string; kind: string; name: string; url: string }): Promise<{ state: string; bytes: number }>
     cancel(id: string): Promise<void>

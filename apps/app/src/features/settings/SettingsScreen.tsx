@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  Linking,
   Pressable,
   ScrollView,
   Text,
@@ -40,6 +41,7 @@ import { clearCachedLyrics } from '../../offline/lyricsCache'
 import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { downloadsFolder } from '../../ports/downloadsFolder'
 import { loginItem } from '../../ports/loginItem'
+import { updates, type UpdateState } from '../../ports/updates'
 import { installedApp } from '../../ports/install'
 import { canConnectByAddress } from '../../ports/serverAddress'
 import { clearRecent } from '../../ports/recentCopies'
@@ -1072,6 +1074,9 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
  */
 function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   const [open, setOpen] = useState<boolean | null>(null)
+  const [update, setUpdate] = useState<UpdateState | null>(null)
+  const [looking, setLooking] = useState(false)
+
   useEffect(() => {
     let alive = true
     void loginItem.get().then(value => {
@@ -1082,12 +1087,23 @@ function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
     }
   }, [])
 
+  // The menu's "Check for Updates…" is the same call, so a check started there
+  // shows here without Settings asking again.
+  useEffect(() => updates.on(setUpdate), [])
+
+  const look = (): void => {
+    setLooking(true)
+    void updates
+      .check()
+      .then(setUpdate)
+      .finally(() => setLooking(false))
+  }
+
   return (
-    <Panel title="Desktop app" hint="on this computer" onTop={onTop}>
+    <Panel title="Desktop app" hint={updates.version === null ? 'on this computer' : `version ${updates.version}`} onTop={onTop}>
       <Row
         label="Open at login"
         hint="Starts self.mp3 when you log in to this computer. macOS keeps this in System Settings › General › Login Items, and turning it off there turns it off here."
-        last
       >
         <Toggle
           value={open ?? false}
@@ -1100,8 +1116,51 @@ function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
           testID="setting-login-item"
         />
       </Row>
+      <Row label="Updates" hint={updateHint(update, looking)} last>
+        {update?.state === 'ready' && update.canInstall ? (
+          <Button
+            label="Restart to update"
+            onPress={() => void updates.install()}
+            testID="update-install"
+          />
+        ) : update?.state === 'available' && update.releaseUrl ? (
+          <Button
+            label="Open release page"
+            onPress={() => void Linking.openURL(update.releaseUrl ?? '')}
+            testID="update-open"
+          />
+        ) : (
+          <Button
+            label={looking ? 'Checking…' : 'Check for updates'}
+            onPress={look}
+            disabled={looking}
+            testID="update-check"
+          />
+        )}
+      </Row>
     </Panel>
   )
+}
+
+/** One line saying where the update check has got to, in plain words. */
+function updateHint(update: UpdateState | null, looking: boolean): string {
+  if (looking || update?.state === 'checking') return 'Looking…'
+  switch (update?.state) {
+    case 'none':
+      return 'This is the latest version.'
+    case 'available':
+      return update.canInstall
+        ? `Version ${update.version ?? ''} is available.`
+        : `Version ${update.version ?? ''} is available. This copy was not signed, so it cannot replace itself — download it from the release page.`
+    case 'downloading':
+      return `Downloading version ${update.version ?? ''}…`
+    case 'ready':
+      return `Version ${update.version ?? ''} is ready. It will be in place the next time self.mp3 starts.`
+    case 'error':
+      return `Could not check: ${update.message ?? 'no answer from GitHub'}.`
+    default:
+      return 'self.mp3 does not check by itself.'
+  }
 }
 
 function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    The hardened runtime, and the one exception it needs.
+
+    A music player that talks to a Mac on the network and to the doorman is a
+    network client and nothing else: no microphone, no camera, no Apple events,
+    no file access outside its own container and whatever a person picks. Every
+    entitlement not here is one that cannot be abused if the app is ever
+    compromised, and notarisation looks at this list.
+  -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!--
+    V8 compiles JavaScript to machine code, which the hardened runtime forbids
+    without this. Electron will not start a renderer without it.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>

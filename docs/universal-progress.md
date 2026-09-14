@@ -3361,3 +3361,90 @@ Four things this container could not see, in the order they are quickest to chec
 4. Now Playing in Control Center: the title, the artist, and the artwork — the
    artwork is the one most likely to be missing, because a cover only has a URL
    the OS can fetch once it is on disk.
+
+## Phase 5 — shipping — branch `desktop/phase-5`
+
+The app can be built into something a person installs, and it can tell them when
+there is a newer one. What it cannot do from here is prove the `.dmg`, because a
+`.dmg` is macOS and this is Linux.
+
+### What changed
+
+**Two signing tiers, decided by the environment rather than by a flag.**
+`scripts/dist.mjs` looks for `CSC_LINK` and `CSC_KEY_PASSWORD`: with them the
+build is signed, and notarised as well when the `APPLE_API_*` variables are
+there; without them it is ad-hoc signed (`--config.mac.identity=-`) with the two
+extra entitlements V8 needs when the signature is not one macOS validates pages
+against. Both are real tiers. The ad-hoc one is what Xiao builds on their own Mac
+for their own Mac, and the release notes say the one thing it costs: Privacy &
+Security › Open Anyway, once.
+
+The script prints which tier it chose, because a build that looks signed and is
+not is the failure worth preventing.
+
+**The tier is baked into the bundle.** There is no API that asks a running
+Electron app whether its own signature is one macOS would validate — and the
+answer decides whether the updater may do anything at all, since Squirrel refuses
+an update it cannot verify (electron #36640). So `dist.mjs` passes it to
+`build.mjs`, which defines `__SELFMP3_SIGNED__`, and `canInstall` on the update
+status follows from that plus `app.isPackaged`. Settings never draws a button
+that would fail: an unsigned build's Updates row offers the release page instead.
+
+**Updates are two code paths behind one channel.** A signed build hands the whole
+thing to electron-updater. An unsigned one reads the latest release's tag from
+the GitHub API and compares versions. The comparison and the tag parsing are in
+`updates.rule.ts` with nothing of Electron in them, so the root vitest runs them:
+they are exactly the kind of rule that nags on every launch or never mentions the
+version that fixed someone's bug, and neither shows up in a manual test.
+
+**The icon is rendered, not copied.** `scripts/icon.mjs` renders
+`apps/app/public/icons/icon.svg` at 1024 with sharp — the version `apps/server`
+already pins for cover art, so nothing new entered the repository — and
+electron-builder makes the `.icns` and the `.ico` from that. A second copy of the
+mark is a mark that drifts from the favicon, and generating the container formats
+here would have needed macOS's `iconutil`, which no Linux runner has.
+
+**`.github/workflows/desktop.yml`** runs on `workflow_dispatch` and on
+`desktop-v*` tags, on `macos-latest`, and uses the signing secrets when they are
+set. A dispatch run leaves its artifact and stops; only a tag makes a release,
+and that release is a **draft** so nothing is published by a mistyped tag.
+`latest-mac.yml` is attached beside the files, because that is what
+electron-updater reads.
+
+**Docs.** `INSTALL.md` gained "The Mac app", including the Open Anyway
+instructions in plain words. `README.md` gained the two folders and a line under
+"What it does". `ARCHITECTURE.md` gained the shape of both new folders and the
+sentence that matters most: the desktop app is a shell, not a fourth client.
+
+### One thing the plan did not foresee
+
+`electron-builder` derives the executable name from the npm package name, and
+`@selfmp3/desktop` becomes `@selfmp3desktop`, which an AppImage refuses outright:
+"executableName contains characters that cannot be safely used in file paths".
+Phase 2's packaging check never hit it because `--dir` skips the target that
+cares. `executableName: selfmp3` at the top of the config fixes it. macOS never
+sees it — there the binary inside the bundle is named from `productName` — so
+this is a Linux-target fix in a config that does not build Linux by default, and
+it is here because the one build this container *can* make is the one that found
+it.
+
+### The gates
+
+| Gate | Result |
+|---|---|
+| `npm run check` | **pass** — the update rule's 7 tests among them. |
+| `npm run build:desktop` → a dmg | **pass as far as this machine goes, blocked for the dmg itself.** The whole pipeline ran: the icon rendered, the packages and the web export built, `dist.mjs` chose the ad-hoc tier and said so, and electron-builder produced `self.mp3-1.0.0.AppImage` (121 MB) with `latest-linux.yml` beside it. A `.dmg` needs macOS. What this proves is everything up to the target: the config validates, the icon is accepted, the file list is right, and "no node modules returned while searching directories" confirms the no-runtime-dependencies design still holds. |
+| `gh workflow run desktop.yml && gh run watch` | **blocked.** Dispatching a workflow is an action on Xiao's repository with their credentials, and the run would be a `macos-latest` runner building a release artifact. Written and not run. |
+| A fake newer release on a fork, "Check for updates" says so | **blocked** for the same reason — it needs a fork and a release. What runs instead is a smoke test that an unsigned build answers the check with `canInstall: false`, which is the half that must never be wrong. |
+| The signed tier | **Xiao's**, when there is a certificate. |
+
+### For Xiao, on the Mac
+
+1. `npm run build:desktop`. It should print `self.mp3 desktop: ad-hoc build` and
+   leave a `.dmg` in `apps/desktop/release/`.
+2. Mount it, drag to Applications, and open it — expect the Gatekeeper refusal,
+   then Privacy & Security › Open Anyway.
+3. To test it the way someone else would receive it, upload the `.dmg` somewhere
+   and download it again through a browser first: that is what attaches the
+   quarantine flag, and a file copied locally never has it.
+4. `gh workflow run desktop.yml` when you want to see the runner do it.

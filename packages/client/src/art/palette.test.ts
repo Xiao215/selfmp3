@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { paletteFromPixels, placeholderPalette, rgba, type Rgb } from './palette.js'
+import { paletteFromPixels, placeholderPalette, rgba, tonePalette, type Rgb } from './palette.js'
 
 /** A thumbnail made of runs of one colour: `[colour, pixel count]`. */
 function pixels(...runs: [Rgb, number][]): number[] {
@@ -39,6 +39,16 @@ describe('cover palette', () => {
       expect(first && lightness(first)).toBeGreaterThanOrEqual(0.49)
       expect(ground && lightness(ground)).toBeLessThanOrEqual(0.21)
     }
+  })
+
+  it("glows in the cover's own hue before the cover is read", () => {
+    const [glow, , ground] = tonePalette({ hue: 25, chroma: 0.12 })
+    // A red tone: red leads, and the ground is dark.
+    expect(glow[0]).toBeGreaterThan(glow[2])
+    expect(ground.reduce((a, b) => a + b, 0)).toBeLessThan(glow.reduce((a, b) => a + b, 0))
+    // Chroma is clamped, so a grey cover still tints a little and a loud one stays sane.
+    expect(tonePalette({ hue: 200, chroma: 0 })).not.toEqual(tonePalette({ hue: 200, chroma: 5 }))
+    expect(tonePalette({ hue: 200, chroma: 0.16 })).toEqual(tonePalette({ hue: 200, chroma: 5 }))
   })
 
   it('gives each song a steady placeholder of its own', () => {

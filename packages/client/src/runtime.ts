@@ -1,5 +1,9 @@
 import type { Api } from './api/api.js'
-import type { LibrarySnapshotStore } from './platform.js'
+import type {
+  LibrarySnapshotStore,
+  LyricsSnapshotStore,
+  PlaylistSnapshotStore,
+} from './platform.js'
 
 /**
  * The one client this app is using, and where it keeps its offline copy.
@@ -23,6 +27,10 @@ export interface ClientRuntime {
   readonly api: Api
   /** Absent where an app has no offline story; the library query then just fails. */
   readonly librarySnapshot?: LibrarySnapshotStore
+  /** Each playlist's last known members, for the same reason. */
+  readonly playlistSnapshot?: PlaylistSnapshotStore
+  /** Each song's last known words, so a kept song can be sung along to on a plane. */
+  readonly lyricsSnapshot?: LyricsSnapshotStore
 }
 
 let configured: ClientRuntime | null = null
@@ -49,4 +57,14 @@ export function clientApi(): Api {
 /** The offline copy of the library, or null where the app keeps none. */
 export function librarySnapshot(): LibrarySnapshotStore | null {
   return configured?.librarySnapshot ?? null
+}
+
+/** The offline copies of playlists' members, or null where the app keeps none. */
+export function playlistSnapshot(): PlaylistSnapshotStore | null {
+  return configured?.playlistSnapshot ?? null
+}
+
+/** The offline copies of songs' words, or null where the app keeps none. */
+export function lyricsSnapshot(): LyricsSnapshotStore | null {
+  return configured?.lyricsSnapshot ?? null
 }

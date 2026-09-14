@@ -81,6 +81,21 @@ export function SleepMenu({
   )
 }
 
+/**
+ * "24 min" until the timer runs out, or null with none set: the label a button
+ * wears while the timer runs. Whole minutes rounded up, so it never says 0.
+ */
+export function useSleepMinutesLeft(endsAt: number | null): string | null {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (endsAt === null) return undefined
+    const timer = setInterval(() => setNow(Date.now()), 5_000)
+    return () => clearInterval(timer)
+  }, [endsAt])
+  if (endsAt === null) return null
+  return `${Math.max(1, Math.ceil((endsAt - now) / 60_000))} min`
+}
+
 /** "12:04" until the timer runs out, ticking once a second while it is set. */
 function useRemaining(endsAt: number | null): string {
   const [now, setNow] = useState(() => Date.now())

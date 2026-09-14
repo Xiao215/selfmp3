@@ -13,6 +13,7 @@ import {
   queryKeys,
   radius,
   useLibrary,
+  useScanLibrary,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -28,6 +29,7 @@ import {
   ListMusic,
   Mic,
   Music,
+  Refresh,
   Search,
   Settings,
   Shuffle,
@@ -56,6 +58,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const router = useRouter()
   const player = usePlayer()
   const library = useLibrary()
+  const scan = useScanLibrary()
   const artFor = useArt()
   const { fromCloud } = useConnection()
   const { finePointer } = useLayout()
@@ -106,6 +109,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         return
       case 'shuffle-all':
         player.playShuffled(songIds)
+        return
+      case 'rescan-library':
+        scan.mutate()
         return
     }
   }
@@ -188,6 +194,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'nav-inbox': icon(Inbox),
     'nav-settings': icon(Settings),
     'shuffle-all': icon(Shuffle),
+    'rescan-library': icon(Refresh),
   }
   const trimmed = query.trim()
 

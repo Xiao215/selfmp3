@@ -2,6 +2,7 @@ import os from 'node:os'
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
 import { organizeLegacyImports } from './services/libraryLayout.js'
+import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
 
 /**
@@ -133,8 +134,21 @@ function startLibrary(container: Container): void {
     void container.cloudImports.process()
   }
 
+  // Lyrics+: the search index, then romaji for every song with words, so a
+  // phone's first request for a song's lyrics finds both already made.
+  const warmLyrics = (): void => {
+    void container.lyricsIndex
+      .backfill()
+      .then(() => romanizeLibrary({ ...container, logger }))
+      .catch((error: unknown) => {
+        logger.warn('romanizing the library stopped early', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      })
+  }
+
   if (!config.scanOnBoot) {
-    void container.lyricsIndex.backfill()
+    warmLyrics()
     startCloud()
   }
 
@@ -146,7 +160,7 @@ function startLibrary(container: Container): void {
       .then(result => {
         if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
         // Lyrics+: index lyrics for search once the scan knows which songs have them.
-        void container.lyricsIndex.backfill()
+        warmLyrics()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {

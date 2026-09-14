@@ -63,6 +63,8 @@ export interface LibraryModel {
   sortLabel: string
   sortOptions: typeof SORT_OPTIONS
   loading: boolean
+  /** The server did not answer; what is shown is the kept copy. */
+  unreachable: boolean
   emptyReason: LibraryEmptyReason
   setQuery: (query: string) => void
   clearQuery: () => void
@@ -114,6 +116,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
     sortOptions: SORT_OPTIONS,
     loading: library.isPending,
+    unreachable: library.isError,
     emptyReason: emptyReason({
       isError: library.isError,
       total: songs.length,

@@ -2,6 +2,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query'
@@ -29,7 +30,7 @@ import type {
 } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
-import { clientApi, librarySnapshot } from '../runtime.js'
+import { clientApi, librarySnapshot, lyricsSnapshot, playlistSnapshot } from '../runtime.js'
 import { useClientState } from './context.js'
 import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
 
@@ -95,6 +96,7 @@ export const queryKeys = {
  */
 export function useLibrary(): UseQueryResult<Library, Error> {
   const { ready } = useClientState()
+  const client = useQueryClient()
 
   return useQuery({
     queryKey: queryKeys.library,
@@ -111,8 +113,16 @@ export function useLibrary(): UseQueryResult<Library, Error> {
         // stale is still your library where an error screen is nothing. The
         // only thing the stale copy hides is a song added since the last fetch,
         // and one song missing beats all of them missing.
+        //
+        // The copy is put in the cache and the error is still thrown, so a
+        // screen gets both: `data` to draw, and `isError` to say the server is
+        // not there. Returning the copy as the answer hid the failure — the
+        // phone said "13 songs" beside covers that would not load and playlists
+        // that came back empty, and nothing on it could say why.
         const cached = (await librarySnapshot()?.read()) ?? null
-        if (cached) return cached
+        if (cached && !client.getQueryData(queryKeys.library)) {
+          client.setQueryData(queryKeys.library, cached)
+        }
         throw error
       }
     },
@@ -412,12 +422,31 @@ export function useRemoveManyFromPlaylist() {
   })
 }
 
+/**
+ * Ask the server for a playlist's members, and keep the answer. When it does
+ * not answer, the kept copy goes into the cache and the error is still thrown,
+ * as `useLibrary` does: the screen draws the copy and knows it is one.
+ */
+async function fetchPlaylistSongs(client: QueryClient, playlistId: number): Promise<PlaylistSongs> {
+  try {
+    const songs = await clientApi().playlistSongs(playlistId)
+    void playlistSnapshot()?.write(songs)
+    return songs
+  } catch (error) {
+    const key = queryKeys.playlistSongs(playlistId)
+    const cached = (await playlistSnapshot()?.read(playlistId)) ?? null
+    if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+    throw error
+  }
+}
+
 export function usePlaylistSongIds(playlistId: number | null) {
+  const client = useQueryClient()
   return useQuery({
     queryKey: playlistId === null ? ['playlist', 'none'] : queryKeys.playlistSongs(playlistId),
     queryFn: async () => {
       if (playlistId === null) return { playlistId: 0, songIds: [] as number[] }
-      return clientApi().playlistSongs(playlistId)
+      return fetchPlaylistSongs(client, playlistId)
     },
     enabled: playlistId !== null,
     staleTime: 15_000,
@@ -638,6 +667,7 @@ export function useManifest(): UseQueryResult<SyncManifest, Error> {
 /** A playlist's songs in playlist order, with everything about each one. */
 export function usePlaylistSongs(playlistId: number | null): UseQueryResult<PlaylistSongs, Error> {
   const { ready } = useClientState()
+  const client = useQueryClient()
 
   return useQuery({
     queryKey: queryKeys.playlistSongs(playlistId ?? 0),
@@ -645,7 +675,7 @@ export function usePlaylistSongs(playlistId: number | null): UseQueryResult<Play
     staleTime: 30_000,
     queryFn: (): Promise<PlaylistSongs> => {
       if (playlistId === null) throw new Error('no playlist')
-      return clientApi().playlistSongs(playlistId)
+      return fetchPlaylistSongs(client, playlistId)
     },
   })
 }
@@ -653,6 +683,7 @@ export function usePlaylistSongs(playlistId: number | null): UseQueryResult<Play
 /** Lyrics for a song, which do not change unless someone edits them. */
 export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse, Error> {
   const { ready } = useClientState()
+  const client = useQueryClient()
 
   return useQuery({
     queryKey: queryKeys.lyrics(songId ?? 0),
@@ -661,9 +692,22 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
     // A song with no lyrics is a 404 and will stay one; retrying is three more
     // requests for the same answer.
     retry: false,
-    queryFn: (): Promise<LyricsResponse> => {
+    queryFn: async (): Promise<LyricsResponse> => {
       if (songId === null) throw new Error('no song')
-      return clientApi().lyrics(songId)
+      try {
+        const lyrics = await clientApi().lyrics(songId)
+        void lyricsSnapshot()?.write(songId, lyrics)
+        return lyrics
+      } catch (error) {
+        // Only when the server could not be asked: a 404 means the words are
+        // gone, and a kept copy would be a stale answer to a fresh question.
+        if (error instanceof ApiError && error.isOffline) {
+          const key = queryKeys.lyrics(songId)
+          const cached = (await lyricsSnapshot()?.read(songId)) ?? null
+          if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+        }
+        throw error
+      }
     },
   })
 }

@@ -20,7 +20,7 @@ import {
 import { clientApi, handoffTarget, queryKeys, useDevices } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../../api/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../server/ConnectionProvider'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
@@ -74,6 +74,13 @@ export function useDeviceContext(): DevicesContextValue {
 
 export function DevicesProvider({ children }: { children: ReactNode }): ReactNode {
   const player = usePlayer()
+  const progress = usePlayerProgress()
+  // Read by the heartbeat timer, so the position it sends is the current one
+  // without the timer being remade every second.
+  const progressRef = useRef(progress)
+  useEffect(() => {
+    progressRef.current = progress
+  }, [progress])
   const { connection } = useConnection()
   const client = useQueryClient()
 
@@ -131,13 +138,13 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
    */
   useEffect(() => {
     if (!connection) return
-    const state = snapshot(playerRef.current)
+    const state = snapshot(playerRef.current, progressRef.current.position)
     if (playbackStateChanged(lastSentRef.current, state)) beat(state)
   })
 
   useEffect(() => {
     if (!connection) return undefined
-    const timer = setInterval(() => beat(snapshot(playerRef.current)), DEVICE_HEARTBEAT_MS)
+    const timer = setInterval(() => beat(snapshot(playerRef.current, progressRef.current.position)), DEVICE_HEARTBEAT_MS)
     return () => clearInterval(timer)
   }, [beat, connection])
 
@@ -218,7 +225,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   const playOn = useCallback(
     (device: Device): void => {
-      const state = snapshot(playerRef.current)
+      const state = snapshot(playerRef.current, progressRef.current.position)
       if (state.songId === null) return
       send(device.id, {
         type: 'playSong',
@@ -319,10 +326,10 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 }
 
 /** The local playback state, as the wire format describes it. */
-function snapshot(player: ReturnType<typeof usePlayer>): PlaybackState {
+function snapshot(player: ReturnType<typeof usePlayer>, position: number): PlaybackState {
   return {
     songId: player.current?.id ?? null,
-    position: player.position,
+    position,
     playing: player.isPlaying,
     queueIds: [...player.queue.items],
     queueIndex: player.queue.index,

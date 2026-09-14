@@ -9,6 +9,13 @@ import { sendRange } from '../http/range.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
+/** The sizes covers are kept at; a request is answered with the smallest that is not smaller. */
+const ART_SIZES = [160, 320, 640, 1024] as const
+
+export function snapArtSize(wanted: number): number {
+  return ART_SIZES.find(size => size >= wanted) ?? 1024
+}
+
 /**
  * Audio streaming and cover art.
  *
@@ -65,11 +72,22 @@ export function mediaRoutes(container: Container): Router {
 
   router.get(
     '/art/:id',
-    route({ params: ParamsWithId }, async ({ params, req, res }) => {
-      const cover = container.covers.find(params.id)
-      if (!cover) throw HttpError.notFound('no cover art')
+    route(
+      {
+        params: ParamsWithId,
+        // `size`: the longest side wanted. Snapped up to one of a few sizes, so
+        // a library's thumbnails are a handful of files per cover, not one per
+        // pixel value anyone ever asked for.
+        query: z.object({ size: z.coerce.number().int().min(16).max(2048).optional() }),
+      },
+      async ({ params, query, req, res }) => {
+        const cover =
+          query.size === undefined
+            ? container.covers.find(params.id)
+            : await container.covers.thumbnail(params.id, snapArtSize(query.size))
+        if (!cover) throw HttpError.notFound('no cover art')
 
-      const stat = fs.statSync(cover.path)
+        const stat = fs.statSync(cover.path)
       const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
 
       res.setHeader('Content-Type', cover.contentType)
@@ -88,7 +106,8 @@ export function mediaRoutes(container: Container): Router {
         res.sendFile(cover.path, error => (error ? reject(error) : resolve()))
       })
       return undefined
-    }),
+      },
+    ),
   )
 
   return router

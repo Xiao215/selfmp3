@@ -2633,6 +2633,272 @@ From Xiao on 4600:
   hex byte to a colour too, and the tracks are themed styles rather than a
   string built per row.
 
+### No scrollbars, a Shuffle-only head, value pills, playlist tiles, a status line — branch `claude/scrollbar-uiux-review`
+
+From Xiao's review of the proposals at
+https://claude.ai/code/artifact/588c66b3-4155-4099-860d-b75b3e95f44f (B, D, E, F
+agreed or amended; C declined; A sent back for more options).
+
+- **No scrollbars in a browser.** `src/ports/scrollbars.web.ts` adds
+  `scrollbar-width: none` and the WebKit pseudo-element rule once, before the
+  first paint (called from `app/_layout.tsx`); the native twin is a no-op.
+  Checked at 1370×760: the library list overflows with no gutter.
+- **Library head (B).** The Play button is gone; Shuffle stays. A row click
+  already plays the list from there.
+- **Value pills (D).** `PlayerBar`'s speed and sleep buttons become a pill in
+  the song's colour saying "1.25×" / "32 min" while they differ from normal
+  (`ValuePill`, `useSleepMinutesLeft` in `SleepMenu`). The tag button's count
+  badge is removed. Phone: Now Playing's Sleep action reads the minutes left.
+- **Playlist tiles (E).** `PlaylistsScreen` draws tiles: a 2×2 mosaic of the
+  first four songs with art (one cover when fewer, a dashed tile when empty),
+  a "Smart"/"Built in" badge, a play button over the covers (on hover with a
+  mouse), the pin star beside the name. At least 176 wide at desktop width,
+  two across on a phone. Song ids come from `usePlaylistSongIds`, the query the
+  playlist page already reads. Descriptions stay on the playlist page.
+- **Sidebar status line (F).** The foot is one pressable line — "Connected to
+  your Mac" / "Connecting…" / "Can't reach your Mac" with a coloured dot, and
+  "13 songs · none saved offline" — opening Settings. Rescan left the sidebar;
+  it is in Settings and ⌘K ("Rescan library folder", not for a cloud library).
+- Checked: typecheck (only the existing `react-dom` types error), lint,
+  palette/playlists vitest, `export:web`, and Chrome at 1370×800 and 375×812
+  on a private server with the dev profile.
+
+### Report, not Wrapped; the library search's focus; charts in the accent — same branch
+
+From Xiao on the branch build:
+
+- **"Report".** The Stats button, the report's heading, its range control's
+  label and its empty state say Report. The route was already `/stats/report`.
+- **Library search focus.** The box's border turns the accent, and the search
+  icon with it; the input has `outlineStyle: 'none'` on the web, as the tag
+  picker's does, so Chrome no longer draws its own ring inside the box.
+- **Charts follow the accent.** `chartSeries` was a fixed blue (`#3987e5` dark,
+  `#2a78d6` light), so a green accent kept blue stats bars and a blue wash behind
+  the report's ranked rows. It is now `oklch(0.62 0.15 h)` dark and
+  `oklch(0.55 0.16 h)` light, in `tokens.ts` and `tokens.reference.css`, with the
+  parity tests reading it as an oklch token like the rest.
+- The report's hero card is hard to read over a pale cover; options are mocked
+  at https://claude.ai/code/artifact/3d96c5a5-b82e-4783-8188-6e1f111a5c49 and
+  not built yet.
+
+### What a phone shows when its Mac is gone; the report's hero on solid ground — same branch
+
+Xiao killed and relaunched the phone app and saw grey covers, playlist tiles
+saying "5 songs · 19 min" over "No songs yet", and a playlist page with a
+spinner and "0 songs". The app was pointed at `http://localhost:4600`, and
+nothing was listening there any more (its last successful library fetch was
+20:40; the relaunch was 21:04). So the library came from `Documents/library.json`
+and everything the library does not carry — covers, a playlist's song ids,
+stats — failed. The app told none of this truthfully:
+
+- **`useLibrary` hid the failure.** Its queryFn returned the cached copy as if
+  the server had answered, so `isError` was never true with data on screen;
+  Settings' "Unreachable — showing the cached copy" could not show and the new
+  sidebar status line would have said "Connected". It now puts the copy in the
+  cache with `setQueryData` and throws, so a screen has `data` to draw and
+  `isError` to explain. Settings' Library row and the status line read it.
+- **`Cover` falls back** to its letter tile when the image fails to load (a
+  new `radius` prop lets a mosaic square it off).
+- **Playlist tiles** with `songCount > 0` but no ids show a plain cover, not
+  "No songs yet"; the mosaic is made of `Cover`s. A phone's tile width comes
+  from the window, so tiles no longer flash at 176 before the grid is measured.
+- **Playlist page** shows "Can't reach your library · N songs are in here, but
+  the list lives on your server" with a Try again, instead of a spinner then
+  "Nothing here yet"; its count comes from the library while the list loads.
+- **Its back control** is one pressable "‹ Playlists", not a 44-point icon
+  button with the word tucked under it.
+- **Report hero (R1).** No blurred cover behind the text: the figure with an
+  accent rule under it, neutral trait chips (accent only in the sparkle), the
+  facts in a column with a hairline, and the number one drawn sharp in a
+  column of its own (a row across the top on a phone). Chapter 01 lists the
+  number one like the rest. Checked with Playwright in a green accent at 1370
+  and 390 wide.
+- Not an app bug: "Stats need your library" seen in the desktop app's browser
+  pane was React Query paused by an `offline` event that pane fires; a real
+  Chrome, and `window.dispatchEvent(new Event('online'))`, load it.
+- Also not an app bug: the "Refreshing…" banner on the phone was Expo's fast
+  refresh, because the phone was loading from this worktree's Metro (8083)
+  while files here were being edited.
+
+### A phone keeps its covers and its playlists — same branch
+
+Xiao, on the same relaunch: the thumbnails should be stored the way the song
+names are, and a playlist should still list its songs when the Mac is away,
+with the ones not on the phone greyed. Done:
+
+- **Covers kept on the device.** `offline/covers.ts` gains a `covers/`
+  directory under Documents (beside `songs/`), named `<id>-<rev>.jpg`.
+  `useArt` asks `ensureServerCover` for every Mac-served song and draws the
+  kept file once there is one; `downloadStorage` fetches the cover the moment a
+  song's download finishes. The work starts on a timeout, because it is called
+  during a row's render and a cover found on disk announced itself into other
+  lists mid-render. A Mac that is away is asked once per launch per song.
+- **Playlists kept on the device.** `PlaylistSnapshotStore` in
+  `packages/client` (file per playlist on the phone, IndexedDB record in a
+  browser), written after every successful `/api/playlists/:id/songs`, read
+  when one fails — into the cache with the error still thrown, as the library
+  is. `usePlaylistSongs` and `usePlaylistSongIds` share `fetchPlaylistSongs`.
+  Signing out forgets them with the library.
+- **Greyed rows.** `SongRow` and `PlaylistSongRow` take `unavailable`: the
+  server is unreachable (`library.isError`) and the song is not downloaded.
+  The library model exposes `unreachable` for it.
+- Checked on the Pro Max: a temporary server on 4600 filled `Documents/covers`
+  (13) and `Documents/playlists` (2); with it killed and the app relaunched,
+  the library and the tiles show art and "Reference — evening" lists its five
+  songs. Every song is downloaded there, so no row was greyed.
+
+### Covers from the first frame, a softer pull-down, and lyrics kept — same branch
+
+Xiao, on the phone: covers flashed the letter tile for half a second at
+launch; pulling Now Playing down showed a torn white edge above the page; and
+lyrics that the web showed said "No lyrics for this one" on the phone.
+
+- **Covers from the first frame.** `offline/covers.ts` reads `Documents/covers`
+  once, before the first row asks (`prime()`), so `coversNow()` already holds
+  every kept file and `useArt` draws it in the first render. The flash was the
+  Mac's address (or the letter tile) being drawn and the file swapped in a
+  moment later.
+- **The pull-down.** The page no longer follows the finger 1:1; it gives up to
+  150 points over a 600-point pull, and past the threshold the modal's own
+  slide — the one the chevron plays — puts it away. `Stack.Screen` sets the
+  screen's `contentStyle` to the song's colour, so what shows above the page
+  during the give is the same colour, not the frame's white.
+- **Lyrics kept.** Not a phone bug: the server was down when the screenshot
+  was taken, and the phone said "No lyrics" for "could not ask". Now
+  `LyricsSnapshotStore` (file per song on the phone, IndexedDB in a browser)
+  keeps every successful answer and every downloaded song's words, and
+  `useLyrics` reads it only when the server is unreachable — a 404 stays a
+  404. The phone's status line says "Lyrics need your library" when it is
+  offline with nothing kept, as the web's does.
+- Checked on the Pro Max with 4600 up then killed: covers everywhere on a cold
+  launch, and もう少しだけ's synced lyrics with romaji from the kept file.
+
+### The catch-up pass — same branch
+
+Xiao: "if we can play the music, the lyrics should exist already". They did
+not for songs downloaded before the app kept lyrics, or never scrolled to.
+`offline/useKeepAlongside.ts`, mounted in the shell, runs once per library
+answer while the server is answering: for every downloaded song it asks for
+the cover (Mac or bucket path) and, when no words are kept, the lyrics — one
+song at a time, a 404 skipped. Checked on the Pro Max: 13 of 13 covers and
+lyrics kept after one launch against 4600; with 4600 killed, a song never
+opened before shows its synced lyrics from the kept file.
+
+### What a device keeps, settled — same branch
+
+Xiao's model, agreed with two amendments: covers and playlists are metadata
+and are kept for every song and playlist, downloaded or not; words are part
+of a download.
+
+- `useKeepAlongside` now keeps every song's cover and every playlist's members
+  (not only downloaded songs'), plus the words of every downloaded song, one
+  request at a time after each library answer.
+- `downloadStorage` fetches a song's words *before* its file, and a download
+  is not a download without them: a 404 or `instrumental` is fine, the server
+  not answering fails the transfer before any bytes, so the queue retries later.
+- Not done: covers ride in their own requests, not in `/api/library` — a
+  library of thousands would make that payload tens of megabytes. The server
+  serves art at full size; a thumbnail size on `/api/art` would make "keep every
+  cover" cheap for a big library and is worth adding.
+- Checked on the Pro Max: with kept playlists deleted, one launch against
+  4600 brought back 3 of 3 playlists, 13 covers, 13 lyrics.
+
+### Covers at a size — same branch
+
+`GET /api/art/:id?size=N` answers with a square JPEG at the smallest of 160,
+320, 640 or 1024 that is not smaller than N (never enlarged), made with
+`sharp` once and kept in `data/covers/thumbs/<id>-<size>-<mtime>.jpg`; absent
+`size`, the original as before. `createMediaUrl().art` takes the size. The
+phone keeps every cover at 640 (`KEPT_COVER_SIZE`): a 600px original came
+back as 27 KB against 64 KB, so a library of thousands is a few hundred MB at
+most rather than a gigabyte. `sharp` is a native dependency; npm records its
+platform packages in the lockfile, but the Docker image (Alpine) has not been
+rebuilt with it here.
+
+### The position out of the player context — same branch
+
+Xiao: the phone feels laggy. The one thing in the code that explained it:
+`PlayerApi` carried `position` and `duration`, and the engine reports progress
+once a second (`progressUpdateEventInterval: 1`), so every `usePlayer()`
+consumer — the library screen and, through its `renderSong` closure, every
+visible row; the playlist page; the gems row; the song menu — was redrawn
+once a second while anything played. `usePlayerProgress()` now carries the
+two on a context of their own; `usePlayer()`'s value no longer changes on a
+tick. Readers moved: the mini player's wash, the bars' scrubbers, the synced
+lyrics, Now Playing's up-next arithmetic, the devices heartbeat and the
+playback memory (the last two through refs, so their timers are not remade
+each second). Covers arriving from disk are announced once per frame rather
+than once each. Checked: typecheck, lint, 159 app tests, a cold launch on the
+Pro Max.
+
+Not code: the dev client runs an unminified debug bundle with dev-mode checks
+and the Fast Refresh runtime; a release build is the honest measure of feel.
+Also seen twice: after a run of Fast Refreshes, the *first* cold relaunch from
+Metro can fail at module load with "Unistyles was loaded, but it's not
+configured"; the next relaunch is clean. A Metro delta artefact, not a cycle —
+`index.ts` configures Unistyles before `expo-router/entry`.
+
+### Romaji travels with the lyrics — same branch
+
+Xiao: romaji on the phone needed a connection. It was a second request,
+`/lyrics/romanized`, made every time the words were shown, and kept nowhere.
+
+- `LyricsResponse.romanized: string[] | null` — a romanized line per line of
+  `text`, null for words that are not Chinese or Japanese. Made once per text
+  (`services/romanizedLines.ts`, cached under the text's hash in the lyrics
+  cache as the old route did) when the words are resolved, fetched or saved
+  by hand, and for the whole library after boot (`romanizeLibrary`, behind
+  the index backfill). The old route still answers.
+- `useSongWords` reads `lyrics.data.romanized`; the romanized query is gone.
+  The romaji switch only decides whether the line is drawn.
+- Because the words are kept on the device with the response, romaji is kept
+  with them: on view, on download, in the catch-up pass.
+- Checked: a private server answers `/songs/13/lyrics` with 66 romanized
+  lines; the Pro Max's 13 kept lyrics files carry them; with 4600 killed,
+  もう少しだけ shows romaji under each line.
+- The cloud route (`packages/cloud/src/routes.ts`) serves lyrics from the
+  bucket without this field; a bucket library still shows no romaji.
+- The romaji switch is a synced server setting; away from the server the
+  settings query has no answer and the switch read as off, so kept romaji
+  went unseen. `romanizationPref.ts`: the shell mirrors the last heard value
+  into `prefs` (`lyricsRomanization`) from the first frame, and the words read
+  it back when the query is empty. Checked on the Pro Max with 4600 killed:
+  三原色 shows romaji under each line.
+
+### The romaji switch belongs to the device — same branch
+
+Xiao: romaji is always downloaded with the lyrics; the switch should only
+decide whether it is drawn. So it is a device preference now
+(`romanizationPref.ts`: a small external store over `prefs`), flipped at once
+by the page's pill or Settings › Lyrics ("on this device"), with no server
+round-trip, so it works offline. A device that never chose starts from the
+server's old synced `lyricsRomanization` once (`useRomanizationSeed` in the
+shell); after that its own choice is the only one. The server setting stays
+in the schema for that seed and for older clients.
+
+### The stage in the last song's light — branch `universal/stage-first-frame`
+
+From Xiao on 4600, with a recording: open Now Playing for a song after another
+had been on, and for a frame or two the page glows in the wrong colours before
+settling into the cover's.
+
+- **The palette was read after the page was up.** `useCoverPalette` samples
+  the cover on a canvas, asynchronously, and until the read lands the page
+  glowed in `placeholderPalette(song.id)` — a hue from the id, nothing to do
+  with the cover. The read takes a frame or two, which is the flash. Two
+  changes: the player bar calls `warmCoverPalette` as a song starts, so by the
+  time Now Playing opens the palette is usually already known; and while it is
+  not, the page glows in `tonePalette(song.coverTone)`, built from the tone the
+  server sends with the song, so the first frame is already the cover's hue
+  and the sampled colours only move the shades. A song with no tone keeps the
+  letter-tile hue as before. One read at a time per cover: the bar's warming
+  and the stage's own request share it.
+- **The phone's dark frame on relaunch is the dev launcher, not the app.** The
+  screenshot is expo-dev-launcher's home ("Development Build", recently opened
+  servers), which a development build shows while it fetches the last-opened
+  bundle from Metro — its default already is to relaunch the last project. A
+  release build embeds the bundle and never shows it. Nothing to change here.
+
 ### Playlists: three ways to make one, pinned in the sidebar — branch `claude/playlist-ui-ux-redesign-d378d7`
 
 From Xiao's review of the lettered mocks (A1, B1, C2, D2, E1, F2, G1; H dropped):

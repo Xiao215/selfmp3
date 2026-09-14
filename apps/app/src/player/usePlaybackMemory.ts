@@ -4,14 +4,14 @@ import { useLibrary } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { prefs } from '../ports/prefs'
 import { useConnection } from '../server/ConnectionProvider'
-import { usePlayer, type PlayerApi } from './PlayerProvider'
+import { usePlayer, usePlayerProgress, type PlayerApi } from './PlayerProvider'
 import { launchPlayback, parseSession, SESSION_KEY, sessionFromQueue } from './session.model'
 
 /** While playing, how often the position is written down. */
 const SAVE_EVERY_MS = 5_000
 
-function writeSession(player: PlayerApi): void {
-  const session = sessionFromQueue(player.queue, player.position, Date.now())
+function writeSession(player: PlayerApi, position: number): void {
+  const session = sessionFromQueue(player.queue, position, Date.now())
   prefs.set(SESSION_KEY, session ? JSON.stringify(session) : '')
 }
 
@@ -35,6 +35,13 @@ export function usePlaybackMemory(): void {
   useEffect(() => {
     latest.current = player
   }, [player])
+  // The position ticks on its own; read through a ref so the timer below is
+  // not remade every second.
+  const progress = usePlayerProgress()
+  const latestPosition = useRef(progress.position)
+  useEffect(() => {
+    latestPosition.current = progress.position
+  }, [progress.position])
 
   // Once, when the library is known.
   useEffect(() => {
@@ -60,9 +67,9 @@ export function usePlaybackMemory(): void {
   const playing = player.isPlaying
   useEffect(() => {
     if (!restored.current) return undefined
-    writeSession(latest.current)
+    writeSession(latest.current, latestPosition.current)
     if (!playing) return undefined
-    const timer = setInterval(() => writeSession(latest.current), SAVE_EVERY_MS)
+    const timer = setInterval(() => writeSession(latest.current, latestPosition.current), SAVE_EVERY_MS)
     return () => clearInterval(timer)
   }, [queue, songId, playing])
 
@@ -72,7 +79,7 @@ export function usePlaybackMemory(): void {
       return undefined
     }
     const onHide = (): void => {
-      if (restored.current) writeSession(latest.current)
+      if (restored.current) writeSession(latest.current, latestPosition.current)
     }
     window.addEventListener('pagehide', onHide)
     return () => window.removeEventListener('pagehide', onHide)

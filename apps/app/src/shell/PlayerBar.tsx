@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -6,12 +6,12 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
-import { loopRegionPercent, radius, space, type } from '@selfmp3/client'
+import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
+import { loopRegionPercent, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { useArt } from '../offline/useArt'
-import { usePlayer } from '../player/PlayerProvider'
-import { useAccent } from '../ui/accent'
+import { usePlayer, usePlayerProgress } from '../player/PlayerProvider'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
 import { ProgressWash } from '../ui/components/ProgressWash'
@@ -37,7 +37,7 @@ import {
   VolumeMute,
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
-import { SleepMenu } from '../ui/components/SleepMenu'
+import { SleepMenu, useSleepMinutesLeft } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
 import { SheetItem } from '../ui/components/Sheet'
 import { TagPicker } from '../ui/components/TagPicker'
@@ -77,7 +77,7 @@ export function PlayerBar(): ReactNode {
   const practiceOpen = usePracticeOpen()
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
+  const { position, duration } = usePlayerProgress()
   const artFor = useArt()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
@@ -88,13 +88,18 @@ export function PlayerBar(): ReactNode {
   const tight = width < TIGHT_WIDTH
   const song = player.current
   const songColor = useSongColor(song, song ? artFor(song) : null)
+  // Now Playing glows with the cover's colours; read them as the song starts,
+  // so the page opens in its own light rather than in a stand-in for a frame.
+  useEffect(() => {
+    if (song) void warmCoverPalette(song, artFor(song))
+  }, [song, artFor])
   const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const devicesRef = useRef<View>(null)
 
   const percent =
-    song && player.duration > 0 ? Math.min(100, (player.position / player.duration) * 100) : 0
+    song && duration > 0 ? Math.min(100, (position / duration) * 100) : 0
   // Now Playing's tab and mode live in its address, so the bar can read and
   // change them the way the web's bar changes its page.
   const pathname = usePathname()
@@ -183,18 +188,11 @@ export function PlayerBar(): ReactNode {
                 caption="Edit tags"
                 active={tagsOpen}
               >
-                <TagPlus size={17} color={tagsOpen ? songColor.color : theme.colors.textSecondary} />
+                <TagPlus
+                  size={17}
+                  color={tagsOpen ? songColor.color : theme.colors.textSecondary}
+                />
               </IconButton>
-              {song.tagIds.length > 0 ? (
-                <View
-                  style={[styles.tagCount, { backgroundColor: songColor.color }]}
-                  pointerEvents="none"
-                >
-                  <Text style={[styles.tagCountText, { color: accent.onAccent }]}>
-                    {song.tagIds.length}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           </>
         ) : (
@@ -252,10 +250,10 @@ export function PlayerBar(): ReactNode {
         </View>
         <View style={styles.progress}>
           <SeekBar
-            loop={loopRegionPercent(player.loopA, player.loopB, player.duration)}
+            loop={loopRegionPercent(player.loopA, player.loopB, duration)}
             inline
-            position={player.position}
-            duration={player.duration}
+            position={position}
+            duration={duration}
             onSeek={player.seekTo}
             color={songColor.color}
           />
@@ -311,26 +309,73 @@ export function PlayerBar(): ReactNode {
 
 /** What a lit control is drawn in: the playing song's colour, as the seek bar is. */
 function usePlayingColor(): string {
+  return usePlayingTone().color
+}
+
+/** The playing song's colour, and the lighter tint of it that text is drawn in. */
+function usePlayingTone(): { color: string; tint: string } {
   const player = usePlayer()
   const artFor = useArt()
-  return useSongColor(player.current, player.current ? artFor(player.current) : null).color
+  return useSongColor(player.current, player.current ? artFor(player.current) : null)
+}
+
+/**
+ * A lit control that says its value — "1.25×", "24 min" — so a changed speed
+ * or a running timer can be read off the bar without opening its menu. Shown
+ * only while the setting differs from normal; otherwise the plain icon is.
+ */
+function ValuePill({
+  Icon,
+  value,
+  label,
+  caption,
+  onPress,
+}: {
+  Icon: typeof Speed
+  value: string
+  label: string
+  caption: string
+  onPress: () => void
+}): ReactNode {
+  const tone = usePlayingTone()
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      {...tip(caption)}
+      style={({ pressed }) => [
+        styles.pill,
+        { backgroundColor: withAlpha(tone.color, pressed ? 0.3 : 0.18) },
+      ]}
+    >
+      <Icon size={14} color={tone.tint} />
+      <Text style={[styles.pillText, { color: tone.tint }]}>{value}</Text>
+    </Pressable>
+  )
 }
 
 function SpeedButton(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
+  const toggle = (): void => setOpen(value => !value)
   return (
     <View ref={anchorRef} collapsable={false}>
-      <IconButton
-        onPress={() => setOpen(value => !value)}
-        label={`Playback speed: ${player.rate}×`}
-        active={player.rate !== 1}
-      >
-        <Speed size={17} color={player.rate !== 1 ? lit : theme.colors.textSecondary} />
-      </IconButton>
+      {player.rate !== 1 ? (
+        <ValuePill
+          Icon={Speed}
+          value={`${player.rate}×`}
+          label={`Playback speed: ${player.rate}×`}
+          caption="Playback speed"
+          onPress={toggle}
+        />
+      ) : (
+        <IconButton onPress={toggle} label="Playback speed: 1×">
+          <Speed size={17} color={theme.colors.textSecondary} />
+        </IconButton>
+      )}
       <Popover
         open={open}
         onClose={() => setOpen(false)}
@@ -360,16 +405,26 @@ function SpeedButton(): ReactNode {
 function SleepButton(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const running = player.sleepTimerEndsAt !== null
+  const left = useSleepMinutesLeft(player.sleepTimerEndsAt)
+  const toggle = (): void => setOpen(value => !value)
 
   return (
     <View ref={anchorRef} collapsable={false}>
-      <IconButton onPress={() => setOpen(value => !value)} label="Sleep timer" active={running}>
-        <Moon size={17} color={running ? lit : theme.colors.textSecondary} />
-      </IconButton>
+      {left ? (
+        <ValuePill
+          Icon={Moon}
+          value={left}
+          label={`Sleep timer: ${left} left`}
+          caption="Sleep timer"
+          onPress={toggle}
+        />
+      ) : (
+        <IconButton onPress={toggle} label="Sleep timer">
+          <Moon size={17} color={theme.colors.textSecondary} />
+        </IconButton>
+      )}
       <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
     </View>
   )
@@ -553,18 +608,17 @@ const styles = StyleSheet.create(theme => ({
   meta: { flexShrink: 1, minWidth: 0 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   artist: { color: theme.colors.textMuted, fontSize: type.small },
-  tagCount: {
-    position: 'absolute',
-    top: 2,
-    right: 0,
-    minWidth: 14,
-    height: 14,
-    paddingHorizontal: 3,
-    borderRadius: 7,
+  /* A lit control with its value in it: 1.25×, 24 min. */
+  pill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    height: 28,
+    paddingHorizontal: 9,
+    marginHorizontal: 2,
+    borderRadius: 14,
   },
-  tagCountText: { fontSize: 9, fontWeight: '700' },
+  pillText: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centre: {
     flexGrow: 1.9,
     flexShrink: 1,

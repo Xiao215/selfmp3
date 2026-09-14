@@ -10,6 +10,9 @@
  * same cover the same way.
  */
 
+import type { CoverTone } from '@selfmp3/shared'
+import { oklchToHex } from '../theme/oklch.js'
+
 export type Rgb = readonly [number, number, number]
 export type Palette = readonly [Rgb, Rgb, Rgb]
 
@@ -83,6 +86,27 @@ export function placeholderPalette(songId: number): [Rgb, Rgb, Rgb] {
     hslToRgb((hue + 45) % 360, 0.5, 0.55),
     hslToRgb((hue + 45) % 360, 0.45, 0.16),
   ]
+}
+
+/**
+ * A palette in the cover's own hue, before the cover has been read.
+ *
+ * The server sends a song's tone with the song, so this is ready on the first
+ * frame; the three sampled colours replace it once the pixels are in. Built
+ * like `placeholderPalette` — a glow, a second glow turned 45°, and a dark
+ * ground — so the swap moves shades, not hues.
+ */
+export function tonePalette({ hue, chroma }: CoverTone): [Rgb, Rgb, Rgb] {
+  const c = Math.min(Math.max(chroma, 0.06), 0.16)
+  return [
+    hexToRgb(oklchToHex(0.72, c, hue)),
+    hexToRgb(oklchToHex(0.64, c * 0.9, (hue + 45) % 360)),
+    hexToRgb(oklchToHex(0.28, c * 0.7, (hue + 45) % 360)),
+  ]
+}
+
+function hexToRgb(hex: string): Rgb {
+  return [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16)) as unknown as Rgb
 }
 
 export const rgba = ([r, g, b]: Rgb, alpha: number): string =>

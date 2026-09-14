@@ -52,11 +52,14 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   onMore,
   onRemove,
   onLayoutHeight,
+  unavailable = false,
 }: {
   song: Song
   index: number
   artUri: string | null
   active: boolean
+  /** Not on this device, and no server to stream it from: drawn faded. */
+  unavailable?: boolean
   manual: boolean
   playlistName: string
   selecting: boolean
@@ -180,6 +183,7 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
         hovered && styles.rowHovered,
         selected && styles.rowSelected,
         dragging && [styles.rowDragging, { transform: [{ translateY: dragOffset }] }],
+        unavailable && styles.rowUnavailable,
       ]}
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
       onPointerLeave={finePointer ? () => setHovered(false) : undefined}
@@ -279,6 +283,7 @@ const styles = StyleSheet.create(theme => ({
   rowCompact: { gap: 2 },
   rowHovered: { backgroundColor: theme.colors.surface1 },
   rowSelected: { backgroundColor: theme.colors.surface2 },
+  rowUnavailable: { opacity: 0.55 },
   rowDragging: {
     zIndex: 2,
     backgroundColor: theme.colors.surface2,

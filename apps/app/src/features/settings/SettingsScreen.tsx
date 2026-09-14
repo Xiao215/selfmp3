@@ -35,6 +35,9 @@ import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../..
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'
+import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
+import { clearCachedLyrics } from '../../offline/lyricsCache'
+import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { installedApp } from '../../ports/install'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../server/ConnectionProvider'
@@ -97,6 +100,7 @@ type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sig
 export function SettingsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const { fromCloud } = useConnection()
+  const romanizationOn = useRomanizationOn()
   const { width, wide } = useLayout()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
@@ -313,25 +317,21 @@ export function SettingsScreen(): ReactNode {
 
             <ConnectionPanel onTop={top => onTop('connection', top)} onConfirm={setConfirming} />
 
-            {settings.data && !fromCloud ? (
-              <Panel
-                title="Lyrics"
-                hint="shared across your devices"
-                onTop={top => onTop('lyrics', top)}
-              >
+            {fromCloud ? null : (
+              <Panel title="Lyrics" hint="on this device" onTop={top => onTop('lyrics', top)}>
                 <Row
                   label="Show pinyin / romaji"
-                  hint="A romanized line under each Chinese or Japanese lyric, generated on your server — nothing leaves your library."
+                  hint="A romanized line under each Chinese or Japanese lyric. It is made on your server and kept with the words, so this only chooses whether to draw it."
                   last
                 >
                   <Toggle
-                    value={settings.data.lyricsRomanization === 'on'}
-                    onChange={on => set('lyricsRomanization', on ? 'on' : 'off')}
+                    value={romanizationOn}
+                    onChange={setRomanizationOn}
                     label="Show pinyin / romaji"
                   />
                 </Row>
               </Panel>
-            ) : null}
+            )}
 
             {fromCloud ? null : <DevicesPanel onTop={top => onTop('devices', top)} />}
 
@@ -757,10 +757,12 @@ function ConnectionPanel({
       )}
       <Row label="Library" last>
         <Text style={styles.valueText}>
-          {library.data
-            ? `${library.data.songs.length} songs · version ${library.data.version}`
-            : library.isError
-              ? 'Unreachable — showing the cached copy'
+          {library.isError
+            ? library.data
+              ? `Unreachable — showing the cached copy, ${library.data.songs.length} songs`
+              : 'Unreachable, and nothing is cached yet'
+            : library.data
+              ? `${library.data.songs.length} songs · version ${library.data.version}`
               : 'Loading…'}
         </Text>
       </Row>
@@ -976,7 +978,11 @@ function Confirmations({
             clearRecent()
             return downloadQueue.removeAll()
           },
-          forgetSavedLibrary: clearCachedLibrary,
+          forgetSavedLibrary: async () => {
+            await clearCachedLibrary()
+            clearCachedPlaylists()
+            clearCachedLyrics()
+          },
           done: () => {
             signedOutOfCloud()
             router.replace('/sign-in')

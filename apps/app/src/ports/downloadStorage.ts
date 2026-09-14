@@ -1,6 +1,7 @@
 import { Directory, File, Paths, type DownloadProgress, type DownloadTask } from 'expo-file-system'
 import type { Song } from '@selfmp3/shared'
 import {
+  ApiError,
   fileNameFor,
   parseIndex,
   type DownloadIndex,
@@ -10,8 +11,10 @@ import {
   type TransferProgress,
 } from '@selfmp3/client'
 
-import { mediaUrlFor } from '../api/client'
+import { api, mediaUrlFor } from '../api/client'
 import { cloudPlatform, session as cloudSession } from '../cloud'
+import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
+import { writeCachedLyrics } from '../offline/lyricsCache'
 
 /**
  * Where the phone keeps songs: files on disk, beside a JSON index.
@@ -61,6 +64,16 @@ async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<st
   return { url: mediaUrlFor(connection).stream(song.id) }
 }
 
+/** A song's words onto this device, or nothing when it has none. Throws when the server could not be asked. */
+async function keepLyrics(song: Song): Promise<void> {
+  try {
+    writeCachedLyrics(song.id, await api.lyrics(song.id))
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 404 || error.code === 'instrumental')) return
+    throw error
+  }
+}
+
 function transferFor(
   song: Song,
   onProgress: (progress: TransferProgress) => void,
@@ -79,6 +92,12 @@ function transferFor(
       }
 
       if (destination.exists) destination.delete()
+      // The words first, and the download is not a download without them: a
+      // song kept for the plane is kept with its lyrics. A song with none is a
+      // 404 (or marked instrumental) and is fine; the server not answering is
+      // not, and fails the download here before any of the file is fetched,
+      // so the queue tries the whole thing again later.
+      await keepLyrics(song)
       const from = await sourceFor(song)
       // Called off while the source was being worked out.
       if (cancelled) throw new Error('cancelled')
@@ -96,6 +115,16 @@ function transferFor(
           onProgress({ bytesWritten, totalBytes }),
       })
       const finished = await task.downloadAsync()
+      // A song kept for later wants its picture kept with it. The bucket's
+      // covers are fetched on their own path (offline/covers.ts); a Mac's are
+      // fetched here, while the Mac is known to be answering.
+      if (finished !== null && song.hasArt && from.headers === undefined && connection) {
+        ensureServerCover(
+          song.id,
+          song.rev,
+          mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE),
+        )
+      }
       return finished === null ? null : finished.size
     },
 

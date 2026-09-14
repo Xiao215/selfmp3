@@ -64,8 +64,6 @@ export interface PlayerApi {
   readonly songs: readonly Song[]
   readonly current: Song | null
   readonly isPlaying: boolean
-  readonly position: number
-  readonly duration: number
   readonly ready: boolean
   /**
    * Start these songs here; `shuffle` sets the mode first, else it is kept.
@@ -144,6 +142,14 @@ const COUNT_IN_KEY = 'countin'
 const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
+
+/** Where the song has got to. Read it only where a scrubber or a synced line needs it. */
+export interface PlayerProgress {
+  readonly position: number
+  readonly duration: number
+}
+
+const PlayerProgressContext = createContext<PlayerProgress | null>(null)
 
 interface PlayTracking {
   songId: number | null
@@ -621,9 +627,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       songs: resolved.queueSongs,
       current: resolved.currentSong,
       isPlaying: engineState.playing,
-      position: engineState.currentTime,
-      duration:
-        engineState.duration > 0 ? engineState.duration : (resolved.currentSong?.duration ?? 0),
       ready: true,
       playFrom: play,
       playShuffled,
@@ -689,8 +692,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       queue,
       resolved,
       engineState.playing,
-      engineState.currentTime,
-      engineState.duration,
       play,
       playShuffled,
       jumpTo,
@@ -708,7 +709,24 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     ],
   )
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>
+  // Where the song has got to, on its own. It changes once a second while
+  // anything plays, and it used to ride in `value`: every screen that asked
+  // for the player — the library and its rows among them — was redrawn on
+  // every tick to show a scrubber that most of them do not have.
+  const progress = useMemo<PlayerProgress>(
+    () => ({
+      position: engineState.currentTime,
+      duration:
+        engineState.duration > 0 ? engineState.duration : (resolved.currentSong?.duration ?? 0),
+    }),
+    [engineState.currentTime, engineState.duration, resolved.currentSong?.duration],
+  )
+
+  return (
+    <PlayerContext.Provider value={value}>
+      <PlayerProgressContext.Provider value={progress}>{children}</PlayerProgressContext.Provider>
+    </PlayerContext.Provider>
+  )
 }
 
 /**
@@ -722,6 +740,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 function refreshLookahead(engine: unknown): void {
   const candidate = engine as { refreshLookahead?: () => void }
   candidate.refreshLookahead?.()
+}
+
+/**
+ * The song's position and length, ticking once a second. Separate from
+ * `usePlayer()` so that only the few things drawn from it — the scrubbers,
+ * the mini player's wash, the synced lyrics, the devices heartbeat — are
+ * redrawn on each tick.
+ */
+export function usePlayerProgress(): PlayerProgress {
+  const value = useContext(PlayerProgressContext)
+  if (!value) throw new Error('usePlayerProgress must be used inside a PlayerProvider')
+  return value
 }
 
 export function usePlayer(): PlayerApi {

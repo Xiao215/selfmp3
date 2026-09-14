@@ -6,7 +6,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
-import { bytesToDownload, clientApi, queryKeys, radius, space, type } from '@selfmp3/client'
+import {
+  bytesToDownload,
+  clientApi,
+  isDownloaded,
+  queryKeys,
+  radius,
+  space,
+  type,
+} from '@selfmp3/client'
 import {
   useDeletePlaylist,
   useLibrary,
@@ -433,6 +441,18 @@ export function PlaylistDetailScreen(): ReactNode {
 
           {contents.isPending ? (
             <ActivityIndicator style={styles.spinner} color={accent.accent} />
+          ) : contents.isError && nothing ? (
+            // The list is the server's; the library knows only how long it is.
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Can’t reach your library</Text>
+              <Text style={styles.emptyHint}>
+                {playlist
+                  ? `${playlist.songCount} ${playlist.songCount === 1 ? 'song is' : 'songs are'} in here, `
+                  : ''}
+                but the list lives on your server and it isn’t answering right now.
+              </Text>
+              <Button label="Try again" onPress={() => void contents.refetch()} />
+            </View>
           ) : nothing ? (
             <View style={styles.empty}>
               {live ? (
@@ -467,6 +487,8 @@ export function PlaylistDetailScreen(): ReactNode {
                   index={index}
                   artUri={artFor(song)}
                   active={currentId === song.id}
+                  // Not on this phone and no Mac to stream it from: faded.
+                  unavailable={library.isError && installed && !isDownloaded(downloads.index, song.id)}
                   manual={manual}
                   playlistName={name}
                   selecting={selection.active}

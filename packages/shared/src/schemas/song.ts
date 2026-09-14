@@ -197,5 +197,13 @@ export const LyricsResponseSchema = z.object({
   source: z.enum(['sidecar', 'embedded', 'remote']),
   kind: LyricsKindSchema,
   text: z.string(),
+  /**
+   * A romanized line for each line of `text`, in order, empty where a line
+   * needed none; null when the words are not Chinese or Japanese, or the
+   * server could not romanize them. Part of the lyrics so that whatever keeps
+   * the words keeps their romaji, and a device away from its server still has
+   * both. Absent from a server older than this field.
+   */
+  romanized: z.array(z.string()).nullable().optional(),
 })
 export type LyricsResponse = z.infer<typeof LyricsResponseSchema>

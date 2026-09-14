@@ -14,6 +14,7 @@ export type PaletteCommandId =
   | 'nav-settings'
   | 'nav-inbox'
   | 'shuffle-all'
+  | 'rescan-library'
 
 export interface PaletteCommand {
   readonly id: PaletteCommandId
@@ -43,6 +44,8 @@ export function paletteCommands(
           },
         ]),
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
+    // The sidebar's foot used to hold this; a bucket has no folder to scan.
+    ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
   ]
 }
 

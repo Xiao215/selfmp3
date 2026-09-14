@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import sharp from 'sharp'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -59,6 +60,44 @@ export class CoverService {
         songId,
         message: error instanceof Error ? error.message : String(error),
       })
+    }
+  }
+
+  /**
+   * A cover at a size, made once and kept beside the originals in `thumbs/`.
+   *
+   * The originals are whatever the file carried — 1280px and 200 KB is usual —
+   * and a phone keeping every cover in a library of thousands wants a fraction
+   * of that. Square, cropped to the centre, as every place that draws a cover
+   * draws it. The name carries the original's mtime, so replaced art makes a
+   * new thumbnail and the old one is just a stale file to sweep.
+   */
+  async thumbnail(
+    songId: number,
+    size: number,
+  ): Promise<{ path: string; contentType: string } | null> {
+    const cover = this.find(songId)
+    if (!cover) return null
+    const stat = fs.statSync(cover.path)
+    const dir = path.join(this.#dir, 'thumbs')
+    const file = path.join(dir, `${songId}-${size}-${Math.floor(stat.mtimeMs).toString(16)}.jpg`)
+    if (fs.existsSync(file)) return { path: file, contentType: 'image/jpeg' }
+    try {
+      await fsp.mkdir(dir, { recursive: true })
+      await sharp(cover.path)
+        .rotate()
+        .resize(size, size, { fit: 'cover', withoutEnlargement: true })
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toFile(file)
+      return { path: file, contentType: 'image/jpeg' }
+    } catch (error) {
+      // A cover that cannot be resized is still a cover: the original is served.
+      this.#logger.warn('could not make a thumbnail', {
+        songId,
+        size,
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return cover
     }
   }
 

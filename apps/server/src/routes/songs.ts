@@ -26,6 +26,7 @@ import { sqliteTime } from '../repositories/stats.js'
 import { similarSongs } from '../services/similar.js'
 import { isLocalRequest, revealInFileManager } from '../services/reveal.js'
 import { removeFolderIfEmpty } from '../services/libraryLayout.js'
+import { romanizedLines } from '../services/romanizedLines.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -303,7 +304,12 @@ export function songRoutes(container: Container): Router {
           container.songs.setInstrumental(params.id, false)
           container.bumpLibraryVersion()
           container.lyricsIndex.index(song.id, remote.text)
-          return { source: 'remote', kind: remote.synced ? 'synced' : 'plain', text: remote.text }
+          return {
+            source: 'remote',
+            kind: remote.synced ? 'synced' : 'plain',
+            text: remote.text,
+            romanized: await romanizedLines(container, song.id, remote.text),
+          }
         }
 
         // Local lyrics win even over the instrumental flag, but a song known to
@@ -329,7 +335,8 @@ export function songRoutes(container: Container): Router {
         }
 
         container.lyricsIndex.index(song.id, resolved.text)
-        return resolved
+        // The romaji rides with the words: made once per text, kept with them.
+        return { ...resolved, romanized: await romanizedLines(container, song.id, resolved.text) }
       },
     ),
   )
@@ -373,6 +380,8 @@ export function songRoutes(container: Container): Router {
         container.edits.songs([params.id], ['instrumental'])
         container.bumpLibraryVersion()
         container.lyricsIndex.index(song.id, body.text)
+        // New words, new romaji, ready before anyone asks for them.
+        void romanizedLines(container, song.id, body.text).catch(() => undefined)
         return { ok: true as const, kind: synced ? ('synced' as const) : ('plain' as const) }
       },
     ),

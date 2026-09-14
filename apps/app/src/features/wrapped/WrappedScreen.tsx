@@ -1,15 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet as NativeStyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { Pressable, ScrollView, StyleSheet as NativeStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { WRAPPED_RANGE_LABELS, type Song, type WrappedRange } from '@selfmp3/shared'
 import { radius, withAlpha } from '@selfmp3/client'
@@ -49,10 +42,9 @@ const CHAPTER_MIN = 330
 /**
  * Wrapped, for any window you like: the web's `WrappedView`.
  *
- * The one screen allowed to be a bit of a show: the top song's artwork blurred
- * behind the hero, the figure set large, each section a numbered chapter. It
- * keeps the app's type scale, spacing and accent, so it reads as the same app
- * in its good coat.
+ * The one screen allowed to be a bit of a show: the figure set large, the top
+ * song's cover beside it, each section a numbered chapter. It keeps the app's
+ * type scale, spacing and accent, so it reads as the same app in its good coat.
  */
 export function WrappedScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -113,7 +105,7 @@ export function WrappedScreen(): ReactNode {
     <View style={[styles.head, !wide && styles.headNarrow]}>
       <View>
         <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
-          Wrapped
+          Report
         </Text>
         <Text style={styles.sub}>
           {WRAPPED_RANGE_LABELS[range]} ·{' '}
@@ -130,7 +122,7 @@ export function WrappedScreen(): ReactNode {
         <Segmented
           value={range}
           onChange={setRange}
-          label="Wrapped range"
+          label="Report range"
           options={WRAPPED_RANGES.map(option => ({ value: option, label: RANGE_SHORT[option] }))}
         />
         {canShareCard ? (
@@ -163,7 +155,7 @@ export function WrappedScreen(): ReactNode {
   if (!wrapped) {
     return shell(
       <View style={styles.empty}>
-        <Text style={styles.chapterTitle}>Wrapped needs your library</Text>
+        <Text style={styles.chapterTitle}>The report needs your library</Text>
         <Text style={[styles.hint, styles.center]}>
           It’ll be here when your server is reachable again.
         </Text>
@@ -206,57 +198,55 @@ export function WrappedScreen(): ReactNode {
         </View>
       ) : null}
 
+      {/*
+        The hero: the figure, the facts and the number one, each on solid ground.
+        The cover used to be blurred behind all of it; a pale cover under a green
+        accent left the labels and the trait chips unreadable. Now the cover is
+        drawn sharp in a column of its own, and the accent appears only in marks
+        that carry no text — a rule under the figure, the sparkle in a chip.
+      */}
       <View style={styles.hero}>
-        {/* The top song's artwork, blurred past recognition: decoration that is also data. */}
-        {heroArt ? (
-          <Image source={{ uri: heroArt }} blurRadius={42} style={styles.heroArt} aria-hidden />
-        ) : null}
         <Svg style={NativeStyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
           <Defs>
-            <LinearGradient id="wash" x1="0" y1="0" x2="1" y2="0.2">
-              <Stop offset="0.04" stopColor={theme.colors.surface1} stopOpacity={heroArt ? 1 : 0} />
-              <Stop
-                offset="0.38"
-                stopColor={theme.colors.surface1}
-                stopOpacity={heroArt ? 0.78 : 0}
-              />
-              <Stop offset="1" stopColor={theme.colors.surface1} stopOpacity={heroArt ? 0.3 : 0} />
-            </LinearGradient>
-            <RadialGradient id="glow" cx="1" cy="0" rx="1.2" ry="1.4">
-              <Stop offset="0" stopColor={accent.accentDim} stopOpacity={0.55} />
-              <Stop offset="0.6" stopColor={accent.accentDim} stopOpacity={0} />
+            <RadialGradient id="glow" cx="0" cy="0" rx="0.7" ry="1.3">
+              <Stop offset="0" stopColor={accent.accentDim} stopOpacity={0.3} />
+              <Stop offset="1" stopColor={accent.accentDim} stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="url(#glow)" />
-          <Rect width="100%" height="100%" fill="url(#wash)" />
         </Svg>
 
-        <View style={[styles.heroInner, wide ? styles.heroInnerWide : styles.heroInnerNarrow]}>
-          <View style={wide ? styles.heroMainWide : undefined}>
+        <View style={wide ? styles.heroWide : undefined}>
+          {/* On a phone the number one leads, a row across the top. */}
+          {!wide && topSong ? (
+            <NumberOne
+              song={topSong}
+              inLibrary={topInLibrary}
+              art={heroArt}
+              onPlay={() => topInLibrary && player.playFrom([topInLibrary.id], 0)}
+            />
+          ) : null}
+
+          <View style={[styles.heroMain, wide ? styles.heroMainWide : styles.heroMainNarrow]}>
             <Text style={styles.eyebrow}>{eyebrow(range).toUpperCase()}</Text>
             <Text style={[styles.figure, !wide && styles.figureNarrow]}>
               {figure(wrapped.totals.minutes)}
             </Text>
+            <View style={[styles.rule, { backgroundColor: accent.accent }]} />
             <Text style={styles.figureUnit}>{figureUnit(wrapped.totals.minutes)}</Text>
             {wrapped.personality.traits.length > 0 ? (
               <View style={styles.traits} accessibilityLabel="Your listening traits">
                 {wrapped.personality.traits.map(trait => (
-                  <View
-                    key={trait}
-                    style={[
-                      styles.trait,
-                      { borderColor: accent.accentDim, backgroundColor: accent.accentWash },
-                    ]}
-                  >
+                  <View key={trait} style={styles.trait}>
                     <Sparkles size={13} color={accent.accent} />
-                    <Text style={[styles.traitText, { color: accent.accent }]}>{trait}</Text>
+                    <Text style={styles.traitText}>{trait}</Text>
                   </View>
                 ))}
               </View>
             ) : null}
           </View>
 
-          <View style={[styles.facts, wide && styles.heroMainWide]}>
+          <View style={[styles.facts, wide ? styles.factsWide : styles.factsNarrow]}>
             {facts(wrapped).map(fact => (
               <View
                 key={fact.label}
@@ -268,6 +258,16 @@ export function WrappedScreen(): ReactNode {
               </View>
             ))}
           </View>
+
+          {wide && topSong ? (
+            <NumberOne
+              song={topSong}
+              inLibrary={topInLibrary}
+              art={heroArt}
+              wide
+              onPlay={() => topInLibrary && player.playFrom([topInLibrary.id], 0)}
+            />
+          ) : null}
         </View>
       </View>
 
@@ -289,54 +289,14 @@ export function WrappedScreen(): ReactNode {
             ) : null
           }
         >
-          {topSong ? (
-            <Pressable
-              disabled={!topInLibrary}
-              onPress={() => topInLibrary && player.playFrom([topInLibrary.id], 0)}
-              accessibilityRole="button"
-              accessibilityLabel={`Your number one: ${topSong.title}, ${topSong.artist || 'Unknown artist'}`}
-              style={styles.numberOne}
-            >
-              {/* The web's wash: the accent's dim shade, fading out across the card. */}
-              <Svg
-                style={NativeStyleSheet.absoluteFill}
-                width="100%"
-                height="100%"
-                pointerEvents="none"
-              >
-                <Defs>
-                  <LinearGradient id="numberOne" x1="0" y1="0" x2="1" y2="0.2">
-                    <Stop offset="0" stopColor={accent.accentDim} stopOpacity={0.55} />
-                    <Stop offset="0.85" stopColor={accent.accentDim} stopOpacity={0} />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#numberOne)" />
-              </Svg>
-              <Cover uri={heroArt} title={topSong.title} size={92} />
-              <View style={styles.numberOneText}>
-                <Text style={[styles.numberOneLabel, { color: accent.accent }]}>
-                  YOUR NUMBER ONE
-                </Text>
-                <Text
-                  style={[styles.numberOneTitle, !wide && styles.numberOneTitleNarrow]}
-                  numberOfLines={1}
-                >
-                  {topSong.title}
-                </Text>
-                <Text style={styles.numberOneArtist} numberOfLines={1}>
-                  {topSong.artist || 'Unknown artist'}
-                </Text>
-                <Text style={styles.numberOnePlays}>{numberOneLine(topSong)}</Text>
-              </View>
-            </Pressable>
-          ) : null}
-          {wrapped.topSongs.slice(1).map((entry, index) => (
+          {/* The number one has its place in the hero; here it heads the list like the rest. */}
+          {wrapped.topSongs.map((entry, index) => (
             <SongLine
               key={entry.songId}
               song={songById.get(entry.songId)}
               title={entry.title}
               artist={entry.artist}
-              rank={index + 2}
+              rank={index + 1}
               trailing={playsLabel(entry.plays)}
             />
           ))}
@@ -402,6 +362,49 @@ export function WrappedScreen(): ReactNode {
         </Chapter>
       </View>
     </>,
+  )
+}
+
+/**
+ * The most-played song, with its cover drawn sharp: a column at the end of the
+ * hero on a computer, a row across its top on a phone. Pressing it plays it.
+ */
+function NumberOne({
+  song,
+  inLibrary,
+  art,
+  wide = false,
+  onPlay,
+}: {
+  song: { title: string; artist: string; plays: number; minutes: number }
+  inLibrary: Song | undefined
+  art: string | null
+  wide?: boolean
+  onPlay: () => void
+}): ReactNode {
+  const accent = useAccent()
+  return (
+    <Pressable
+      disabled={!inLibrary}
+      onPress={onPlay}
+      accessibilityRole="button"
+      accessibilityLabel={`Your number one: ${song.title}, ${song.artist || 'Unknown artist'}`}
+      style={({ pressed }) => [
+        wide ? styles.numberOneWide : styles.numberOneNarrow,
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <Cover uri={art} title={song.title} size={wide ? 176 : 56} />
+      <View style={styles.numberOneText}>
+        <Text style={[styles.numberOneLabel, { color: accent.accent }]}>YOUR NUMBER ONE</Text>
+        <Text style={[styles.numberOneTitle, !wide && styles.numberOneTitleNarrow]} numberOfLines={1}>
+          {song.title}
+        </Text>
+        <Text style={styles.numberOnePlays} numberOfLines={2}>
+          {song.artist || 'Unknown artist'} · {numberOneLine(song)}
+        </Text>
+      </View>
+    </Pressable>
   )
 }
 
@@ -517,23 +520,41 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface1,
   },
-  heroArt: {
-    position: 'absolute',
-    top: '-12%',
-    left: '-12%',
-    width: '124%',
-    height: '124%',
-    opacity: 0.75,
+  heroWide: { flexDirection: 'row', alignItems: 'stretch' },
+  heroMain: { justifyContent: 'center' },
+  heroMainWide: { flex: 1, minWidth: 240, paddingVertical: 28, paddingHorizontal: 28 },
+  heroMainNarrow: { paddingTop: 20, paddingHorizontal: 18, paddingBottom: 18 },
+  /* A short rule in the accent under the figure: the accent, with no text on it. */
+  rule: { width: 64, height: 4, borderRadius: 2, marginTop: 10, marginBottom: 6 },
+  factsWide: {
+    flex: 1,
+    minWidth: 260,
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderLeftWidth: 1,
+    borderLeftColor: theme.colors.border,
   },
-  heroInner: { gap: 24 },
-  heroInnerWide: {
+  factsNarrow: { paddingHorizontal: 18, paddingBottom: 22 },
+  numberOneWide: {
+    width: 212,
+    padding: 18,
+    gap: 10,
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: theme.colors.border,
+    backgroundColor: theme.colors.surface0,
+  },
+  numberOneNarrow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 28,
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.surface0,
   },
-  heroInnerNarrow: { paddingVertical: 22, paddingHorizontal: 18, gap: 20 },
-  heroMainWide: { flex: 1, minWidth: 240 },
   eyebrow: {
     color: theme.colors.textSecondary,
     fontSize: 11,
@@ -549,8 +570,9 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 6,
   },
   figureNarrow: { fontSize: 56, lineHeight: 60, letterSpacing: -2 },
-  figureUnit: { color: theme.colors.textSecondary, fontSize: 14, marginTop: 2 },
+  figureUnit: { color: theme.colors.textSecondary, fontSize: 14 },
   traits: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 16 },
+  /* Neutral, so a chip never has to sit on its own colour. The sparkle carries the accent. */
   trait: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -560,8 +582,10 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 11,
     borderRadius: 999,
     borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
   },
-  traitText: { fontSize: 12, fontWeight: '600' },
+  traitText: { fontSize: 12, fontWeight: '600', color: theme.colors.textPrimary },
   facts: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 14 },
   fact: { paddingRight: 12 },
   factWide: { width: '33.3%' },
@@ -588,23 +612,11 @@ const styles = StyleSheet.create(theme => ({
   chapterTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 9 },
   chapterNo: { fontSize: 11, fontWeight: '700', letterSpacing: 0.9, fontVariant: ['tabular-nums'] },
   chapterTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  numberOne: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    padding: 12,
-    marginBottom: 4,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: 'hidden',
-  },
   numberOneText: { flex: 1, minWidth: 0, gap: 1 },
   numberOneLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.9, marginBottom: 3 },
-  numberOneTitle: { color: theme.colors.textPrimary, fontSize: 19, fontWeight: '700' },
-  numberOneTitleNarrow: { fontSize: 17 },
-  numberOneArtist: { color: theme.colors.textSecondary, fontSize: 13 },
-  numberOnePlays: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
+  numberOneTitle: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  numberOneTitleNarrow: { fontSize: 15 },
+  numberOnePlays: { color: theme.colors.textMuted, fontSize: 11, marginTop: 2 },
   subhead: { color: theme.colors.textMuted, fontSize: 11, letterSpacing: 0.9, marginTop: 8 },
   rankRow: {
     flexDirection: 'row',

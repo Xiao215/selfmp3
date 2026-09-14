@@ -31,15 +31,101 @@ export function onCoversChanged(run: () => void): () => void {
   return () => listeners.delete(run)
 }
 
+/**
+ * Gathered onto one frame: thirteen covers arriving from disk at launch used to
+ * be thirteen renders of every list, back to back.
+ */
+let announcing = false
 function announce(): void {
-  for (const run of listeners) run()
+  if (announcing) return
+  announcing = true
+  setTimeout(() => {
+    announcing = false
+    for (const run of listeners) run()
+  }, 16)
+}
+
+/**
+ * A Mac's covers, kept beside the songs in the document directory rather than
+ * in the cache the OS may reclaim: a song downloaded for the plane wants its
+ * picture on the plane too. Named by song and revision, so new art replaces old.
+ */
+const STORE = new Directory(Paths.document, 'covers')
+/**
+ * The size a cover is kept at. A row draws it at 40 points and Now Playing at
+ * most at about 360, so 640 pixels is sharp on a 2× screen and soft only on a
+ * 3× one at full width; at 40 KB or so it lets a library of thousands be kept.
+ */
+export const KEPT_COVER_SIZE = 640
+/** What this device holds of a Mac's covers, and the revision each was drawn at. */
+const served = new Map<number, { rev: string; uri: string }>()
+/** Addresses tried this launch: a Mac that is away is asked once per song, not per render. */
+const tried = new Set<string>()
+
+/**
+ * Read what earlier launches kept, once, before the first row asks. Without
+ * this the first render drew the Mac's address (or the letter tile, with the
+ * Mac away) and swapped in the kept file a moment later: a flicker on every
+ * cover, every launch.
+ */
+let primed = false
+function prime(): void {
+  if (primed) return
+  primed = true
+  try {
+    if (!STORE.exists) return
+    for (const entry of STORE.list()) {
+      const match = /^(\d+)-(.*)\.jpg$/.exec(entry.name)
+      if (match && entry instanceof File) {
+        served.set(Number(match[1]), { rev: match[2] ?? '', uri: entry.uri })
+      }
+    }
+  } catch {
+    // Nothing kept, or nothing readable: the Mac is asked as before.
+  }
 }
 
 /** What this device holds right now, as something a screen can keep in state. */
 export function coversNow(): ReadonlyMap<number, string> {
+  prime()
   const found = new Map<number, string>()
   for (const [songId, uri] of known) if (uri) found.set(songId, uri)
+  for (const [songId, { uri }] of served) found.set(songId, uri)
   return found
+}
+
+/**
+ * Keep a Mac's cover on this device, from the address the Mac serves it at.
+ * Safe to call for every visible row: a cover already kept, or an address
+ * already tried, costs a map lookup. The file is checked before the network,
+ * so a cover kept on an earlier launch is found without the Mac.
+ */
+export function ensureServerCover(songId: number, rev: string | undefined, url: string): void {
+  prime()
+  const revision = rev ?? ''
+  const have = served.get(songId)
+  if (have && have.rev === revision) return
+  if (tried.has(url)) return
+  tried.add(url)
+  void (async () => {
+    // Off the current frame first. This is called while a row renders, and a
+    // cover found on disk would otherwise announce itself — and set state in
+    // every list — in the middle of that render.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    try {
+      if (!STORE.exists) STORE.create({ intermediates: true, idempotent: true })
+      const file = new File(STORE, `${songId}-${revision.replace(/[^a-zA-Z0-9.-]/g, '_')}.jpg`)
+      if (!file.exists) {
+        const written = await File.downloadFileAsync(url, file, { idempotent: true })
+        if (!written.exists) return
+      }
+      served.set(songId, { rev: revision, uri: file.uri })
+      announce()
+    } catch {
+      // The Mac is away. The address is drawn for now, and asked for again
+      // next launch; there is a letter tile behind it either way.
+    }
+  })()
 }
 
 /**
@@ -107,8 +193,11 @@ export async function ensureCover(songId: number): Promise<string | null> {
 export function forgetCovers(): void {
   known.clear()
   fetching.clear()
+  served.clear()
+  tried.clear()
   try {
     if (CACHE.exists) CACHE.delete()
+    if (STORE.exists) STORE.delete()
   } catch {
     // Nothing to clear.
   }

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { mediaUrlFor } from '../api/client'
 import { useConnection } from '../server/ConnectionProvider'
-import { coversNow, ensureCover, onCoversChanged } from './covers'
+import {
+  coversNow,
+  ensureCover,
+  ensureServerCover,
+  KEPT_COVER_SIZE,
+  onCoversChanged,
+} from './covers'
 
 /**
  * Where a song's artwork comes from, for whichever screen is asking.
@@ -28,7 +34,14 @@ export function useArt(): (song: Song) => string | null {
       // `fromCloud`, not `connection`: an address left over from talking to a
       // Mac is still stored, and asking whether one exists sends the loader to
       // a Mac that is not running.
-      if (!fromCloud && connection) return mediaUrlFor(connection).art(song.id, song.rev)
+      if (!fromCloud && connection) {
+        // The Mac's address, and a copy kept on this device the moment it
+        // answers. The copy is what is drawn once it exists: it is there when
+        // the Mac is not, and it is the same picture when it is.
+        const url = mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE)
+        ensureServerCover(song.id, song.rev, url)
+        return covers.get(song.id) ?? url
+      }
       void ensureCover(song.id)
       return covers.get(song.id) ?? null
     },

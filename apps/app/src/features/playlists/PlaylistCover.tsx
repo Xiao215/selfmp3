@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Image, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Playlist, Song } from '@selfmp3/shared'
 import { radius, useLibrary, usePlaylistSongIds } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { useAccent } from '../../ui/accent'
+import { Cover } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
 import { isLive } from './playlists.model'
 
@@ -32,7 +32,6 @@ export function PlaylistCover({
   size?: number
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const artFor = useArt()
   const { data: library } = useLibrary()
   const { data } = usePlaylistSongIds(
@@ -69,27 +68,27 @@ export function PlaylistCover({
   return (
     <View style={frame}>
       {covers.map(song => (
-        <Tile key={song.id} song={song} uri={artFor(song)} half={covers.length === 4} tint={accent.hue} />
+        <Tile key={song.id} song={song} uri={artFor(song)} half={covers.length === 4} />
       ))}
     </View>
   )
 }
 
-function Tile({
-  song,
-  uri,
-  half,
-  tint,
-}: {
-  song: Song
-  uri: string | null
-  half: boolean
-  tint: number
-}): ReactNode {
-  const cell = half ? styles.half : styles.whole
-  if (uri) return <Image source={{ uri }} style={cell} resizeMode="cover" />
-  // A song without art, alone on the cover: a quiet block rather than a hole.
-  return <View style={[cell, { backgroundColor: `hsl(${(tint + song.id * 37) % 360}, 22%, 24%)` }]} />
+/**
+ * One cell. A `Cover`, so art that fails to load (a Mac that is not running)
+ * falls back to the song's own coloured letter rather than leaving a hole. A
+ * cover draws at a fixed size, so the cell measures itself and hands it on.
+ */
+function Tile({ song, uri, half }: { song: Song; uri: string | null; half: boolean }): ReactNode {
+  const [side, setSide] = useState(0)
+  return (
+    <View
+      style={half ? styles.half : styles.whole}
+      onLayout={event => setSide(Math.floor(event.nativeEvent.layout.width))}
+    >
+      {side > 0 ? <Cover uri={uri} title={song.album || song.title} size={side} radius={0} /> : null}
+    </View>
+  )
 }
 
 const styles = StyleSheet.create(theme => ({

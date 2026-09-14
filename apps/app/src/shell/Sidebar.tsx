@@ -19,7 +19,7 @@ import {
   type,
   type TagFilterState,
 } from '@selfmp3/client'
-import { useAddToPlaylist, useCreateTag, useLibrary, useScanLibrary } from '../api/queries'
+import { useAddToPlaylist, useCreateTag, useLibrary } from '../api/queries'
 import { useLibraryFilter } from '../features/library/libraryFilter'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
@@ -33,7 +33,6 @@ import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
   BarChart,
-  CloudDownload,
   Download,
   Inbox,
   ListMusic,
@@ -42,7 +41,6 @@ import {
   More,
   Music,
   Plus,
-  Refresh,
   Settings,
   Tag as TagIcon,
   X,
@@ -64,7 +62,7 @@ import { tip } from '../ui/tip'
  *
  * Below them, the web's tag list, which is how a desktop filters the library:
  * a click shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
- * the foot, what is on this device and a rescan.
+ * the foot, a status line: reachable or not, and what is offline.
  */
 const DESTINATIONS: {
   href: '/' | '/import' | '/stats' | '/settings'
@@ -521,37 +519,53 @@ function TagRow({
   )
 }
 
+/**
+ * The foot: one line that answers the glance down — can this app reach its
+ * library, and how much of it is kept offline. It opens Settings, where both
+ * are managed. Rescanning the folder lives there and in ⌘K; a task needed once
+ * in a while does not want a permanent place under the tags.
+ */
 function Foot(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const scan = useScanLibrary()
+  const library = useLibrary()
   const { state } = useDownloads()
   const { fromCloud } = useConnection()
+  const saved = downloadedCount(state.index)
+  const songs = library.data?.songs.length ?? 0
+
+  // A failed refetch keeps the cached library, so an error wins over the data.
+  const [dot, label] = library.isError
+    ? [theme.colors.danger, fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your Mac']
+    : library.isPending
+      ? [theme.colors.warning, 'Connecting…']
+      : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your Mac']
+  const detail = `${songs} ${songs === 1 ? 'song' : 'songs'} · ${
+    saved > 0 ? `${saved} saved offline` : 'none saved offline'
+  }`
 
   return (
     <View style={styles.foot}>
       <Pressable
-        style={styles.footItem}
+        style={({ pressed }) => [styles.status, pressed && { backgroundColor: theme.colors.surface2 }]}
         onPress={() => router.navigate('/settings')}
         accessibilityRole="button"
-        accessibilityLabel="Offline"
+        accessibilityLabel={library.data ? `${label}, ${detail}` : label}
+        testID="sidebar-status"
+        {...tip('Connection and offline songs')}
       >
-        <CloudDownload size={15} color={theme.colors.textMuted} />
-        <Text style={styles.footLabel}>Offline</Text>
-        <Text style={styles.count}>{downloadedCount(state.index)}</Text>
+        <View style={[styles.statusDot, { backgroundColor: dot }]} />
+        <View style={styles.statusText}>
+          <Text style={styles.footLabel} numberOfLines={1}>
+            {label}
+          </Text>
+          {library.data ? (
+            <Text style={styles.statusDetail} numberOfLines={1}>
+              {detail}
+            </Text>
+          ) : null}
+        </View>
       </Pressable>
-      {/* A bucket has no folder to scan; only a Mac does. */}
-      {fromCloud ? null : (
-        <Pressable
-          style={styles.footItem}
-          onPress={() => scan.mutate()}
-          disabled={scan.isPending}
-          accessibilityRole="button"
-        >
-          <Refresh size={15} color={theme.colors.textMuted} />
-          <Text style={styles.footLabel}>{scan.isPending ? 'Scanning…' : 'Rescan library'}</Text>
-        </Pressable>
-      )}
     </View>
   )
 }
@@ -704,13 +718,16 @@ const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: 12 },
   link: { color: theme.colors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
   foot: { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 10, gap: 1 },
-  footItem: {
+  status: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
+    alignItems: 'flex-start',
+    gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: radius.md,
   },
-  footLabel: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  statusText: { flex: 1, minWidth: 0, gap: 1 },
+  statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  footLabel: { color: theme.colors.textSecondary, fontSize: 13 },
 }))

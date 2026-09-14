@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   useMutation,
   useQuery,
@@ -32,6 +33,7 @@ import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
 import { clientApi, librarySnapshot, lyricsSnapshot, playlistSnapshot } from '../runtime.js'
 import { useClientState } from './context.js'
+import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
 import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
 
 /**
@@ -88,6 +90,43 @@ export const queryKeys = {
 }
 
 /**
+ * Listening for the cloud library changing behind an answer, once per query
+ * client however many screens hold the library.
+ */
+const cloudListeners = new WeakMap<QueryClient, { holders: number; stop: () => void }>()
+
+/**
+ * The cloud library answers from this device's copy first and looks at the
+ * bucket afterwards (`@selfmp3/cloud`'s loadCloudLibrary). When that look finds
+ * something, everything read from the copy is asked for again — from the copy,
+ * so no request leaves the device.
+ */
+function useCloudLibraryChanges(client: QueryClient): void {
+  useEffect(() => {
+    let entry = cloudListeners.get(client)
+    if (!entry) {
+      const stop = clientApi().onCloudLibraryChanged(() => {
+        void client.invalidateQueries({ queryKey: queryKeys.library })
+        void client.invalidateQueries({ queryKey: ['playlist'] })
+        void client.invalidateQueries({ queryKey: queryKeys.manifest })
+        void client.invalidateQueries({ queryKey: queryKeys.cloudImports })
+      })
+      entry = { holders: 0, stop }
+      cloudListeners.set(client, entry)
+    }
+    const held = entry
+    held.holders++
+    return () => {
+      held.holders--
+      if (held.holders === 0) {
+        held.stop()
+        cloudListeners.delete(client)
+      }
+    }
+  }, [client])
+}
+
+/**
  * The library, with an offline fallback.
  *
  * When the request fails because the Mac is asleep, the last snapshot written
@@ -97,17 +136,40 @@ export const queryKeys = {
 export function useLibrary(): UseQueryResult<Library, Error> {
   const { ready } = useClientState()
   const client = useQueryClient()
+  useCloudLibraryChanges(client)
 
   return useQuery({
     queryKey: queryKeys.library,
     enabled: ready,
     queryFn: async (): Promise<Library> => {
+      const api = clientApi()
+      // The cloud library is its own saved copy, kept on the device already and
+      // answered from it first: saving the answer again is the whole library
+      // written twice, and reading the old copy first is slower than the answer.
+      const fromCloud = api.answersFromCloud()
+      let answered = false
+      if (!fromCloud && client.getQueryData(queryKeys.library) === undefined) {
+        // Opening the app: a Mac can take seconds to answer, or never (asleep,
+        // fifteen seconds), and the saved copy is on this device. It is shown
+        // meanwhile — dated 0, so it counts as stale and says it is not an
+        // answer — and replaced by the answer, or kept beside the error, below.
+        void librarySnapshot()
+          ?.read()
+          .then(saved => {
+            if (saved && !answered && client.getQueryData(queryKeys.library) === undefined) {
+              client.setQueryData(queryKeys.library, saved, { updatedAt: 0 })
+            }
+          })
+          .catch(() => undefined)
+      }
       try {
-        const library = await clientApi().library()
+        const library = await api.library()
+        answered = true
         // Fire-and-forget: a failed mirror write must not fail the query.
-        void librarySnapshot()?.write(library)
+        if (!fromCloud) void librarySnapshot()?.write(library)
         return library
       } catch (error) {
+        answered = true
         // Any failure, not just an unreachable server. A music library is not a
         // dashboard: you open it to play something, and a library a few hours
         // stale is still your library where an error screen is nothing. The
@@ -252,6 +314,38 @@ function useVoidLibraryMutation<TResult>(
   })
 }
 
+/**
+ * Put an edit's answer into the library held, instead of asking for all of it
+ * again (patchLibrary.ts). The library is still asked for when there is none
+ * held, when the answer cannot be put in, or when `refetchToo` says the edit
+ * reaches further than the answer shows.
+ *
+ * The time the library was last answered is kept: a patched saved copy is no
+ * fresher an answer than it was.
+ */
+function putInLibrary(
+  client: QueryClient,
+  patch: (library: Library) => Library | null,
+  refetchToo: (library: Library) => boolean = () => false,
+): void {
+  const current = client.getQueryData<Library>(queryKeys.library)
+  const next = current ? patch(current) : null
+  if (next) {
+    client.setQueryData(queryKeys.library, next, {
+      updatedAt: client.getQueryState(queryKeys.library)?.dataUpdatedAt,
+    })
+  }
+  // A fetch already under way may have been answered before this edit landed,
+  // and would put the old library back over the patch: it is asked again.
+  if (!current || !next || libraryFetching(client) || refetchToo(current)) {
+    void client.invalidateQueries({ queryKey: queryKeys.library })
+  }
+}
+
+/** Whether the library is being asked for right now — an optimistic edit cancels that, and owes it. */
+const libraryFetching = (client: QueryClient): boolean =>
+  client.isFetching({ queryKey: queryKeys.library }) > 0
+
 export const useCreateTag = () => useLibraryMutation((name: string) => clientApi().createTag(name))
 
 export const useDeleteTag = () => useLibraryMutation((id: number) => clientApi().deleteTag(id))
@@ -270,6 +364,7 @@ export function useSetTagHue() {
   return useMutation({
     mutationFn: ({ id, hue }: { id: number; hue: number }) => clientApi().setTagHue(id, hue),
     onMutate: async ({ id, hue }) => {
+      const refetching = libraryFetching(client)
       await client.cancelQueries({ queryKey: queryKeys.library })
       const previous = client.getQueryData<Library>(queryKeys.library)
       if (previous) {
@@ -278,31 +373,49 @@ export function useSetTagHue() {
           tags: previous.tags.map(tag => (tag.id === id ? { ...tag, hue } : tag)),
         })
       }
-      return { previous }
+      return { previous, refetching }
+    },
+    onSuccess: (tag, _variables, context) => {
+      // A colour reaches nothing else, so the answer is the whole change.
+      putInLibrary(
+        client,
+        library => withTag(library, tag),
+        () => context.refetching,
+      )
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
-    },
-    onSettled: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
   })
 }
 
-export const useSetSongTags = () =>
-  useLibraryMutation(({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
-    clientApi().setSongTags(songId, tagIds),
-  )
+export function useSetSongTags() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
+      clientApi().setSongTags(songId, tagIds),
+    onSuccess: song => {
+      putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
+    },
+  })
+}
 
 export const useBulkTag = () =>
   useLibraryMutation((input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
     clientApi().bulkTag(input),
   )
 
-export const usePatchSong = () =>
-  useLibraryMutation(({ id, patch }: { id: number; patch: Parameters<Api['patchSong']>[1] }) =>
-    clientApi().patchSong(id, patch),
-  )
+export function usePatchSong() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Parameters<Api['patchSong']>[1] }) =>
+      clientApi().patchSong(id, patch),
+    onSuccess: song => {
+      putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
+    },
+  })
+}
 
 export const useDeleteSong = () =>
   useLibraryMutation(({ id, deleteFile }: { id: number; deleteFile: boolean }) =>
@@ -331,10 +444,18 @@ export const useCreatePlaylist = () =>
     clientApi().createPlaylist(input),
   )
 
-export const useUpdatePlaylist = () =>
-  useLibraryMutation(({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
-    clientApi().updatePlaylist(id, patch),
-  )
+export function useUpdatePlaylist() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
+      clientApi().updatePlaylist(id, patch),
+    onSuccess: (playlist, { id }) => {
+      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      // New rules are new members.
+      void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(id) })
+    },
+  })
+}
 
 export const useDeletePlaylist = () =>
   useLibraryMutation((id: number) => clientApi().deletePlaylist(id))
@@ -352,6 +473,7 @@ export function useToggleLoved() {
     mutationFn: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
 
     onMutate: async ({ id, loved }) => {
+      const refetching = libraryFetching(client)
       await client.cancelQueries({ queryKey: queryKeys.library })
       const previous = client.getQueryData<Library>(queryKeys.library)
 
@@ -362,14 +484,21 @@ export function useToggleLoved() {
         })
       }
 
-      return { previous }
+      return { previous, refetching }
+    },
+
+    onSuccess: (song, _variables, context) => {
+      // The server's song, over the guess. A live playlist of loved songs is
+      // the one thing it cannot show, and asks for the library when there is one.
+      putInLibrary(
+        client,
+        library => withSong(library, song),
+        library => context.refetching || hasLivePlaylists(library),
+      )
     },
 
     onError: (_error, _variables, context) => {
       if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
-    },
-
-    onSettled: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
   })
@@ -390,8 +519,10 @@ export function useAddToPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
       clientApi().addToPlaylist(playlistId, { songIds }),
-    onSuccess: (_result, { playlistId }) => {
-      void client.invalidateQueries({ queryKey: queryKeys.library })
+    onSuccess: (playlist, { playlistId }) => {
+      // The answer is the playlist with its new count and length; its members
+      // are a question of their own.
+      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })
@@ -402,8 +533,8 @@ export function useRemoveFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songId }: { playlistId: number; songId: number }) =>
       clientApi().removeFromPlaylist(playlistId, songId),
-    onSuccess: (_result, { playlistId }) => {
-      void client.invalidateQueries({ queryKey: queryKeys.library })
+    onSuccess: (playlist, { playlistId }) => {
+      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })
@@ -415,8 +546,9 @@ export function useRemoveManyFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
       clientApi().removeManyFromPlaylist(playlistId, songIds),
-    onSuccess: (_result, { playlistId }) => {
-      void client.invalidateQueries({ queryKey: queryKeys.library })
+    onSuccess: ({ playlist }, { playlistId }) => {
+      const answered = new Date().toISOString()
+      putInLibrary(client, library => (playlist ? withPlaylist(library, playlist, answered) : null))
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })

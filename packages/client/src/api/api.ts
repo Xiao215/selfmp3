@@ -215,6 +215,22 @@ export function createApi({ context, fetch }: ApiOptions) {
   const OkSchema = z.object({ ok: z.literal(true) }).passthrough()
 
   return {
+    // --- which answerer -------------------------------------------------------
+
+    /** Whether this device's copy of the cloud library is answering, rather than a Mac. */
+    answersFromCloud: (): boolean => {
+      const { fromCloud, cloudRequest } = context()
+      return fromCloud && cloudRequest !== undefined
+    },
+
+    /**
+     * Hear that the cloud library changed behind an answer already given. A
+     * no-op to stop on a build with no cloud; the listener only ever hears
+     * the cloud library, so it is harmless to hold while a Mac answers.
+     */
+    onCloudLibraryChanged: (listener: () => void): (() => void) =>
+      context().onCloudLibraryChanged?.(listener) ?? (() => undefined),
+
     // --- library ------------------------------------------------------------
 
     library: () => request('GET', '/api/library', LibrarySchema),

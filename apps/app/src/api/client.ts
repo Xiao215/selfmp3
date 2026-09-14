@@ -27,7 +27,7 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 
-import { cloudRequest } from '../cloud'
+import { cloudRequest, library as cloudLibrary } from '../cloud'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 import { readCachedLyrics, writeCachedLyrics } from '../offline/lyricsCache'
 import { readCachedPlaylist, writeCachedPlaylist } from '../offline/playlistCache'
@@ -97,6 +97,7 @@ export const api = createApi({
     transport: transport(),
     fromCloud: current.fromCloud,
     cloudRequest,
+    onCloudLibraryChanged: cloudLibrary.onCloudLibraryChanged,
   }),
   fetch: fetchWithTimeout,
 })

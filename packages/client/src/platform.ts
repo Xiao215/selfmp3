@@ -95,6 +95,13 @@ export interface ApiContext {
   readonly fromCloud: boolean
   /** Absent on a build with no cloud story; `fromCloud` is then always false. */
   readonly cloudRequest?: CloudRequest
+  /**
+   * Hear that this device's copy of the cloud library changed behind an
+   * answer already given — `@selfmp3/cloud`'s `onCloudLibraryChanged`. The
+   * library is answered from the copy first and the bucket is looked at
+   * afterwards, so this is how what the look found reaches the screen.
+   */
+  readonly onCloudLibraryChanged?: (listener: () => void) => () => void
 }
 
 /**

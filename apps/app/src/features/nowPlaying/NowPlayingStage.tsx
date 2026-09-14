@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -49,6 +49,8 @@ import {
   type StageTab,
 } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
+import { Moving, useStageMove } from './StageMove'
+import { COVER_TOP, coverPose, wordsFrame, wordsPose } from './stageMove.model'
 import { StageQueue } from './StageQueue'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
@@ -64,7 +66,6 @@ const BAR = 84
  * rather than under them. Twenty everywhere without an inset title bar.
  */
 const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
-const MOVE_MS = 520
 /** Opening and putting the page away: quick enough never to be waited for. */
 const ENTER_MS = 260
 const LEAVE_MS = 180
@@ -146,7 +147,6 @@ function Stage({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const progress = usePlayerProgress()
   const accent = useAccent()
   const artFor = useArt()
   const library = useLibrary()
@@ -192,40 +192,35 @@ function Stage({
     return () => setStageExit(null)
   }, [shown])
   const width = size?.width ?? window.width
-  const height = size?.height ?? window.height - BAR
-  const g = stageGeometry(width, height)
+  // The page runs on under the player bar (`stagePage`), so what it lays out
+  // in is its own height less the bar's, whether the bar is showing or not.
+  const height = (size?.height ?? window.height) - BAR
+  const g = useMemo(() => stageGeometry(width, height), [width, height])
+  // Nothing laid out moves between the modes: each piece is laid out where the
+  // mode puts it and carried there (stageMove.model.ts says why).
+  const move = useStageMove(focus)
+  const frame = wordsFrame(width, g, focus ? 1 : 0)
 
-  const [move] = useState(() => new Animated.Value(focus ? 1 : 0))
+  // Escape asks the mode when it is pressed, so the page listens once rather
+  // than taking the listener off and putting it back on every render.
+  const escape = useRef(onClose)
   useEffect(() => {
-    Animated.timing(move, {
-      toValue: focus ? 1 : 0,
-      duration: MOVE_MS,
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-      useNativeDriver: false,
-    }).start()
-  }, [focus, move])
-  const between = (stage: number, focused: number): Animated.AnimatedInterpolation<number> =>
-    move.interpolate({ inputRange: [0, 1], outputRange: [stage, focused] })
-
-  useEscape(true, () => (focus ? onMode('stage') : onClose()))
+    escape.current = focus ? () => onMode('stage') : onClose
+  })
+  const onEscape = useCallback(() => escape.current(), [])
+  useEscape(true, onEscape)
 
   const words = lyrics.words
   const hasLyrics = words.status === 'lyrics'
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const features = song.features
-  const upNext = player.songs[player.queue.index + 1]
-  const nextIn = upNextSeconds({
-    hasNext: upNext !== undefined,
-    repeatOne: player.queue.repeat === 'one',
-    duration: progress.duration,
-    position: progress.position,
-  })
   const chrome = { opacity: idle ? 0 : 1 }
 
   return (
     <Animated.View
       style={[
         styles.page,
+        styles.stagePage,
         {
           opacity: shown,
           transform: [
@@ -242,14 +237,18 @@ function Stage({
         )
       }}
     >
-      {/* The cover's own colours, blurred into light behind everything. */}
-      <View pointerEvents="none" style={[styles.glow, { filter: 'blur(80px)' }]}>
-        <View style={[styles.glowOne, { backgroundColor: rgba(palette[0], 1) }]} />
-        <View style={[styles.glowTwo, { backgroundColor: rgba(palette[1], 1) }]} />
-        <View style={[styles.glowThree, { backgroundColor: rgba(palette[2], 1) }]} />
+      {/* The cover's own colours, blurred into light behind everything. Sized
+          by the page above the bar, as it always was; its blur and its reach
+          past the edges run on under the bar for when Focus puts it away. */}
+      <View pointerEvents="none" style={[styles.fill, { bottom: BAR }]}>
+        <View pointerEvents="none" style={[styles.glow, { filter: 'blur(80px)' }]}>
+          <View style={[styles.glowOne, { backgroundColor: rgba(palette[0], 1) }]} />
+          <View style={[styles.glowTwo, { backgroundColor: rgba(palette[1], 1) }]} />
+          <View style={[styles.glowThree, { backgroundColor: rgba(palette[2], 1) }]} />
+        </View>
       </View>
       {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
-      <Animated.View pointerEvents="none" style={[styles.fill, { opacity: between(1, 0) }]}>
+      <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>
         <Svg width="100%" height="100%">
           <Defs>
             <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
@@ -260,40 +259,37 @@ function Stage({
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
         </Svg>
-      </Animated.View>
-      <Animated.View
+      </Moving>
+      <Moving
+        move={move}
+        pose={m => ({ opacity: m })}
         pointerEvents="none"
-        style={[
-          styles.fill,
-          { opacity: move, backgroundColor: withAlpha(theme.colors.surface0, 0.55) },
-        ]}
+        style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
       />
 
-      <Animated.View
+      {/* Laid out at the stage's size always, and scaled into the header for
+          Focus: its artwork and its shadow shrink with it. */}
+      <Moving
+        move={move}
+        pose={m => coverPose(g, m)}
         style={[
           styles.cover,
           chrome,
-          {
-            left: between(g.pad, 64),
-            top: between(84, 10),
-            width: between(g.cover, 40),
-            height: between(g.cover, 40),
-            borderRadius: between(12, 6),
-          },
+          { left: g.pad, top: COVER_TOP, width: g.cover, height: g.cover },
         ]}
       >
         {uri ? (
           <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
         ) : (
-          <Cover uri={null} title={song.album || song.title} size={focus ? 40 : g.cover} />
+          <Cover uri={null} title={song.album || song.title} size={g.cover} />
         )}
-      </Animated.View>
+      </Moving>
 
       {focus ? null : (
         <View
           style={[
             styles.meta,
-            { left: g.pad, top: 84 + g.cover + 24, width: Math.max(g.cover, 280) },
+            { left: g.pad, top: COVER_TOP + g.cover + 24, width: Math.max(g.cover, 280) },
           ]}
         >
           <Text
@@ -350,14 +346,16 @@ function Stage({
         </View>
       )}
 
-      <Animated.View
+      {/* At the mode's own width from the first frame, slid from where the
+          other mode had it. In Focus it runs to the foot of the window, under
+          the bar, so the bar stepping aside does not change its height — which
+          would move the sung line and re-centre every word. */}
+      <Moving
+        move={move}
+        pose={m => wordsPose(width, g, focus, m)}
         style={[
           styles.words,
-          {
-            left: between(g.pad + g.cover + g.gutter, width * 0.12),
-            right: between(g.right, width * 0.12),
-            top: between(60, 56),
-          },
+          { left: frame.left, right: frame.right, top: frame.top, bottom: focus ? 0 : BAR },
         ]}
       >
         {shownTab === 'lyrics' ? (
@@ -405,7 +403,7 @@ function Stage({
             </View>
           </ScrollView>
         )}
-      </Animated.View>
+      </Moving>
 
       <View style={[styles.head, chrome]}>
         <IconButton
@@ -505,26 +503,13 @@ function Stage({
         </Pressable>
       ) : null}
 
-      {upNext && nextIn !== null ? (
-        <Pressable
-          onPress={player.next}
-          accessibilityRole="button"
-          accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-          style={[styles.upNext, { right: g.right, bottom: focus ? 28 : 64 }]}
-        >
-          <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
-          <View style={styles.upNextText}>
-            <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
-            <Text style={styles.upNextTitle} numberOfLines={1}>
-              {upNext.title}
-            </Text>
-            <Text style={styles.upNextArtist} numberOfLines={1}>
-              {upNext.artist || 'Unknown artist'}
-            </Text>
-          </View>
-          <Next size={16} color={theme.colors.textSecondary} />
-        </Pressable>
-      ) : null}
+      <StageUpNext
+        upNext={player.songs[player.queue.index + 1]}
+        repeatOne={player.queue.repeat === 'one'}
+        right={g.right}
+        bottom={BAR + (focus ? 28 : 64)}
+        lowered={idle}
+      />
 
       <TagPicker
         song={tagsOpen ? song : null}
@@ -535,8 +520,72 @@ function Stage({
   )
 }
 
+/**
+ * "Next · in 12 s", near a song's end.
+ *
+ * The one part of the page that reads where the song has got to, so it asks
+ * for that itself: when the page asked, every tick redrew all of it — the
+ * glow's 80px blur, the gradient, the tags — to change one number here.
+ */
+function StageUpNext({
+  upNext,
+  repeatOne,
+  right,
+  bottom,
+  lowered,
+}: {
+  upNext: Song | undefined
+  repeatOne: boolean
+  right: number
+  bottom: number
+  /** With the bar put away, down into its room, as the page used to grow into it. */
+  lowered: boolean
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const player = usePlayer()
+  const artFor = useArt()
+  const progress = usePlayerProgress()
+  const nextIn = upNextSeconds({
+    hasNext: upNext !== undefined,
+    repeatOne,
+    duration: progress.duration,
+    position: progress.position,
+  })
+  if (!upNext || nextIn === null) return null
+
+  return (
+    <Pressable
+      onPress={player.next}
+      accessibilityRole="button"
+      accessibilityLabel={`Skip to the next song: ${upNext.title}`}
+      style={[styles.upNext, { right, bottom }, lowered && { transform: [{ translateY: BAR }] }]}
+    >
+      <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
+      <View style={styles.upNextText}>
+        <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
+        <Text style={styles.upNextTitle} numberOfLines={1}>
+          {upNext.title}
+        </Text>
+        <Text style={styles.upNextArtist} numberOfLines={1}>
+          {upNext.artist || 'Unknown artist'}
+        </Text>
+      </View>
+      <Next size={16} color={theme.colors.textSecondary} />
+    </Pressable>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   page: { flex: 1, overflow: 'hidden', backgroundColor: theme.colors.surface0 },
+  /*
+   * The page reaches down under the player bar, which the shell draws over it.
+   * Focus puts the bar away by fading it rather than taking it out: taking it
+   * out made the page 84px taller and back again at every still mouse, and
+   * each time the lyrics measured a new height, re-centred and redrew every
+   * line. Now the page is one height, and what shows where the bar was is the
+   * page's own light rather than the frame behind it.
+   */
+  stagePage: { marginBottom: -BAR },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   glow: {
     position: 'absolute',
@@ -646,7 +695,7 @@ const styles = StyleSheet.create(theme => ({
   },
   tagButtonPressed: { backgroundColor: theme.colors.surface2 },
   tagButtonText: { color: theme.colors.textSecondary, fontSize: 12.5 },
-  words: { position: 'absolute', zIndex: 1, bottom: 0 },
+  words: { position: 'absolute', zIndex: 1 },
   status: {
     flex: 1,
     alignItems: 'center',

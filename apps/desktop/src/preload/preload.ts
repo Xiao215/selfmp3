@@ -95,6 +95,9 @@ const bridge: DesktopBridge = {
     fetchTo: async (kind, name, url, headers) => {
       await ipcRenderer.invoke(CHANNELS.filesFetchTo, kind, name, url, headers)
     },
+    write: async (kind, name, text) => {
+      await ipcRenderer.invoke(CHANNELS.filesWrite, kind, name, text)
+    },
     usage: async () => usageSchema.parse(await ipcRenderer.invoke(CHANNELS.filesUsage)),
     reveal: async (kind, name) => {
       await ipcRenderer.invoke(CHANNELS.filesReveal, kind, name ?? null)

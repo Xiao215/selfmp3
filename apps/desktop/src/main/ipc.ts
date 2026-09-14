@@ -9,6 +9,7 @@ import {
   externalUrlSchema,
   fileKindSchema,
   fileNameSchema,
+  fileTextSchema,
   loginItemSchema,
   playbackStateSchema,
   secretKeySchema,
@@ -103,6 +104,15 @@ export function registerIpc({
         fileNameSchema.parse(name),
         externalUrlSchema.parse(url),
         headers === undefined ? undefined : (headers as Record<string, string>),
+      ),
+  )
+  ipcMain.handle(
+    CHANNELS.filesWrite,
+    (_event, kind: unknown, name: unknown, text: unknown) =>
+      files.writeText(
+        fileKindSchema.parse(kind),
+        fileNameSchema.parse(name),
+        fileTextSchema.parse(text),
       ),
   )
   ipcMain.handle(CHANNELS.filesUsage, () => files.usage())

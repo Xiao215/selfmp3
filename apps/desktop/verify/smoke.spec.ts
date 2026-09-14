@@ -486,6 +486,79 @@ test.describe('files on disk', () => {
     }
   })
 
+  /*
+   * Regression. The download index was saved by handing a `blob:` URL to
+   * `files.fetchTo`, but it is the main process that fetches and a blob URL
+   * belongs to the renderer that made it, so the main process cannot read one
+   * at all. Every write was refused and `downloads.json` was never written,
+   * which meant a relaunch found the song files on disk and no index saying
+   * they were there. `files.write` is the channel that actually persists it.
+   */
+  test('the page can write its download index, and a relaunch finds it', async () => {
+    const userDataDir = freshUserData()
+    const index = JSON.stringify({
+      version: 1,
+      entries: {
+        '7': {
+          songId: 7,
+          fileName: '7.m4a',
+          sizeBytes: 4096,
+          etag: 'a1b2',
+          downloadedAt: '2026-09-14T00:00:00.000Z',
+        },
+      },
+    })
+
+    const first = await launchApp({ userDataDir })
+    try {
+      const page = await first.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const wrote = await page.evaluate(async text => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+
+        // What it used to do, kept here so the reason for the channel stays
+        // written down: a blob URL never leaves the renderer.
+        const blob = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+        let viaBlob = 'wrote it'
+        try {
+          await desktop.files.fetchTo('songs', 'downloads.json', blob)
+        } catch {
+          viaBlob = 'refused'
+        } finally {
+          URL.revokeObjectURL(blob)
+        }
+
+        await desktop.files.write('songs', 'downloads.json', text)
+        const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
+        return { viaBlob, immediately: await back.text() }
+      }, index)
+
+      expect(wrote.viaBlob).toBe('refused')
+      expect(wrote.immediately).toBe(index)
+    } finally {
+      await first.close()
+    }
+
+    // The whole point: it is still there next time the app opens.
+    const second = await launchApp({ userDataDir })
+    try {
+      const page = await second.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+
+      const afterRelaunch = await page.evaluate(async () => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
+        return { text: await back.text(), stat: await desktop.files.stat('songs', 'downloads.json') }
+      })
+
+      expect(afterRelaunch.text).toBe(index)
+      expect(afterRelaunch.stat).toEqual({ name: 'downloads.json', bytes: index.length })
+    } finally {
+      await second.close()
+    }
+  })
+
   test('offline, a song that was downloaded still plays, and reveal answers', async () => {
     const app = await launchApp()
     try {
@@ -787,6 +860,7 @@ interface DesktopForTest {
     fetchTo(kind: string, name: string, url: string, headers?: Record<string, string>): Promise<void>
     stat(kind: string, name: string): Promise<{ name: string; bytes: number } | null>
     list(kind: string): Promise<{ name: string; bytes: number }[]>
+    write(kind: string, name: string, text: string): Promise<void>
     reveal(kind: string, name?: string): Promise<void>
     usage(): Promise<{ songs: number; covers: number; free: number }>
     clear(kind: string): Promise<void>

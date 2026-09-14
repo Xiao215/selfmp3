@@ -82,7 +82,7 @@ export async function seedReferenceLibrary(): Promise<void> {
     await api('POST', '/api/playlists', {
       name: SEEDED.smart,
       description: 'Everything over three and a half minutes.',
-      kind: 'smart',
+      kind: 'live',
       rules: {
         match: 'all',
         rules: [{ field: 'duration', op: 'gt', value: 210 }],

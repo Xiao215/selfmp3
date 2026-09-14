@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
+import type { StyleProp, TextStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
   EMPTY_SMART_RULES,
@@ -20,7 +21,9 @@ import {
   DATE_OPS,
   defaultRuleFor,
   FIELD_GROUPS,
+  formatClock,
   joinWord,
+  parseClock,
   KEY_OPS,
   KEY_OPTIONS,
   matchLabel,
@@ -51,17 +54,23 @@ export function SmartRuleBuilder({
   rules: initial,
   tags,
   onChange,
+  bare = false,
+  compact: compactProp,
 }: {
   rules?: SmartRules
   tags: readonly Tag[]
   onChange: (rules: SmartRules) => void
+  /** Inside a panel or sheet that is already a box: no card of its own. */
+  bare?: boolean
+  /** One field to a line even at desktop width: a side panel is phone-narrow. */
+  compact?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const { wide } = useLayout()
+  const layout = useLayout()
+  const wide = compactProp === undefined ? layout.wide : !compactProp
   const [rules, setRules] = useState<SmartRules>(initial ?? EMPTY_SMART_RULES)
   const [matchCount, setMatchCount] = useState<number | null>(null)
-  const [description, setDescription] = useState('')
 
   const debounced = useDebounced(rules, 350)
   // While the two disagree the number on screen belongs to earlier rules, so it
@@ -75,9 +84,7 @@ export function SmartRuleBuilder({
     clientApi()
       .previewRules(parsed.data)
       .then(result => {
-        if (cancelled) return
-        setMatchCount(result.songIds.length)
-        setDescription(result.description)
+        if (!cancelled) setMatchCount(result.songIds.length)
       })
       .catch(() => {
         if (!cancelled) setMatchCount(null)
@@ -130,7 +137,7 @@ export function SmartRuleBuilder({
   const countInk = empty ? theme.colors.warning : accent.accent
 
   return (
-    <View style={styles.builder} testID="rule-builder">
+    <View style={[styles.builder, bare && styles.bare]} testID="rule-builder">
       <View style={[styles.head, !wide && styles.headCompact]}>
         <View style={styles.sentence}>
           <Sparkles size={16} color={accent.accent} />
@@ -237,9 +244,43 @@ export function SmartRuleBuilder({
           <Text style={styles.fieldLabel}>songs</Text>
         </View>
       </View>
-
-      {description ? <Text style={styles.description}>{description}</Text> : null}
     </View>
+  )
+}
+
+/**
+ * A length typed as a clock. What is typed is kept as typed, and only a value
+ * that reads as a length is passed on, so "3:" on the way to "3:30" neither
+ * saves nor snaps back.
+ */
+function ClockInput({
+  seconds,
+  onChange,
+  style,
+}: {
+  seconds: number
+  onChange: (seconds: number) => void
+  style: StyleProp<TextStyle>
+}): ReactNode {
+  const [text, setText] = useState(() => formatClock(seconds))
+  return (
+    <TextInput
+      style={style}
+      keyboardType="numbers-and-punctuation"
+      value={text}
+      onChangeText={next => {
+        setText(next)
+        const parsed = parseClock(next)
+        if (parsed !== null) onChange(parsed)
+      }}
+      onBlur={() => {
+        // Leave the box showing the length that is actually in the rule.
+        const parsed = parseClock(text)
+        setText(formatClock(parsed ?? seconds))
+      }}
+      placeholder="3:30"
+      accessibilityLabel="Value"
+    />
   )
 }
 
@@ -336,9 +377,27 @@ function RuleRow({
         </View>
       )
       break
+    case 'duration':
+      op = (
+        <Select
+          size="small"
+          value={rule.op}
+          options={NUMBER_OPS}
+          onChange={next => onChange({ ...rule, op: next })}
+          label="Operator"
+        />
+      )
+      // A length is read as a song's clock shows it, not in seconds.
+      value = (
+        <ClockInput
+          seconds={rule.value}
+          onChange={seconds => onChange({ ...rule, value: seconds })}
+          style={[styles.input, wide ? styles.number : styles.grow]}
+        />
+      )
+      break
     case 'playCount':
     case 'skipCount':
-    case 'duration':
     case 'year':
     case 'bpm':
     case 'energy':
@@ -472,6 +531,12 @@ const styles = StyleSheet.create(theme => ({
     padding: space.lg,
     marginBottom: 22,
   },
+  bare: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    marginBottom: 0,
+  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -563,10 +628,4 @@ const styles = StyleSheet.create(theme => ({
   field: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   fieldLabel: { color: theme.colors.textMuted, fontSize: 12 },
   limit: { width: 76 },
-  description: {
-    marginTop: space.md,
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
 }))

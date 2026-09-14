@@ -4,7 +4,7 @@ import {
   MISSING_TAG_UID,
   applyChanges,
   formatHlc,
-  smartPlaylistSongs,
+  livePlaylistSongs,
   syncLibrary,
   type Change,
   type CloudSmartRules,
@@ -28,7 +28,7 @@ import { LocalEdits, SyncClock } from './localEdits.js'
  * replays them over a snapshot in memory (packages/shared/src/sync.ts). If the
  * two ever disagreed, devices would drift apart for good. So each test here
  * runs the same changes through both and expects the same library — and the
- * smart playlists the Mac builds in SQL to match the ones a phone builds in
+ * live playlists the Mac builds in SQL to match the ones a phone builds in
  * JavaScript.
  */
 
@@ -147,8 +147,8 @@ describe('CloudIngest', () => {
       songs: list,
       tags: [...library.tags.values()],
       playlists: [...library.playlists.values()].map(playlist =>
-        playlist.kind === 'smart' && playlist.rules
-          ? { ...playlist, songUids: smartPlaylistSongs(playlist.rules, list) }
+        playlist.kind === 'live' && playlist.rules
+          ? { ...playlist, songUids: livePlaylistSongs(playlist.rules, list) }
           : playlist,
       ),
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
@@ -192,13 +192,13 @@ describe('CloudIngest', () => {
     const loved = playlists.create({
       name: 'Loved',
       description: '',
-      kind: 'smart',
+      kind: 'live',
       rules: lovedRules,
     }).id
     const rainy = playlists.create({
       name: 'Rainy',
       description: '',
-      kind: 'smart',
+      kind: 'live',
       rules: { ...lovedRules, rules: [{ field: 'tag', op: 'has', tagId: rain }] },
     }).id
 
@@ -385,7 +385,7 @@ describe('CloudIngest', () => {
     expect(sync.cursors()).toEqual({ 'web-bbbb1111': 7 })
   })
 
-  describe('smart playlists on a phone and on the Mac', () => {
+  describe('live playlists on a phone and on the Mac', () => {
     const rulesets: CloudSmartRules[] = []
     const base = {
       match: 'all' as const,
@@ -500,7 +500,7 @@ describe('CloudIngest', () => {
             id: 0,
             name: 'check',
             description: '',
-            kind: 'smart',
+            kind: 'live',
             rules: local,
             songCount: 0,
             totalDuration: 0,
@@ -509,7 +509,7 @@ describe('CloudIngest', () => {
             updatedAt: '',
           })
           .map(id => uidOfSong.get(id))
-        const phone = smartPlaylistSongs(cloudRules, snapshot.songs)
+        const phone = livePlaylistSongs(cloudRules, snapshot.songs)
         expect({ rules: cloudRules, songs: phone }).toEqual({ rules: cloudRules, songs: mac })
       }
     })

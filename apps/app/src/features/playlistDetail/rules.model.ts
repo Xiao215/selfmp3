@@ -167,6 +167,95 @@ export function defaultRuleFor(field: FieldKey, tags: readonly Pick<Tag, 'id'>[]
   }
 }
 
+/** A length as a song's clock shows it: 210 is "3:30". */
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/**
+ * A length typed as a clock ("3:30") or as plain seconds ("210"), or null
+ * while it is not one yet ("3:", "abc"), so a half-typed value is not saved.
+ */
+export function parseClock(text: string): number | null {
+  const trimmed = text.trim()
+  const clock = /^(\d{1,3}):([0-5]\d)$/.exec(trimmed)
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2])
+  if (/^\d{1,5}$/.test(trimmed)) return Number(trimmed)
+  return null
+}
+
+const labelOf = <T extends string>(options: readonly { value: T; label: string }[], value: T): string =>
+  options.find(option => option.value === value)?.label ?? value
+
+const FIELD_LABELS = new Map(
+  FIELD_GROUPS.flatMap(group => group.options.map(option => [option.value, option.label] as const)),
+)
+
+/**
+ * One rule in words, as the playlist header reads it back: "Length is more
+ * than 3:30", "Tag is chill", "Last played not in the last 30 days".
+ */
+export function describeRule(rule: SmartRule, tags: readonly Pick<Tag, 'id' | 'name'>[]): string {
+  const field = FIELD_LABELS.get(rule.field) ?? rule.field
+  switch (rule.field) {
+    case 'title':
+    case 'artist':
+    case 'album':
+    case 'albumArtist':
+      return `${field} ${labelOf(TEXT_OPS, rule.op)} “${rule.value}”`
+    case 'tag': {
+      const name = tags.find(tag => tag.id === rule.tagId)?.name ?? 'a deleted tag'
+      return `Tag ${labelOf(TAG_OPS, rule.op)} ${name}`
+    }
+    case 'duration':
+      return `${field} ${labelOf(NUMBER_OPS, rule.op)} ${formatClock(rule.value)}`
+    case 'playCount':
+    case 'skipCount':
+    case 'year':
+    case 'bpm':
+    case 'energy':
+    case 'loudness': {
+      const unit = unitFor(rule.field)
+      return `${field} ${labelOf(NUMBER_OPS, rule.op)} ${rule.value}${unit && unit !== '0–1' ? ` ${unit}` : ''}`
+    }
+    case 'addedAt':
+    case 'lastPlayedAt':
+      return rule.op === 'never'
+        ? `${field} never`
+        : `${field} ${labelOf(DATE_OPS, rule.op)} ${rule.days ?? 30} days`
+    case 'loved':
+    case 'hasLyrics':
+    case 'hasArt':
+      return rule.value ? field : `Not ${field.toLowerCase()}`
+    case 'key':
+      return `Key ${labelOf(KEY_OPS, rule.op)} ${rule.value}`
+  }
+}
+
+/** The order in words, for after the rules: "longest first", "in random order". */
+export function describeOrder(rules: Pick<SmartRules, 'orderBy' | 'order'>): string {
+  const desc = rules.order === 'desc'
+  switch (rules.orderBy) {
+    case 'random':
+      return 'in random order'
+    case 'duration':
+      return desc ? 'longest first' : 'shortest first'
+    case 'playCount':
+      return desc ? 'most played first' : 'least played first'
+    case 'addedAt':
+      return desc ? 'newest first' : 'oldest first'
+    case 'lastPlayedAt':
+      return desc ? 'last played first' : 'longest unplayed first'
+    case 'title':
+    case 'artist':
+    case 'album':
+      return `by ${rules.orderBy}${desc ? ', Z to A' : ''}`
+    default:
+      return `by ${labelOf(SORT_OPTIONS, rules.orderBy).toLowerCase()}`
+  }
+}
+
 /** The word before a rule: the rules read as one sentence. */
 export function joinWord(index: number, match: SmartRules['match']): string {
   if (index === 0) return 'Where'
@@ -184,7 +273,7 @@ export function matchLabel(count: number | null): { number: string; text: string
 export function unitFor(field: FieldKey): string | null {
   switch (field) {
     case 'duration':
-      return 'seconds'
+      return 'm:ss'
     case 'bpm':
       return 'BPM'
     case 'energy':

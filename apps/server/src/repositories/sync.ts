@@ -140,12 +140,12 @@ export class SyncRepository {
     return new Map(this.#aliases.all().map(row => [row.uid, row.target]))
   }
 
-  playlist(uid: string): { id: number; kind: 'manual' | 'smart'; updatedAt: string } | null {
+  playlist(uid: string): { id: number; kind: 'manual' | 'live'; updatedAt: string } | null {
     const row = this.#playlist.get(uid)
     if (!row) return null
     return {
       id: row.id,
-      kind: row.kind === 'smart' ? 'smart' : 'manual',
+      kind: row.kind === 'live' ? 'live' : 'manual',
       updatedAt: row.updated_at,
     }
   }

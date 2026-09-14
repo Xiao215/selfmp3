@@ -3,7 +3,9 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song, Tag } from '@selfmp3/shared'
-import { isDownloaded, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { useRouter } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { clientApi, isDownloaded, oklchToHexAlpha, queryKeys, radius, space } from '@selfmp3/client'
 import {
   useAddToPlaylist,
   useBulkDeleteSongs,
@@ -12,6 +14,7 @@ import {
   useLibrary,
   useRemoveManyFromPlaylist,
 } from '../../api/queries'
+import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -27,6 +30,7 @@ import {
   ListMusic,
   More,
   Play,
+  Plus,
   Queue,
   Tag as TagIcon,
   Trash,
@@ -102,7 +106,33 @@ export function SelectionBar({
   const count = songs.length
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const tags = library?.tags ?? []
-  const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
+  // Pinned first; not the playlist this is, and never a live one.
+  const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
+    list => list.id !== playlist?.id,
+  )
+  const router = useRouter()
+  const queryClient = useQueryClient()
+
+  /** A playlist of exactly these songs, opened with its name ready to type. */
+  const newPlaylistWithSelection = async (): Promise<void> => {
+    const taken = new Set((library?.playlists ?? []).map(list => list.name))
+    let name = 'New playlist'
+    for (let n = 2; taken.has(name); n++) name = `New playlist ${n}`
+    try {
+      const created = await clientApi().createPlaylist({
+        name,
+        description: '',
+        kind: 'manual',
+        rules: null,
+      })
+      await clientApi().addToPlaylist(created.id, { songIds: ids })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+      onDone()
+      router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
+    } catch (caught) {
+      showToast(`Couldn’t make the playlist: ${(caught as Error).message}`, 'error')
+    }
+  }
 
   /** Only tags actually on the selection can be taken off it. */
   const tagsOnSelection = useMemo<Tag[]>(() => {
@@ -267,9 +297,15 @@ export function SelectionBar({
         />
         {nested === 'playlists' ? (
           <View style={styles.nested}>
-            {manualPlaylists.length === 0 ? (
-              <Text style={styles.hint}>No playlists yet.</Text>
-            ) : (
+            <SheetItem
+              icon={<Plus size={15} color={theme.colors.textSecondary} />}
+              label={`New playlist with ${count} ${songWord}`}
+              onPress={() => {
+                closeMenu()
+                void newPlaylistWithSelection()
+              }}
+            />
+            {manualPlaylists.length === 0 ? null : (
               manualPlaylists.map(list => (
                 <SheetItem
                   key={list.id}

@@ -191,7 +191,7 @@ function compileRule(rule: SmartRule): CompiledQuery {
 /**
  * Build the id query for a rule set.
  *
- * Missing files are excluded — a smart playlist should never hand the player a
+ * Missing files are excluded — a live playlist should never hand the player a
  * track it cannot stream.
  */
 export function compileSmartRules(rules: SmartRules): CompiledQuery {

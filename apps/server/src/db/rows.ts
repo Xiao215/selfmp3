@@ -81,6 +81,7 @@ export interface PlaylistRow {
   pinned: number
   created_at: string
   updated_at: string
+  last_played_at?: string | null
   song_count?: number
   total_duration?: number
 }

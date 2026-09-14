@@ -5,7 +5,14 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { formatBytes, type Song } from '@selfmp3/shared'
 import { clientApi, isDownloaded, space } from '@selfmp3/client'
-import { useAddToPlaylist, useDeleteSong, useLibrary, usePatchSong } from '../../api/queries'
+import {
+  useAddToPlaylist,
+  useDeleteSong,
+  useLibrary,
+  usePatchSong,
+  useRemoveFromPlaylist,
+} from '../../api/queries'
+import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -47,9 +54,15 @@ export function SongMenu({
   onClose,
   onStartSelecting,
   anchorRef,
+  playlist,
 }: {
   song: Song | null
   onClose: () => void
+  /**
+   * Opened from a playlist you made: the menu offers taking the song out of
+   * it, which on a phone is the only way to — its rows have no ✕.
+   */
+  playlist?: { readonly id: number; readonly name: string }
   /**
    * The ⋯ that opened it. At desktop width the menu hangs off it, as the web's
    * does, and does not need to name the song; without one it is a sheet.
@@ -87,6 +100,7 @@ export function SongMenu({
               song={song}
               onClose={onClose}
               onStartSelecting={onStartSelecting}
+              playlist={playlist}
               onOpen={kind => {
                 setOpened({ kind, songId: song.id })
                 onClose()
@@ -107,6 +121,7 @@ export function SongMenu({
               song={song}
               onClose={onClose}
               onStartSelecting={onStartSelecting}
+              playlist={playlist}
               onOpen={kind => {
                 setOpened({ kind, songId: song.id })
                 onClose()
@@ -137,16 +152,19 @@ function Items({
   onClose,
   onStartSelecting,
   onOpen,
+  playlist,
 }: {
   song: Song
   onClose: () => void
   onStartSelecting?: (song: Song) => void
+  playlist?: { readonly id: number; readonly name: string }
   onOpen: (kind: 'tags' | 'details' | 'metadata') => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
+  const removeFromPlaylist = useRemoveFromPlaylist()
   const deleteSong = useDeleteSong()
   const patchSong = usePatchSong()
   const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
@@ -155,7 +173,10 @@ function Items({
   const { fromCloud } = useConnection()
 
   const held = isDownloaded(downloads.index, song.id)
-  const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
+  // Pinned first; a live playlist's rules decide its songs, so it is not offered.
+  const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
+    list => list.id !== playlist?.id,
+  )
 
   const then = (run: () => void) => (): void => {
     run()
@@ -180,6 +201,17 @@ function Items({
             icon={icon(CheckSquare)}
             label="Select"
             onPress={then(() => onStartSelecting(song))}
+          />
+          <View style={styles.divider} />
+        </>
+      ) : null}
+
+      {playlist ? (
+        <>
+          <SheetItem
+            icon={icon(X)}
+            label="Remove from this playlist"
+            onPress={then(() => removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }))}
           />
           <View style={styles.divider} />
         </>

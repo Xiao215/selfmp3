@@ -54,8 +54,8 @@ missing and fetches it, one song at a time.
   never does, so on an iPhone the app cannot tell Wi-Fi from mobile data — and rather than
   guess, it shows "12 to download · Download" and waits for a tap. Desktop browsers report
   nothing either; a machine with a mouse is assumed to be on Wi-Fi or a cable.
-- **Keep offline: every song, or songs in playlists.** The second resolves smart playlists on
-  the server (`GET /api/library/manifest?scope=playlists`), so a smart playlist like "loved,
+- **Keep offline: every song, or songs in playlists.** The second resolves live playlists on
+  the server (`GET /api/library/manifest?scope=playlists`), so a live playlist like "loved,
   played in the last 30 days" keeps the phone current by itself.
 - **Storage.** Before each song the browser's quota is checked, and downloading stops at 90%
   of it — filling it completely gets the whole origin's storage evicted on some browsers,

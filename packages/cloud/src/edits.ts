@@ -61,7 +61,7 @@ export function playlist(ctx: EditContext, id: number): Playlist & { uid: string
 
 function manual(ctx: EditContext, id: number, refusal: string): Playlist & { uid: string } {
   const found = playlist(ctx, id)
-  if (found.kind === 'smart') throw new CloudRouteError(400, refusal, 'bad_request')
+  if (found.kind === 'live') throw new CloudRouteError(400, refusal, 'bad_request')
   return found
 }
 
@@ -223,8 +223,8 @@ export function createPlaylist(
   ctx: EditContext,
   input: CreatePlaylist,
 ): { changes: Change[]; uid: string } {
-  if (input.kind === 'smart' && !input.rules) {
-    throw new CloudRouteError(400, 'a smart playlist needs a rule set', 'bad_request')
+  if (input.kind === 'live' && !input.rules) {
+    throw new CloudRouteError(400, 'a live playlist needs a rule set', 'bad_request')
   }
   const uid = make(ctx)
   return {
@@ -236,7 +236,7 @@ export function createPlaylist(
         kind: input.kind,
         name: input.name,
         description: input.description,
-        rules: input.kind === 'smart' && input.rules ? cloudRules(ctx, input.rules) : null,
+        rules: input.kind === 'live' && input.rules ? cloudRules(ctx, input.rules) : null,
         pinned: false,
       },
     ],
@@ -277,7 +277,7 @@ export function addToPlaylist(
   songIds: readonly number[],
   position: number | undefined,
 ): Change[] {
-  const found = manual(ctx, id, 'a smart playlist builds itself — edit its rules instead')
+  const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
   const valid = [...new Set(songIds)].filter(songId => ctx.view.uids.songs.has(songId))
   if (valid.length === 0) {
     throw new CloudRouteError(400, 'none of those songs exist', 'bad_request')
@@ -309,7 +309,7 @@ export function removeFromPlaylist(
   id: number,
   songIds: readonly number[],
 ): Change[] {
-  const found = manual(ctx, id, 'a smart playlist builds itself — edit its rules instead')
+  const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
   return [...new Set(songIds)].flatMap(songId => {
     const uid = ctx.view.uids.songs.get(songId)
     return uid
@@ -374,7 +374,7 @@ export function reorderPlaylist(
   id: number,
   songIds: readonly number[],
 ): Change[] {
-  const found = manual(ctx, id, 'a smart playlist is ordered by its rules')
+  const found = manual(ctx, id, 'a live playlist is ordered by its rules')
   return [
     {
       type: 'playlistOrdered',

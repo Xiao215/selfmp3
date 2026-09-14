@@ -13,18 +13,23 @@ import { useSongColor } from '../../ui/useSongColor'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Grip, X } from '../../ui/components/Icons'
+import { Grip, More, X } from '../../ui/components/Icons'
+
+/** How long a finger rests on a row before the row lifts to be moved. */
+const LIFT_DELAY = 350
 
 /**
  * One track of a playlist: the web's `.playlist-row`.
  *
- * Plainer than a library row on purpose: the position, the cover, title over
- * artist, and the length. A manual playlist adds a grip to drag the track by
- * and a ✕ that takes it out of this playlist (never out of the library); a
- * smart one has neither, because its order and its contents are its rules'.
+ * At desktop width: the position, the cover, title over artist, the length,
+ * and — where there is a mouse, once it is on the row — ⋯ for the song's menu
+ * and, in a playlist you made, a grip to drag it by and ✕ to take it out
+ * (never out of the library).
  *
- * With a mouse the grip is faint and the ✕ hidden until the pointer is on the
- * row; a finger has no hover, so on a touch screen both are simply there.
+ * On a phone the row is only the cover, title over artist, the length and ⋯:
+ * a grip and a position number cost the title room it needs on a narrow
+ * screen. Holding the row lifts it, and it follows the finger to its new
+ * place. A live playlist's rows do not lift: its rules decide the order.
  */
 export const PlaylistSongRow = memo(function PlaylistSongRow({
   song,
@@ -36,13 +41,15 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   selecting,
   selected,
   dragging,
+  dragOffset,
   dropTarget,
+  menuOpen,
   onDragStart,
   onDragMove,
   onDragEnd,
   onToggleSelect,
   onPress,
-  onLongPress,
+  onMore,
   onRemove,
   onLayoutHeight,
 }: {
@@ -54,24 +61,29 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   playlistName: string
   selecting: boolean
   selected: boolean
-  /** This row is the one being dragged. */
+  /** This row is the one being moved. */
   dragging: boolean
-  /** A drag is over this row: the line on its top edge says it lands here. */
+  /** How far the moving row has travelled from its place, so it follows the pointer. */
+  dragOffset: number
+  /** A move is over this row: the line on its top edge says it lands here. */
   dropTarget: boolean
+  /** This row's ⋯ menu is open, so its controls stay while the menu covers the pointer. */
+  menuOpen: boolean
   /**
-   * The grip's drag, in points travelled from where it started. The row owns
-   * one gesture responder for its whole life: a responder made afresh on
-   * every render loses its gesture part-way, because each re-render during a
-   * drag would start counting from nothing.
+   * The move, in points travelled from where it started. The row owns one
+   * gesture responder for its whole life: a responder made afresh on every
+   * render loses its gesture part-way, because each re-render during a move
+   * would start counting from nothing.
    */
   onDragStart?: () => void
   onDragMove?: (dy: number) => void
   onDragEnd?: (dy: number) => void
   onToggleSelect: () => void
   onPress: (event: GestureResponderEvent) => void
-  onLongPress?: () => void
-  onRemove: () => void
-  /** Reports the row's height, so a drag can count rows travelled. */
+  /** Handed the ⋯ itself, so at desktop width the menu opens beside it. */
+  onMore: (anchor: View | null) => void
+  onRemove?: () => void
+  /** Reports the row's height, so a move can count rows travelled. */
   onLayoutHeight?: (height: number) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -79,12 +91,15 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
   const songColor = useSongColor(active ? song : null, artUri)
   const { wide, finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
-  const revealed = !finePointer || hovered
+  const moreRef = useRef<View>(null)
+  const revealed = !finePointer || hovered || menuOpen
 
   const drag = useRef({ onDragStart, onDragMove, onDragEnd })
   useEffect(() => {
     drag.current = { onDragStart, onDragMove, onDragEnd }
   }, [onDragStart, onDragMove, onDragEnd])
+
+  // Desktop: the grip takes the pointer the moment it is pressed.
   const grip = useMemo(
     () =>
       PanResponder.create({
@@ -98,18 +113,73 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
       }),
     [],
   )
-  // Selection mode on a phone brings the column in; at desktop width it is
-  // always in the layout and shown when it has something to say.
-  const showSelect = wide ? selecting || selected || hovered : selecting
+
+  // Phone: holding the row arms it, and the finger's next movement is taken
+  // from the row's press and becomes the move. A hold let go without moving
+  // puts the row straight back.
+  const armed = useRef(false)
+  const moving = useRef(false)
+  const hold = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponderCapture: () => armed.current,
+        onMoveShouldSetPanResponder: () => armed.current,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          moving.current = true
+        },
+        onPanResponderMove: (_, gesture) => drag.current.onDragMove?.(gesture.dy),
+        onPanResponderRelease: (_, gesture) => {
+          armed.current = false
+          moving.current = false
+          drag.current.onDragEnd?.(gesture.dy)
+        },
+        onPanResponderTerminate: () => {
+          armed.current = false
+          moving.current = false
+          drag.current.onDragEnd?.(0)
+        },
+      }),
+    [],
+  )
+  const liftable = !wide && manual && !selecting && onDragStart !== undefined
+
+  const selectBox = (
+    <Pressable
+      onPress={onToggleSelect}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+      style={[styles.select, !wide && styles.selectCompact]}
+    >
+      <Checkbox checked={selected} />
+    </Pressable>
+  )
+
+  const more = (
+    <View ref={moreRef} collapsable={false} style={{ opacity: revealed ? 1 : 0 }}>
+      <IconButton
+        onPress={() => onMore(moreRef.current)}
+        label={`More actions for ${song.title}`}
+        caption="More"
+        active={menuOpen}
+      >
+        <More size={16} color={theme.colors.textMuted} />
+      </IconButton>
+    </View>
+  )
 
   return (
     <View
       role="row"
+      {...(liftable ? hold.panHandlers : {})}
       style={[
         styles.row,
+        !wide && styles.rowCompact,
         hovered && styles.rowHovered,
         selected && styles.rowSelected,
-        dragging && styles.rowDragging,
+        dragging && [styles.rowDragging, { transform: [{ translateY: dragOffset }] }],
       ]}
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
       onPointerLeave={finePointer ? () => setHovered(false) : undefined}
@@ -119,22 +189,14 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
     >
       {dropTarget ? <View style={[styles.dropLine, { backgroundColor: accent.accent }]} /> : null}
 
-      {wide || selecting ? (
-        <View style={{ opacity: showSelect ? 1 : 0 }}>
-          <Pressable
-            onPress={onToggleSelect}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: selected }}
-            accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
-            style={[styles.select, !wide && styles.selectCompact]}
-          >
-            <Checkbox checked={selected} />
-          </Pressable>
-        </View>
+      {wide ? (
+        <View style={{ opacity: selecting || selected || hovered ? 1 : 0 }}>{selectBox}</View>
+      ) : selecting ? (
+        selectBox
       ) : null}
 
       {/* Reordering is not what selection mode is for, so the grip steps aside. */}
-      {manual && !selecting ? (
+      {wide && manual && !selecting ? (
         <View
           {...grip.panHandlers}
           accessibilityRole="button"
@@ -153,15 +215,35 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
 
       <Pressable
         onPress={onPress}
-        onLongPress={onLongPress}
-        delayLongPress={450}
+        onLongPress={
+          liftable
+            ? () => {
+                armed.current = true
+                drag.current.onDragStart?.()
+              }
+            : undefined
+        }
+        onPressOut={
+          liftable
+            ? () => {
+                // Let go without moving: the row goes back where it was. When
+                // the move took the press over, the release is the move's.
+                if (armed.current && !moving.current) {
+                  armed.current = false
+                  drag.current.onDragEnd?.(0)
+                }
+              }
+            : undefined
+        }
+        delayLongPress={LIFT_DELAY}
         accessibilityRole="button"
         accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+        accessibilityHint={liftable ? 'Hold to move' : undefined}
         accessibilityState={{ selected: active }}
-        style={styles.main}
+        style={[styles.main, !wide && styles.mainCompact]}
       >
-        <Text style={styles.index}>{index + 1}</Text>
-        <Cover uri={artUri} title={song.album || song.title} size={36} />
+        {wide ? <Text style={styles.index}>{index + 1}</Text> : null}
+        <Cover uri={artUri} title={song.album || song.title} size={wide ? 36 : 42} />
         <View style={styles.meta}>
           <Text style={[styles.title, active && { color: songColor.tint }]} numberOfLines={1}>
             {song.title}
@@ -174,9 +256,11 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
 
       <Text style={styles.time}>{formatDuration(song.duration)}</Text>
 
-      {manual && !selecting ? (
+      {selecting ? null : more}
+
+      {wide && manual && !selecting && onRemove ? (
         <View style={{ opacity: revealed ? 1 : 0 }}>
-          <IconButton onPress={onRemove} label={`Remove ${song.title} from ${playlistName}`}>
+          <IconButton onPress={onRemove} label={`Remove ${song.title} from ${playlistName}`} caption="Remove from playlist">
             <X size={15} color={theme.colors.textMuted} />
           </IconButton>
         </View>
@@ -192,9 +276,14 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     borderRadius: radius.sm,
   },
+  rowCompact: { gap: 2 },
   rowHovered: { backgroundColor: theme.colors.surface1 },
   rowSelected: { backgroundColor: theme.colors.surface2 },
-  rowDragging: { opacity: 0.45, backgroundColor: theme.colors.surface2 },
+  rowDragging: {
+    zIndex: 2,
+    backgroundColor: theme.colors.surface2,
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
+  },
   dropLine: {
     position: 'absolute',
     left: 0,
@@ -217,6 +306,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
     borderRadius: radius.sm,
   },
+  mainCompact: { paddingHorizontal: 0, paddingVertical: 5 },
   index: { width: 22, color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
   meta: { flex: 1, minWidth: 0 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
@@ -225,6 +315,6 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
-    paddingRight: 4,
+    paddingHorizontal: 4,
   },
 }))

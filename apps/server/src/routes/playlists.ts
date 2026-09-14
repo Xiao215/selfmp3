@@ -33,8 +33,8 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists',
     route({ body: CreatePlaylistSchema }, ({ body }) => {
-      if (body.kind === 'smart' && !body.rules) {
-        throw HttpError.badRequest('a smart playlist needs a rule set')
+      if (body.kind === 'live' && !body.rules) {
+        throw HttpError.badRequest('a live playlist needs a rule set')
       }
       const created = container.playlists.create(body)
       container.bumpLibraryVersion()
@@ -47,7 +47,7 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithId }, ({ params }) => requirePlaylist(params.id)),
   )
 
-  /** Ordered song ids. Smart playlists resolve their rules on every read. */
+  /** Ordered song ids. Live playlists resolve their rules on every read. */
   router.get(
     '/playlists/:id/songs',
     route({ params: ParamsWithId }, ({ params }) => ({
@@ -85,12 +85,27 @@ export function playlistRoutes(container: Container): Router {
     }),
   )
 
+  /**
+   * The playlist was started. No library version bump: this moves on every
+   * play, and making every device refetch the library for it would cost more
+   * than the order it feeds is worth. The device that played it updates its
+   * own copy; others see the new order on their next library read.
+   */
+  router.post(
+    '/playlists/:id/played',
+    route({ params: ParamsWithId }, ({ params }) => {
+      requirePlaylist(params.id)
+      container.playlists.markPlayed(params.id)
+      return { ok: true as const }
+    }),
+  )
+
   router.post(
     '/playlists/:id/songs',
     route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'smart') {
-        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      if (playlist.kind === 'live') {
+        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
       }
 
       // Drop ids that are not real songs rather than failing the whole request.
@@ -119,8 +134,8 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id/songs/remove',
     route({ params: ParamsWithId, body: RemoveFromPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'smart') {
-        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      if (playlist.kind === 'live') {
+        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
       }
       const removed = container.playlists.removeMany(params.id, body.songIds)
       container.edits.playlistSongs(params.id, body.songIds)
@@ -133,8 +148,8 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id/songs/:songId',
     route({ params: ParamsWithSong }, ({ params }) => {
       const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'smart') {
-        throw HttpError.badRequest('a smart playlist builds itself — edit its rules instead')
+      if (playlist.kind === 'live') {
+        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
       }
       container.playlists.remove(params.id, params.songId)
       container.edits.playlistSongs(params.id, [params.songId])
@@ -147,8 +162,8 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id/order',
     route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'smart') {
-        throw HttpError.badRequest('a smart playlist is ordered by its rules')
+      if (playlist.kind === 'live') {
+        throw HttpError.badRequest('a live playlist is ordered by its rules')
       }
       container.playlists.reorder(params.id, body.songIds)
       container.edits.playlist(params.id, ['order'])
@@ -160,7 +175,7 @@ export function playlistRoutes(container: Container): Router {
   /**
    * Preview a rule set before saving it.
    *
-   * Lets the smart-playlist builder show "matches 43 songs" as you type,
+   * Lets the rule builder show "matches 43 songs" as you type,
    * which is the difference between guessing at rules and understanding them.
    */
   router.post(
@@ -179,13 +194,14 @@ export function playlistRoutes(container: Container): Router {
           id: 0,
           name: 'preview',
           description: '',
-          kind: 'smart',
+          kind: 'live',
           rules: body.rules,
           songCount: 0,
           totalDuration: 0,
           pinned: false,
           createdAt: '',
           updatedAt: '',
+          lastPlayedAt: null,
         })
 
         return { songIds, description: describeSmartRules(body.rules, tagNames) }

@@ -10,6 +10,7 @@ import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PlayerBar } from './PlayerBar'
+import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
@@ -57,6 +58,8 @@ export function Shell({
       <PaletteHost />
       {/* Hover captions in a browser; nothing on a phone. */}
       <TooltipHost />
+      {/* A focused field in the accent, not the browser's own ring. */}
+      <FocusStyle />
     </OverlayProvider>
   )
 }

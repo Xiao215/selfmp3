@@ -231,7 +231,7 @@ export class CloudIngest {
           name: change.name,
           description: change.description,
           kind: change.kind,
-          rules: change.kind === 'smart' && change.rules ? this.#localRules(change.rules) : null,
+          rules: change.kind === 'live' && change.rules ? this.#localRules(change.rules) : null,
           pinned: change.pinned,
           createdAt: toSqliteTime(hlcTime(change.hlc)),
         })

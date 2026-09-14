@@ -24,7 +24,7 @@ const SONG_C = uid(0xc3)
 const TAG_CHILL = uid(0x71)
 const TAG_RAIN = uid(0x72)
 const LIST = uid(0x91)
-const SMART = uid(0x92)
+const LIVE = uid(0x92)
 
 /** A stamp at `seconds` past a fixed moment, from `device`. */
 const at = (seconds: number, device = 'mac-aaaa'): string =>
@@ -85,8 +85,8 @@ function snapshot(overrides: Partial<CloudSnapshot> = {}): CloudSnapshot {
     tags: [tag(TAG_CHILL, 'chill'), tag(TAG_RAIN, 'rain')],
     playlists: [
       playlist(LIST, { songUids: [SONG_A, SONG_B] }),
-      playlist(SMART, {
-        kind: 'smart',
+      playlist(LIVE, {
+        kind: 'live',
         rules: { match: 'all', rules: [], orderBy: 'addedAt', order: 'desc', limit: null },
       }),
     ],
@@ -221,7 +221,7 @@ describe('tags', () => {
         type: 'playlistCreated',
         hlc: at(3, 'web-bbbb'),
         uid: uid(0x93),
-        kind: 'smart',
+        kind: 'live',
         name: 'Chill',
         description: '',
         pinned: false,
@@ -289,17 +289,17 @@ describe('smart rules about tags', () => {
 
   it('keep meaning what they did when the tag is removed', () => {
     const library = replay([
-      { type: 'playlistEdited', hlc: at(1), uid: SMART, fields: { rules: tagged(TAG_RAIN) } },
+      { type: 'playlistEdited', hlc: at(1), uid: LIVE, fields: { rules: tagged(TAG_RAIN) } },
       { type: 'tagRemoved', hlc: at(2), uid: TAG_RAIN },
     ])
-    expect(library.playlists.get(SMART)?.rules).toEqual(tagged(MISSING_TAG_UID))
+    expect(library.playlists.get(LIVE)?.rules).toEqual(tagged(MISSING_TAG_UID))
   })
 
   it('name a tag the library does not have as missing, as the Mac would', () => {
     const library = replay([
-      { type: 'playlistEdited', hlc: at(1), uid: SMART, fields: { rules: tagged(uid(0xdead)) } },
+      { type: 'playlistEdited', hlc: at(1), uid: LIVE, fields: { rules: tagged(uid(0xdead)) } },
     ])
-    expect(library.playlists.get(SMART)?.rules).toEqual(tagged(MISSING_TAG_UID))
+    expect(library.playlists.get(LIVE)?.rules).toEqual(tagged(MISSING_TAG_UID))
   })
 })
 
@@ -424,12 +424,12 @@ describe('playlists', () => {
     }
   })
 
-  it('that are smart take their songs from their rules, not from changes', () => {
+  it('that are live take their songs from their rules, not from changes', () => {
     const library = replay([
-      { type: 'playlistSong', hlc: at(1), uid: SMART, songUid: SONG_A, on: true },
-      { type: 'playlistOrdered', hlc: at(2), uid: SMART, songUids: [SONG_A] },
+      { type: 'playlistSong', hlc: at(1), uid: LIVE, songUid: SONG_A, on: true },
+      { type: 'playlistOrdered', hlc: at(2), uid: LIVE, songUids: [SONG_A] },
     ])
-    expect(library.playlists.get(SMART)?.songUids).toEqual([])
+    expect(library.playlists.get(LIVE)?.songUids).toEqual([])
   })
 
   it('removed stay removed', () => {

@@ -212,7 +212,7 @@ read. A test runs one set of changes of every kind through both, and expects the
 A song removed on another device takes its file from the Mac's library folder too — left there,
 the next scan would add it back as a new song — and the bucket keeps its audio.
 
-Smart playlists are worked out on the device (`packages/shared/src/smartRules.ts`), the same
+Live playlists are worked out on the device (`packages/shared/src/smartRules.ts`), the same
 rules the Mac compiles to SQL, so a playlist of loved songs gains a song the moment it is loved
 on a phone with the Mac asleep.
 
@@ -304,7 +304,7 @@ the Mac that is *Settings → Cloud*; everywhere else it is the first thing the 
 | The bucket layout, snapshots, changes and log files | `packages/shared/src/schemas/cloud.ts`, `packages/shared/src/schemas/sync.ts`, `packages/shared/src/cloud.ts` |
 | When a change was made | `packages/shared/src/hlc.ts` |
 | How changes combine, for every device | `packages/shared/src/sync.ts` |
-| Smart playlists on a device | `packages/shared/src/smartRules.ts` |
+| Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts` |
 | Talking to the bucket, from the Mac | `apps/server/src/cloud/store.ts` (S3), `apps/server/src/cloud/doorman.ts` (through the doorman) |

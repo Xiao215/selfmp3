@@ -15,6 +15,14 @@ import type { Logger } from '../logger.js'
 interface Migration {
   readonly name: string
   readonly sql: string
+  /**
+   * Rebuilds a table other tables point at. SQLite can only change a column's
+   * CHECK by making the table again, and dropping the old one with foreign
+   * keys on would cascade its rows' children away with it. Foreign keys are
+   * off for the migration (it cannot be done inside the transaction) and are
+   * checked before it commits.
+   */
+  readonly rebuildsTable?: boolean
 }
 
 const MIGRATIONS: readonly Migration[] = [
@@ -452,6 +460,52 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
     `,
   },
+  {
+    name: 'playlists: live instead of smart, and when each was last played',
+    rebuildsTable: true,
+    sql: `
+      -- A playlist that follows rules and updates itself is a "live" playlist.
+      -- "Smart" is now the name of a way to make an ordinary playlist (a
+      -- template picks its songs once), so the stored kind says what it is.
+      -- SQLite cannot change a CHECK constraint, so the table is made again.
+      --
+      -- last_played_at is set when a playlist is started as one (Play,
+      -- Shuffle, a row in it), so the playlists page can put the ones in use
+      -- first. A song's own last_played_at cannot say this: a song is in
+      -- several lists. It is not synced: it moves on every play, and an edit
+      -- stamp for it would put a playlist in every device's log each time
+      -- music started.
+      CREATE TABLE playlists_next (
+        id             INTEGER PRIMARY KEY,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
+        rules          TEXT,
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid            TEXT,
+        last_played_at TEXT
+      );
+
+      INSERT INTO playlists_next (id, name, description, kind, rules, pinned, created_at, updated_at, uid)
+        SELECT id, name, description, CASE kind WHEN 'smart' THEN 'live' ELSE kind END,
+               rules, pinned, created_at, updated_at, uid
+          FROM playlists;
+
+      DROP TABLE playlists;
+      ALTER TABLE playlists_next RENAME TO playlists;
+
+      -- Dropping the table took its index and triggers with it.
+      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+      CREATE TRIGGER playlists_uid AFTER INSERT ON playlists WHEN new.uid IS NULL BEGIN
+        UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+      END;
+      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+      END;
+    `,
+  },
 ]
 
 /**
@@ -480,11 +534,19 @@ export function migrate(db: Database, logger: Logger, target = MIGRATIONS.length
     const nextVersion = version + 1
     logger.info(`applying migration ${nextVersion}: ${migration.name}`)
 
+    // Only changeable outside a transaction, so set before BEGIN and put back after.
+    const foreignKeys = db.pragma('foreign_keys', { simple: true }) as number
+    if (migration.rebuildsTable) db.pragma('foreign_keys = OFF')
+
     // better-sqlite3 cannot run DDL inside its transaction() wrapper reliably
     // when the statements include CREATE VIRTUAL TABLE, so drive it manually.
     db.exec('BEGIN')
     try {
       db.exec(migration.sql)
+      if (migration.rebuildsTable) {
+        const broken = db.pragma('foreign_key_check') as unknown[]
+        if (broken.length > 0) throw new Error(`${broken.length} rows lost what they point at`)
+      }
       db.pragma(`user_version = ${nextVersion}`)
       db.exec('COMMIT')
     } catch (error) {
@@ -493,6 +555,8 @@ export function migrate(db: Database, logger: Logger, target = MIGRATIONS.length
         `Migration ${nextVersion} (${migration.name}) failed: ` +
           (error instanceof Error ? error.message : String(error)),
       )
+    } finally {
+      if (migration.rebuildsTable) db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`)
     }
   }
 

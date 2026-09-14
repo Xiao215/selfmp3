@@ -17,6 +17,7 @@ import {
   describeEnergy,
   describeTempo,
 } from '@selfmp3/client'
+import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
@@ -130,6 +131,9 @@ export const SongRow = memo(function SongRow({
   const [hovered, setHovered] = useState(false)
   const moreRef = useRef<View>(null)
   const tagAddRef = useRef<View>(null)
+  // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
+  const rowRef = useRef<View>(null)
+  useSongDragSource(rowRef, () => [song.id], wide && dense)
   // The held-finger state, as on the web: the row gives a little under the
   // finger so something is visibly happening while the menu is on its way.
   const [scale] = useState(() => new Animated.Value(1))
@@ -240,6 +244,7 @@ export const SongRow = memo(function SongRow({
 
   return (
     <View
+      ref={rowRef}
       testID={testID}
       role="row"
       style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...tint]}

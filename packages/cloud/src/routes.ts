@@ -19,7 +19,7 @@ import {
   describeSmartRules,
   extractUrls,
   similarSongs,
-  smartPlaylistSongs,
+  livePlaylistSongs,
   toCloudRules,
   type Settings,
 } from '@selfmp3/shared'
@@ -437,7 +437,7 @@ export function createCloudRoutes(
         const uids = view.uids
         const songIdOf = new Map([...uids.songs].map(([songId, uid]) => [uid, songId]))
         const songs = currentSongs()
-        const matched = smartPlaylistSongs(
+        const matched = livePlaylistSongs(
           toCloudRules(rules, tagId => uids.tags.get(tagId) ?? null),
           songs,
         )

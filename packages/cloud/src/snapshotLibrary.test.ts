@@ -128,7 +128,7 @@ describe('snapshotToLibrary', () => {
             uid: uid('p'),
             name: 'Mix',
             description: '',
-            kind: 'smart',
+            kind: 'live',
             rules: {
               match: 'all',
               rules: [

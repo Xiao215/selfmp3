@@ -109,8 +109,8 @@ export function resolveImportPlaylist(
   if (input.playlistId !== null) {
     const playlist = playlists.byId(input.playlistId)
     if (!playlist) throw HttpError.notFound('no such playlist')
-    if (playlist.kind === 'smart') {
-      throw HttpError.badRequest('imports cannot be added to a smart playlist')
+    if (playlist.kind === 'live') {
+      throw HttpError.badRequest('imports cannot be added to a live playlist')
     }
     return playlist
   }

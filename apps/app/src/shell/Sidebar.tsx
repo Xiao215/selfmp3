@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
-import { fuzzyRank, type Tag } from '@selfmp3/shared'
+import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
   downloadedCount,
@@ -19,8 +19,13 @@ import {
   type,
   type TagFilterState,
 } from '@selfmp3/client'
-import { useCreateTag, useLibrary, useScanLibrary } from '../api/queries'
+import { useAddToPlaylist, useCreateTag, useLibrary, useScanLibrary } from '../api/queries'
 import { useLibraryFilter } from '../features/library/libraryFilter'
+import { NewPlaylist } from '../features/playlists/NewPlaylist'
+import { PlaylistCover } from '../features/playlists/PlaylistCover'
+import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
+import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
+import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { isUntagged } from '../features/inbox/inbox.model'
 import { useConnection } from '../server/ConnectionProvider'
@@ -32,6 +37,7 @@ import {
   Download,
   Inbox,
   ListMusic,
+  Live,
   Minus,
   More,
   Music,
@@ -52,19 +58,22 @@ import { tip } from '../ui/tip'
  * which is what a breakpoint is for: a row of icons along the bottom under 820,
  * a column with words beside them above it.
  *
- * Below the destinations, the web's tag list, which is how a desktop filters
- * the library: a click shows only a tag, the − beside it hides the tag, the ⋯
- * edits it. At the foot, what is on this device and a rescan.
+ * Playlists are a section rather than a destination: the ones you pinned, and
+ * "Show all" for the playlists page, with a ＋ that makes any of the three
+ * kinds. A song dragged from the library drops onto a pinned playlist.
+ *
+ * Below them, the web's tag list, which is how a desktop filters the library:
+ * a click shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
+ * the foot, what is on this device and a rescan.
  */
 const DESTINATIONS: {
-  href: '/' | '/playlists' | '/import' | '/stats' | '/settings'
+  href: '/' | '/import' | '/stats' | '/settings'
   label: string
   Icon: typeof Music
   /** Needs the Mac's own tools: a cloud library has none, as on the web. */
   mac?: boolean
 }[] = [
   { href: '/', label: 'Library', Icon: Music },
-  { href: '/playlists', label: 'Playlists', Icon: ListMusic },
   // A cloud library imports too: the link waits in the bucket for the Mac.
   { href: '/import', label: 'Import', Icon: Download },
   { href: '/stats', label: 'Stats', Icon: BarChart, mac: true },
@@ -120,8 +129,139 @@ export function Sidebar(): ReactNode {
         })}
       </View>
 
+      <Playlists />
       <Tags />
       <Foot />
+    </View>
+  )
+}
+
+function Playlists(): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const router = useRouter()
+  const pathname = usePathname()
+  const { data: library } = useLibrary()
+  const [newOpen, setNewOpen] = useState(false)
+  const plusRef = useRef<View>(null)
+
+  const all = library?.playlists
+  const pinned = useMemo(() => pinnedPlaylists(all ?? []), [all])
+  const onPage = pathname === '/playlists'
+
+  return (
+    <View style={styles.playlists} testID="sidebar-playlists">
+      <View style={styles.groupTitle}>
+        <Text style={styles.groupTitleText}>PLAYLISTS</Text>
+        <View ref={plusRef} collapsable={false}>
+          <Pressable
+            style={styles.tinyButton}
+            onPress={() => setNewOpen(open => !open)}
+            accessibilityRole="button"
+            accessibilityLabel="New playlist"
+            {...tip('New playlist')}
+          >
+            <Plus size={14} color={theme.colors.textMuted} />
+          </Pressable>
+        </View>
+      </View>
+
+      {pinned.map(playlist => (
+        <PinnedPlaylist
+          key={playlist.id}
+          playlist={playlist}
+          active={pathname === `/playlists/${playlist.id}`}
+          onOpen={() =>
+            router.navigate({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
+          }
+        />
+      ))}
+      {pinned.length === 0 && (all?.length ?? 0) > 0 ? (
+        <Text style={[styles.hint, styles.pinHint]}>Pin a playlist from its ⋯ menu.</Text>
+      ) : null}
+
+      <Pressable
+        onPress={() => {
+          if (!onPage) router.navigate('/playlists')
+        }}
+        accessibilityRole="tab"
+        accessibilityLabel="Playlists"
+        accessibilityState={{ selected: onPage }}
+        testID="nav-playlists"
+        style={({ pressed }) => [
+          styles.playlistRow,
+          onPage && { backgroundColor: accent.accentPill },
+          pressed && !onPage && { backgroundColor: theme.colors.surface2 },
+        ]}
+      >
+        <View style={styles.playlistIcon}>
+          <ListMusic size={15} color={onPage ? accent.accent : theme.colors.textMuted} />
+        </View>
+        <Text style={[styles.playlistName, onPage && { color: accent.accent, fontWeight: '600' }]}>
+          Show all
+        </Text>
+        <Text style={styles.count}>{all?.length ?? ''}</Text>
+      </Pressable>
+
+      <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} anchorRef={plusRef} />
+    </View>
+  )
+}
+
+/**
+ * A pinned playlist. Songs dragged from a list drop onto it; a live one
+ * dims while they are dragged, because its rules decide what is in it.
+ */
+function PinnedPlaylist({
+  playlist,
+  active,
+  onOpen,
+}: {
+  playlist: Playlist
+  active: boolean
+  onOpen: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const ref = useRef<View>(null)
+  const live = isLive(playlist)
+  const dragging = useSongDragActive()
+  const addToPlaylist = useAddToPlaylist()
+  const over = useSongDropTarget(ref, {
+    enabled: !live,
+    onDrop: songIds => {
+      addToPlaylist.mutate({ playlistId: playlist.id, songIds })
+      showToast(
+        `Added ${songIds.length} ${songIds.length === 1 ? 'song' : 'songs'} to ${playlist.name}`,
+        'good',
+      )
+    },
+  })
+
+  return (
+    <View ref={ref} collapsable={false} style={dragging && live ? styles.dim : undefined}>
+      <Pressable
+        onPress={onOpen}
+        accessibilityRole="link"
+        accessibilityLabel={playlist.name}
+        accessibilityState={{ selected: active }}
+        style={({ pressed }) => [
+          styles.playlistRow,
+          active && { backgroundColor: accent.accentPill },
+          pressed && !active && { backgroundColor: theme.colors.surface2 },
+          over && [styles.dropping, { borderColor: accent.accent }],
+        ]}
+      >
+        <PlaylistCover playlist={playlist} size={22} />
+        <Text
+          style={[styles.playlistName, active && { color: accent.accent, fontWeight: '600' }]}
+          numberOfLines={1}
+        >
+          {playlist.name}
+        </Text>
+        {live ? <Live size={13} color={theme.colors.textMuted} /> : null}
+      </Pressable>
+      {over ? <Text style={[styles.dropHint, { color: accent.accent }]}>Drop to add</Text> : null}
     </View>
   )
 }
@@ -453,6 +593,23 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textSecondary,
     fontSize: type.body,
   },
+  playlists: { gap: 1, marginTop: -space.sm },
+  playlistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 32,
+    paddingHorizontal: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  playlistIcon: { width: 22, alignItems: 'center' },
+  playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+  pinHint: { paddingHorizontal: 10, paddingVertical: 4 },
+  dropping: { borderStyle: 'dashed', backgroundColor: theme.colors.surface2 },
+  dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
+  dim: { opacity: 0.35 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
   groupTitle: {

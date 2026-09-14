@@ -50,7 +50,7 @@ denser as a song gets more intense, with no steps or level names
 auto-mix is ordering by it, and in **Song details** (the song's ⋯ menu), which spells out
 tempo, energy and key in words alongside download state, play history and the file.
 
-**Smart playlists** gain an "Audio" group in the rule builder: BPM, Key (exactly this
+**Live playlists** gain an "Audio" group in the rule builder: BPM, Key (exactly this
 Camelot code, or "mixes with" — same number in the other letter, or ±1 in the same
 letter), Energy (0–1) and Loudness (LUFS). Songs that have not been analysed never match
 these rules.

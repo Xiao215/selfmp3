@@ -2632,3 +2632,61 @@ From Xiao on 4600:
   byte. The seek bar's loop overlay and the chart tracks stopped appending a
   hex byte to a colour too, and the tracks are themed styles rather than a
   string built per row.
+
+### Playlists: three ways to make one, pinned in the sidebar — branch `claude/playlist-ui-ux-redesign-d378d7`
+
+From Xiao's review of the lettered mocks (A1, B1, C2, D2, E1, F2, G1; H dropped):
+
+1. **Three kinds in one New menu** (`features/playlists/NewPlaylist.tsx`): a
+   *playlist* you fill; a *smart playlist*, which is a way of making one — a
+   template (`templates.model.ts`: Most played, Forgotten gems, Short ones, Long
+   songs, Recently added, Loved, By tag) picks the songs once, you untick any,
+   and what is made is a manual playlist whose description says how; and a
+   *live playlist*, which follows rules and updates itself. The sidebar's ＋,
+   the page's New and the phone's ＋ all open it. "Describe it" (AI) is shown
+   as coming later.
+2. **`kind` is `'manual' | 'live'`** everywhere: schema, server, bucket, sync
+   log, cloud edits. The migration "playlists: live instead of smart, and when
+   each was last played" rebuilds the table (SQLite cannot change a CHECK) with
+   foreign keys off for the rebuild — the runner's new `rebuildsTable` — and
+   checks them before committing. No compatibility for `'smart'` elsewhere:
+   nothing had been released. `SmartRules` keeps its name; templates use rule
+   sets too.
+3. **Recently played.** `playlists.last_played_at`, set by
+   `POST /api/playlists/:id/played` (no library version bump) whenever a
+   playlist is started by Play, Shuffle, a row or a tile's play
+   (`usePlaylistPlayback`). The page sorts by it by default (A–Z and Recently
+   added are the others, remembered in prefs); making a playlist counts as its
+   first play.
+4. **Sidebar.** The Playlists nav item is now a section: pinned playlists
+   (cover, name, a live mark), "Show all" (`nav-playlists`), and ＋. Songs
+   dragged from library rows at desktop width drop onto a pinned playlist
+   (`ports/songDrag.web.ts`, the browser's own drag and drop; nothing on a
+   phone); a live one dims during the drag. Pin and unpin are in a playlist's ⋯.
+5. **Playlists page.** Tiles wear the covers of their first songs
+   (`PlaylistCover`), with a Live badge and a pin mark; pinned playlists stay in
+   the grid. On a phone, a row of pinned playlists above "All playlists".
+6. **A playlist.** Cover, name (click to rename with a mouse), description,
+   length; a round Play, Shuffle, keep offline (installed app), ⋯ (play next,
+   add to queue, edit rules and save a copy for a live one, pin, rename,
+   description, duplicate, delete), and Add songs — a search that adds without
+   closing (`AddSongsSheet`). Rows at desktop width keep grip and number and
+   show ⋯ and ✕ on hover; on a phone a row is cover, title, length and ⋯, and
+   holding it lifts it to be dragged into place (the song menu, which holding
+   used to open, has "Remove from this playlist").
+7. **Live rules** read back as a sentence (`RulesSummary`, `describeRule`,
+   `describeOrder`) and are edited in a side panel beside the songs, or a sheet
+   on a phone (`RulesEditor`). Lengths are typed and shown as m:ss. The raw
+   server description (`duration > 210`) is gone.
+8. **Selection bar** gets "New playlist with N songs", which opens the new
+   playlist with its name ready to type. Every "Add to playlist" list shows
+   pinned playlists first and never a live one.
+9. **No browser focus ring on text fields.** A focused field wore the
+   browser's own ring — on a Mac two-tone, in the system accent (orange and
+   white on this dark app), and a second box inside the library's search.
+   `shell/FocusStyle.web.tsx`, mounted once in the shell, turns it off for text
+   fields and draws focus in the accent instead: a field with a border takes
+   the accent as its border; a box that is the visible field around a
+   borderless input is marked `focusWithin()` (`ui/focusRing.ts`) and takes it
+   while the input has focus. Checked on the library search, the import box,
+   renaming a playlist and Add songs: outline `none`, accent border.

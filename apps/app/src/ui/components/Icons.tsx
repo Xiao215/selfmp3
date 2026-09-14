@@ -454,6 +454,54 @@ export const More = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
+/** A pushpin: pinning a playlist to the sidebar. */
+export const Pin = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
+  const { theme } = useUnistyles()
+  const color = colorGiven ?? theme.colors.textSecondary
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M12 17v5" />
+      <Path d="M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    </Icon>
+  )
+}
+
+/** Two sheets: a copy. */
+export const Copy = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
+  const { theme } = useUnistyles()
+  const color = colorGiven ?? theme.colors.textSecondary
+  return (
+    <Icon color={color} {...rest}>
+      <Rect x="8" y="8" width="13" height="13" rx="2" />
+      <Path d="M4 16V5a1 1 0 0 1 1-1h11" />
+    </Icon>
+  )
+}
+
+export const Pencil = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
+  const { theme } = useUnistyles()
+  const color = colorGiven ?? theme.colors.textSecondary
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M12 20h9" />
+      <Path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </Icon>
+  )
+}
+
+/** A dot sending out waves: a live playlist, which keeps itself up to date. */
+export const Live = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
+  const { theme } = useUnistyles()
+  const color = colorGiven ?? theme.colors.textSecondary
+  return (
+    <Icon color={color} {...rest}>
+      <Circle cx="12" cy="12" r="2.6" fill={color} stroke="none" />
+      <Path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4" />
+      <Path d="M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2" />
+    </Icon>
+  )
+}
+
 export const Grip = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   const { theme } = useUnistyles()
   const color = colorGiven ?? theme.colors.textSecondary

@@ -127,7 +127,7 @@ The worker is pull-based: after each job finishes it asks the database for the n
 coordination is needed between the HTTP layer and the worker, and a job added by your phone
 gets picked up by the same loop.
 
-### Smart playlist rules compile to parameterised SQL
+### Live playlist rules compile to parameterised SQL
 
 `services/smartPlaylist.ts` is the only place in the server that builds a query string from
 user input, so it follows two rules absolutely:

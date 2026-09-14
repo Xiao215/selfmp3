@@ -15,6 +15,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Play, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { focusWithin } from '../../ui/focusRing'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow } from '../../ui/components/SongRow'
@@ -161,7 +162,10 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
-          <View style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}>
+          <View
+            style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}
+            {...focusWithin()}
+          >
             <Search size={15} color={theme.colors.textMuted} />
             <TextInput
               style={styles.search}

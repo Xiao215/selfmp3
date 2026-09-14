@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MISSING_TAG_UID } from './cloud.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
-import { smartPlaylistSongs } from './smartRules.js'
+import { livePlaylistSongs } from './smartRules.js'
 
 const uid = (n: number): string => n.toString(16).padStart(32, '0')
 const CHILL = uid(0x71)
@@ -69,7 +69,7 @@ const LIBRARY: CloudSong[] = [
   song(1, { title: 'Old', addedAt: '2025-01-01 09:00:00', lastPlayedAt: '2025-06-01 09:00:00' }),
 ]
 
-const run = (r: CloudSmartRules): string[] => smartPlaylistSongs(r, LIBRARY, { now: NOW })
+const run = (r: CloudSmartRules): string[] => livePlaylistSongs(r, LIBRARY, { now: NOW })
 const ids = (...ns: number[]): string[] => ns.map(uid)
 
 describe('smart playlists on a device', () => {
@@ -126,7 +126,7 @@ describe('smart playlists on a device', () => {
   })
 
   it('shuffle when asked to, using the random source given', () => {
-    const shuffled = smartPlaylistSongs(rules([], { orderBy: 'random' }), LIBRARY, {
+    const shuffled = livePlaylistSongs(rules([], { orderBy: 'random' }), LIBRARY, {
       now: NOW,
       random: (() => {
         let n = 0

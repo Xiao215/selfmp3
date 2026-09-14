@@ -29,7 +29,7 @@ export interface SnapshotInput {
   readonly tagUids: ReadonlyMap<number, string>
   readonly playlists: readonly Playlist[]
   readonly playlistUids: ReadonlyMap<number, string>
-  /** Song ids in playlist order; smart playlists resolved as they stand. */
+  /** Song ids in playlist order; live playlists resolved as they stand. */
   readonly playlistSongIds: (playlist: Playlist) => readonly number[]
   readonly deviceId: string
   readonly writtenAt: Date
@@ -130,7 +130,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       description: playlist.description,
       kind: playlist.kind,
       rules:
-        playlist.kind === 'smart' && playlist.rules ? toCloudRules(playlist.rules, tagUid) : null,
+        playlist.kind === 'live' && playlist.rules ? toCloudRules(playlist.rules, tagUid) : null,
       pinned: playlist.pinned,
       songUids: input.playlistSongIds(playlist).flatMap(id => {
         const songUid = published.get(id)

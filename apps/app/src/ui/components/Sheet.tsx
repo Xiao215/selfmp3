@@ -35,11 +35,14 @@ export function Sheet({
   titleTone = 'heading',
   children,
   testID,
+  width,
 }: {
   open: boolean
   onClose: () => void
   title?: string
   subtitle?: string
+  /** How wide the window may grow at desktop width, for content wider than a menu. */
+  width?: number
   /**
    * `label` is the web's `.popover-title`: small and quiet, for a list whose
    * title only says what is being chosen ("Sort by"). `heading` names the
@@ -121,6 +124,7 @@ export function Sheet({
           <Animated.View
             style={[
               styles.dialog,
+              width !== undefined && { maxWidth: width },
               {
                 opacity: progress,
                 transform: [

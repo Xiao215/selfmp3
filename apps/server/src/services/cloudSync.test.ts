@@ -444,7 +444,7 @@ describe('CloudSyncService', () => {
       expect(latest().songs.map(song => song.title)).toEqual(['Two'])
     })
 
-    it('carries playlists by uid, in order, smart ones with their rules and their songs', async () => {
+    it('carries playlists by uid, in order, live ones with their rules and their songs', async () => {
       const one = addSong('A - One', 'one')
       const two = addSong('B - Two', 'two')
       const chill = tags.create('chill')
@@ -455,7 +455,7 @@ describe('CloudSyncService', () => {
       playlists.create({
         name: 'Chill',
         description: '',
-        kind: 'smart',
+        kind: 'live',
         rules: {
           match: 'all',
           rules: [{ field: 'tag', op: 'has', tagId: chill.id }],
@@ -469,11 +469,11 @@ describe('CloudSyncService', () => {
       const snapshot = latest()
       const tagUid = snapshot.tags[0]?.uid
       const manual = snapshot.playlists.find(p => p.name === 'Mix')
-      const smart = snapshot.playlists.find(p => p.name === 'Chill')
+      const live = snapshot.playlists.find(p => p.name === 'Chill')
       expect(manual?.songUids).toEqual([uidOf(two), uidOf(one)])
       expect(manual?.rules).toBeNull()
-      expect(smart?.rules?.rules).toEqual([{ field: 'tag', op: 'has', tagUid }])
-      expect(smart?.songUids).toEqual([uidOf(two)])
+      expect(live?.rules?.rules).toEqual([{ field: 'tag', op: 'has', tagUid }])
+      expect(live?.songUids).toEqual([uidOf(two)])
     })
 
     it('keeps its three newest snapshots, and never touches another device’s', async () => {

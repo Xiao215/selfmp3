@@ -149,6 +149,8 @@ export function snapshotToLibrary(
       pinned: playlist.pinned,
       createdAt: playlist.createdAt,
       updatedAt: playlist.updatedAt,
+      // Plays of a playlist stay on the Mac that heard them; the bucket has none.
+      lastPlayedAt: null,
     }
   })
 

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { IdSchema, NameSchema } from './common.js'
 import { SmartRulesSchema } from './smart.js'
 
-export const PlaylistKindSchema = z.enum(['manual', 'smart'])
+export const PlaylistKindSchema = z.enum(['manual', 'live'])
 export type PlaylistKind = z.infer<typeof PlaylistKindSchema>
 
 export const PlaylistSchema = z.object({
@@ -10,15 +10,21 @@ export const PlaylistSchema = z.object({
   name: z.string(),
   description: z.string(),
   kind: PlaylistKindSchema,
-  /** Null for manual playlists; the rule set for smart ones. */
+  /** Null for manual playlists; the rule set for live ones. */
   rules: SmartRulesSchema.nullable(),
   songCount: z.number().int().nonnegative(),
   /** Total seconds, so the UI can show "1 hr 12 min" without fetching songs. */
   totalDuration: z.number().nonnegative(),
-  /** Pinned playlists sort to the top of the sidebar. */
+  /** Pinned playlists are listed in the sidebar's Playlists section. */
   pinned: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /**
+   * When it was last started as a playlist — Play, Shuffle or a row in it —
+   * which is what the playlists page sorts by. Null when never, and for a
+   * library that does not keep it (a cloud copy), which sorts those last.
+   */
+  lastPlayedAt: z.string().nullable().default(null),
 })
 export type Playlist = z.infer<typeof PlaylistSchema>
 

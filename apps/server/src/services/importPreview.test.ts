@@ -58,21 +58,21 @@ describe('resolveImportPlaylist', () => {
     expect(playlists.all()).toHaveLength(1)
   })
 
-  it('rejects a missing or smart playlist', () => {
+  it('rejects a missing or live playlist', () => {
     const playlists = makePlaylists()
     expect(() =>
       resolveImportPlaylist(playlists, { playlistId: 999, createPlaylistName: null }),
     ).toThrow(/no such playlist/)
 
-    const smart = playlists.create({
+    const live = playlists.create({
       name: 'Recent',
       description: '',
-      kind: 'smart',
+      kind: 'live',
       rules: EMPTY_SMART_RULES,
     })
     expect(() =>
-      resolveImportPlaylist(playlists, { playlistId: smart.id, createPlaylistName: null }),
-    ).toThrow(/smart playlist/)
+      resolveImportPlaylist(playlists, { playlistId: live.id, createPlaylistName: null }),
+    ).toThrow(/live playlist/)
   })
 })
 

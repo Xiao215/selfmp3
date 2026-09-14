@@ -34,6 +34,7 @@ export function Popover({
   children,
   width = 240,
   placement = 'auto',
+  align = 'end',
   testID,
 }: {
   open: boolean
@@ -51,6 +52,13 @@ export function Popover({
    * control that is always at the foot of the window: the player bar.
    */
   placement?: 'below' | 'above' | 'auto'
+  /**
+   * Which edge of the control the panel lines up with. `end` suits a control
+   * at the end of its row; `start` one at the start of a row, such as a
+   * header's ⋯ beside Play, whose panel would otherwise hang back over
+   * whatever is to its left.
+   */
+  align?: 'start' | 'end'
   testID?: string
 }): ReactNode {
   const { wide } = useLayout()
@@ -66,6 +74,7 @@ export function Popover({
   return (
     <AnchoredPopover
       placement={placement}
+      align={align}
       open={open}
       onClose={onClose}
       anchorRef={anchorRef}
@@ -86,6 +95,7 @@ interface Anchor {
 
 function AnchoredPopover({
   placement,
+  align,
   open,
   onClose,
   anchorRef,
@@ -94,6 +104,7 @@ function AnchoredPopover({
   testID,
 }: {
   placement: 'below' | 'above' | 'auto'
+  align: 'start' | 'end'
   open: boolean
   onClose: () => void
   anchorRef: RefObject<RNView | null>
@@ -139,8 +150,9 @@ function AnchoredPopover({
   // left (the player bar's tags) would push it off that side: it starts where
   // the control does instead.
   const rightAligned = anchor ? anchor.x + anchor.width - width : 0
+  const startsAtControl = align === 'start' || rightAligned < space.sm
   const left = anchor
-    ? rightAligned < space.sm
+    ? startsAtControl
       ? Math.max(space.sm, Math.min(anchor.x, screenWidth - width - space.sm))
       : Math.min(rightAligned, screenWidth - width - space.sm)
     : 0
@@ -221,7 +233,7 @@ function AnchoredPopover({
               opacity: progress,
               // Grows out of the corner nearest its control, so the panel reads
               // as the button opening rather than a box appearing near it.
-              transformOrigin: `${side === 'above' ? 'bottom' : 'top'} ${rightAligned < space.sm ? 'left' : 'right'}`,
+              transformOrigin: `${side === 'above' ? 'bottom' : 'top'} ${startsAtControl ? 'left' : 'right'}`,
               transform: [
                 {
                   translateY: progress.interpolate({

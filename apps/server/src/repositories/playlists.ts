@@ -12,7 +12,7 @@ import { compileSmartRules } from '../services/smartPlaylist.js'
 /**
  * Playlists, both kinds.
  *
- * A manual playlist stores an ordered list of song ids. A smart playlist
+ * A manual playlist stores an ordered list of song ids. A live playlist
  * stores a rule set and resolves to song ids on demand, so it stays correct as
  * the library changes without anyone having to refresh it.
  */
@@ -114,15 +114,15 @@ export class PlaylistRepository {
   }
 
   #toPlaylist(row: PlaylistRow): Playlist {
-    const kind = row.kind === 'smart' ? 'smart' : 'manual'
-    const rules = kind === 'smart' ? this.#parseRules(row.rules) : null
+    const kind = row.kind === 'live' ? 'live' : 'manual'
+    const rules = kind === 'live' ? this.#parseRules(row.rules) : null
 
-    // A smart playlist's counts come from evaluating its rules, not from the
+    // A live playlist's counts come from evaluating its rules, not from the
     // (always empty) items table.
     let songCount = row.song_count ?? 0
     let totalDuration = row.total_duration ?? 0
-    if (kind === 'smart' && rules) {
-      const stats = this.#smartStats(rules)
+    if (kind === 'live' && rules) {
+      const stats = this.#liveStats(rules)
       songCount = stats.count
       totalDuration = stats.duration
     }
@@ -138,10 +138,11 @@ export class PlaylistRepository {
       pinned: row.pinned === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      lastPlayedAt: row.last_played_at ?? null,
     }
   }
 
-  #smartStats(rules: SmartRules): { count: number; duration: number } {
+  #liveStats(rules: SmartRules): { count: number; duration: number } {
     const { sql, params } = compileSmartRules(rules)
     const row = this.#db
       .prepare<unknown[], { count: number; duration: number | null }>(
@@ -178,7 +179,7 @@ export class PlaylistRepository {
     uid: string
     name: string
     description: string
-    kind: 'manual' | 'smart'
+    kind: 'manual' | 'live'
     rules: SmartRules | null
     pinned: boolean
     createdAt: string
@@ -240,9 +241,17 @@ export class PlaylistRepository {
     this.#delete.run(id)
   }
 
-  /** Ordered song ids, resolving smart rules on the fly. */
+  /**
+   * Note that the playlist was just started. Leaves `updated_at` alone:
+   * playing a list is not editing it, and sync reads that column as "changed".
+   */
+  markPlayed(id: number): void {
+    this.#db.prepare("UPDATE playlists SET last_played_at = datetime('now') WHERE id = ?").run(id)
+  }
+
+  /** Ordered song ids, resolving a live playlist's rules on the fly. */
   songIds(playlist: Playlist): number[] {
-    if (playlist.kind === 'smart') {
+    if (playlist.kind === 'live') {
       if (!playlist.rules) return []
       const { sql, params } = compileSmartRules(playlist.rules)
       return this.#db

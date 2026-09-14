@@ -5,7 +5,7 @@ import type { SmartRules } from './schemas/smart.js'
 import { asciiLower, toSqliteTime } from './sync.js'
 
 /**
- * Smart playlists on a device (docs/SYNC.md): the rules the Mac compiles to
+ * Live playlists on a device (docs/SYNC.md): the rules the Mac compiles to
  * SQL (apps/server/src/services/smartPlaylist.ts), run over the library in
  * memory instead. So a playlist of loved songs gains a song the moment it is
  * loved on a phone, with the Mac asleep. A test runs both over one library
@@ -15,7 +15,7 @@ import { asciiLower, toSqliteTime } from './sync.js'
  * and only of A–Z. Songs are expected newest first, as a snapshot lists them;
  * that order stands in for the Mac's row ids when two songs tie.
  */
-export function smartPlaylistSongs(
+export function livePlaylistSongs(
   rules: CloudSmartRules,
   songs: readonly CloudSong[],
   options: { now?: number; random?: () => number } = {},

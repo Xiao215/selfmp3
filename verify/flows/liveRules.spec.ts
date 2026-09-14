@@ -3,10 +3,10 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 import { libraryReady, skipIfNoLibrary } from './helpers.js'
 
 /**
- * Editing a smart playlist's rules: the count follows the edit, and the edit
+ * Editing a live playlist's rules: the count follows the edit, and the edit
  * is saved once typing pauses.
  *
- * The flow makes its own smart playlist through the API and deletes it at the
+ * The flow makes its own live playlist through the API and deletes it at the
  * end, so the reference playlists are never touched.
  */
 
@@ -22,7 +22,7 @@ async function playlist(request: APIRequestContext, id: number): Promise<Playlis
   return ((await response.json()) as Playlist[]).find(entry => entry.id === id)
 }
 
-test.describe('smart playlist rules', () => {
+test.describe('live playlist rules', () => {
   test('the count follows an edit, and the edit is saved', async ({ page }) => {
     await page.goto('/')
     await libraryReady(page)
@@ -31,7 +31,7 @@ test.describe('smart playlist rules', () => {
     const created = await page.request.post(`${API}/api/playlists`, {
       data: {
         name: `Flow — rules ${Date.now()}`,
-        kind: 'smart',
+        kind: 'live',
         rules: {
           match: 'all',
           rules: [{ field: 'duration', op: 'gt', value: 1 }],
@@ -67,7 +67,8 @@ test.describe('smart playlist rules', () => {
 
       // Only closing is checked here. The old app does not reload the song list
       // after saving rules, but the new one does.
-      await page.getByRole('button', { name: 'Done' }).click()
+      // A panel at desktop width says Done; a phone's sheet says Show songs.
+      await page.getByRole('button', { name: /^(Done|Show songs)$/ }).click()
       await expect(page.getByRole('button', { name: 'Edit rules' })).toBeVisible()
     } finally {
       await page.request.delete(`${API}/api/playlists/${id}`)

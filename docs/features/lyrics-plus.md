@@ -66,7 +66,7 @@ column), so a client can say "instrumental" instead of "no lyrics found", and
 the song is not looked up again every time it plays. It is a flag of its own
 rather than a `lyricsKind` value: `lyricsKind: 'none'` only means nothing was
 found, the scanner rewrites `lyrics_kind` from the files on every rescan, and
-smart playlists read `lyrics_kind != 'none'` as "has lyrics".
+live playlists read `lyrics_kind != 'none'` as "has lyrics".
 
 ```
 GET /api/songs/:id/lyrics

@@ -351,6 +351,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     reorderPlaylist: (id: number, songIds: number[]) =>
       request('PUT', `/api/playlists/${id}/order`, OkSchema, { songIds }),
 
+    /** The playlist was started, for the playlists page's "Recently played" order. */
+    markPlaylistPlayed: (id: number) => request('POST', `/api/playlists/${id}/played`, OkSchema),
+
     previewRules: (rules: SmartRules) =>
       request(
         'POST',

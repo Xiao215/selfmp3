@@ -19,7 +19,7 @@ import { NO_IDS, snapshotToLibrary, type CloudLibrary } from './snapshotLibrary.
  * becomes changes by uid, which land in the library here straight away and
  * are what every other device replays. What matters: the change says exactly
  * what the edit did, it is refused where the Mac would refuse it, and the
- * library shows it at once — smart playlists included.
+ * library shows it at once — live playlists included.
  */
 
 const hash = (c: string) => c.repeat(64)
@@ -75,7 +75,7 @@ const BASE: CloudSnapshot = {
       uid: uid('8'),
       name: 'Loved',
       description: '',
-      kind: 'smart',
+      kind: 'live',
       rules: {
         match: 'all',
         rules: [{ field: 'loved', op: 'is', value: true }],
@@ -210,7 +210,7 @@ describe('editing playlists', () => {
     const made = edits.createPlaylist(d.ctx(), {
       name: 'Chill',
       description: '',
-      kind: 'smart',
+      kind: 'live',
       rules: {
         match: 'all',
         rules: [{ field: 'tag', op: 'has', tagId: d.idOf('tags', '1') }],
@@ -237,10 +237,10 @@ describe('editing playlists', () => {
     expect(view.playlistSongs[mix]).toEqual(['a', 'c', 'b'].map(c => d.idOf('songs', c)))
   })
 
-  it('refuses to put songs into a smart playlist, or none that exist', () => {
+  it('refuses to put songs into a live playlist, or none that exist', () => {
     const d = device()
     expect(() => edits.addToPlaylist(d.ctx(), d.idOf('playlists', '8'), [1], undefined)).toThrow(
-      /smart playlist/,
+      /live playlist/,
     )
     expect(() =>
       edits.addToPlaylist(d.ctx(), d.idOf('playlists', '7'), [424242], undefined),

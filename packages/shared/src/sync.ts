@@ -265,7 +265,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         name: change.name,
         description: change.description,
         kind: change.kind,
-        rules: change.kind === 'smart' ? resolveRules(library, change.rules) : null,
+        rules: change.kind === 'live' ? resolveRules(library, change.rules) : null,
         pinned: change.pinned,
         songUids: [],
         createdAt: when,

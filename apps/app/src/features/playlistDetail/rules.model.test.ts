@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   defaultRuleFor,
+  describeOrder,
+  describeRule,
   FIELD_GROUPS,
+  formatClock,
   joinWord,
+  parseClock,
   KEY_OPTIONS,
   matchLabel,
   unitFor,
@@ -54,9 +58,41 @@ describe('smart playlist rules', () => {
   })
 
   it('writes the unit after the numbers that need one', () => {
-    expect(unitFor('duration')).toBe('seconds')
+    expect(unitFor('duration')).toBe('m:ss')
     expect(unitFor('energy')).toBe('0–1')
     expect(unitFor('playCount')).toBeNull()
+  })
+
+  it('shows a length as a clock, and reads one typed either way', () => {
+    expect(formatClock(210)).toBe('3:30')
+    expect(formatClock(59.6)).toBe('1:00')
+    expect(parseClock('3:30')).toBe(210)
+    expect(parseClock('210')).toBe(210)
+    // Half-typed is not a length yet, so nothing is saved from it.
+    expect(parseClock('3:')).toBeNull()
+    expect(parseClock('3:75')).toBeNull()
+  })
+
+  it('reads a rule back as words', () => {
+    const tags = [{ id: 7, name: 'chill' }]
+    expect(describeRule({ field: 'duration', op: 'gt', value: 210 }, tags)).toBe(
+      'Length is more than 3:30',
+    )
+    expect(describeRule({ field: 'tag', op: 'has', tagId: 7 }, tags)).toBe('Tag is chill')
+    expect(describeRule({ field: 'tag', op: 'has', tagId: 99 }, tags)).toBe('Tag is a deleted tag')
+    expect(describeRule({ field: 'lastPlayedAt', op: 'notInLastDays', days: 30 }, tags)).toBe(
+      'Last played not in the last 30 days',
+    )
+    expect(describeRule({ field: 'loved', op: 'is', value: true }, tags)).toBe('Loved')
+    expect(describeRule({ field: 'artist', op: 'contains', value: 'YOASOBI' }, tags)).toBe(
+      'Artist contains “YOASOBI”',
+    )
+  })
+
+  it('reads the order back as words', () => {
+    expect(describeOrder({ orderBy: 'duration', order: 'desc' })).toBe('longest first')
+    expect(describeOrder({ orderBy: 'playCount', order: 'desc' })).toBe('most played first')
+    expect(describeOrder({ orderBy: 'random', order: 'asc' })).toBe('in random order')
   })
 
   it('lists the Camelot wheel in order', () => {

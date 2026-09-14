@@ -1,7 +1,7 @@
 import {
   applyChanges,
   parseLogKey,
-  smartPlaylistSongs,
+  livePlaylistSongs,
   snapshotOf,
   syncLibrary,
   type Change,
@@ -28,7 +28,7 @@ export function replay(
 }
 
 /**
- * The replayed library as a snapshot, with each smart playlist's songs worked
+ * The replayed library as a snapshot, with each live playlist's songs worked
  * out from its rules here — so loving a song adds it to a playlist of loved
  * songs straight away, rather than when the Mac next publishes.
  */
@@ -46,12 +46,12 @@ export function replayedSnapshot(
   return {
     ...snapshot,
     playlists: snapshot.playlists.map(playlist =>
-      playlist.kind === 'smart' && playlist.rules
+      playlist.kind === 'live' && playlist.rules
         ? {
             ...playlist,
             // A shuffled playlist keeps its order between edits: the same
             // seed each time, rather than a reshuffle whenever a song is loved.
-            songUids: smartPlaylistSongs(playlist.rules, songs, {
+            songUids: livePlaylistSongs(playlist.rules, songs, {
               now,
               random: seeded(playlist.uid),
             }),

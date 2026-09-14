@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { clientApi, queryKeys, type ServerConnection } from '@selfmp3/client'
+import { library as cloudLibrary } from '../../cloud'
 import {
   candidates,
   LOOK_AGAIN_MS,
@@ -31,6 +32,7 @@ async function probe(connection: ServerConnection): Promise<boolean> {
  * screen that asks is open, so a Mac switched on is found without a tap.
  */
 export function useMacDirect(): Reach & { readonly lookAgain: () => void } {
+  const queryClient = useQueryClient()
   const server = useQuery({
     queryKey: queryKeys.cloudServer,
     queryFn: () => clientApi().cloudServer(),
@@ -50,8 +52,14 @@ export function useMacDirect(): Reach & { readonly lookAgain: () => void } {
     staleTime: 0,
   })
 
+  /*
+   * A tap asks the bucket, not just the addresses already known: the Mac was
+   * started a moment ago and its snapshot, the first to name its addresses,
+   * is not on this device yet. Stale makes the next read wait for a look.
+   */
   const lookAgain = (): void => {
-    void reach.refetch()
+    cloudLibrary.markCloudLibraryStale()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.cloudServer })
   }
 
   if (server.isError) return { state: 'away', said: false, lookAgain }

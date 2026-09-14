@@ -3851,6 +3851,20 @@ line says "development-signed build". The first launch of that build asks
 once more, for the item an ad-hoc build made; Always Allow there holds for
 every development build after.
 
+**A `.env` for this machine, read from any worktree.** Rather than remember
+`CSC_NAME` on every build, it lives in a `.env` at the top of the main
+checkout, which git ignores (`.env.example` says what goes in it — the
+certificate's name, the server's token, a bucket's keys). The build script
+and the server read it before they look at the environment
+(`scripts/dotenv.mjs`, `apps/server/src/dotenv.ts`, the same reader twice
+since neither can import the other), through Node's own `loadEnvFile`, so a
+variable set in the shell still wins. The point Xiao asked for: a worktree
+branched from the checkout has no `.env` of its own, so its own is read first
+and the main checkout's after it — git names it for any worktree
+(`--git-common-dir`) — and a build from a worktree is development-signed
+without anyone typing the name. Tested on the candidates; the build line says
+which file it read.
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

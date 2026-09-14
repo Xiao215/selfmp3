@@ -114,15 +114,19 @@ then Manage Certificates → + → Apple Development. Check that
 identities, install Apple's "Worldwide Developer Relations - G3" intermediate from
 [apple.com/certificateauthority](https://www.apple.com/certificateauthority/) with
 `security add-certificates -k ~/Library/Keychains/login.keychain-db AppleWWDRCAG3.cer`
-— and build with its name:
+— and put its name in a `.env` at the top of your main checkout (copy `.env.example`;
+git ignores `.env`):
 
 ```
-CSC_NAME="Apple Development: you@example.com (TEAMID)" npm run build:desktop
+CSC_NAME="Apple Development: you@example.com (TEAMID)"
 ```
 
-It prints `development-signed build`. The keychain asks once more, the first time that
-build runs; after Always Allow, every later build signed with the same certificate is
-the same app to it.
+Every `npm run build:desktop` reads it and prints `development-signed build`, from a
+worktree too — a worktree branched from your checkout has no `.env` of its own, so the
+main checkout's is read after it. The same file holds the server's own settings, such as
+`SELFMP3_AUTH_TOKEN`; a variable set in the shell wins over the file. The keychain asks
+once more, the first time that build runs; after Always Allow, every later build signed
+with the same certificate is the same app to it.
 
 Signing in is the same as anywhere: Settings → Cloud → Sign in with Google, which opens
 your own browser and comes back to the app.

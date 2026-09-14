@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
+import { loadDotEnv } from './dotenv.js'
 
 /**
  * Configuration is read once, validated once, and frozen.
@@ -217,6 +218,9 @@ function prune(value: unknown): unknown {
 }
 
 export function loadConfig(): Config {
+  // This machine's `.env`, from this checkout or the main one, under whatever
+  // the shell already set (dotenv.ts).
+  loadDotEnv()
   const parsed = ConfigSchema.safeParse(prune(readEnv()))
   if (!parsed.success) {
     const issues = parsed.error.issues

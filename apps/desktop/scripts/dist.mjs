@@ -21,10 +21,15 @@ import { rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { loadDotEnv } from '../../../scripts/dotenv.mjs'
 import { signingTier } from './signingTier.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const desktop = join(here, '..')
+
+// This Mac's `.env` — the certificate's name, above all — read before the tier
+// is chosen, from this checkout or the main one (scripts/dotenv.mjs).
+for (const file of loadDotEnv(desktop)) console.log(`self.mp3 desktop: settings from ${file}`)
 
 const env = process.env
 const { tier, identity, notarising, canInstallUpdates } = signingTier(env)

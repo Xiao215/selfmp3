@@ -10,6 +10,8 @@ export default defineConfig({
       // tsconfig, and one of them resolves the Electron binary — which is a
       // per-platform answer, and was wrong.
       'apps/*/scripts/**/*.test.mjs',
+      // The repository's own scripts, likewise: the `.env` reader among them.
+      'scripts/**/*.test.mjs',
     ],
     // The universal app's component tests are jest-expo's, not vitest's
     // (docs/UNIVERSAL.md foundation 8): they render React Native, whose source

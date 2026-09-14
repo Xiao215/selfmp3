@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -53,6 +53,11 @@ const queryClient = new QueryClient({
 
 /** Screens that own the whole display: no tab bar, no mini player. */
 const FULL_SCREEN_ROUTES = ['/onboarding', '/now-playing']
+
+const NOW_PLAYING_OPTIONS = {
+  presentation: 'fullScreenModal',
+  animation: 'slide_from_bottom',
+} as const
 
 export default function RootLayout(): ReactNode {
   return (
@@ -128,19 +133,22 @@ function Shell(): ReactNode {
   const chrome =
     (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
+  // Kept, not rebuilt: a new object here is new options for every screen in
+  // the stack each time the shell renders.
+  const surface = theme.colors.surface0
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      contentStyle: { backgroundColor: surface },
+      animation: 'fade' as const,
+    }),
+    [surface],
+  )
+
   return (
     <Frame chrome={chrome} sidebar={!stage}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.surface0 },
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen
-          name="now-playing"
-          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
-        />
+      <Stack screenOptions={screenOptions}>
+        <Stack.Screen name="now-playing" options={NOW_PLAYING_OPTIONS} />
       </Stack>
       {/*
        * Nothing shows until it is decided where the library comes from — the

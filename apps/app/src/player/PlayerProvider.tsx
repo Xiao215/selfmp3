@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { ReactNode } from 'react'
 import { AppState } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
@@ -25,18 +34,32 @@ import {
   type EngineState,
   listenedDelta,
   peekPlayable,
+  queryKeys,
   secondsToCount,
   tapLoop,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
 import { useLibrary, useServerSettings } from '../api/queries'
-import { coversNow } from '../offline/covers'
+import { coversNow, onCoversChanged } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../server/ConnectionProvider'
 import { useNowPlaying } from './useNowPlaying'
+import {
+  createProgressStore,
+  createValueStore,
+  differsBesidesClock,
+  samePlayback,
+  songPlayback,
+  type PlayerProgress,
+  type ProgressStore,
+  type SongPlaybackState,
+  type ValueStore,
+} from './progress.model'
+
+export type { PlayerProgress }
 
 /**
  * The React glue between the queue rules and whatever makes a sound.
@@ -94,6 +117,15 @@ export interface PlayerApi {
    * the song would otherwise have to re-render on every tick to know where it is.
    */
   seekBy: (delta: number) => void
+  /**
+   * Where the song is right now, read rather than subscribed to: for a saved
+   * session or a heartbeat, which want the position when they are written and
+   * have no reason to re-render while it moves. `usePlayerProgress` is the
+   * subscribing one, for what draws it.
+   */
+  getPosition: () => number
+  /** Called whenever the position or length moves; read them with `getPosition`. */
+  subscribeProgress: (listener: () => void) => () => void
   toggleShuffle: () => void
   cycleRepeatMode: () => void
   playNext: (songIds: readonly number[]) => void
@@ -107,8 +139,6 @@ export interface PlayerApi {
   readonly muted: boolean
   /** Playback speed: 1 is normal. */
   readonly rate: number
-  /** Waiting on the network mid-song, which shows differently from paused. */
-  readonly stalled: boolean
   /** When the sleep timer stops playback, or null when none is set. */
   readonly sleepTimerEndsAt: number | null
   setVolume: (volume: number) => void
@@ -152,13 +182,24 @@ const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
 
-/** Where the song has got to. Read it only where a scrubber or a synced line needs it. */
-export interface PlayerProgress {
-  readonly position: number
-  readonly duration: number
+/**
+ * The facts that move too often, or matter to too few, to ride in `PlayerApi`.
+ *
+ * Made once per provider and never replaced, so this context itself never
+ * changes; each hook below subscribes to the one store it reads. `stalled`
+ * used to be in `PlayerApi`, and every waiting/playing pair from the network
+ * re-rendered every screen and row that asked for the player.
+ */
+interface PlayerStores {
+  readonly progress: ProgressStore
+  readonly playback: ValueStore<SongPlaybackState>
+  readonly stalled: ValueStore<boolean>
 }
 
-const PlayerProgressContext = createContext<PlayerProgress | null>(null)
+const PlayerStoresContext = createContext<PlayerStores | null>(null)
+
+/** Plays, as far as caches go: the library's counts and the stats drawn from them. */
+const STATS_KEY = ['stats'] as const
 
 interface PlayTracking {
   songId: number | null
@@ -182,6 +223,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
   const [countIn, setCountInState] = useState(() => prefs.get(COUNT_IN_KEY) === '1')
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
+  const [stores] = useState<PlayerStores>(() => ({
+    progress: createProgressStore(),
+    playback: createValueStore<SongPlaybackState>({ songId: null, playing: false }, samePlayback),
+    stalled: createValueStore(false),
+  }))
 
   const songsById = useMemo(() => {
     const map = new Map<number, Song>()
@@ -218,7 +264,23 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     connectionRef.current = connection
   }, [connection])
 
-  useEffect(() => engine.subscribe(setEngineState), [engine])
+  /*
+   * The clock to its store, everything else to state.
+   *
+   * `setEngineState` keeps the previous object when only the clock moved, and
+   * React skips a render for a state set to what it already is — so a tick no
+   * longer renders this provider at all, and only what subscribes to the
+   * progress store (the scrubbers, the synced lyrics) hears it.
+   */
+  useEffect(
+    () =>
+      engine.subscribe(state => {
+        stores.progress.set(state.currentTime, state.duration)
+        stores.stalled.set(state.stalled)
+        setEngineState(previous => (differsBesidesClock(previous, state) ? state : previous))
+      }),
+    [engine, stores],
+  )
 
   // Restore the saved volume once. An unguarded Number(null) is 0, which would
   // start every fresh install silent with no hint why.
@@ -255,7 +317,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     const flush = (): void => {
       void flushListens().then(sent => {
-        if (sent > 0) void queryClient.invalidateQueries()
+        // Only what a play changes. Invalidating everything refetched every
+        // query on the page — lyrics, playlists, settings — for a play count.
+        if (sent > 0) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+          void queryClient.invalidateQueries({ queryKey: STATS_KEY })
+        }
       })
     }
     flush()
@@ -628,9 +695,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     const id = peekNext(queue)
     return id === null ? null : (songsById.get(id) ?? null)
   }, [queue, songsById])
-  const nextCrossfadeSeconds = autoMix
-    ? autoMixCrossfade(resolved.currentSong, nextSong, crossfadeSeconds)
-    : crossfadeSeconds
+  const currentSong = resolved.currentSong
+  const nextCrossfadeSeconds = useMemo(
+    () => (autoMix ? autoMixCrossfade(currentSong, nextSong, crossfadeSeconds) : crossfadeSeconds),
+    [autoMix, currentSong, nextSong, crossfadeSeconds],
+  )
   useEffect(() => {
     engine.configure({ crossfadeSeconds: nextCrossfadeSeconds, gapless })
   }, [engine, nextCrossfadeSeconds, gapless])
@@ -655,6 +724,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       previous,
       seekTo,
       seekBy,
+      getPosition: stores.progress.getPosition,
+      subscribeProgress: stores.progress.subscribe,
       toggleShuffle,
       cycleRepeatMode,
       playNext,
@@ -665,7 +736,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       volume: engineState.volume,
       muted: engineState.muted,
       rate: engineState.rate,
-      stalled: engineState.stalled,
       sleepTimerEndsAt,
       setVolume,
       toggleMute,
@@ -690,7 +760,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engineState.volume,
       engineState.muted,
       engineState.rate,
-      engineState.stalled,
+      stores,
       sleepTimerEndsAt,
       setVolume,
       toggleMute,
@@ -730,18 +800,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     ],
   )
 
-  // Where the song has got to, on its own. It changes once a second while
-  // anything plays, and it used to ride in `value`: every screen that asked
-  // for the player — the library and its rows among them — was redrawn on
-  // every tick to show a scrubber that most of them do not have.
-  const progress = useMemo<PlayerProgress>(
-    () => ({
-      position: engineState.currentTime,
-      duration:
-        engineState.duration > 0 ? engineState.duration : (resolved.currentSong?.duration ?? 0),
-    }),
-    [engineState.currentTime, engineState.duration, resolved.currentSong?.duration],
-  )
+  // Which song rows light up. Told after the commit, and only the rows whose
+  // answer changed re-render (`useSongPlayback`).
+  const currentId = currentSong?.id ?? null
+  useEffect(() => {
+    stores.playback.set({ songId: currentId, playing: engineState.playing })
+  }, [stores, currentId, engineState.playing])
 
   /*
    * What the operating system is shown: the lock screen on a phone, Control
@@ -749,19 +813,24 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * media session. The artwork is a cover already on this device where there is
    * one — the OS fetches the URL itself and cannot send the doorman's header —
    * and the Mac's own address otherwise.
+   *
+   * The kept covers are read when they change, not on every render: reading
+   * them builds a map of every cover on this device, and this provider used
+   * to do that for each of its renders to look one song up.
    */
-  const nowPlayingArt = (() => {
-    const song = resolved.currentSong
-    if (!song?.hasArt) return null
-    const kept = coversNow().get(song.id)
+  const [keptCovers, setKeptCovers] = useState(coversNow)
+  useEffect(() => onCoversChanged(() => setKeptCovers(coversNow())), [])
+  const nowPlayingArt = useMemo(() => {
+    if (!currentSong?.hasArt) return null
+    const kept = keptCovers.get(currentSong.id)
     if (kept) return kept
-    return connection ? mediaUrlFor(connection).art(song.id, song.rev) : null
-  })()
-  useNowPlaying(value, progress, nowPlayingArt)
+    return connection ? mediaUrlFor(connection).art(currentSong.id, currentSong.rev) : null
+  }, [currentSong, keptCovers, connection])
+  useNowPlaying(value, stores.progress, nowPlayingArt)
 
   return (
     <PlayerContext.Provider value={value}>
-      <PlayerProgressContext.Provider value={progress}>{children}</PlayerProgressContext.Provider>
+      <PlayerStoresContext.Provider value={stores}>{children}</PlayerStoresContext.Provider>
     </PlayerContext.Provider>
   )
 }
@@ -779,16 +848,54 @@ function refreshLookahead(engine: unknown): void {
   candidate.refreshLookahead?.()
 }
 
+function useStores(): PlayerStores {
+  const stores = useContext(PlayerStoresContext)
+  if (!stores) throw new Error('player hooks must be used inside a PlayerProvider')
+  return stores
+}
+
 /**
- * The song's position and length, ticking once a second. Separate from
+ * The song's position and length, ticking with the engine. Separate from
  * `usePlayer()` so that only the few things drawn from it — the scrubbers,
- * the mini player's wash, the synced lyrics, the devices heartbeat — are
- * redrawn on each tick.
+ * the bars' progress washes, the synced lyrics — are redrawn on each tick.
+ * Keep it in the smallest component that draws it.
  */
 export function usePlayerProgress(): PlayerProgress {
-  const value = useContext(PlayerProgressContext)
-  if (!value) throw new Error('usePlayerProgress must be used inside a PlayerProvider')
-  return value
+  const { progress } = useStores()
+  const clock = useSyncExternalStore(progress.subscribe, progress.get, progress.get)
+  // Before the engine knows the length, the library's is the best there is.
+  const fallback = usePlayer().current?.duration ?? 0
+  return useMemo(
+    () => ({ position: clock.position, duration: clock.duration > 0 ? clock.duration : fallback }),
+    [clock, fallback],
+  )
+}
+
+/** Waiting on the network mid-song, which shows differently from paused. */
+export function usePlayerStalled(): boolean {
+  const { stalled } = useStores()
+  return useSyncExternalStore(stalled.subscribe, stalled.get, stalled.get)
+}
+
+/** For a row drawn outside any player, such as a test: nothing is ever loaded. */
+const NO_PLAYBACK = createValueStore<SongPlaybackState>({ songId: null, playing: false })
+
+/**
+ * `playing` or `paused` when this song is the loaded one, and null otherwise.
+ *
+ * What a song row asks instead of `usePlayer()`. The answer is a primitive per
+ * row, so a new song re-renders the row it left and the row it reached, and a
+ * pause re-renders one — where every row used to hear every change.
+ */
+export function useSongPlayback(songId: number): 'playing' | 'paused' | null {
+  const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK
+  const read = useCallback(() => songPlayback(store.get(), songId), [store, songId])
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/** Whether this song is the loaded one, playing or paused. */
+export function useIsCurrentSong(songId: number): boolean {
+  return useSongPlayback(songId) !== null
 }
 
 export function usePlayer(): PlayerApi {

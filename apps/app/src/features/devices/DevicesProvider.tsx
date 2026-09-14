@@ -20,7 +20,7 @@ import {
 import { clientApi, handoffTarget, queryKeys, useDevices } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../../api/client'
-import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../server/ConnectionProvider'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
@@ -74,14 +74,16 @@ export function useDeviceContext(): DevicesContextValue {
 
 export function DevicesProvider({ children }: { children: ReactNode }): ReactNode {
   const player = usePlayer()
-  const progress = usePlayerProgress()
-  // Read by the heartbeat timer, so the position it sends is the current one
-  // without the timer being remade every second.
-  const progressRef = useRef(progress)
-  useEffect(() => {
-    progressRef.current = progress
-  }, [progress])
-  const { connection } = useConnection()
+  const { connection, fromCloud } = useConnection()
+  /*
+   * The Mac this device talks to, when it talks to one.
+   *
+   * `fromCloud`, not `connection`, decides: an address left over from talking
+   * to a Mac stays stored after moving to the bucket, and asking whether one
+   * exists had this device heartbeat every ten seconds, and hold a stream
+   * open, to a Mac that was not there.
+   */
+  const server = fromCloud ? null : connection
   const client = useQueryClient()
 
   const [deviceId] = useState(getDeviceId)
@@ -91,8 +93,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   /*
    * Mirrors, kept in step after each commit rather than during render.
    *
-   * The player object changes identity on every progress tick, so everything
-   * below reads it through a ref rather than depending on it — and the refs
+   * The timers and the stream's command handler read the player through a ref
+   * rather than depending on it, so they are not remade when it changes — and the refs
    * are written in effects, which is both the rule and the honest description
    * of what they are. These are declared before the effects that read them, so
    * they are already current by the time those run.
@@ -132,21 +134,45 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   /*
    * Announce a material change immediately.
    *
-   * No dependency array on purpose: it runs after every render, and
-   * `playbackStateChanged` — not a hand-maintained list of six fields —
-   * decides whether anything worth announcing happened.
+   * Whenever the player changes, which no longer happens on every tick, and
+   * `playbackStateChanged` — not a hand-maintained list of six fields — still
+   * decides whether anything worth announcing happened. It used to run after
+   * every render with no dependencies, copying the whole queue four times a
+   * second to find out nothing had.
    */
   useEffect(() => {
-    if (!connection) return
-    const state = snapshot(playerRef.current, progressRef.current.position)
+    if (!server) return
+    const state = snapshot(player, player.getPosition())
     if (playbackStateChanged(lastSentRef.current, state)) beat(state)
-  })
+  }, [server, player, beat])
+
+  /*
+   * A seek is the one change the player object does not carry: the position
+   * moves without it. So the ticks are listened to, and each is compared with
+   * the last beat — a field read and some arithmetic, no snapshot — and a beat
+   * goes out only when the position has jumped further than the time passed.
+   */
+  const { subscribeProgress } = player
+  useEffect(() => {
+    if (!server) return undefined
+    return subscribeProgress(() => {
+      const last = lastSentRef.current
+      if (last === null) return
+      const position = playerRef.current.getPosition()
+      if (playbackStateChanged(last, { ...last, position, updatedAt: Date.now() })) {
+        beat(snapshot(playerRef.current, position))
+      }
+    })
+  }, [server, subscribeProgress, beat])
 
   useEffect(() => {
-    if (!connection) return undefined
-    const timer = setInterval(() => beat(snapshot(playerRef.current, progressRef.current.position)), DEVICE_HEARTBEAT_MS)
+    if (!server) return undefined
+    const timer = setInterval(
+      () => beat(snapshot(playerRef.current, playerRef.current.getPosition())),
+      DEVICE_HEARTBEAT_MS,
+    )
     return () => clearInterval(timer)
-  }, [beat, connection])
+  }, [beat, server])
 
   // --- incoming: the stream ------------------------------------------------
 
@@ -179,18 +205,18 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   )
 
   useEffect(() => {
-    if (!connection) return undefined
+    if (!server) return undefined
     return serverEvents.open({
-      url: mediaUrlFor(connection).events(deviceId),
+      url: mediaUrlFor(server).events(deviceId),
       onEvent,
       onOpen: () => setStreamOpen(true),
       onClose: () => setStreamOpen(false),
     })
-  }, [connection, deviceId, onEvent])
+  }, [server, deviceId, onEvent])
 
   // Derived rather than stored: with no Mac there is nothing to be connected
   // to, and saying so in an effect would be a setState during one.
-  const connected = streamOpen && connection !== null
+  const connected = streamOpen && server !== null
 
   // One query, two ways of staying fresh: the stream writes into its cache
   // entry, and the query polls only while the stream is down.
@@ -225,7 +251,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   const playOn = useCallback(
     (device: Device): void => {
-      const state = snapshot(playerRef.current, progressRef.current.position)
+      const state = snapshot(playerRef.current, playerRef.current.getPosition())
       if (state.songId === null) return
       send(device.id, {
         type: 'playSong',

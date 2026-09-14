@@ -11,7 +11,7 @@ import { loopRegionPercent, radius, space, type, withAlpha } from '@selfmp3/clie
 import { useToggleLoved } from '../api/queries'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { useArt } from '../offline/useArt'
-import { usePlayer, usePlayerProgress } from '../player/PlayerProvider'
+import { usePlayer, usePlayerProgress, usePlayerStalled } from '../player/PlayerProvider'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
 import { ProgressWash } from '../ui/components/ProgressWash'
@@ -76,8 +76,9 @@ const REPEAT_LABEL = {
 export function PlayerBar(): ReactNode {
   const practiceOpen = usePracticeOpen()
   const { theme } = useUnistyles()
+  // Not the position: that is `PlayedWash` and `BarSeek`'s, so a tick redraws
+  // those two and not the rest of the bar.
   const player = usePlayer()
-  const { position, duration } = usePlayerProgress()
   const artFor = useArt()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
@@ -98,8 +99,6 @@ export function PlayerBar(): ReactNode {
   const [devicesOpen, setDevicesOpen] = useState(false)
   const devicesRef = useRef<View>(null)
 
-  const percent =
-    song && duration > 0 ? Math.min(100, (position / duration) * 100) : 0
   // Now Playing's tab and mode live in its address, so the bar can read and
   // change them the way the web's bar changes its page.
   const pathname = usePathname()
@@ -131,15 +130,7 @@ export function PlayerBar(): ReactNode {
       ]}
       testID="player-bar"
     >
-      {song ? (
-        <>
-          <ProgressWash fraction={percent / 100} color={songColor.color} alpha={0.2} fade={40} />
-          <View
-            pointerEvents="none"
-            style={[styles.playedLine, { width: `${percent}%`, backgroundColor: songColor.color }]}
-          />
-        </>
-      ) : null}
+      {song ? <PlayedWash color={songColor.color} /> : null}
 
       <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
@@ -211,25 +202,7 @@ export function PlayerBar(): ReactNode {
           <IconButton onPress={player.previous} label="Previous" disabled={!song}>
             <Prev size={20} color={theme.colors.textSecondary} />
           </IconButton>
-          <Pressable
-            onPress={player.toggle}
-            disabled={!song}
-            accessibilityRole="button"
-            accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
-            {...tip(player.isPlaying ? 'Pause' : 'Play')}
-            accessibilityState={{ disabled: !song, busy: player.stalled }}
-            style={({ pressed }) => [
-              styles.playButton,
-              { backgroundColor: song ? theme.colors.textPrimary : theme.colors.surface3 },
-              pressed && styles.playPressed,
-            ]}
-          >
-            {player.isPlaying ? (
-              <Pause size={20} color={theme.colors.surface0} />
-            ) : (
-              <Play size={20} color={song ? theme.colors.surface0 : theme.colors.textMuted} />
-            )}
-          </Pressable>
+          <PlayButton enabled={song !== null} playing={player.isPlaying} onPress={player.toggle} />
           <IconButton onPress={player.next} label="Next" disabled={!song}>
             <Next size={20} color={theme.colors.textSecondary} />
           </IconButton>
@@ -249,11 +222,9 @@ export function PlayerBar(): ReactNode {
           </IconButton>
         </View>
         <View style={styles.progress}>
-          <SeekBar
-            loop={loopRegionPercent(player.loopA, player.loopB, duration)}
-            inline
-            position={position}
-            duration={duration}
+          <BarSeek
+            loopA={player.loopA}
+            loopB={player.loopB}
             onSeek={player.seekTo}
             color={songColor.color}
           />
@@ -304,6 +275,85 @@ export function PlayerBar(): ReactNode {
         anchorRef={devicesRef}
       />
     </View>
+  )
+}
+
+/** The bar filling with the song's colour, and the bright line along its top. */
+function PlayedWash({ color }: { color: string }): ReactNode {
+  const { position, duration } = usePlayerProgress()
+  const percent = duration > 0 ? Math.min(100, (position / duration) * 100) : 0
+  return (
+    <>
+      <ProgressWash fraction={percent / 100} color={color} alpha={0.2} fade={40} />
+      <View
+        pointerEvents="none"
+        style={[styles.playedLine, { width: `${percent}%`, backgroundColor: color }]}
+      />
+    </>
+  )
+}
+
+/** The scrubber with its two times, the other part of the bar that moves each tick. */
+function BarSeek({
+  loopA,
+  loopB,
+  onSeek,
+  color,
+}: {
+  loopA: number | null
+  loopB: number | null
+  onSeek: (seconds: number) => void
+  color: string
+}): ReactNode {
+  const { position, duration } = usePlayerProgress()
+  return (
+    <SeekBar
+      loop={loopRegionPercent(loopA, loopB, duration)}
+      inline
+      position={position}
+      duration={duration}
+      onSeek={onSeek}
+      color={color}
+    />
+  )
+}
+
+/**
+ * Play and pause. Its own component for the stall: waiting on the network and
+ * recovering is a pair of events a few times a song on a bad link, and each
+ * redraws this button rather than the bar.
+ */
+function PlayButton({
+  enabled,
+  playing,
+  onPress,
+}: {
+  enabled: boolean
+  playing: boolean
+  onPress: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const stalled = usePlayerStalled()
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!enabled}
+      accessibilityRole="button"
+      accessibilityLabel={playing ? 'Pause' : 'Play'}
+      {...tip(playing ? 'Pause' : 'Play')}
+      accessibilityState={{ disabled: !enabled, busy: stalled }}
+      style={({ pressed }) => [
+        styles.playButton,
+        { backgroundColor: enabled ? theme.colors.textPrimary : theme.colors.surface3 },
+        pressed && styles.playPressed,
+      ]}
+    >
+      {playing ? (
+        <Pause size={20} color={theme.colors.surface0} />
+      ) : (
+        <Play size={20} color={enabled ? theme.colors.surface0 : theme.colors.textMuted} />
+      )}
+    </Pressable>
   )
 }
 

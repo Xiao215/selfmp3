@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
-import type { PlayerApi, PlayerProgress } from './PlayerProvider'
+import type { PlayerApi } from './PlayerProvider'
+import { positionJumped, type ProgressStore, type ReportedPosition } from './progress.model'
 import { mediaSession } from '../ports/mediaSession'
 
 /** What the seek buttons on a keyboard or a headset move by, in seconds. */
@@ -21,7 +22,7 @@ const SEEK_STEP = 10
  */
 export function useNowPlaying(
   player: PlayerApi,
-  progress: PlayerProgress,
+  progress: ProgressStore,
   artwork: string | null,
 ): void {
   const latest = useRef(player)
@@ -47,7 +48,6 @@ export function useNowPlaying(
   }, [])
 
   const { current, isPlaying, rate } = player
-  const { position, duration } = progress
 
   useEffect(() => {
     mediaSession.setNowPlaying(
@@ -67,7 +67,35 @@ export function useNowPlaying(
     mediaSession.setPlaying(isPlaying)
   }, [isPlaying])
 
+  /*
+   * The position, only when the card's own clock would be wrong.
+   *
+   * Chromium runs the card's clock from the last position and rate it was
+   * given, so a tick that agrees with that clock tells it nothing. It used to
+   * be told on every tick — four times a second, each one a validation and,
+   * in the installed app, a round trip through the OS. Now: when play, pause,
+   * the rate or the song change (this effect running again), when the length
+   * becomes known, and when the position jumps further than the time that
+   * passed explains — a seek, a loop going back to A.
+   */
+  const songId = current?.id ?? null
+  const songDuration = current?.duration ?? 0
   useEffect(() => {
-    mediaSession.setPosition(position, duration, rate)
-  }, [position, duration, rate])
+    if (!mediaSession.available) return undefined
+    let last: ReportedPosition | null = null
+    let lastDuration = -1
+    const report = (): void => {
+      const { position, duration } = progress.get()
+      lastDuration = duration
+      mediaSession.setPosition(position, duration > 0 ? duration : songDuration, rate)
+      last = { position, at: Date.now(), playing: isPlaying, rate }
+    }
+    report()
+    return progress.subscribe(() => {
+      const { position, duration } = progress.get()
+      if (last === null || duration !== lastDuration || positionJumped(last, position, Date.now())) {
+        report()
+      }
+    })
+  }, [progress, isPlaying, rate, songId, songDuration])
 }

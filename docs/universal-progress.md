@@ -3059,3 +3059,107 @@ rediscovered.
 - `eslint.config.js` ignores `apps/desktop/verify/spike/**`: throwaway `.mjs`
   and `.cjs` outside every tsconfig, which the type-aware parser has no project
   to resolve. The ignore goes away with the branch.
+
+## Phase 2 — the shell, signing in, playing — branch `desktop/phase-2`
+
+`npm run check` green (128 test files, the app's own check too), the shell
+packaged, and the smoke run against the packaged app.
+
+### What exists now
+
+**`packages/desktop-bridge`** — the contract, in the root project graph and the
+root vitest like any other package.
+
+- `channels.ts`: every name that crosses the preload boundary, one constant
+  each, so a rename is a compile error rather than a channel that quietly
+  answers nothing.
+- `schemas.ts`: zod for each message and reply. Parsed on the *receiving* side,
+  both ways: the renderer is a web page, and if it is ever the thing that goes
+  wrong, the main process is the half with a filesystem and a keychain.
+- `bridge.ts`: `DesktopBridge`, the shape of `window.selfmp3Desktop`.
+  **Deliberately smaller than the plan's table**: `files` and `mediaUrl` (phase
+  3), `loginItem` and `updates` (phases 4 and 5) are *not* members yet, though
+  their channels and schemas are here, because a member of that interface is a
+  promise that something answers it. A bridge that declares what it cannot do is
+  worse than one that grows.
+- `menu.ts`: the application menu as data, with `pageCombinations` translating
+  an Electron accelerator into the spelling `useHotkeys` builds from a
+  `KeyboardEvent`. Eleven tests: no accelerator twice, no command twice, every
+  command in the contract.
+
+**`apps/desktop`** — the shell. `src/main/` is `main.ts` (single instance, the
+deep-link paths, lifecycle), `protocol.ts` (`app://selfmp3/`), `window.ts`,
+`menu.ts`, `secrets.ts`, `ipc.ts`, `paths.ts` and `deepLinks.ts`;
+`src/preload/preload.ts` is the only door. `scripts/build.mjs` bundles main and
+preload with esbuild — CommonJS, `electron` the only external — and copies
+`apps/app/dist` in beside them. `scripts/dev.mjs` points the window at Metro on
+4601.
+
+The pure modules are tested in the root vitest, which is the point of splitting
+them out: `paths.ts` (27 assertions about what may be read off disk in answer to
+a page's request — `..`, an escaped `..`, a null byte, a sibling directory whose
+name starts with the root's), `secrets.ts`'s document shape, `deepLinks.ts`'s
+argv picking and its queue.
+
+**`apps/app`** — four ports gained a desktop branch, and only ports did.
+`ports/desktop/bridge.web.ts` is the one file that reads
+`window.selfmp3Desktop`; `bridge.ts` beside it is the native half and answers
+`null`, so a phone bundle never carries the contract package to be told so.
+
+| Port | What changed |
+|---|---|
+| `secrets.web.ts` | `desktop.secrets` — the keychain — instead of `localStorage` |
+| `device.web.ts` | the machine's own name and kind `desktop`, rather than "Mac · Chrome" from a user agent |
+| `cloudPlatform.web.ts` | `returnUrl` is `selfmp3://sign-in` and `openSignIn` opens the person's own browser |
+| `signInReturn.web.ts` | the code comes from the deep link rather than `location.hash` |
+| `serverAddress.ts` / `.web.ts` | **new**: `canConnectByAddress`, the capability Settings asks about |
+| `shell/useCommands.ts` / `.web.ts` | **new**: menu items and media keys, as the page's handlers |
+| `shell/useHotkeys.web.ts` | stands aside for combinations the menu owns |
+
+**Settings › Connection** gains, on the installed desktop only, "Connect to a
+server" with the onboarding screen's own two fields and its own two error
+messages (a wrong address and a wrong token are different sentences, which is
+what `/api/health` being unauthenticated buys), and "Use the cloud instead"
+going the other way. Switching either way **removes what has been downloaded**,
+after a confirmation that says why: a song's number belongs to whichever side
+answered (`docs/SYNC.md`, "Identity"), so an index carried across would play the
+wrong songs.
+
+### Four things worth knowing
+
+**The menu draws only its View section.** The model in the contract holds the
+whole menu the plan settled, but Playback's items need a player the page has not
+been wired to — that is phase 4, with the media session port. A menu item that
+does nothing is worse than one that is not there, so `buildMenu` filters to what
+the page answers today: the palette, the three places to go, the practice panel,
+and Settings in the app menu.
+
+**`safeStorage` now has the fallback the plan's risk table already specified.**
+It was going to be needed anyway, and this container found it early: with no
+secret service, `isEncryptionAvailable()` is false and `encryptString` throws, so
+the first attempt to keep a token failed outright. Values now carry a tag — `k:`
+sealed by the keychain, `p:` base64 and nothing more — and `info.secretsSealed`
+tells the page which it got, so Settings can say so. An installed app that
+cannot sign in at all is worse than one that makes the browser's promise.
+
+**The page's `process` is not Node's.** The smoke asserts that nothing of Node
+reaches the renderer, and the first version of that test failed: Metro's web
+bundle defines a `process` shim of its own for `process.env.NODE_ENV`. The
+assertion is now `process.versions?.electron` being undefined, which is the
+question actually worth asking. `require` and `ipcRenderer` are undefined, as
+they should be.
+
+**`app://` needs no change to the export.** The absolute `/_expo/…` asset paths
+resolve under the scheme unaltered, `index.html` is the answer for every route,
+and the origin is stable across launches — which is what IndexedDB and every
+kept preference depend on, and what a loopback server on a random port would
+have lost.
+
+### The gates
+
+| Gate | Result |
+|---|---|
+| `npm run check` | **pass** — typecheck, lint, 128 test files, the app's own check |
+| `npm run build:desktop` → a dmg | **blocked**: a dmg is macOS-only. What *did* run is `electron-builder --dir --linux` against the same `electron-builder.yml`, which packaged the app and reported "no node modules returned while searching directories" — the design working: esbuild bundles everything but `electron`, the shell has no runtime `dependencies`, and the workspace-hoisting problem (electron-builder #2205, #9654) has nothing to collect and so cannot bite. Xiao runs `npm run build:desktop` on the Mac for the dmg itself. |
+| `npm run verify:desktop -- --grep "connects and plays"` | **skipped, and says so**: it needs a server with the thirteen-song library. Seven other smoke tests run, and — worth noting — **against the packaged app**, not the bundle: `launch.ts` prefers a binary under `release/` when one exists, and there was one. |
+| Google sign-in through the system browser | **Xiao's.** An agent cannot sign in to Google. The deep-link half of the path was proved in spike 4 and the `open-url` delivery is wired and unexercised off macOS. |

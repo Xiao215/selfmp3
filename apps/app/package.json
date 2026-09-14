@@ -2,7 +2,7 @@
   "name": "@selfmp3/app",
   "version": "1.0.0",
   "private": true,
-  "description": "self.mp3 universal app — iOS, Android and web from one component tree.",
+  "description": "self.mp3 universal app \u2014 iOS, Android and web from one component tree.",
   "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client",
@@ -24,6 +24,7 @@
     "@react-native-masked-view/masked-view": "0.3.2",
     "@selfmp3/client": "*",
     "@selfmp3/cloud": "*",
+    "@selfmp3/desktop-bridge": "*",
     "@selfmp3/shared": "*",
     "@shopify/flash-list": "^2.0.2",
     "@tanstack/react-query": "^5.62.11",

@@ -1,6 +1,7 @@
 import { describeUserAgent } from '@selfmp3/client'
 import type { DeviceKind } from '@selfmp3/shared'
 
+import { desktop } from './desktop/bridge'
 import { prefs } from './prefs'
 
 /**
@@ -10,12 +11,20 @@ import { prefs } from './prefs'
  * kind are read from the user agent ("Mac · Chrome", an iPhone's Safari as a
  * phone), as the web app did. Without this a browser called itself "self.mp3"
  * in every other device's list, and a phone's browser counted as a desktop.
+ *
+ * The installed app is the case in between: it is this same web build, so the
+ * user agent is still Chrome's, but it is not a tab and it knows the machine's
+ * real name. "Xiao's MacBook Pro" is what should appear in the phone's device
+ * list, not "Mac · Chrome" — and it is a different device from the browser on
+ * the same Mac, which the separate `app://selfmp3` origin already gives it a
+ * separate stored id under.
  */
 
 const ID_KEY = 'device.id'
 const NAME_KEY = 'device.name'
 
 function described(): { name: string; kind: DeviceKind } {
+  if (desktop) return { name: desktop.info.hostname, kind: 'desktop' }
   if (typeof navigator === 'undefined') return { name: 'Device · Browser', kind: 'other' }
   return describeUserAgent(navigator.userAgent, navigator.maxTouchPoints ?? 0)
 }

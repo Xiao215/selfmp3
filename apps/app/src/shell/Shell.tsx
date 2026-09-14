@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
+import { router } from 'expo-router'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
@@ -14,11 +15,12 @@ import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
+import { useCommands } from './useCommands'
 import { useHotkeys } from './useHotkeys'
 import { useLayout } from './useLayout'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { ContentWidthContext } from './contentWidth'
-import { setPracticeOpen, usePracticeOpen } from './practicePanel'
+import { practiceOpen, setPracticeOpen, usePracticeOpen } from './practicePanel'
 
 /**
  * The frame around every screen, and the only thing that knows the width.
@@ -56,6 +58,7 @@ export function Shell({
       {frame(wide, chrome, sidebar, barHidden, children)}
       <PlaybackNotices />
       <PaletteHost />
+      <MenuCommands />
       {/* Hover captions in a browser; nothing on a phone. */}
       <TooltipHost />
       {/* A focused field in the accent, not the browser's own ring. */}
@@ -137,10 +140,35 @@ function PracticeSide(): ReactNode {
   return open ? <PracticePanel side onClose={() => setPracticeOpen(false)} /> : null
 }
 
-/** ⌘K, or Ctrl+K, anywhere: the command palette. */
+/**
+ * What the desktop's application menu can ask for, beyond the palette.
+ *
+ * Going somewhere and opening the practice panel are things the page can do
+ * today; the Playback items are phase 4's, and the menu does not draw them
+ * until their handlers exist, so there is never a menu item that does nothing.
+ */
+function MenuCommands(): ReactNode {
+  useCommands({
+    library: () => router.navigate('/'),
+    playlists: () => router.navigate('/playlists'),
+    'now-playing': () => router.navigate('/now-playing'),
+    settings: () => router.navigate('/settings'),
+    practice: () => setPracticeOpen(!practiceOpen()),
+  })
+  return null
+}
+
+/**
+ * ⌘K, or Ctrl+K, anywhere: the command palette.
+ *
+ * In the installed app the same key is a menu item, and macOS runs both — so
+ * `useHotkeys` stands aside for anything the menu owns and the command arrives
+ * through `useCommands` instead. One press, one palette, either way.
+ */
 function PaletteHost(): ReactNode {
   const [open, setOpen] = useState(false)
   useHotkeys({ 'meta+k': () => setOpen(true), 'ctrl+k': () => setOpen(true) })
+  useCommands({ search: () => setOpen(true) })
   // Mounted only while open, so each opening starts with an empty box.
   return open ? <CommandPalette onClose={() => setOpen(false)} /> : null
 }

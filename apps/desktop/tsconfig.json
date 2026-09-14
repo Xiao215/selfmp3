@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+
+    /*
+     * The shell is two Node processes that happen to have a browser attached:
+     * `DOM` is here for the preload, which runs in the renderer's world and
+     * touches `window`, and for Electron's own type definitions, which mention
+     * DOM types throughout. It stays inside this project — the root tsconfig's
+     * graph keeps each project's globals to itself, which is why `apps/server`
+     * can sit beside it without inheriting a `fetch` it does not have.
+     */
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+
+    /* esbuild bundles the shell; tsc is here only as a type checker. */
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/desktop-bridge" }
+  ]
+}

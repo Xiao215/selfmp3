@@ -11,6 +11,11 @@ import { useSyncExternalStore } from 'react'
 let open = false
 const listeners = new Set<() => void>()
 
+/** Read outside a render — the application menu's toggle, which is not one. */
+export function practiceOpen(): boolean {
+  return open
+}
+
 export function setPracticeOpen(next: boolean): void {
   if (next === open) return
   open = next

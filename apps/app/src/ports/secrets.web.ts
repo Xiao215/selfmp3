@@ -1,6 +1,27 @@
 import type { SecretStore } from './secrets'
+import { desktop } from './desktop/bridge'
 
 export type { SecretStore }
+
+/**
+ * The installed app's answer: the keychain, through the bridge.
+ *
+ * This is one of the four reasons the desktop app exists at all. A token in
+ * `localStorage` is protected by the origin and nothing else; one in
+ * `safeStorage` is sealed with a key in the login keychain and kept in
+ * `userData/secrets.json`. The plan's rule is absolute — tokens go through
+ * `desktop.secrets` and nowhere else — so this branch is not a nicety.
+ *
+ * Where a machine has no keychain behind `safeStorage` (a Linux session with no
+ * secret service) the shell keeps them plainly and says so in `info`, which
+ * Settings reads. That is exactly the promise the browser makes, so it is never
+ * a reason to refuse to sign in.
+ */
+const keychain: SecretStore = {
+  get: key => desktop?.secrets.get(key) ?? Promise.resolve(null),
+  set: (key, value) => desktop?.secrets.set(key, value) ?? Promise.resolve(),
+  remove: key => desktop?.secrets.remove(key) ?? Promise.resolve(),
+}
 
 /**
  * The browser's answer: `localStorage`, which is what the web app already uses
@@ -16,7 +37,7 @@ export type { SecretStore }
  * private window or with site data blocked — the accessor itself throws, and an
  * app that cannot remember its server should still start.
  */
-export const secrets: SecretStore = {
+const browserStore: SecretStore = {
   get: key => {
     try {
       return Promise.resolve(window.localStorage.getItem(key))
@@ -41,3 +62,5 @@ export const secrets: SecretStore = {
     return Promise.resolve()
   },
 }
+
+export const secrets: SecretStore = desktop ? keychain : browserStore

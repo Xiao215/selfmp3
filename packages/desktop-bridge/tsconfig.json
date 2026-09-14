@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // No DOM, like packages/shared and packages/client. The renderer's half of
+    // this contract runs in a browser and the shell's half runs in Node, so
+    // anything typed here has to be true in both; reaching for `window` would
+    // compile and then break in the main process.
+    "lib": ["ES2023"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@selfmp3/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Electron shell around apps/app's web export: an installed self.mp3 on a computer.",
+  "author": "Xiao",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Xiao215/selfmp3.git"
+  },
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dist": "npm run build && electron-builder --config electron-builder.yml",
+    "typecheck": "tsc --build",
+    "clean": "rm -rf dist dist-types release tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "electron-updater": "6.8.9",
+    "esbuild": "^0.28.2"
+  }
+}

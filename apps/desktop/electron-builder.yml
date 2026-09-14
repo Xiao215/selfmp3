@@ -1,0 +1,42 @@
+# Packaging the shell.
+#
+# Phase 2 needs only enough of this to produce something that runs; phase 5 adds
+# the signing tiers, the icon, the entitlements and the release targets.
+#
+# `files` names `dist/**` and `package.json` and nothing else, and there are no
+# runtime `dependencies` to collect — esbuild put everything but `electron` into
+# `dist/`. That is what sidesteps electron-builder's trouble with packages npm
+# has hoisted to the root of a workspace (electron-builder #2205, #9654).
+appId: com.selfmp3.app
+productName: self.mp3
+copyright: Xiao
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**
+  - package.json
+
+# The shell has no native modules, so nothing is rebuilt for Electron's ABI and
+# asar needs no unpacking.
+npmRebuild: false
+asar: true
+
+mac:
+  category: public.app-category.music
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+
+# Present and deliberately not in any default build: nothing here reads
+# `process.platform` to do something these could not, and nothing is tested on
+# them. See "Later" in docs/DESKTOP.md.
+win:
+  target: nsis
+linux:
+  target: AppImage
+  category: AudioVideo

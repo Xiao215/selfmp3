@@ -1,0 +1,22 @@
+{
+  "name": "@selfmp3/desktop-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The contract between the Electron shell and the page it renders. Zod schemas on both sides of the preload boundary, so a channel renamed on one side is a compile error on the other.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}

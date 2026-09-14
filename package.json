@@ -14,8 +14,10 @@
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "SELFMP3_PROFILE=dev npm run dev --workspace @selfmp3/server",
-    "dev:web": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run web --workspace @selfmp3/app -- --port 4601",
-    "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/server && npm run export:web --workspace @selfmp3/app",
+    "dev:web": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/desktop-bridge && npm run web --workspace @selfmp3/app -- --port 4601",
+    "dev:desktop": "npm run dev --workspace @selfmp3/desktop",
+    "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/desktop-bridge && npm run build --workspace @selfmp3/server && npm run export:web --workspace @selfmp3/app",
+    "build:desktop": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/desktop-bridge && npm run export:web --workspace @selfmp3/app && npm run dist --workspace @selfmp3/desktop",
     "start": "npm run start --workspace @selfmp3/server",
     "cli": "node apps/server/dist/cli.js",
     "typecheck": "tsc --build --force",
@@ -32,7 +34,8 @@
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo",
     "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone",
     "verify:reference": "playwright test -c verify/playwright.config.ts reference --project=desktop --project=phone",
-    "test:app": "npm run test --workspace @selfmp3/app"
+    "test:app": "npm run test --workspace @selfmp3/app",
+    "verify:desktop": "playwright test -c apps/desktop/verify/playwright.config.ts"
   },
   "overrides": {
     "react": "19.2.3",

@@ -2,6 +2,7 @@ import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/cloud'
 import Constants from 'expo-constants'
 import { appPath } from './appPath'
+import { desktop } from './desktop/bridge'
 import { deleteStored, readStored, updateStored, writeStored } from './idbStore.web'
 
 /**
@@ -69,11 +70,22 @@ export const cloudPlatform: CloudPlatform = {
    * Back to the sign-in screen, under this build's base. A tab can be returned
    * to, so the doorman sends Google back here with the code in the fragment,
    * where the screen reads it, rather than showing it to be typed.
+   *
+   * The installed app is returned to by scheme instead. It uses the phone's
+   * `selfmp3://sign-in`, which the doorman's `safeReturn` already allows and
+   * which therefore needs nothing deployed — and the sign-in itself opens in
+   * the person's own browser, because Google refuses an embedded window and
+   * because a browser that already knows them is one fewer password typed.
+   *
+   * A doorman older than this app drops a scheme it does not know and shows the
+   * code on its own page, and the typed-code path still works. That degradation
+   * is the phone's and the desktop inherits it.
    */
-  returnUrl: `${window.location.origin}${appPath('sign-in')}`,
-  openSignIn: url => window.location.assign(url),
+  returnUrl: desktop ? 'selfmp3://sign-in' : `${window.location.origin}${appPath('sign-in')}`,
+  openSignIn: url => (desktop ? desktop.openExternal(url) : window.location.assign(url)),
 
   deviceKind: (() => {
+    if (desktop) return 'browser'
     const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
     if (/iPhone/.test(agent)) return 'iphone'
     if (/iPad/.test(agent)) return 'ipad'

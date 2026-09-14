@@ -1,8 +1,21 @@
 import { useEffect, useRef } from 'react'
+import { menuOwnedCombinations } from '@selfmp3/desktop-bridge'
 
 import type { Hotkeys } from './useHotkeys'
+import { desktop } from '../ports/desktop/bridge'
 
 export type { Hotkeys }
+
+/**
+ * Combinations the desktop's application menu has taken.
+ *
+ * macOS runs a menu accelerator *and* still delivers the keydown to the page,
+ * so without this ⌘K would open the palette twice — once from the menu's
+ * command and once from here. Empty in a browser, where there is no menu.
+ *
+ * Computed once: the menu is built from a constant.
+ */
+const menuOwned: ReadonlySet<string> = desktop ? menuOwnedCombinations() : new Set<string>()
 
 /**
  * Keyboard shortcuts on the web: the web app's `useHotkeys`.
@@ -38,7 +51,9 @@ export function useHotkeys(hotkeys: Hotkeys): void {
       if (event.altKey) parts.push('alt')
       if (event.shiftKey && event.key.length > 1) parts.push('shift')
       parts.push(event.key.length === 1 ? event.key.toLowerCase() : event.key)
-      const handler = latest.current[parts.join('+')]
+      const combination = parts.join('+')
+      if (menuOwned.has(combination)) return
+      const handler = latest.current[combination]
       if (handler) {
         event.preventDefault()
         handler()

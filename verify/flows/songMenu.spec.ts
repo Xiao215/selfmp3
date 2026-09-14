@@ -5,7 +5,8 @@ import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
 /**
  * A song's ⋯ menu: what is in it, in what order, and the two things it opens.
  *
- * Nothing is edited. The menu is read, Song details is opened and closed, and
+ * Nothing is edited. The menu is read, Similar songs is opened in place, Song
+ * details is opened (with Fix metadata inside it) and closed, and
  * the tag picker is opened and closed without a tag being ticked — the flow
  * runs against a real library, and the one that tags songs is the tag flow's
  * business, not this one's.
@@ -13,11 +14,10 @@ import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
 const ORDER = [
   'Play next',
   'Add to queue',
-  'Play similar',
-  'Add similar to queue',
-  'Edit tags…',
+  'Similar songs',
   'Add to playlist…',
-  'Song details',
+  'Edit tags…',
+  'Song details…',
 ]
 
 test.describe('the song menu', () => {
@@ -33,7 +33,8 @@ test.describe('the song menu', () => {
     // Each action present, and each below the one before it.
     let previousTop = -Infinity
     for (const label of ORDER) {
-      const item = page.getByRole('menuitem', { name: label, exact: true })
+      // From the start of the name: a row's detail (the › of Similar songs) is part of it.
+      const item = page.getByRole('menuitem', { name: new RegExp(`^${label}`) })
       await expect(item).toBeVisible()
       const box = await item.boundingBox()
       expect(box, label).not.toBeNull()
@@ -41,12 +42,20 @@ test.describe('the song menu', () => {
       previousTop = box!.y
     }
     await expect(page.getByRole('menuitem', { name: /^Remove from library…$/ })).toBeVisible()
+    // Gone from the menu: the instrumental switch, and Fix metadata, which lives in details.
+    await expect(page.getByRole('menuitem', { name: /instrumental|Fix metadata/i })).toHaveCount(0)
 
-    await page.getByRole('menuitem', { name: 'Song details', exact: true }).click()
+    // The similar pair opens under its row, in place.
+    await page.getByRole('menuitem', { name: /^Similar songs/ }).click()
+    await expect(page.getByRole('menuitem', { name: 'Play similar', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Add similar to queue', exact: true })).toBeVisible()
+
+    await page.getByRole('menuitem', { name: 'Song details…', exact: true }).click()
     const details = page.getByRole('dialog').filter({ hasText: 'History' })
     await expect(details).toBeVisible()
     await expect(details.getByText(title).first()).toBeVisible()
     await expect(details.getByText(/^Sound$/i)).toBeVisible()
+    await expect(details.getByRole('button', { name: /Fix metadata/ })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(details).toHaveCount(0)
 

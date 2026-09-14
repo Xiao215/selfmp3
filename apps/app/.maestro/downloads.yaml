@@ -43,7 +43,7 @@ appId: com.selfmp3.app
       - tapOn: 'Remove download'
 - runFlow:
     when:
-      visible: 'Download for offline'
+      visible: 'Download'
     commands:
       - tapOn: 'Play next'
 

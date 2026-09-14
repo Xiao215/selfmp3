@@ -595,7 +595,8 @@ test.describe('reference', () => {
     await home(page)
     await rowFor(page, SONG).hover()
     await moreButton(page, SONG).click()
-    await page.getByRole('menuitem', { name: /Fix metadata/ }).click()
+    await page.getByRole('menuitem', { name: 'Song details…', exact: true }).click()
+    await page.getByRole('button', { name: /Fix metadata/ }).click()
     const dialog = page.getByRole('dialog', { name: 'Fix metadata' })
     // The suggestions come from iTunes and MusicBrainz, a few seconds away.
     await dialog

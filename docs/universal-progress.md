@@ -2956,3 +2956,52 @@ From Xiao's review of the lettered mocks (A1, B1, C2, D2, E1, F2, G1; H dropped)
    borderless input is marked `focusWithin()` (`ui/focusRing.ts`) and takes it
    while the input has focus. Checked on the library search, the import box,
    renaming a playlist and Add songs: outline `none`, accent border.
+
+---
+
+# Desktop
+
+A second log, against [`docs/DESKTOP.md`](DESKTOP.md): the installed Mac app,
+and the iPad finished. Same rules as above — newest phase last, one branch per
+phase, a commit only on a green gate. Times are UTC on 2026-09-14.
+
+This run is on Linux in a container, not on the Mac. That decides a great deal
+of what follows, so it is worth saying once here rather than in every section:
+there is no macOS, no Xcode, no simulator, no Maestro, and no thirteen-song dev
+library in `~/Music/selfmp3-dev`. Node 22.22, Chromium and Playwright are here.
+So `npm run check` — typecheck, lint, 1000-odd tests, and the app's own
+check — is a real gate and was run at every commit; anything that needs a Mac
+window, a code-signing identity, a simulator or seeded audio is written down as
+a block with exactly what is needed, and the run moves to the next thing.
+
+## Phase 0 — the decisions written down — branch `desktop/phase-0`
+
+Three documents, no code.
+
+- **`docs/UNIVERSAL.md` Stack table** gains six rows: the Electron shell,
+  electron-builder, electron-updater, `packages/desktop-bridge`, the media
+  session port and the Electron tests. The rule is that a dependency exists
+  only once it has a Stack line, so these are the lines phases 2 to 5 spend.
+- **`docs/features/desktop-app.md`** is the user-facing note, with the "Where"
+  line the plan asks for and the pointer to `DESKTOP.md` for the reasoning.
+- **This section**, which each phase below writes into.
+
+**Versions, pinned from `npm view` on 2026-09-14**, since `DESKTOP.md` says the
+spike pins what the day offers and the Stack table records it:
+
+| Package | Pinned | `DESKTOP.md` said |
+|---|---|---|
+| `electron` | 44.3.0 | 44.3.0 — unchanged |
+| `electron-builder` | 26.15.3 | 26.16.1 |
+| `electron-updater` | 6.8.9 | 6 |
+| `esbuild` | 0.28.2 | — (already in the tree for the service worker) |
+| `electron-playwright-helpers` | 3.1.2 | 3.1 |
+
+The one difference worth noting is `electron-builder`: the plan was written
+against 26.16.1 and the registry's latest on the day is **26.15.3**. A version
+the registry has never published is not a version to pin, so 26.15.3 is what
+the Stack line and `apps/desktop/package.json` carry. Nothing in the plan
+depends on anything between the two.
+
+`zod` needs no line: the repository is already on `^3.24.1` (3.25.76 resolved),
+and `packages/desktop-bridge` uses the same one every other package does.

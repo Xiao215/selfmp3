@@ -1,17 +1,9 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
-import {
-  ApiError,
-  clientApi,
-  queryKeys,
-  useLibrary,
-  useLyrics,
-  useSettings,
-  useUpdateSettings,
-} from '@selfmp3/client'
+import { ApiError, useLibrary, useLyrics, useUpdateSettings } from '@selfmp3/client'
 import { useConnection } from '../../server/ConnectionProvider'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
+import { useRomanizationOn } from './romanizationPref'
 
 /** A tag called "instrumental" counts, since that is how many people already say it. */
 const INSTRUMENTAL_TAG = 'instrumental'
@@ -31,7 +23,6 @@ export function useSongWords(song: Song): {
 } {
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const lyrics = useLyrics(song.id)
 
@@ -41,14 +32,10 @@ export function useSongWords(song: Song): {
     return detectLyricsLanguage(parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines)
   }, [parsed, fromCloud])
 
-  const romanizationOn = settings.data?.lyricsRomanization === 'on'
-  const romanized = useQuery({
-    queryKey: [...queryKeys.lyrics(song.id), 'romanized', lyrics.data?.text ?? ''],
-    queryFn: () => clientApi().romanizedLyrics(song.id),
-    enabled: romanizationOn && language !== 'none' && !!lyrics.data,
-    retry: false,
-    staleTime: 60 * 60_000,
-  })
+  const romanizationOn = useRomanizationOn()
+  // The romaji comes with the words (LyricsResponse.romanized): nothing more
+  // to ask for, and it is there wherever the words are kept.
+  const romanized = lyrics.data?.romanized ?? null
 
   const error = lyrics.error
   const instrumental =
@@ -62,7 +49,7 @@ export function useSongWords(song: Song): {
     loading: lyrics.isLoading,
     parsed,
     romanizationOn,
-    romanized: romanized.data ? romanized.data.lines.map(line => line.romanized) : null,
+    romanized,
     offline: error instanceof ApiError && error.isOffline,
     instrumental,
   })

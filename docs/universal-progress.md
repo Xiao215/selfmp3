@@ -2837,3 +2837,30 @@ Also seen twice: after a run of Fast Refreshes, the *first* cold relaunch from
 Metro can fail at module load with "Unistyles was loaded, but it's not
 configured"; the next relaunch is clean. A Metro delta artefact, not a cycle —
 `index.ts` configures Unistyles before `expo-router/entry`.
+
+### Romaji travels with the lyrics — same branch
+
+Xiao: romaji on the phone needed a connection. It was a second request,
+`/lyrics/romanized`, made every time the words were shown, and kept nowhere.
+
+- `LyricsResponse.romanized: string[] | null` — a romanized line per line of
+  `text`, null for words that are not Chinese or Japanese. Made once per text
+  (`services/romanizedLines.ts`, cached under the text's hash in the lyrics
+  cache as the old route did) when the words are resolved, fetched or saved
+  by hand, and for the whole library after boot (`romanizeLibrary`, behind
+  the index backfill). The old route still answers.
+- `useSongWords` reads `lyrics.data.romanized`; the romanized query is gone.
+  The romaji switch only decides whether the line is drawn.
+- Because the words are kept on the device with the response, romaji is kept
+  with them: on view, on download, in the catch-up pass.
+- Checked: a private server answers `/songs/13/lyrics` with 66 romanized
+  lines; the Pro Max's 13 kept lyrics files carry them; with 4600 killed,
+  もう少しだけ shows romaji under each line.
+- The cloud route (`packages/cloud/src/routes.ts`) serves lyrics from the
+  bucket without this field; a bucket library still shows no romaji.
+- The romaji switch is a synced server setting; away from the server the
+  settings query has no answer and the switch read as off, so kept romaji
+  went unseen. `romanizationPref.ts`: the shell mirrors the last heard value
+  into `prefs` (`lyricsRomanization`) from the first frame, and the words read
+  it back when the query is empty. Checked on the Pro Max with 4600 killed:
+  三原色 shows romaji under each line.

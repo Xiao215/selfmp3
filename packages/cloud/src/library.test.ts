@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { CloudSnapshot } from '@selfmp3/shared'
 import * as edits from './edits.js'
 import { createCloudLibrary, FILES_KEY } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
@@ -354,5 +355,200 @@ describe('opening', () => {
     const againSession = createCloudSession(againPlatform)
     const view = await createCloudLibrary(againPlatform, againSession).loadCloudLibrary(SESSION)
     expect(view.library.songs).toEqual([])
+  })
+})
+
+/** Every key written to a store from now on, in order. */
+function recordWrites(store: DeviceStore): string[] {
+  const keys: string[] = []
+  const write = store.write.bind(store)
+  const update = store.update.bind(store)
+  store.write = (key, value) => {
+    keys.push(key)
+    return write(key, value)
+  }
+  store.update = (key, change) => {
+    keys.push(key)
+    return update(key, change)
+  }
+  return keys
+}
+
+/** A platform whose bucket does not answer until `open` is called. */
+function gatedPlatform(bucket: ReturnType<typeof fakeBucket>, store: DeviceStore) {
+  let open: () => void = () => undefined
+  const gate = new Promise<void>(resolve => {
+    open = resolve
+  })
+  const platform: CloudPlatform = {
+    ...platformFor(bucket, store),
+    fetch: async (url, init) => {
+      await gate
+      return bucket.fetch(url, init)
+    },
+  }
+  return { platform, open: () => open() }
+}
+
+/** Another device, writing a tag into the same bucket. */
+async function tagFromElsewhere(
+  bucket: ReturnType<typeof fakeBucket>,
+  name: string,
+): Promise<void> {
+  const platform: CloudPlatform = { ...platformFor(bucket, memoryStore()), deviceKind: 'other' }
+  const session = createCloudSession(platform)
+  await session.saveSession(SESSION)
+  const library = createCloudLibrary(platform, session)
+  await library.loadCloudLibrary(SESSION)
+  await library.recordChanges(SESSION, ctx => ({
+    changes: edits.createTag(ctx, name, undefined).changes,
+    answer: () => undefined,
+  }))
+  await library.flushCloudChanges()
+}
+
+const SNAPSHOT_KEY = 'snapshots/20260911T100000000Z-mac-3f9a1c2e.json'
+const SNAPSHOT: CloudSnapshot = {
+  format: 1,
+  writtenAt: '2026-09-11T10:00:00.000Z',
+  writtenBy: 'mac-3f9a1c2e',
+  upTo: {},
+  songs: [
+    {
+      uid: 'a'.repeat(32),
+      title: 'Song a',
+      artist: 'Aurora Lane',
+      album: '',
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 200,
+      audio: { key: `audio/${'a'.repeat(64)}.m4a`, size: 4_000_000, mime: 'audio/mp4' },
+      cover: null,
+      lyrics: null,
+      instrumental: false,
+      loved: false,
+      playCount: 0,
+      skipCount: 0,
+      lastPlayedAt: null,
+      addedAt: '2026-09-01 10:00:00',
+      sourceUrl: null,
+      tagUids: [],
+      features: null,
+    },
+  ],
+  tags: [],
+  playlists: [],
+}
+
+describe('looking at the bucket', () => {
+  /*
+   * Most looks find nothing new. Each one used to write the snapshot and every
+   * log back to the device and replay the whole library, to arrive exactly
+   * where it already was.
+   */
+  it('neither rewrites nor replays the library when nothing has changed', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    const first = await made.library.loadCloudLibrary(SESSION)
+    expect(first.library.songs).toHaveLength(1)
+
+    const writes = recordWrites(made.store)
+    made.library.markCloudLibraryStale()
+    const again = await made.library.loadCloudLibrary(SESSION)
+
+    expect(writes).toEqual([])
+    // The very same view: nothing was built again.
+    expect(again).toBe(first)
+  })
+
+  it('still replays when another device has written something', async () => {
+    const made = build()
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    await tagFromElsewhere(made.bucket, 'from elsewhere')
+    made.library.markCloudLibraryStale()
+    const view = await made.library.loadCloudLibrary(SESSION)
+
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
+  })
+
+  /*
+   * A device that has read the bucket before has a library to show. Opening
+   * the app waited on the network before showing it anyway.
+   */
+  it('answers from the copy on this device first, and says when the look behind it finds more', async () => {
+    const store = memoryStore()
+    const bucket = fakeBucket()
+    const warmPlatform = platformFor(bucket, store)
+    const warmSession = createCloudSession(warmPlatform)
+    await warmSession.saveSession(SESSION)
+    await createCloudLibrary(warmPlatform, warmSession).loadCloudLibrary(SESSION)
+
+    await tagFromElsewhere(bucket, 'new here')
+
+    const gated = gatedPlatform(bucket, store)
+    const library = createCloudLibrary(gated.platform, createCloudSession(gated.platform))
+    const heard = new Promise<void>(resolve => {
+      library.onCloudLibraryChanged(resolve)
+    })
+
+    // Answered while the bucket has not said a word.
+    const view = await library.loadCloudLibrary(SESSION)
+    expect(view.library.tags).toEqual([])
+
+    gated.open()
+    await heard
+    const after = await library.loadCloudLibrary(SESSION)
+    expect(after.library.tags.map(tag => tag.name)).toEqual(['new here'])
+  })
+
+  it('waits for a look asked for by name', async () => {
+    const store = memoryStore()
+    const bucket = fakeBucket()
+    const gated = gatedPlatform(bucket, store)
+    const session = createCloudSession(gated.platform)
+    await session.saveSession(SESSION)
+    const library = createCloudLibrary(gated.platform, session)
+
+    gated.open()
+    await library.loadCloudLibrary(SESSION)
+    await tagFromElsewhere(bucket, 'checked for')
+
+    library.markCloudLibraryStale()
+    const view = await library.loadCloudLibrary(SESSION)
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['checked for'])
+  })
+})
+
+describe('keeping the library on the device', () => {
+  /*
+   * A love, a tag or a rename changes none of the song files, playlists or
+   * ids, and each of those is the size of the library.
+   */
+  it('writes files, playlists and ids only when an edit changes them', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    const view = await made.library.loadCloudLibrary(SESSION)
+    const songId = view.library.songs[0]?.id ?? 0
+
+    const writes = recordWrites(made.store)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.editSong(ctx, songId, { loved: true }),
+      answer: () => undefined,
+    }))
+
+    expect(writes.filter(key => key !== 'cloud-outbox')).toEqual(['cloud-state'])
+
+    writes.length = 0
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'new', undefined).changes,
+      answer: () => undefined,
+    }))
+    // A new tag is a new id, and nothing else.
+    expect(writes.filter(key => key !== 'cloud-outbox')).toEqual(['cloud-ids', 'cloud-state'])
   })
 })

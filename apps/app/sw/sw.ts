@@ -93,6 +93,9 @@ self.addEventListener('activate', event => {
           .filter(name => name.startsWith('selfmp3-') && !OWNED_CACHES.has(name))
           .map(name => caches.delete(name)),
       )
+      // The library an older worker kept (networkFirst): stale by now, and
+      // nothing serves it any more.
+      await (await caches.open(API_CACHE)).delete(`${BASE}api/library`)
       await self.clients.claim()
     })(),
   )
@@ -198,13 +201,20 @@ async function handleAudio(request: Request, url: URL): Promise<Response> {
   }
 }
 
-/** Build a 206 Partial Content response from a complete cached one. */
+/**
+ * Build a 206 Partial Content response from a complete cached one.
+ *
+ * Through a blob, not an array buffer: a player asks for a song a range at a
+ * time, and reading the whole file into this worker's memory for each range
+ * was a song's worth of copying per seek. A cached response's blob is backed
+ * by the cache on disk, and slicing it copies nothing until the bytes are read.
+ */
 async function sliceResponse(response: Response, rangeHeader: string): Promise<Response> {
-  const buffer = await response.arrayBuffer()
-  const size = buffer.byteLength
-
   const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
-  if (!match) return new Response(buffer, { status: 200, headers: response.headers })
+  if (!match) return response
+
+  const blob = await response.blob()
+  const size = blob.size
 
   const [, rawStart = '', rawEnd = ''] = match
 
@@ -233,7 +243,7 @@ async function sliceResponse(response: Response, rangeHeader: string): Promise<R
   headers.set('Accept-Ranges', 'bytes')
   headers.set('Cache-Control', 'private, max-age=31536000, immutable')
 
-  return new Response(buffer.slice(start, end + 1), {
+  return new Response(blob.slice(start, end + 1), {
     status: 206,
     statusText: 'Partial Content',
     headers,
@@ -249,27 +259,18 @@ function rangeNotSatisfiable(size: number): Response {
 }
 
 /**
- * API requests: network first, falling back to the last good response.
+ * API requests: the network, and an honest "offline" when it is not there.
  *
- * Only safe, idempotent reads are cached, and only the library snapshot is
- * worth serving stale — the import queue or live stats would be actively
- * misleading if they were hours old.
+ * Nothing is kept. The library used to be — a second copy of it put into the
+ * Cache API on every fetch, beside the one the page already saves in
+ * IndexedDB (src/offline/libraryCache.web.ts) — and served stale as a 200 when
+ * the Mac was away, which told the page it was answered when it was not. The
+ * page's own copy does that job, and shows the copy for what it is.
  */
 async function networkFirst(request: Request): Promise<Response> {
-  const cacheable = new URL(request.url).pathname === `${BASE}api/library`
-
   try {
-    const response = await fetch(request)
-    if (cacheable && response.ok) {
-      const cache = await caches.open(API_CACHE)
-      await cache.put(request, response.clone())
-    }
-    return response
+    return await fetch(request)
   } catch {
-    if (cacheable) {
-      const cached = await caches.match(request)
-      if (cached) return cached
-    }
     return new Response(JSON.stringify({ error: 'offline', code: 'offline' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' },
@@ -383,23 +384,55 @@ interface BucketFile {
 async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketFile | null> {
   if (!CLOUD) return null
   const match = /\/api\/(?:stream|art)\/(\d+)$/.exec(url.pathname)
-  if (!match?.[1]) return null
+  const songId = match?.[1]
+  if (!songId) return null
   try {
-    const session = (await readStored('cloud-session')) as {
-      doormanUrl?: unknown
-      token?: unknown
-    } | null
-    if (typeof session?.doormanUrl !== 'string' || typeof session.token !== 'string') return null
-    const files = (await readStored('cloud-files')) as Record<
-      string,
-      { audio?: unknown; cover?: unknown }
-    > | null
-    const key = files?.[match[1]]?.[kind]
-    if (typeof key !== 'string') return null
-    return { url: `${session.doormanUrl}/v1/files/${key}`, token: session.token }
+    let read = await bucketRead(false)
+    // A song added a moment ago, or a session just made: not a miss yet.
+    if (!read.fresh && (!read.session || read.files?.[songId] === undefined)) {
+      read = await bucketRead(true)
+    }
+    const key = read.files?.[songId]?.[kind]
+    if (!read.session || typeof key !== 'string') return null
+    return { url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
   } catch {
     return null
   }
+}
+
+/**
+ * How long the session and the song files read from IndexedDB are trusted.
+ *
+ * Every range the player asks for, and every cover, comes through
+ * bucketFileFor, and each used to open the database twice and copy the whole
+ * library's file map out of it — per request, all through a song. Kept this
+ * long, a file changed on another device or a token renewed is picked up
+ * within seconds; an id not in the map at all is read again at once.
+ */
+const BUCKET_READ_MS = 5_000
+
+interface BucketRead {
+  readonly session: { doormanUrl: string; token: string } | null
+  readonly files: Record<string, { audio?: unknown; cover?: unknown } | undefined> | null
+  readonly at: number
+}
+
+let lastBucketRead: BucketRead | null = null
+
+async function bucketRead(force: boolean): Promise<BucketRead & { fresh: boolean }> {
+  const kept = lastBucketRead
+  if (!force && kept && Date.now() - kept.at < BUCKET_READ_MS) return { ...kept, fresh: false }
+  const [session, files] = await readStored(['cloud-session', 'cloud-files'])
+  const stored = session as { doormanUrl?: unknown; token?: unknown } | null
+  lastBucketRead = {
+    session:
+      typeof stored?.doormanUrl === 'string' && typeof stored.token === 'string'
+        ? { doormanUrl: stored.doormanUrl, token: stored.token }
+        : null,
+    files: typeof files === 'object' && files !== null ? (files as BucketRead['files']) : null,
+    at: Date.now(),
+  }
+  return { ...lastBucketRead, fresh: true }
 }
 
 /**
@@ -442,7 +475,8 @@ async function fetchFromBucket(file: BucketFile, range?: string | null): Promise
   }
 }
 
-function readStored(key: string): Promise<unknown> {
+/** Several keys, in one opening of the database and one transaction. */
+function readStored(keys: readonly string[]): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
     const open = indexedDB.open(DB_NAME, DB_VERSION)
     open.onupgradeneeded = () => {
@@ -453,17 +487,19 @@ function readStored(key: string): Promise<unknown> {
       const db = open.result
       if (!db.objectStoreNames.contains(DB_STORE)) {
         db.close()
-        resolve(null)
+        resolve(keys.map(() => null))
         return
       }
-      const request = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(key)
-      request.onsuccess = () => {
+      const transaction = db.transaction(DB_STORE, 'readonly')
+      const store = transaction.objectStore(DB_STORE)
+      const requests = keys.map(key => store.get(key))
+      transaction.oncomplete = () => {
         db.close()
-        resolve(request.result ?? null)
+        resolve(requests.map(request => (request.result as unknown) ?? null))
       }
-      request.onerror = () => {
+      transaction.onerror = () => {
         db.close()
-        reject(request.error ?? new Error('IndexedDB read failed'))
+        reject(transaction.error ?? new Error('IndexedDB read failed'))
       }
     }
   })

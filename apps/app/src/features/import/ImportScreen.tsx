@@ -609,32 +609,31 @@ function JobRow({
       </View>
 
       {/*
-       * A download reports a percentage; the steps around it do not. The bar is
-       * there either way, so the row does not change width halfway through.
+       * Only the download reports a percentage, so only it draws a bar; the
+       * steps around it (resolving, converting, saving, uploading) are named
+       * in the line under the title, with the spinner on the left. A dim bar
+       * at a made-up width stood in for them once, and read as a second kind
+       * of progress. The space is kept, so the row does not change width.
        */}
-      {tone === 'running' ? (
-        <View
-          style={styles.progress}
-          accessibilityRole="progressbar"
-          accessibilityLabel={`${job.title || 'Track'} progress`}
-          accessibilityValue={
-            job.progress === null ? undefined : { min: 0, max: 100, now: job.progress }
-          }
-        >
+      {tone === 'running' && job.progress !== null ? (
+        <>
           <View
-            style={[
-              styles.progressBar,
-              { backgroundColor: accent.accent, width: `${job.progress ?? 35}%` },
-              job.progress === null && styles.progressUnknown,
-            ]}
-          />
-        </View>
-      ) : null}
-      {/* The number's place is kept while a step has none, so the bars of two rows line up. */}
-      {tone === 'running' ? (
-        <Text style={styles.percent}>
-          {job.progress === null ? '' : `${Math.round(job.progress)}%`}
-        </Text>
+            style={styles.progress}
+            accessibilityRole="progressbar"
+            accessibilityLabel={`${job.title || 'Track'} progress`}
+            accessibilityValue={{ min: 0, max: 100, now: job.progress }}
+          >
+            <View
+              style={[
+                styles.progressBar,
+                { backgroundColor: accent.accent, width: `${job.progress}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.percent}>{Math.round(job.progress)}%</Text>
+        </>
+      ) : tone === 'running' ? (
+        <View style={styles.progressPlace} />
       ) : null}
 
       {action === 'cancel' ? (
@@ -854,7 +853,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   progressBar: { height: 4, borderRadius: 2 },
-  progressUnknown: { opacity: 0.5 },
+  /** The bar's and the number's width together, plus the gap between them. */
+  progressPlace: { width: 120 + 12 + 36 },
   percent: {
     width: 36,
     textAlign: 'right',

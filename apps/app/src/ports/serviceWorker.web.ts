@@ -1,4 +1,5 @@
 import { appPath } from './appPath'
+import { desktop } from './desktop/bridge'
 
 /**
  * The service worker and the web manifest: the web app's `main.tsx`
@@ -17,8 +18,19 @@ import { appPath } from './appPath'
  * the page is served from `/` on the Mac and `/selfmp3/` on Pages, and Expo's
  * template has no placeholder for the base; the manifest's own paths are
  * relative to itself, so it works under either.
+ *
+ * **The installed desktop app registers nothing, and skips the links too.** The
+ * shell is served from disk, songs and covers are files, and a copy of the
+ * audio in the Cache API would be a second truth about what this computer has
+ * — one the app can delete and one it cannot. The `app://` scheme is registered
+ * without `allowServiceWorkers` for the same reason, so a registration here
+ * would fail rather than mislead; refusing is the honest version of that. A
+ * manifest and an apple-touch-icon are a browser's way of being installed, and
+ * this one already is.
  */
 export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
+  if (desktop) return
+
   addHeadLink('manifest', appPath('manifest.webmanifest'))
   addHeadLink('apple-touch-icon', appPath('icons/icon-180.png'))
 

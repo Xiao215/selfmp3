@@ -3163,3 +3163,100 @@ have lost.
 | `npm run build:desktop` → a dmg | **blocked**: a dmg is macOS-only. What *did* run is `electron-builder --dir --linux` against the same `electron-builder.yml`, which packaged the app and reported "no node modules returned while searching directories" — the design working: esbuild bundles everything but `electron`, the shell has no runtime `dependencies`, and the workspace-hoisting problem (electron-builder #2205, #9654) has nothing to collect and so cannot bite. Xiao runs `npm run build:desktop` on the Mac for the dmg itself. |
 | `npm run verify:desktop -- --grep "connects and plays"` | **skipped, and says so**: it needs a server with the thirteen-song library. Seven other smoke tests run, and — worth noting — **against the packaged app**, not the bundle: `launch.ts` prefers a binary under `release/` when one exists, and there was one. |
 | Google sign-in through the system browser | **Xiao's.** An agent cannot sign in to Google. The deep-link half of the path was proved in spike 4 and the `open-url` delivery is wired and unexercised off macOS. |
+
+## Phase 3 — files on disk — branch `desktop/phase-3`
+
+The installed app now keeps music on disk the way the plan asked: the shell owns
+the folder, the page asks for a file by name and gets a URL back, and the same
+range rule answers both the server and the shell.
+
+### What changed
+
+**The range rule moved to `@selfmp3/shared`, and grew an answer.** `parseRange`
+is unchanged, and `apps/server/src/http/range.ts` re-exports it so nothing that
+imported it from there had to move. What is new is `answerRange`, which takes the
+header and a file's size, mime, etag and date and returns the whole response
+short of the bytes: status, the inclusive offsets, the length, and the headers.
+The server's `sendRange` is now that plus streaming, the 304 and the
+aborted-request handling; the shell's `serveMedia` is that plus a file handle.
+Its tests moved with it — `packages/shared/src/range.test.ts`, 20 of them, run
+once for both callers, which is what the gate is checking.
+
+`net.fetch('file://…')` is the reason `answerRange` exists at all rather than a
+handler leaning on Electron: it ignores `Range:` and answers 200 with the whole
+file. A 206 in the shell has to be built by hand.
+
+**`files.*` on the bridge.** `download` with resume, `cancel`, `delete`, `stat`,
+`list`, `fetchTo`, `usage`, `reveal`, `clear`, and a `progress` event. Every one
+of them goes through `fileNameSchema` — one flat segment, no `..`, no leading dot
+— *and* through the `resolveWithinRoot` fence in `paths.ts`, because one check is
+a check and two is a rule. The smoke asserts all four of `../secrets.json`,
+`a/b.m4a`, `..` and `.hidden` are refused.
+
+**A download is not a file until it is whole.** Bytes land in `<name>.part` and
+the rename is the last thing that happens, so "the file exists" means "the file
+is complete" everywhere else in the app — which is what the index, the player
+and `stat` all quietly assume. A cancel leaves the `.part` and the next attempt
+sends `Range: bytes=<what is there>-`. If the server answers 200 to that, it is
+sending the whole file again, and appending it is how a download silently becomes
+a file that plays for forty seconds and stops; the `.part` is thrown away and the
+pass starts over instead.
+
+**`downloadStorage.desktop.ts`** puts the existing download queue over that
+bridge — the doorman's bearer token where the library is in the cloud, the Mac's
+stream URL where it is not — and `downloadStorage.web.ts` picks it when the
+bridge is there and keeps the Cache API when it is not. The index itself is a
+JSON file in the same folder, read back through `app://` and written through a
+`blob:` URL, so nothing about it depends on the Cache API either.
+
+**Covers, through a `coverFiles` port.** This is the part of the phase that is
+not just plumbing. Artwork cannot be fetched the way everything else is: an
+`<img>` is handed a URL and given no chance to attach a header, and the doorman
+reads the bearer header and nothing else. A phone solves this with
+expo-file-system (`offline/covers.ts`); a browser cannot solve it at all, which
+is why a cloud library's rows are letter tiles in a tab and always have been. The
+installed app can: `files.fetchTo` sends the header, and
+`app://selfmp3/_media/covers/…` serves the file back under a URL an `<img>` will
+take. `offline/covers.web.ts` is the web twin of the phone's module, with the
+same six exports, over that port — and with `coverFiles` null in an ordinary tab
+every one of them becomes the nothing a browser already did, so no browser
+behaviour changed.
+
+**The rest of the phase's list**: `serviceWorker.web.ts` returns before
+registering anything when the bridge is present (the shell is served from disk;
+a worker would be a second, staler cache in front of it); `installedApp` is true
+because `selfmp3Desktop` is on the window; `connectionKind` answers `'wifi'`
+through a `meteredConnections` port rather than by looking at the platform, as
+decided on 2026-09-12; Settings › Offline shows the folder, a "Reveal in Finder"
+row, and storage numbers from `files.usage()` rather than from the index, because
+the two can disagree and the disk is the one that is right. `PlayerProvider`
+already preferred `downloadQueue.localUri` (`PlayerProvider.tsx:281`) — that path
+needed confirming, not writing.
+
+### Two things worth knowing
+
+**A progress event can arrive after the download it belongs to has finished.**
+The first version of the download test asserted that the last event the page had
+seen matched the final byte count, and it failed: the page had seen one event of
+six by the time `download` resolved. The reply to an `invoke` and the events from
+`sender.send` are separate messages and do not queue behind each other. They do
+all arrive, so the test waits for the tail rather than asserting on whatever
+happened to have landed — and anything drawing a progress bar should expect the
+same, which is why the last thing the page is told is also returned by the call.
+
+**Cancelling needs something left to cancel.** The same test's sibling cancelled
+on the first progress event and got `done`: three megabytes over loopback are
+gone before an event has crossed back to the page. The test server now has a
+`/slow/` route that dribbles the body out over about a second, and the cancel is
+on a timer. Worth remembering for any later test of a transfer: loopback is not
+a network.
+
+### The gates
+
+| Gate | Result |
+|---|---|
+| `npm run check` | **pass** — typecheck, lint, the full suite, the app's own check. The range rule's tests run once, in `packages/shared`. |
+| `grep -rn "range" apps/server/src/http/range.ts \| grep -q "@selfmp3/shared"` | **pass** |
+| `npm run verify:desktop -- --grep "downloads\|offline\|reveal"` | **pass** — 3 of them. The whole smoke is 12 passed, 1 skipped, against the packaged binary. |
+| The by-hand smoke: 13 songs download themselves, quit, stop the server, relaunch, a song plays from disk, a cover shows | **blocked** — needs `~/Music/selfmp3-dev`, which this container does not have. What stands in for it: a local range server and three megabytes of random bytes, with the offline half done honestly — the server is closed mid-test, the page confirms the network is gone, and the file still comes back whole from `app://selfmp3/_media/…` with a matching SHA-256. The cover test does the same with a route that answers 401 without a bearer token. |
+| The same, signed in to the cloud | **Xiao's.** |

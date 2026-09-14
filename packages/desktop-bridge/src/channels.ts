@@ -18,6 +18,16 @@ export const CHANNELS = {
   secretsSet: 'selfmp3:secrets.set',
   secretsRemove: 'selfmp3:secrets.remove',
 
+  filesDownload: 'selfmp3:files.download',
+  filesCancel: 'selfmp3:files.cancel',
+  filesDelete: 'selfmp3:files.delete',
+  filesStat: 'selfmp3:files.stat',
+  filesList: 'selfmp3:files.list',
+  filesFetchTo: 'selfmp3:files.fetchTo',
+  filesUsage: 'selfmp3:files.usage',
+  filesReveal: 'selfmp3:files.reveal',
+  filesClear: 'selfmp3:files.clear',
+
   openExternal: 'selfmp3:openExternal',
   setPlaybackState: 'selfmp3:setPlaybackState',
 

@@ -9,6 +9,8 @@ import {
 } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../api/client'
+import { desktop } from './desktop/bridge'
+import { downloadStorage as desktopStorage } from './desktop/downloadStorage.desktop'
 import {
   cachedBytes,
   cachedSongIds,
@@ -53,7 +55,7 @@ function savedIndex(): DownloadIndex | null {
   }
 }
 
-export const downloadStorage: DownloadStorage = {
+const cacheStorage: DownloadStorage = {
   get available() {
     return offlineStorageAvailable()
   },
@@ -150,3 +152,13 @@ export const downloadStorage: DownloadStorage = {
     return clearAudioCache()
   },
 }
+
+/**
+ * A tab caches; an installed app keeps files.
+ *
+ * The same `DownloadStorage` port either way, so the shared queue in
+ * `packages/client` — ordering, pausing, progress, the 500 MB rule, failure —
+ * is the same code on both, and neither this file nor any screen knows which
+ * one it got.
+ */
+export const downloadStorage: DownloadStorage = desktop ? desktopStorage : cacheStorage

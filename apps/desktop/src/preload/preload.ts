@@ -6,9 +6,15 @@ import {
   commandSchema,
   deepLinkSchema,
   desktopInfoSchema,
+  downloadResultSchema,
+  fileListSchema,
+  fileStatSchema,
   secretReadSchema,
+  transferProgressSchema,
+  usageSchema,
   type DesktopBridge,
   type DesktopInfo,
+  type FileKind,
   type PlaybackState,
 } from '@selfmp3/desktop-bridge'
 
@@ -71,6 +77,41 @@ const bridge: DesktopBridge = {
       await ipcRenderer.invoke(CHANNELS.secretsRemove, key)
     },
   },
+
+  files: {
+    download: async request =>
+      downloadResultSchema.parse(await ipcRenderer.invoke(CHANNELS.filesDownload, request)),
+    cancel: async id => {
+      await ipcRenderer.invoke(CHANNELS.filesCancel, id)
+    },
+    delete: async (kind, name) => {
+      await ipcRenderer.invoke(CHANNELS.filesDelete, kind, name)
+    },
+    stat: async (kind, name) =>
+      fileStatSchema.parse(await ipcRenderer.invoke(CHANNELS.filesStat, kind, name)),
+    list: async kind => fileListSchema.parse(await ipcRenderer.invoke(CHANNELS.filesList, kind)),
+    fetchTo: async (kind, name, url, headers) => {
+      await ipcRenderer.invoke(CHANNELS.filesFetchTo, kind, name, url, headers)
+    },
+    usage: async () => usageSchema.parse(await ipcRenderer.invoke(CHANNELS.filesUsage)),
+    reveal: async (kind, name) => {
+      await ipcRenderer.invoke(CHANNELS.filesReveal, kind, name ?? null)
+    },
+    clear: async kind => {
+      await ipcRenderer.invoke(CHANNELS.filesClear, kind)
+    },
+  },
+
+  onProgress: listener =>
+    subscribe(EVENTS.progress, value => transferProgressSchema.parse(value), listener),
+
+  /*
+   * Built here rather than asked for: it is a constant per file, the page calls
+   * it for every row in a list, and a round trip through IPC for a string
+   * concatenation would be a round trip per row.
+   */
+  mediaUrl: (kind: FileKind, name: string) =>
+    `app://selfmp3/_media/${kind}/${encodeURIComponent(name)}`,
 
   openExternal: async url => {
     await ipcRenderer.invoke(CHANNELS.openExternal, url)

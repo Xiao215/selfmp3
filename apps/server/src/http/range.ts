@@ -1,13 +1,23 @@
 import type { Request, Response } from 'express'
 import { pipeline } from 'node:stream/promises'
 
+import { answerRange, parseRange } from '@selfmp3/shared'
+
+export { parseRange }
+
 /**
- * HTTP range request handling for audio.
+ * HTTP range request handling for audio: Express's half of it.
  *
- * This is what makes seeking work. Without a correct 206 response the browser
- * has to download a whole track before it can jump to the middle of it, and
- * iOS Safari refuses to play at all. Getting the edge cases right here is the
- * difference between an app that feels instant and one that feels broken.
+ * The rule itself — what `bytes=…` means, and which bytes it asks for — lives in
+ * `@selfmp3/shared` (`packages/shared/src/range.ts`) since phase 3 of
+ * docs/DESKTOP.md, because the desktop shell has to answer the same header for
+ * the files it serves over `app://`, and two implementations of a byte range is
+ * one too many. This file keeps what only a server has: the streaming, the 304,
+ * and the aborted-request handling. `parseRange` is re-exported so nothing that
+ * imported it from here has to change.
+ *
+ * Without a correct 206 response the browser has to download a whole track
+ * before it can jump to the middle of it, and iOS Safari refuses to play at all.
  */
 
 export interface RangeSource {
@@ -17,42 +27,6 @@ export interface RangeSource {
   readonly lastModified: Date
   /** Inclusive byte offsets, as HTTP defines them. */
   open(start: number, end: number): NodeJS.ReadableStream
-}
-
-/** Parse a single-range `Range: bytes=...` header. Multi-range is not supported. */
-export function parseRange(
-  header: string | undefined,
-  size: number,
-): { start: number; end: number } | 'unsatisfiable' | null {
-  if (!header) return null
-
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
-  if (!match) return null
-
-  const [, rawStart = '', rawEnd = ''] = match
-  if (rawStart === '' && rawEnd === '') return null
-
-  let start: number
-  let end: number
-
-  if (rawStart === '') {
-    // `bytes=-500` means the final 500 bytes.
-    const suffixLength = Number(rawEnd)
-    if (!Number.isFinite(suffixLength) || suffixLength <= 0) return 'unsatisfiable'
-    start = Math.max(0, size - suffixLength)
-    end = size - 1
-  } else {
-    start = Number(rawStart)
-    end = rawEnd === '' ? size - 1 : Number(rawEnd)
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null
-    // A range that starts past the end of the file is unsatisfiable...
-    if (start >= size) return 'unsatisfiable'
-    // ...but one that merely *ends* past it is clamped, per the spec.
-    end = Math.min(end, size - 1)
-  }
-
-  if (start > end) return 'unsatisfiable'
-  return { start, end }
 }
 
 /** True when the client's cached copy is still good. */
@@ -78,38 +52,36 @@ function isFresh(req: Request, etag: string, lastModified: Date): boolean {
 export async function sendRange(req: Request, res: Response, source: RangeSource): Promise<void> {
   const { sizeBytes, mime, etag, lastModified } = source
 
-  res.setHeader('Accept-Ranges', 'bytes')
-  res.setHeader('Content-Type', mime)
-  res.setHeader('ETag', etag)
-  res.setHeader('Last-Modified', lastModified.toUTCString())
-  // Audio files are immutable once written; a long cache is safe and is what
-  // makes offline playback from the service worker cache cheap.
-  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable')
+  const answer = answerRange({
+    rangeHeader: req.headers.range,
+    sizeBytes,
+    mime,
+    etag,
+    lastModified,
+  })
+
+  // The validators and the cache rule are the same whatever the answer, so a
+  // 304 carries them too.
+  for (const [name, value] of Object.entries(answer.headers)) {
+    if (name !== 'Content-Length' && name !== 'Content-Range') res.setHeader(name, value)
+  }
 
   if (isFresh(req, etag, lastModified)) {
     res.status(304).end()
     return
   }
 
-  const range = parseRange(req.headers.range, sizeBytes)
-
-  if (range === 'unsatisfiable') {
-    res.setHeader('Content-Range', `bytes */${sizeBytes}`)
+  if (answer.status === 416) {
+    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
     res.status(416).end()
     return
   }
 
-  const start = range ? range.start : 0
-  const end = range ? range.end : sizeBytes - 1
-  const length = end - start + 1
-
-  if (range) {
-    res.status(206)
-    res.setHeader('Content-Range', `bytes ${start}-${end}/${sizeBytes}`)
-  } else {
-    res.status(200)
+  res.status(answer.status)
+  if (answer.status === 206) {
+    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
   }
-  res.setHeader('Content-Length', String(length))
+  res.setHeader('Content-Length', String(answer.length))
 
   if (req.method === 'HEAD') {
     res.end()
@@ -122,12 +94,12 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
    * already set, so the error handler's JSON went out as audio, cached for a
    * year and marked immutable — one broken file poisoning the song for good.
    */
-  if (length <= 0) {
+  if (answer.length <= 0) {
     res.end()
     return
   }
 
-  const stream = source.open(start, end)
+  const stream = source.open(answer.start, answer.end)
   try {
     await pipeline(stream, res)
   } catch (error) {

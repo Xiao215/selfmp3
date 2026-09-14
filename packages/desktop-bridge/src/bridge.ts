@@ -1,4 +1,14 @@
-import type { Command, DesktopInfo, PlaybackState } from './schemas.js'
+import type {
+  Command,
+  DesktopInfo,
+  DownloadRequest,
+  DownloadResult,
+  FileKind,
+  FileStat,
+  PlaybackState,
+  TransferProgress,
+  Usage,
+} from './schemas.js'
 
 /**
  * `window.selfmp3Desktop`: the whole surface between the page and the shell.
@@ -26,6 +36,51 @@ export interface DesktopBridge {
   }
 
   /**
+   * Songs and covers on disk.
+   *
+   * This is the other half of what an installed app is for. A browser's
+   * downloads live in the Cache API, which the browser may evict and which
+   * cannot be resumed; these are files in
+   * `~/Library/Application Support/self.mp3`, and an interrupted one continues
+   * from where it stopped.
+   */
+  readonly files: {
+    /**
+     * Stream a URL to `<name>.part` and rename it when the whole thing is
+     * there, so a file under its real name is always a complete file.
+     * Resolves `cancelled` rather than rejecting when `cancel` was called.
+     */
+    download(request: DownloadRequest): Promise<DownloadResult>
+    /** Abort, leaving the `.part` for a later resume. */
+    cancel(id: string): Promise<void>
+    delete(kind: FileKind, name: string): Promise<void>
+    stat(kind: FileKind, name: string): Promise<FileStat>
+    list(kind: FileKind): Promise<readonly { name: string; bytes: number }[]>
+    /** A whole small file, with no progress. Covers. */
+    fetchTo(
+      kind: FileKind,
+      name: string,
+      url: string,
+      headers?: Record<string, string>,
+    ): Promise<void>
+    usage(): Promise<Usage>
+    /** `shell.showItemInFolder`. */
+    reveal(kind: FileKind, name?: string): Promise<void>
+    /** Everything of a kind, `.part` files included. */
+    clear(kind: FileKind): Promise<void>
+  }
+
+  /** Progress on a download in flight. */
+  onProgress(listener: (progress: TransferProgress) => void): () => void
+
+  /**
+   * Where the page may point an `<audio>` or an `<Image>` at a file on disk:
+   * `app://selfmp3/_media/<kind>/<name>`, which the shell answers with a proper
+   * 206 so seeking works.
+   */
+  mediaUrl(kind: FileKind, name: string): string
+
+  /**
    * Open a URL in the person's own browser.
    *
    * Which is how signing in works: Google refuses to sign in inside an embedded
@@ -49,12 +104,22 @@ export interface DesktopBridge {
 }
 
 /*
- * Deliberately not here yet: `files`, `mediaUrl` and `covers` (phase 3),
- * `loginItem` and `updates` (phases 4 and 5). Their channel names and schemas
- * are already in this package, because they are the vocabulary the plan
- * settled, but a member of this interface is a promise that something answers
- * it — and nothing does until the phase that writes the handler. A bridge that
- * declares what it cannot do is worse than one that grows.
+ * Deliberately not here yet: `loginItem` and `updates` (phases 4 and 5). Their
+ * channel names and schemas are already in this package, because they are the
+ * vocabulary the plan settled, but a member of this interface is a promise that
+ * something answers it — and nothing does until the phase that writes the
+ * handler. A bridge that declares what it cannot do is worse than one that
+ * grows.
  */
 
-export type { Command, DesktopInfo, PlaybackState }
+export type {
+  Command,
+  DesktopInfo,
+  DownloadRequest,
+  DownloadResult,
+  FileKind,
+  FileStat,
+  PlaybackState,
+  TransferProgress,
+  Usage,
+}

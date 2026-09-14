@@ -4,7 +4,10 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
+import { answerRange } from '@selfmp3/shared'
+import { fileKindSchema, type FileKind } from '@selfmp3/desktop-bridge'
 
+import { directoryFor } from './files.js'
 import { contentTypeFor, resolveWithinRoot } from './paths.js'
 
 /**
@@ -43,9 +46,19 @@ export interface ProtocolRoots {
   readonly web: string
 }
 
+/** Where downloaded songs and covers are served from. */
+export const MEDIA_PREFIX = '/_media/'
+
+export function mediaPath(kind: FileKind, name: string): string {
+  return `${APP_ORIGIN}${MEDIA_PREFIX}${kind}/${encodeURIComponent(name)}`
+}
+
 export function handleAppScheme(roots: ProtocolRoots): void {
   protocol.handle('app', async request => {
     const url = new URL(request.url)
+
+    if (url.pathname.startsWith(MEDIA_PREFIX)) return serveMedia(request, url.pathname)
+
     const resolved = resolveWithinRoot(roots.web, url.pathname)
 
     // Everything the export does not have a file for is a route, and a route
@@ -69,6 +82,56 @@ export function handleAppScheme(roots: ProtocolRoots): void {
       return new Response('not found', { status: 404 })
     }
   })
+}
+
+/**
+ * A downloaded song or cover, with `Range:` answered properly.
+ *
+ * Two things have to be right here or the player misbehaves in ways that look
+ * like the engine's fault.
+ *
+ * The **206**: `net.fetch('file://…')` ignores a `Range:` header and answers
+ * 200 with the whole body, so the answer is built by hand from
+ * `packages/shared`'s rule — the same one the server has been seeking with for
+ * a year.
+ *
+ * The **CORS pair**: the engine sets `crossOrigin = 'use-credentials'` so the
+ * analyser may read the samples, and that mode rejects `*`. The page's own
+ * origin is echoed back instead, which is `app://selfmp3` in the app and
+ * `http://localhost:4601` in `npm run dev:desktop`.
+ */
+async function serveMedia(request: Request, pathname: string): Promise<Response> {
+  const rest = pathname.slice(MEDIA_PREFIX.length)
+  const slash = rest.indexOf('/')
+  const kind = fileKindSchema.safeParse(slash === -1 ? '' : rest.slice(0, slash))
+  if (!kind.success) return new Response('not found', { status: 404 })
+
+  const file = resolveWithinRoot(directoryFor(kind.data), `/${rest.slice(slash + 1)}`)
+  if (file === null || !(await isFile(file))) return new Response('not found', { status: 404 })
+
+  const stats = await stat(file)
+  const answer = answerRange({
+    rangeHeader: request.headers.get('Range') ?? undefined,
+    sizeBytes: stats.size,
+    mime: contentTypeFor(file),
+    // The file never changes once written — the name carries the song's rev —
+    // so size and mtime are an honest strong validator.
+    etag: `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`,
+    lastModified: stats.mtime,
+  })
+
+  const origin = request.headers.get('Origin') ?? APP_ORIGIN
+  const headers = new Headers(answer.headers)
+  headers.set('Access-Control-Allow-Origin', origin)
+  headers.set('Access-Control-Allow-Credentials', 'true')
+
+  if (answer.status === 416 || answer.length === 0) {
+    return new Response(null, { status: answer.status, headers })
+  }
+  return new Response(
+    Readable.toWeb(createReadStream(file, { start: answer.start, end: answer.end })) as ReadableStream,
+    { status: answer.status, headers },
+  )
 }
 
 async function isFile(path: string): Promise<boolean> {

@@ -125,5 +125,83 @@ export const updateStatusSchema = z.object({
 })
 export type UpdateStatus = z.infer<typeof updateStatusSchema>
 
+/**
+ * The two kinds of file the shell keeps, and nothing else.
+ *
+ * An enum rather than a path, because this is the whole of what the page may
+ * name: `songs` and `covers` are directories under `userData`, and a `kind` that
+ * could be anything would be a path the renderer chose.
+ */
+export const fileKindSchema = z.enum(['songs', 'covers'])
+export type FileKind = z.infer<typeof fileKindSchema>
+
+/**
+ * A file's name inside its kind's directory.
+ *
+ * Deliberately one flat segment: no slash, no `..`, no leading dot, and a
+ * length a filesystem will take. The shell checks this *and* fences the
+ * resolved path inside the directory (`paths.ts`), because one check is a
+ * check and two is a rule.
+ */
+export const fileNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9 ._'()-]*$/, 'a file name is one flat segment')
+  .refine(value => !value.includes('..'), { message: 'no climbing out' })
+
+/** A download's id, the page's own handle on it, used to cancel. */
+export const transferIdSchema = z.string().min(1).max(128)
+
+/** Where a song's bytes come from: the Mac, or the bucket through the doorman. */
+export const downloadRequestSchema = z.object({
+  id: transferIdSchema,
+  kind: fileKindSchema,
+  name: fileNameSchema,
+  url: z.string().url(),
+  /**
+   * The doorman reads a bearer header and nothing else, so a download from the
+   * bucket carries one. Kept out of the URL on purpose: a URL ends up in logs.
+   */
+  headers: z.record(z.string(), z.string()).optional(),
+  /** Continue an interrupted file from this many bytes. */
+  resumeFrom: z.number().int().nonnegative().optional(),
+})
+export type DownloadRequest = z.infer<typeof downloadRequestSchema>
+
+export const downloadResultSchema = z.object({
+  /** `done`: the whole file is there under its real name. */
+  state: z.enum(['done', 'cancelled']),
+  bytes: z.number().int().nonnegative(),
+})
+export type DownloadResult = z.infer<typeof downloadResultSchema>
+
+/** Sent as it goes, not asked for. */
+export const transferProgressSchema = z.object({
+  id: transferIdSchema,
+  bytesWritten: z.number().int().nonnegative(),
+  /** Zero when the source did not say how big it is. */
+  totalBytes: z.number().int().nonnegative(),
+})
+export type TransferProgress = z.infer<typeof transferProgressSchema>
+
+export const fileStatSchema = z
+  .object({ name: fileNameSchema, bytes: z.number().int().nonnegative() })
+  .nullable()
+export type FileStat = z.infer<typeof fileStatSchema>
+
+export const fileListSchema = z.array(
+  z.object({ name: fileNameSchema, bytes: z.number().int().nonnegative() }),
+)
+
+/** What Settings shows about this computer's disk. */
+export const usageSchema = z.object({
+  songs: z.number().int().nonnegative(),
+  covers: z.number().int().nonnegative(),
+  /** Bytes free on the volume `userData` is on; zero when it cannot be read. */
+  free: z.number().int().nonnegative(),
+})
+export type Usage = z.infer<typeof usageSchema>
+
 /** Nothing to say, said in a way zod can parse. */
 export const emptySchema = z.undefined()

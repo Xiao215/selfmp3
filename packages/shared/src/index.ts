@@ -28,6 +28,7 @@ export * from './schemas/doorman.js'
 export * from './schemas/sync.js'
 
 export * from './format.js'
+export * from './range.js'
 export * from './lrc.js'
 export * from './fuzzy.js'
 export * from './links.js'

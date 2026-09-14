@@ -38,6 +38,7 @@ import { clearCachedLibrary } from '../../offline/libraryCache'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { clearCachedLyrics } from '../../offline/lyricsCache'
 import { clearCachedPlaylists } from '../../offline/playlistCache'
+import { downloadsFolder } from '../../ports/downloadsFolder'
 import { installedApp } from '../../ports/install'
 import { canConnectByAddress } from '../../ports/serverAddress'
 import { clearRecent } from '../../ports/recentCopies'
@@ -413,6 +414,22 @@ function OfflinePanel({
     [library.data],
   )
   const held = downloadedCount(downloads.index)
+  /*
+   * What the disk says, on a device that has one to ask. Read once when the
+   * panel appears and again whenever the queue settles, which is when the
+   * numbers would otherwise be stale.
+   */
+  const [onDisk, setOnDisk] = useState<{ songs: number; covers: number; free: number } | null>(null)
+  const settled = downloads.queue.length === 0
+  useEffect(() => {
+    let cancelled = false
+    void downloadsFolder.usage().then(next => {
+      if (!cancelled) setOnDisk(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [settled])
   const missingBytes = situation.missingBytes
   const stale = manifest.data ? staleIds(downloads.index, manifest.data) : []
   const activeSong =
@@ -461,9 +478,25 @@ function OfflinePanel({
       <Stats
         items={[
           { value: String(held), label: `of ${songIds.length} songs downloaded` },
-          { value: formatBytes(totalBytes(downloads.index)), label: 'used' },
+          // The disk, where there is one to ask. The index and the folder can
+          // disagree — a `.part` left by an interrupted download, a cover kept
+          // beside a song — and the folder is the one that is true.
+          {
+            value: formatBytes(onDisk === null ? totalBytes(downloads.index) : onDisk.songs + onDisk.covers),
+            label: 'used',
+          },
+          ...(onDisk ? [{ value: formatBytes(onDisk.free), label: 'free on this disk' }] : []),
         ]}
       />
+      {downloadsFolder.path ? (
+        <Row label="Folder" hint={downloadsFolder.path}>
+          <Button
+            label="Reveal in Finder"
+            onPress={() => void downloadsFolder.reveal()}
+            testID="reveal-downloads"
+          />
+        </Row>
+      ) : null}
       {songIds.length > 0 ? (
         <Meter fraction={held / songIds.length} label="Songs downloaded" />
       ) : null}

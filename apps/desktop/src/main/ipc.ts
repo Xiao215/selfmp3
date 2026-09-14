@@ -5,13 +5,19 @@ import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   CHANNELS,
   EVENTS,
+  downloadRequestSchema,
   externalUrlSchema,
+  fileKindSchema,
+  fileNameSchema,
   playbackStateSchema,
   secretKeySchema,
   secretValueSchema,
+  transferIdSchema,
   type Command,
   type DesktopInfo,
 } from '@selfmp3/desktop-bridge'
+
+import * as files from './files.js'
 
 import type { DeepLinks } from './deepLinks.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
@@ -63,6 +69,47 @@ export function registerIpc({
   ipcMain.handle(CHANNELS.secretsRemove, (_event, key: unknown) => {
     secretStore.remove(secretKeySchema.parse(key))
   })
+
+  ipcMain.handle(CHANNELS.filesDownload, async (event, request: unknown) => {
+    const parsed = downloadRequestSchema.parse(request)
+    return files.download(parsed, (bytesWritten, totalBytes) => {
+      // Straight back to whoever asked, rather than to whatever window happens
+      // to be first: a progress event belongs to the page that started it.
+      event.sender.send(EVENTS.progress, { id: parsed.id, bytesWritten, totalBytes })
+    })
+  })
+  ipcMain.handle(CHANNELS.filesCancel, (_event, id: unknown) => {
+    files.cancel(transferIdSchema.parse(id))
+  })
+  ipcMain.handle(CHANNELS.filesDelete, (_event, kind: unknown, name: unknown) =>
+    files.remove(fileKindSchema.parse(kind), fileNameSchema.parse(name)),
+  )
+  ipcMain.handle(CHANNELS.filesStat, (_event, kind: unknown, name: unknown) =>
+    files.statOne(fileKindSchema.parse(kind), fileNameSchema.parse(name)),
+  )
+  ipcMain.handle(CHANNELS.filesList, (_event, kind: unknown) =>
+    files.list(fileKindSchema.parse(kind)),
+  )
+  ipcMain.handle(
+    CHANNELS.filesFetchTo,
+    (_event, kind: unknown, name: unknown, url: unknown, headers: unknown) =>
+      files.fetchTo(
+        fileKindSchema.parse(kind),
+        fileNameSchema.parse(name),
+        externalUrlSchema.parse(url),
+        headers === undefined ? undefined : (headers as Record<string, string>),
+      ),
+  )
+  ipcMain.handle(CHANNELS.filesUsage, () => files.usage())
+  ipcMain.handle(CHANNELS.filesReveal, (_event, kind: unknown, name: unknown) =>
+    files.reveal(
+      fileKindSchema.parse(kind),
+      name === undefined || name === null ? undefined : fileNameSchema.parse(name),
+    ),
+  )
+  ipcMain.handle(CHANNELS.filesClear, (_event, kind: unknown) =>
+    files.clear(fileKindSchema.parse(kind)),
+  )
 
   ipcMain.handle(CHANNELS.openExternal, async (_event, url: unknown) => {
     await shell.openExternal(externalUrlSchema.parse(url))

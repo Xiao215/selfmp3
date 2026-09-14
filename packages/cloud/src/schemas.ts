@@ -1,4 +1,4 @@
-import { IdSchema } from '@selfmp3/shared'
+import { CloudServerSchema, IdSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 
 /**
@@ -29,3 +29,11 @@ export type ImportRequestView = z.infer<typeof ImportRequestViewSchema>
 
 export const ImportRequestListSchema = z.object({ imports: z.array(ImportRequestViewSchema) })
 export type ImportRequestList = z.infer<typeof ImportRequestListSchema>
+
+/**
+ * Where the Mac behind this library listens, from its last snapshot — for
+ * importing through it directly when this device can reach it — or null from
+ * a Mac that never said.
+ */
+export const CloudServerViewSchema = z.object({ server: CloudServerSchema.nullable() })
+export type CloudServerView = z.infer<typeof CloudServerViewSchema>

@@ -29,6 +29,7 @@ import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { RomanizationService } from './services/romanization.js'
 import { romanizedLines } from './services/romanizedLines.js'
+import { listenAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { CoverToneService } from './services/coverTones.js'
@@ -173,6 +174,12 @@ export function createContainer(config: Config): Container {
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
+    // The token is the bucket's owner's already: whoever reads the snapshot
+    // is signed in to their own library.
+    server: () => ({
+      addresses: listenAddresses(config.host, config.port).map(address => address.url),
+      token: config.authToken,
+    }),
   })
 
   let version = 1

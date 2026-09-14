@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import { DESKTOP_APP_ORIGIN } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
@@ -107,9 +108,12 @@ export function isAuthenticated(req: Request, config: Config): boolean {
  * write, and gets nothing. A request with no `Origin` at all is not a browser —
  * the phone, `curl`, a shortcut — and is left alone; there is no browser there
  * to be tricked.
+ *
+ * The installed Mac app is one of ours, and always let through: its page is
+ * served from `app://selfmp3`, which no website can claim.
  */
 export function sameOriginWrites(config: Config): RequestHandler {
-  const allowed = new Set(config.corsOrigins)
+  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN])
 
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next()
@@ -130,10 +134,9 @@ export function sameOriginWrites(config: Config): RequestHandler {
   }
 }
 
-/** CORS, but only for origins explicitly listed in config. */
+/** CORS, for the origins listed in config and the installed Mac app's own. */
 export function cors(config: Config): RequestHandler {
-  const allowed = new Set(config.corsOrigins)
-  if (allowed.size === 0) return (_req, _res, next) => next()
+  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN])
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.headers.origin

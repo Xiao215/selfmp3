@@ -3,6 +3,7 @@ import {
   CloudSnapshotSchema,
   toCloudRules,
   type CloudPlaylist,
+  type CloudServer,
   type CloudSnapshot,
   type CloudSong,
   type Playlist,
@@ -41,6 +42,8 @@ export interface SnapshotInput {
   readonly upTo?: Readonly<Record<string, number>>
   /** Links other devices asked to import lately, and how each went. */
   readonly imports?: readonly ImportRequest[]
+  /** Where this Mac listens, for a device near enough to ask it directly. */
+  readonly server?: CloudServer
 }
 
 type Stamps = Record<string, string>
@@ -183,6 +186,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
           })),
         }
       : {}),
+    ...(input.server ? { server: input.server } : {}),
   })
 }
 

@@ -56,6 +56,7 @@ import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
 
 export const queryKeys = {
   cloudImports: ['cloud-imports'] as const,
+  cloudServer: ['cloud-server'] as const,
   library: ['library'] as const,
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
@@ -266,10 +267,11 @@ export function useImportQueue(enabled: boolean): UseQueryResult<ImportQueue, Er
   })
 }
 
-export function useImportTools(): UseQueryResult<ToolStatus, Error> {
+export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error> {
   return useQuery({
     queryKey: queryKeys.importTools,
     queryFn: () => clientApi().importTools(),
+    enabled,
     staleTime: 60_000,
     retry: false,
   })

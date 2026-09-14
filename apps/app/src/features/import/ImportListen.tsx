@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ImportPreviewItem } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
-import { mediaUrlFor } from '../../api/client'
+import { mediaUrlFor, type ServerConnection } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../server/ConnectionProvider'
@@ -29,9 +29,12 @@ import {
  * is closed, unless you went back to it yourself in the meantime, which the
  * preview makes way for.
  */
-export function useListen() {
+export function useListen(via?: ServerConnection) {
   const player = usePlayer()
-  const { connection } = useConnection()
+  const { connection: own } = useConnection()
+  // A cloud library previews through the Mac it reached (ImportViaMac), not
+  // through whatever address this device happens to have stored.
+  const connection = via ?? own
   const [audio] = useState(() => createListenAudio())
   const [listening, setListening] = useState<Listening | null>(null)
   /** Something was playing when previewing began; it carries on when the preview closes. */

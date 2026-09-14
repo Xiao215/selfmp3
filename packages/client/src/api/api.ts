@@ -75,6 +75,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import {
+  CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,
   type CloudImportRequest,
@@ -467,6 +468,9 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('POST', '/api/cloud/imports', ImportRequestViewSchema, input),
 
     cancelCloudImport: (uid: string) => request('DELETE', `/api/cloud/imports/${uid}`, OkSchema),
+
+    /** Where the Mac behind a cloud library listens, from its last snapshot. */
+    cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
 
     /** The code Google's sign-in ended with, which claims the session. */
     cloudSignInCode: (code: string) =>

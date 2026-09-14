@@ -5,6 +5,7 @@ import {
   type Playlist,
   type Song,
   type Tag,
+  type CloudServer,
 } from '@selfmp3/shared'
 import type { ImportRequestView } from './schemas.js'
 
@@ -47,6 +48,8 @@ export interface CloudLibrary {
   readonly playlistSongs: Readonly<Record<number, readonly number[]>>
   /** Links asked to be imported from any device, and how each went, newest first. */
   readonly imports: readonly ImportRequestView[]
+  /** Where the Mac that wrote the snapshot listens, or null from one that never said. */
+  readonly server: CloudServer | null
   /** The uid behind each id in this library, for turning an edit into a change. */
   readonly uids: {
     readonly songs: ReadonlyMap<number, string>
@@ -183,6 +186,7 @@ export function snapshotToLibrary(
         requestedBy: request.requestedBy,
       }))
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt)),
+    server: snapshot.server ?? null,
     uids: {
       songs: new Map(snapshot.songs.map(song => [songs[song.uid] ?? 0, song.uid])),
       tags: new Map(snapshot.tags.map(tag => [tags[tag.uid] ?? 0, tag.uid])),

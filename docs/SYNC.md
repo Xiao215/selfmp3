@@ -319,6 +319,6 @@ the Mac that is *Settings → Cloud*; everywhere else it is the first thing the 
 | The Mac's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
 | A device's own copy of the library, and its outbox | `packages/cloud/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/cloud/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
-| Importing from a device | `apps/app/src/features/import/CloudImportScreen.tsx` |
+| Importing from a device — through the Mac, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaMac.tsx`, `macReach.model.ts`, `useMacDirect.ts`, `importSource.ts`; `apps/server/src/services/addresses.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the Mac and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |

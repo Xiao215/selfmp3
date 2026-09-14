@@ -28,6 +28,7 @@ import {
   type CloudLyrics,
   type CloudStatus,
   type DoormanMe,
+  type CloudServer,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -143,6 +144,12 @@ export interface CloudSyncDeps {
   readonly ingest?: CloudIngest
   /** Links other devices asked to import: how each is going goes in every snapshot. */
   readonly importRequests?: ImportRequestRepository
+  /**
+   * Where this Mac listens right now, for the snapshot, so a device near it
+   * can import through it. Asked each time, since an address can change
+   * while the library does not; the poll republishes when one has.
+   */
+  readonly server?: () => CloudServer
   /** How a bucket client is made for a connection. Tests hand in a memory bucket. */
   readonly openStore?: (connection: CloudConnection) => CloudStore
   /** The doorman to sign in through; empty or absent for none. */
@@ -195,6 +202,8 @@ export class CloudSyncService {
   /** Publishing is one at a time: the import step and a pass can both ask. */
   #publishing: Promise<void> = Promise.resolve()
   #lastSnapshotHash: string | null = null
+  /** The addresses the last snapshot carried, to notice when the Mac has moved. */
+  #publishedServer: string | null = null
 
   #state: CloudStatus['state'] = 'off'
   #progress: CloudStatus['progress'] = null
@@ -794,6 +803,10 @@ export class CloudSyncService {
         key => parseLogKey(key)?.deviceId !== own,
       )
       if (fresh) void this.#pass()
+      // A new Wi-Fi network is a new address, with nothing else about the
+      // library to say: the snapshot goes up again so a device can still find
+      // this Mac.
+      else if (this.#serverNow() !== this.#publishedServer) void this.#publish(store)
     } catch (error) {
       // The next look, or the next pass, will say what is wrong.
       this.#logger.debug('could not look for changes from other devices', {
@@ -1012,6 +1025,12 @@ export class CloudSyncService {
     }
   }
 
+  /** The addresses as the snapshot would carry them now, or null with none to carry. */
+  #serverNow(): string | null {
+    const server = this.#deps.server?.()
+    return server === undefined ? null : JSON.stringify(server)
+  }
+
   #publish(store: CloudStore): Promise<void> {
     const run = this.#publishing.then(() => this.#publishNow(store))
     this.#publishing = run.catch(() => undefined)
@@ -1026,11 +1045,14 @@ export class CloudSyncService {
     // A request whose songs have all finished says so from now on.
     importRequests?.settle()
 
+    const server = this.#deps.server?.()
+    this.#publishedServer = server === undefined ? null : JSON.stringify(server)
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],
+      ...(server ? { server } : {}),
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),

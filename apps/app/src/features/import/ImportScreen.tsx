@@ -11,11 +11,10 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { formatDuration, type ImportJob, type ImportPreviewItem } from '@selfmp3/shared'
-import { clientApi, queryKeys, radius } from '@selfmp3/client'
-import { useImportQueue, useImportTools, useLibrary } from '../../api/queries'
-import { useConnection } from '../../server/ConnectionProvider'
+import { radius } from '@selfmp3/client'
+import type { ServerConnection } from '../../api/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -53,6 +52,7 @@ import {
   type Review,
 } from './import.model'
 import { ListenBar, ListenButton, useListen } from './ImportListen'
+import { useImportSource } from './importSource'
 import { canListen, listeningLeftReview, type Listening } from './listen.model'
 import { YouTubeLibraryPanel } from './YouTubeLibraryPanel'
 import { canListenHere } from '../../ports/listen'
@@ -69,17 +69,18 @@ const NO_PLAYLIST = 0
  *
  * Links shared to the app arrive as `/import?url=…&text=…`, which is the web's
  * Web Share Target; they are fetched straight away and cleared from the URL.
+ *
+ * `via` is a Mac reached directly from a cloud library (ImportViaMac): every
+ * request here goes to it, and its tags and playlists are the ones offered.
  */
-export function ImportScreen(): ReactNode {
+export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
   const { wide } = useLayout()
-  const { fromCloud } = useConnection()
-  const queryClient = useQueryClient()
-  const { data: library } = useLibrary()
-  const { data: tools, refetch: refetchTools } = useImportTools()
-  const { data: queue } = useImportQueue(!fromCloud)
+  const source = useImportSource(via)
+  const { api, library, tools, refetchTools, queue } = source
+  const viaMac = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
   const [links, setLinks] = useState('')
@@ -89,14 +90,14 @@ export function ImportScreen(): ReactNode {
   const [createPlaylist, setCreatePlaylist] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
-  const listen = useListen()
+  const listen = useListen(via)
   const queueTop = useRef(0)
 
   const tags = library?.tags ?? []
   const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
 
   const preview = useMutation({
-    mutationFn: (input: string) => clientApi().importPreview(input),
+    mutationFn: (input: string) => api.importPreview(input),
     onSuccess: result => {
       setReview(reviewFrom(result))
       setCreatePlaylist(false)
@@ -107,7 +108,7 @@ export function ImportScreen(): ReactNode {
 
   const enqueue = useMutation({
     mutationFn: (current: Review) =>
-      clientApi().importEnqueue(
+      api.importEnqueue(
         enqueueRequest(current, {
           tagIds,
           playlistId: playlistId === NO_PLAYLIST ? null : playlistId,
@@ -118,14 +119,12 @@ export function ImportScreen(): ReactNode {
       setReview(null)
       setLinks('')
       // The review just collapsed; bring the new jobs into view once they are drawn.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }).then(() => {
+      void source.invalidateQueue().then(() => {
         requestAnimationFrame(() =>
           scrollRef.current?.scrollTo({ y: Math.max(0, queueTop.current - 16), animated: true }),
         )
       })
-      if (result.playlistId !== null) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.library })
-      }
+      if (result.playlistId !== null) void source.invalidateLibrary()
     },
     onError: (err: Error) => setError(err.message),
   })
@@ -149,7 +148,7 @@ export function ImportScreen(): ReactNode {
   }, [shared])
 
   const afterJob = (promise: Promise<unknown>): void => {
-    void promise.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }))
+    void promise.then(() => source.invalidateQueue())
   }
 
   // A preview whose track has left the review (cancelled, imported, or a new
@@ -179,6 +178,9 @@ export function ImportScreen(): ReactNode {
         <Text style={styles.sub}>
           Paste one or more links, one per line. A playlist expands into its tracks, and an artist’s
           page into their top songs.
+          {viaMac
+            ? ' This goes through your Mac, which downloads the songs and syncs them to every device.'
+            : ''}
         </Text>
 
         {tools && !tools.ytdlp ? (
@@ -228,7 +230,7 @@ export function ImportScreen(): ReactNode {
             label={preview.isPending ? 'Reading…' : 'Fetch details'}
             variant="primary"
             grow={!wide}
-            disabled={preview.isPending || !links.trim() || tools?.ytdlp === false || fromCloud}
+            disabled={preview.isPending || !links.trim() || tools?.ytdlp === false}
             onPress={() => {
               if (links.trim()) preview.mutate(links.trim())
             }}
@@ -240,7 +242,8 @@ export function ImportScreen(): ReactNode {
           and album metadata. Regular youtube.com links usually just have a video title.
         </Text>
 
-        {fromCloud ? null : (
+        {/* Migrating asks whatever answers this device, which through a Mac is still the bucket. */}
+        {viaMac ? null : (
           <Pressable
             style={({ pressed }) => [styles.migrateCard, pressed && styles.migrateCardPressed]}
             onPress={() => router.push('/import/migrate')}
@@ -405,7 +408,7 @@ export function ImportScreen(): ReactNode {
               </Text>
               <Text
                 style={[styles.linkText, { color: accent.accent }]}
-                onPress={() => afterJob(clientApi().clearImports())}
+                onPress={() => afterJob(api.clearImports())}
                 accessibilityRole="button"
               >
                 clear finished
@@ -416,15 +419,15 @@ export function ImportScreen(): ReactNode {
                 <JobRow
                   key={job.id}
                   job={job}
-                  onCancel={() => afterJob(clientApi().cancelImport(job.id))}
-                  onRetry={() => afterJob(clientApi().retryImport(job.id))}
+                  onCancel={() => afterJob(api.cancelImport(job.id))}
+                  onRetry={() => afterJob(api.retryImport(job.id))}
                 />
               ))}
             </View>
           </View>
         ) : null}
 
-        {fromCloud ? null : <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />}
+        <YouTubeLibraryPanel onImport={fetchLinks} busy={preview.isPending} />
       </ScrollView>
     </SafeAreaView>
   )

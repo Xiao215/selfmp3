@@ -1,6 +1,6 @@
-import os from 'node:os'
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
+import { listenAddresses } from './services/addresses.js'
 import { organizeLegacyImports } from './services/libraryLayout.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
@@ -24,8 +24,8 @@ function main(): void {
 
   const server = app.listen(config.port, config.host, () => {
     logger.info(`${APP_NAME} ${APP_VERSION}`)
-    for (const url of localUrls(config.host, config.port)) {
-      logger.info(`listening on ${url}`)
+    for (const address of listenAddresses(config.host, config.port)) {
+      logger.info(`listening on ${address.url}${address.tailscale ? '  (tailscale)' : ''}`)
     }
     if (config.authToken) logger.info('bearer token auth is enabled')
   })
@@ -170,23 +170,6 @@ function startLibrary(container: Container): void {
       // Publishing reads what the scan found, so it waits for it — however it went.
       .finally(startCloud)
   }
-}
-
-/** Every address this server can actually be reached on, for the boot log. */
-function localUrls(host: string, port: number): string[] {
-  if (host !== '0.0.0.0' && host !== '::') return [`http://${host}:${port}`]
-
-  const urls = [`http://localhost:${port}`]
-  for (const addresses of Object.values(os.networkInterfaces())) {
-    for (const address of addresses ?? []) {
-      if (address.family !== 'IPv4' || address.internal) continue
-      // Tailscale hands out addresses in 100.64.0.0/10 — worth calling out,
-      // since that is the one that works from your phone anywhere.
-      const isTailscale = /^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\./.test(address.address)
-      urls.push(`http://${address.address}:${port}${isTailscale ? '  (tailscale)' : ''}`)
-    }
-  }
-  return urls
 }
 
 // Boot is synchronous — the initial scan is deliberately not awaited so the API

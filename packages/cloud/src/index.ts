@@ -19,9 +19,11 @@ export type { EditContext } from './edits.js'
 export { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
 export {
   CloudImportRequestSchema,
+  CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,
   type CloudImportRequest,
+  type CloudServerView,
   type ImportRequestList,
   type ImportRequestView,
 } from './schemas.js'

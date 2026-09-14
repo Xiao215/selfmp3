@@ -210,6 +210,19 @@ export const CloudImportSchema = z.object({
 export type CloudImport = z.infer<typeof CloudImportSchema>
 
 /**
+ * Where the Mac that writes the snapshots can be reached directly, for what
+ * only it can do: reading a link, and playing a song before it is imported.
+ * The addresses are the ones it listens on; a device tries them and talks to
+ * the first that answers. Only whoever can read the bucket sees this, and the
+ * token is the one every device of theirs already carries to that Mac.
+ */
+export const CloudServerSchema = z.object({
+  addresses: z.array(z.string().url()).max(16),
+  token: z.string().nullable(),
+})
+export type CloudServer = z.infer<typeof CloudServerSchema>
+
+/**
  * The whole library at one moment: `snapshots/<time>-<device>.json`.
  *
  * Lists only songs whose audio is in the bucket. A song still uploading is not
@@ -235,6 +248,8 @@ export const CloudSnapshotSchema = z.object({
   aliases: z.record(UidSchema, UidSchema).optional(),
   /** Links asked for from any device in the last week, and how each went. */
   imports: z.array(CloudImportSchema).optional(),
+  /** How to reach the Mac that wrote this, when a device is near enough to. */
+  server: CloudServerSchema.optional(),
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 

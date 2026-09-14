@@ -3705,6 +3705,52 @@ Gates on the merged tree:
   4.1 s. The one skip is "a row plays from a server", which needs a server
   answering.
 
+**A search page is not a playlist.** Xiao pasted `music.youtube.com/search?q=yoasobi`
+into the Mac app. yt-dlp lists a search the way it lists a playlist, and among
+the songs are albums, the artist's page and playlists — `YoutubeTab` entries
+at `/browse/…` with no title. Each was made a job. An album job downloaded the
+whole album, song over song, into one file, and yt-dlp's resume of that file
+was answered 416 by YouTube — three times, then "failed". The song jobs had a
+title and no artist (a search listing names none), and `songs.patch` wrote
+that blank over the artist yt-dlp had embedded from YouTube's own data, so
+they showed as Unknown artist. Now only video entries count
+(`isVideoEntry`), a job whose link turns out to be a playlist fails at once
+and says so, a job with no artist asks about its video before downloading,
+and a blank never overwrites a tag. The four songs imported before the fix
+still say Unknown artist; their files say YOASOBI.
+
+**Importing from a cloud library goes through the Mac, directly.** The old
+cloud Import screen was one box: send a link, and the Mac downloads all of it
+whenever it next looks at the log. Xiao expected what the Mac's own screen
+has — the songs a link holds, to choose from and to listen to first — and
+both need the Mac itself, which runs yt-dlp; so the rule is now simple: a
+cloud library imports through its Mac when this device can reach it, and not
+at all when it cannot. The Mac puts the addresses it listens on, and its
+token, in every snapshot (`CloudServerSchema`; `services/addresses.ts`, which
+the boot log uses too), and republishes when they change without the library
+changing (a new Wi-Fi network). A device signed in to the cloud reads them
+from its own copy (`GET /api/cloud/server`) and asks `/api/health` at all of
+them at once, three seconds each, taking the first that answers
+(`macReach.model.ts`, tested): on the Mac itself that is `localhost`. Then the
+Import screen is the Mac's own, pointed at it — fetch details, review, listen,
+tag, import — with the Mac's tags and playlists, since a cloud copy numbers
+its own (`importSource.ts`). What the Mac downloads goes up to the bucket as
+every import does, and the device sees it with the next sync. With no address
+answering, the screen says the Mac is off or out of reach and keeps looking
+every twenty seconds; with a Mac that never published addresses, that it
+needs the current server and one sync. `CloudImportScreen` and its model are
+gone; the request-through-the-log path on the Mac stays, since the pending
+imports banner reads its results.
+
+Two things stood in the way of the installed app talking to a Mac at all,
+whichever way it got the address: the Mac's CORS answered only origins listed
+in `SELFMP3_CORS_ORIGINS`, and `sameOriginWrites` refused a write from any
+other origin — and the app's page is `app://selfmp3`. That origin is now
+always let through (`DESKTOP_APP_ORIGIN`, tested), as the doorman already did.
+A browser at the web app's https address still cannot ask a Mac at a plain
+http address, so in a browser away from a Mac's own page this screen will say
+the Mac is out of reach.
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

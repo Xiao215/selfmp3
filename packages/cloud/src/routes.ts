@@ -426,6 +426,12 @@ export function createCloudRoutes(
           answer: () => ({ ok: true }),
         })),
     ],
+    // Where the Mac is, for a device that would rather ask it directly.
+    [
+      'GET',
+      '/api/cloud/server',
+      async ({ session }) => ({ server: (await loadCloudLibrary(session)).server }),
+    ],
 
     [
       'POST',

@@ -60,6 +60,8 @@ export function LibraryScreen(): ReactNode {
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
+  // The + the tag window was opened from, for the same reason.
+  const tagAnchorRef = useRef<View | null>(null)
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
   const tagById = useMemo(() => new Map(tags.map(tag => [tag.id, tag])), [tags])
@@ -105,6 +107,7 @@ export function LibraryScreen(): ReactNode {
           menuAnchorRef.current = anchor
           setMenuSong(item)
         }}
+        menuOpen={menuSong?.id === item.id}
         // Holding a row selects it; the ⋯ opens the menu.
         onLongPress={() => selection.enter(item.id)}
         onToggleLoved={() => toggleLoved.mutate({ id: item.id, loved: !item.loved })}
@@ -117,7 +120,10 @@ export function LibraryScreen(): ReactNode {
           return tag ? [tag] : []
         })}
         onToggleTag={includeTag}
-        onEditTags={() => setTaggingSong(item)}
+        onEditTags={anchor => {
+          tagAnchorRef.current = anchor
+          setTaggingSong(item)
+        }}
       />
     ),
     [
@@ -132,6 +138,7 @@ export function LibraryScreen(): ReactNode {
       selection,
       tagById,
       includeTag,
+      menuSong,
     ],
   )
 
@@ -322,7 +329,11 @@ export function LibraryScreen(): ReactNode {
         />
       )}
 
-      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} />
+      <TagPicker
+        song={taggingSong}
+        onClose={() => setTaggingSong(null)}
+        anchorRef={tagAnchorRef}
+      />
 
       <SongMenu
         song={menuSong}

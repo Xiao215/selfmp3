@@ -73,6 +73,7 @@ export const SongRow = memo(function SongRow({
   onToggleTag,
   onEditTags,
   onLongPress,
+  menuOpen = false,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -109,10 +110,16 @@ export const SongRow = memo(function SongRow({
   tags?: readonly Tag[]
   /** A tag chip filters the library by that tag. */
   onToggleTag?: (tagId: number) => void
-  /** The dashed + beside the chips. */
-  onEditTags?: () => void
+  /** The dashed + beside the chips. Handed the +, so the tag window can open over it. */
+  onEditTags?: (anchor: View | null) => void
   /** Holding the row on a phone. Without it, holding opens the ⋯ menu. */
   onLongPress?: () => void
+  /**
+   * This row's menu is open. The menu covers the pointer, so the row stops
+   * hearing it; without this the ⋯ faded out under its own menu and stayed
+   * clickable while invisible.
+   */
+  menuOpen?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -122,6 +129,7 @@ export const SongRow = memo(function SongRow({
   const contentWidth = useContentWidth()
   const [hovered, setHovered] = useState(false)
   const moreRef = useRef<View>(null)
+  const tagAddRef = useRef<View>(null)
   // The held-finger state, as on the web: the row gives a little under the
   // finger so something is visibly happening while the menu is on its way.
   const [scale] = useState(() => new Animated.Value(1))
@@ -224,7 +232,7 @@ export const SongRow = memo(function SongRow({
   // --- desktop width ---------------------------------------------------------
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
-  const revealed = !dense || hovered
+  const revealed = !dense || hovered || menuOpen
   const albumColumn = (contentWidth ?? width - SIDEBAR_WIDTH) >= ALBUM_COLUMN_CONTENT_WIDTH
   const features = song.features
   const badges = features && (features.bpm != null || features.energy != null)
@@ -234,7 +242,7 @@ export const SongRow = memo(function SongRow({
     <View
       testID={testID}
       role="row"
-      style={[styles.rowWide, dense && hovered && styles.rowHovered, ...tint]}
+      style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...tint]}
       onPointerEnter={dense ? () => setHovered(true) : undefined}
       onPointerLeave={dense ? () => setHovered(false) : undefined}
     >
@@ -327,7 +335,8 @@ export const SongRow = memo(function SongRow({
           : null}
         {onEditTags ? (
           <Pressable
-            onPress={onEditTags}
+            ref={tagAddRef}
+            onPress={() => onEditTags(tagAddRef.current)}
             accessibilityRole="button"
             accessibilityLabel={`Edit tags for ${song.title}`}
             {...tip('Edit tags')}

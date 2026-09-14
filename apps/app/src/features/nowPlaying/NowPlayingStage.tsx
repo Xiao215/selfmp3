@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -25,6 +25,7 @@ import {
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
+import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../../ui/accent'
@@ -56,6 +57,9 @@ import { tip } from '../../ui/tip'
 /** The player bar's height: the page is the window above it. */
 const BAR = 84
 const MOVE_MS = 520
+/** Opening and putting the page away: quick enough never to be waited for. */
+const ENTER_MS = 260
+const LEAVE_MS = 180
 
 /**
  * The page for the song that is playing, on a computer: the web's
@@ -79,10 +83,11 @@ export function NowPlayingStage(): ReactNode {
   const mode = parseMode(params.mode)
   const song = player.current
 
-  const close = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const close = (): void =>
+    leaveStage(() => {
+      if (router.canGoBack()) router.back()
+      else router.replace('/')
+    })
 
   if (!song) return <EmptyStage onClose={close} />
 
@@ -145,6 +150,8 @@ function Stage({
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
+  // The tag window opens over its button, as the song menu's does.
+  const tagsButtonRef = useRef<View>(null)
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -154,6 +161,27 @@ function Stage({
     setStageIdle(idle)
   }, [idle])
   useEffect(() => () => setStageIdle(false), [])
+
+  // The page comes up over the library and goes back down before the route
+  // changes, rather than the router cutting between them.
+  const [shown] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    Animated.timing(shown, {
+      toValue: 1,
+      duration: ENTER_MS,
+      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      useNativeDriver: true,
+    }).start()
+    setStageExit(then => {
+      Animated.timing(shown, {
+        toValue: 0,
+        duration: LEAVE_MS,
+        easing: Easing.bezier(0.4, 0, 1, 1),
+        useNativeDriver: true,
+      }).start(() => then())
+    })
+    return () => setStageExit(null)
+  }, [shown])
   const width = size?.width ?? window.width
   const height = size?.height ?? window.height - BAR
   const g = stageGeometry(width, height)
@@ -186,8 +214,17 @@ function Stage({
   const chrome = { opacity: idle ? 0 : 1 }
 
   return (
-    <View
-      style={styles.page}
+    <Animated.View
+      style={[
+        styles.page,
+        {
+          opacity: shown,
+          transform: [
+            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+            { scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },
+          ],
+        },
+      ]}
       accessibilityLabel={`Now playing: ${song.title}`}
       onLayout={event => {
         const { width: w, height: h } = event.nativeEvent.layout
@@ -292,6 +329,7 @@ function Stage({
               </Text>
             ))}
             <Pressable
+              ref={tagsButtonRef}
               onPress={() => setTagsOpen(true)}
               accessibilityRole="button"
               style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
@@ -478,8 +516,12 @@ function Stage({
         </Pressable>
       ) : null}
 
-      <TagPicker song={tagsOpen ? song : null} onClose={() => setTagsOpen(false)} />
-    </View>
+      <TagPicker
+        song={tagsOpen ? song : null}
+        onClose={() => setTagsOpen(false)}
+        anchorRef={tagsButtonRef}
+      />
+    </Animated.View>
   )
 }
 

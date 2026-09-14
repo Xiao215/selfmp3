@@ -187,6 +187,9 @@ function AnchoredPopover({
                     ? anchor.y - shownHeight - space.xs
                     : anchor.y + anchor.height + space.xs,
               opacity: progress,
+              // Grows out of the corner nearest its control, so the panel reads
+              // as the button opening rather than a box appearing near it.
+              transformOrigin: `${side === 'above' ? 'bottom' : 'top'} ${rightAligned < space.sm ? 'left' : 'right'}`,
               transform: [
                 {
                   translateY: progress.interpolate({
@@ -194,6 +197,7 @@ function AnchoredPopover({
                     outputRange: [side === 'above' ? 4 : -4, 0],
                   }),
                 },
+                { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
               ],
             },
           ]}

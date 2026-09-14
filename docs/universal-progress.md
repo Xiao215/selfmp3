@@ -2501,3 +2501,31 @@ root `node_modules`, left over and absent from the lockfile, so the check
 passed here and not after CI's clean install. `@selfmp3/app` now declares
 `@types/react-dom ~19.2.7` (matching `@types/react ~19.2.18`); the lockfile
 gains only that entry.
+
+### The ⋯ and its windows, and the stage's transition — branch `universal/menu-flow`
+
+From Xiao on 4600:
+
+- **The ⋯ vanished under its menu.** Rows show the ⋯ on hover; the popover's
+  backdrop covers the row, the row hears `pointerleave`, and the ⋯ went to
+  opacity 0 while still under the backdrop's click. `SongRow` takes
+  `menuOpen` (the library passes it for the row whose menu is up) and keeps the
+  ⋯ and the row highlight while it is set; a click on the ⋯ lands on the
+  backdrop and closes the menu. `Popover` scales in from 0.94 with its
+  `transformOrigin` at the corner nearest the control.
+- **Tag windows where they were asked for.** `SongMenu` hands its anchor to
+  `TagPicker`; the row's + passes itself through `onEditTags(anchor)`; the
+  stage's Edit tags button has a ref. All three open the picker as a popover
+  over the control. Only a picker opened with nothing to hang off is centred.
+- **The stage moves.** `NowPlayingStage` fades and rises in over 260 ms and
+  registers a 180 ms exit with `shell/stageExit`; its chevron, Escape and the
+  player bar's close go through `leaveStage`, which plays it and then
+  navigates. The browser's own back still cuts.
+- **"The UI broke after the stage"** did not reproduce on 4600 in Chrome:
+  refresh then open and close by the chevron, by browser back, by refreshing
+  on the stage and closing, and from a refreshed Stats page all came back with
+  the same shell and library geometry and no page errors. Waiting on Xiao for
+  the exact steps.
+- Checked in Chrome against the dev server: the ⋯ stayed at opacity 1 with its
+  menu open and the mouse elsewhere, a second click closed the menu, Edit tags
+  opened under the ⋯, and the stage's opacity moved on open and close.

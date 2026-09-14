@@ -116,9 +116,11 @@ export function SongMenu({
         </Sheet>
       )}
 
+      {/* Where the menu was: over the same ⋯, not in the middle of the window. */}
       <TagPicker
         song={opened?.kind === 'tags' ? openedSong : null}
         onClose={() => setOpened(null)}
+        anchorRef={anchorRef}
       />
       {opened?.kind === 'details' && openedSong ? (
         <SongDetails song={openedSong} onClose={() => setOpened(null)} />

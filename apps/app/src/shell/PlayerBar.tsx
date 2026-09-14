@@ -42,6 +42,7 @@ import { SleepMenu } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
 import { SheetItem } from '../ui/components/Sheet'
 import { TagPicker } from '../ui/components/TagPicker'
+import { leaveStage } from './stageExit'
 import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 
@@ -103,10 +104,11 @@ export function PlayerBar(): ReactNode {
   const pageMode = onPage ? parseMode(pageParams.mode) : null
   const pageTab = onPage ? parseTab(pageParams.tab) : null
   const queueOpen = pageMode === 'stage' && pageTab === 'queue'
-  const closePage = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const closePage = (): void =>
+    leaveStage(() => {
+      if (router.canGoBack()) router.back()
+      else router.replace('/')
+    })
   const togglePage = (): void => (onPage ? closePage() : router.push('/now-playing'))
   /** The mic: straight to the words, and the same again to put them away. */
   const toggleLyrics = (): void => {

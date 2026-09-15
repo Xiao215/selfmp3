@@ -44,7 +44,7 @@ import {
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
-import { coversNow, onCoversChanged } from '../offline/covers'
+import { coversNow, coversVersion, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
@@ -939,8 +939,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * them builds a map of every cover on this device, and this provider used
    * to do that for each of its renders to look one song up.
    */
-  const [keptCovers, setKeptCovers] = useState(coversNow)
-  useEffect(() => onCoversChanged(() => setKeptCovers(coversNow())), [])
+  // Read again whenever a cover arrives. The covers already on disk are read in
+  // at launch and announced once, and a subscription made in an effect could
+  // miss that — then every song was shown with the server's address all
+  // session. `useSyncExternalStore` checks the version again once subscribed.
+  const coversSeen = useSyncExternalStore(subscribeCovers, coversVersion, coversVersion)
+  // `coversSeen` is not read, but it is why the map is read again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const keptCovers = useMemo(() => coversNow(), [coversSeen])
   const nowPlayingArt = useMemo(() => {
     if (!currentSong?.hasArt) return null
     const kept = keptCovers.get(currentSong.id)

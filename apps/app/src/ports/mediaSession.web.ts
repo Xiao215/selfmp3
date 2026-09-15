@@ -1,5 +1,6 @@
 import type { MediaSessionActions, MediaSessionPort, NowPlaying } from './mediaSession'
 import { desktop } from './desktop/bridge'
+import { artworkInliner } from './inlineArtwork'
 
 export type { MediaSessionActions, MediaSessionPort, NowPlaying }
 
@@ -42,6 +43,11 @@ function tellTheShell(playing: boolean, now: NowPlaying | null): void {
 let playing = false
 let current: NowPlaying | null = null
 
+/** Kept covers, made into addresses Chromium will show (`inlineArtwork.ts`). */
+const artwork = artworkInliner()
+/** Which `setNowPlaying` a cover read belongs to, so a slow one cannot land on the next song. */
+let artworkRequests = 0
+
 /**
  * Handlers Chromium will accept. An action set to null is one the card draws
  * greyed out, which is the right answer for "there is nothing playing".
@@ -83,17 +89,30 @@ export const mediaSession: MediaSessionPort = {
     current = now
     const media = session()
     if (media) {
-      media.metadata =
-        now === null
-          ? null
-          : new MediaMetadata({
-              title: now.title,
-              artist: now.artist,
-              album: now.album,
-              // One size, and the OS scales it. Declaring sizes that are not
-              // the file's actual size is how artwork ends up blurry.
-              artwork: now.artwork ? [{ src: now.artwork }] : [],
-            })
+      const request = ++artworkRequests
+      const show = (artwork: string | null): void => {
+        media.metadata =
+          now === null
+            ? null
+            : new MediaMetadata({
+                title: now.title,
+                artist: now.artist,
+                album: now.album,
+                // One size, and the OS scales it. Declaring sizes that are not
+                // the file's actual size is how artwork ends up blurry.
+                artwork: artwork ? [{ src: artwork }] : [],
+              })
+      }
+      const src = now?.artwork ?? null
+      const ready = src === null ? null : artwork.ready(src)
+      show(ready)
+      // A kept cover has to be read first (`inlineArtwork.ts`). The name goes
+      // up now; the picture follows, unless another song got there first.
+      if (src !== null && ready === null) {
+        void artwork.load(src).then(url => {
+          if (url !== null && request === artworkRequests) show(url)
+        })
+      }
     }
     tellTheShell(playing, now)
   },

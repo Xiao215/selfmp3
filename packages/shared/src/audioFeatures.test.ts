@@ -10,7 +10,7 @@ import {
   parseCamelot,
   songDistance,
   transitionCrossfade,
-} from './features.js'
+} from './audioFeatures.js'
 
 const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
   bpm: 120,

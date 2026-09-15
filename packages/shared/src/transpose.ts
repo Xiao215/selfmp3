@@ -1,4 +1,4 @@
-import { camelotFromKey, keyName, type KeyMode } from './features.js'
+import { camelotFromKey, keyName, type KeyMode } from './audioFeatures.js'
 
 /**
  * Transposition helpers for the practice panel.

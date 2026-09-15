@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { spawn } from 'node:child_process'
-import { FEATURES_VERSION, type AnalysisStatus } from '@selfmp3/shared'
+import { ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -98,7 +98,7 @@ export class AnalysisService {
   status(): AnalysisStatus {
     return {
       running: this.#running,
-      pending: this.#features.countPending(FEATURES_VERSION),
+      pending: this.#features.countPending(ANALYSIS_VERSION),
       done: this.#done,
       failed: this.#failed,
       current: this.#current,
@@ -161,7 +161,7 @@ export class AnalysisService {
         }
 
         this.#kickedWhileRunning = false
-        const songId = this.#features.nextPending(FEATURES_VERSION)
+        const songId = this.#features.nextPending(ANALYSIS_VERSION)
         if (songId === null) break
 
         const song = this.#songs.byId(songId)
@@ -188,7 +188,7 @@ export class AnalysisService {
             key: null,
             camelot: null,
             danceability: null,
-            version: FEATURES_VERSION,
+            version: ANALYSIS_VERSION,
           })
         }
         this.#current = null
@@ -245,7 +245,7 @@ export class AnalysisService {
         key: features.key,
         camelot: features.camelot,
         danceability: features.danceability,
-        version: FEATURES_VERSION,
+        version: ANALYSIS_VERSION,
       })
 
       this.#logger.debug('analysed', {

@@ -3,7 +3,7 @@ import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
-import { SongFeaturesSchema } from './features.js'
+import { SongFeaturesSchema } from './audioFeatures.js'
 import { PlaylistKindSchema } from './playlist.js'
 import {
   BoolRuleSchema,

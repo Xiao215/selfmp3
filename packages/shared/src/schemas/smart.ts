@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
-import { CamelotSchema } from './features.js'
+import { CamelotSchema } from './audioFeatures.js'
 
 /**
  * Smart playlist rules.

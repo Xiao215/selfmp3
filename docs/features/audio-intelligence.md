@@ -80,13 +80,13 @@ The toggle is per device and remembered.
 
 `GET /api/library` includes `features` on every song (null until analysed). The
 `song_features` table: `song_id`, `bpm`, `energy`, `loudness_lufs`, `key`, `camelot`,
-`danceability`, `analyzed_at`, `version`. Bump `FEATURES_VERSION` in
-`packages/shared/src/features.ts` when the algorithm changes and old rows are redone on
+`danceability`, `analyzed_at`, `version`. Bump `ANALYSIS_VERSION` in
+`packages/shared/src/audioFeatures.ts` when the algorithm changes and old rows are redone on
 the next run.
 
 ## Where the code is
 
-- `packages/shared/src/features.ts` — Camelot wheel, distances, crossfade length (tested)
+- `packages/shared/src/audioFeatures.ts` — Camelot wheel, distances, crossfade length (tested)
 - `apps/server/src/services/dsp.ts` — FFT, onsets, tempo, chroma, key (tested with
   synthesised click tracks and chords)
 - `apps/server/src/services/analysis.ts` — ffmpeg decode, `ebur128`, the background loop

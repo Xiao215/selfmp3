@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { IdSchema, NameSchema, OptionalTextSchema } from './common.js'
-import { SongFeaturesSchema } from './features.js'
+import { SongFeaturesSchema } from './audioFeatures.js'
 
 /** Whether a song has lyrics, and whether they carry timestamps. */
 export const LyricsKindSchema = z.enum(['none', 'plain', 'synced'])

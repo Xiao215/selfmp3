@@ -1,4 +1,4 @@
-import { compatibleCamelot } from './features.js'
+import { compatibleCamelot } from './audioFeatures.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
 import type { SongSortField } from './schemas/common.js'
 import type { SmartRules } from './schemas/smart.js'

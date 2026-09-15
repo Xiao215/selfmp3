@@ -1,5 +1,5 @@
 import type { Song } from './schemas/song.js'
-import type { SongFeatures } from './schemas/features.js'
+import type { SongFeatures } from './schemas/audioFeatures.js'
 
 /**
  * Pure helpers over audio features: the Camelot wheel, distances between
@@ -15,7 +15,7 @@ import type { SongFeatures } from './schemas/features.js'
  * 3: analysis also writes each song's motion curve (schemas/motion.ts), so every
  * song analysed before it is analysed once more to gain one.
  */
-export const FEATURES_VERSION = 3
+export const ANALYSIS_VERSION = 3
 
 export const PITCH_NAMES = [
   'C',

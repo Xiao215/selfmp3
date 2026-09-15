@@ -105,6 +105,9 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
               romanized: state.romanizedKey,
             }
           : null,
+      // The curve, once analysis has made one and it is up. Left out before, as
+      // an older snapshot would.
+      ...(state.motionKey !== null ? { motion: state.motionKey } : {}),
       instrumental: song.instrumental,
       loved: song.loved,
       playCount: song.playCount,

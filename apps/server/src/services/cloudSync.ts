@@ -14,6 +14,7 @@ import {
   detectLyricsLanguage,
   isSynced,
   lyricsKey,
+  motionKey,
   newestSnapshotKey,
   parseEndpoint,
   parseLogKey,
@@ -52,6 +53,7 @@ import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
+import type { MotionStore } from './motionStore.js'
 import { buildSnapshot, publishRefusedMessage, publishWouldLoseLibrary } from './cloudSnapshot.js'
 
 /**
@@ -104,6 +106,8 @@ interface Signatures {
   readonly audio: string
   readonly cover: string
   readonly lyrics: string
+  /** The motion curve file's size and time, or `none` before analysis has made one. */
+  readonly motion: string
 }
 
 /** A song's words in the bucket, and their romanized lines beside them. */
@@ -139,6 +143,13 @@ export interface CloudSyncDeps {
    * not what is being tested, which then uploads none.
    */
   readonly romanize?: (songId: number, text: string) => Promise<string[] | null>
+  /**
+   * Each song's motion curve (services/motionStore.ts), uploaded beside the
+   * words. Analysis usually finishes after a song's first upload, so the
+   * curve's own signature is what brings a song back into a later pass.
+   * Absent where curves are not what is being tested, which then uploads none.
+   */
+  readonly motion?: Pick<MotionStore, 'stat' | 'bytes'>
   /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
@@ -635,7 +646,8 @@ export class CloudSyncService {
           !state ||
           state.audioSig !== signatures.audio ||
           state.coverSig !== signatures.cover ||
-          state.lyricsSig !== signatures.lyrics
+          state.lyricsSig !== signatures.lyrics ||
+          state.motionSig !== signatures.motion
         ) {
           changed.push({ file, signatures })
         }
@@ -837,19 +849,24 @@ export class CloudSyncService {
   /**
    * What a song's files look like now, in terms that change exactly when a
    * file does: the audio file's size and mtime (from its row — no disk access),
-   * the cover's revision, and the lyric sidecar's size and mtime. Lyrics kept
-   * in the audio file's own tags change when the audio file does.
+   * the cover's revision, the lyric sidecar's size and mtime, and the motion
+   * curve's. Lyrics kept in the audio file's own tags change when the audio
+   * file does. The curve is compared by a stat rather than by hashing it, as
+   * the sidecar is: it is written whole and renamed into place, so a new curve
+   * is always a new time, and a pass over an unchanged library reads no file.
    */
   async #signatures(file: SongFileInfo): Promise<Signatures> {
     const audio = `${file.sizeBytes}-${file.mtimeMs}`
     const cover = file.hasArt ? `art-${file.artRev}` : 'none'
+    const curve = (await this.#deps.motion?.stat(file.id)) ?? null
+    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : 'none'
     const sidecar = await this.#deps.lyrics.findSidecar(file.path)
-    if (!sidecar) return { audio, cover, lyrics: `tags-${audio}` }
+    if (!sidecar) return { audio, cover, lyrics: `tags-${audio}`, motion }
     const stat = await this.#deps.storage.stat(sidecar.key)
     const lyrics = stat
       ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
       : `tags-${audio}`
-    return { audio, cover, lyrics }
+    return { audio, cover, lyrics, motion }
   }
 
   /** Upload whatever of one song's files the bucket does not have yet. */
@@ -898,6 +915,13 @@ export class CloudSyncService {
       if (uploaded?.romanizedMissing) lyricsSig = ''
     }
 
+    let motion: string | null
+    if (state && state.motionSig === signatures.motion) {
+      motion = state.motionKey
+    } else {
+      motion = await this.#uploadMotion(store, file)
+    }
+
     this.#deps.cloud.saveState({
       songId: file.id,
       audioKey: audio.key,
@@ -911,6 +935,8 @@ export class CloudSyncService {
       lyricsKind: lyrics?.kind ?? null,
       romanizedKey: lyrics?.romanized ?? null,
       lyricsSig,
+      motionKey: motion,
+      motionSig: signatures.motion,
     })
   }
 
@@ -969,6 +995,20 @@ export class CloudSyncService {
       lyrics: { key, size: data.length, kind, romanized },
       romanizedMissing: romanize !== undefined && lines === null && wantsRomanized(text),
     }
+  }
+
+  /**
+   * The song's motion curve, as the server's own motion answer carries it, in
+   * `lyrics/` under the hash of its JSON: the doorman already lets devices read
+   * that folder, so no doorman has to be redeployed for it. Null before
+   * analysis has made one.
+   */
+  async #uploadMotion(store: CloudStore, file: SongFileInfo): Promise<string | null> {
+    const data = (await this.#deps.motion?.bytes(file.id)) ?? null
+    if (!data || data.length === 0) return null
+    const key = motionKey(sha256(data))
+    await this.#putOnce(store, key, data, 'application/json')
+    return key
   }
 
   /**

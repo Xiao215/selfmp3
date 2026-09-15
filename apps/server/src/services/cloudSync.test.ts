@@ -25,6 +25,7 @@ import { createLogger } from '../logger.js'
 import { CloudError, type CloudStore } from '../cloud/store.js'
 import { MemoryCloudStore } from '../cloud/memoryStore.js'
 import { CloudRepository } from '../repositories/cloud.js'
+import { MotionStore } from './motionStore.js'
 import { ImportRepository } from '../repositories/imports.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
@@ -475,6 +476,99 @@ describe('CloudSyncService', () => {
 
         expect(asked.count).toBe(once)
         expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+      })
+    })
+
+    /*
+     * A song's motion curve is made by analysis, which usually finishes after
+     * the song's first upload. The pass has to notice it appearing, put it up
+     * once beside the words, and name it in the snapshot.
+     */
+    describe('motion curves', () => {
+      const CURVE = {
+        rate: 20,
+        duration: 0.2,
+        loudness: Uint8Array.from([0, 64, 128, 255]),
+        onset: Uint8Array.from([255, 0, 0, 10]),
+      }
+
+      /** A sync that reads curves from a store in this test's data directory. */
+      const withMotion = () => {
+        const store = new MotionStore({ dataDir }, createLogger('silent'))
+        const service = new CloudSyncService({
+          cloud,
+          songs,
+          tags,
+          playlists,
+          imports,
+          storage: new LocalStorageDriver(root),
+          covers,
+          lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
+          metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
+          logger: createLogger('silent'),
+          openStore: () => bucket,
+          motion: store,
+        })
+        extras.push(service)
+        const run = async (): Promise<void> => {
+          if (service.connected) await service.syncNow()
+          else await service.connect(CONNECT)
+          await service.whenIdle()
+        }
+        const keyOf = (songId: number): string =>
+          `lyrics/${sha(fs.readFileSync(path.join(dataDir, 'motion', `${songId}.json`)))}.json`
+        return { store, run, keyOf }
+      }
+
+      it('puts up a curve that appears after the song was uploaded, and the snapshot names it', async () => {
+        const id = addSong('A - One', 'one')
+        const { store, run, keyOf } = withMotion()
+        await run()
+        expect(latest().songs[0]?.motion ?? null).toBeNull()
+
+        await store.write(id, CURVE)
+        await run()
+
+        const key = keyOf(id)
+        expect(latest().songs[0]?.motion).toBe(key)
+        expect(bucket.objects.get(key)?.contentType).toBe('application/json')
+        expect(JSON.parse(bucket.objects.get(key)?.body.toString() ?? 'null')).toEqual({
+          version: 1,
+          rate: 20,
+          duration: 0.2,
+          loudness: Buffer.from([0, 64, 128, 255]).toString('base64'),
+          onset: Buffer.from([255, 0, 0, 10]).toString('base64'),
+        })
+      })
+
+      it('does not send an unchanged curve again, and sends a new one after re-analysis', async () => {
+        const id = addSong('A - One', 'one')
+        const { store, run, keyOf } = withMotion()
+        await store.write(id, CURVE)
+        await run()
+        const first = keyOf(id)
+        const puts = bucket.puts.length
+
+        await run()
+        expect(JSON.stringify(bucket.puts.slice(puts))).not.toContain(first)
+
+        await store.write(id, { ...CURVE, loudness: Uint8Array.from([9, 9, 9, 9]) })
+        await run()
+        const second = keyOf(id)
+        expect(second).not.toBe(first)
+        expect(latest().songs[0]?.motion).toBe(second)
+        expect(bucket.objects.has(second)).toBe(true)
+      })
+
+      it('uploads a curve the bucket lost again', async () => {
+        const id = addSong('A - One', 'one')
+        const { store, run, keyOf } = withMotion()
+        await store.write(id, CURVE)
+        await run()
+        expect(cloud.reconcileFiles(new Map())).toBeGreaterThan(0)
+
+        await run()
+        expect(latest().songs[0]?.motion).toBe(keyOf(id))
       })
     })
 

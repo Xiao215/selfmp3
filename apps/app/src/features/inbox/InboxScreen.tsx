@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useNavigation, useRouter } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
 import { isDownloaded, oklchToHexAlpha, radius, tempoMark } from '@selfmp3/client'
 import { useCreateTag, useLibrary, useSetSongTags } from '../../api/queries'
@@ -24,6 +24,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { Toggle } from '../../ui/components/Toggle'
+import { cameFrom } from '../playlistDetail/playlistDetail.model'
 import {
   existingTag,
   inboxSubtitle,
@@ -47,6 +48,7 @@ import {
 export function InboxScreen(): ReactNode {
   const accent = useAccent()
   const router = useRouter()
+  const navigation = useNavigation()
   const player = usePlayer()
   const artFor = useArt()
   const { wide } = useLayout()
@@ -90,6 +92,8 @@ export function InboxScreen(): ReactNode {
 
   if (session) return <Triage ids={session} onExit={() => setSession(null)} />
 
+  const subtitle = inboxSubtitle(isLoading && !library, untagged)
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={[styles.page, wide ? styles.pageWide : styles.pageNarrow]} testID="inbox-screen">
@@ -101,7 +105,7 @@ export function InboxScreen(): ReactNode {
             >
               Untagged
             </Text>
-            <Text style={styles.sub}>{inboxSubtitle(isLoading && !library, untagged)}</Text>
+            {subtitle ? <Text style={styles.sub}>{subtitle}</Text> : null}
           </View>
           {untagged.length > 0 && !fromCloud ? (
             <Button
@@ -131,7 +135,15 @@ export function InboxScreen(): ReactNode {
             <Text style={styles.emptyTitle}>All tagged</Text>
             <Text style={styles.hint}>Every song in your library carries at least one tag.</Text>
             <View style={[styles.emptyActions, !wide && styles.stretch]}>
-              <Button label="Back to the library" grow={!wide} onPress={() => router.push('/')} />
+              <Button
+                label="Back to the library"
+                grow={!wide}
+                // Back when the library is what is behind; otherwise the
+                // library in this page's place, rather than one more page on top.
+                onPress={() =>
+                  cameFrom(navigation.getState(), 'index') ? router.back() : router.replace('/')
+                }
+              />
             </View>
           </View>
         ) : (

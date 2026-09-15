@@ -90,6 +90,14 @@ const ErrorResponseSchema = z.object({
 })
 
 /**
+ * Cloud answers already checked, by the object the replica answered with, then
+ * by schema. The replica builds a new library object whenever anything changes
+ * and hands back the same one until then, so the same object has the same
+ * check: every refetch with nothing new put thousands of songs through zod.
+ */
+const checkedAnswers = new WeakMap<object, Map<z.ZodTypeAny, unknown>>()
+
+/**
  * The bucket answering instead of a server.
  *
  * A `CloudRouteError` with code `offline` maps to status 0 here: status 0 is
@@ -112,6 +120,9 @@ async function cloudAnswer<S extends z.ZodTypeAny>(
     }
     throw new ApiError(0, error instanceof Error ? error.message : 'network unavailable', 'offline')
   }
+  const answers = typeof payload === 'object' && payload !== null ? payload : null
+  const checked = answers ? checkedAnswers.get(answers) : undefined
+  if (checked?.has(schema)) return checked.get(schema)
   // A route that answers nothing is a 204 as far as the schemas are concerned.
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
@@ -120,6 +131,11 @@ async function cloudAnswer<S extends z.ZodTypeAny>(
       `Unexpected answer for ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
       'contract_mismatch',
     )
+  }
+  if (answers) {
+    const bySchema = checked ?? new Map<z.ZodTypeAny, unknown>()
+    bySchema.set(schema, parsed.data)
+    checkedAnswers.set(answers, bySchema)
   }
   return parsed.data as z.output<S>
 }

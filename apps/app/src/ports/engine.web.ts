@@ -303,6 +303,7 @@ export class AudioEngine implements PlaybackEngine {
     // Pausing mid count-in means "stop", not "resume after the beat".
     this.#cancelCountIn()
     if (this.#state.countingIn) this.#update({ countingIn: false })
+    this.#abortCrossfade()
     this.#primary.pause()
   }
 
@@ -361,6 +362,7 @@ export class AudioEngine implements PlaybackEngine {
   }
 
   seek(seconds: number): void {
+    this.#abortCrossfade()
     const duration = this.#primary.duration
     const target = Number.isFinite(duration) ? Math.min(seconds, duration) : seconds
     this.#primary.currentTime = Math.max(0, target)
@@ -629,7 +631,6 @@ export class AudioEngine implements PlaybackEngine {
   #startCrossfade(): boolean {
     if (this.#preloadedId === null) return false
 
-    const target = this.#state.muted ? 0 : this.#state.volume
     const durationMs = this.#crossfadeSeconds * 1000
     const startedAt = performance.now()
 
@@ -639,6 +640,8 @@ export class AudioEngine implements PlaybackEngine {
     this.#fadeTimer = setInterval(() => {
       const elapsed = performance.now() - startedAt
       const t = Math.min(1, elapsed / durationMs)
+      // Read on every tick, so a volume change or mute during the fade is heard.
+      const target = this.#state.muted ? 0 : this.#state.volume
 
       this.#primary.volume = Math.cos((t * Math.PI) / 2) * target
       this.#secondary.volume = Math.sin((t * Math.PI) / 2) * target
@@ -657,6 +660,25 @@ export class AudioEngine implements PlaybackEngine {
       }
     }, FADE_TICK_MS)
     return true
+  }
+
+  /**
+   * Call off a crossfade under way, back to the outgoing song alone.
+   *
+   * Pause and seek mean the song on screen, which is the outgoing one until
+   * the handover. Left running, the fade went on without it: a pause stopped
+   * the song fading out while the one fading in played on, and the handover
+   * then made that one the song, still playing. The next song stays preloaded,
+   * so the fade starts again when its moment comes back round.
+   */
+  #abortCrossfade(): void {
+    if (this.#fadeTimer === null) return
+    this.#stopFade()
+    this.#secondary.pause()
+    this.#secondary.currentTime = 0
+    this.#secondary.volume = 0
+    this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
+    this.#handoverArmed = false
   }
 
   #stopFade(): void {

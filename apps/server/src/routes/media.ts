@@ -90,12 +90,14 @@ export function mediaRoutes(container: Container): Router {
         const stat = fs.statSync(cover.path)
       const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
 
-      res.setHeader('Content-Type', cover.contentType)
-      res.setHeader('ETag', etag)
-      res.setHeader('Cache-Control', 'private, max-age=604800')
+      const caching = {
+        'Content-Type': cover.contentType,
+        ETag: etag,
+        'Cache-Control': 'private, max-age=604800',
+      }
 
       if (req.headers['if-none-match'] === etag) {
-        res.status(304).end()
+        res.set(caching).status(304).end()
         return undefined
       }
 
@@ -107,8 +109,13 @@ export function mediaRoutes(container: Container): Router {
       // request's, and `send` otherwise answers 404 for any path with a
       // dot-segment in it — so a data directory under `~/.local/share` (the
       // Linux default) or any other hidden folder served no covers at all.
+      //
+      // The caching headers go through `headers`, which Express sets only once
+      // the file is really being sent. Set up front, a send that failed went out
+      // with a week's max-age, and the app's cache went on serving itself that
+      // failure in place of the cover long after the server had it.
       await new Promise<void>((resolve, reject) => {
-        res.sendFile(cover.path, { dotfiles: 'allow' }, error =>
+        res.sendFile(cover.path, { dotfiles: 'allow', headers: caching }, error =>
           error ? reject(error) : resolve(),
         )
       })

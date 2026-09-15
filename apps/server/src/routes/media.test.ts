@@ -82,4 +82,19 @@ describe('GET /api/art/:id', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('image/jpeg')
   })
+
+  /*
+   * The week-long cache header used to be set before the file was sent, so a
+   * failure carried it too: the desktop app's cache kept a 404 for every cover
+   * and went on serving itself that after the server could answer.
+   */
+  it('does not let a cover that failed to send be cached', async () => {
+    // Found by name, but a directory: the send itself fails.
+    fs.mkdirSync(path.join(config.dataDir, 'covers', '2.png'), { recursive: true })
+    const response = await get('/api/art/2')
+    expect(response.status).not.toBe(200)
+    // Without a max-age a browser keeps no failure; Express's own weak ETag on
+    // the JSON error body does not change that.
+    expect(response.headers.get('cache-control') ?? '').not.toContain('max-age')
+  })
 })

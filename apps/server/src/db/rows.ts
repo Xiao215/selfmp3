@@ -1,4 +1,5 @@
-import type { LyricsKind, Song, SongFeatures, Tag } from '@selfmp3/shared'
+import { CoverSwatchSchema } from '@selfmp3/shared'
+import type { CoverSwatch, LyricsKind, Song, SongFeatures, Tag } from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -29,6 +30,8 @@ export interface SongRow {
   cover_hue: number | null
   cover_chroma: number | null
   cover_tone_rev: number | null
+  /** JSON: the cover's palette, `CoverSwatch[]`, or null before it was read. */
+  cover_palette: string | null
   lyrics_kind: string
   instrumental: number
   play_count: number
@@ -92,6 +95,20 @@ function toLyricsKind(value: string): LyricsKind {
   return LYRICS_KINDS.has(value as LyricsKind) ? (value as LyricsKind) : 'none'
 }
 
+/**
+ * A stored palette, when there is a sound one. A column written by hand or cut
+ * short reads as no palette rather than failing the whole library.
+ */
+function paletteOf(value: string | null): { palette?: CoverSwatch[] } {
+  if (!value) return {}
+  try {
+    const parsed = CoverSwatchSchema.array().max(8).safeParse(JSON.parse(value))
+    return parsed.success && parsed.data.length > 0 ? { palette: parsed.data } : {}
+  } catch {
+    return {}
+  }
+}
+
 /** SQLite's GROUP_CONCAT gives "1,4,7"; empty and null both mean no tags. */
 export function parseIdList(value: string | null | undefined): number[] {
   if (!value) return []
@@ -122,7 +139,7 @@ export function toSong(row: SongRow): Song {
     // since replaced is not sent while the new one waits to be read.
     coverTone:
       row.cover_hue !== null && row.cover_tone_rev === row.art_rev
-        ? { hue: row.cover_hue, chroma: row.cover_chroma ?? 0 }
+        ? { hue: row.cover_hue, chroma: row.cover_chroma ?? 0, ...paletteOf(row.cover_palette) }
         : null,
     lyricsKind: toLyricsKind(row.lyrics_kind),
     instrumental: row.instrumental === 1,

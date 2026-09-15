@@ -391,9 +391,16 @@ export class SongRepository {
   setCoverTone(id: number, artRev: number, tone: CoverTone | null): void {
     this.#db
       .prepare(
-        'UPDATE songs SET cover_hue = ?, cover_chroma = ?, cover_tone_rev = ? WHERE id = ? AND art_rev = ?',
+        'UPDATE songs SET cover_hue = ?, cover_chroma = ?, cover_palette = ?, cover_tone_rev = ? WHERE id = ? AND art_rev = ?',
       )
-      .run(tone?.hue ?? null, tone?.chroma ?? null, artRev, id, artRev)
+      .run(
+        tone?.hue ?? null,
+        tone?.chroma ?? null,
+        tone?.palette && tone.palette.length > 0 ? JSON.stringify(tone.palette) : null,
+        artRev,
+        id,
+        artRev,
+      )
   }
 
   /** Paths of every song currently in the database, for scan reconciliation. */

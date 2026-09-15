@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { SongFeatures } from '@selfmp3/shared'
+import { rgbToOklch, type SongFeatures } from '@selfmp3/shared'
 
 import {
   autoVisual,
@@ -7,6 +7,7 @@ import {
   beatPhase,
   driftReach,
   driftSpeed,
+  groundHue,
   keyedHue,
   KEY_PULL,
   loudnessLevel,
@@ -106,6 +107,51 @@ describe('colour from the key', () => {
     for (const ink of colors.inks) expect(light(ink)).toBeGreaterThan(120)
     expect(light(colors.ground[0])).toBeLessThan(70)
     expect(light(colors.ground[1])).toBeLessThan(light(colors.ground[0]))
+  })
+})
+
+describe('colour from the cover’s palette', () => {
+  /** Genshin's cover as analysed: cream light, lilac sky, blue water, grass, a dark teal shade. */
+  const genshin = [
+    { l: 0.89, c: 0.02, h: 63, share: 0.27 },
+    { l: 0.76, c: 0.02, h: 317, share: 0.25 },
+    { l: 0.62, c: 0.05, h: 268, share: 0.19 },
+    { l: 0.48, c: 0.05, h: 147, share: 0.11 },
+    { l: 0.69, c: 0.12, h: 130, share: 0.1 },
+    { l: 0.28, c: 0.03, h: 193, share: 0.08 },
+  ]
+  const light = (rgb: readonly number[]): number => rgb.reduce((sum, v) => sum + v, 0) / 3
+  const spread = (rgb: readonly number[]): number => Math.max(...rgb) - Math.min(...rgb)
+
+  it('keeps a dark ground out of olive', () => {
+    expect(groundHue(95)).toBe(160)
+    expect(groundHue(80)).toBe(40)
+    expect(groundHue(262)).toBe(262)
+    expect(groundHue(30)).toBe(30)
+  })
+
+  it('draws a quiet dark ground and three different light inks from a cover’s colours', () => {
+    const colors = visualColors(129, '11B', genshin)
+    expect(light(colors.ground[0])).toBeLessThan(60)
+    expect(light(colors.ground[1])).toBeLessThan(light(colors.ground[0]))
+    // Quiet: the ground is barely coloured, where the olive one was plainly yellow-green.
+    expect(spread(colors.ground[0])).toBeLessThan(30)
+    for (const ink of colors.inks) expect(light(ink)).toBeGreaterThan(110)
+    const [a, b, c] = colors.inks.map(ink => ink.join())
+    expect(new Set([a, b, c]).size).toBe(3)
+  })
+
+  it('gives the Pulse dot the lightest ink, as the eye sees lightness', () => {
+    // Perceived lightness, not an RGB average: a vivid green ring averages high and looks darker.
+    const lightness = ([r, g, b]: readonly number[]): number => rgbToOklch(r ?? 0, g ?? 0, b ?? 0).l
+    const colors = visualColors(129, '11B', genshin)
+    expect(lightness(colors.inks[2])).toBeGreaterThan(lightness(colors.inks[0]))
+    expect(lightness(colors.inks[2])).toBeGreaterThan(lightness(colors.inks[1]))
+  })
+
+  it('draws as it always did when a cover has no palette yet', () => {
+    expect(visualColors(30, '8B', undefined)).toEqual(visualColors(30, '8B'))
+    expect(visualColors(30, '8B', [])).toEqual(visualColors(30, '8B'))
   })
 })
 

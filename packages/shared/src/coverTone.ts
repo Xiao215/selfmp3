@@ -1,4 +1,4 @@
-import type { CoverTone } from './schemas/song.js'
+import type { CoverSwatch, CoverTone } from './schemas/song.js'
 
 /**
  * Which colour a cover is.
@@ -108,5 +108,89 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
 
   const hue = ((Math.atan2(sinSum[best] ?? 0, cosSum[best] ?? 0) * 180) / Math.PI + 360) % 360
   // Chroma-weighted mean chroma: the vivid pixels of the winning hue decide.
-  return { hue, chroma: (chroma[best] ?? 0) / total }
+  const palette = pickCoverPalette(pixels)
+  return { hue, chroma: (chroma[best] ?? 0) / total, ...(palette.length > 0 ? { palette } : {}) }
+}
+
+/** How many colours a cover is summed up in. */
+const PALETTE_SIZE = 6
+const PALETTE_ROUNDS = 16
+/** A colour that is less than this share of the cover is noise, not part of it. */
+const PALETTE_MIN_SHARE = 0.02
+
+/**
+ * The handful of colours a cover is made of, most of the cover first.
+ *
+ * One hue says which colour a cover is; it cannot say that Genshin's cover is
+ * green grass *and* a pink sky *and* blue water, and a visual drawn from the
+ * grass alone went olive. So the pixels are grouped by how alike they look —
+ * k-means in OKLab, where distance is what the eye sees — and each group keeps
+ * its middle colour and its share. Every pixel counts here, dark ones too: the
+ * deepest colour of a cover is what a visual's ground is made from.
+ *
+ * Deterministic, so the same cover always gives the same palette: the groups
+ * start from pixels spread evenly through the cover sorted by lightness.
+ */
+export function pickCoverPalette(pixels: ArrayLike<number>): CoverSwatch[] {
+  const points: [number, number, number][] = []
+  for (let i = 0; i + 3 < pixels.length; i += 4) {
+    if ((pixels[i + 3] ?? 0) < 128) continue
+    const { l, c, h } = rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0)
+    const radians = (h * Math.PI) / 180
+    points.push([l, c * Math.cos(radians), c * Math.sin(radians)])
+  }
+  if (points.length === 0) return []
+
+  const k = Math.min(PALETTE_SIZE, points.length)
+  const byLightness = [...points].sort((a, b) => a[0] - b[0])
+  const centres = Array.from({ length: k }, (_, i) => [
+    ...(byLightness[Math.floor(((i + 0.5) * byLightness.length) / k)] ?? [0, 0, 0]),
+  ])
+  const assigned = new Int32Array(points.length)
+  for (let round = 0; round < PALETTE_ROUNDS; round++) {
+    points.forEach((point, p) => {
+      let nearest = 0
+      let distance = Infinity
+      centres.forEach((centre, c) => {
+        const d =
+          ((point[0] - (centre[0] ?? 0)) ** 2) +
+          ((point[1] - (centre[1] ?? 0)) ** 2) +
+          ((point[2] - (centre[2] ?? 0)) ** 2)
+        if (d < distance) {
+          distance = d
+          nearest = c
+        }
+      })
+      assigned[p] = nearest
+    })
+    const sums = centres.map(() => [0, 0, 0, 0])
+    points.forEach((point, p) => {
+      const sum = sums[assigned[p] ?? 0]
+      if (!sum) return
+      sum[0] = (sum[0] ?? 0) + point[0]
+      sum[1] = (sum[1] ?? 0) + point[1]
+      sum[2] = (sum[2] ?? 0) + point[2]
+      sum[3] = (sum[3] ?? 0) + 1
+    })
+    sums.forEach((sum, c) => {
+      const n = sum[3] ?? 0
+      if (n > 0) centres[c] = [(sum[0] ?? 0) / n, (sum[1] ?? 0) / n, (sum[2] ?? 0) / n]
+    })
+  }
+
+  const counts = new Array<number>(k).fill(0)
+  for (const c of assigned) counts[c] = (counts[c] ?? 0) + 1
+  const round3 = (value: number): number => Math.round(value * 1000) / 1000
+  return centres
+    .map((centre, c) => {
+      const [l = 0, a = 0, b = 0] = centre
+      return {
+        l: round3(Math.max(0, Math.min(1, l))),
+        c: round3(Math.hypot(a, b)),
+        h: round3((((Math.atan2(b, a) * 180) / Math.PI) + 360) % 360),
+        share: round3((counts[c] ?? 0) / points.length),
+      }
+    })
+    .filter(swatch => swatch.share >= PALETTE_MIN_SHARE)
+    .sort((x, y) => y.share - x.share)
 }

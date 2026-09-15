@@ -1,5 +1,5 @@
 import { oklchToHex, type Rgb } from '@selfmp3/client'
-import type { SongFeatures } from '@selfmp3/shared'
+import type { CoverSwatch, SongFeatures } from '@selfmp3/shared'
 
 /**
  * What a song with no lyrics shows where the words would be: the rules, with
@@ -135,13 +135,78 @@ export interface VisualColors {
   readonly ground: readonly [Rgb, Rgb]
 }
 
-export function visualColors(hue: number, camelot: string | null | undefined): VisualColors {
+export function visualColors(
+  hue: number,
+  camelot: string | null | undefined,
+  palette?: readonly CoverSwatch[] | null,
+): VisualColors {
+  if (palette && palette.length > 0) return paletteColors(palette, hue)
   const h = keyedHue(hue, camelot)
   const at = (lightness: number, chroma: number, turn: number): Rgb =>
     hexRgb(oklchToHex(lightness, chroma, (h + turn + 360) % 360))
   return {
     inks: [at(0.78, 0.14, 0), at(0.72, 0.15, 32), at(0.84, 0.1, -28)],
     ground: [at(0.22, 0.05, 0), at(0.12, 0.03, 0)],
+  }
+}
+
+/** Hues closer than this read as the same colour, so a palette's inks keep them apart. */
+const INK_HUE_SPREAD = 35
+
+const hueDistance = (a: number, b: number): number => Math.abs(((a - b + 540) % 360) - 180)
+const wrapHue = (h: number): number => ((h % 360) + 360) % 360
+const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(high, value))
+
+/**
+ * A dark ground's hue, kept out of yellow-green. Between about 65° and 125°
+ * a dark colour stops reading as a colour and reads as olive or khaki — the
+ * muddy ground Genshin's grass gave — so it leans to a warm brown or a teal.
+ */
+export function groundHue(h: number): number {
+  const hue = wrapHue(h)
+  if (hue >= 65 && hue <= 125) return hue < 95 ? 40 : 160
+  return hue
+}
+
+/**
+ * The colours of a visual from the colours its cover is made of.
+ *
+ * Up to three distinct vivid colours from the cover become the inks — ranked
+ * by how much of the cover they are, how colourful and how light, and kept
+ * at least 35° apart — each lifted to the same brightness so they sit together
+ * on the dark. The lead colour is the Pulse's dot (`inks[2]`, the lightest);
+ * the next two are the halo and rings (`inks[0]`, `inks[1]`). The ground is the
+ * cover's deepest colour, dark and quiet, steered out of the olive band. A
+ * cover with fewer than three colours borrows its neighbours on the wheel.
+ * The key does not pull the hues here: the cover's own colours already say
+ * what the song looks like.
+ */
+export function paletteColors(palette: readonly CoverSwatch[], leadHue: number): VisualColors {
+  const vivid = palette
+    .filter(swatch => swatch.c >= 0.02)
+    .map(swatch => ({ swatch, score: swatch.share * (swatch.c + 0.02) * (0.4 + Math.min(swatch.l, 0.8)) }))
+    .sort((a, b) => b.score - a.score)
+    .map(ranked => ranked.swatch)
+  const hues: number[] = []
+  for (const swatch of vivid) {
+    if (hues.every(h => hueDistance(h, swatch.h) >= INK_HUE_SPREAD)) hues.push(swatch.h)
+  }
+  const lead = hues[0] ?? wrapHue(leadHue)
+  const second = hues[1] ?? wrapHue(lead + 38)
+  const third = hues[2] ?? wrapHue(lead - 38)
+  const chromaFor = (h: number): number => {
+    const near = vivid.find(swatch => hueDistance(swatch.h, h) < 20)
+    return clamp((near ? near.c : 0.05) * 2.4, 0.1, 0.16)
+  }
+  const at = (lightness: number, chroma: number, h: number): Rgb => hexRgb(oklchToHex(lightness, chroma, h))
+
+  const byDepth = [...palette].sort((a, b) => a.l - b.l)
+  const deep = byDepth.find(swatch => swatch.c >= 0.015) ?? byDepth[0]
+  const gh = groundHue(deep ? deep.h : 260)
+  const gc = clamp((deep ? deep.c : 0.02) * 0.8, 0.015, 0.045)
+  return {
+    inks: [at(0.74, chromaFor(second), second), at(0.7, chromaFor(third), third), at(0.86, chromaFor(lead) * 0.8, lead)],
+    ground: [at(0.19, gc, gh), at(0.1, gc * 0.6, gh)],
   }
 }
 

@@ -6,13 +6,27 @@ import { SongFeaturesSchema } from './features.js'
 export const LyricsKindSchema = z.enum(['none', 'plain', 'synced'])
 export type LyricsKind = z.infer<typeof LyricsKindSchema>
 
+/** One colour a cover is made of, in OKLCH, and how much of the cover it is. */
+export const CoverSwatchSchema = z.object({
+  l: z.number().min(0).max(1),
+  c: z.number().nonnegative(),
+  h: z.number().min(0).max(360),
+  share: z.number().min(0).max(1),
+})
+export type CoverSwatch = z.infer<typeof CoverSwatchSchema>
+
 /**
  * The most vivid colour in a song's cover, as OKLCH hue and chroma, picked by
  * the server (`coverTone.ts`). Devices draw the playing song in it.
+ *
+ * `palette` is the handful of colours the cover is made of, most of the cover
+ * first, which the no-lyrics visuals draw in. Optional: a cover read by an older
+ * server has none until it is read again.
  */
 export const CoverToneSchema = z.object({
   hue: z.number().min(0).max(360),
   chroma: z.number().nonnegative(),
+  palette: z.array(CoverSwatchSchema).max(8).optional(),
 })
 export type CoverTone = z.infer<typeof CoverToneSchema>
 

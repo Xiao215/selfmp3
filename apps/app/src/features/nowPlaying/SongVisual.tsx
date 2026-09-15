@@ -50,8 +50,12 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   const [size, setSize] = useState<Size | null>(null)
   const colors = useMemo(
     () =>
-      visualColors(song.coverTone?.hue ?? hueFromString(song.album || song.title), song.features?.camelot),
-    [song.coverTone?.hue, song.album, song.title, song.features?.camelot],
+      visualColors(
+        song.coverTone?.hue ?? hueFromString(song.album || song.title),
+        song.features?.camelot,
+        song.coverTone?.palette,
+      ),
+    [song.coverTone?.hue, song.coverTone?.palette, song.album, song.title, song.features?.camelot],
   )
   const bpmKnown = song.features?.bpm != null
   const tuning = useMemo(

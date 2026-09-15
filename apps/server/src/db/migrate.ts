@@ -546,6 +546,16 @@ const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE cloud_songs ADD COLUMN motion_sig TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    name: 'cover tones: the colours each cover is made of',
+    sql: `
+      -- Beside the one hue, the handful of colours a cover is made of (JSON,
+      -- most of the cover first), which the no-lyrics visuals draw in. Every
+      -- cover is read once more at the next start to fill it in.
+      ALTER TABLE songs ADD COLUMN cover_palette TEXT;
+      UPDATE songs SET cover_tone_rev = NULL;
+    `,
+  },
 ]
 
 /**

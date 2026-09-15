@@ -510,8 +510,8 @@ function OfflinePanel({
     queue,
     prefs,
     setPrefs,
-    missingIds,
-    situation,
+    absentIds,
+    absentBytes,
     requestDownload,
   } = useDownloads()
   const [busy, setBusy] = useState(false)
@@ -537,7 +537,8 @@ function OfflinePanel({
       cancelled = true
     }
   }, [settled])
-  const missingBytes = situation.missingBytes
+  // Every song not here, including ones removed by hand: this button is pressed on purpose.
+  const missingBytes = absentBytes
   const stale = manifest.data ? staleIds(downloads.index, manifest.data) : []
   const activeSong =
     downloads.activeSongId === null
@@ -654,7 +655,7 @@ function OfflinePanel({
             }
             variant="primary"
             disabled={missingBytes === 0}
-            onPress={() => requestDownload(missingIds)}
+            onPress={() => requestDownload(absentIds)}
           />
         )}
         {stale.length > 0 ? (

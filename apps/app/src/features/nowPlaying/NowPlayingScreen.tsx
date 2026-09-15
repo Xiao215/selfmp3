@@ -133,7 +133,7 @@ function PhoneNowPlaying(): ReactNode {
   const player = usePlayer()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
-  const { state: downloads, queue: downloadQueue, installed } = useDownloads()
+  const { state: downloads, requestDownload, installed } = useDownloads()
   const { width, height } = useWindowDimensions()
   const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
 
@@ -445,7 +445,8 @@ function PhoneNowPlaying(): ReactNode {
               label={held ? 'Downloaded' : 'Download'}
               active={held}
               onPress={() => {
-                if (!held) downloadQueue.enqueue([song.id])
+                // By hand, so a song removed by hand comes back, and mobile data is asked about.
+                if (!held) requestDownload([song.id])
               }}
             />
           ) : null}

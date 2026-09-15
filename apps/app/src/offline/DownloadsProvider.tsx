@@ -81,6 +81,14 @@ interface DownloadsContextValue {
   setPrefs: (patch: Partial<DownloadPrefs>) => void
   /** Songs in the library not on this device, leaving out ones removed by hand. */
   readonly missingIds: readonly number[]
+  /**
+   * Every song in the library not on this device, removed by hand or not, and
+   * their size: what a button pressed on purpose offers. Removed by hand keeps a
+   * song out of downloading by itself, not out of being asked for again — the
+   * panel said "35 of 36 downloaded" over a greyed "Everything is downloaded".
+   */
+  readonly absentIds: readonly number[]
+  readonly absentBytes: number
   readonly situation: SyncSituation
   /** Download these, asking first about mobile data or a large total. */
   requestDownload: (songIds: readonly number[]) => void
@@ -224,6 +232,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [sizeById, state.index],
   )
   const missingBytes = useMemo(() => bytesFor(missingIds), [bytesFor, missingIds])
+  const absentIds = useMemo(() => pendingIds(state.index, songIds), [state.index, songIds])
+  const absentBytes = useMemo(() => bytesFor(absentIds), [bytesFor, absentIds])
 
   const situation = useMemo<SyncSituation>(
     () => ({
@@ -383,6 +393,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       prefs,
       setPrefs,
       missingIds,
+      absentIds,
+      absentBytes,
       situation,
       requestDownload,
       downloadByHand,
@@ -400,6 +412,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       prefs,
       setPrefs,
       missingIds,
+      absentIds,
+      absentBytes,
       situation,
       requestDownload,
       downloadByHand,

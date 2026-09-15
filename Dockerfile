@@ -69,11 +69,15 @@ COPY packages/shared packages/shared
 COPY apps/server apps/server
 RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/server
 
-# Production dependencies alone, freshly installed. The S3 SDK is optional and
-# large; `npm install` it into the image yourself if you use the s3 driver.
+# Production dependencies alone, freshly installed — optional ones included:
+# sharp's native build for this platform is one, and the server cannot start
+# without it (the S3 SDK comes along too). Both native modules are then loaded
+# here, on the image's own platform, so an image whose server would not start
+# fails to build rather than being published.
 RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
  && npm ci --workspace @selfmp3/shared --workspace @selfmp3/server \
-      --omit=dev --omit=optional --no-audit --no-fund
+      --omit=dev --no-audit --no-fund \
+ && node -e "require('sharp'); new (require('better-sqlite3'))(':memory:').close()"
 
 # --- runtime ----------------------------------------------------------------
 FROM node:22-alpine

@@ -37,6 +37,7 @@ asleep.
 - [Documentation](#documentation)
 - [Backing up](#backing-up)
 - [A note on importing](#a-note-on-importing)
+- [Licence](#licence)
 
 ---
 
@@ -96,6 +97,15 @@ remove them together. See [multi-select.md](docs/features/multi-select.md).
 so you can correct it, listen to a track and untick duplicates before anything downloads.
 The queue lives in the database, so it survives a restart.
 
+**Titles arrive as song titles.** Where YouTube has no music metadata of its own, the
+video's title is read as the song's: "YOASOBI「アイドル」 Official Music Video" comes in as
+アイドル by YOASOBI. It drops what the video says about itself — "Official Music Video",
+【MV】, a trailing "| Official Video", and the artist written in front when that is the
+channel — and keeps what belongs to the song, so "(Live)", a "(From …)" note and a
+"feat." credit all survive. It happens in the server's probe
+(`tidyVideoTitle` in `packages/shared/src/titles.ts`), so the Import page, a share from
+your phone and the iOS Shortcut all get the same titles.
+
 **From your phone's share sheet.** Share a track from the YouTube Music app and it queues on
 the server: a share target on Android, a one-step Shortcut on iOS. See
 [share-to-import.md](docs/features/share-to-import.md).
@@ -106,6 +116,13 @@ Music, private playlists and artist pages import like any other link
 or Apple Music come in as a link, a CSV export or a plain list of songs; each track is
 matched to a YouTube upload and shown to you with alternatives first
 ([playlist-migration.md](docs/features/playlist-migration.md)).
+
+**From the browser, in progress.** A Chrome extension that imports the song you are looking
+at, without leaving the page: its popup shows the title, your tags and a playlist to put it
+in, and sends it to your server. The popup works; the pill on the page, the queue badge and
+importing through the bucket are still to come. It is loaded unpacked from `apps/extension`
+rather than installed from a store. The plan, and how far it has got, is in
+[docs/EXTENSION.md](docs/EXTENSION.md).
 
 ### Listening
 
@@ -319,6 +336,7 @@ The doorman is deployed by hand with `npx wrangler deploy`
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code is laid out, and why |
 | [docs/UNIVERSAL.md](docs/UNIVERSAL.md) | The plan that folded the web and phone apps into one Expo app (done) |
 | [docs/DESKTOP.md](docs/DESKTOP.md) | The plan and reasoning for the desktop app |
+| [docs/EXTENSION.md](docs/EXTENSION.md) | The plan for the Chrome extension, and how far it has got |
 | [docs/universal-progress.md](docs/universal-progress.md) | The running log of what was built and checked, phase by phase |
 | [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
 | [verify/README.md](verify/README.md) | The Playwright flows and what they need |
@@ -372,3 +390,9 @@ governed by that service's terms and by copyright law where you live, and a subs
 generally covers offline playback *inside that service's app* rather than extraction to your
 own files. What you download and what you do with it is up to you; this tool assumes you are
 keeping music you have the right to keep.
+
+---
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).

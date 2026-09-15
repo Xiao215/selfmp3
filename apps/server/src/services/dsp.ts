@@ -506,6 +506,199 @@ export function analyzePcm(pcm: Float32Array, sampleRate: number): PcmFeatures {
   }
 }
 
+// --- the motion curve ------------------------------------------------------------
+
+/**
+ * The rate the whole song is decoded at for its motion curve. Half the
+ * analysis rate: loudness and onsets need nothing above 5.5 kHz, and a
+ * fifteen-minute song is then 40 MB of float PCM at worst rather than 80 —
+ * though `MotionBuilder` never holds more than one onset window of it.
+ */
+export const MOTION_SAMPLE_RATE = 11025
+
+/** Frames per second of the curve (schemas/motion.ts). */
+export const MOTION_FRAME_RATE = 20
+
+/** The quietest level the loudness byte can say; anything below is 0. */
+const MOTION_FLOOR_DB = -60
+
+/** Onset strength at this percentile of the song is 255: a few peaks clip, the rest has room. */
+const MOTION_ONSET_PERCENTILE = 0.98
+
+/** A motion curve before it is written down: one byte a frame of each. */
+export interface MotionCurveData {
+  /** Frames per second. */
+  readonly rate: number
+  /** Seconds covered. */
+  readonly duration: number
+  readonly loudness: Uint8Array
+  readonly onset: Uint8Array
+}
+
+/**
+ * Builds a song's motion curve from PCM handed over in pieces, as ffmpeg
+ * streams it, so a whole song never has to sit in memory at once.
+ *
+ * Loudness is RMS per 50 ms frame. Onsets are the same spectral flux as
+ * `onsetEnvelope` — the same ~46 ms window and ~86 Hz hop, whatever the
+ * sample rate — with each 50 ms frame taking the strongest flux whose window
+ * is centred in it, so a hit is one tall frame rather than smeared over two.
+ * Only the per-frame numbers are kept, and the onsets are scaled by the
+ * song's own 98th percentile at the end: a gentle song's hits are as visible
+ * as a loud one's, and its quiet passages still read quiet through loudness.
+ */
+export class MotionBuilder {
+  readonly #sampleRate: number
+  readonly #frameSize: number
+  readonly #hop: number
+  readonly #maxBin: number
+  readonly #window: Float64Array
+  readonly #re: Float64Array
+  readonly #im: Float64Array
+  readonly #previous: Float64Array
+  /** The last `frameSize` samples, filled up to `#fill`. */
+  readonly #buffer: Float32Array
+  #fill = 0
+  #spectra = 0
+
+  /** Samples seen so far. */
+  #samples = 0
+  /** The loudness frame the next sample falls in, and the first sample of the frame after it. */
+  #frame = 0
+  #nextBoundary: number
+  #sumSquares = 0
+  #count = 0
+  readonly #loudness: number[] = []
+  readonly #onset: number[] = []
+
+  constructor(sampleRate: number) {
+    this.#sampleRate = sampleRate
+    // 1024/256 at 22050 Hz, 512/128 at 11025 Hz: the same span of time either way.
+    this.#frameSize = 2 ** Math.round(Math.log2((ONSET_FRAME * sampleRate) / ANALYSIS_SAMPLE_RATE))
+    this.#hop = this.#frameSize / (ONSET_FRAME / ONSET_HOP)
+    const bins = this.#frameSize / 2
+    this.#maxBin = Math.min(bins, Math.floor((8000 / sampleRate) * this.#frameSize))
+    this.#window = hann(this.#frameSize)
+    this.#re = new Float64Array(this.#frameSize)
+    this.#im = new Float64Array(this.#frameSize)
+    this.#previous = new Float64Array(bins)
+    this.#buffer = new Float32Array(this.#frameSize)
+    this.#nextBoundary = this.#boundary(1)
+  }
+
+  /** The first sample of loudness frame `frame`. */
+  #boundary(frame: number): number {
+    return Math.ceil((frame * this.#sampleRate) / MOTION_FRAME_RATE)
+  }
+
+  push(chunk: Float32Array): void {
+    let at = 0
+    while (at < chunk.length) {
+      // Loudness, sample by sample into the current frame.
+      const take = Math.min(chunk.length - at, this.#frameSize - this.#fill)
+      for (let i = 0; i < take; i++) {
+        const v = chunk[at + i] ?? 0
+        if (this.#samples >= this.#nextBoundary) this.#closeLoudnessFrame()
+        this.#sumSquares += v * v
+        this.#count++
+        this.#samples++
+      }
+      // Onsets, a window at a time.
+      this.#buffer.set(chunk.subarray(at, at + take), this.#fill)
+      this.#fill += take
+      at += take
+      if (this.#fill === this.#frameSize) {
+        this.#spectrum()
+        this.#buffer.copyWithin(0, this.#hop)
+        this.#fill -= this.#hop
+      }
+    }
+  }
+
+  #closeLoudnessFrame(): void {
+    this.#loudness[this.#frame] = this.#count > 0 ? this.#sumSquares / this.#count : -1
+    this.#sumSquares = 0
+    this.#count = 0
+    this.#frame++
+    this.#nextBoundary = this.#boundary(this.#frame + 1)
+    // A frame can hold no samples when a boundary falls between two of them.
+    while (this.#samples >= this.#nextBoundary) {
+      this.#loudness[this.#frame] = -1
+      this.#frame++
+      this.#nextBoundary = this.#boundary(this.#frame + 1)
+    }
+  }
+
+  #spectrum(): void {
+    const size = this.#frameSize
+    const re = this.#re
+    const im = this.#im
+    for (let i = 0; i < size; i++) {
+      re[i] = (this.#buffer[i] ?? 0) * (this.#window[i] ?? 0)
+      im[i] = 0
+    }
+    fft(re, im)
+
+    let flux = 0
+    for (let k = 1; k < this.#maxBin; k++) {
+      const r = re[k] ?? 0
+      const j = im[k] ?? 0
+      const value = Math.log1p(20 * Math.sqrt(r * r + j * j))
+      const delta = value - (this.#previous[k] ?? 0)
+      if (delta > 0) flux += delta
+      this.#previous[k] = value
+    }
+    if (this.#spectra === 0) flux = 0
+
+    const centre = this.#spectra * this.#hop + size / 2
+    const frame = Math.floor((centre * MOTION_FRAME_RATE) / this.#sampleRate)
+    if (flux > (this.#onset[frame] ?? 0)) this.#onset[frame] = flux
+    this.#spectra++
+  }
+
+  finish(): MotionCurveData {
+    if (this.#count > 0) this.#closeLoudnessFrame()
+    const duration = this.#samples / this.#sampleRate
+    const frames = Math.ceil(duration * MOTION_FRAME_RATE - 1e-9)
+
+    const loudness = new Uint8Array(frames)
+    let last = 0
+    for (let i = 0; i < frames; i++) {
+      const meanSquare = this.#loudness[i] ?? -1
+      if (meanSquare < 0) {
+        // An empty frame says what the one before it said.
+        loudness[i] = last
+        continue
+      }
+      const db = meanSquare > 0 ? 10 * Math.log10(meanSquare) : -Infinity
+      last = Math.round(clamp01((db - MOTION_FLOOR_DB) / -MOTION_FLOOR_DB) * 255)
+      loudness[i] = last
+    }
+
+    const raw = new Float64Array(frames)
+    for (let i = 0; i < frames; i++) raw[i] = this.#onset[i] ?? 0
+    const sorted = Float64Array.from(raw).sort()
+    let scale = sorted[Math.floor(MOTION_ONSET_PERCENTILE * (frames - 1))] ?? 0
+    // Mostly silence with a few hits: the hits themselves set the scale.
+    if (scale <= 1e-9) scale = sorted[frames - 1] ?? 0
+    const onset = new Uint8Array(frames)
+    if (scale > 1e-9) {
+      for (let i = 0; i < frames; i++) {
+        onset[i] = Math.round(clamp01((raw[i] ?? 0) / scale) * 255)
+      }
+    }
+
+    return { rate: MOTION_FRAME_RATE, duration, loudness, onset }
+  }
+}
+
+/** A whole song's motion curve from PCM already in hand: `MotionBuilder` in one go. */
+export function motionFromPcm(pcm: Float32Array, sampleRate: number): MotionCurveData {
+  const builder = new MotionBuilder(sampleRate)
+  builder.push(pcm)
+  return builder.finish()
+}
+
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
 }

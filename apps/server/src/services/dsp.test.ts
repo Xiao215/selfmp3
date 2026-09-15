@@ -8,6 +8,10 @@ import {
   estimateKey,
   estimateTempo,
   fft,
+  MOTION_FRAME_RATE,
+  MOTION_SAMPLE_RATE,
+  MotionBuilder,
+  motionFromPcm,
   onsetEnvelope,
   rms,
 } from './dsp.js'
@@ -211,5 +215,111 @@ describe('analyzePcm', () => {
     const features = analyzePcm(chord([57, 60, 64, 69], 12), SR)
     expect(features.key).toBe('A minor')
     expect(features.camelot).toBe('8A')
+  })
+})
+
+describe('motionFromPcm', () => {
+  const MSR = MOTION_SAMPLE_RATE
+
+  /** Clicks at the given times, over a faint noise bed, at the motion rate. */
+  function clicksAt(times: readonly number[], seconds: number, seed = 3): Float32Array {
+    const random = seeded(seed)
+    const pcm = new Float32Array(Math.round(seconds * MSR))
+    for (let i = 0; i < pcm.length; i++) pcm[i] = random() * 0.01
+    const clickLength = Math.round(0.03 * MSR)
+    for (const time of times) {
+      const at = Math.round(time * MSR)
+      for (let i = 0; i < clickLength && at + i < pcm.length; i++) {
+        pcm[at + i] = (pcm[at + i] ?? 0) + random() * 1.2 * Math.exp(-i / (clickLength / 4))
+      }
+    }
+    return pcm
+  }
+
+  function sine(amplitude: number, seconds: number, hz = 220): Float32Array {
+    const pcm = new Float32Array(Math.round(seconds * MSR))
+    for (let i = 0; i < pcm.length; i++) pcm[i] = amplitude * Math.sin((2 * Math.PI * hz * i) / MSR)
+    return pcm
+  }
+
+  function mean(bytes: Uint8Array, from: number, to: number): number {
+    let sum = 0
+    for (let i = from; i < to; i++) sum += bytes[i] ?? 0
+    return sum / (to - from)
+  }
+
+  it('has one frame per 50 ms, rounded up, for any length', () => {
+    for (const samples of [0, 1, 551, 552, 11025, 11026, 27_690, 123_457]) {
+      const curve = motionFromPcm(new Float32Array(samples), MSR)
+      expect(curve.rate).toBe(MOTION_FRAME_RATE)
+      expect(curve.duration).toBeCloseTo(samples / MSR, 9)
+      const expected = Math.ceil((samples * MOTION_FRAME_RATE) / MSR)
+      expect(curve.loudness.length, `${samples} samples`).toBe(expected)
+      expect(curve.onset.length, `${samples} samples`).toBe(expected)
+    }
+  })
+
+  it('is all zeros for silence', () => {
+    const curve = motionFromPcm(new Float32Array(5 * MSR), MSR)
+    expect(curve.loudness.length).toBe(100)
+    expect(curve.loudness.every(byte => byte === 0)).toBe(true)
+    expect(curve.onset.every(byte => byte === 0)).toBe(true)
+  })
+
+  it('rises with amplitude, on the -60..0 dB scale', () => {
+    const pcm = new Float32Array(6 * MSR)
+    pcm.set(sine(0.01, 2), 0)
+    pcm.set(sine(0.1, 2), 2 * MSR)
+    pcm.set(sine(1, 2), 4 * MSR)
+    const { loudness } = motionFromPcm(pcm, MSR)
+
+    const quiet = mean(loudness, 2, 38)
+    const middle = mean(loudness, 42, 78)
+    const loud = mean(loudness, 82, 118)
+    expect(quiet).toBeLessThan(middle)
+    expect(middle).toBeLessThan(loud)
+    // A sine's RMS is 3 dB under its peak: -43, -23 and -3 dB.
+    expect(quiet).toBeCloseTo((17 / 60) * 255, -1)
+    expect(middle).toBeCloseTo((37 / 60) * 255, -1)
+    expect(loud).toBeCloseTo((57 / 60) * 255, -1)
+  })
+
+  it('peaks on the clicks and stays low between them', () => {
+    const times = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5]
+    const { onset } = motionFromPcm(clicksAt(times, 6), MSR)
+
+    for (const time of times) {
+      const frame = Math.floor(time * MOTION_FRAME_RATE)
+      const near = Math.max(onset[frame - 1] ?? 0, onset[frame] ?? 0, onset[frame + 1] ?? 0)
+      // The clicks' strengths vary and the 98th percentile is the scale, so
+      // the weaker ones sit a little under 255 — but far above the bed.
+      expect(near, `click at ${time}s`).toBeGreaterThanOrEqual(150)
+      // Halfway to the next click there is only the bed.
+      const between = Math.floor((time + 0.25) * MOTION_FRAME_RATE)
+      if (between < onset.length) expect(onset[between], `after ${time}s`).toBeLessThan(60)
+    }
+  })
+
+  it('shows the clicks in loudness too', () => {
+    const { loudness } = motionFromPcm(clicksAt([1, 2], 3), MSR)
+    expect(loudness[20] ?? 0).toBeGreaterThan((loudness[30] ?? 0) + 40)
+  })
+
+  it('gives the same curve however the PCM is handed over', () => {
+    const pcm = clicksAt([0.3, 0.9, 1.7, 2.2], 3.3)
+    const whole = motionFromPcm(pcm, MSR)
+
+    const builder = new MotionBuilder(MSR)
+    const random = seeded(9)
+    for (let at = 0; at < pcm.length;) {
+      const size = 1 + Math.floor((random() + 0.5) * 3000)
+      builder.push(pcm.subarray(at, at + size))
+      at += size
+    }
+    const pieces = builder.finish()
+
+    expect(pieces.duration).toBe(whole.duration)
+    expect([...pieces.loudness]).toEqual([...whole.loudness])
+    expect([...pieces.onset]).toEqual([...whole.onset])
   })
 })

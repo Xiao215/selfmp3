@@ -7,6 +7,7 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { MetadataService } from './metadata.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
+import type { MotionStore } from './motionStore.js'
 
 /**
  * Reconciling the library folder with the database.
@@ -26,6 +27,7 @@ export class ScannerService {
   readonly #metadata: MetadataService
   readonly #lyrics: LyricsService
   readonly #covers: CoverService
+  readonly #motion: Pick<MotionStore, 'delete'> | null
   readonly #logger: Logger
   #running = false
 
@@ -45,6 +47,8 @@ export class ScannerService {
     metadata: MetadataService
     lyrics: LyricsService
     covers: CoverService
+    /** Each song's motion curve, which goes when the song does. */
+    motion?: Pick<MotionStore, 'delete'>
     logger: Logger
   }) {
     this.#storage = deps.storage
@@ -52,6 +56,7 @@ export class ScannerService {
     this.#metadata = deps.metadata
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
+    this.#motion = deps.motion ?? null
     this.#logger = deps.logger.child('scan')
   }
 
@@ -224,6 +229,7 @@ export class ScannerService {
     const rows = this.#songs.all().filter(song => song.missing)
     for (const song of rows) {
       await this.#covers.delete(song.id)
+      await this.#motion?.delete(song.id)
       this.#songs.delete(song.id)
     }
     if (rows.length > 0) this.#logger.info('purged missing songs', { count: rows.length })

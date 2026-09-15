@@ -28,6 +28,7 @@ import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
+import { MotionStore } from './services/motionStore.js'
 import { RomanizationService } from './services/romanization.js'
 import { romanizedLines } from './services/romanizedLines.js'
 import { listenAddresses } from './services/addresses.js'
@@ -91,6 +92,8 @@ export interface Container {
   readonly fixCovers: FixCoversService
   readonly keepAwake: KeepAwakeService
   readonly lyricsCache: LyricsCache
+  /** Each song's motion curve, written by analysis (services/motionStore.ts). */
+  readonly motion: MotionStore
   readonly romanization: RomanizationService
   readonly lyricsIndex: LyricsIndexService
   readonly analysis: AnalysisService
@@ -158,6 +161,7 @@ export function createContainer(config: Config): Container {
 
   // Before the sync, which uploads each song's romaji beside its words.
   const lyricsCache = new LyricsCache(config, logger)
+  const motion = new MotionStore(config, logger)
   const romanization = new RomanizationService(logger)
 
   const cloudSync = new CloudSyncService({
@@ -176,6 +180,8 @@ export function createContainer(config: Config): Container {
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
+    // Each song's motion curve goes up beside its words, once analysis has made one.
+    motion,
     // The token is the bucket's owner's already: whoever reads the snapshot
     // is signed in to their own library.
     server: () => ({
@@ -198,6 +204,7 @@ export function createContainer(config: Config): Container {
     metadata,
     lyrics,
     covers,
+    motion,
     logger,
   })
 
@@ -269,6 +276,7 @@ export function createContainer(config: Config): Container {
     storage,
     songs,
     features,
+    motion,
     scanner,
     importQueue,
     logger,
@@ -313,6 +321,7 @@ export function createContainer(config: Config): Container {
         }
         await covers.delete(song.id)
         await lyricsCache.delete(song.id)
+        await motion.delete(song.id)
         lyricsIndex.remove(song.id)
       } catch (error) {
         logger.warn('could not tidy up a song removed on another device', {
@@ -367,6 +376,7 @@ export function createContainer(config: Config): Container {
     fixCovers,
     keepAwake,
     lyricsCache,
+    motion,
     romanization,
     lyricsIndex,
     analysis,

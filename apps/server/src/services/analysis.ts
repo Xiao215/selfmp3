@@ -9,7 +9,14 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { FeaturesRepository } from '../repositories/features.js'
 import type { ScannerService } from './scanner.js'
 import type { ImportQueueService } from './importQueue.js'
-import { ANALYSIS_SAMPLE_RATE, analyzePcm } from './dsp.js'
+import {
+  ANALYSIS_SAMPLE_RATE,
+  MOTION_SAMPLE_RATE,
+  MotionBuilder,
+  analyzePcm,
+  type MotionCurveData,
+} from './dsp.js'
+import type { MotionStore } from './motionStore.js'
 
 /**
  * Background audio analysis.
@@ -17,7 +24,9 @@ import { ANALYSIS_SAMPLE_RATE, analyzePcm } from './dsp.js'
  * Every song is decoded once with ffmpeg and run through `dsp.ts` for tempo,
  * key, energy and beat regularity; loudness comes from ffmpeg's own EBU R128
  * meter, which is both cheaper and more accurate than anything worth writing
- * by hand. Nothing leaves the machine.
+ * by hand. A third, whole-song decode at a lower rate becomes the song's motion
+ * curve (MotionStore), which Now Playing's visuals play back against the
+ * playhead where they cannot listen to the music live. Nothing leaves the machine.
  *
  * The queue is the database: a song is "pending" when it has no features row
  * (or one from an older algorithm), so a restart loses nothing and a scan or
@@ -34,6 +43,10 @@ const CLIP_OFFSET_SECONDS = 30
 const MIN_SECONDS_FOR_OFFSET = CLIP_OFFSET_SECONDS + 60
 
 const DECODE_TIMEOUT_MS = 60_000
+/** The motion curve covers this much of a song at most: a DJ set's first quarter hour. */
+const MOTION_MAX_SECONDS = 15 * 60
+/** Decoding a whole song takes longer than a clip; still bounded, for a file that hangs ffmpeg. */
+const MOTION_TIMEOUT_MS = 180_000
 /** Pause between songs, so a big first run does not peg a core for an hour. */
 const BREATHER_MS = 250
 /** How long to wait before re-checking when a scan or import is busy. */
@@ -44,6 +57,7 @@ export class AnalysisService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
   readonly #features: FeaturesRepository
+  readonly #motion: MotionStore
   readonly #scanner: ScannerService
   readonly #importQueue: ImportQueueService
   readonly #logger: Logger
@@ -63,6 +77,7 @@ export class AnalysisService {
     storage: StorageDriver
     songs: SongRepository
     features: FeaturesRepository
+    motion: MotionStore
     scanner: ScannerService
     importQueue: ImportQueueService
     logger: Logger
@@ -73,6 +88,7 @@ export class AnalysisService {
     this.#storage = deps.storage
     this.#songs = deps.songs
     this.#features = deps.features
+    this.#motion = deps.motion
     this.#scanner = deps.scanner
     this.#importQueue = deps.importQueue
     this.#logger = deps.logger.child('analysis')
@@ -113,9 +129,10 @@ export class AnalysisService {
     return this.status()
   }
 
-  /** The file changed underneath a song; its features are stale. */
+  /** The file changed underneath a song; its features and its curve are stale. */
   invalidate(songId: number): void {
     this.#features.delete(songId)
+    void this.#motion.delete(songId)
     this.kick()
   }
 
@@ -161,7 +178,9 @@ export class AnalysisService {
             message: error instanceof Error ? error.message : String(error),
           })
           // Write an empty row so the loop does not retry the same broken
-          // file forever; a forced re-run clears it.
+          // file forever; a forced re-run clears it. A curve from before the
+          // file broke would describe some other audio, so it goes.
+          await this.#motion.delete(song.id)
           this.#features.upsert(song.id, {
             bpm: null,
             energy: null,
@@ -200,8 +219,24 @@ export class AnalysisService {
     const { file, cleanup } = await this.#localFile(key)
 
     try {
-      const [pcm, loudness] = await Promise.all([decode(file, duration), measureLoudness(file)])
+      const [pcm, loudness, motion] = await Promise.all([
+        decode(file, duration),
+        measureLoudness(file),
+        timed(measureMotion(file)).catch((error: unknown) => {
+          this.#logger.warn('could not make a motion curve', {
+            song: key,
+            message: error instanceof Error ? error.message : String(error),
+          })
+          return null
+        }),
+      ])
       const features = analyzePcm(pcm, ANALYSIS_SAMPLE_RATE)
+
+      // The curve before the row: a row at this version is what says the song
+      // is done, so a crash between the two re-analyses it rather than
+      // leaving it without a curve for good.
+      if (motion) await this.#motion.write(songId, motion.value)
+      else await this.#motion.delete(songId)
 
       this.#features.upsert(songId, {
         bpm: features.bpm,
@@ -220,6 +255,8 @@ export class AnalysisService {
         camelot: features.camelot,
         energy: features.energy,
         lufs: loudness,
+        motionFrames: motion?.value.loudness.length ?? null,
+        motionMs: motion?.ms ?? null,
         ms: Date.now() - startedAt,
       })
     } finally {
@@ -319,6 +356,78 @@ export function decode(file: string, duration: number): Promise<Float32Array> {
 }
 
 /**
+ * The whole song's motion curve, decoded at `MOTION_SAMPLE_RATE` and folded
+ * into frames as ffmpeg streams it: memory holds one onset window and the
+ * per-frame numbers, not the song. Capped at `MOTION_MAX_SECONDS`.
+ */
+export function measureMotion(file: string): Promise<MotionCurveData> {
+  const args = [
+    '-v',
+    'error',
+    '-nostdin',
+    '-t',
+    String(MOTION_MAX_SECONDS),
+    '-i',
+    file,
+    '-vn',
+    '-ac',
+    '1',
+    '-ar',
+    String(MOTION_SAMPLE_RATE),
+    '-f',
+    'f32le',
+    '-',
+  ]
+  const maxSamples = MOTION_MAX_SECONDS * MOTION_SAMPLE_RATE
+
+  return new Promise<MotionCurveData>((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
+    const builder = new MotionBuilder(MOTION_SAMPLE_RATE)
+    // A chunk can end mid-sample; the odd bytes wait for the next one.
+    let carry = Buffer.alloc(0)
+    let samples = 0
+    let stderr = ''
+    let settled = false
+
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      finish(new Error('ffmpeg timed out decoding the whole file'))
+    }, MOTION_TIMEOUT_MS)
+
+    const finish = (error: Error | null): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve(builder.finish())
+    }
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (settled || samples >= maxSamples) return
+      const bytes = carry.length > 0 ? Buffer.concat([carry, chunk]) : chunk
+      const whole = Math.floor(bytes.length / 4)
+      const count = Math.min(whole, maxSamples - samples)
+      const pcm = new Float32Array(count)
+      for (let i = 0; i < count; i++) pcm[i] = bytes.readFloatLE(i * 4)
+      carry = Buffer.from(bytes.subarray(whole * 4))
+      samples += count
+      builder.push(pcm)
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      if (stderr.length < 4096) stderr += chunk.toString('utf8')
+    })
+    child.on('error', error => finish(new Error(`could not run ffmpeg: ${error.message}`)))
+    child.on('close', code => {
+      if (code !== 0 && samples === 0) {
+        finish(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with ${code}`))
+      } else {
+        finish(null)
+      }
+    })
+  })
+}
+
+/**
  * Integrated loudness via ffmpeg's `ebur128` filter.
  *
  * The filter prints a summary block on stderr when the input ends; the line
@@ -368,6 +477,13 @@ export function parseIntegratedLoudness(stderr: string): number | null {
   const value = Number(last)
   if (!Number.isFinite(value) || value <= -69) return null
   return Math.round(value * 10) / 10
+}
+
+/** A promise's value and how long it took, for the debug log. */
+async function timed<T>(promise: Promise<T>): Promise<{ value: T; ms: number }> {
+  const startedAt = Date.now()
+  const value = await promise
+  return { value, ms: Date.now() - startedAt }
 }
 
 function sleep(ms: number): Promise<void> {

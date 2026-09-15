@@ -102,8 +102,15 @@ export function mediaRoutes(container: Container): Router {
       // Awaited deliberately: sendFile is asynchronous, so returning straight
       // away would let the route wrapper see `headersSent === false` and send
       // a 204 on top of the image.
+      //
+      // `dotfiles: 'allow'` because the path is the server's own, never the
+      // request's, and `send` otherwise answers 404 for any path with a
+      // dot-segment in it — so a data directory under `~/.local/share` (the
+      // Linux default) or any other hidden folder served no covers at all.
       await new Promise<void>((resolve, reject) => {
-        res.sendFile(cover.path, error => (error ? reject(error) : resolve()))
+        res.sendFile(cover.path, { dotfiles: 'allow' }, error =>
+          error ? reject(error) : resolve(),
+        )
       })
       return undefined
       },

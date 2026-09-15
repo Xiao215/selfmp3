@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react'
-import { View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { View as RNView } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { space } from '@selfmp3/client'
@@ -25,12 +25,15 @@ export function VisualStyleMenu({
   onClose,
   anchorRef,
   visual,
+  following,
   onLookAgain,
 }: {
   open: boolean
   onClose: () => void
   anchorRef: RefObject<RNView | null>
   visual: SongVisualChoice
+  /** What the visual follows (`motionCaption`), said quietly under the styles. */
+  following: string
   onLookAgain: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -74,6 +77,9 @@ export function VisualStyleMenu({
           />
         )
       })}
+      <Text style={styles.following} numberOfLines={1}>
+        {following}
+      </Text>
       <View style={styles.divider} />
       <SheetItem
         icon={<Refresh size={15} color={theme.colors.textSecondary} />}
@@ -90,4 +96,10 @@ export function VisualStyleMenu({
 const styles = StyleSheet.create(theme => ({
   divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   blank: { width: 15, height: 15 },
+  following: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    paddingHorizontal: space.md,
+    paddingTop: space.xs,
+  },
 }))

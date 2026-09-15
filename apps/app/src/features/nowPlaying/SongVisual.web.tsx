@@ -1,29 +1,36 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { FrequencyAnalyser, Rgb } from '@selfmp3/client'
+import type { Rgb } from '@selfmp3/client'
 import { hueFromString, type Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
-import { canHearMusic } from '../../ports/liveAudio'
+import type { MotionSampler } from './motionSource'
 import { useReducedMotion } from './useReducedMotion'
+import { recordVisualFrame } from './visualDebug'
 import {
-  beatKick,
-  beatPhase,
+  createMotionState,
+  motionTuning,
+  resizeBands,
+  ringFade,
+  ringReach,
+  stepMotion,
+  stillMotion,
+  type MotionState,
+  type MotionTuning,
+} from './visualMotion.model'
+import {
   driftReach,
-  driftSpeed,
-  pulseRingAges,
   rgbCss,
-  STILL_SECONDS,
-  synthLevels,
   visualColors,
   visualFeel,
   type VisualColors,
-  type VisualFeel,
   type VisualKind,
 } from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
   kind: VisualKind
+  /** What the visual follows: the sound, the song's curve, or its tempo (`useMotionSampler`). */
+  sampler: MotionSampler
   /** Round the corners, for a visual in a box rather than one filling the screen. */
   rounded?: boolean
 }
@@ -32,16 +39,14 @@ export interface SongVisualProps {
  * A song's visual in a browser and the desktop app: a canvas, drawn once a
  * frame. The phone's is `SongVisual.tsx`.
  *
- * The loop reads the playhead straight from the engine each frame rather than
- * waiting for React, so a ring leaves on the beat and not up to a quarter of a
- * second after it; everything else the loop needs sits in one ref, so it
- * starts once per style. The browser pauses it with the tab. Spectrum listens
- * to the sound itself where that is safe (`ports/liveAudio`), and draws a
- * stand-in from the song's tempo and energy everywhere else. Reduce Motion
- * draws a single still frame, again only when the song, the style or the size
- * changes.
+ * Each frame reads the playhead straight from the engine, asks the sampler
+ * what the music is doing there, steps the motion (`visualMotion.model.ts`)
+ * and draws it — so a ring leaves on the hit and not a quarter of a second
+ * after it. Everything else the loop needs sits in one ref, so it starts once
+ * per style; the browser pauses it with the tab. Reduce Motion draws a single
+ * still frame, again only when the song, the style or the size changes.
  */
-export function SongVisual({ song, kind, rounded = false }: SongVisualProps): ReactNode {
+export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualProps): ReactNode {
   const player = usePlayer()
   const reduced = useReducedMotion()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -50,11 +55,15 @@ export function SongVisual({ song, kind, rounded = false }: SongVisualProps): Re
       visualColors(song.coverTone?.hue ?? hueFromString(song.album || song.title), song.features?.camelot),
     [song.coverTone?.hue, song.album, song.title, song.features?.camelot],
   )
-  const feel = useMemo(() => visualFeel(song.features), [song.features])
+  const bpmKnown = song.features?.bpm != null
+  const tuning = useMemo(
+    () => motionTuning(visualFeel(song.features), bpmKnown),
+    [song.features, bpmKnown],
+  )
 
-  const live = useRef({ player, colors, feel, reduced, songId: song.id })
+  const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id })
   useEffect(() => {
-    live.current = { player, colors, feel, reduced, songId: song.id }
+    live.current = { player, colors, tuning, reduced, sampler, songId: song.id }
   })
 
   useEffect(() => {
@@ -62,9 +71,7 @@ export function SongVisual({ song, kind, rounded = false }: SongVisualProps): Re
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return undefined
 
-    let analyser: FrequencyAnalyser | null = null
-    let bins: Uint8Array | null = null
-    const memory: Memory = { spin: 0, drift: 0, levels: [] }
+    const motion = createMotionState(16)
     let last = performance.now()
     let stillKey = ''
     let frame = 0
@@ -73,13 +80,13 @@ export function SongVisual({ song, kind, rounded = false }: SongVisualProps): Re
       frame = requestAnimationFrame(tick)
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { player: p, colors: c, feel: f, reduced: still, songId } = live.current
+      const { player: p, colors: c, tuning: tu, reduced: still, sampler: s, songId } = live.current
 
       const dpr = Math.min(2, window.devicePixelRatio || 1)
       const width = canvas.clientWidth
       const height = canvas.clientHeight
       if (!width || !height) return
-      const key = `${songId}:${width}x${height}:${c.inks[0].join()}`
+      const key = `${songId}:${width}x${height}:${c.inks[0].join()}:${s.source}`
       if (still && key === stillKey) return
       stillKey = still ? key : ''
       if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
@@ -88,31 +95,24 @@ export function SongVisual({ song, kind, rounded = false }: SongVisualProps): Re
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-      // Asked for on the first Spectrum frame only: asking routes playback
-      // through Web Audio for good.
-      if (kind === 'spectrum' && !analyser && !still && canHearMusic()) {
-        analyser = p.analyser()
-        bins = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+      resizeBands(motion, kind === 'spectrum' ? spectrumBars(width) : 16)
+      if (still) {
+        stillMotion(motion, tu, s.source)
+      } else {
+        const seconds = p.getPlayhead()
+        stepMotion(motion, s, seconds, dt, p.isPlaying, tu)
+        recordVisualFrame({
+          t: seconds,
+          source: s.source,
+          kind,
+          level: motion.level,
+          onset: motion.onset,
+          glow: motion.glow,
+          fired: motion.fired,
+          rings: motion.rings.length,
+        })
       }
-      let heard: number[] | null = null
-      if (analyser && bins && p.isPlaying) {
-        analyser.getByteFrequencyData(bins)
-        // The top quarter of the bins is almost always empty in music; and a
-        // steep curve, since a modern master sits near the top of the byte
-        // range and a gentle one draws every bar at full length.
-        const usable = Math.floor(bins.length * 0.75)
-        heard = []
-        for (let i = 0; i < usable; i++) heard.push(Math.min(1, Math.pow((bins[i] ?? 0) / 255, 2.6) * 1.25))
-      }
-
-      draw(kind, ctx, width, height, {
-        time: still ? STILL_SECONDS : p.getPlayhead(),
-        dt: still ? 0 : dt,
-        playing: still || p.isPlaying,
-        feel: f,
-        colors: c,
-        heard,
-      }, memory)
+      draw(kind, ctx, width, height, c, tu, motion)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
@@ -134,31 +134,26 @@ export function SongVisual({ song, kind, rounded = false }: SongVisualProps): Re
   )
 }
 
-interface Frame {
-  /** Song position in seconds; the beat is worked out from it. */
-  readonly time: number
-  /** Seconds since the last frame, for what drifts. */
-  readonly dt: number
-  readonly playing: boolean
-  readonly feel: VisualFeel
-  readonly colors: VisualColors
-  /** Live levels 0–1, low to high, when the music can be heard. */
-  readonly heard: readonly number[] | null
-}
-
-interface Memory {
-  spin: number
-  drift: number
-  levels: number[]
+/** Spectrum's bar count for a width: about one bar every 18 points, 16 to 48 of them. */
+function spectrumBars(width: number): number {
+  return Math.max(16, Math.min(48, Math.floor(width / 18)))
 }
 
 type Ctx = CanvasRenderingContext2D
 
-function draw(kind: VisualKind, ctx: Ctx, w: number, h: number, f: Frame, m: Memory): void {
-  const phase = beatPhase(f.time, f.feel.bpm)
-  const kick = f.playing ? beatKick(phase) : 0
-  ground(ctx, w, h, f.colors, kick * 0.04 * f.feel.energy)
-  DRAWINGS[kind](ctx, w, h, f, m, phase, kick)
+type Drawing = (ctx: Ctx, w: number, h: number, c: VisualColors, tu: MotionTuning, m: MotionState) => void
+
+function draw(
+  kind: VisualKind,
+  ctx: Ctx,
+  w: number,
+  h: number,
+  c: VisualColors,
+  tu: MotionTuning,
+  m: MotionState,
+): void {
+  ground(ctx, w, h, c, m.kick * 0.05 * m.glow + m.flash * 0.05)
+  DRAWINGS[kind](ctx, w, h, c, tu, m)
 }
 
 function ground(ctx: Ctx, w: number, h: number, colors: VisualColors, lift: number): void {
@@ -170,32 +165,30 @@ function ground(ctx: Ctx, w: number, h: number, colors: VisualColors, lift: numb
   ctx.fillRect(0, 0, w, h)
 }
 
-const DRAWINGS: Record<
-  VisualKind,
-  (ctx: Ctx, w: number, h: number, f: Frame, m: Memory, phase: number, kick: number) => void
-> = {
-  /* Slow bands in the cover's colours; brightness breathes with loudness. */
-  aurora(ctx, w, h, f, m) {
-    const speed = f.playing ? 0.18 + 0.5 * f.feel.energy : 0
-    m.drift += speed * f.dt
-    const t = m.drift
+const DRAWINGS: Record<VisualKind, Drawing> = {
+  /* Bands in the cover's colours: taller, brighter and quicker the louder it is; a flash on a big hit. */
+  aurora(ctx, w, h, c, tu, m) {
+    const g = m.glow
+    const t = m.sway
     ctx.globalCompositeOperation = 'lighter'
     for (let band = 0; band < 4; band++) {
-      const y0 = h * (0.3 + band * 0.13)
+      const y0 = h * (0.34 + band * 0.12 + (1 - g) * 0.16)
+      const swell = h * (0.025 + 0.085 * g)
+      const ripple = h * (0.01 + 0.03 * g) * (0.5 + tu.feel.danceability)
       ctx.beginPath()
       ctx.moveTo(0, h)
       for (let x = 0; x <= w; x += 8) {
         const y =
           y0 +
-          Math.sin((x / w) * 3 + t * 0.9 + band) * h * 0.09 +
-          Math.sin((x / w) * 7 - t * 1.4 + band * 2) * h * 0.03 * (0.5 + f.feel.danceability)
+          Math.sin((x / w) * 3 + t * 0.9 + band) * swell +
+          Math.sin((x / w) * 7 - t * 1.4 + band * 2) * ripple
         ctx.lineTo(x, y)
       }
       ctx.lineTo(w, h)
       ctx.closePath()
-      const breath = 0.16 + 0.12 * f.feel.loudness + 0.05 * Math.sin(t * 2.2 + band)
+      const breath = 0.05 + 0.24 * g + 0.2 * m.flash + 0.03 * Math.sin(t * 2.2 + band)
       const fill = ctx.createLinearGradient(0, y0 - h * 0.2, 0, h)
-      const ink = f.colors.inks[band % 3]!
+      const ink = c.inks[band % 3]!
       fill.addColorStop(0, rgbCss(ink, breath))
       fill.addColorStop(1, rgbCss(ink, 0))
       ctx.fillStyle = fill
@@ -204,52 +197,41 @@ const DRAWINGS: Record<
     ctx.globalCompositeOperation = 'source-over'
   },
 
-  /* Rings leave the centre on every beat; the centre dot kicks. */
-  pulse(ctx, w, h, f, _m, phase, kick) {
+  /* A ring leaves the centre on each hit, as strong as the hit; the dot follows the level and kicks. */
+  pulse(ctx, w, h, c, tu, m) {
     const reach = Math.min(w, h) * 0.48
     const cx = w / 2
     const cy = h / 2
-    if (f.playing) {
-      pulseRingAges(phase).forEach((age, ring) => {
-        ctx.beginPath()
-        ctx.arc(cx, cy, age * reach, 0, Math.PI * 2)
-        ctx.strokeStyle = rgbCss(f.colors.inks[ring % 2]!, Math.pow(1 - age, 1.5) * 0.85)
-        ctx.lineWidth = 1.5 + f.feel.energy * 4 * (1 - age)
-        ctx.stroke()
-      })
+    for (const ring of m.rings) {
+      const travelled = ringReach(ring, tu)
+      ctx.beginPath()
+      ctx.arc(cx, cy, Math.max(1, travelled * reach), 0, Math.PI * 2)
+      ctx.strokeStyle = rgbCss(c.inks[ring.id % 2]!, ringFade(ring, tu) * 0.9)
+      ctx.lineWidth = 1 + 7 * ring.strength * (1 - travelled)
+      ctx.stroke()
     }
-    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach * 0.5)
-    halo.addColorStop(0, rgbCss(f.colors.inks[0], 0.18 + 0.2 * kick))
-    halo.addColorStop(1, rgbCss(f.colors.inks[0], 0))
+    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach * (0.35 + 0.25 * m.glow))
+    halo.addColorStop(0, rgbCss(c.inks[0], 0.05 + 0.22 * m.glow + 0.25 * m.kick))
+    halo.addColorStop(1, rgbCss(c.inks[0], 0))
     ctx.fillStyle = halo
     ctx.fillRect(0, 0, w, h)
     ctx.beginPath()
-    ctx.arc(cx, cy, Math.min(w, h) * (0.045 + 0.035 * kick), 0, Math.PI * 2)
-    ctx.fillStyle = rgbCss(f.colors.inks[2], 0.95)
+    ctx.arc(cx, cy, Math.min(w, h) * (0.02 + 0.035 * m.glow + 0.03 * m.kick), 0, Math.PI * 2)
+    ctx.fillStyle = rgbCss(c.inks[2], 0.95)
     ctx.fill()
   },
 
-  /* Bars for the sound: heard where it can be, drawn from the beat elsewhere. */
-  spectrum(ctx, w, h, f, m) {
-    const count = Math.max(16, Math.min(48, Math.floor(w / 18)))
-    const target = f.heard
-      ? resample(f.heard, count)
-      : synthLevels(count, f.time, f.feel.bpm, f.feel.energy)
-    if (m.levels.length !== count) m.levels = new Array<number>(count).fill(0)
-    for (let i = 0; i < count; i++) {
-      const goal = f.playing ? (target[i] ?? 0) : 0.02
-      const now = m.levels[i] ?? 0
-      m.levels[i] = now + (goal - now) * (goal > now ? 0.55 : 0.12)
-    }
+  /* Bars for the sound: heard where it can be, from the song's curve or tempo elsewhere. */
+  spectrum(ctx, w, h, c, _tu, m) {
+    const count = m.bands.length
     const gap = Math.max(2, w / count / 5)
     const barWidth = (w - gap * (count + 1)) / count
     const floor = h * 0.86
     for (let i = 0; i < count; i++) {
-      const level = m.levels[i] ?? 0
+      const level = m.bands[i] ?? 0
       const barHeight = Math.max(3, level * h * 0.7)
       const x = gap + i * (barWidth + gap)
-      const along = i / count
-      const ink = along < 0.5 ? f.colors.inks[0] : f.colors.inks[1]
+      const ink = i / count < 0.5 ? c.inks[0] : c.inks[1]
       const fill = ctx.createLinearGradient(0, floor - barHeight, 0, floor)
       fill.addColorStop(0, rgbCss(ink, 0.95))
       fill.addColorStop(1, rgbCss(ink, 0.35))
@@ -261,36 +243,29 @@ const DRAWINGS: Record<
     }
   },
 
-  /* Specks orbiting the centre: faster with tempo, closer with energy. */
-  drift(ctx, w, h, f, m, _phase, kick) {
-    m.spin += f.playing ? driftSpeed(f.feel.bpm) * f.dt : 0
+  /* Specks orbiting the centre: faster the louder it is, thrown outward on a hit. */
+  drift(ctx, w, h, c, tu, m) {
     const cx = w / 2
     const cy = h / 2
     const base = Math.min(w, h)
-    const reach = driftReach(f.feel.energy)
+    const reach = driftReach(tu.feel.energy)
     const specks = 70
     for (let i = 0; i < specks; i++) {
+      const along = i / specks
       const angle = i * 2.39996 + m.spin * (1 + (i % 3) * 0.25)
-      const radius = base * (0.06 + (i / specks) * reach) * (1 + 0.06 * kick)
+      const radius = base * (0.06 + along * reach) * (1 + 0.3 * m.burst * (0.4 + 0.6 * along))
       ctx.beginPath()
       ctx.arc(
         cx + Math.cos(angle) * radius * 1.25,
         cy + Math.sin(angle) * radius * 0.85,
-        1.2 + (i % 4) * 0.7,
+        (1.2 + (i % 4) * 0.7) * (0.8 + 0.4 * m.glow),
         0,
         Math.PI * 2,
       )
-      ctx.fillStyle = rgbCss(f.colors.inks[i % 3]!, 0.7)
+      ctx.fillStyle = rgbCss(c.inks[i % 3]!, 0.3 + 0.55 * m.glow)
       ctx.fill()
     }
   },
-}
-
-function resample(source: readonly number[], count: number): number[] {
-  return Array.from(
-    { length: count },
-    (_, i) => source[Math.min(source.length - 1, Math.floor((i / count) * source.length))] ?? 0,
-  )
 }
 
 function lighten([r, g, b]: Rgb, amount: number): Rgb {

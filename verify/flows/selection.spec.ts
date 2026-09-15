@@ -45,10 +45,17 @@ test.describe('selecting songs', () => {
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(page.getByText('2 selected', { exact: true })).toBeVisible()
 
-    // Select-all spells out what "all" is.
-    await page.getByRole('checkbox', { name: /^Select all \d+ songs? in your library$/ }).click()
-    await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
-    await expect(page.getByText('everything in your library')).toBeVisible()
+    // Select-all spells out what "all" is. A phone's bar is one line of icons,
+    // and select-all is the first thing in its More.
+    if (info.project.name === 'phone') {
+      await page.getByRole('button', { name: /^More$/ }).click()
+      await page.getByRole('menuitem', { name: /^Select all \d+ songs? in your library$/ }).click()
+      await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
+    } else {
+      await page.getByRole('checkbox', { name: /^Select all \d+ songs? in your library$/ }).click()
+      await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
+      await expect(page.getByText('everything in your library')).toBeVisible()
+    }
 
     // The destructive action asks first; cancelling leaves everything.
     await page.getByRole('button', { name: /^More$/ }).click()

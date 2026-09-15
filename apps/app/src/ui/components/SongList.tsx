@@ -52,6 +52,7 @@ export function SongList({
   keyboardShouldPersistTaps,
   keyboardDismissMode = 'on-drag',
   CellRendererComponent,
+  onScroll,
 }: {
   songs: readonly Song[]
   renderSong: (info: { item: Song; index: number }) => ReactElement | null
@@ -75,6 +76,12 @@ export function SongList({
   keyboardDismissMode?: FlatListProps<Song>['keyboardDismissMode']
   /** Wraps each cell; a playlist lifts the row being moved with it. */
   CellRendererComponent?: FlatListProps<Song>['CellRendererComponent']
+  /**
+   * Told where the list is scrolled to, every frame: a playlist's selection
+   * bar follows the bottom of its head with it (an `Animated.event`, so
+   * following it is no render).
+   */
+  onScroll?: FlatListProps<Song>['onScroll']
 }): ReactNode {
   const getItemLayout = useMemo<FlatListProps<Song>['getItemLayout']>(
     () =>
@@ -103,6 +110,8 @@ export function SongList({
       ListHeaderComponent={header}
       ListEmptyComponent={empty as ReactElement}
       CellRendererComponent={CellRendererComponent}
+      onScroll={onScroll}
+      scrollEventThrottle={onScroll ? 16 : undefined}
     />
   )
 }

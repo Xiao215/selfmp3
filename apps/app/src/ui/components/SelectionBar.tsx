@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song, Tag } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
@@ -25,6 +25,7 @@ import { Checkbox } from './Checkbox'
 import { ConfirmRemoveSongs } from './ConfirmRemoveSongs'
 import { IconButton } from './IconButton'
 import {
+  CheckSquare,
   CloudDownload,
   Heart,
   ListMusic,
@@ -40,23 +41,63 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 
 /**
+ * How much room a phone's list leaves under its last row while the bar is up,
+ * so the last song can still be scrolled out from under it.
+ */
+export const SELECTION_BAR_SPACE = 72
+
+/*
+ * Whether a phone's bar is up, for the shell's toast row. The toasts sit at the
+ * foot of the page column, which is where the bar floats on a phone, and they
+ * are drawn later: a "Continue from Mac" over the bar took the presses meant
+ * for its More. Counted rather than a flag, so a screen leaving as the next
+ * one's bar arrives cannot switch it off under the new one.
+ */
+let floatingOnPhone = 0
+const floatingListeners = new Set<() => void>()
+const subscribeFloating = (listener: () => void): (() => void) => {
+  floatingListeners.add(listener)
+  return () => floatingListeners.delete(listener)
+}
+const setFloating = (change: 1 | -1): void => {
+  floatingOnPhone += change
+  for (const listener of floatingListeners) listener()
+}
+
+/** True while a selection bar floats at the foot of a phone's page. */
+export function useSelectionBarFloating(): boolean {
+  return useSyncExternalStore(
+    subscribeFloating,
+    () => floatingOnPhone > 0,
+    () => false,
+  )
+}
+
+/**
  * The bar that runs a multi-selection: the web's `SelectionBar`.
  *
- * Anchored by the count, because the count is what you have to be sure of
- * before pressing anything else, and by a tri-state checkbox beside a line
- * that says in words what "all" currently means. Select-all while a search or
- * filter is on selects the filtered set, and the bar says so.
+ * It floats over the list rather than sitting in it. In the page it pushed
+ * every row down by its own height the moment the first row was ticked, so the
+ * row you were about to tick next moved out from under the pointer. Floating,
+ * no row moves; the parent puts it in a box laid over the list area
+ * (`position: relative` by default) and it places itself in that box.
+ *
+ * On a computer it floats at the top, just under the page head, where the eye
+ * already is while ticking and where nothing else competes (the foot of the
+ * window has the player bar and the toasts). It is anchored by the count,
+ * because the count is what you have to be sure of before pressing anything
+ * else, and by a tri-state checkbox beside a line that says in words what
+ * "all" currently means. Select-all while a search or filter is on selects the
+ * filtered set, and the bar says so.
+ *
+ * On a phone it floats at the bottom, above the mini player or the tabs, where
+ * a thumb is: the count, then Play, Queue, More and Done as icons on one line.
+ * Select all and a playlist's Remove move into More there.
  *
  * Play and Queue are in the bar because they are harmless and frequent.
  * Everything that edits the library sits behind More — a popover at desktop
  * width, a sheet on a phone — with "remove from library" last and in red, and
  * behind a confirmation.
- *
- * At phone width it is exactly two lines, as on the web: what is selected and
- * Done, then what can be done to it, every button keeping its label. They are
- * two rows in a column rather than one row that wraps: on iOS a wrapping row
- * with a full-width line in it measured too short, and the buttons hung out of
- * the bottom of the bar over the first song.
  */
 export function SelectionBar({
   songs,
@@ -68,6 +109,7 @@ export function SelectionBar({
   onDeselectAll,
   onDone,
   playlist,
+  top = 0,
 }: {
   /** The selected songs, in the order the list has them. */
   songs: readonly Song[]
@@ -83,6 +125,12 @@ export function SelectionBar({
   onDone: () => void
   /** Set in a playlist, which offers removing from it without deleting. */
   playlist?: { readonly id: number; readonly name: string }
+  /**
+   * On a computer, how far below the top of its box it floats: a playlist's
+   * head scrolls with its songs, and the bar follows the bottom of the head
+   * until the head has gone and then stays at the top.
+   */
+  top?: number | Animated.AnimatedInterpolation<number>
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
@@ -102,6 +150,13 @@ export function SelectionBar({
   const [confirming, setConfirming] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const moreRef = useRef<View>(null)
+
+  // The toasts step up above the bar while it floats at a phone's foot.
+  useEffect(() => {
+    if (wide) return undefined
+    setFloating(1)
+    return () => setFloating(-1)
+  }, [wide])
 
   const count = songs.length
   const ids = useMemo(() => songs.map(song => song.id), [songs])
@@ -144,6 +199,7 @@ export function SelectionBar({
   const lovedCount = songs.filter(song => song.loved).length
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
   const songWord = count === 1 ? 'song' : 'songs'
+  const totalWord = total === 1 ? 'song' : 'songs'
   const accentDim = oklchToHexAlpha(0.42, 0.1, accent.hue, 1)
 
   const closeMenu = (): void => {
@@ -158,83 +214,82 @@ export function SelectionBar({
   }
   const toggleNested = (which: 'playlists' | 'tag' | 'untag') => (): void =>
     setNested(open => (open === which ? null : which))
+  const removeSelectedFromPlaylist = (): void => {
+    if (!playlist) return
+    removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
+    showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
+  }
 
   const done = (
     <IconButton onPress={onDone} label="Done selecting" testID="selection-done">
       <X size={16} color={theme.colors.textSecondary} />
     </IconButton>
   )
+  const countText = (
+    <Text style={styles.count} accessibilityLiveRegion="polite" numberOfLines={1}>
+      {count === 0 ? 'None selected' : `${count} selected`}
+    </Text>
+  )
 
-  return (
-    <>
+  const bar = wide ? (
+    <Animated.View
+      style={[styles.float, styles.floatTop, { transform: [{ translateY: top }] }]}
+      pointerEvents="box-none"
+    >
       <View
-        style={[styles.bar, !wide && styles.barCompact, { borderColor: accentDim }]}
+        style={[styles.bar, { borderColor: accentDim }]}
         role="toolbar"
         aria-label="Selection actions"
         testID="selection-bar"
       >
-        <View style={styles.head}>
-          <View style={[styles.anchor, !wide && styles.anchorCompact]}>
-            <Pressable
-              style={styles.all}
-              onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-              accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${
-                total === 1 ? 'song' : 'songs'
-              } ${scope}`}
-            >
-              <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
-            </Pressable>
-            <View style={styles.counts}>
-              <Text style={styles.count} accessibilityLiveRegion="polite">
-                {count === 0 ? 'None selected' : `${count} selected`}
+        <View style={styles.anchor}>
+          <Pressable
+            style={styles.all}
+            onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
+            accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
+          >
+            <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
+          </Pressable>
+          <View style={styles.counts}>
+            {countText}
+            {allSelected ? (
+              <Text style={styles.scope}>
+                {narrowed ? `every song ${scope}` : `everything ${scope}`}
               </Text>
-              {allSelected ? (
-                <Text style={styles.scope}>
-                  {narrowed ? `every song ${scope}` : `everything ${scope}`}
+            ) : (
+              <Pressable onPress={onSelectAll} accessibilityRole="button">
+                <Text style={[styles.scope, styles.scopeLink]}>
+                  Select all {total} {scope}
                 </Text>
-              ) : (
-                <Pressable onPress={onSelectAll} accessibilityRole="button">
-                  <Text style={[styles.scope, styles.scopeLink]}>
-                    Select all {total} {scope}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+              </Pressable>
+            )}
           </View>
-
-          {wide ? null : done}
         </View>
 
-        <View style={[styles.actions, !wide && styles.actionsCompact]}>
+        <View style={styles.actions}>
           <Button
             label="Play"
             icon={<Play size={13} color={theme.colors.textPrimary} />}
             onPress={() => player.playFrom(ids, 0)}
             disabled={count === 0}
-            grow={!wide}
           />
           <Button
             label="Queue"
             icon={<Queue size={13} color={theme.colors.textPrimary} />}
             onPress={() => player.addToQueue(ids)}
             disabled={count === 0}
-            grow={!wide}
           />
           {playlist ? (
             <Button
-              label={wide ? 'Remove from playlist' : 'Remove'}
+              label="Remove from playlist"
               icon={<X size={13} color={theme.colors.textPrimary} />}
-              onPress={() => {
-                removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
-                showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
-              }}
+              onPress={removeSelectedFromPlaylist}
               disabled={count === 0}
-              grow={!wide}
             />
           ) : null}
-          <View ref={moreRef} collapsable={false} style={!wide && styles.grow}>
+          <View ref={moreRef} collapsable={false}>
             <Button
               label="More"
               icon={<More size={13} color={theme.colors.textPrimary} />}
@@ -245,8 +300,42 @@ export function SelectionBar({
           </View>
         </View>
 
-        {wide ? <View style={styles.doneWide}>{done}</View> : null}
+        <View style={styles.doneWide}>{done}</View>
       </View>
+    </Animated.View>
+  ) : (
+    <View style={[styles.float, styles.floatBottom]} pointerEvents="box-none">
+      <View
+        style={[styles.bar, styles.barCompact, { borderColor: accentDim }]}
+        role="toolbar"
+        aria-label="Selection actions"
+        testID="selection-bar"
+      >
+        <View style={styles.countCompact}>{countText}</View>
+        <IconButton onPress={() => player.playFrom(ids, 0)} label="Play" disabled={count === 0}>
+          <Play size={18} color={theme.colors.textPrimary} />
+        </IconButton>
+        <IconButton onPress={() => player.addToQueue(ids)} label="Queue" disabled={count === 0}>
+          <Queue size={18} color={theme.colors.textPrimary} />
+        </IconButton>
+        <View ref={moreRef} collapsable={false}>
+          <IconButton
+            onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+            label="More"
+            active={menuOpen}
+            testID="selection-more"
+          >
+            <More size={18} color={theme.colors.textPrimary} />
+          </IconButton>
+        </View>
+        {done}
+      </View>
+    </View>
+  )
+
+  return (
+    <>
+      {bar}
 
       <Popover
         open={menuOpen}
@@ -262,151 +351,176 @@ export function SelectionBar({
             {count} {songWord} selected
           </Text>
         ) : null}
-        <Text style={styles.summary} numberOfLines={1}>
-          {summarise(songs)}
-        </Text>
-
-        {lovedCount < count ? (
-          <SheetItem
-            icon={<Heart size={15} color={theme.colors.textSecondary} />}
-            label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
-            onPress={act(
-              () => bulkLoved.mutate({ songIds: ids, loved: true }),
-              `Loved ${count - lovedCount} ${count - lovedCount === 1 ? 'song' : 'songs'}`,
-            )}
-          />
-        ) : null}
-        {lovedCount > 0 ? (
-          <SheetItem
-            icon={<Heart size={15} filled color={theme.colors.danger} />}
-            label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
-            onPress={act(
-              () => bulkLoved.mutate({ songIds: ids, loved: false }),
-              `Removed ${lovedCount} from loved`,
-            )}
-          />
+        {count > 0 ? (
+          <Text style={styles.summary} numberOfLines={1}>
+            {summarise(songs)}
+          </Text>
         ) : null}
 
-        <View style={styles.divider} />
-
-        <SheetItem
-          icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
-          label="Add to playlist…"
-          active={nested === 'playlists'}
-          onPress={toggleNested('playlists')}
-        />
-        {nested === 'playlists' ? (
-          <View style={styles.nested}>
+        {/* On a phone the bar has no room for the checkbox, so all is chosen here. */}
+        {wide ? null : (
+          <>
             <SheetItem
-              icon={<Plus size={15} color={theme.colors.textSecondary} />}
-              label={`New playlist with ${count} ${songWord}`}
+              icon={<CheckSquare size={15} color={theme.colors.textSecondary} />}
+              label={
+                allSelected ? `Deselect all ${total} ${totalWord}` : `Select all ${total} ${totalWord} ${scope}`
+              }
+              onPress={act(allSelected ? onDeselectAll : onSelectAll)}
+            />
+            {playlist && count > 0 ? (
+              <SheetItem
+                icon={<X size={15} color={theme.colors.textSecondary} />}
+                label="Remove from playlist"
+                onPress={act(removeSelectedFromPlaylist)}
+              />
+            ) : null}
+            {count > 0 ? <View style={styles.divider} /> : null}
+          </>
+        )}
+
+        {count === 0 ? null : (
+          <>
+            {lovedCount < count ? (
+              <SheetItem
+                icon={<Heart size={15} color={theme.colors.textSecondary} />}
+                label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
+                onPress={act(
+                  () => bulkLoved.mutate({ songIds: ids, loved: true }),
+                  `Loved ${count - lovedCount} ${count - lovedCount === 1 ? 'song' : 'songs'}`,
+                )}
+              />
+            ) : null}
+            {lovedCount > 0 ? (
+              <SheetItem
+                icon={<Heart size={15} filled color={theme.colors.danger} />}
+                label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
+                onPress={act(
+                  () => bulkLoved.mutate({ songIds: ids, loved: false }),
+                  `Removed ${lovedCount} from loved`,
+                )}
+              />
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <SheetItem
+              icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
+              label="Add to playlist…"
+              active={nested === 'playlists'}
+              onPress={toggleNested('playlists')}
+            />
+            {nested === 'playlists' ? (
+              <View style={styles.nested}>
+                <SheetItem
+                  icon={<Plus size={15} color={theme.colors.textSecondary} />}
+                  label={`New playlist with ${count} ${songWord}`}
+                  onPress={() => {
+                    closeMenu()
+                    void newPlaylistWithSelection()
+                  }}
+                />
+                {manualPlaylists.map(list => (
+                  <SheetItem
+                    key={list.id}
+                    label={list.name}
+                    onPress={act(
+                      () => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }),
+                      `Added ${count} ${songWord} to ${list.name}`,
+                    )}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            {tags.length > 0 ? (
+              <SheetItem
+                icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
+                label="Add tag…"
+                active={nested === 'tag'}
+                onPress={toggleNested('tag')}
+              />
+            ) : null}
+            {nested === 'tag' ? (
+              <View style={styles.nested}>
+                {tags.map(tag => (
+                  <SheetItem
+                    key={tag.id}
+                    label={tag.name}
+                    onPress={act(
+                      () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'add' }),
+                      `Tagged ${count} ${songWord} “${tag.name}”`,
+                    )}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            {tagsOnSelection.length > 0 ? (
+              <SheetItem
+                icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
+                label="Remove tag…"
+                active={nested === 'untag'}
+                onPress={toggleNested('untag')}
+              />
+            ) : null}
+            {nested === 'untag' ? (
+              <View style={styles.nested}>
+                {tagsOnSelection.map(tag => (
+                  <SheetItem
+                    key={tag.id}
+                    label={tag.name}
+                    onPress={act(
+                      () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'remove' }),
+                      `Removed “${tag.name}” from ${count} ${songWord}`,
+                    )}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            {held.length < count ? (
+              <SheetItem
+                icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
+                label={`Download ${held.length > 0 ? 'the rest' : 'all'}`}
+                onPress={act(() => downloadQueue.enqueue(ids))}
+              />
+            ) : null}
+            {held.length > 0 ? (
+              <SheetItem
+                icon={<X size={15} color={theme.colors.textSecondary} />}
+                label={`Remove ${held.length === count ? '' : `${held.length} `}${
+                  held.length === 1 ? 'download' : 'downloads'
+                }`}
+                onPress={act(() => {
+                  const removing = held.length
+                  void downloadQueue
+                    .remove(held.map(song => song.id))
+                    .then(() =>
+                      showToast(
+                        `Removed ${removing} ${removing === 1 ? 'download' : 'downloads'}`,
+                        'good',
+                      ),
+                    )
+                })}
+              />
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <SheetItem
+              icon={<Trash size={15} color={theme.colors.danger} />}
+              label={`Remove ${count} ${songWord} from library…`}
+              danger
               onPress={() => {
                 closeMenu()
-                void newPlaylistWithSelection()
+                setDeleteError(null)
+                setConfirming(true)
               }}
             />
-            {manualPlaylists.length === 0 ? null : (
-              manualPlaylists.map(list => (
-                <SheetItem
-                  key={list.id}
-                  label={list.name}
-                  onPress={act(
-                    () => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }),
-                    `Added ${count} ${songWord} to ${list.name}`,
-                  )}
-                />
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {tags.length > 0 ? (
-          <SheetItem
-            icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
-            label="Add tag…"
-            active={nested === 'tag'}
-            onPress={toggleNested('tag')}
-          />
-        ) : null}
-        {nested === 'tag' ? (
-          <View style={styles.nested}>
-            {tags.map(tag => (
-              <SheetItem
-                key={tag.id}
-                label={tag.name}
-                onPress={act(
-                  () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'add' }),
-                  `Tagged ${count} ${songWord} “${tag.name}”`,
-                )}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {tagsOnSelection.length > 0 ? (
-          <SheetItem
-            icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
-            label="Remove tag…"
-            active={nested === 'untag'}
-            onPress={toggleNested('untag')}
-          />
-        ) : null}
-        {nested === 'untag' ? (
-          <View style={styles.nested}>
-            {tagsOnSelection.map(tag => (
-              <SheetItem
-                key={tag.id}
-                label={tag.name}
-                onPress={act(
-                  () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'remove' }),
-                  `Removed “${tag.name}” from ${count} ${songWord}`,
-                )}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        <View style={styles.divider} />
-
-        {held.length < count ? (
-          <SheetItem
-            icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
-            label={`Download ${held.length > 0 ? 'the rest' : 'all'} for offline`}
-            onPress={act(() => downloadQueue.enqueue(ids))}
-          />
-        ) : null}
-        {held.length > 0 ? (
-          <SheetItem
-            icon={<X size={15} color={theme.colors.textSecondary} />}
-            label={`Remove ${held.length === count ? '' : `${held.length} `}${
-              held.length === 1 ? 'download' : 'downloads'
-            }`}
-            onPress={act(() => {
-              const removing = held.length
-              void downloadQueue
-                .remove(held.map(song => song.id))
-                .then(() =>
-                  showToast(
-                    `Removed ${removing} ${removing === 1 ? 'download' : 'downloads'}`,
-                    'good',
-                  ),
-                )
-            })}
-          />
-        ) : null}
-
-        <View style={styles.divider} />
-
-        <SheetItem
-          icon={<Trash size={15} color={theme.colors.danger} />}
-          label={`Remove ${count} ${songWord} from library…`}
-          danger
-          onPress={() => {
-            closeMenu()
-            setDeleteError(null)
-            setConfirming(true)
-          }}
-        />
+          </>
+        )}
       </Popover>
 
       {confirming ? (
@@ -458,23 +572,29 @@ function summarise(songs: readonly Song[]): string {
 }
 
 const styles = StyleSheet.create(theme => ({
+  /* Over the list, never in it: the rows under it stay where they are. */
+  float: {
+    position: 'absolute',
+    zIndex: 5,
+  },
+  floatTop: { top: space.xs, left: space.lg, right: space.lg },
+  floatBottom: { bottom: space.sm, left: space.sm, right: space.sm },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     padding: space.sm,
-    marginHorizontal: space.lg,
-    marginBottom: space.md,
     backgroundColor: theme.colors.surface2,
     borderWidth: 1,
     borderRadius: radius.md,
+    // Lifted off the rows it covers, so it reads as over them rather than one of them.
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
   },
-  barCompact: { flexDirection: 'column', alignItems: 'stretch' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
-  anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-  anchorCompact: { flexGrow: 1, flexShrink: 1 },
+  barCompact: { gap: 2, paddingVertical: 6, paddingLeft: space.md, paddingRight: 4 },
+  anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 },
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   counts: { minWidth: 0 },
+  countCompact: { flex: 1, minWidth: 0 },
   count: {
     color: theme.colors.textPrimary,
     fontSize: 13,
@@ -484,10 +604,6 @@ const styles = StyleSheet.create(theme => ({
   scope: { color: theme.colors.textMuted, fontSize: 11 },
   scopeLink: { textDecorationLine: 'underline' },
   actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
-  actionsCompact: { flexWrap: 'nowrap' },
-  /* The same basis as the buttons beside it, so the three share the line evenly;
-     the button inside stretches across it, not down it. */
-  grow: { flex: 1 },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {
     color: theme.colors.textPrimary,
@@ -504,5 +620,4 @@ const styles = StyleSheet.create(theme => ({
   },
   divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   nested: { paddingLeft: space.lg },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.md },
 }))

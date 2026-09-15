@@ -5,6 +5,7 @@ import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
+import { SELECTION_BAR_SPACE, useSelectionBarFloating } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
 import { CommandPalette } from '../features/palette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
@@ -235,8 +236,13 @@ function PaletteHost(): ReactNode {
  * or the mini player, so a message never covers the transport.
  */
 function Toasts(): ReactNode {
+  // Above a phone's floating selection bar rather than over its buttons.
+  const lifted = useSelectionBarFloating()
   return (
-    <View style={styles.toasts} pointerEvents="box-none">
+    <View
+      style={[styles.toasts, lifted && { bottom: 10 + SELECTION_BAR_SPACE }]}
+      pointerEvents="box-none"
+    >
       <ResumeToast />
       <ToastHost />
     </View>

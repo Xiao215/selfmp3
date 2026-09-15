@@ -14,12 +14,13 @@ import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Search, Shuffle, X } from '../../ui/components/Icons'
-import { SelectionBar } from '../../ui/components/SelectionBar'
+import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
+import { CantReach } from './CantReach'
 import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../server/ConnectionProvider'
@@ -27,7 +28,7 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useContentWidth } from '../../shell/contentWidth'
-import { useLibraryModel } from './library.model'
+import { noMatchesTitle, useLibraryModel } from './library.model'
 
 /**
  * The library: the web's phone layout, on the phone.
@@ -44,11 +45,13 @@ export function LibraryScreen(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { wide, dense } = useLayout()
-  // One row needs about 760 points: title, search, order and play. An iPad's
-  // column beside the sidebar is 590, so there it stacks as a phone's does.
-  // Before the column is measured the row is kept, so a desktop never flashes.
+  // One row needs about 600 points once Shuffle is an icon: title, search, order
+  // and shuffle, the search giving up width first. An iPad's column beside the
+  // sidebar is 590, so there it stacks as a phone's does. Before the column is
+  // measured the row is kept, so a desktop never flashes.
   const contentWidth = useContentWidth()
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
+  const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayer()
   const toggleLoved = useToggleLoved()
   const { state: downloads, installed } = useDownloads()
@@ -177,6 +180,61 @@ export function LibraryScreen(): ReactNode {
     ],
   )
 
+  /*
+   * What stands where the songs would. A server that did not answer gets the
+   * card that can fix it; a search that found nothing names what was searched,
+   * says which tags it was searched inside, and offers the way out of each.
+   */
+  const query = filter.query.trim()
+  const emptyState =
+    model.emptyReason === 'unreachable' ? (
+      <View style={styles.emptyCard}>
+        <CantReach onRetry={model.retry} />
+      </View>
+    ) : model.emptyReason === 'no-library' ? (
+      <Text style={styles.empty}>{NO_LIBRARY_TEXT}</Text>
+    ) : (
+      <View style={styles.noMatches} testID="library-no-matches">
+        <Text style={styles.noMatchesTitle}>{noMatchesTitle(query, model.tagFiltered)}</Text>
+        {model.tagFiltered ? (
+          <View style={styles.inside}>
+            <Text style={styles.filteredBy}>You’re looking inside</Text>
+            {model.includedTags.map(tag => (
+              <Chip
+                key={tag.id}
+                compact
+                label={tag.name}
+                hue={tag.hue}
+                selected
+                onPress={() => model.includeTag(tag.id)}
+              />
+            ))}
+            {model.excludedTags.map(tag => (
+              <Chip
+                key={tag.id}
+                compact
+                label={tag.name}
+                hue={tag.hue}
+                selected={false}
+                excluded
+                onPress={() => model.excludeTag(tag.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.noMatchesActions}>
+          {model.tagFiltered ? (
+            <Button
+              label={query ? 'Search all songs' : 'Show all songs'}
+              variant="primary"
+              onPress={model.clearTags}
+            />
+          ) : null}
+          {query ? <Button label="Clear search" onPress={model.clearQuery} /> : null}
+        </View>
+      </View>
+    )
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
       {/*
@@ -261,7 +319,8 @@ export function LibraryScreen(): ReactNode {
             {/* Shuffle alone: a click on any row already plays the list from there. */}
             <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
               <Button
-                label="Shuffle"
+                label={shuffleIconOnly ? undefined : 'Shuffle'}
+                accessibilityLabel="Shuffle"
                 icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                 disabled={visible.length === 0}
                 onPress={() => player.playShuffled(songIds)}
@@ -342,31 +401,39 @@ export function LibraryScreen(): ReactNode {
       {/* Links asked of the server, until what they bring is published. */}
       {fromCloud ? <PendingImports /> : null}
 
-      {selection.active ? (
-        <SelectionBar
-          songs={selectedSongs}
-          total={visible.length}
-          narrowed={narrowed}
-          scope={narrowed ? 'in this view' : 'in your library'}
-          allSelected={selection.allSelected}
-          onSelectAll={selection.selectAll}
-          onDeselectAll={selection.deselectAll}
-          onDone={selection.clear}
-        />
-      ) : null}
+      {/* The list, and the selection bar floating over it: no row moves when it comes. */}
+      <View style={styles.listArea}>
+        {model.loading ? (
+          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+        ) : (
+          <SongList
+            songs={visible}
+            label={`${heading} songs`}
+            renderSong={renderSong}
+            rowHeight={rowHeight}
+            contentContainerStyle={[
+              styles.list,
+              // On a phone the bar sits over the foot of the list; the last song
+              // can still scroll out from under it.
+              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
+            ]}
+            empty={emptyState}
+          />
+        )}
 
-      {model.loading ? (
-        <ActivityIndicator style={styles.spinner} color={accent.accent} />
-      ) : (
-        <SongList
-          songs={visible}
-          label={`${heading} songs`}
-          renderSong={renderSong}
-          rowHeight={rowHeight}
-          contentContainerStyle={styles.list}
-          empty={<Text style={styles.empty}>{EMPTY_TEXT[model.emptyReason ?? 'no-matches']}</Text>}
-        />
-      )}
+        {selection.active ? (
+          <SelectionBar
+            songs={selectedSongs}
+            total={visible.length}
+            narrowed={narrowed}
+            scope={narrowed ? 'in this view' : 'in your library'}
+            allSelected={selection.allSelected}
+            onSelectAll={selection.selectAll}
+            onDeselectAll={selection.deselectAll}
+            onDone={selection.clear}
+          />
+        ) : null}
+      </View>
 
       <TagPicker
         song={taggingSong}
@@ -384,18 +451,18 @@ export function LibraryScreen(): ReactNode {
   )
 }
 
-/**
- * One sentence per reason the list is empty. The model decides which; this only
- * knows how to say it.
- */
-const EMPTY_TEXT = {
-  unreachable: 'Could not reach the server, and nothing is cached yet.',
-  'no-library': 'Nothing here yet. Import a song and it turns up here once your server has it.',
-  'no-matches': 'Nothing matches.',
-} as const
+/** A library with no songs in it: an invitation, not an error. */
+const NO_LIBRARY_TEXT =
+  'Nothing here yet. Import a song and it turns up here once your server has it.'
 
-/** The narrowest page column that takes the header on one row. */
-const HEAD_ROW_WIDTH = 760
+/**
+ * The narrowest page column that takes the header on one row. The practice
+ * panel's 340 beside a 1280 window leaves about 700, and a head that stacked
+ * into three rows there pushed the songs down each time practice opened.
+ */
+const HEAD_ROW_WIDTH = 600
+/** Below this the head's Shuffle is its icon alone, with the word as its caption. */
+const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
   screen: {
@@ -553,9 +620,40 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     textDecorationLine: 'underline',
   },
+  /* A box over which the selection bar is laid; the list fills it. */
+  listArea: {
+    flex: 1,
+    minHeight: 0,
+  },
   list: {
     paddingTop: space.xs,
     paddingBottom: space.md,
+  },
+  emptyCard: { paddingHorizontal: space.lg },
+  noMatches: {
+    alignItems: 'center',
+    gap: space.md,
+    marginTop: space.xl,
+    paddingHorizontal: space.xl,
+  },
+  noMatchesTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  inside: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 7,
+  },
+  noMatchesActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.sm,
   },
   spinner: {
     marginTop: space.xl,

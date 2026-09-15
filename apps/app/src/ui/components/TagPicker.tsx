@@ -3,8 +3,15 @@ import type { ReactNode, RefObject } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
-import { useCreateTag, useLibrary, useSetSongTags } from '../../api/queries'
+import {
+  HIT_TARGET,
+  oklchToHexAlpha,
+  radius,
+  space,
+  useCreateTag,
+  useLibrary,
+  useSetSongTags,
+} from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'

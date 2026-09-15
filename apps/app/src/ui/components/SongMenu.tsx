@@ -4,13 +4,15 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { formatBytes, type Song } from '@selfmp3/shared'
-import { clientApi, isDownloaded, space } from '@selfmp3/client'
 import {
+  clientApi,
+  isDownloaded,
+  space,
   useAddToPlaylist,
   useDeleteSong,
   useLibrary,
   useRemoveFromPlaylist,
-} from '../../api/queries'
+} from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useGlobalSearchParams } from 'expo-router'
-import { useLibrary } from '../api/queries'
+import { useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { prefs } from '../ports/prefs'
 import { useConnection } from '../server/ConnectionProvider'

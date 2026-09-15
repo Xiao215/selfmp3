@@ -38,10 +38,11 @@ import {
   queryKeys,
   secondsToCount,
   tapLoop,
+  useLibrary,
+  useServerSettings,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
-import { useLibrary, useServerSettings } from '../api/queries'
 import { coversNow, onCoversChanged } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'

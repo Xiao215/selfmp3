@@ -32,8 +32,11 @@ import {
   useDevices,
   useStartAnalysis,
   useUpdateSettings,
+  useFixCovers,
+  useFixCoversStatus,
+  useLibrary,
+  useManifest,
 } from '@selfmp3/client'
-import { useFixCovers, useFixCoversStatus, useLibrary, useManifest } from '../../api/queries'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'

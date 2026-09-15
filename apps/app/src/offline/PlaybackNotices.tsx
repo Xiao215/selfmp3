@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { formatBytes } from '@selfmp3/shared'
-import { useLibrary } from '../api/queries'
+import { useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
 

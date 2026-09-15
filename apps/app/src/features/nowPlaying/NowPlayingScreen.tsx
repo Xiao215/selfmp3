@@ -16,7 +16,6 @@ import type { ListRenderItem } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
-import { useSimilar, useToggleLoved } from '../../api/queries'
 import {
   HIT_TARGET,
   isDownloaded,
@@ -26,6 +25,8 @@ import {
   space,
   type,
   withAlpha,
+  useSimilar,
+  useToggleLoved,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'

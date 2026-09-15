@@ -18,8 +18,10 @@ import {
   tagFiltered,
   type,
   type TagFilterState,
+  useAddToPlaylist,
+  useCreateTag,
+  useLibrary,
 } from '@selfmp3/client'
-import { useAddToPlaylist, useCreateTag, useLibrary } from '../api/queries'
 import { useLibraryTagFilter } from '../features/library/libraryFilter'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'

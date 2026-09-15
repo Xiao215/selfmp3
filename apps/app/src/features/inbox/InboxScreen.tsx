@@ -5,8 +5,15 @@ import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
-import { isDownloaded, oklchToHexAlpha, radius, tempoMark } from '@selfmp3/client'
-import { useCreateTag, useLibrary, useSetSongTags } from '../../api/queries'
+import {
+  isDownloaded,
+  oklchToHexAlpha,
+  radius,
+  tempoMark,
+  useCreateTag,
+  useLibrary,
+  useSetSongTags,
+} from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'

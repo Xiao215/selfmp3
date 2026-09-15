@@ -14,8 +14,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatDuration, type MigrateParseResult } from '@selfmp3/shared'
-import { clientApi, oklchToHexAlpha, queryKeys, radius } from '@selfmp3/client'
-import { useImportTools, useLibrary, useMigrateJob } from '../../api/queries'
+import {
+  clientApi,
+  oklchToHexAlpha,
+  queryKeys,
+  radius,
+  useImportTools,
+  useLibrary,
+  useMigrateJob,
+} from '@selfmp3/client'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'

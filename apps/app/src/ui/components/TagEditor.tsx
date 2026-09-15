@@ -4,8 +4,16 @@ import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import type { Tag } from '@selfmp3/shared'
-import { HIT_TARGET, oklchToHexAlpha, radius, space, type TagFilterState } from '@selfmp3/client'
-import { useDeleteTag, useRenameTag, useSetTagHue } from '../../api/queries'
+import {
+  HIT_TARGET,
+  oklchToHexAlpha,
+  radius,
+  space,
+  type TagFilterState,
+  useDeleteTag,
+  useRenameTag,
+  useSetTagHue,
+} from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
 import { Check, Minus, Plus, Trash } from './Icons'

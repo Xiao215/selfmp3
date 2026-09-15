@@ -14,15 +14,13 @@ import {
   radius,
   space,
   type,
-} from '@selfmp3/client'
-import {
   useDeletePlaylist,
   useLibrary,
   useManifest,
   usePlaylistSongs,
   useRemoveFromPlaylist,
   useUpdatePlaylist,
-} from '../../api/queries'
+} from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { useIsCurrentSong, usePlayer } from '../../player/PlayerProvider'

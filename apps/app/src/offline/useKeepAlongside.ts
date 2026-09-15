@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { Library } from '@selfmp3/shared'
-import { isDownloaded, runLimited } from '@selfmp3/client'
-import { useLibrary } from '../api/queries'
+import { isDownloaded, runLimited, useLibrary } from '@selfmp3/client'
 import { api, mediaUrlFor } from '../api/client'
 import { useConnection } from '../server/ConnectionProvider'
 import { ensureCover, ensureServerCover, KEPT_COVER_SIZE } from './covers'

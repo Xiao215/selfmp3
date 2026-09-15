@@ -4,8 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, type MetadataCandidate, type Song } from '@selfmp3/shared'
-import { oklchToHexAlpha, radius } from '@selfmp3/client'
-import { useApplyMetadata, useMetadataLookup } from '../../api/queries'
+import { oklchToHexAlpha, radius, useApplyMetadata, useMetadataLookup } from '@selfmp3/client'
 import {
   applyInput,
   applyLabel,

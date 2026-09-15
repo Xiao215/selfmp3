@@ -30,9 +30,6 @@ jest.mock('@selfmp3/client', () => ({
       ],
     },
   }),
-}))
-
-jest.mock('../../api/queries', () => ({
   useLibrary: () => ({ data: { songs: [{ id: 3 }] } }),
 }))
 

@@ -5,15 +5,20 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song, Tag } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { clientApi, isDownloaded, oklchToHexAlpha, queryKeys, radius, space } from '@selfmp3/client'
 import {
+  clientApi,
+  isDownloaded,
+  oklchToHexAlpha,
+  queryKeys,
+  radius,
+  space,
   useAddToPlaylist,
   useBulkDeleteSongs,
   useBulkLoved,
   useBulkTag,
   useLibrary,
   useRemoveManyFromPlaylist,
-} from '../../api/queries'
+} from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'

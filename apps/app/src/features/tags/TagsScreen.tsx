@@ -12,8 +12,9 @@ import {
   radius,
   tagFilterState,
   type TagFilterState,
+  useCreateTag,
+  useLibrary,
 } from '@selfmp3/client'
-import { useCreateTag, useLibrary } from '../../api/queries'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { BackToYou } from '../../ui/components/BackToYou'

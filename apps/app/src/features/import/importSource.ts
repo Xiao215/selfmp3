@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImportQueue, Library, ToolStatus } from '@selfmp3/shared'
-import { clientApi, queryKeys } from '@selfmp3/client'
+import { clientApi, queryKeys, useImportQueue, useImportTools, useLibrary } from '@selfmp3/client'
 import { apiFor, type ServerConnection } from '../../api/client'
-import { useImportQueue, useImportTools, useLibrary } from '../../api/queries'
 
 /**
  * Whom the Import screen talks to: whatever answers this device, or — from a

@@ -21,8 +21,9 @@ import {
   type NetworkKind,
   type PlayBlock,
   type SyncSituation,
+  useLibrary,
+  useManifest,
 } from '@selfmp3/client'
-import { useLibrary, useManifest } from '../api/queries'
 import { installedApp } from '../ports/install'
 import { clearRecent, forgetRecent, keepRecentlyPlayed } from '../ports/recentCopies'
 import { prefs as prefStore } from '../ports/prefs'

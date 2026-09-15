@@ -90,7 +90,9 @@ export function motionJson(curve: MotionCurveData): Motion {
   return {
     version: MOTION_VERSION,
     rate: curve.rate,
-    duration: Math.round(curve.duration * 1000) / 1000,
+    // Exact, not rounded: a reader counts on `ceil(duration * rate)` frames, and
+    // rounding 106.5003 s down to 106.5 made that one frame short.
+    duration: curve.duration,
     loudness: Buffer.from(curve.loudness).toString('base64'),
     onset: Buffer.from(curve.onset).toString('base64'),
   }

@@ -23,7 +23,7 @@
     "@expo/metro-runtime": "~57.0.15",
     "@react-native-masked-view/masked-view": "0.3.2",
     "@selfmp3/client": "*",
-    "@selfmp3/cloud": "*",
+    "@selfmp3/replica": "*",
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/shared": "*",
     "@shopify/flash-list": "^2.0.2",

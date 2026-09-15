@@ -10,7 +10,7 @@ import {
 } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../../api/client'
-import { cloudPlatform, session as cloudSession } from '../../cloud'
+import { cloudPlatform, session as cloudSession } from '../../replica'
 import { desktop } from './bridge'
 
 /**

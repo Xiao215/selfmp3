@@ -1,5 +1,5 @@
 import { youtubeVideoId } from '@selfmp3/shared'
-import type { ImportRequestView } from '@selfmp3/cloud'
+import type { ImportRequestView } from '@selfmp3/replica'
 
 /**
  * Links asked of the server that have not reached the library yet, with nothing

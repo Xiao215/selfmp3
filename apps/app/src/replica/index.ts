@@ -1,4 +1,4 @@
-import { createCloudLibrary, createCloudRoutes, createCloudSession } from '@selfmp3/cloud'
+import { createCloudLibrary, createCloudRoutes, createCloudSession } from '@selfmp3/replica'
 import { cloudPlatform } from '../ports/cloudPlatform'
 
 /**

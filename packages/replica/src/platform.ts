@@ -10,7 +10,7 @@
  * `Response` as this package ever looks at, and no more — so a browser's real
  * `fetch` satisfies `CloudFetch` by simply being itself, and a test can
  * satisfy it with eight lines. This is the same arrangement
- * `apps/server/src/cloud/store.ts` already uses for the bucket, and for the
+ * `apps/server/src/bucket/store.ts` already uses for the bucket, and for the
  * same reason: the fake is then the cheap thing, not the elaborate thing.
  */
 

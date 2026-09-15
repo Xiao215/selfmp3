@@ -1,9 +1,9 @@
 {
-  "name": "@selfmp3/cloud",
+  "name": "@selfmp3/replica",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A device's own copy of the cloud library: the rules for replaying, editing and answering from it, with no platform in them.",
+  "description": "A device's replica of the cloud library: the rules for replaying, editing and answering from it, with no platform in them.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

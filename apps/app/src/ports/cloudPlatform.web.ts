@@ -1,5 +1,5 @@
 import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
-import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/cloud'
+import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import Constants from 'expo-constants'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
@@ -12,7 +12,7 @@ import {
 } from './idbStore.web'
 
 /**
- * What a browser gives `@selfmp3/cloud` (packages/cloud/src/platform.ts): the
+ * What a browser gives `@selfmp3/replica` (packages/replica/src/platform.ts): the
  * web app's `lib/cloud/webPlatform.ts`.
  *
  * Until this file the web build used the phone's, whose store writes files

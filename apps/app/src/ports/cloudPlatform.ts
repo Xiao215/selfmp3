@@ -1,5 +1,5 @@
 import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
-import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/cloud'
+import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import Constants from 'expo-constants'
 import * as Crypto from 'expo-crypto'
 import { Directory, File, Paths } from 'expo-file-system'
@@ -7,7 +7,7 @@ import * as Linking from 'expo-linking'
 import { AppState, Platform } from 'react-native'
 
 /**
- * What a phone gives `@selfmp3/cloud` (packages/cloud/src/platform.ts).
+ * What a phone gives `@selfmp3/replica` (packages/replica/src/platform.ts).
  *
  * All of React Native in one file, so that everything else about keeping a copy
  * of the library — signing in, replaying a snapshot, the outbox and its

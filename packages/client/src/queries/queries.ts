@@ -42,7 +42,7 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
-import type { ImportRequestList } from '@selfmp3/cloud'
+import type { ImportRequestList } from '@selfmp3/replica'
 
 /**
  * Server state, handled by TanStack Query.
@@ -107,7 +107,7 @@ const cloudListeners = new WeakMap<QueryClient, { holders: number; stop: () => v
 
 /**
  * The cloud library answers from this device's copy first and looks at the
- * bucket afterwards (`@selfmp3/cloud`'s loadCloudLibrary). When that look finds
+ * bucket afterwards (`@selfmp3/replica`'s loadCloudLibrary). When that look finds
  * something, everything read from the copy is asked for again — from the copy,
  * so no request leaves the device.
  */

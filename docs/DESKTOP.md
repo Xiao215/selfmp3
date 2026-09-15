@@ -152,7 +152,7 @@ sources are in the progress file's Desktop section once phase 0 writes it):
 
 ```
 packages/shared            + range.ts: the pure Range parser (from apps/server/src/http)
-packages/cloud               unchanged
+packages/replica             unchanged
 packages/client              unchanged, except the port below
   ports/mediaSession.ts    + NEW: `MediaSessionPort` — metadata, action handlers, position
 
@@ -662,7 +662,7 @@ dependency without a Stack line, ports before screens. Added for this work:
 ```
 node >= 22, npm >= 10; Xcode 16+ and a booted iPad simulator for phase 6
 npm install
-npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud && npm run build --workspace @selfmp3/client
+npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/replica && npm run build --workspace @selfmp3/client
 npm run dev                          # server on 4600, Metro web on 4601 — keep running
 npm run dev:desktop                  # phase 2 on: electron against 4601, DevTools open
 npm run export:web --workspace @selfmp3/app && npm run build:desktop   # the real thing

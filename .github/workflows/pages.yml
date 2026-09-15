@@ -62,7 +62,7 @@ jobs:
       - name: Build the web app
         run: |
           npm run build --workspace @selfmp3/shared
-          npm run build --workspace @selfmp3/cloud
+          npm run build --workspace @selfmp3/replica
           npm run build --workspace @selfmp3/client
           npm run build --workspace @selfmp3/desktop-bridge
           npm run export:web --workspace @selfmp3/app

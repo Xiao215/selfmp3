@@ -363,7 +363,7 @@ async function handleShell(request: Request, url: URL): Promise<Response> {
 
 /**
  * Where the app keeps the doorman session and each song's files: IndexedDB,
- * database `selfmp3`, store `kv` — see src/ports/idbStore.web.ts, and packages/cloud's
+ * database `selfmp3`, store `kv` — see src/ports/idbStore.web.ts, and packages/replica's
  * session.ts (`cloud-session`) and library.ts (`cloud-files`).
  */
 const DB_NAME = 'selfmp3'

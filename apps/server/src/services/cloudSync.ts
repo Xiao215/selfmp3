@@ -33,8 +33,8 @@ import {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
-import { CloudError, S3CloudStore, type CloudStore } from '../cloud/store.js'
-import { DoormanClient } from '../cloud/doorman.js'
+import { CloudError, S3CloudStore, type CloudStore } from '../bucket/store.js'
+import { DoormanClient } from '../bucket/doorman.js'
 import { debounce, type Debounced } from './debounce.js'
 import type {
   CloudConnection,

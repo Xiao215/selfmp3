@@ -18,7 +18,7 @@ WORKDIR /app
 # Every workspace's manifest, so `npm ci` finds the lockfile's workspaces.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
-COPY packages/cloud/package.json packages/cloud/
+COPY packages/replica/package.json packages/replica/
 COPY packages/client/package.json packages/client/
 COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/
@@ -32,12 +32,12 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 # shell, and does nothing with it in a plain browser.
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/shared packages/shared
-COPY packages/cloud packages/cloud
+COPY packages/replica packages/replica
 COPY packages/client packages/client
 COPY packages/desktop-bridge packages/desktop-bridge
 COPY apps/app apps/app
 RUN npm run build --workspace @selfmp3/shared \
- && npm run build --workspace @selfmp3/cloud \
+ && npm run build --workspace @selfmp3/replica \
  && npm run build --workspace @selfmp3/client \
  && npm run build --workspace @selfmp3/desktop-bridge \
  && npm run export:web --workspace @selfmp3/app
@@ -53,7 +53,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
-COPY packages/cloud/package.json packages/cloud/
+COPY packages/replica/package.json packages/replica/
 COPY packages/client/package.json packages/client/
 COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/

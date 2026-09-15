@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { clientApi, queryKeys, type ServerConnection } from '@selfmp3/client'
-import { library as cloudLibrary } from '../../cloud'
+import { library as cloudLibrary } from '../../replica'
 import {
   candidates,
   LOOK_AGAIN_MS,

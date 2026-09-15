@@ -25,7 +25,7 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 
-import { cloudRequest, library as cloudLibrary } from '../cloud'
+import { cloudRequest, library as cloudLibrary } from '../replica'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 import { readCachedLyrics, writeCachedLyrics } from '../offline/lyricsCache'
 import { readCachedMotion, writeCachedMotion } from '../offline/motionCache'
@@ -51,7 +51,7 @@ let current: {
  *
  * Not the same as having no connection: an address left over from talking to a
  * server is still stored, and when it is on, `connection` is ignored entirely and
- * every call is answered by `@selfmp3/cloud`'s route table from this device's
+ * every call is answered by `@selfmp3/replica`'s route table from this device's
  * own copy of the library — which is why none of the screens had to change.
  */
 export function answerFromCloud(on: boolean): void {

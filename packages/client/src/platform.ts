@@ -1,7 +1,7 @@
 /**
  * What this package needs of the app it happens to be running in.
  *
- * The same arrangement `packages/cloud/src/platform.ts` already uses, for the
+ * The same arrangement `packages/replica/src/platform.ts` already uses, for the
  * same reason: this package compiles without the DOM library, so it cannot see
  * the browser's `fetch` or `Response` even when there is one. The shapes below
  * are structural and deliberately small — as much of each as this package ever
@@ -75,7 +75,7 @@ export interface ApiTransport {
  * Answering from this device's own copy of the library rather than from a server.
  *
  * The route table, what each call does to the library and how an error becomes
- * a status all live in `@selfmp3/cloud`. What cannot live there is the binding:
+ * a status all live in `@selfmp3/replica`. What cannot live there is the binding:
  * `createCloudRoutes` needs a platform, a session and a library replica, and
  * those are the app's. So each app builds its own `cloudRequest` and hands it
  * in here.
@@ -97,7 +97,7 @@ export interface ApiContext {
   readonly cloudRequest?: CloudRequest
   /**
    * Hear that this device's copy of the cloud library changed behind an
-   * answer already given — `@selfmp3/cloud`'s `onCloudLibraryChanged`. The
+   * answer already given — `@selfmp3/replica`'s `onCloudLibraryChanged`. The
    * library is answered from the copy first and the bucket is looked at
    * afterwards, so this is how what the look found reaches the screen.
    */

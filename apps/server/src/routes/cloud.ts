@@ -6,7 +6,7 @@ import {
   type CloudStatus,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
-import { CloudError } from '../cloud/store.js'
+import { CloudError } from '../bucket/store.js'
 import { HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
 

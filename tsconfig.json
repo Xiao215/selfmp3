@@ -14,7 +14,7 @@
    */
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./packages/cloud" },
+    { "path": "./packages/replica" },
     { "path": "./packages/client" },
     { "path": "./packages/desktop-bridge" },
     { "path": "./apps/desktop" },

@@ -41,7 +41,7 @@ numbers.
 
 - Node 22+ and a working `npm install` at the repository root.
 - The shared package must be built before Metro or `tsc` can resolve it:
-  `npm run build --workspace @selfmp3/shared`, and likewise `@selfmp3/cloud` and
+  `npm run build --workspace @selfmp3/shared`, and likewise `@selfmp3/replica` and
   `@selfmp3/client`. `npm run check:app` from the root does this for you.
 
 **iOS**
@@ -66,7 +66,7 @@ numbers.
 # once, from the repository root
 npm install
 npm run build --workspace @selfmp3/shared
-npm run build --workspace @selfmp3/cloud
+npm run build --workspace @selfmp3/replica
 npm run build --workspace @selfmp3/client
 
 cd apps/app
@@ -188,7 +188,7 @@ apps/app
                           secrets, cloud platform, device, the car)
   src/player/             the provider: queue state, engine port, play counting
   src/offline/            downloads, the saved library, the listen outbox
-  src/cloud/              @selfmp3/cloud, with this device's platform behind it
+  src/replica/            @selfmp3/replica, with this device's platform behind it
   src/ui/                 components, icons, the Unistyles theme
   plugins/                config plugins run at prebuild time
 ```

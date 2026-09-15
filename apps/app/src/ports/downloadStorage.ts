@@ -12,7 +12,7 @@ import {
 } from '@selfmp3/client'
 
 import { api, mediaUrlFor } from '../api/client'
-import { cloudPlatform, session as cloudSession } from '../cloud'
+import { cloudPlatform, session as cloudSession } from '../replica'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
 import { writeCachedLyrics } from '../offline/lyricsCache'
 import { writeCachedMotion } from '../offline/motionCache'

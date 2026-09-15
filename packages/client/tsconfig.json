@@ -3,7 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    // No DOM, the same rule packages/shared and packages/cloud follow and for
+    // No DOM, the same rule packages/shared and packages/replica follow and for
     // the same reason: React Native has no `window`, no `document` and no
     // `caches`, so anything that reaches for them must fail here rather than on
     // a phone. What genuinely needs the platform is declared in `platform.ts`
@@ -14,7 +14,7 @@
     "lib": ["ES2023"],
     "jsx": "react-jsx"
   },
-  "references": [{ "path": "../shared" }, { "path": "../cloud" }],
+  "references": [{ "path": "../shared" }, { "path": "../replica" }],
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"]
 }

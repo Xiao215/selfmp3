@@ -22,7 +22,7 @@ const bridge = {
 
 vi.mock('./bridge', () => ({ get desktop() { return bridge } }))
 vi.mock('../../api/client', () => ({ mediaUrlFor: () => ({ stream: () => '' }) }))
-vi.mock('../../cloud', () => ({
+vi.mock('../../replica', () => ({
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: async () => null },
 }))

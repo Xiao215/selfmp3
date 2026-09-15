@@ -11,7 +11,7 @@ touches this next — most likely you, six months from now.
 packages/shared          the API contract (zod schemas + pure helpers)
   └── imported by the server, the app and the cloud client
 
-packages/cloud           a device's copy of the library in the bucket: session,
+packages/replica         a device's copy of the library in the bucket: session,
                          replica, outbox, the routes that answer from it
 
 packages/client          what the app shares across platforms: API client, React

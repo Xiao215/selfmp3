@@ -312,14 +312,14 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts` |
-| Talking to the bucket, from the server | `apps/server/src/cloud/store.ts` (S3), `apps/server/src/cloud/doorman.ts` (through the doorman) |
+| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (migrations 9, 10, 11) |
 | The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
-| A device's own copy of the library, and its outbox | `packages/cloud/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
-| Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/cloud/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
+| A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
+| Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `serverReach.model.ts`, `useServerDirect.ts`, `importSource.ts`; `apps/server/src/services/addresses.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |

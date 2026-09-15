@@ -1,5 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system'
-import { library, cloudPlatform, session as cloudSession } from '../cloud'
+import { library, cloudPlatform, session as cloudSession } from '../replica'
 import { createCoverChanges } from './coverChanges'
 
 /**

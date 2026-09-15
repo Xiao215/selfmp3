@@ -80,8 +80,8 @@ import {
   ImportRequestListSchema,
   ImportRequestViewSchema,
   type CloudImportRequest,
-} from '@selfmp3/cloud'
-import { CloudRouteError } from '@selfmp3/cloud'
+} from '@selfmp3/replica'
+import { CloudRouteError } from '@selfmp3/replica'
 
 import { ApiError } from './error.js'
 import type { ApiContext, ClientFetch, CloudRequest } from '../platform.js'

@@ -38,7 +38,7 @@ export interface PresignerModule {
   ) => Promise<string>
 }
 
-/** Also used by the cloud bucket client, `cloud/store.ts`. */
+/** Also used by the cloud bucket client, `bucket/store.ts`. */
 export async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModule }> {
   try {
     const [s3, presigner] = await Promise.all([

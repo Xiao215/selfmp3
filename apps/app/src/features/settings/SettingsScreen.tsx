@@ -39,7 +39,7 @@ import {
   normaliseBaseUrl,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
-import { library as cloudLibrary, session as cloudSession } from '../../cloud'
+import { library as cloudLibrary, session as cloudSession } from '../../replica'
 import { clearCachedLibrary } from '../../offline/libraryCache'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { clearCachedLyrics } from '../../offline/lyricsCache'

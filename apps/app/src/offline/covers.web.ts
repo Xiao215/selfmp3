@@ -1,4 +1,4 @@
-import { library, cloudPlatform, session as cloudSession } from '../cloud'
+import { library, cloudPlatform, session as cloudSession } from '../replica'
 import { coverFiles } from '../ports/coverFiles'
 import { createCoverChanges } from './coverChanges'
 

@@ -41,7 +41,7 @@ Measured on the current tree, non-test lines:
 | Area | Lines | Fate |
 |---|---:|---|
 | `packages/shared` (schemas, queue, lyrics, sort, sync) | 4,751 | unchanged |
-| `packages/cloud` (bucket library, session, replay) | 2,419 | unchanged |
+| `packages/replica` (bucket library, session, replay) | 2,419 | unchanged |
 | `apps/server` | — | unchanged, serves a different `dist` |
 | `apps/web` views | 4,564 | rewritten as universal features |
 | `apps/web` components | 10,020 | rewritten as universal components |
@@ -85,11 +85,11 @@ These are the rules that make the app cheap to extend after the migration. They
 are worth more than any phase below, and every phase is checked against them.
 Where a rule can be enforced by a tool, it is; the runbook says how.
 
-**1. No platform in packages.** `packages/shared` and `packages/cloud` already
+**1. No platform in packages.** `packages/shared` and `packages/replica` already
 compile without the DOM library, so a reach for `window` fails at build time.
 The new `packages/client` follows the same rule. If a package needs the
 platform, it declares an interface and the app supplies it — the pattern
-`packages/cloud/src/platform.ts` already uses for `CloudFetch` and
+`packages/replica/src/platform.ts` already uses for `CloudFetch` and
 `DeviceStore`. *Enforced by:* `"lib": ["ES2023"]` in the package tsconfig.
 
 **2. Every platform difference is a named port.** A port is an interface in a
@@ -172,7 +172,7 @@ client rebuild, which the project already does for track-player.
 
 ```
 packages/shared          the contract and pure rules            (unchanged)
-packages/cloud           the bucket library and session          (unchanged)
+packages/replica         the bucket library and session          (unchanged)
 packages/client          NEW — what any client does that is not drawing,
                          compiled without the DOM:
   api/                   one typed client: routes, schemas, cloud answering
@@ -224,7 +224,7 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 |---|---|---|---|
 | `PlaybackEngine` | load, play, pause, seek, rate, volume, queue-ahead, events | two `<audio>` elements, Web Audio analyser, `preservesPitch`, crossfade | track-player: native queue, lock screen, remote events; `pitchAlgorithm` on iOS. Fallback: expo-audio |
 | `OfflineStore` | is it here, fetch it, remove it, usage, progress | Cache API + service worker range slicing | `expo-file-system` + JSON index |
-| `DeviceStore` | small persistent values | IndexedDB (exists in `packages/cloud`) | files (exists) |
+| `DeviceStore` | small persistent values | IndexedDB (exists in `packages/replica`) | files (exists) |
 | `Keyboard` | global shortcuts, the command palette trigger | `document` keydown | no-op, or hardware keyboard on iPad later |
 | `Share` | receive a shared link, share a wrapped card | Web Share Target, `navigator.share` | `expo-sharing`, an intent filter |
 | `Files` | reveal a song's file | server endpoint (on the server itself only) | unavailable, declared |
@@ -552,7 +552,7 @@ gate has not passed on `main`.
 ```
 node >= 22, Xcode 16+, CocoaPods, a booted iPhone simulator (iOS 26 preferred)
 npm install
-npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/cloud
+npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/replica
 npm run dev                      # the reference, http://localhost:4601, keep running
 cd apps/app && npx expo run:ios  # once per native dependency change
 npx expo start --dev-client --port 8082   # then deep-link:

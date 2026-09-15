@@ -4117,8 +4117,81 @@ files, and checked again together.
   only because the app relaunched into Now Playing left open by the visual
   capture, which covers the mini player. The foot's "Download" / "Downloaded"
   lost its end six across a phone; it shrinks to fit now.
-- **Not live yet:** only Spectrum hears the music, and only in Chromium, Firefox
-  and the Mac app. Pulse, Aurora and Drift move with the song's tempo and energy,
-  not its sound — raised with Xiao as the next step (live levels for all four
-  where the engine can hear, and a stored loudness and onset curve from the
-  analysis everywhere else).
+## Visuals that follow the song — same branch
+
+Xiao, on the first build: a Pulse that rings on a fixed tempo "just feels like
+some random unrelated animation". Only Spectrum heard the music, and only in
+Chromium, Firefox and the Mac app. Now every style follows the sound on every
+platform, from the best source that platform has (`chooseSampler` in
+`features/nowPlaying/motionSource.ts`):
+
+1. **The sound itself** where the engine can listen — Chrome, Edge, Firefox and
+   the Mac app (`canHearMusic`). The analyser is asked for by any style now, not
+   only Spectrum; the live sampler reads unclipped decibel bins, because the byte
+   output tops out at -30 dB, where a loud chorus's bass already sits.
+2. **The song's motion curve** everywhere else — the phone, Safari, touch
+   browsers — and offline, and on a cloud library. Analysis decodes the whole
+   song a second time at 11 kHz and keeps loudness and onset strength at 20
+   frames a second (`MotionBuilder`/`motionFromPcm` in `dsp.ts`), one byte each:
+   about 13 KB of JSON for a four-minute song. The server keeps it in
+   `dataDir/motion/`, serves `GET /api/songs/:id/motion` (404 `not-analysed`
+   before), and uploads it beside the lyrics as `lyrics/<sha256>.json`: the
+   doorman only allows the audio, covers and lyrics folders, and nothing deploys
+   the doorman, so a new folder would have broken cloud reads until a manual
+   redeploy. `FEATURES_VERSION` is 3, so every library re-analyses once. The
+   client decodes and samples it (`decodeMotion`, `sampleMotion`, `useMotion` in
+   `packages/client`), keeps a copy offline like the words
+   (`offline/motionCache`), and a downloaded song keeps its curve.
+3. **The tempo**, only when neither exists (a song not analysed yet, never fetched
+   on this device) — the old synthesis, behind the same interface.
+
+What the styles do with it (`visualMotion.model.ts`): Pulse sends a ring on each
+hit, no sooner than 0.6 of a beat after the last — the fixed metronome is gone;
+Aurora's bands grow and brighten with the level and flash on strong hits;
+Spectrum's bars rise fast and fall slowly; Drift turns faster when louder and
+throws its specks out on hits. Silence is nearly still. A seek does not count as
+a hit. The phone draws from one `requestAnimationFrame` loop into
+`Animated.Value`s, with the playhead run on between track-player's one-second
+ticks. The Style menu, and the stage's caption, say what the visual follows:
+"Following the sound", "Following the song" or "Following the tempo".
+
+Analysis costs about 0.5 s more a song (0.69 s → 1.17 s averaged over twelve
+four-minute songs); the curve adds 0.2–0.6 s inside the running server.
+
+### Checked
+
+Against a private server with a copy of the dev library, its cloud sign-in
+removed so nothing reached the bucket; the version bump re-analysed all 36 songs
+with no failures. Every run played "Genshin Impact Main Theme" (no lyrics), cut
+into its quiet opening (≈3 s) and its loudest stretch (60 s) with a click on the
+Seek bar, and read what each style drew through the app's own debug hook
+(`visualDebug.ts`, inert unless a test sets it before load).
+
+| Where | Source | Level, quiet → loud | Rings in 5 s, quiet / loud | Errors |
+|---|---|---|---|---|
+| Chromium | the sound | 0.25 → 0.96 | 5–8 / 5–8 | none |
+| WebKit (Safari) | the curve | 0.26 → 0.95 | 6–8 / 5–6 | none |
+| The Mac app (Electron) | the sound | 0.22 → 0.96 | 7–14 / 14–15 | none |
+
+The WebKit row is after one fix found by this run: Pulse fired **no rings at
+all** in the loud stretch on the curve path. The stored onset is normalised to
+the song's own 98th percentile, so a dense chorus sat near the top every frame
+(median 225 of 255 at 60–66 s) and a ring never re-armed — quiet exactly where
+the song is busiest. `curveHits` now finds each hit as the highest frame within
+±100 ms that rises above its ±250 ms average, once when the curve arrives; tested
+with a synthetic chorus pinned near the top with a hit every half second.
+
+A script bug worth not repeating: setting an `<audio>` element's `currentTime`
+from a test is undone by the engine, so the first run's "loud" stretch was the
+song's opening. Seek through the Seek bar.
+
+**On the phone** (the iPhone 17 simulator, the dev client on this worktree's
+Metro, connected by address to the same private server): the song fetched its
+curve (`GET /api/songs/36/motion 200`), the Visual face drew Pulse from it, and
+the Style sheet reads "Following the song" — asserted with Maestro. Two things
+that cost time there and are not app bugs: Expo's floating dev-menu gear sits
+over the Style pill in a dev build, so taps opened the dev menu until it was
+dragged aside; and Maestro's `point` wants whole percentages ("16.5%" throws).
+
+The gates on the merged branch: `npm run typecheck`, `npm run lint`,
+`npm run test` (164 files, 1669 passed, 1 skipped) and `npm run check:app`.

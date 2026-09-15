@@ -59,5 +59,8 @@ export function useCommands(handlers: CommandHandlers): void {
   for (const [combination, command] of kept) {
     if (handlers[command]) bound[combination] = () => latest.current[command]?.()
   }
-  useHotkeys(bound)
+  // Before whatever has focus: after a click on a song, focus is on that
+  // song's button, which took Space for itself and played the song again from
+  // the start instead of pausing it.
+  useHotkeys(bound, { beforeFocused: true })
 }

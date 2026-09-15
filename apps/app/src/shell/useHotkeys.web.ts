@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { menuOwnedCombinations } from '@selfmp3/desktop-bridge'
 
-import type { Hotkeys } from './useHotkeys'
+import type { HotkeyOptions, Hotkeys } from './useHotkeys'
 import { desktop } from '../ports/desktop/bridge'
 
-export type { Hotkeys }
+export type { HotkeyOptions, Hotkeys }
 
 /**
  * Combinations the desktop's application menu has taken.
@@ -29,7 +29,7 @@ const menuOwned: ReadonlySet<string> = desktop ? menuOwnedCombinations() : new S
  * keyboard: those run their own keys. Escape is left to `useEscape`, which
  * knows which layer is on top.
  */
-export function useHotkeys(hotkeys: Hotkeys): void {
+export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOptions = {}): void {
   const latest = useRef(hotkeys)
   useEffect(() => {
     latest.current = hotkeys
@@ -61,10 +61,17 @@ export function useHotkeys(hotkeys: Hotkeys): void {
       const handler = latest.current[combination]
       if (handler) {
         event.preventDefault()
+        // Kept from the focused element too: react-native-web's buttons take
+        // Space and Enter for themselves and stop them bubbling, so a listener
+        // on the way back up never heard them.
+        if (beforeFocused) event.stopPropagation()
+        // A held key repeats. Holding Space flipped between play and pause as
+        // fast as the keyboard repeats, so these answer the press, not the hold.
+        if (beforeFocused && event.repeat) return
         handler()
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+    window.addEventListener('keydown', onKeyDown, beforeFocused)
+    return () => window.removeEventListener('keydown', onKeyDown, beforeFocused)
+  }, [beforeFocused])
 }

@@ -210,10 +210,15 @@ export function createCloudRoutes(
       '/api/songs/:id/played',
       ({ session, params, body }) => {
         const event = PlayEventSchema.parse(body)
-        return recordChanges(session, ctx => ({
-          changes: edits.playSong(ctx, id(params), event),
-          answer: () => ({ ok: true, duplicate: false }),
-        }))
+        return recordChanges(
+          session,
+          ctx => ({
+            changes: edits.playSong(ctx, id(params), event),
+            answer: () => ({ ok: true, duplicate: false }),
+          }),
+          // The outbox sends a phone's waiting plays one after another.
+          { deferView: true },
+        )
       },
     ],
     [
@@ -221,10 +226,14 @@ export function createCloudRoutes(
       '/api/songs/:id/skipped',
       ({ session, params, body }) => {
         const { atSeconds } = SkipEventSchema.parse(body)
-        return recordChanges(session, ctx => ({
-          changes: edits.skipSong(ctx, id(params), atSeconds),
-          answer: () => ({ ok: true }),
-        }))
+        return recordChanges(
+          session,
+          ctx => ({
+            changes: edits.skipSong(ctx, id(params), atSeconds),
+            answer: () => ({ ok: true }),
+          }),
+          { deferView: true },
+        )
       },
     ],
     [

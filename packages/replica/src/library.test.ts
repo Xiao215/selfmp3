@@ -590,4 +590,34 @@ describe('keeping the library on the device', () => {
     // A new tag is a new id, and nothing else.
     expect(writes.filter(key => key !== 'cloud-outbox')).toEqual(['cloud-ids', 'cloud-state'])
   })
+
+  /*
+   * A phone's waiting plays are sent one after another, and each one used to
+   * replay and rewrite the whole library.
+   */
+  it('records plays without rebuilding the library, and shows them all at the next read', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    const view = await made.library.loadCloudLibrary(SESSION)
+    const songId = view.library.songs[0]?.id ?? 0
+
+    const writes = recordWrites(made.store)
+    for (let play = 0; play < 3; play++) {
+      await made.library.recordChanges(
+        SESSION,
+        ctx => ({
+          changes: edits.playSong(ctx, songId, { msPlayed: 180_000, completed: true }),
+          answer: () => undefined,
+        }),
+        { deferView: true },
+      )
+    }
+    expect(writes.filter(key => key !== 'cloud-outbox')).toEqual([])
+
+    const after = await made.library.loadCloudLibrary(SESSION)
+    expect(after.library.songs[0]?.playCount).toBe(3)
+    // Built once for all three.
+    expect(after.library.version).toBe(view.library.version + 1)
+  })
 })

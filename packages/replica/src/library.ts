@@ -105,6 +105,12 @@ interface Replica {
   clock: HlcClock
   library: SyncLibrary
   view: CloudLibrary
+  /**
+   * `library` has changes `view` does not show yet: plays and skips, recorded
+   * without rebuilding the view (`recordChanges`' `deferView`). The next read
+   * rebuilds it, once for however many there were.
+   */
+  viewStale: boolean
   checkedAt: number
   /**
    * The next read waits for a look at the bucket rather than answering first:
@@ -112,6 +118,17 @@ interface Replica {
    * the app has to be told about.
    */
   mustCheck: boolean
+}
+
+export interface RecordOptions {
+  /**
+   * Leave the view as it is until something reads it. For plays and skips:
+   * the outbox sends a phone's waiting plays one at a time, and rebuilding the
+   * whole library for each — replaying it, and writing it to the device — was
+   * the most expensive thing a play did. The edit may read only ids from the
+   * view it is handed, and its answer must not read the view at all.
+   */
+  readonly deferView?: boolean
 }
 
 /**
@@ -132,6 +149,7 @@ export interface CloudLibraryApi {
   recordChanges: <T>(
     session: CloudSession,
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
+    options?: RecordOptions,
   ) => Promise<T>
   currentSongs: () => CloudSong[]
   pendingCloudChanges: () => number
@@ -251,6 +269,7 @@ export function createCloudLibrary(
         clock: new HlcClock(outbox.device, { last: outbox.last }),
         library: replay(null, [], []),
         view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
+        viewStale: false,
         checkedAt: 0,
         mustCheck: false,
       }
@@ -297,6 +316,7 @@ export function createCloudLibrary(
 
   /** Turn the replayed library into what the app shows, and keep what the service worker reads. */
   async function show(r: Replica): Promise<void> {
+    r.viewStale = false
     const state = (await store.read(STATE_KEY)) as { version?: unknown } | null
     const previous = replica?.view.ids ?? asLocalIds(await store.read(IDS_KEY))
     const version = (typeof state?.version === 'number' ? state.version : 0) + 1
@@ -506,6 +526,16 @@ export function createCloudLibrary(
     } else if (Date.now() - r.checkedAt > FRESH_MS) {
       lookInBackground(r, session)
     }
+    return currentView(r)
+  }
+
+  /** The view with every deferred change in it (`RecordOptions.deferView`). */
+  async function currentView(r: Replica): Promise<CloudLibrary> {
+    if (r.viewStale) {
+      await exclusive(async () => {
+        if (r.viewStale) await show(r)
+      })
+    }
     return r.view
   }
 
@@ -575,9 +605,12 @@ export function createCloudLibrary(
   async function recordChanges<T>(
     session: CloudSession,
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
+    options: RecordOptions = {},
   ): Promise<T> {
     const r = await open(session)
     return exclusive(async () => {
+      // A deferred edit reads only ids, which plays and skips never change.
+      if (!options.deferView && r.viewStale) await show(r)
       const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
       if (changes.length > 0) {
         // Stamped after everything this device has seen, so applying them on top
@@ -588,7 +621,8 @@ export function createCloudLibrary(
           last: r.clock.last,
           pending: [...outbox.pending, ...changes],
         }))
-        await show(r)
+        if (options.deferView) r.viewStale = true
+        else await show(r)
         scheduleFlush(FLUSH_DELAY_MS)
       }
       return answer(r.view)
@@ -699,8 +733,9 @@ export function createCloudLibrary(
 
   /** A playlist's songs, in order, from the library as this device has it — offline too. */
   async function cloudPlaylistSongs(playlistId: number): Promise<readonly number[]> {
+    // Brought up to date first: plays can move a song into a Live playlist.
     const stored =
-      replica?.view.playlistSongs ??
+      (replica ? (await currentView(replica)).playlistSongs : null) ??
       ((await store.read(PLAYLISTS_KEY)) as Record<number, number[]> | null)
     return stored?.[playlistId] ?? []
   }

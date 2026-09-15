@@ -10,8 +10,8 @@ import {
 /**
  * Now Playing on a computer, driven from the player bar.
  *
- * The bar opens the page on its lyrics. Up next and About are tabs, and the
- * bar's queue button is the same Up next tab, pressed again to go back. The
+ * The bar opens the page on its lyrics. Queue and About are tabs, and the
+ * bar's queue button is the same Queue tab, pressed again to go back. The
  * page's own button shows only the words, and its chevron goes back to the full
  * page. Playback carries on through all of it.
  *
@@ -34,7 +34,7 @@ test.describe('now playing', () => {
     )
 
     const closeQueue = page.getByRole('button', { name: 'Close queue' })
-    await page.getByRole('tab', { name: 'Up next' }).click()
+    await page.getByRole('tab', { name: 'Queue' }).click()
     await expect(closeQueue).toBeVisible()
 
     // Auto-mix, on its own row: it says what the next handover will be, and
@@ -60,7 +60,7 @@ test.describe('now playing', () => {
     await page.getByRole('button', { name: 'Show only the words' }).click()
     await expect(page.getByRole('button', { name: 'Back to the full page' }).first()).toBeVisible()
     await page.getByRole('button', { name: 'Back to the full page' }).first().click()
-    await expect(page.getByRole('tab', { name: 'Up next' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Queue' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Close now playing' }).first().click()
     await expect(page.getByRole('button', { name: /^Open now playing: / })).toBeVisible()

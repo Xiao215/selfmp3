@@ -25,7 +25,8 @@ test.describe('fixing metadata', () => {
     await rowFor(page, SONG)
       .getByRole('button', { name: `More actions for ${SONG}` })
       .click()
-    await page.getByRole('menuitem', { name: /Fix metadata/ }).click()
+    await page.getByRole('menuitem', { name: 'Song details…', exact: true }).click()
+    await page.getByRole('button', { name: /Fix metadata/ }).click()
 
     const dialog = page.getByRole('dialog', { name: 'Fix metadata' })
     await expect(dialog).toBeVisible()

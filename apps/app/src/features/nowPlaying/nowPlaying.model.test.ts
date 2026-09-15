@@ -12,7 +12,9 @@ import {
   autoMixLine,
   PHONE_ART_MIN,
   playSimilarOrder,
+  queueLines,
   similarShelfLayout,
+  upNextLine,
 } from './nowPlaying.model'
 
 const SYNCED: ParsedLyrics = {
@@ -29,7 +31,6 @@ const base = {
   romanizationOn: false,
   romanized: null,
   offline: false,
-  instrumental: false,
 }
 
 describe('now playing', () => {
@@ -61,13 +62,12 @@ describe('now playing', () => {
     expect(off).toMatchObject({ status: 'lyrics', roman: null })
   })
 
-  it('tells loading, offline, instrumental and missing apart', () => {
+  it('tells loading, offline and no lyrics apart', () => {
     expect(resolveSongWords({ ...base, loading: true })).toEqual({ status: 'loading' })
-    expect(resolveSongWords({ ...base, offline: true, instrumental: true })).toEqual({
+    expect(resolveSongWords({ ...base, offline: true })).toEqual({
       status: 'missing',
       offline: true,
     })
-    expect(resolveSongWords({ ...base, instrumental: true })).toEqual({ status: 'instrumental' })
     expect(resolveSongWords(base)).toEqual({ status: 'missing', offline: false })
   })
 
@@ -147,5 +147,40 @@ describe('the similar-songs shelf on a phone', () => {
   it('plays the chosen song first, then the rest in their order', () => {
     expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
     expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
+  })
+})
+
+describe('the queue from what is playing', () => {
+  it('folds the played songs into one line above the song that is playing', () => {
+    expect(queueLines(2, 4, false)).toEqual([
+      { kind: 'played', count: 2, open: false },
+      { kind: 'song', index: 2 },
+      { kind: 'upNext' },
+      { kind: 'song', index: 3 },
+    ])
+  })
+
+  it('puts the played songs back when the fold is open', () => {
+    expect(queueLines(2, 3, true)).toEqual([
+      { kind: 'played', count: 2, open: true },
+      { kind: 'song', index: 0 },
+      { kind: 'song', index: 1 },
+      { kind: 'song', index: 2 },
+    ])
+  })
+
+  it('has no fold at the first song and no label at the last', () => {
+    expect(queueLines(0, 2, false)).toEqual([
+      { kind: 'song', index: 0 },
+      { kind: 'upNext' },
+      { kind: 'song', index: 1 },
+    ])
+    expect(queueLines(0, 1, true)).toEqual([{ kind: 'song', index: 0 }])
+    expect(queueLines(0, 0, false)).toEqual([])
+  })
+
+  it('counts what follows in the label', () => {
+    expect(upNextLine(1, 250)).toBe('Up next · 1 song · 4 min')
+    expect(upNextLine(12, 3900)).toBe('Up next · 12 songs · 1 hr 5 min')
   })
 })

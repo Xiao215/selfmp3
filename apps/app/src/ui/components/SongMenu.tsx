@@ -9,7 +9,6 @@ import {
   useAddToPlaylist,
   useDeleteSong,
   useLibrary,
-  usePatchSong,
   useRemoveFromPlaylist,
 } from '../../api/queries'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
@@ -21,7 +20,6 @@ import {
   CloudDownload,
   Info,
   ListMusic,
-  Music,
   Queue,
   Sparkles,
   Tag as TagIcon,
@@ -30,10 +28,8 @@ import {
 } from './Icons'
 import { Popover } from './Popover'
 import { Sheet, SheetItem } from './Sheet'
-import { MetadataDialog } from './MetadataDialog'
 import { SongDetails } from './SongDetails'
 import { TagPicker } from './TagPicker'
-import { useConnection } from '../../server/ConnectionProvider'
 
 /**
  * The ⋯ menu for a song: the web's `SongMenu`, in its order.
@@ -47,7 +43,9 @@ import { useConnection } from '../../server/ConnectionProvider'
  * mis-tap apart.
  *
  * Editing tags and the song's details replace the menu rather than stacking on
- * it, as on the web.
+ * it, as on the web. Kept short on purpose: the similar-songs pair folds into
+ * one row, and fixing the metadata is a button inside Song details, next to
+ * the facts it changes, rather than a row of its own here.
  */
 export function SongMenu({
   song,
@@ -77,7 +75,7 @@ export function SongMenu({
   const { data: library } = useLibrary()
   const { wide } = useLayout()
   const [opened, setOpened] = useState<{
-    kind: 'tags' | 'details' | 'metadata'
+    kind: 'tags' | 'details'
     songId: number
   } | null>(null)
   // The song as the library has it now, so a dialog opened from the menu shows
@@ -140,9 +138,6 @@ export function SongMenu({
       {opened?.kind === 'details' && openedSong ? (
         <SongDetails song={openedSong} onClose={() => setOpened(null)} />
       ) : null}
-      {opened?.kind === 'metadata' && openedSong ? (
-        <MetadataDialog song={openedSong} onClose={() => setOpened(null)} />
-      ) : null}
     </>
   )
 }
@@ -158,7 +153,7 @@ function Items({
   onClose: () => void
   onStartSelecting?: (song: Song) => void
   playlist?: { readonly id: number; readonly name: string }
-  onOpen: (kind: 'tags' | 'details' | 'metadata') => void
+  onOpen: (kind: 'tags' | 'details') => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
@@ -166,11 +161,11 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
   const deleteSong = useDeleteSong()
-  const patchSong = usePatchSong()
   const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
+  const { wide } = useLayout()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
+  const [similarOpen, setSimilarOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const { fromCloud } = useConnection()
 
   const held = isDownloaded(downloads.index, song.id)
   // Pinned first; a live playlist's rules decide its songs, so it is not offered.
@@ -195,23 +190,25 @@ function Items({
 
   return (
     <>
-      {onStartSelecting ? (
-        <>
-          <SheetItem
-            icon={icon(CheckSquare)}
-            label="Select"
-            onPress={then(() => onStartSelecting(song))}
-          />
-          <View style={styles.divider} />
-        </>
-      ) : null}
-
       {playlist ? (
         <>
           <SheetItem
             icon={icon(X)}
             label="Remove from this playlist"
             onPress={then(() => removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }))}
+          />
+          <View style={styles.divider} />
+        </>
+      ) : null}
+
+      {/* Not in a phone's library, where holding a row already selects; a
+          computer has no hold, and a playlist's rows are held to drag. */}
+      {onStartSelecting && (wide || playlist) ? (
+        <>
+          <SheetItem
+            icon={icon(CheckSquare)}
+            label="Select"
+            onPress={then(() => onStartSelecting(song))}
           />
           <View style={styles.divider} />
         </>
@@ -227,23 +224,30 @@ function Items({
         label="Add to queue"
         onPress={then(() => player.addToQueue([song.id]))}
       />
+      {/* Two ways to use the same neighbours, folded into one row so the menu
+          stays short; they open in place, as Add to playlist does. */}
+      <SheetItem
+        icon={icon(Sparkles)}
+        label="Similar songs"
+        detail={similarOpen ? '⌄' : '›'}
+        active={similarOpen}
+        onPress={() => setSimilarOpen(open => !open)}
+      />
+      {similarOpen ? (
+        <View style={styles.nested}>
+          <SheetItem
+            label="Play similar"
+            onPress={then(() => withSimilar(songIds => player.playFrom(songIds, 0)))}
+          />
+          <SheetItem
+            label="Add similar to queue"
+            onPress={then(() => withSimilar(songIds => player.addToQueue(songIds.slice(1))))}
+          />
+        </View>
+      ) : null}
 
       <View style={styles.divider} />
 
-      <SheetItem
-        icon={icon(Sparkles)}
-        label="Play similar"
-        onPress={then(() => withSimilar(songIds => player.playFrom(songIds, 0)))}
-      />
-      <SheetItem
-        icon={icon(Sparkles)}
-        label="Add similar to queue"
-        onPress={then(() => withSimilar(songIds => player.addToQueue(songIds.slice(1))))}
-      />
-
-      <View style={styles.divider} />
-
-      <SheetItem icon={icon(TagIcon)} label="Edit tags…" onPress={() => onOpen('tags')} />
       <SheetItem
         icon={icon(ListMusic)}
         label="Add to playlist…"
@@ -267,23 +271,12 @@ function Items({
           )}
         </View>
       ) : null}
+      <SheetItem icon={icon(TagIcon)} label="Edit tags…" onPress={() => onOpen('tags')} />
 
       <View style={styles.divider} />
 
-      <SheetItem icon={icon(Info)} label="Song details" onPress={() => onOpen('details')} />
-      {/* The lookup runs on the server, against iTunes and MusicBrainz. */}
-      {fromCloud ? null : (
-        <SheetItem icon={icon(Sparkles)} label="Fix metadata…" onPress={() => onOpen('metadata')} />
-      )}
-      {/* An instrumental gets a visual instead of "no lyrics found", and is not
-          looked up again. Easy to take back: lyrics added later win. */}
-      <SheetItem
-        icon={icon(Music)}
-        label={song.instrumental ? 'Has lyrics after all' : 'Mark as instrumental'}
-        onPress={then(() =>
-          patchSong.mutate({ id: song.id, patch: { instrumental: !song.instrumental } }),
-        )}
-      />
+      {/* Fixing the metadata lives inside the details, beside the facts it fixes. */}
+      <SheetItem icon={icon(Info)} label="Song details…" onPress={() => onOpen('details')} />
       {/* A browser streams; only an installed app keeps songs. */}
       {!installed ? null : held ? (
         <SheetItem
@@ -294,7 +287,7 @@ function Items({
       ) : (
         <SheetItem
           icon={icon(CloudDownload)}
-          label="Download for offline"
+          label="Download"
           detail={song.sizeBytes > 0 ? formatBytes(song.sizeBytes) : undefined}
           onPress={then(() => downloadByHand([song.id]))}
         />

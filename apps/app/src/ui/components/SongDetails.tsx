@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -15,6 +16,7 @@ import {
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
+import { useConnection } from '../../server/ConnectionProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../accent'
@@ -22,7 +24,8 @@ import { Button } from './Button'
 import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
 import { IconButton } from './IconButton'
-import { X } from './Icons'
+import { Sparkles, X } from './Icons'
+import { MetadataDialog } from './MetadataDialog'
 
 /**
  * Everything the app knows about one song, in plain words: the web's
@@ -34,12 +37,19 @@ import { X } from './Icons'
  * "On this device" is the phone's answer, the download queue's, rather than
  * the browser cache's. The server-only half of the web's version — the file's
  * path and "Show in Finder" — belongs to the server, and is left out.
+ *
+ * "Fix metadata…" opens from here rather than from the song menu: it is the
+ * place where a wrong title or album is noticed. The lookup runs on the
+ * server, against iTunes and MusicBrainz, so a cloud library has no button.
+ * The fix takes the dialog's place, and closing it comes back to the details.
  */
 export function SongDetails({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const artFor = useArt()
-  useEscape(true, onClose, { layer: true })
+  const { fromCloud } = useConnection()
+  const [fixing, setFixing] = useState(false)
+  useEscape(!fixing, onClose, { layer: true })
 
   const byline = [song.artist || 'Unknown artist', song.album, song.year]
     .filter(Boolean)
@@ -71,13 +81,22 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
         </View>
         <ScrollView>
           <SongDetailsBody song={song} />
+          {fromCloud ? null : (
+            <View style={styles.fix}>
+              <Button
+                label="Fix metadata…"
+                icon={<Sparkles size={15} color={theme.colors.textSecondary} />}
+                onPress={() => setFixing(true)}
+              />
+            </View>
+          )}
         </ScrollView>
       </View>
     </View>,
-    true,
+    !fixing,
   )
 
-  return null
+  return fixing ? <MetadataDialog song={song} onClose={() => setFixing(false)} /> : null
 }
 
 /**
@@ -167,7 +186,7 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
                 </Text>
                 {queued ? null : (
                   <View style={styles.action}>
-                    <Button label="Download now" onPress={() => queue.enqueue([song.id])} />
+                    <Button label="Download" onPress={() => queue.enqueue([song.id])} />
                   </View>
                 )}
               </>
@@ -308,5 +327,10 @@ const styles = StyleSheet.create(theme => ({
   note: { color: theme.colors.textMuted, fontSize: 12 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
+  fix: {
+    alignItems: 'flex-start',
+    paddingHorizontal: 18,
+    paddingBottom: space.lg,
+  },
   empty: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
 }))

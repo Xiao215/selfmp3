@@ -14,37 +14,45 @@ import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
-import { Grip, Queue, Trash, X } from '../../ui/components/Icons'
+import { ChevronDown, ChevronRight, Grip, Queue, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
-import { autoMixLine } from './nowPlaying.model'
+import { autoMixLine, queueLines, upNextLine } from './nowPlaying.model'
 import { dropIndex } from '../playlistDetail/playlistDetail.model'
 
 /** A row's height before it has been measured. */
 const ROW = 46
 
 /**
- * Up next, as the Now Playing page's second tab: the web's `QueuePanel`.
+ * The queue, as the Now Playing page's second tab: the web's `QueuePanel`.
  *
- * Every song in the queue, the one playing marked and the played ones
- * quieter. Click a song to play it, ✕ to drop it, the grip to drag it
- * somewhere else, and the bin to clear the lot.
+ * It starts at the song that is playing: the songs already played fold into
+ * one "Played" line above it (`queueLines`), which opens them again for a jump
+ * back, and what follows sits under an "Up next" label. Click a song to play
+ * it, ✕ to drop it, the grip to drag it somewhere else, and the bin to clear
+ * the lot. A drag never lands among folded songs it cannot see.
  */
 export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const artFor = useArt()
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
+  const [playedOpen, setPlayedOpen] = useState(false)
   const rowHeight = useRef(ROW)
 
   const count = player.songs.length
-  const upcoming = player.songs.slice(player.queue.index + 1)
+  const current = player.queue.index
+  const upcoming = player.songs.slice(current + 1)
   const remaining = upcoming.reduce((sum, song) => sum + song.duration, 0)
+  // The first place a drag may land: the top of what is on screen.
+  const firstShown = playedOpen ? 0 : Math.max(0, current)
+  const dropAt = (from: number, dy: number): number =>
+    Math.max(firstShown, dropIndex(from, dy, rowHeight.current, count))
 
   return (
     <View style={styles.panel}>
       <View style={styles.head}>
         <View style={styles.titles}>
-          <Text style={styles.title}>Up next</Text>
+          <Text style={styles.title}>Queue</Text>
           <Text style={styles.sub} numberOfLines={1}>
             {count === 0
               ? 'Nothing playing'
@@ -97,43 +105,70 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
             </Text>
           </View>
         ) : null}
-        {player.songs.map((song, index) => (
-          <QueueRow
-            key={`${song.id}-${index}`}
-            song={song}
-            index={index}
-            artUri={artFor(song)}
-            current={index === player.queue.index}
-            past={index < player.queue.index}
-            playing={player.isPlaying}
-            dragging={drag?.from === index}
-            dropEdge={
-              drag && drag.to === index && drag.to !== drag.from
-                ? drag.to < drag.from
-                  ? 'top'
-                  : 'bottom'
-                : null
-            }
-            onDragStart={() => setDrag({ from: index, to: index })}
-            onDragMove={dy =>
-              setDrag(current =>
-                current
-                  ? { ...current, to: dropIndex(current.from, dy, rowHeight.current, count) }
-                  : null,
-              )
-            }
-            onDragEnd={dy => {
-              setDrag(null)
-              const to = dropIndex(index, dy, rowHeight.current, count)
-              if (to !== index) player.reorderQueue(index, to)
-            }}
-            onLayoutHeight={height => {
-              rowHeight.current = height
-            }}
-            onPlay={() => player.jumpTo(index)}
-            onRemove={() => player.removeFromQueue(index)}
-          />
-        ))}
+        {queueLines(current, count, playedOpen).map(line => {
+          if (line.kind === 'played') {
+            return (
+              <Pressable
+                key="played"
+                onPress={() => setPlayedOpen(open => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: line.open }}
+                accessibilityLabel={`${line.open ? 'Hide' : 'Show'} ${line.count} played ${line.count === 1 ? 'song' : 'songs'}`}
+                style={({ pressed }) => [styles.played, pressed && styles.playedPressed]}
+              >
+                {line.open ? (
+                  <ChevronDown size={14} color={theme.colors.textMuted} />
+                ) : (
+                  <ChevronRight size={14} color={theme.colors.textMuted} />
+                )}
+                <Text style={styles.playedText}>Played · {line.count}</Text>
+              </Pressable>
+            )
+          }
+          if (line.kind === 'upNext') {
+            return (
+              <Text key="up-next" style={styles.upNext}>
+                {upNextLine(upcoming.length, remaining)}
+              </Text>
+            )
+          }
+          const index = line.index
+          const song = player.songs[index]
+          if (!song) return null
+          return (
+            <QueueRow
+              key={`${song.id}-${index}`}
+              song={song}
+              measure={index === current}
+              artUri={artFor(song)}
+              current={index === current}
+              past={index < current}
+              playing={player.isPlaying}
+              dragging={drag?.from === index}
+              dropEdge={
+                drag && drag.to === index && drag.to !== drag.from
+                  ? drag.to < drag.from
+                    ? 'top'
+                    : 'bottom'
+                  : null
+              }
+              onDragStart={() => setDrag({ from: index, to: index })}
+              onDragMove={dy =>
+                setDrag(moving => (moving ? { ...moving, to: dropAt(moving.from, dy) } : null))
+              }
+              onDragEnd={dy => {
+                setDrag(null)
+                const to = dropAt(index, dy)
+                if (to !== index) player.reorderQueue(index, to)
+              }}
+              onLayoutHeight={height => {
+                rowHeight.current = height
+              }}
+              onPlay={() => player.jumpTo(index)}
+              onRemove={() => player.removeFromQueue(index)}
+            />
+          )
+        })}
       </ScrollView>
     </View>
   )
@@ -141,7 +176,7 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
 
 const QueueRow = memo(function QueueRow({
   song,
-  index,
+  measure,
   artUri,
   current,
   past,
@@ -156,7 +191,8 @@ const QueueRow = memo(function QueueRow({
   onRemove,
 }: {
   song: Song
-  index: number
+  /** The row whose height stands for all of them: the one playing, which always shows. */
+  measure: boolean
   artUri: string | null
   current: boolean
   past: boolean
@@ -191,7 +227,7 @@ const QueueRow = memo(function QueueRow({
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
       onPointerLeave={finePointer ? () => setHovered(false) : undefined}
       onLayout={
-        index === 0 ? event => onLayoutHeight(event.nativeEvent.layout.height + 1) : undefined
+        measure ? event => onLayoutHeight(event.nativeEvent.layout.height + 1) : undefined
       }
     >
       {dropEdge ? (
@@ -294,6 +330,26 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 11,
   },
   list: { padding: 8, gap: 1 },
+  played: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+  },
+  playedPressed: { backgroundColor: theme.colors.surface2 },
+  playedText: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '500' },
+  upNext: {
+    color: theme.colors.textMuted,
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    paddingTop: 10,
+    paddingBottom: 4,
+    paddingHorizontal: 10,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

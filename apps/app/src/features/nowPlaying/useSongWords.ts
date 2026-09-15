@@ -1,11 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
-import { ApiError, useLibrary, useLyrics } from '@selfmp3/client'
+import { ApiError, useLyrics, usePatchSong } from '@selfmp3/client'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
-
-/** A tag called "instrumental" counts, since that is how many people already say it. */
-const INSTRUMENTAL_TAG = 'instrumental'
 
 /**
  * A song's words, and the romanization switch: the web's `useSongLyrics`.
@@ -14,15 +11,27 @@ const INSTRUMENTAL_TAG = 'instrumental'
  * come with the words from wherever the words come from: the server's own lyrics
  * answer, or the bucket, where they are uploaded beside the lyrics. The switch
  * is this device's, and only decides whether they are drawn.
+ *
+ * A song with no words is simply that: whether the lookup found nothing or
+ * answered before that there is nothing (the song's `instrumental` flag, which
+ * keeps it off the network on every play), the page shows its visual.
  */
 export function useSongWords(song: Song): {
   words: SongWords
   language: LyricsLanguage
   romanizationOn: boolean
   setRomanization: (on: boolean) => void
+  /**
+   * Ask the lookup again: "Look for lyrics again" under a song's visual. The
+   * saved answer that it has none is cleared first — the server only looks a
+   * song like that up again once the flag is off — and the words asked for
+   * afresh, showing "Looking for lyrics…" meanwhile.
+   */
+  lookAgain: () => void
 } {
-  const library = useLibrary()
   const lyrics = useLyrics(song.id)
+  const patchSong = usePatchSong()
+  const [looking, setLooking] = useState(false)
 
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
   const language: LyricsLanguage = useMemo(() => {
@@ -36,26 +45,28 @@ export function useSongWords(song: Song): {
   const romanized = lyrics.data?.romanized ?? null
 
   const error = lyrics.error
-  const instrumental =
-    (error instanceof ApiError && error.code === 'instrumental') ||
-    song.instrumental ||
-    (library.data?.tags ?? []).some(
-      tag => song.tagIds.includes(tag.id) && tag.name.trim().toLowerCase() === INSTRUMENTAL_TAG,
-    )
-
   const words = resolveSongWords({
-    loading: lyrics.isLoading,
+    loading: lyrics.isLoading || looking,
     parsed,
     romanizationOn,
     romanized,
     offline: error instanceof ApiError && error.isOffline,
-    instrumental,
   })
+
+  const lookAgain = (): void => {
+    setLooking(true)
+    // A library that cannot take the change (a cloud one) still asks again.
+    const cleared = song.instrumental
+      ? patchSong.mutateAsync({ id: song.id, patch: { instrumental: false } }).catch(() => undefined)
+      : Promise.resolve(undefined)
+    void cleared.then(() => lyrics.refetch()).finally(() => setLooking(false))
+  }
 
   return {
     words,
     language,
     romanizationOn,
     setRomanization: setRomanizationOn,
+    lookAgain,
   }
 }

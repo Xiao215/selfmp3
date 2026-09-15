@@ -140,7 +140,7 @@ export function PlayerBar(): ReactNode {
               onPress={togglePage}
               accessibilityRole="button"
               accessibilityLabel={onPage ? 'Close now playing' : `Open now playing: ${song.title}`}
-              {...tip(onPage ? 'Close' : 'Open the song: lyrics, up next, details')}
+              {...tip(onPage ? 'Close' : 'Open the song: lyrics, queue, details')}
               accessibilityState={{ expanded: onPage }}
             >
               {/* The caption sits over the cover, not between it and the title. */}

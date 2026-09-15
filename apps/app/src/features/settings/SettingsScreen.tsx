@@ -51,6 +51,7 @@ import { normaliseBaseUrl } from '../../server/connection'
 import { useConnection } from '../../server/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
+import { BackToYou } from '../../ui/components/BackToYou'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
@@ -250,6 +251,7 @@ export function SettingsScreen(): ReactNode {
         ]}
       >
         <View style={styles.head}>
+          <BackToYou />
           <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
             Settings
           </Text>

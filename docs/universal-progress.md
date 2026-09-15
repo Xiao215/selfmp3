@@ -4006,3 +4006,99 @@ Worth recording, because the next agent will assume less than this:
 
 What it could not do is anything with a Mac's name on it: a dmg, a keychain, a
 Dock, a media key, Control Center, a simulator, or a Google sign-in.
+
+## The flow review, A to X — branch `claude/app-uiux-flow-review-bd90f8`
+
+From a walk of every route, menu, sheet and popover at 1280 and 390 wide, and in
+the Mac app, on 2026-09-14. The proposals and Xiao's answers went through three
+rounds of lettered mocks; the last one, drawn per platform, is
+https://claude.ai/artifact/W5ntXatRe6wubtQRa2zJeW. Built by four groups in
+parallel worktrees (merged here in the order 3, 4, 2, 1), each owning its own
+files, and checked again together.
+
+### What changed
+
+- **A. The phone's fourth tab is You.** Library · Playlists · Import · You
+  (`bottomNav.model.ts`). `/you` lists Stats & report, Untagged, Tags and
+  Settings (a cloud library: Tags and Settings). `/tags` is new: a tag's row
+  filters the Library, its ⋯ opens `TagEditor`. Stats, Tags, Inbox and Settings
+  carry `BackToYou` on a phone. Computers keep the sidebar.
+- **B.** The sidebar's Playlists header is the link (count and ＋ on it); "Show
+  all" is gone, `nav-playlists` moved to the header.
+- **C, D. No keys in a browser tab.** A Search row at the top of the sidebar
+  opens the palette (`shell/palette.ts` holds its open state); the ⌘K hint shows
+  only in the Mac app, whose menu keeps every key it had. A browser tab listens
+  for no app shortcut at all — Escape and the Inbox's triage keys stay. The
+  palette leads with Recent (the playing queue, recently played playlists) and
+  leaves out "Go to" for the page it was opened on; "Listening stats" is "Go to
+  Stats". Keyboard shortcuts in Settings exist only in the Mac app, listed from
+  the menu through `ports/menuKeys`.
+- **E.** `app/+not-found.tsx`: "Nothing plays at this address" inside the shell,
+  the missing path (`app://selfmp3/…` in the Mac app, `ports/pageAddress`), Go to
+  your library, Back.
+- **F.** Not built: the song menu does not grow a "New playlist".
+- **G, G·2. No "instrumental" in the app.** The song menu is Play next · Add to
+  queue · Similar songs › · Add to playlist… · Edit tags… · Song details… ·
+  Download · Remove from library…; Fix metadata lives in Song details; Select is
+  gone from the phone's Library menu. A song with no lyrics shows a visual where
+  the words go — Aurora, Pulse, Spectrum or Drift, picked by
+  `nowPlaying/visuals.model.ts` (no features or energy < 0.35 Aurora; ≥ 0.7
+  Spectrum; danceability ≥ 0.6 Pulse; else Drift; minor keys cooler), with a
+  Style menu (Auto, the four, Look for lyrics again) and a per-song choice kept on
+  the device. The stage's tab reads Visual; the phone's lyrics face goes edge to
+  edge. Spectrum hears the music through `ports/liveAudio` in Chromium, Firefox
+  and the Mac app, and is drawn from BPM and energy in Safari, on touch devices
+  and natively. The toggle, the "It's instrumental" link and the rule that a tag
+  named "instrumental" means no lyrics are gone; the column and the lookup's saved
+  answer stay (Look for lyrics again clears it).
+- **H. The selection bar floats**: at the top of the list on a computer, at the
+  bottom over the mini player on a phone. No row moves when it appears.
+- **I.** One "Can't reach your server" card (Try again, Connection settings via
+  `/settings?section=connection`) instead of an empty library; the sidebar says
+  "Tags load with your library."; a search with no matches names the query and
+  offers Search all songs when a tag filter is on.
+- **J.** The resume toast leaves when this device plays, fades after 12 s, and is
+  not offered when this device restored its own last song.
+- **K.** Speed lives in Practice: the bar's speed button is gone, the Practice
+  button wears "1.25×" and opens at Speed, one list 0.5–2× everywhere.
+- **L.** The sleep timer offers End of this song and a ticked Off.
+- **M.** The queue starts at the playing song, with "Played · N" folded above it;
+  it is called Queue everywhere.
+- **N.** The library head stays one row down to 600 pt of content (Shuffle an
+  icon below 760).
+- **O. No player bar until a song loads.** Settings › Devices shows everywhere;
+  when the server can't be reached it shows the last list marked offline
+  (`lastKnownDevices.model.ts`) — Xiao: no "Look again", devices are not
+  important.
+- **P.** A phone playlist's head reads ▶ ⤨ on the left and ＋ ⋯ on the right; an
+  empty playlist hides what can't play.
+- **Q.** Live rules say Longest first / A–Z, Songs: All or the first N; tiles say
+  "25 songs · 1 hr 44 min" for live playlists too, or Empty.
+- **R.** The import box says when it holds no link; finished jobs fold into "✓ N
+  added today · Show · Clear"; Migrate has ‹ Import.
+- **S.** One Stats page, Overview | Report, one window control (Week · Month · 3
+  months · Year · All time). Report gained a `quarter` window in the shared
+  schema and the server. Share is an icon; Discovered hides when it repeats Top
+  songs. `WrappedScreen` became `ReportTab`.
+- **T, U.** Settings says "Checking your library…" while it asks. Connection
+  folds its token and version under Details; old devices fold behind Show older;
+  Sign out moved into the Google account row's menu.
+- **V.** `/sign-in` while connected goes to the library.
+- **W, X.** Queue, Download / Downloaded, Pin on a phone; back links go back or
+  replace (`ui/components/backRow.model.ts`) instead of stacking pages; the
+  manifest's "Listening stats" shortcut is gone; "best: 1 day", "1 minute".
+
+### Worth knowing
+
+- **Crossfade stays where the engine can crossfade** (web and the Mac app) and is
+  hidden on a phone — the mock hid it everywhere on the belief it did nothing; the
+  row checks the engine rather than the belief.
+- **End of this song** turns crossfade off while it is set, and stops with the
+  next song loaded and paused at its start.
+- **Clear** on the folded import row is the server's clear, which also removes
+  failed and cancelled jobs.
+- Found and not fixed here: Settings' index links land a panel or two early (the
+  offsets are measured before panels finish loading) — pre-existing, left as its
+  own task.
+- The native `SongVisual` passed typecheck and lint but was not run on a
+  simulator in this branch.

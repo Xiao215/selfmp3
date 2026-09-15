@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { FrequencyAnalyser } from '@selfmp3/client'
+import { useMotion, type FrequencyAnalyser } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import { canHearMusic } from '../../ports/liveAudio'
@@ -31,11 +31,9 @@ export function useMotionSampler(song: Song, active: boolean): MotionSampler {
   const reduced = useReducedMotion()
 
   const forced = debugCurve()
-  // ── Integrator plug-in point ──────────────────────────────────────────────
-  // Replace `null` with `useMotion(song.id)` from @selfmp3/client once the
-  // stored curve lands (and swap `sampleCurve` for its `sampleMotion`).
-  const stored: MotionCurveLike | null = null
-  // ──────────────────────────────────────────────────────────────────────────
+  // The curve analysis stored for this song, fetched only while a visual shows:
+  // a song with lyrics never needs it. Offline it comes from the device's copy.
+  const stored: MotionCurveLike | null = useMotion(active ? song.id : null)
   const curve = forced ?? stored
 
   const canHear = canHearMusic() && !forced

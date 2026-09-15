@@ -33,6 +33,7 @@ import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { Toggle } from '../../ui/components/Toggle'
 import { cameFrom } from '../playlistDetail/playlistDetail.model'
+import { usePullToRefresh } from '../library/usePullToRefresh'
 import {
   existingTag,
   inboxSubtitle,
@@ -62,6 +63,7 @@ export function InboxScreen(): ReactNode {
   const { wide } = useLayout()
   const { fromCloud } = useConnection()
   const { data: library, isLoading } = useLibrary()
+  const pull = usePullToRefresh()
   const { state: downloads } = useDownloads()
   /** The songs being gone through, fixed when tagging starts. */
   const [session, setSession] = useState<readonly number[] | null>(null)
@@ -127,7 +129,9 @@ export function InboxScreen(): ReactNode {
         </View>
 
         {fromCloud ? (
-          <Text style={styles.hint}>Tagging from the inbox needs a connection to your server for now.</Text>
+          <Text style={styles.hint}>
+            Tagging from the inbox needs a connection to your server for now.
+          </Text>
         ) : null}
 
         {untagged.length > 0 ? (
@@ -161,6 +165,8 @@ export function InboxScreen(): ReactNode {
             label="Untagged songs"
             renderSong={renderSong}
             rowHeight={rowHeight}
+            onRefresh={pull.onRefresh}
+            refreshing={pull.refreshing}
             contentContainerStyle={styles.list}
           />
         )}

@@ -18,7 +18,7 @@ export type {
   OutboxStore,
 } from './platform.js'
 
-export { ApiError } from './api/error.js'
+export { ApiError, failureText } from './api/error.js'
 export { createApi, type Api, type ApiOptions } from './api/api.js'
 export { createMediaUrl, type MediaUrl } from './api/media.js'
 

@@ -28,6 +28,7 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, useLibraryModel } from './library.model'
+import { usePullToRefresh } from './usePullToRefresh'
 
 /**
  * The library, at every width.
@@ -57,6 +58,7 @@ export function LibraryScreen(): ReactNode {
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
+  const pull = usePullToRefresh()
   const { filter, songs, visible, songIds, heading, includeTag, songTags } = model
 
   const [searchFocused, setSearchFocused] = useState(false)
@@ -407,6 +409,8 @@ export function LibraryScreen(): ReactNode {
             label={`${heading} songs`}
             renderSong={renderSong}
             rowHeight={rowHeight}
+            onRefresh={pull.onRefresh}
+            refreshing={pull.refreshing}
             contentContainerStyle={[
               styles.list,
               // On a phone the bar sits over the foot of the list; the last song

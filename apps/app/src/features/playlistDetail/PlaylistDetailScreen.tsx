@@ -1,4 +1,13 @@
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import type { FlatListProps, GestureResponderEvent } from 'react-native'
@@ -54,6 +63,7 @@ import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/Selection
 import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { copyName, isLive, LIVE_NAME, newPlaylist } from '../playlists/playlists.model'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
@@ -97,6 +107,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const library = useLibrary()
   const manifest = useManifest()
   const contents = usePlaylistSongs(Number.isInteger(playlistId) ? playlistId : null)
+  const pull = usePullToRefresh(contents.refetch)
   const player = usePlayer()
   const playback = usePlaylistPlayback()
   const updatePlaylist = useUpdatePlaylist()
@@ -199,9 +210,25 @@ export function PlaylistDetailScreen(): ReactNode {
    * made once (`rowActions`) and a row's memo holds. Inline closures per row
    * redrew every row on every render of this screen.
    */
-  const latest = useRef({ songIds, rowHeight, moveTo, selection, playback, playlistId, removeFromPlaylist })
+  const latest = useRef({
+    songIds,
+    rowHeight,
+    moveTo,
+    selection,
+    playback,
+    playlistId,
+    removeFromPlaylist,
+  })
   useEffect(() => {
-    latest.current = { songIds, rowHeight, moveTo, selection, playback, playlistId, removeFromPlaylist }
+    latest.current = {
+      songIds,
+      rowHeight,
+      moveTo,
+      selection,
+      playback,
+      playlistId,
+      removeFromPlaylist,
+    }
   })
 
   /*
@@ -328,7 +355,10 @@ export function PlaylistDetailScreen(): ReactNode {
     if (!playlist) return
     const input = newPlaylist(
       kind,
-      copyName(playlist.name, (library.data?.playlists ?? []).map(entry => entry.name)),
+      copyName(
+        playlist.name,
+        (library.data?.playlists ?? []).map(entry => entry.name),
+      ),
       { description: playlist.description, rules: playlist.rules ?? undefined },
     )
     if (!input) return
@@ -460,20 +490,21 @@ export function PlaylistDetailScreen(): ReactNode {
     </IconButton>
   )
   // Nothing to download in an empty playlist, and "Downloaded" would be a boast.
-  const offlineButton = installed && !emptyPlaylist ? (
-    <IconButton
-      testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
-      onPress={() => downloadByHand(songIds)}
-      label={pendingBytes > 0 ? `Download · ${formatBytes(pendingBytes)}` : 'Downloaded'}
-      disabled={pendingBytes === 0}
-    >
-      {pendingBytes > 0 ? (
-        <CloudDownload size={19} color={theme.colors.textSecondary} />
-      ) : (
-        <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
-      )}
-    </IconButton>
-  ) : null
+  const offlineButton =
+    installed && !emptyPlaylist ? (
+      <IconButton
+        testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
+        onPress={() => downloadByHand(songIds)}
+        label={pendingBytes > 0 ? `Download · ${formatBytes(pendingBytes)}` : 'Downloaded'}
+        disabled={pendingBytes === 0}
+      >
+        {pendingBytes > 0 ? (
+          <CloudDownload size={19} color={theme.colors.textSecondary} />
+        ) : (
+          <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
+        )}
+      </IconButton>
+    ) : null
   const moreButton = (
     <View ref={headMenuRef} collapsable={false}>
       <IconButton
@@ -546,7 +577,11 @@ export function PlaylistDetailScreen(): ReactNode {
               <View style={styles.spacer} />
               {offlineButton}
               {manual && !emptyPlaylist ? (
-                <IconButton onPress={() => setAdding(true)} label="Add songs" testID="playlist-add-songs">
+                <IconButton
+                  onPress={() => setAdding(true)}
+                  label="Add songs"
+                  testID="playlist-add-songs"
+                >
                   <Plus size={20} color={theme.colors.textSecondary} />
                 </IconButton>
               ) : null}
@@ -564,7 +599,6 @@ export function PlaylistDetailScreen(): ReactNode {
           onEdit={() => setEditingRules(true)}
         />
       ) : null}
-
     </View>
   )
 
@@ -634,6 +668,8 @@ export function PlaylistDetailScreen(): ReactNode {
               keyboardDismissMode="none"
               CellRendererComponent={LiftedCell}
               onScroll={wide ? onListScroll : undefined}
+              onRefresh={pull.onRefresh}
+              refreshing={pull.refreshing}
             />
           </LiftContext.Provider>
 
@@ -720,10 +756,17 @@ export function PlaylistDetailScreen(): ReactNode {
           onPress={menuAction(() => {
             if (!playlist) return
             updatePlaylist.mutate({ id: playlist.id, patch: { pinned: !playlist.pinned } })
-            showToast(playlist.pinned ? `Unpinned ${playlist.name}` : `Pinned ${playlist.name}`, 'good')
+            showToast(
+              playlist.pinned ? `Unpinned ${playlist.name}` : `Pinned ${playlist.name}`,
+              'good',
+            )
           })}
         />
-        <SheetItem icon={menuIcon(Pencil)} label="Rename" onPress={menuAction(() => setRenaming(true))} />
+        <SheetItem
+          icon={menuIcon(Pencil)}
+          label="Rename"
+          onPress={menuAction(() => setRenaming(true))}
+        />
         <SheetItem
           icon={menuIcon(Pencil)}
           label={playlist?.description ? 'Edit description' : 'Add a description'}

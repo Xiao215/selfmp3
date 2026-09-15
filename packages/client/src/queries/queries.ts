@@ -195,6 +195,9 @@ export function useLibrary(): UseQueryResult<Library, Error> {
       }
     },
     staleTime: 30_000,
+    // Asked again on coming back to the app, once it is that old. Off for the
+    // app as a whole; the library is what a return is for.
+    refetchOnWindowFocus: true,
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
@@ -291,6 +294,7 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
  */
 function useLibraryMutation<TArgs, TResult>(
   fn: (args: TArgs) => Promise<TResult>,
+  failure?: string,
 ): UseMutationResult<TResult, Error, TArgs> {
   const client = useQueryClient()
   return useMutation({
@@ -298,7 +302,16 @@ function useLibraryMutation<TArgs, TResult>(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
+    ...failed(failure),
   })
+}
+
+/**
+ * What to say when an edit fails, for the app to show (`meta.failure`). Left
+ * out for an edit whose screen shows its own error, so nothing is said twice.
+ */
+function failed(failure: string | undefined): { meta?: { failure: string } } {
+  return failure === undefined ? {} : { meta: { failure } }
 }
 
 /**
@@ -311,6 +324,7 @@ function useLibraryMutation<TArgs, TResult>(
  */
 function useVoidLibraryMutation<TResult>(
   fn: () => Promise<TResult>,
+  failure?: string,
 ): UseMutationResult<TResult, Error, void> {
   const client = useQueryClient()
   return useMutation<TResult, Error, void>({
@@ -318,6 +332,7 @@ function useVoidLibraryMutation<TResult>(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
+    ...failed(failure),
   })
 }
 
@@ -355,7 +370,8 @@ const libraryFetching = (client: QueryClient): boolean =>
 
 export const useCreateTag = () => useLibraryMutation((name: string) => clientApi().createTag(name))
 
-export const useDeleteTag = () => useLibraryMutation((id: number) => clientApi().deleteTag(id))
+export const useDeleteTag = () =>
+  useLibraryMutation((id: number) => clientApi().deleteTag(id), 'Couldn’t delete the tag')
 
 export const useRenameTag = () =>
   useLibraryMutation(({ id, name }: { id: number; name: string }) =>
@@ -370,6 +386,7 @@ export function useSetTagHue() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ id, hue }: { id: number; hue: number }) => clientApi().setTagHue(id, hue),
+    meta: { failure: 'Couldn’t recolour the tag' },
     onMutate: async ({ id, hue }) => {
       const refetching = libraryFetching(client)
       await client.cancelQueries({ queryKey: queryKeys.library })
@@ -402,6 +419,7 @@ export function useSetSongTags() {
   return useMutation({
     mutationFn: ({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
       clientApi().setSongTags(songId, tagIds),
+    meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
       putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
     },
@@ -409,8 +427,10 @@ export function useSetSongTags() {
 }
 
 export const useBulkTag = () =>
-  useLibraryMutation((input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
-    clientApi().bulkTag(input),
+  useLibraryMutation(
+    (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
+      clientApi().bulkTag(input),
+    'Couldn’t tag those songs',
   )
 
 export function usePatchSong() {
@@ -425,8 +445,10 @@ export function usePatchSong() {
 }
 
 export const useDeleteSong = () =>
-  useLibraryMutation(({ id, deleteFile }: { id: number; deleteFile: boolean }) =>
-    clientApi().deleteSong(id, deleteFile),
+  useLibraryMutation(
+    ({ id, deleteFile }: { id: number; deleteFile: boolean }) =>
+      clientApi().deleteSong(id, deleteFile),
+    'Couldn’t delete the song',
   )
 
 /**
@@ -442,15 +464,20 @@ export const useBulkDeleteSongs = () =>
   )
 
 export const useBulkLoved = () =>
-  useLibraryMutation((input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input))
+  useLibraryMutation(
+    (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
+    'Couldn’t change the hearts',
+  )
 
-export const useScanLibrary = () => useVoidLibraryMutation(() => clientApi().scan())
+export const useScanLibrary = () =>
+  useVoidLibraryMutation(() => clientApi().scan(), 'Couldn’t scan the library')
 
 export function useUpdatePlaylist() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
       clientApi().updatePlaylist(id, patch),
+    meta: { failure: 'Couldn’t save the playlist' },
     onSuccess: (playlist, { id }) => {
       putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
       // New rules are new members.
@@ -460,7 +487,7 @@ export function useUpdatePlaylist() {
 }
 
 export const useDeletePlaylist = () =>
-  useLibraryMutation((id: number) => clientApi().deletePlaylist(id))
+  useLibraryMutation((id: number) => clientApi().deletePlaylist(id), 'Couldn’t delete the playlist')
 
 /**
  * Love / unlove, applied optimistically.
@@ -473,6 +500,7 @@ export function useToggleLoved() {
 
   return useMutation({
     mutationFn: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
+    meta: { failure: 'Couldn’t change the heart' },
 
     onMutate: async ({ id, loved }) => {
       const refetching = libraryFetching(client)
@@ -510,6 +538,7 @@ export function useUpdateSettings() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (patch: Parameters<Api['updateSettings']>[0]) => clientApi().updateSettings(patch),
+    meta: { failure: 'Couldn’t save the setting' },
     onSuccess: settings => {
       client.setQueryData(queryKeys.settings, settings)
     },
@@ -521,6 +550,7 @@ export function useAddToPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
       clientApi().addToPlaylist(playlistId, { songIds }),
+    meta: { failure: 'Couldn’t add to the playlist' },
     onSuccess: (playlist, { playlistId }) => {
       // The answer is the playlist with its new count and length; its members
       // are a question of their own.
@@ -535,6 +565,7 @@ export function useRemoveFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songId }: { playlistId: number; songId: number }) =>
       clientApi().removeFromPlaylist(playlistId, songId),
+    meta: { failure: 'Couldn’t take the song off the playlist' },
     onSuccess: (playlist, { playlistId }) => {
       putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
@@ -548,6 +579,7 @@ export function useRemoveManyFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
       clientApi().removeManyFromPlaylist(playlistId, songIds),
+    meta: { failure: 'Couldn’t take the songs off the playlist' },
     onSuccess: ({ playlist }, { playlistId }) => {
       const answered = new Date().toISOString()
       putInLibrary(client, library => (playlist ? withPlaylist(library, playlist, answered) : null))
@@ -627,6 +659,7 @@ export function useFixCovers() {
   return useMutation({
     mutationFn: (action: 'start' | 'cancel') =>
       action === 'start' ? clientApi().fixCoversStart() : clientApi().fixCoversCancel(),
+    meta: { failure: 'Couldn’t reach the cover fixing' },
     onSuccess: status => {
       client.setQueryData(queryKeys.fixCovers, status)
       void client.invalidateQueries({ queryKey: queryKeys.library })

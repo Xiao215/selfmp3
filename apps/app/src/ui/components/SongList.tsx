@@ -53,6 +53,8 @@ export function SongList({
   keyboardDismissMode = 'on-drag',
   CellRendererComponent,
   onScroll,
+  onRefresh,
+  refreshing = false,
 }: {
   songs: readonly Song[]
   renderSong: (info: { item: Song; index: number }) => ReactElement | null
@@ -82,6 +84,9 @@ export function SongList({
    * following it is no render).
    */
   onScroll?: FlatListProps<Song>['onScroll']
+  /** Pulling the list down asks for it again (`usePullToRefresh`). */
+  onRefresh?: () => void
+  refreshing?: boolean
 }): ReactNode {
   const getItemLayout = useMemo<FlatListProps<Song>['getItemLayout']>(
     () =>
@@ -108,6 +113,8 @@ export function SongList({
       style={style}
       contentContainerStyle={contentContainerStyle}
       ListHeaderComponent={header}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
       ListEmptyComponent={empty as ReactElement}
       CellRendererComponent={CellRendererComponent}
       onScroll={onScroll}

@@ -6,7 +6,8 @@ import { Stack, useGlobalSearchParams, usePathname, useRouter } from 'expo-route
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { failureText } from '@selfmp3/client'
 import TrackPlayer from 'react-native-track-player'
 import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
@@ -20,9 +21,11 @@ import { ConnectionProvider, useConnection } from '../src/connection/ConnectionP
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
+import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { AccentProvider } from '../src/ui/accent'
+import { showToast } from '../src/ui/toast'
 
 /**
  * The app shell.
@@ -38,7 +41,20 @@ void SplashScreen.preventAutoHideAsync()
 // Before the first paint, so no list is ever drawn with the browser's bar.
 hideScrollbars()
 
+// Coming back to the app is focus, for the queries that refetch on it.
+listenForAppFocus()
+
 const queryClient = new QueryClient({
+  // An edit that failed says so. Most are taps that leave nothing on screen to
+  // show an error — a heart, a tag, a song off a playlist — and failed without
+  // a word. Those carry what to say (`meta.failure`); an edit whose screen
+  // shows its own error carries nothing, and is left to it.
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const failure = mutation.meta?.['failure']
+      if (typeof failure === 'string') showToast(failureText(failure, error), 'error')
+    },
+  }),
   defaultOptions: {
     queries: {
       // The phone is often on a flaky link to the server at home. Retrying twice
@@ -137,8 +153,7 @@ function Shell(): ReactNode {
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
   const covered = pathname === '/now-playing' && modalCoversScreen
-  const chrome =
-    (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
+  const chrome = (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
   // Kept, not rebuilt: a new object here is new options for every screen in
   // the stack each time the shell renders.

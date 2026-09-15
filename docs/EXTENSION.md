@@ -1,6 +1,7 @@
 # The browser extension
 
-> **Status:** plan, 2026-09-15. Nothing is built. Written for an agent with this
+> **Status:** plan, 2026-09-15. Phase 0 is done (results below); nothing else
+> is built. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -100,6 +101,20 @@ The options page offers two ways in:
 
    The server's addresses and token come from `cloudServer()`, as they do for
    the app.
+
+   Sign-in starts from the **options page**, not the worker: `beginSignIn`
+   saves the attempt before opening the window, but the code comes back only in
+   the redirect, and a worker suspended during a slow Google sign-in would lose
+   it. The page lives as long as its tab. Connecting also opens the library
+   once, so the first download (1.3 MB gzipped at 5,000 songs) happens there
+   and not on the first popup.
+
+   After recording a change the background calls `flushCloudChanges()` straight
+   away, and opens the library whenever the worker starts with a non-empty
+   outbox: the 1.5 s timer does fire, but a worker stopped before it leaves the
+   change waiting for the next open. A write the doorman refuses is retried
+   under the same seq and never reported, so the popup shows an outbox that has
+   not emptied for a minute as not sent yet.
 2. **A server address and token** typed in, for a server with no bucket.
 
 Before a preview or an import, and each time the popup opens, the background
@@ -136,9 +151,19 @@ through it.
    139), with tests in `middleware.test.ts`. No other extension can claim that
    id, which is the same argument that lets `app://selfmp3` through. The private
    key is not needed for loading unpacked and stays out of the repo.
+
+   The key, generated in Phase 0 and used by every spike, gives the id
+   `ojgfoohmmkangonahnbdpelfgmkjkfpi`:
+
+   ```
+   MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwwt/kIPLmtnBQ1iOOLLzSGPmc+LEXLIYh4rABc6ieaSiM8dT9XQ9w68fpjweSCQ0XN6QNaN1LVO0pTeTy4MSHbfycnJYgfhZFGoHCNXJo9jr0v797Pys7fbGI8JO+56XW7Ixt7tZrMOelZhR34cpodGqVXgrLFfGPalpV6+eJeocfeaOv17Wu47azPCK+EGS3f3k9XHPY1OXQhw869cwGlKPFJErwH/2th7LcYxXfIrrIXCyQDyLnEX/ctnutfmIo1NLYn13E9q8dnyB4Q1PcXdXr4/bUsFFs0vKb7wqjrpi2Rv1WefK3CdOd+kcBFfqTVNyqoI8frAhKOrcRS7yiwIDAQAB
+   ```
 2. **Doorman.** Add `chrome-extension://<id>` and `https://<id>.chromiumapp.org`
    to `APP_ORIGINS` in both `[vars]` and `[env.dev.vars]`, with a `cors.test.ts`
-   case for each. Xiao redeploys by hand.
+   case for each. Xiao redeploys by hand. Both are required (Phase 0): Chromium
+   sends the extension's `Origin` on the claim and on every log `PUT`, and
+   `safeReturn` only follows a return address on the list. Google's console
+   needs no change.
 3. **Tidy titles in shared.** Move `cleanTitle`/`cleanArtist` to
    `packages/shared/src/titles.ts` (Migrate imports them from there), and add
    `tidyVideoTitle(title, channel)`:
@@ -221,7 +246,10 @@ already in the tree.
 | `host_permissions`: `https://www.youtube.com/*`, `https://music.youtube.com/*`, `https://m.youtube.com/*`, the doorman | the pill, oEmbed, sign-in |
 | `activeTab` | the popup reading the tab's link, without the "browsing history" warning `tabs` brings |
 | `storage`, `alarms`, `notifications`, `contextMenus`, `identity` | settings, the watcher, F1, B2, Google sign-in |
-| `optional_host_permissions`: `http://*/*`, `https://*/*` | asked for one server origin at a time, only if Phase 0 finds Chrome needs it |
+
+No host permission for the server: once it lets the extension's origin
+through, ordinary CORS reaches it, and Chrome's Local Network Access rules did
+not block the extension's own pages or worker (Phase 0).
 
 ---
 
@@ -263,16 +291,37 @@ understands from the share target.
 ## The pill (B1) and the menu (B2)
 
 - The content script runs on `www.youtube.com`, `m.youtube.com` and
-  `music.youtube.com`. YouTube never reloads between videos, so it re-checks on
-  `yt-navigate-finish` and on YouTube Music's player bar changing, with a
-  `MutationObserver` as the fallback.
-- **Where it goes** lives in `anchors.ts` alone: an ordered list of selectors
-  for the watch page's action row and YouTube Music's player bar. If none is
-  found within 5 seconds, there is no pill. It never throws into the page.
-- The pill is a custom element with a shadow root, so YouTube's CSS cannot reach
-  it and ours cannot leak out. Its states: **self.mp3** → **Importing 40%** →
-  **Added · Undo** (Undo cancels while the job can still be cancelled, for six
-  seconds) → **In library**.
+  `music.youtube.com`. The page kind comes from the URL alone (`pageKind`):
+  only `/watch?v=` gets a pill, whatever `list=` says. YouTube Music's album
+  links turn into `/playlist?list=OLAK5uy_…`, and its artists are `/@handle`.
+- **When to look again.** One `ensure()` runs at start; on the Navigation API's
+  `currententrychange` (available in the content script's world, fires within
+  10 ms of every URL change on all three sites, Back included); on
+  `yt-navigate-finish` on www as a backup; and from a `MutationObserver`
+  debounced to 200 ms. The observer matters: YouTube redraws the button row
+  1.1–1.7 s after each navigation and deletes whatever was put in it.
+- **Where it goes** lives in `anchors.ts` alone. The first *visible* match wins,
+  because the last watch page stays in the DOM, hidden:
+
+  | Site | In order |
+  |---|---|
+  | www | `ytd-watch-metadata #top-level-buttons-computed` (prepend, left of Like; repaired after each navigation) · `ytd-watch-metadata #owner` (append) · `ytd-watch-metadata #top-row` (append) |
+  | m. | `ytm-slim-video-action-bar-renderer .slim-video-action-bar-actions` (prepend) · `ytm-slim-video-action-bar-renderer` |
+  | music | `ytmusic-player-bar .right-controls-buttons` (prepend; visible during ads and at 800 px) · `ytmusic-player-bar .middle-controls-buttons` (hidden during ads and when narrow) |
+
+  Never a sibling of `#actions-inner` or `#menu`, where YouTube's CSS stretches
+  it. No visible anchor within 5 seconds means no pill, and there are at most
+  five repairs per URL: below ~600 px YouTube Music hides its bar, and an
+  uncapped observer loops. It never throws into the page.
+- The pill is `document.createElement('selfmp3-pill')` with a closed shadow
+  root and an inline layout style on the outer element: content scripts have no
+  `customElements`, and `:host` rules lose to YouTube's CSS. The video id is
+  read from `location` at click time, since the row lags the URL by a second.
+  Its states: **self.mp3** → **Importing 40%** → **Added · Undo** (Undo cancels
+  while the job can still be cancelled, for six seconds) → **In library**.
+- Unit tests use small hand-written fixtures of those structures in jsdom, with
+  `isVisible` and the navigation source passed in, since jsdom has neither
+  layout nor the Navigation API.
 - A click sends `quickImport {url}`. The background resolves the connection.
   Direct: preview, stop at "In library" if `alreadyHave`, otherwise enqueue
   with the tidied title, no tags (the worker adds the defaults), no playlist.
@@ -330,6 +379,20 @@ a written result for each in the progress log:
    across in-app navigation.
 
 **Gate:** results written. Stop and ask if 1 or 2 fails.
+
+**Result, 2026-09-15 (Playwright's Chromium 153, headless): all four pass.**
+The long form is in [universal-progress.md](universal-progress.md).
+
+| Question | Answer | What it changed |
+|---|---|---|
+| 1. Local network | The worker and extension pages reached loopback and a local-marked address with no Local Network Access block, preflight header or prompt. Chrome sends `Origin: chrome-extension://<id>` on every POST, with or without host permissions, so today's server answers 403. A content script on a public page is blocked before the request leaves. | Phase 1 item 1 is required; no host permission for the server; only the background talks to it |
+| 2. Sign-in | `launchWebAuthFlow` (`interactive: true`) returned `https://<id>.chromiumapp.org/#signin-code=…` with the fragment intact. The doorman's own code, with both addresses in `APP_ORIGINS`, redirects there and accepts the claim and the log `PUT`s; today it refuses both. The replica needs no change. | Sign-in from the options page |
+| 3. Replica in a worker | Runs unchanged. At 5,000 songs: cold open 150 ms (620 ms with 150 ms added per request), 45 ms after a worker restart, 3.9 MB of IndexedDB, a 36 KB gzipped bundle. No seq reused across worker and browser restarts; 600 concurrent `store.update`s from the worker and a page ended at 600. | The full replica, no log-only fallback; explicit flush; first open while connecting |
+| 4. Anchors | Exactly one pill on every watch page on all three sites, through sidebar clicks, Back and every page type; none elsewhere. | The pill section above |
+
+Not testable on this Mac: Tailscale (`100.x` and `https://….ts.net`), real
+Chrome 152 (it ignores `--load-extension`), real Google sign-in. They are in the
+by-hand list.
 
 ### Phase 1 — Groundwork (branch `extension/phase-1`)
 
@@ -407,13 +470,16 @@ Firefox (K2), Safari inside the Mac app (K3).
   from YouTube and from YouTube Music; a playlist with "Also create playlist";
   the pill on three videos in a row without reloading; a right-click import from
   a Reddit link; a batch notification; server asleep → "Waiting for your server"
-  → wake it → added.
+  → wake it → added. From the worker's DevTools, `GET /api/health` and a `POST`
+  to the server's `100.x` and `ts.net` addresses, expecting no prompt and no
+  address-space error. After the doorman deploy, Google sign-in from the options
+  page with an allowed and a refused account.
 
 ## Risks, and what retires them
 
 | Risk | Retired by |
 |---|---|
-| Chrome blocks an extension from `http://` local addresses | Spike 1; prefer the `ts.net` HTTPS address, or ask for that one origin |
+| Chrome blocks an extension from `http://` local addresses | Spike 1 found no block from the extension's own contexts in Chromium 153; Tailscale's `100.x` range in Chrome 152 is checked by hand, and the options page prefers the `ts.net` address if it fails |
 | YouTube's markup changes and the pill loses its place | The pill hides itself; the popup and the menu never depend on page markup |
 | MV3 suspends the worker and loses timers | Alarms as the backstop; flush the outbox straight after writing to it |
 | Replaying the snapshot is too heavy for a worker | Spike 3, and the log-file-only fallback |

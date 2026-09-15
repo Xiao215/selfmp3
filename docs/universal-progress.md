@@ -4358,3 +4358,116 @@ again. The cloud path — a bucket cover fetched while playing — goes through 
 same `coverFor` and the same refresh, and needs a signed-in phone to see. The
 gates: `npm run typecheck`, `npm run lint`, `npm run test` (173 files, 1701
 passed, 1 skipped) and `npm run check:app`.
+
+---
+
+# Browser extension
+
+The plan is [EXTENSION.md](EXTENSION.md): the first version Xiao chose from the
+lettered mocks on 2026-09-15 (A, B3, C, F1, I3, K1). Every run so far is on this
+Mac, in Playwright's Chromium, because Chrome 152 ignores `--load-extension`.
+
+## Phase 0 — the spike — scratch folders, nothing committed
+
+Four questions, each answered by a scrap MV3 extension loaded with the key the
+plan commits later (id `ojgfoohmmkangonahnbdpelfgmkjkfpi`), in Chromium
+153.0.8010.12 headless. All four pass; nothing in the plan's shape changed.
+
+### 1. Reaching a server on this machine
+
+Two unmodified servers from the worktree, one without `SELFMP3_CORS_ORIGINS`
+and one with the extension's origin in it, a header log on each, and 36 calls
+per variant from the worker, an extension page and a content script, to
+`localhost`, `127.0.0.1` and `192.0.0.2`.
+
+- The worker and an extension page behave the same. With host permissions a
+  `GET` carries no `Origin` and skips CORS; a `POST` carries
+  `Origin: chrome-extension://<id>` either way. Against a server that does not
+  allow it: `GET /api/health` 200, `POST /api/import/preview` **403** "that
+  request came from another site". Against one that does: 200 and 400 (the
+  bogus link), with or without host permissions — without them, one preflight
+  first. So the server change is required and a host permission is not.
+- A content script uses the page's origin. On a page Chromium counts as public
+  it is refused before sending ("Permission was denied for this request to
+  access the `loopback` address space") — the reason only the background talks
+  to the server.
+- Local Network Access did not touch the extension's own contexts: no block,
+  no `Access-Control-Request-Private-Network` header, no prompt, including
+  against an address forced to the local space.
+- Not tested: Tailscale's `100.x` range, `https://….ts.net`, Chrome 152, a
+  headed prompt.
+
+### 2. Google sign-in
+
+- The doorman's real `cors.ts` and auth routes, with a fake Google, under the
+  repo's vitest (8 of 8). With `chrome-extension://<id>` and
+  `https://<id>.chromiumapp.org` in `APP_ORIGINS`: the callback answers 302 to
+  `https://<id>.chromiumapp.org/#signin-code=…`, the preflight is 204, the
+  claim returns `signed-in`, a log `PUT` is 204. Today: the return is dropped
+  (the code page shows instead), and the preflight, claim and `PUT` are 403.
+  Another extension's `chromiumapp.org` address is not followed.
+- Chromium against a stub doorman: `launchWebAuthFlow` returned the redirect
+  with the fragment intact from the worker and from a page, through plain and
+  chained 302s, a JavaScript redirect (`interactive: true`) and a 40-second
+  wait. Closing the window rejects with "The user did not approve access."
+- `beginSignIn` saves the attempt before calling `openSignIn`, so the replica
+  needs no change — but the code exists only in the redirect, so a worker
+  suspended mid sign-in would lose it. Sign-in moves to the options page.
+
+### 3. The replica in a worker
+
+The replica bundled with esbuild into the worker (279 KB, 36 KB gzipped; zod is
+60 KB of it), a platform shim from `cloudPlatform.web.ts` and `idbStore.web.ts`
+with four members changed, and a fake doorman serving schema-valid snapshots.
+
+| | 36 songs | 5,000 songs |
+|---|---|---|
+| Cold open (`GET /api/cloud/server`) | 18–30 ms | 150 ms; 621 ms with 150 ms added per request |
+| After a worker restart | 6–7 ms | 42–46 ms |
+| After a browser restart | 20 ms | 60 ms |
+| IndexedDB | 59 KB | 3.6–3.9 MB |
+| `POST /api/cloud/imports` | 1–4 ms | 10–19 ms |
+
+- No `window`, `document` or `localStorage` needed. `/api/library` answered
+  with `sourceUrl`s, tags and playlists; `/api/cloud/imports` showed the new
+  request waiting.
+- Four log `PUT`s per size, seqs 1–4 on one device, all valid, with the right
+  `tagUids` and `playlistUid`: through the 1.5 s timer (which fired with no
+  debugger attached), an explicit flush after a worker restart, a worker
+  stopped 56 ms after the request (sent on the next open), and a browser
+  restart. 300 `store.update`s from the worker and 300 from a page on one key
+  ended at 600.
+- A `PUT` the doorman refuses is retried under the same seq and never reported.
+  Hence the explicit flush, opening the library when the worker starts with a
+  full outbox, and showing an outbox that has not emptied.
+- The spike reported a sorting bug between local and snapshot `requestedAt`.
+  It is not one: its synthetic snapshot used ISO times, but the server writes
+  requests with the same `toSqliteTime` the replica uses
+  (`cloudIngest.ts:295`, `sync.ts:317`).
+
+### 4. Where the pill goes
+
+`www.youtube.com`, `m.youtube.com` and `music.youtube.com`, signed out, no
+consent banner. YouTube Music refuses a user agent that says "Headless", so its
+runs send a normal one.
+
+- Exactly one pill on every watch page, through three sidebar clicks, Back,
+  and from channel, search, home and playlist pages into a watch page; removed
+  within 75 ms on leaving one. A full load places it in 2.2–4.5 s; watch to
+  watch updates its video id in 60–160 ms.
+- YouTube redraws the button row 1.1–1.7 s after each navigation and deletes a
+  pill in it; a debounced `MutationObserver` put it back every time. `#owner`
+  and `#top-row` were never redrawn. Siblings of `#actions-inner` or `#menu`
+  get stretched to ~500 px by YouTube's CSS, which also beats `:host` rules.
+- `window.customElements` is null in a content script; a plain
+  `selfmp3-pill` element with a shadow root works. The Navigation API is
+  there, and fires within 10 ms of every URL change on all three sites;
+  `yt-navigate-*` exist only on www.
+- YouTube Music: `.right-controls-buttons` stays visible during ads and at
+  800 px; `.middle-controls-buttons` hides for both. Below ~600 px the bar is
+  gone, and an uncapped repair looped four times a second. Its next button
+  replaces the history entry, so Back leaves YouTube Music. Album links become
+  `/playlist?list=OLAK5uy_…`; artists are `/@handle`.
+
+The anchor table, triggers and fixture shapes went into EXTENSION.md's pill
+section.

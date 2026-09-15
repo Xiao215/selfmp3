@@ -89,23 +89,24 @@ songs deleted by accident.
 
 ## The bar
 
-On a computer it is a sticky row at the head of the list, not a floating overlay — it pushes
-the songs down rather than sitting on them, and it is nowhere near the player bar, so the two
-can never be in each other's way. On a phone it sits at the bottom, within reach of a thumb,
-and the toast row (`apps/app/src/shell/Shell.tsx`) lifts above it.
+The bar floats over the list rather than sitting in it. In the page it pushed every row down
+by its own height the moment the first row was ticked, so the row you were about to tick next
+moved out from under the pointer; floating, no row moves.
 
-Left to right: the tri-state checkbox (select all / select none), the count, the scope, then
-the actions, then Done.
+On a computer it floats at the top, just under the page head, where the eye already is while
+ticking and where nothing competes — the foot of the window has the player bar and the
+toasts. On a phone it floats at the bottom, above the mini player or the tabs, where a thumb
+is, and the toast row (`apps/app/src/shell/Shell.tsx`) steps up above it.
+
+Left to right on a computer: the tri-state checkbox (select all / select none), the count,
+the scope, then the actions, then Done. On a phone the count, then Play, Queue, More and Done
+as icons on one line, with select all and a playlist's Remove moved into More.
 
 - **Play** and **Add to queue** are in the bar: frequent and harmless.
-- **Add tag…** is a dropdown in the bar at desktop width. On a phone it is only in the ⋯ sheet,
-  so the bar stays two lines rather than three.
-- **Remove from playlist** appears in the bar in a manual playlist. It is not in the ⋯ sheet
-  and never wears a bare ✕ — a second ✕ next to the bar's own would be two different exits in
-  the same glyph.
+- **Remove from playlist** appears in the bar in a playlist you picked the songs for.
 - **⋯ More** holds everything that edits the library: love / unlove, add to playlist, add and
   remove tag, download for offline / remove downloads, and last, separated and in red,
-  **Remove … from library**. It is a bottom sheet at phone width.
+  **Remove … from library**. It is a popover at desktop width and a bottom sheet on a phone.
 
 The count is also announced to assistive technology through a polite `aria-live` region, so a
 screen-reader user hears "3 songs selected" without hunting for it.

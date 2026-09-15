@@ -39,9 +39,10 @@ GET /api/songs/:id/lyrics/romanized
 
 ## Search by lyric
 
-Type at least three characters (two if they are Chinese or Japanese) into ⌘K
-and a **Lyrics** group appears with the best matching line per song, the match
-highlighted. Enter plays the song.
+Type at least three characters (two if they are Chinese or Japanese) into the
+search box — **Search** at the top of the sidebar, or `⌘K` in the desktop app,
+whose menu has a key for it — and a **Lyrics** group appears with the best
+matching line per song, the match highlighted. Enter plays the song.
 
 ```
 GET /api/lyrics/search?q=夜空&limit=12
@@ -58,12 +59,14 @@ lyrics are resolved, refreshed or saved, and a backfill runs after the boot scan
 have not been opened yet. `lyrics_index` remembers the hash each song was
 indexed from so re-indexing an unchanged song is one row lookup.
 
-## Instrumental songs
+## Songs with no words
 
 lrclib answers `instrumental: true` for tracks with no words. The server
 remembers that on the song as `Song.instrumental` (the `songs.instrumental`
-column), so a client can say "instrumental" instead of "no lyrics found", and
-the song is not looked up again every time it plays. It is a flag of its own
+column), so the app can say the song has no words rather than "no lyrics
+found" — and show it a visual instead of an empty page, see
+[now-playing.md](now-playing.md#songs-with-no-words) — and the song is not
+looked up again every time it plays. It is a flag of its own
 rather than a `lyricsKind` value: `lyricsKind: 'none'` only means nothing was
 found, the scanner rewrites `lyrics_kind` from the files on every rescan, and
 live playlists read `lyrics_kind != 'none'` as "has lyrics".
@@ -82,7 +85,7 @@ GET /api/songs/:id/lyrics
   lyrics, then lrclib: lyrics found are written as a sidecar and clear the flag
   (no screen in the app asks for this any more); an instrumental answer sets it and returns
   `404 instrumental`; nothing at all is the usual `404 not_found`.
-- Only lrclib's exact match is believed about a track being instrumental. The
+- Only lrclib's exact match is believed about a track having no words. The
   fuzzy search fallback readily returns the karaoke version of a song with
   words, and a wrong flag would stop the song from ever being looked up again.
 - Imports with lyric fetching on set the flag when lrclib says so.

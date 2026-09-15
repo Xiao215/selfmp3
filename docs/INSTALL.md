@@ -67,15 +67,23 @@ for your phone.
 
 ## On your phone
 
-Install self.mp3 to your home screen, download your library to the device, and it plays
-with the server asleep and in a bag.
+Two ways, and they are not alternatives so much as steps.
 
-That is its own walkthrough, because the interesting part is Tailscale and HTTPS rather
-than installation: **[docs/SETUP.md](SETUP.md)**. About twenty minutes, once.
+**A browser tab, over Tailscale.** The quickest: your phone reaches the server privately and
+plays from it, with everything the server can do — importing, Stats, the tag inbox. It
+streams, so the server has to be awake. That is its own walkthrough, because the interesting
+part is Tailscale and HTTPS rather than installation:
+**[docs/SETUP.md](SETUP.md)**. About twenty minutes, once.
 
-The short version: install Tailscale on both devices, run `tailscale serve --bg 4600` on
-the server, open the resulting `https://…ts.net` address in Safari, **Add to Home Screen**,
-then Settings → **Download everything**.
+The short version: install Tailscale on both devices, run `tailscale serve --bg 4600` on the
+server, and open the resulting `https://…ts.net` address. **Add to Home Screen** in Safari,
+or **Install app** in Chrome, gives it an icon and a full screen.
+
+**The app, for music with no signal.** A browser tab keeps no songs. The iPhone and Android
+app does: it signs in with Google, reads the library from your bucket
+([docs/SYNC.md](SYNC.md)) and downloads the audio to the device, so it plays with the server
+asleep and in a bag. You build it yourself from this repository —
+**[docs/MOBILE.md](MOBILE.md)** — which needs a Mac with Xcode for iOS, or the Android SDK.
 
 ---
 

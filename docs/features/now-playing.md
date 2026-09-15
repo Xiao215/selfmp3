@@ -61,7 +61,7 @@ A song never opens onto an empty page. When there are no lyrics, the words area 
 visual drawn from the song itself, with one line under it: *No lyrics · 140 BPM · A minor*,
 leaving out what is not known (`visualCaption`). "No lyrics" is one state — a saved answer
 that the song has no words and a lookup that found nothing look the same (see
-[lyrics-plus.md](lyrics-plus.md#instrumental-songs) for the flag the server keeps).
+[lyrics-plus.md](lyrics-plus.md#songs-with-no-words) for the flag the server keeps).
 **Style ▾** chooses another visual, or looks for lyrics again.
 
 Four visuals, drawn on a canvas each frame in a browser (`SongVisual.web.tsx`) and with

@@ -13,17 +13,20 @@ checked, on which simulator, and how.
 ## Using it
 
 First launch asks you to sign in with Google; the library is then the one in
-your bucket, and the server does not have to be running. The things that need
-the server itself (Stats, the tag inbox, looking metadata up, picking tracks
-while importing) are on the server's own page: its address in a browser.
+your bucket, and the server does not have to be running. The tabs are
+**Library · Playlists · Import · You**, where You holds Stats & report,
+Untagged, Tags and Settings. The things that need the server itself (Stats, the
+tag inbox, looking metadata up, picking tracks while importing) are missing from
+a cloud library and are on the server's own page: its address in a browser.
 
 ## Offline
 
 A phone downloads what it keeps: automatically on Wi-Fi if that is on, asking
 first on mobile data and over 500 MB, or by hand from a song or playlist. A
-downloaded song plays from disk; anything else streams while the server is
-reachable. A song removed by hand stays removed. The last library response is
-saved too, so the app opens and browses with no connection.
+downloaded song plays from disk; anything else streams from the bucket, or from
+the server when the app is pointed at one. A song removed by hand stays removed.
+The last library response is saved too, so the app opens and browses with no
+connection.
 
 ## In the car
 

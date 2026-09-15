@@ -1,0 +1,155 @@
+import { ApiError } from '@selfmp3/client/core'
+import { describe, expect, it } from 'vitest'
+import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
+import { createHandlers, explain, Refusal } from './handlers.js'
+
+const library = fixtureLibrary()
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+
+/** A server in a function: health for anyone, everything else for the token. */
+function fakeServer(token: string | null) {
+  const calls: string[] = []
+  const fetchImpl = (input: string, init: RequestInit = {}) => {
+    const url = new URL(input)
+    const route = `${init.method ?? 'GET'} ${url.pathname}`
+    calls.push(route)
+    if (url.hostname === 'asleep.example') return Promise.reject(new TypeError('fetch failed'))
+    const headers = (init.headers ?? {}) as Record<string, string>
+    const authorised = token === null || headers['Authorization'] === `Bearer ${token}`
+    if (route === 'GET /api/health') {
+      return Promise.resolve(
+        json(200, {
+          ok: true,
+          version: 'test',
+          uptimeSeconds: 1,
+          storageDriver: 'local',
+          songCount: 2,
+        }),
+      )
+    }
+    if (!authorised)
+      return Promise.resolve(json(401, { error: 'invalid token', code: 'unauthorized' }))
+    switch (route) {
+      case 'GET /api/library/version':
+        return Promise.resolve(json(200, { version: 1, songCount: library.songs.length }))
+      case 'GET /api/library':
+        return Promise.resolve(json(200, library))
+      case 'GET /api/settings':
+        return Promise.resolve(json(200, { defaultImportTagIds: [1] }))
+      default:
+        return Promise.resolve(json(404, { error: 'not found', code: 'not_found' }))
+    }
+  }
+  return { fetch: fetchImpl as unknown as typeof fetch, calls }
+}
+
+describe('connecting', () => {
+  it('makes a usable address of what was typed, and keeps its token', async () => {
+    const store = memoryStore()
+    const handlers = createHandlers({ store, fetch: fakeServer('secret').fetch })
+    const status = await handlers.connect({
+      type: 'connect',
+      baseUrl: 'localhost:4600',
+      token: ' secret ',
+    })
+    expect(status).toEqual({
+      server: { baseUrl: 'http://localhost:4600', hasToken: true },
+      reachable: true,
+      songCount: 2,
+    })
+    expect(await store.read('server')).toEqual({
+      baseUrl: 'http://localhost:4600',
+      token: 'secret',
+    })
+  })
+
+  it('refuses a bad address, a server that is not there and a wrong token, and keeps nothing', async () => {
+    const store = memoryStore()
+    const handlers = createHandlers({ store, fetch: fakeServer('secret').fetch })
+    const connect = (baseUrl: string, token: string | null) =>
+      handlers.connect({ type: 'connect', baseUrl, token })
+
+    await expect(connect('not an address', null)).rejects.toMatchObject({ status: 400 })
+    await expect(connect('https://asleep.example', null)).rejects.toMatchObject({ status: 0 })
+    await expect(connect('http://localhost:4600', 'wrong')).rejects.toMatchObject({
+      status: 401,
+      message: 'The server refused that token.',
+    })
+    await expect(connect('http://localhost:4600', null)).rejects.toMatchObject({
+      status: 401,
+      message: 'That server needs its token.',
+    })
+    expect(await store.read('server')).toBeNull()
+  })
+
+  it('says a stored server is away when it does not answer', async () => {
+    const store = memoryStore()
+    await store.write('server', { baseUrl: 'https://asleep.example', token: null })
+    const handlers = createHandlers({ store, fetch: fakeServer(null).fetch })
+    expect(await handlers.status({ type: 'status' })).toEqual({
+      server: { baseUrl: 'https://asleep.example', hasToken: false },
+      reachable: false,
+      songCount: null,
+    })
+  })
+})
+
+describe('asking about a link', () => {
+  async function connected() {
+    const store = memoryStore()
+    const server = fakeServer(null)
+    const handlers = createHandlers({ store, fetch: server.fetch })
+    await handlers.connect({ type: 'connect', baseUrl: 'http://localhost:4600', token: null })
+    return { handlers, calls: server.calls }
+  }
+
+  it('finds a song already imported by its video, reading the library once', async () => {
+    const { handlers, calls } = await connected()
+    expect(
+      await handlers.songFor({ type: 'songFor', url: 'https://youtu.be/YQHsXMglC9A' }),
+    ).toMatchObject({
+      title: 'Hello',
+      playCount: 41,
+    })
+    expect(await handlers.songFor({ type: 'songFor', url: HELLO_URL })).toMatchObject({ id: 1 })
+    expect(await handlers.songFor({ type: 'songFor', url: IDOL_URL })).toBeNull()
+    expect(await handlers.songFor({ type: 'songFor', url: 'https://example.com/' })).toBeNull()
+    expect(calls.filter(call => call === 'GET /api/library')).toHaveLength(1)
+  })
+
+  it('offers the manual playlists and the tags every import gets', async () => {
+    const { handlers } = await connected()
+    const choices = await handlers.choices({ type: 'choices' })
+    expect(choices.playlists.map(list => list.name)).toEqual(['Gym rotation'])
+    expect(choices.tags.map(tag => tag.name)).toEqual(['new', 'j-pop'])
+    expect(choices.defaultTagIds).toEqual([1])
+  })
+
+  it('asks for a server before it looks anything up', async () => {
+    const handlers = createHandlers({ store: memoryStore(), fetch: fakeServer(null).fetch })
+    await expect(handlers.preview({ type: 'preview', url: IDOL_URL })).rejects.toBeInstanceOf(
+      Refusal,
+    )
+  })
+})
+
+describe('explain', () => {
+  it('puts every failure in words a page can show', () => {
+    expect(explain(new ApiError(0, 'fetch failed', 'offline'))).toEqual({
+      message: 'Your server isn’t answering.',
+      status: 0,
+    })
+    expect(explain(new ApiError(401, 'invalid token'))).toMatchObject({ status: 401 })
+    expect(explain(new ApiError(422, 'This video is private.'))).toEqual({
+      message: 'This video is private.',
+      status: 422,
+    })
+    expect(explain(new Refusal('Connect first.', 428))).toEqual({
+      message: 'Connect first.',
+      status: 428,
+    })
+    expect(explain('odd')).toEqual({ message: 'Something went wrong.', status: 500 })
+  })
+})

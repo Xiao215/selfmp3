@@ -4527,3 +4527,75 @@ Two things this worktree was missing, neither from this change: the
 Electron's binary — npm 11 skips install scripts it has not been told to allow,
 so `apps/desktop`'s three test files failed to load until
 `node node_modules/electron/install.js` fetched it.
+
+## Phase 2 — the workspace, and the popup through the server — branch `extension/phase-2`
+
+`apps/extension` exists, and the popup imports the song a tab is on (A) through
+a server typed into its options page. No bucket, no pill, no badge yet.
+
+### What changed
+
+- **The workspace.** `apps/extension`, in the root tsconfig's graph (so
+  `npm run check` covers it), with `scripts/build.mjs` bundling three entry
+  points — the worker, the popup, the options page — and the two stylesheets
+  separately, because TypeScript checks what a side-effect import resolves to
+  and a `.css` file is not something it can. `npm run build:extension` and
+  `npm run verify:extension` at the root; the Dockerfile copies the new
+  manifest in both stages (Phase 1's deferred item).
+- **The bridge** (`src/bridge.ts`): a zod schema for every request and every
+  reply, a `Handlers` map typed by what each must answer, and a `serve` that
+  answers the extension's own pages only — `sender.url` must start with the
+  extension's own address, so a content script (Phase 4) cannot ask for the
+  token's work.
+- **The worker** holds the connection (IndexedDB, not `chrome.storage`, which
+  content scripts can read), the API client for it, the link index, and the
+  handlers. Connecting normalises what was typed, probes `/api/health`, then
+  asks `/api/library/version` — health answers anyone, so the version is what
+  says whether the token is right.
+- **The link index** keys each song by the video its `sourceUrl` names, so
+  "already in your library" is answered before yt-dlp is asked anything. It is
+  kept across worker restarts and re-read only when the server's version *and*
+  song count change: the version is a counter a restarted server starts again.
+- **The popup**: `popup.model.ts` turns five inputs into one state, and
+  `views.tsx` draws each. Connect, checking, away, paste, looking, song,
+  importing, added, failed, already-have, and a list that offers the app's full
+  review. The default import tags are drawn on and not untickable, because the
+  server adds them whatever the popup sends.
+- **The options page** connects and disconnects, and says how many songs the
+  server has when it answers.
+
+### Dependencies added
+
+| What | Pinned | Why |
+|---|---|---|
+| `@types/chrome` | ^0.3.0 | `chrome.*` in the worker and the pages |
+| `@types/react-dom` | ^19.2.7 | the popup's `createRoot` |
+| react, react-dom, @tanstack/react-query, zod, esbuild | the versions the repo already pins | the popup is React DOM, not React Native |
+
+All of them are devDependencies: esbuild puts what is used into the bundle, so
+the extension has no runtime dependencies, as the desktop shell has none.
+
+### The gates
+
+`npm run build:extension`, `npm run typecheck`, `npm run lint`,
+`npm run test` (179 files, 1745 passed, 1 skipped), `npm run check:app`, and
+`npm run verify:extension` — seven specs in Playwright's Chromium against a fake
+server: the popup asking to be connected, the options page refusing a wrong
+token, a song imported and followed through downloading to "Added to your
+library", a song already in the library (and no preview asked for it), a link
+the server cannot read, a playlist counted, and the paste box.
+
+The fake server keeps the real one's two rules — a write from an unknown origin
+is refused, and everything but `/api/health` needs the token — so the last
+assertion of the import spec is that the write arrived with
+`chrome-extension://<id>` as its origin, which is what Phase 1 taught the server
+to allow.
+
+### Worth knowing
+
+- Chrome 152 ignores `--load-extension`, so the specs run in Playwright's
+  Chromium. Loading it by hand in Chrome is still Xiao's check.
+- The popup seeds the queue with the job it just started rather than waiting for
+  the next read, or the song form would flash back for a second.
+- `popup.js` is 862 KB unminified (React and zod, mostly); the worker is 207 KB.
+  Nothing is minified yet — worth doing before a store listing, not before then.

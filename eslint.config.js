@@ -68,6 +68,8 @@ export default tseslint.config(
       // The shell's esbuild build and its development launcher: plain node,
       // outside every tsconfig, like the scripts above.
       'apps/desktop/scripts/**/*.mjs',
+      // The extension's esbuild build, likewise.
+      'apps/extension/scripts/**/*.mjs',
     ],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {

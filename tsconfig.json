@@ -18,6 +18,7 @@
     { "path": "./packages/client" },
     { "path": "./packages/desktop-bridge" },
     { "path": "./apps/desktop" },
+    { "path": "./apps/extension" },
     { "path": "./apps/server" },
     { "path": "./apps/doorman" }
   ]

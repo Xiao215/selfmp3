@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+
+    /*
+     * One project for the worker and the pages. The worker would rather have
+     * the WebWorker lib, but what it touches — `fetch`, `indexedDB`, timers,
+     * `chrome.*` — is typed the same in `DOM`, and a second project for one
+     * file is a second graph to keep in step. `chrome` comes from @types/chrome.
+     */
+    "lib": ["ES2023", "DOM"],
+    "types": ["chrome"],
+    "jsx": "react-jsx",
+
+    /* esbuild bundles the extension; tsc is here only as a type checker. */
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/replica" },
+    { "path": "../../packages/client" }
+  ]
+}

@@ -1,0 +1,250 @@
+import { enqueueRequest } from '@selfmp3/client/core'
+import type { ImportPreviewItem, ImportQueue } from '@selfmp3/shared'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, type ReactNode } from 'react'
+import { ask } from '../bridge.js'
+import { pageKind } from '../pageKind.js'
+import { currentPage } from './page.js'
+import {
+  cleanedFrom,
+  connectionOf,
+  jobForLink,
+  pageTitle,
+  popupView,
+  shouldLookUp,
+  sinceLine,
+  type Connection,
+  type PreviewState,
+} from './popup.model.js'
+import {
+  Added,
+  Away,
+  Checking,
+  Connect,
+  Failed,
+  Have,
+  Header,
+  Importing,
+  List,
+  Looking,
+  Paste,
+  QueueFooter,
+  SongForm,
+} from './views.js'
+
+/** How often the queue is read while something for this popup is importing. */
+const BUSY_POLL_MS = 1_000
+const IDLE_POLL_MS = 5_000
+
+const openOptions = (): void => {
+  void chrome.runtime.openOptionsPage()
+}
+
+/**
+ * The toolbar popup (A): the page's song — or the paste box — through to its
+ * import. What it shows is `popupView`'s; this gathers what that needs.
+ */
+export function Popup(): ReactNode {
+  const queryClient = useQueryClient()
+  const [typed, setTyped] = useState<string | null>(null)
+  const [importAnyway, setImportAnyway] = useState(false)
+  const [started, setStarted] = useState<ReadonlySet<string>>(() => new Set())
+
+  const page = useQuery({ queryKey: ['page'], queryFn: currentPage, staleTime: Infinity })
+  const status = useQuery({
+    queryKey: ['status'],
+    queryFn: () => ask({ type: 'status' }),
+    retry: false,
+  })
+
+  const connection: Connection =
+    page.isPending || status.isPending
+      ? 'checking'
+      : status.isError
+        ? 'away'
+        : connectionOf(status.data)
+  const ready = connection === 'ready'
+  const server = status.data?.server ?? null
+
+  const link = typed ?? page.data?.url ?? null
+  const kind = pageKind(link)
+  const lookUp = link !== null && shouldLookUp(kind, typed !== null)
+
+  const hitWanted = ready && lookUp && kind.kind === 'song'
+  const hit = useQuery({
+    queryKey: ['songFor', link],
+    queryFn: () => ask({ type: 'songFor', url: link ?? '' }),
+    enabled: hitWanted,
+    retry: false,
+  })
+  const hitValue = !hitWanted ? null : hit.isPending ? 'loading' : (hit.data ?? null)
+
+  const previewWanted = ready && lookUp && hitValue !== 'loading' && (!hitValue || importAnyway)
+  const preview = useQuery({
+    queryKey: ['preview', link],
+    queryFn: () => ask({ type: 'preview', url: link ?? '' }),
+    enabled: previewWanted,
+    retry: false,
+    staleTime: Infinity,
+  })
+  const previewState: PreviewState = !previewWanted
+    ? { status: 'idle' }
+    : preview.isPending
+      ? { status: 'loading' }
+      : preview.isError
+        ? { status: 'error', message: preview.error.message }
+        : { status: 'done', value: preview.data }
+
+  const queue = useQuery({
+    queryKey: ['queue'],
+    queryFn: () => ask({ type: 'queue' }),
+    enabled: ready,
+    refetchInterval: query => {
+      const data = query.state.data
+      return data && data.active + data.queued > 0 ? BUSY_POLL_MS : IDLE_POLL_MS
+    },
+  })
+  const job = jobForLink(queue.data?.jobs ?? [], link, started, new Date())
+
+  const view = popupView({
+    connection,
+    link,
+    typed: typed !== null,
+    page: kind,
+    hit: hitValue,
+    preview: previewState,
+    job,
+    importAnyway,
+  })
+
+  const choices = useQuery({
+    queryKey: ['choices'],
+    queryFn: () => ask({ type: 'choices' }),
+    enabled: view.name === 'song',
+  })
+
+  const enqueue = useMutation({
+    mutationFn: ({
+      item,
+      tagIds,
+      playlistId,
+    }: {
+      item: ImportPreviewItem
+      tagIds: number[]
+      playlistId: number | null
+    }) =>
+      ask({
+        type: 'enqueue',
+        request: enqueueRequest(
+          { items: [item], chosen: new Set([0]), playlistTitle: null },
+          { tagIds: new Set(tagIds), playlistId, createPlaylist: false },
+        ),
+      }),
+    onSuccess: result => {
+      setStarted(previous => new Set([...previous, ...result.jobs.map(each => each.id)]))
+      setImportAnyway(false)
+      // Show the new job at once rather than after the next read of the queue.
+      queryClient.setQueryData<ImportQueue>(['queue'], previous => ({
+        jobs: [...result.jobs, ...(previous?.jobs ?? [])],
+        active: previous?.active ?? 0,
+        queued: (previous?.queued ?? 0) + result.jobs.length,
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['queue'] })
+    },
+  })
+
+  const jobAction = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'cancel' | 'retry' }) =>
+      ask({ type: action, id }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['queue'] }),
+  })
+
+  const openApp = (path: string): void => {
+    if (server) void chrome.tabs.create({ url: `${server.baseUrl}${path}` })
+  }
+
+  const tabTitle = typed === null ? pageTitle(page.data?.title) : null
+
+  const body = ((): ReactNode => {
+    switch (view.name) {
+      case 'checking':
+        return <Checking />
+      case 'connect':
+        return <Connect onOptions={openOptions} />
+      case 'away':
+        return <Away onRetry={() => void status.refetch()} onOptions={openOptions} />
+      case 'paste':
+        return (
+          <Paste
+            recent={(queue.data?.jobs ?? []).filter(each => each.status === 'done').slice(0, 5)}
+            onLookUp={setTyped}
+          />
+        )
+      case 'looking':
+        return <Looking title={tabTitle} />
+      case 'song':
+        return (
+          <SongForm
+            key={view.item.url}
+            item={view.item}
+            cleanedFrom={cleanedFrom(tabTitle, view.item.title)}
+            choices={choices.data}
+            pending={enqueue.isPending}
+            error={enqueue.error?.message ?? null}
+            onImport={(item, tagIds, playlistId) => enqueue.mutate({ item, tagIds, playlistId })}
+          />
+        )
+      case 'importing':
+        return (
+          <Importing
+            job={view.job}
+            cancelling={jobAction.isPending}
+            onCancel={() => jobAction.mutate({ id: view.job.id, action: 'cancel' })}
+          />
+        )
+      case 'added':
+        return <Added job={view.job} onOpen={() => openApp('/import')} />
+      case 'failed': {
+        const { jobId } = view
+        return (
+          <Failed
+            message={view.message}
+            canRetry={jobId !== null}
+            retrying={jobAction.isPending || preview.isFetching}
+            onRetry={() =>
+              jobId ? jobAction.mutate({ id: jobId, action: 'retry' }) : void preview.refetch()
+            }
+          />
+        )
+      }
+      case 'have':
+        return (
+          <Have
+            title={view.title}
+            artist={view.artist}
+            cover={view.cover}
+            line={view.hit ? sinceLine(view.hit, new Date()) : 'Already in your library'}
+            onOpen={() => openApp('/')}
+            onImportAnyway={() => setImportAnyway(true)}
+          />
+        )
+      case 'list':
+        return (
+          <List
+            title={view.title}
+            count={view.count}
+            have={view.have}
+            onReview={() => openApp(`/import?url=${encodeURIComponent(link ?? '')}`)}
+          />
+        )
+    }
+  })()
+
+  return (
+    <div className="popup">
+      <Header baseUrl={server?.baseUrl ?? null} connection={connection} onOptions={openOptions} />
+      <main className="body">{body}</main>
+      {ready && <QueueFooter queue={queue.data} onOpen={() => openApp('/import')} />}
+    </div>
+  )
+}

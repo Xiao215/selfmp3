@@ -1,0 +1,25 @@
+{
+  "name": "@selfmp3/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The browser extension: import the song you are on into your self.mp3 library.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --build",
+    "verify": "playwright test -c verify/playwright.config.ts",
+    "clean": "rm -rf dist dist-types tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@selfmp3/client": "*",
+    "@selfmp3/shared": "*",
+    "@tanstack/react-query": "^5.62.11",
+    "@types/chrome": "^0.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "esbuild": "^0.28.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^3.24.1"
+  }
+}

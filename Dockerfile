@@ -24,6 +24,7 @@ COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
+COPY apps/extension/package.json apps/extension/
 # No install scripts: the web export needs none of them (the Pages build does
 # the same), and the native modules are the server's and the phone's.
 RUN npm ci --ignore-scripts --no-audit --no-fund
@@ -59,6 +60,7 @@ COPY packages/desktop-bridge/package.json packages/desktop-bridge/
 COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
+COPY apps/extension/package.json apps/extension/
 # Only the server's workspaces, plus the root's tooling (TypeScript) to build
 # them: Expo and React Native never enter this stage.
 RUN npm ci --workspace @selfmp3/shared --workspace @selfmp3/server --include-workspace-root \

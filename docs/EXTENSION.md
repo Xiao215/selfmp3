@@ -1,7 +1,8 @@
 # The browser extension
 
-> **Status:** plan, 2026-09-15. Phase 0 (the spike) and Phase 1 (groundwork,
-> branch `extension/phase-1`) are done; the extension itself is not built yet. Written for an agent with this
+> **Status:** 2026-09-15. Phase 0 (the spike), Phase 1 (groundwork) and Phase 2
+> (the workspace, and A through the server, branch `extension/phase-2`) are
+> done. Phases 3 to 6 are still the plan below. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -193,7 +194,7 @@ through it.
 apps/extension/                          NEW
   package.json          @selfmp3/extension; build, dev, typecheck, verify
   tsconfig.json         lib ES2023+DOM, types chrome, jsx react-jsx, bundler resolution
-  tsconfig.worker.json  lib ES2023+WebWorker, for background.ts (like apps/app/tsconfig.sw.json)
+  (no separate worker tsconfig: the worker shares the pages' project)
   manifest.json         MV3; key; permissions below
   scripts/build.mjs     esbuild, in the style of apps/desktop/scripts/build.mjs
   scripts/zip.mjs       dist → selfmp3-extension-<version>.zip
@@ -216,9 +217,10 @@ apps/extension/                          NEW
       pill.ts           shadow-root element, states
     popup/
       main.tsx          popup.html and review.html share it
+      Popup.tsx         what it asks for, and which state it draws
       popup.model.ts    pure: inputs → the state to draw
-      screens/          Song.tsx, Playlist.tsx, States.tsx, Paste.tsx
-      parts/            Header, ConnectionPill, TagChips, PlaylistSelect, QueueFooter
+      page.ts           the tab's link and title, or the one given as ?url=
+      views.tsx         each state drawn: header, song form, queue footer
       popup.css         tokens copied from packages/client/src/theme/tokens.reference.css
     options/
       main.tsx          connect, disconnect, the pill on or off
@@ -410,6 +412,13 @@ page (address and token only).
 **Gate:** `npm run check`, `npm run build:extension`, `npm run verify:extension`
 (popup spec against the fake server: song → import → importing → added; already
 have; error).
+
+**Done, 2026-09-15.** Seven specs pass against the fake server, the last of them
+proving the write leaves with the extension's own origin. Two things came out
+differently from the tree above: the popup's states are drawn by one `views.tsx`
+rather than `screens/` and `parts/` folders, and the worker shares the pages'
+tsconfig — what it touches is typed the same in `DOM`, so a second project for
+one file would have been a second graph to keep in step.
 
 ### Phase 3 — C, F1 and B2
 

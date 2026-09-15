@@ -1,0 +1,48 @@
+@import '../ui/theme.css';
+
+body {
+  background: var(--surface-0);
+}
+
+.options {
+  display: grid;
+  gap: 16px;
+  max-width: 520px;
+  margin: 48px auto;
+  padding-inline: 20px;
+}
+
+.options h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.lede {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.card p {
+  margin: 0;
+}
+
+.options .primary,
+.options .secondary {
+  justify-self: start;
+  width: auto;
+  padding-inline: 18px;
+}

@@ -12,12 +12,17 @@ import { TopEntrySchema, TopSongSchema } from './stats.js'
  * and a window straddling eight dates would contradict its own label.
  */
 
-export const WrappedRangeSchema = z.enum(['week', 'month', 'year', 'all'])
+/**
+ * `quarter` is three months, counted as ninety days: Stats offers the same
+ * window, and the two pages share one range control.
+ */
+export const WrappedRangeSchema = z.enum(['week', 'month', 'quarter', 'year', 'all'])
 export type WrappedRange = z.infer<typeof WrappedRangeSchema>
 
 export const WRAPPED_RANGE_LABELS: Record<WrappedRange, string> = {
   week: 'Last 7 days',
   month: 'Last 30 days',
+  quarter: 'Last 3 months',
   year: 'Last 12 months',
   all: 'All time',
 }
@@ -25,6 +30,7 @@ export const WRAPPED_RANGE_LABELS: Record<WrappedRange, string> = {
 export const WRAPPED_RANGE_DAYS: Record<WrappedRange, number | null> = {
   week: 7,
   month: 30,
+  quarter: 90,
   year: 365,
   all: null,
 }

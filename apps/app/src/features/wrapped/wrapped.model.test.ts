@@ -14,6 +14,7 @@ import {
   rankShare,
   repeatNote,
   shareFileName,
+  showDiscovered,
   tryLabel,
   weekdayName,
   WRAPPED_RANGES,
@@ -65,10 +66,12 @@ describe('wrapped', () => {
   })
 
   it('offers only longer windows when one is empty', () => {
-    expect(WRAPPED_RANGES).toEqual(['week', 'month', 'year', 'all'])
-    expect(longerRanges('week')).toEqual(['month', 'year', 'all'])
+    expect(WRAPPED_RANGES).toEqual(['week', 'month', 'quarter', 'year', 'all'])
+    expect(longerRanges('week')).toEqual(['month', 'quarter', 'year', 'all'])
     expect(longerRanges('all')).toEqual([])
     expect(tryLabel('year')).toBe('Try year')
+    expect(tryLabel('quarter')).toBe('Try 3 months')
+    expect(emptyHint('quarter')).toMatch(/last 3 months/)
     expect(emptyTitle('all')).toBe('Nothing in your history yet')
     expect(emptyTitle('week')).toBe('Nothing in this window yet')
     expect(emptyHint('week')).toMatch(/last 7 days/)
@@ -88,6 +91,25 @@ describe('wrapped', () => {
         },
       }),
     ).toBe('04')
+  })
+
+  it('leaves Discovered out when it would repeat Top songs', () => {
+    const song = (songId: number) => ({
+      songId,
+      title: `Song ${songId}`,
+      artist: '',
+      hasArt: false,
+      plays: 3,
+      minutes: 9,
+    })
+    const top = [song(1), song(2)]
+    expect(showDiscovered({ topSongs: top, discovered: [song(1), song(2)] })).toBe(false)
+    // The same songs in another order, one more, or one fewer: a different list.
+    expect(showDiscovered({ topSongs: top, discovered: [song(2), song(1)] })).toBe(true)
+    expect(showDiscovered({ topSongs: top, discovered: [song(1), song(2), song(3)] })).toBe(true)
+    expect(showDiscovered({ topSongs: top, discovered: [song(1)] })).toBe(true)
+    // Nothing discovered keeps its chapter, which says why.
+    expect(showDiscovered({ topSongs: [], discovered: [] })).toBe(true)
   })
 
   it('draws a ranked bar for every row, never too thin to see', () => {

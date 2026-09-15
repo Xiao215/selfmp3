@@ -567,7 +567,8 @@ test.describe('reference', () => {
     await shot(page, project, 'stats-bottom')
 
     await page.goto('/stats/report')
-    await page.getByRole('heading', { name: 'Wrapped', exact: true }).waitFor({ timeout: 30_000 })
+    // The same Stats page, opened on its Report tab.
+    await page.getByRole('heading', { name: 'Stats', exact: true }).waitFor({ timeout: 30_000 })
     await dismissToasts(page)
     await restMouse(page)
     await settle(page, 1500)

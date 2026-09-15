@@ -1,4 +1,4 @@
-import type { DailyPlays, HourlyPlays, StatsRange } from '@selfmp3/shared'
+import type { DailyPlays, HourlyPlays, StatsRange, WrappedRange } from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen: the web's `StatsView` rules.
@@ -8,19 +8,66 @@ import type { DailyPlays, HourlyPlays, StatsRange } from '@selfmp3/shared'
  * with tiles rather than charts, because most of these answers are one number.
  */
 
-export const STATS_RANGES: readonly StatsRange[] = ['7d', '30d', '90d', '365d', 'all']
+/** The page's two halves: the numbers, and the story told with them. */
+export type StatsTab = 'overview' | 'report'
 
-const RANGE_BUTTON_LABELS: Record<StatsRange, string> = {
-  '7d': '7d',
-  '30d': '1m',
-  '90d': '3m',
-  '365d': '1y',
+export const STATS_TABS: readonly { value: StatsTab; label: string }[] = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'report', label: 'Report' },
+]
+
+/**
+ * The one window both tabs share. Overview and Report were two pages with two
+ * range controls that named the same windows differently ("1m" and "Month")
+ * and forgot the choice on the way between them.
+ */
+export type StatsPeriod = 'week' | 'month' | 'quarter' | 'year' | 'all'
+
+export const STATS_PERIODS: readonly StatsPeriod[] = ['week', 'month', 'quarter', 'year', 'all']
+
+const PERIOD_LABELS: Record<StatsPeriod, string> = {
+  week: 'Week',
+  month: 'Month',
+  quarter: '3 months',
+  year: 'Year',
+  all: 'All time',
+}
+
+/** Five choices fit a phone's width only in short. */
+const PERIOD_SHORT: Record<StatsPeriod, string> = {
+  week: 'Wk',
+  month: 'Mo',
+  quarter: '3 mo',
+  year: 'Yr',
   all: 'All',
 }
 
-/** "7d", "1m", "3m", "1y", "All": short, and in the units people count them in. */
-export function rangeButtonLabel(range: StatsRange): string {
-  return RANGE_BUTTON_LABELS[range]
+/** "3 months" with room for it; "3 mo" on a phone. */
+export function periodLabel(period: StatsPeriod, wide: boolean): string {
+  return (wide ? PERIOD_LABELS : PERIOD_SHORT)[period]
+}
+
+const STATS_RANGE_OF: Record<StatsPeriod, StatsRange> = {
+  week: '7d',
+  month: '30d',
+  quarter: '90d',
+  year: '365d',
+  all: 'all',
+}
+
+/** The window as the stats endpoint names it. */
+export function statsRangeFor(period: StatsPeriod): StatsRange {
+  return STATS_RANGE_OF[period]
+}
+
+/** The window as the report endpoint names it: the same words, as it happens. */
+export function wrappedRangeFor(period: StatsPeriod): WrappedRange {
+  return period
+}
+
+/** And back, for the report's "Try a longer window" buttons. */
+export function periodOfWrapped(range: WrappedRange): StatsPeriod {
+  return range
 }
 
 export interface ColumnDatum {

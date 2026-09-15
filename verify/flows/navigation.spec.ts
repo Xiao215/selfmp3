@@ -39,6 +39,45 @@ test.describe('navigation', () => {
     ).toBeVisible({ timeout: 30_000 })
   })
 
+  test('a phone reaches Tags and Settings from You, and comes back', async ({ page }, info) => {
+    test.skip(info.project.name !== 'phone', 'You is a phone’s tab; a computer has the sidebar')
+    await page.goto('/')
+    await libraryReady(page)
+
+    await page.getByRole('tab', { name: 'You', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
+    await page.getByRole('link', { name: /^Tags/ }).click()
+    await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Back to You' }).click()
+    await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
+
+    await page.getByRole('link', { name: /^Settings/ }).click()
+    await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
+      timeout: 30_000,
+    })
+    // Settings is one of You's pages, so You stays lit.
+    await expect(page.getByRole('tab', { name: 'You', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  test('a phone shows one tag’s songs from Tags', async ({ page }, info) => {
+    test.skip(info.project.name !== 'phone', 'a computer filters by tag from its sidebar')
+    await page.goto('/tags')
+    await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
+      timeout: 30_000,
+    })
+    const tag = page.getByRole('button', { name: /, [\d,]+ songs?$/ }).first()
+    await expect(tag.or(page.getByText(/No tags yet/))).toBeVisible({ timeout: 30_000 })
+    test.skip(!(await tag.isVisible()), 'needs a tag in the dev library')
+
+    await tag.click()
+    await expect(page).toHaveURL(/\/$/)
+    await libraryReady(page)
+    await expect(page.getByText('Filtered by')).toBeVisible()
+  })
+
   test('the library is still there afterwards', async ({ page }) => {
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({

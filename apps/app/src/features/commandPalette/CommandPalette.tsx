@@ -45,7 +45,7 @@ import {
   type PaletteCommandId,
   type PaletteResults,
   type RecentItem,
-} from './palette.model'
+} from './commandPalette.model'
 
 interface Entry {
   readonly key: string

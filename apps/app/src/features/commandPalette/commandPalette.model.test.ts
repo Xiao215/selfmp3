@@ -9,7 +9,7 @@ import {
   stepIndex,
   type RecentItem,
   untaggedCount,
-} from './palette.model'
+} from './commandPalette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
   ({ id, title, artist, album: '', tagIds: [7], missing: false }) as never

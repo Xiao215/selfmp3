@@ -170,6 +170,8 @@ describe('import queue', () => {
   it('offers cancel while going, retry after, and nothing when done', () => {
     expect(jobAction(job({ status: 'queued' }))).toBe('cancel')
     expect(jobAction(job({ status: 'running', step: 'downloading' }))).toBe('cancel')
+    // The song is already on its way into the library: the server refuses.
+    expect(jobAction(job({ status: 'running', step: 'saving' }))).toBeNull()
     expect(jobAction(job({ status: 'error', step: 'downloading' }))).toBe('retry')
     expect(jobAction(job({ status: 'cancelled' }))).toBe('retry')
     expect(jobAction(job({ status: 'error', step: 'uploading' }))).toBe('try-now')

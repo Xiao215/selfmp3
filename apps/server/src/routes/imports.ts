@@ -232,7 +232,7 @@ export function importRoutes(container: Container): Router {
     '/import/jobs/:id/cancel',
     route({ params: ParamsWithJobId }, ({ params }) => {
       if (!container.importQueue.cancel(params.id)) {
-        throw HttpError.conflict('that job has already finished')
+        throw HttpError.conflict('that job is already adding its song, or has finished')
       }
       return { ok: true as const }
     }),

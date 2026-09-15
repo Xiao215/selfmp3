@@ -107,9 +107,13 @@ export class ImportRepository {
       LIMIT ?
     `)
 
-    this.#nextQueued = db.prepare<[], ImportJobRow>(
-      "SELECT * FROM import_jobs WHERE status = 'queued' ORDER BY position, created_at LIMIT 1",
-    )
+    // The parameter is a JSON array of job ids to pass over for now.
+    this.#nextQueued = db.prepare<[string], ImportJobRow>(`
+      SELECT * FROM import_jobs
+       WHERE status = 'queued' AND id NOT IN (SELECT value FROM json_each(?))
+       ORDER BY position, created_at
+       LIMIT 1
+    `)
 
     this.#countByStatus = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM import_jobs WHERE status = ?',
@@ -185,9 +189,10 @@ export class ImportRepository {
     return this.#recent.all(limit).map(toJob)
   }
 
-  claimNext(): ImportJob | null {
+  /** The next queued job, passing over `waiting`: jobs held back before a retry. */
+  claimNext(waiting: readonly string[] = []): ImportJob | null {
     const run = this.#db.transaction(() => {
-      const row = this.#nextQueued.get()
+      const row = this.#nextQueued.get(JSON.stringify(waiting))
       if (!row) return null
       this.#db
         .prepare(
@@ -243,10 +248,18 @@ export class ImportRepository {
     }
   }
 
+  /**
+   * Cancel a job that has not started adding its song. Past the download the
+   * song is moved into the library, tagged and uploaded; a cancel marked then
+   * was written over when the job finished anyway, and the song was added all
+   * the same.
+   */
   cancel(id: string): boolean {
     const info = this.#db
       .prepare(
-        "UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now') WHERE id = ? AND status IN ('queued','running')",
+        `UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now')
+          WHERE id = ?
+            AND (status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading')))`,
       )
       .run(id)
     return info.changes > 0

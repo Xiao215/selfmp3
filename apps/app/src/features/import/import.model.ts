@@ -55,7 +55,12 @@ export function jobSubtitle(
 export type JobAction = 'cancel' | 'retry' | 'try-now' | null
 
 export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
-  if (job.status === 'queued' || job.status === 'running') return 'cancel'
+  if (job.status === 'queued') return 'cancel'
+  // Past the download the song is on its way into the library, and the server
+  // no longer takes a cancel for it.
+  if (job.status === 'running') {
+    return job.step === 'resolving' || job.step === 'downloading' ? 'cancel' : null
+  }
   if (job.status === 'error' || job.status === 'cancelled') {
     return waitingToUpload(job) ? 'try-now' : 'retry'
   }

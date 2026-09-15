@@ -79,6 +79,8 @@ export class ImportQueueService {
   readonly #inFlight = new Map<string, AbortController>()
   /** Library folders handed to imports that have not written their file yet. */
   readonly #claimedFolders = new Set<string>()
+  /** Jobs waiting out the delay before a retry: id → when they may run again. */
+  readonly #retryAt = new Map<string, number>()
   #activeCount = 0
   #draining = false
   #stopped = false
@@ -141,14 +143,16 @@ export class ImportQueueService {
   }
 
   cancel(jobId: string): boolean {
-    const controller = this.#inFlight.get(jobId)
-    controller?.abort()
-    const cancelled = this.#imports.cancel(jobId)
-    if (cancelled) this.kick()
-    return cancelled
+    // The database says whether it is too late; only then is the work stopped.
+    if (!this.#imports.cancel(jobId)) return false
+    this.#inFlight.get(jobId)?.abort()
+    this.#retryAt.delete(jobId)
+    this.kick()
+    return true
   }
 
   retry(jobId: string): boolean {
+    this.#retryAt.delete(jobId)
     const retried = this.#imports.retry(jobId)
     if (retried) this.kick()
     return retried
@@ -167,8 +171,11 @@ export class ImportQueueService {
 
     try {
       const limit = this.#settings.get().importConcurrency
+      const now = Date.now()
+      for (const [id, at] of this.#retryAt) if (at <= now) this.#retryAt.delete(id)
+      const waiting = [...this.#retryAt.keys()]
       while (this.#activeCount < limit && !this.#stopped) {
-        const job = this.#imports.claimNext()
+        const job = this.#imports.claimNext(waiting)
         if (!job) break
 
         this.#activeCount++
@@ -228,7 +235,12 @@ export class ImportQueueService {
       if (attempts < MAX_ATTEMPTS && (uploading || isRetryable(message))) {
         this.#logger.warn('import failed, will retry', { message, attempt: attempts })
         this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: message })
-        setTimeout(() => this.kick(), RETRY_DELAY_MS)
+        // Held back until then. The slot this job frees is refilled at once,
+        // and it was the first in line: without the wait, it took the slot
+        // straight back, and all its attempts were spent inside a second.
+        const delay = RETRY_DELAY_MS * attempts
+        this.#retryAt.set(job.id, Date.now() + delay)
+        setTimeout(() => this.kick(), delay)
         return
       }
 
@@ -353,6 +365,9 @@ export class ImportQueueService {
     try {
       // --- move into the library -------------------------------------------
 
+      // The last moment a cancel can stop this. Past here the song goes into
+      // the library, and the queue no longer takes one (ImportRepository.cancel).
+      signal.throwIfAborted()
       this.#imports.update(job.id, { step: 'converting', progress: null })
 
       libraryKey = await this.#claimLibraryKey(name, path.extname(downloaded))

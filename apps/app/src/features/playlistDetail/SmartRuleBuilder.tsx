@@ -149,26 +149,24 @@ export function SmartRuleBuilder({
   return (
     <View style={[styles.builder, bare && styles.bare]} testID="rule-builder">
       <View style={[styles.head, !wide && styles.headCompact]}>
-        <View style={styles.sentence}>
-          <Sparkles size={16} color={accent.accent} />
-          {/* All or any only means something once there are two rules to join. */}
-          {rules.rules.length >= 2 ? (
-            <>
-              <Text style={styles.sentenceText}>Match</Text>
-              <Select
-                size="inline"
-                value={rules.match}
-                options={[
-                  { value: 'all', label: 'all' },
-                  { value: 'any', label: 'any' },
-                ]}
-                onChange={match => setRules(current => ({ ...current, match }))}
-                label="Match all or any rule"
-              />
-              <Text style={styles.sentenceText}>of these rules</Text>
-            </>
-          ) : null}
-        </View>
+        {/* All or any only means something once there are two rules to join. */}
+        {rules.rules.length >= 2 ? (
+          <View style={styles.sentence}>
+            <Sparkles size={16} color={accent.accent} />
+            <Text style={styles.sentenceText}>Match</Text>
+            <Select
+              size="inline"
+              value={rules.match}
+              options={[
+                { value: 'all', label: 'all' },
+                { value: 'any', label: 'any' },
+              ]}
+              onChange={match => setRules(current => ({ ...current, match }))}
+              label="Match all or any rule"
+            />
+            <Text style={styles.sentenceText}>of these rules</Text>
+          </View>
+        ) : null}
         <View
           style={[
             styles.count,

@@ -177,7 +177,8 @@ export function PlaylistsScreen(): ReactNode {
           </>
         ) : null}
 
-        {wide ? null : (
+        {/* Nothing to sort while the library has not loaded. */}
+        {wide || model.unreachable ? null : (
           <View style={styles.sectionRow}>
             <Text style={styles.section}>ALL PLAYLISTS</Text>
             {sortSelect}

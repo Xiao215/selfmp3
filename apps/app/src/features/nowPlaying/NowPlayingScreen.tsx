@@ -677,7 +677,13 @@ function FootAction({
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
     >
       {icon}
-      <Text style={[styles.actionLabel, active && { color: songColor.color }]} numberOfLines={1}>
+      {/* Six across a phone: "Downloaded" shrinks a little rather than losing its end. */}
+      <Text
+        style={[styles.actionLabel, active && { color: songColor.color }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
         {label}
       </Text>
     </Pressable>

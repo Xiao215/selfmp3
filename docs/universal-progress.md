@@ -4097,8 +4097,28 @@ files, and checked again together.
   next song loaded and paused at its start.
 - **Clear** on the folded import row is the server's clear, which also removes
   failed and cancelled jobs.
-- Found and not fixed here: Settings' index links land a panel or two early (the
-  offsets are measured before panels finish loading) — pre-existing, left as its
-  own task.
-- The native `SongVisual` passed typecheck and lint but was not run on a
-  simulator in this branch.
+- **Settings' index links landed a panel or two early** (pre-existing):
+  react-native-web reports `onLayout` when a view changes size, not when it
+  moves, so every panel kept the position it had before the panels above it
+  filled in. Settings now measures each panel's view when a section is chosen
+  and whenever the page grows, holds the chosen section while it settles
+  (`landingOffset` in `settings.model.ts`), and reads `?section=`.
+- **The Playwright flows** ran against a private server at both widths: 5 of the
+  9 failures were the run's own environment (`SELFMP3_APP_API`,
+  `SELFMP3_BUILD_URL` unset). The other three are fixed: the You tab now sets
+  `aria-selected` (react-native-web does not map `accessibilityState` to it), the
+  library search flow waits for the row count to settle before counting, and the
+  Focus flow asks for the bar's `aria-hidden` ancestor, since Playwright counts an
+  opacity-0 bar as visible (main hid it the same way).
+- **On the phone** (iPhone 17 simulator, dev client on this worktree's Metro,
+  connected by address to a private server): the native `SongVisual` draws Pulse
+  for a song with no lyrics, with the style pill and the Visual foot label, and
+  `maestro test .maestro/smoke.yaml` passes end to end. The first smoke run failed
+  only because the app relaunched into Now Playing left open by the visual
+  capture, which covers the mini player. The foot's "Download" / "Downloaded"
+  lost its end six across a phone; it shrinks to fit now.
+- **Not live yet:** only Spectrum hears the music, and only in Chromium, Firefox
+  and the Mac app. Pulse, Aurora and Drift move with the song's tempo and energy,
+  not its sound — raised with Xiao as the next step (live levels for all four
+  where the engine can hear, and a stored loudness and onset curve from the
+  analysis everywhere else).

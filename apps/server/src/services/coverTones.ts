@@ -97,7 +97,17 @@ export class CoverToneService {
   }
 }
 
-/** A cover file's colour: ffmpeg draws it at 24×24, and the shared picking decides. */
+/**
+ * A cover file's colour: ffmpeg draws its centre square at 24×24, and the
+ * shared picking decides.
+ *
+ * The centre square because that is the cover every screen shows: rows, the
+ * player bar and Now Playing all draw it square, cropped, and the app's kept
+ * thumbnail is that crop. Squashed whole, a 1280×720 video still read its grey
+ * sides as most of the picture — Plagiarism's collage came out colourless here
+ * while a device reading the square it drew found orange, so the visual and
+ * the bar coloured the same song differently.
+ */
 export function readCoverTone(file: string): Promise<CoverTone | null> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -108,7 +118,7 @@ export function readCoverTone(file: string): Promise<CoverTone | null> {
       '-frames:v',
       '1',
       '-vf',
-      `scale=${SAMPLE}:${SAMPLE}`,
+      `crop=w='min(iw,ih)':h='min(iw,ih)',scale=${SAMPLE}:${SAMPLE}`,
       '-f',
       'rawvideo',
       '-pix_fmt',

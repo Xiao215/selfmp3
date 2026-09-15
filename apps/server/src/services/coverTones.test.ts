@@ -1,9 +1,49 @@
-import { describe, expect, it, vi } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import sharp from 'sharp'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import type { CoverTone } from '@selfmp3/shared'
 import { createLogger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
-import { CoverToneService } from './coverTones.js'
+import { CoverToneService, readCoverTone } from './coverTones.js'
+
+const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0
+
+/**
+ * The colour comes from the centre square, the cover every screen draws.
+ *
+ * A video still with grey sides read as colourless when squashed whole, while
+ * a device reading the square it showed found the colour in the middle — so
+ * the visual and the player bar coloured the same song differently.
+ */
+describe.skipIf(!hasFfmpeg)('readCoverTone', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-tone-'))
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  it('reads a wide cover from its centre square, as if the sides were not there', async () => {
+    const centre = await sharp({
+      create: { width: 400, height: 400, channels: 3, background: '#d2682c' },
+    })
+      .png()
+      .toBuffer()
+    const square = path.join(dir, 'square.png')
+    await sharp(centre).toFile(square)
+
+    // The same square with wide grey bands either side: 1600×400.
+    const wide = path.join(dir, 'wide.png')
+    await sharp({ create: { width: 1600, height: 400, channels: 3, background: '#8a8a8a' } })
+      .composite([{ input: centre, left: 600, top: 0 }])
+      .png()
+      .toFile(wide)
+
+    const fromSquare = await readCoverTone(square)
+    expect(fromSquare).not.toBeNull()
+    expect(await readCoverTone(wide)).toEqual(fromSquare)
+  })
+})
 
 /** Songs waiting for a colour, and what was written back for each. */
 function fakeSongs(pending: Array<{ id: number; artRev: number }>): {

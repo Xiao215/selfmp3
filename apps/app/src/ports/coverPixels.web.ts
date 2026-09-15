@@ -2,7 +2,9 @@
 const SAMPLE = 24
 
 /**
- * A cover's pixels in a browser: draw it at 24 pixels and read them back.
+ * A cover's pixels in a browser: draw its centre square at 24 pixels and read
+ * them back — the part of the cover every screen shows, and the part the server
+ * reads a colour from (`coverTones.ts`), so both find the same colour.
  *
  * The art comes from the server, another origin, so the image asks for CORS;
  * the server answers with this app's origin, which keeps the canvas readable.
@@ -20,7 +22,18 @@ export function readCoverPixels(uri: string): Promise<ArrayLike<number> | null> 
         canvas.height = SAMPLE
         const context = canvas.getContext('2d', { willReadFrequently: true })
         if (!context) return resolve(null)
-        context.drawImage(image, 0, 0, SAMPLE, SAMPLE)
+        const side = Math.min(image.naturalWidth, image.naturalHeight)
+        context.drawImage(
+          image,
+          (image.naturalWidth - side) / 2,
+          (image.naturalHeight - side) / 2,
+          side,
+          side,
+          0,
+          0,
+          SAMPLE,
+          SAMPLE,
+        )
         resolve(context.getImageData(0, 0, SAMPLE, SAMPLE).data)
       } catch {
         resolve(null)

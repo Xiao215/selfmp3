@@ -396,6 +396,15 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_song_audio_features_camelot ON song_audio_features(camelot);
     `,
   },
+  {
+    // 21. A cover's colour is read from its centre square now, the part every
+    // screen shows, not the whole picture squashed. Forgetting every reading
+    // has the server read each cover once more at its next start.
+    name: 'read every cover’s colour again from its centre square',
+    sql: `
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_tone_rev IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

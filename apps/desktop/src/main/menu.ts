@@ -1,6 +1,6 @@
 import { Menu, app, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { APP_MENU_ITEMS, MENU_SECTIONS, drawnMenuItem } from '@selfmp3/desktop-bridge'
+import { APP_MENU_ITEMS, MENU_SECTIONS, menuClickSends } from '@selfmp3/desktop-bridge'
 
 import { sendCommand } from './commands.js'
 import { check } from './updates.js'
@@ -14,12 +14,13 @@ import { check } from './updates.js'
  * contract does not know is a failing test there rather than a dead key here.
  *
  * Every section is drawn now that the page answers Playback's commands as well
- * as View's. An item marked `pageKeeps` shows its key and leaves the key to the
- * page, because an accelerator fires inside text fields too and Space would
- * never reach the search box again: on Linux and Windows it is an unregistered
- * accelerator, and on macOS — where a menu acts on any key a text field leaves
- * unhandled — it has none, and the key is written into its label
- * (`drawnMenuItem` in packages/desktop-bridge).
+ * as View's. An item marked `pageKeeps` is drawn with `registerAccelerator:
+ * false`: the key is shown beside the label, and the page goes on handling it,
+ * because a registered accelerator fires inside text fields too and Space would
+ * never reach the search box again. On macOS that flag does nothing — a menu
+ * acts on any key a text field leaves unhandled — so such an item also ignores
+ * being chosen by its key, and only the pointer sends its command
+ * (`menuClickSends`).
  */
 export function buildMenu(window_: () => BrowserWindow | null): void {
   const mac = process.platform === 'darwin'
@@ -72,10 +73,14 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
       label: section.title,
       submenu: [
         ...section.items.map(item => ({
-          // A page-kept item shows its key but leaves it to the page; on macOS
-          // that means no accelerator at all (`drawnMenuItem` says why).
-          ...drawnMenuItem(item, process.platform),
-          click: () => sendCommand(window_(), item.command),
+          label: item.label,
+          accelerator: item.accelerator,
+          registerAccelerator: item.pageKeeps !== true,
+          // `event` is missing when the item is clicked from code (the smoke).
+          click: (_item: Electron.MenuItem, _window: unknown, event?: Electron.KeyboardEvent) => {
+            if (!menuClickSends(item, event?.triggeredByAccelerator === true)) return
+            sendCommand(window_(), item.command)
+          },
         })),
         ...(section.title === 'View'
           ? [{ type: 'separator' as const }, { role: 'togglefullscreen' as const }]

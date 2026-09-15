@@ -3865,6 +3865,57 @@ and the main checkout's after it — git names it for any worktree
 without anyone typing the name. Tested on the candidates; the build line says
 which file it read.
 
+### Real songs again, after the renames — branch `mac/real-song-flows`, 2026-09-14
+
+Neither the desktop smoke's playing test nor the browser flows had run against
+real songs since `@selfmp3/cloud` became `@selfmp3/replica`, `server/` became
+`connection/` and a song's features became `audioFeatures` (migration 20). Run
+on the Mac from a worktree, against a server of its own on 4630
+(`SELFMP3_PROFILE=dev`, a fresh `SELFMP3_DATA_DIR`): migration 20 applied, the
+scan found 36 songs in `~/Music/selfmp3-dev`, and `/api/library` carried
+`audioFeatures` on all 36 with no `features` left anywhere. The library folder
+was byte-for-byte the same after every run as before the first.
+
+**The desktop smoke: 23 passed, nothing skipped**, the packaged app from
+`npm run build:desktop` included. "A row plays from a server" had never run on
+a Mac. Run once as it was, it failed on its `song-row` wait with the window on
+the sign-in screen: it handed `SELFMP3_APP_API` to the app, and nothing in the
+app reads it — the server comes from the `selfmp3.baseUrl` secret. It also
+waited on a `song-row` test id nothing renders (rows are `song-row-<index>`),
+and double-clicked a row, which at the window's 1280 wide plays nothing. Now it
+sets the secret through `selfmp3Desktop.secrets.set`, reloads, plays the first
+row from its hover button, and checks the bar was absent before and names the
+song after; the server's log shows the range request for it. `serverHasSongs`
+reads `songCount` from `/api/health`, so a server with an empty library skips
+rather than passes.
+
+**The flows: 40 passed, 16 skipped, none failed** (from 32 passed, 8 failed).
+None of the eight was the renames; all were flows written for the thirteen-song
+library or a port:
+
+- `pwa.spec.ts` (four) asked `localhost:4600` whatever the flows were pointed
+  at, and failed on a refused connection — it checked nothing. It defaults to
+  `SELFMP3_WEB_URL` now.
+- `import.spec.ts` (two) expected "1 of 1 selected". 群青 is in the library now,
+  and a track already there starts unticked (`reviewFrom`). The flow ticks it
+  when the review says so.
+- `selection.spec.ts` (phone) took the library's size from the rows drawn, 16
+  of 36 at phone height; the app selected 36. It reads the count select-all
+  states, and asks the server that nothing was removed.
+- `library.spec.ts` sort: on a freshly scanned database every song shares one
+  `addedAt`, and `sortSongs` keeps ties in order whichever way the arrow points
+  — deliberately — so reversing "Recently added" moved nothing. It reverses by
+  title.
+
+Of the sixteen skips, ten are the layout a flow is not for (a phone's You tab,
+a computer's palette, and so on). Six are this database having no tags and no
+plays: the tag inbox (both widths, "the library already has untagged songs"),
+stats (both, "nothing has been played on this Mac"), tag filters ("needs two
+overlapping tags") and a phone's tag page ("needs a tag"). They need a
+database with real tags and listening in it, like the dev profile's own; a
+fresh lane cannot check them. `npm run check` passed (165 files, 1661 tests
+passed, 1 skipped).
+
 ## The run, end to end — 2026-09-14
 
 Everything above was done in one pass, in a Linux container with no macOS, no

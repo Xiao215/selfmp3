@@ -893,7 +893,8 @@ function ServerSwitch(): ReactNode {
   const switchToCloud = (): void => {
     void (async () => {
       await removeAll()
-      router.replace('/sign-in')
+      // Still connected to the server until signed in: say why sign-in is wanted.
+      router.replace({ pathname: '/sign-in', params: { switching: '1' } })
     })()
   }
 

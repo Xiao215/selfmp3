@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { router } from 'expo-router'
-import { View } from 'react-native'
+import { Animated, Easing, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
@@ -10,13 +11,14 @@ import { CommandPalette } from '../features/palette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
-import { PlayerBar } from './PlayerBar'
+import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout } from './useLayout'
+import { useReducedMotion } from './useReducedMotion'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
@@ -137,21 +139,59 @@ function WideFrame({
         </View>
         <PracticeSide />
       </View>
-      {/*
-        Focus with a still mouse fades the bar rather than taking it out. Taking
-        it out remounted the whole bar at the next nudge of the mouse and
-        changed the page's height both ways, which re-centred the lyrics each
-        time; Now Playing reaches under the bar instead, so there is nothing to
-        re-lay. Later in the tree than the page, so drawn over it.
-      */}
-      <View
-        style={barHidden ? styles.barHidden : undefined}
-        pointerEvents={barHidden ? 'none' : 'auto'}
-        aria-hidden={barHidden}
-      >
+      <BarSlot hidden={barHidden} />
+    </View>
+  )
+}
+
+/**
+ * The player bar, once there is a song to show in it.
+ *
+ * With nothing loaded there is no bar and no space kept for one: a strip of
+ * disabled transport under an empty library said "Nothing playing" in the
+ * largest possible way. The first song slides it up from the foot of the
+ * window, a fifth of a second, or at once where less motion is asked for. A
+ * phone's mini player has always worked this way.
+ *
+ * Focus with a still mouse fades the bar rather than taking it out. Taking it
+ * out remounted the whole bar at the next nudge of the mouse and changed the
+ * page's height both ways, which re-centred the lyrics each time; Now Playing
+ * reaches under the bar instead, so there is nothing to re-lay. Later in the
+ * tree than the page, so drawn over it.
+ */
+function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
+  const player = usePlayer()
+  const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
+  const loaded = player.current !== null
+  const [rise] = useState(() => new Animated.Value(loaded ? 1 : 0))
+  useEffect(() => {
+    Animated.timing(rise, {
+      toValue: loaded ? 1 : 0,
+      duration: loaded && !reduced ? 200 : 0,
+      easing: Easing.out(Easing.cubic),
+      // Height, which the native driver cannot animate; it runs once per session.
+      useNativeDriver: false,
+    }).start()
+  }, [loaded, reduced, rise])
+
+  if (!loaded) return null
+  const full = PLAYER_BAR_HEIGHT + insets.bottom
+  return (
+    <Animated.View
+      style={[
+        styles.barSlot,
+        { height: rise.interpolate({ inputRange: [0, 1], outputRange: [0, full] }) },
+        hidden && styles.barHidden,
+      ]}
+      pointerEvents={hidden ? 'none' : 'auto'}
+      aria-hidden={hidden}
+    >
+      {/* Its top edge rises with the slot; the rest waits below the window. */}
+      <View style={[styles.barInSlot, { height: full }]}>
         <PlayerBar />
       </View>
-    </View>
+    </Animated.View>
   )
 }
 
@@ -278,4 +318,6 @@ const styles = StyleSheet.create(theme => ({
   barHidden: {
     opacity: 0,
   },
+  barSlot: { overflow: 'hidden' },
+  barInSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

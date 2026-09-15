@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useGlobalSearchParams } from 'expo-router'
 import { useLibrary } from '../api/queries'
 import { useDownloads } from '../offline/DownloadsProvider'
@@ -9,6 +9,42 @@ import { launchPlayback, parseSession, SESSION_KEY, sessionFromQueue } from './s
 
 /** While playing, how often the position is written down. */
 const SAVE_EVERY_MS = 5_000
+
+/**
+ * What coming back did this launch: not decided yet, or decided — with the
+ * song this device brought back of its own, or null when it brought none.
+ *
+ * The resume toast waits for this. Offering another device's song while this
+ * one is still restoring its own raced the restore, and main showed "Continue
+ * オリオン" beside a bar that had just come back to アイドル.
+ */
+export type PlaybackMemory =
+  | { readonly settled: false }
+  | { readonly settled: true; readonly restoredSongId: number | null }
+
+let memory: PlaybackMemory = { settled: false }
+const memoryListeners = new Set<() => void>()
+
+function settle(restoredSongId: number | null): void {
+  memory = { settled: true, restoredSongId }
+  for (const listener of memoryListeners) listener()
+}
+
+function subscribeMemory(listener: () => void): () => void {
+  memoryListeners.add(listener)
+  return () => {
+    memoryListeners.delete(listener)
+  }
+}
+
+/** Whether this launch has finished coming back, and to which song. */
+export function usePlaybackMemoryState(): PlaybackMemory {
+  return useSyncExternalStore(
+    subscribeMemory,
+    () => memory,
+    () => memory,
+  )
+}
 
 /**
  * The position is read from the player when it is written, not subscribed to:
@@ -47,14 +83,20 @@ export function usePlaybackMemory(): void {
     restored.current = true
     const now = latest.current
     // Something is already loaded: a handoff, or a song started meanwhile.
-    if (now.current) return
+    if (now.current) {
+      settle(null)
+      return
+    }
     const known = new Set(library.data.songs.filter(song => !song.missing).map(song => song.id))
     const launch = launchPlayback(parseSession(prefs.get(SESSION_KEY)), addressSong, known)
-    if (!launch) return
-    const songId = launch.queueIds[launch.index]
-    if (songId === undefined || !mayPlay(songId)) return
+    const songId = launch ? launch.queueIds[launch.index] : undefined
+    if (!launch || songId === undefined || !mayPlay(songId)) {
+      settle(null)
+      return
+    }
     // In the order it was in: `false` keeps a shuffled queue from being shuffled again.
     now.playFrom(launch.queueIds, launch.index, false, launch.position, false)
+    settle(songId)
   }, [status, library.data, addressSong, mayPlay])
 
   // Whenever the queue, the song or play/pause changes, and every few seconds

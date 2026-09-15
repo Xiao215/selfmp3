@@ -304,13 +304,71 @@ export function curveBands(
   }
 }
 
+/** How far either side a frame is compared with, for its hit (≈ ±250 ms at 20 fps). */
+const HIT_CONTEXT_SECONDS = 0.25
+/** A hit is the highest frame within this many seconds either side (≈ ±100 ms). */
+const HIT_PEAK_SECONDS = 0.1
+/** The smallest rise above its surroundings that can be a hit, as a share of full scale. */
+const HIT_MIN_RISE = 0.04
+/** Onset below this is the floor of a quiet passage, never a hit. */
+const HIT_FLOOR = 0.15
+
+/**
+ * Where the curve's hits are, and how hard: one value a frame, 0 between hits.
+ *
+ * The stored onset is normalised to the song's own 98th percentile, so a dense
+ * loud chorus sits near the top nearly every frame. Read as it is, that is one
+ * long hit that never lets go — Pulse stopped ringing exactly where the song
+ * is busiest. So a hit is a frame that stands out from its own surroundings:
+ * the highest within ±100 ms, and above the ±250 ms average by more than a
+ * whisker, scaled by how far it rises towards the local top and weighted by
+ * its own strength so a quiet passage's hits stay softer than a chorus's. That
+ * is the same question the live sampler asks of the analyser — a rise above a
+ * running average — asked of the stored frames, once, when the curve arrives.
+ */
+export function curveHits(onset: Uint8Array, rate: number): Float32Array {
+  const count = onset.length
+  const hits = new Float32Array(count)
+  const context = Math.max(1, Math.round(HIT_CONTEXT_SECONDS * rate))
+  const peak = Math.max(1, Math.round(HIT_PEAK_SECONDS * rate))
+  for (let i = 0; i < count; i++) {
+    const v = (onset[i] ?? 0) / 255
+    if (v < HIT_FLOOR) continue
+    let isPeak = true
+    for (let j = Math.max(0, i - peak); j <= Math.min(count - 1, i + peak); j++) {
+      const w = (onset[j] ?? 0) / 255
+      // Ties go to the first of a flat top, so a plateau is one hit, not several.
+      if (w > v || (w === v && j < i)) {
+        isPeak = false
+        break
+      }
+    }
+    if (!isPeak) continue
+    let sum = 0
+    let top = 0
+    let n = 0
+    for (let j = Math.max(0, i - context); j <= Math.min(count - 1, i + context); j++) {
+      const w = (onset[j] ?? 0) / 255
+      sum += w
+      top = Math.max(top, w)
+      n++
+    }
+    const mean = sum / n
+    const rise = v - mean
+    if (rise < HIT_MIN_RISE) continue
+    hits[i] = Math.min(1, rise / Math.max(HIT_MIN_RISE, top - mean)) * (0.5 + 0.5 * v)
+  }
+  return hits
+}
+
 /**
  * The song's stored curve, played back against the playhead.
  *
- * The onset is the strongest frame passed since the last draw, not just the
- * value where this draw landed: a hit is a single 50 ms frame, and a phone
+ * The onset is the strongest hit passed since the last draw, not just the
+ * frame where this draw landed: a hit is a single 50 ms frame, and a phone
  * drawing at 30 frames a second could step straight over it. A seek or a
- * pause (the playhead jumping or standing) reads only where it is.
+ * pause (the playhead jumping or standing) reads only where it is. The bands
+ * also feel the raw onset, softened, so a busy passage shimmers between hits.
  */
 export function curveSampler(
   curve: MotionCurveLike,
@@ -319,21 +377,26 @@ export function curveSampler(
 ): MotionSampler {
   const seed = songSeed(songId)
   const frames = Math.min(curve.loudness.length, curve.onset.length)
+  const hits = curveHits(curve.onset.subarray(0, frames), curve.rate)
+  const hitAt = (seconds: number): number => {
+    const i = Math.round(seconds * curve.rate)
+    return i >= 0 && i < frames ? (hits[i] ?? 0) : 0
+  }
   let previous = -1
   return {
     source: 'curve',
     sample(seconds, into) {
       const here = sample(curve, seconds)
-      let onset = here.onset
+      let onset = seconds < curve.duration ? hitAt(seconds) : 0
       const gap = seconds - previous
       if (previous >= 0 && gap > 0 && gap < 0.25 && seconds < curve.duration) {
         const first = Math.ceil(previous * curve.rate)
         const lastFrame = Math.min(frames - 1, Math.floor(seconds * curve.rate))
-        for (let i = Math.max(0, first); i <= lastFrame; i++) onset = Math.max(onset, (curve.onset[i] ?? 0) / 255)
+        for (let i = Math.max(0, first); i <= lastFrame; i++) onset = Math.max(onset, hits[i] ?? 0)
       }
       previous = seconds
       const level = curveLevel(here.level)
-      curveBands(into, level, onset, seconds, seed)
+      curveBands(into, level, Math.max(onset, here.onset * 0.5), seconds, seed)
       return { level, onset }
     },
   }

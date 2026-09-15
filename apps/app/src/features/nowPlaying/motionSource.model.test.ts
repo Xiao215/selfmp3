@@ -4,6 +4,7 @@ import type { FrequencyAnalyser } from '@selfmp3/client'
 import {
   beatSampler,
   chooseSampler,
+  curveHits,
   curveLevel,
   curveSampler,
   liveSampler,
@@ -69,6 +70,40 @@ describe('reading the stored curve', () => {
     expect(curveLevel((-30 + 60) / 60)).toBeLessThan(0.4)
     expect(curveLevel((-9 + 60) / 60)).toBeCloseTo(1)
     expect(curveLevel(1)).toBe(1)
+  })
+})
+
+describe('finding hits in the stored curve', () => {
+  it('finds each hit in a dense chorus whose onset sits near the top every frame', () => {
+    // 4 s at 20 fps: onset 0.86–0.9 throughout, a full-scale hit every half second.
+    const onset = Array.from({ length: 80 }, (_, i) => (i % 10 === 0 ? 1 : 0.86 + (i % 3) * 0.02))
+    const hits = curveHits(Uint8Array.from(onset, o => Math.round(o * 255)), 20)
+    const fired = [...hits].flatMap((h, i) => (h >= 0.45 ? [i] : []))
+    expect(fired).toEqual([0, 10, 20, 30, 40, 50, 60, 70])
+  })
+
+  it('never fires on a quiet floor or on a steady plateau', () => {
+    const quiet = curveHits(Uint8Array.from(Array(40).fill(20)), 20)
+    const plateau = curveHits(Uint8Array.from(Array(40).fill(230)), 20)
+    expect([...quiet].every(h => h === 0)).toBe(true)
+    expect([...plateau].every(h => h === 0)).toBe(true)
+  })
+
+  it('lets a chorus ring again after each hit, where the raw onset never falls', () => {
+    const onset = Array.from({ length: 80 }, (_, i) => (i % 10 === 0 ? 1 : 0.88))
+    const sampler = curveSampler(curveOf(Array(80).fill(-10), onset), 3)
+    const into = new Float32Array(16)
+    const rings: number[] = []
+    let armed = true
+    for (let frame = 0; frame < 120; frame++) {
+      const seconds = frame / 30
+      const { onset: hit } = sampler.sample(seconds, into)
+      if (armed && hit >= 0.45) {
+        rings.push(Math.round(seconds * 2) / 2)
+        armed = false
+      } else if (hit < 0.27) armed = true
+    }
+    expect(rings).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5])
   })
 })
 

@@ -1,3 +1,5 @@
+import { acceleratorKeys } from '@selfmp3/desktop-bridge'
+
 /**
  * The installed app's menu keys, as Settings › Keyboard shortcuts lists them.
  *
@@ -5,7 +7,9 @@
  * which is right for a menu and a long list for a page. So related items share
  * a row ("⌘ ← → Previous / next"), and the keys are drawn the way a Mac draws
  * them. The keys themselves are always read from the menu, never written here,
- * so a key changed in `packages/desktop-bridge/src/menu.ts` changes this page.
+ * so a key changed in `packages/desktop-bridge/src/menu.ts` changes this page —
+ * and they are spelled by the bridge's `acceleratorKeys`, the same function
+ * that writes a key into a macOS menu label.
  */
 
 /** A menu item as far as this page cares: what it does, and its key. */
@@ -32,43 +36,6 @@ const ROWS: readonly { commands: readonly string[]; label: string }[] = [
   { commands: ['practice'], label: 'Practice panel' },
   { commands: ['settings'], label: 'Settings' },
 ]
-
-/** A Mac writes its modifiers in this order, whatever order they were given in. */
-const MODIFIER_ORDER = ['⌃', '⌥', '⇧', '⌘'] as const
-
-const MODIFIERS: Readonly<Record<string, (typeof MODIFIER_ORDER)[number]>> = {
-  CmdOrCtrl: '⌘',
-  CommandOrControl: '⌘',
-  Cmd: '⌘',
-  Command: '⌘',
-  Ctrl: '⌃',
-  Control: '⌃',
-  Alt: '⌥',
-  Option: '⌥',
-  Shift: '⇧',
-}
-
-const KEYS: Readonly<Record<string, string>> = {
-  Space: 'space',
-  Left: '←',
-  Right: '→',
-  Up: '↑',
-  Down: '↓',
-  Return: '↵',
-  Esc: 'esc',
-}
-
-/** Electron's spelling of a key, split into the caps a Mac draws: `Alt+CmdOrCtrl+Right` → ⌥ ⌘ →. */
-export function acceleratorKeys(accelerator: string): { modifiers: string[]; key: string } {
-  const parts = accelerator.split('+')
-  const last = parts[parts.length - 1] ?? ''
-  const modifiers = parts
-    .slice(0, -1)
-    .map(part => MODIFIERS[part])
-    .filter((part): part is (typeof MODIFIER_ORDER)[number] => part !== undefined)
-    .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-  return { modifiers, key: KEYS[last] ?? last.toUpperCase() }
-}
 
 /**
  * The rows, from the menu's items. A row whose items have no key, or whose

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_MENU_COMMANDS,
   MENU_SECTIONS,
+  acceleratorKeys,
+  drawnMenuItem,
   menuOwnedCombinations,
   pageCombinations,
   pageKeptCombinations,
@@ -78,6 +80,73 @@ describe('who owns which key', () => {
     for (const combination of all) {
       expect(owned.has(combination) !== kept.has(combination)).toBe(true)
     }
+  })
+})
+
+describe('the menu as each platform draws it', () => {
+  const drawn = (platform: string) =>
+    ALL_MENU_COMMANDS.map(item => ({ item, drawn: drawnMenuItem(item, platform) }))
+
+  it('gives a page-kept item no key at all on macOS, and names the key in its label', () => {
+    // A Mac menu acts on an item's key whenever the page leaves it unhandled,
+    // and a text field leaves Space unhandled: typing a space played the music.
+    const kept = drawn('darwin').filter(({ item }) => item.pageKeeps)
+    expect(kept.map(({ drawn: one }) => one.label)).toEqual([
+      'Play / Pause (space)',
+      'Next (⌘→)',
+      'Previous (⌘←)',
+      'Seek forward (⌥⌘→)',
+      'Seek back (⌥⌘←)',
+    ])
+    for (const { drawn: one } of kept) expect(one.accelerator).toBeUndefined()
+  })
+
+  it('shows a page-kept key without taking it everywhere else', () => {
+    for (const platform of ['linux', 'win32']) {
+      for (const { item, drawn: one } of drawn(platform).filter(({ item }) => item.pageKeeps)) {
+        expect(one).toEqual({ label: item.label, accelerator: item.accelerator, registerAccelerator: false })
+      }
+    }
+  })
+
+  it('writes the key in a macOS label in the caps Settings draws', () => {
+    for (const { item, drawn: one } of drawn('darwin').filter(({ item }) => item.pageKeeps)) {
+      const { modifiers, key } = acceleratorKeys(item.accelerator ?? '')
+      expect(one.label).toBe(`${item.label} (${[...modifiers, key].join('')})`)
+    }
+  })
+
+  it('gives no key to both the macOS menu and the page', () => {
+    const owned = menuOwnedCombinations()
+    const kept = pageKeptCombinations()
+    const taken = drawn('darwin').flatMap(({ drawn: one }) =>
+      one.accelerator && one.registerAccelerator ? [...pageCombinations(one.accelerator)] : [],
+    )
+    // What the macOS menu really takes is exactly what the page stops listening for,
+    for (const combination of taken) expect(owned.has(combination)).toBe(true)
+    expect(new Set(taken)).toEqual(owned)
+    // and nothing the page keeps is among it.
+    for (const combination of kept.keys()) expect(taken).not.toContain(combination)
+  })
+
+  it('leaves every other item as the model has it', () => {
+    for (const platform of ['darwin', 'linux']) {
+      for (const { item, drawn: one } of drawn(platform).filter(({ item }) => !item.pageKeeps)) {
+        expect(one.label).toBe(item.label)
+        expect(one.accelerator).toBe(item.accelerator)
+        expect(one.registerAccelerator).toBe(true)
+      }
+    }
+  })
+})
+
+describe('acceleratorKeys', () => {
+  it('draws a key the way a Mac does', () => {
+    expect(acceleratorKeys('Alt+CmdOrCtrl+Right')).toEqual({ modifiers: ['⌥', '⌘'], key: '→' })
+    expect(acceleratorKeys('CmdOrCtrl+Alt+Down')).toEqual({ modifiers: ['⌥', '⌘'], key: '↓' })
+    expect(acceleratorKeys('CmdOrCtrl+k')).toEqual({ modifiers: ['⌘'], key: 'K' })
+    expect(acceleratorKeys('Space')).toEqual({ modifiers: [], key: 'space' })
+    expect(acceleratorKeys('CmdOrCtrl+,')).toEqual({ modifiers: ['⌘'], key: ',' })
   })
 })
 

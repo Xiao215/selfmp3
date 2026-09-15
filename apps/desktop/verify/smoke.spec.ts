@@ -664,12 +664,13 @@ test.describe('an application, not a page', () => {
       })
 
       // Clicked in the real application menu, by label, from the main process.
+      // On macOS a page-kept item names its key in its label, so match the start.
       const clicked = await app.evaluate(({ Menu }, labels) => {
         const menu = Menu.getApplicationMenu()
         return labels.map(([section, item]) => {
           const found = menu
             ?.items.find(one => one.label === section)
-            ?.submenu?.items.find(one => one.label === item)
+            ?.submenu?.items.find(one => one.label === item || one.label.startsWith(`${item} (`))
           if (!found) return 'missing'
           // Electron types `MenuItem.click` as the bare `Function`, which is
           // not callable under the repo's lint rules without saying what it is.
@@ -681,7 +682,8 @@ test.describe('an application, not a page', () => {
         ['View', 'Now Playing'],
       ] as [string, string][])
 
-      expect(clicked).toEqual(['Space', 'CmdOrCtrl+3'])
+      // A Mac menu would take Space from a text field, so there it has no accelerator.
+      expect(clicked).toEqual([process.platform === 'darwin' ? 'none' : 'Space', 'CmdOrCtrl+3'])
       await expect
         .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
         .toEqual(['play-pause', 'now-playing'])
@@ -707,7 +709,8 @@ test.describe('an application, not a page', () => {
         })),
       )
       const playback = menu?.find(section => section.label === 'Playback')
-      expect(playback?.items.map(item => item.label)).toEqual([
+      // On macOS a page-kept item carries its key in its label: "Next (⌘→)".
+      expect(playback?.items.map(item => item.label.replace(/ \(.*\)$/, ''))).toEqual([
         'Play / Pause',
         'Next',
         'Previous',
@@ -719,16 +722,28 @@ test.describe('an application, not a page', () => {
         'Volume down',
         'Mute',
       ])
-      // Space and the ⌘-arrows are drawn but not taken: registering them would
-      // pull them out of every text field in the app.
+      // Space and the ⌘-arrows are shown but not taken: taking them would pull
+      // them out of every text field in the app. Elsewhere that is an
+      // unregistered accelerator; a Mac menu acts on any accelerator a text
+      // field leaves unhandled, so there the key is in the label instead.
       const unregistered = playback?.items.filter(item => item.registered === false)
-      expect(unregistered?.map(item => item.accelerator)).toEqual([
-        'Space',
-        'CmdOrCtrl+Right',
-        'CmdOrCtrl+Left',
-        'Alt+CmdOrCtrl+Right',
-        'Alt+CmdOrCtrl+Left',
-      ])
+      if (process.platform === 'darwin') {
+        expect(unregistered?.map(item => [item.label, item.accelerator])).toEqual([
+          ['Play / Pause (space)', null],
+          ['Next (⌘→)', null],
+          ['Previous (⌘←)', null],
+          ['Seek forward (⌥⌘→)', null],
+          ['Seek back (⌥⌘←)', null],
+        ])
+      } else {
+        expect(unregistered?.map(item => item.accelerator)).toEqual([
+          'Space',
+          'CmdOrCtrl+Right',
+          'CmdOrCtrl+Left',
+          'Alt+CmdOrCtrl+Right',
+          'Alt+CmdOrCtrl+Left',
+        ])
+      }
       // Everything else is a real accelerator.
       const view = menu?.find(section => section.label === 'View')
       expect(view?.items.every(item => item.registered !== false)).toBe(true)

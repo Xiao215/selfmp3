@@ -27,9 +27,11 @@ export interface MenuCommand {
    * A registered accelerator fires wherever the focus is, text fields included.
    * Space would then never reach the search box, and ⌘← — which is "go to the
    * start of the line" in every Mac text field there has ever been — would skip
-   * to the previous song while someone was editing the server address. So these
-   * are drawn with `registerAccelerator: false`, and `useHotkeys` handles them
-   * as it handles every other key: not while someone is typing.
+   * to the previous song while someone was editing the server address. So the
+   * menu shows these without taking them (`drawnMenuItem`: an unregistered
+   * accelerator on Linux and Windows, the key in the label on macOS), and
+   * `useHotkeys` handles them as it handles every other key: not while someone
+   * is typing.
    */
   readonly pageKeeps?: boolean
 }
@@ -175,4 +177,77 @@ export function pageKeptCombinations(): ReadonlyMap<string, Command> {
     for (const combination of pageCombinations(item.accelerator)) kept.set(combination, item.command)
   }
   return kept
+}
+
+/** A Mac writes its modifiers in this order, whatever order they were given in. */
+const MODIFIER_ORDER = ['⌃', '⌥', '⇧', '⌘'] as const
+
+const MODIFIER_CAPS: Readonly<Record<string, (typeof MODIFIER_ORDER)[number]>> = {
+  CmdOrCtrl: '⌘',
+  CommandOrControl: '⌘',
+  Cmd: '⌘',
+  Command: '⌘',
+  Ctrl: '⌃',
+  Control: '⌃',
+  Alt: '⌥',
+  Option: '⌥',
+  Shift: '⇧',
+}
+
+const KEY_CAPS: Readonly<Record<string, string>> = {
+  Space: 'space',
+  Left: '←',
+  Right: '→',
+  Up: '↑',
+  Down: '↓',
+  Return: '↵',
+  Esc: 'esc',
+}
+
+/**
+ * Electron's spelling of a key, split into the caps a Mac draws: `Alt+CmdOrCtrl+Right` → ⌥ ⌘ →.
+ *
+ * Here rather than in the page because the menu writes keys too: a macOS menu
+ * item the page keeps names its key in its label, and Settings › Keyboard
+ * shortcuts draws the same keys, so both spell them with this.
+ */
+export function acceleratorKeys(accelerator: string): { modifiers: string[]; key: string } {
+  const parts = accelerator.split('+')
+  const last = parts[parts.length - 1] ?? ''
+  const modifiers = parts
+    .slice(0, -1)
+    .map(part => MODIFIER_CAPS[part])
+    .filter((part): part is (typeof MODIFIER_ORDER)[number] => part !== undefined)
+    .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
+  return { modifiers, key: KEY_CAPS[last] ?? last.toUpperCase() }
+}
+
+/** A menu item as the shell hands it to Electron on one platform. */
+export interface DrawnMenuItem {
+  readonly label: string
+  readonly accelerator?: string
+  readonly registerAccelerator: boolean
+}
+
+/**
+ * How one item is drawn on a platform.
+ *
+ * `registerAccelerator: false` is Linux and Windows only. A Mac menu acts on
+ * an item's key whenever the page leaves that key unhandled, and a text field
+ * leaves Space unhandled — so on macOS typing a space in the search box or the
+ * palette also played or paused the music, while the list, where `useHotkeys`
+ * handles Space, was fine. There a page-kept item has no accelerator at all:
+ * its key is written into the label, in the caps Settings draws, and the page
+ * handles the key exactly as before.
+ */
+export function drawnMenuItem(item: MenuCommand, platform: string): DrawnMenuItem {
+  if (!item.accelerator) return { label: item.label, registerAccelerator: true }
+  if (!item.pageKeeps) {
+    return { label: item.label, accelerator: item.accelerator, registerAccelerator: true }
+  }
+  if (platform === 'darwin') {
+    const { modifiers, key } = acceleratorKeys(item.accelerator)
+    return { label: `${item.label} (${[...modifiers, key].join('')})`, registerAccelerator: false }
+  }
+  return { label: item.label, accelerator: item.accelerator, registerAccelerator: false }
 }

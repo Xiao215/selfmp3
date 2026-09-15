@@ -1,17 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ALL_MENU_COMMANDS } from '@selfmp3/desktop-bridge'
 
-import { acceleratorKeys, shortcutRows } from './shortcuts.model'
+import { shortcutRows } from './shortcuts.model'
 
 describe('keyboard shortcuts', () => {
-  it('draws a key the way a Mac does', () => {
-    expect(acceleratorKeys('Alt+CmdOrCtrl+Right')).toEqual({ modifiers: ['⌥', '⌘'], key: '→' })
-    expect(acceleratorKeys('CmdOrCtrl+Alt+Down')).toEqual({ modifiers: ['⌥', '⌘'], key: '↓' })
-    expect(acceleratorKeys('CmdOrCtrl+k')).toEqual({ modifiers: ['⌘'], key: 'K' })
-    expect(acceleratorKeys('Space')).toEqual({ modifiers: [], key: 'space' })
-    expect(acceleratorKeys('CmdOrCtrl+,')).toEqual({ modifiers: ['⌘'], key: ',' })
-  })
-
   it('lists the menu’s own keys, related ones on one row', () => {
     const rows = shortcutRows(ALL_MENU_COMMANDS)
     expect(rows.map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rgbToOklch, type SongFeatures } from '@selfmp3/shared'
+import { rgbToOklch, type AudioFeatures } from '@selfmp3/shared'
 
 import {
   autoVisual,
@@ -20,7 +20,7 @@ import {
   withVisualChoice,
 } from './visuals.model'
 
-const features = (over: Partial<SongFeatures>): SongFeatures => ({
+const features = (over: Partial<AudioFeatures>): AudioFeatures => ({
   bpm: 120,
   energy: 0.5,
   loudnessLufs: -12,

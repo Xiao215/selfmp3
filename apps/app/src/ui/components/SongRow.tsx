@@ -267,7 +267,7 @@ export const SongRow = memo(function SongRow({
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered || menuOpen
   const albumColumn = (contentWidth ?? width - SIDEBAR_WIDTH) >= ALBUM_COLUMN_CONTENT_WIDTH
-  const features = song.features
+  const features = song.audioFeatures
   const badges = features && (features.bpm != null || features.energy != null)
   const controlSize = dense ? 34 : HIT_TARGET
 

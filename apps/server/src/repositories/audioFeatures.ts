@@ -1,9 +1,9 @@
-import type { SongFeatures } from '@selfmp3/shared'
+import type { AudioFeatures } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { toSongFeatures, type SongFeaturesRow } from '../db/rows.js'
+import { toAudioFeatures, type AudioFeaturesRow } from '../db/rows.js'
 
 /**
- * All SQL that touches `song_features` lives here.
+ * All SQL that touches `song_audio_features` lives here.
  *
  * The analyser is pull-based: it asks `nextPending` for one song at a time,
  * so the queue is the table itself and survives a restart for free.
@@ -19,7 +19,7 @@ export interface NewFeatures {
   version: number
 }
 
-export class FeaturesRepository {
+export class AudioFeaturesRepository {
   readonly #bySong
   readonly #upsert
   readonly #delete
@@ -28,12 +28,12 @@ export class FeaturesRepository {
   readonly #countPending
 
   constructor(db: Db) {
-    this.#bySong = db.prepare<[number], SongFeaturesRow>(
-      'SELECT * FROM song_features WHERE song_id = ?',
+    this.#bySong = db.prepare<[number], AudioFeaturesRow>(
+      'SELECT * FROM song_audio_features WHERE song_id = ?',
     )
 
     this.#upsert = db.prepare(`
-      INSERT INTO song_features (
+      INSERT INTO song_audio_features (
         song_id, bpm, energy, loudness_lufs, key, camelot, danceability, analyzed_at, version
       ) VALUES (
         @songId, @bpm, @energy, @loudnessLufs, @key, @camelot, @danceability, datetime('now'), @version
@@ -49,15 +49,15 @@ export class FeaturesRepository {
         version       = excluded.version
     `)
 
-    this.#delete = db.prepare('DELETE FROM song_features WHERE song_id = ?')
-    this.#deleteAll = db.prepare('DELETE FROM song_features')
+    this.#delete = db.prepare('DELETE FROM song_audio_features WHERE song_id = ?')
+    this.#deleteAll = db.prepare('DELETE FROM song_audio_features')
 
     // A song is pending when it has no row, or a row from an older algorithm.
     // Missing files are skipped: there is nothing to decode.
     const pendingWhere = `
       s.missing = 0
       AND NOT EXISTS (
-        SELECT 1 FROM song_features f WHERE f.song_id = s.id AND f.version >= ?
+        SELECT 1 FROM song_audio_features f WHERE f.song_id = s.id AND f.version >= ?
       )
     `
     this.#nextPending = db.prepare<[number], { id: number }>(
@@ -68,9 +68,9 @@ export class FeaturesRepository {
     )
   }
 
-  bySong(songId: number): SongFeatures | null {
+  bySong(songId: number): AudioFeatures | null {
     const row = this.#bySong.get(songId)
-    return row ? toSongFeatures(row) : null
+    return row ? toAudioFeatures(row) : null
   }
 
   upsert(songId: number, features: NewFeatures): void {

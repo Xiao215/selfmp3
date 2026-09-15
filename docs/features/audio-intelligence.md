@@ -31,7 +31,7 @@ whenever a scan or an import is in progress:
 - a newly imported song is analysed once it has been ingested;
 - a file that changed on disk has its features thrown away and redone.
 
-The queue is the database itself (`song_features` rows), so a restart loses nothing.
+The queue is the database itself (`song_audio_features` rows), so a restart loses nothing.
 
 ## Using it
 
@@ -78,8 +78,8 @@ The toggle is per device and remembered.
 
 ## Data
 
-`GET /api/library` includes `features` on every song (null until analysed). The
-`song_features` table: `song_id`, `bpm`, `energy`, `loudness_lufs`, `key`, `camelot`,
+`GET /api/library` includes `audioFeatures` on every song (null until analysed). The
+`song_audio_features` table: `song_id`, `bpm`, `energy`, `loudness_lufs`, `key`, `camelot`,
 `danceability`, `analyzed_at`, `version`. Bump `ANALYSIS_VERSION` in
 `packages/shared/src/audioFeatures.ts` when the algorithm changes and old rows are redone on
 the next run.

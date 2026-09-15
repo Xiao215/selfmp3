@@ -1,5 +1,5 @@
 import { CoverSwatchSchema } from '@selfmp3/shared'
-import type { CoverSwatch, LyricsKind, Song, SongFeatures, Tag } from '@selfmp3/shared'
+import type { CoverSwatch, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -44,7 +44,7 @@ export interface SongRow {
   missing: number
   /** Present only on the joined library query: "1,4,7" or null. */
   tag_ids?: string | null
-  /** From the LEFT JOIN on song_features; all null when not analysed yet. */
+  /** From the LEFT JOIN on song_audio_features; all null when not analysed yet. */
   feat_bpm?: number | null
   feat_energy?: number | null
   feat_loudness_lufs?: number | null
@@ -55,7 +55,7 @@ export interface SongRow {
   feat_version?: number | null
 }
 
-export interface SongFeaturesRow {
+export interface AudioFeaturesRow {
   song_id: number
   bpm: number | null
   energy: number | null
@@ -151,7 +151,7 @@ export function toSong(row: SongRow): Song {
     addedAt: row.added_at,
     missing: row.missing === 1,
     tagIds: parseIdList(row.tag_ids),
-    features: featuresFromSongRow(row),
+    audioFeatures: audioFeaturesFromSongRow(row),
   }
 }
 
@@ -168,7 +168,7 @@ export function songRev(row: Pick<SongRow, 'size_bytes' | 'mtime_ms' | 'art_rev'
 }
 
 /** The joined feature columns, or null when the song has no features row. */
-function featuresFromSongRow(row: SongRow): SongFeatures | null {
+function audioFeaturesFromSongRow(row: SongRow): AudioFeatures | null {
   if (row.feat_analyzed_at == null) return null
   return {
     bpm: row.feat_bpm ?? null,
@@ -182,7 +182,7 @@ function featuresFromSongRow(row: SongRow): SongFeatures | null {
   }
 }
 
-export function toSongFeatures(row: SongFeaturesRow): SongFeatures {
+export function toAudioFeatures(row: AudioFeaturesRow): AudioFeatures {
   return {
     bpm: row.bpm,
     energy: row.energy,

@@ -10,7 +10,7 @@ import { StatsRepository } from './repositories/stats.js'
 import { WrappedRepository } from './repositories/wrapped.js'
 import { GemsRepository } from './repositories/gems.js'
 import { ImportRepository } from './repositories/imports.js'
-import { FeaturesRepository } from './repositories/features.js'
+import { AudioFeaturesRepository } from './repositories/audioFeatures.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
@@ -72,7 +72,7 @@ export interface Container {
   readonly gems: GemsRepository
   readonly imports: ImportRepository
   readonly lyricsSearch: LyricsSearchRepository
-  readonly features: FeaturesRepository
+  readonly audioFeatures: AudioFeaturesRepository
   readonly deviceRepo: DeviceRepository
   readonly cloudRepo: CloudRepository
   readonly syncRepo: SyncRepository
@@ -131,7 +131,7 @@ export function createContainer(config: Config): Container {
   const gems = new GemsRepository(db)
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
-  const features = new FeaturesRepository(db)
+  const audioFeatures = new AudioFeaturesRepository(db)
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
@@ -275,7 +275,7 @@ export function createContainer(config: Config): Container {
     config,
     storage,
     songs,
-    features,
+    audioFeatures,
     motion,
     scanner,
     importQueue,
@@ -357,7 +357,7 @@ export function createContainer(config: Config): Container {
     gems,
     imports,
     lyricsSearch,
-    features,
+    audioFeatures,
     deviceRepo,
     cloudRepo,
     syncRepo,

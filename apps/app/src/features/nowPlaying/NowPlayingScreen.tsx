@@ -519,7 +519,7 @@ function PhoneWords({
   const words = lyrics.words
   const noLyrics = words.status === 'missing' && !words.offline
   const sampler = useMotionSampler(song, noLyrics)
-  const bpm = song.features?.bpm
+  const bpm = song.audioFeatures?.bpm
   const on = lyrics.romanizationOn
   // The web's `clamp(22px, 6.4vw, 28px)`.
   const fontSize = Math.min(28, Math.max(22, width * 0.064))

@@ -1,5 +1,5 @@
 import type { Song } from './schemas/song.js'
-import type { SongFeatures } from './schemas/audioFeatures.js'
+import type { AudioFeatures } from './schemas/audioFeatures.js'
 
 /**
  * Pure helpers over audio features: the Camelot wheel, distances between
@@ -125,8 +125,8 @@ export const DEFAULT_WEIGHTS: FeatureWeights = { bpm: 1, energy: 1, loudness: 0.
  * so un-analysed songs sink rather than either dominating or vanishing.
  */
 export function featureDistance(
-  a: SongFeatures | null,
-  b: SongFeatures | null,
+  a: AudioFeatures | null,
+  b: AudioFeatures | null,
   weights: FeatureWeights = DEFAULT_WEIGHTS,
 ): number {
   const unknown = 0.5
@@ -152,7 +152,7 @@ export function featureDistance(
  * milder one for the same artist. Lower is more similar.
  */
 export function songDistance(seed: Song, candidate: Song): number {
-  let distance = featureDistance(seed.features, candidate.features)
+  let distance = featureDistance(seed.audioFeatures, candidate.audioFeatures)
 
   const seedTags = new Set(seed.tagIds)
   let shared = 0
@@ -176,8 +176,8 @@ export function songDistance(seed: Song, candidate: Song): number {
  * the user's ceiling and is never exceeded.
  */
 export function transitionCrossfade(
-  from: SongFeatures | null,
-  to: SongFeatures | null,
+  from: AudioFeatures | null,
+  to: AudioFeatures | null,
   maxSeconds: number,
 ): number {
   const max = Math.max(0, maxSeconds)

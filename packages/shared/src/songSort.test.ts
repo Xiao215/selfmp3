@@ -34,7 +34,7 @@ function song(id: number, overrides: Partial<Song> = {}): Song {
     instrumental: false,
     rating: 0,
     tagIds: [],
-    features: null,
+    audioFeatures: null,
     sourceUrl: null,
     ...overrides,
   } as unknown as Song

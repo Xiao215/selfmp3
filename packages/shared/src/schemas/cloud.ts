@@ -3,7 +3,7 @@ import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
-import { SongFeaturesSchema } from './audioFeatures.js'
+import { AudioFeaturesSchema } from './audioFeatures.js'
 import { PlaylistKindSchema } from './playlist.js'
 import {
   BoolRuleSchema,
@@ -118,7 +118,7 @@ export const CloudSongSchema = z.object({
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),
   tagUids: z.array(UidSchema),
-  features: SongFeaturesSchema.nullable(),
+  audioFeatures: AudioFeaturesSchema.nullable(),
   /** Per field: title, artist, loved, … */
   stamps: StampsSchema.optional(),
   /** Per tag, whether it was last put on the song or taken off. */

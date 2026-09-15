@@ -127,7 +127,7 @@ export function snapshotToLibrary(
       addedAt: song.addedAt,
       missing: false,
       tagIds,
-      features: song.features,
+      audioFeatures: song.audioFeatures,
     }
   })
 

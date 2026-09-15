@@ -49,7 +49,7 @@ export type BoolRule = z.infer<typeof BoolRuleSchema>
 
 /**
  * Rules over analysed audio features. Kept apart from `NumberRuleSchema`
- * because the values live in `song_features`, not on the song row, and a
+ * because the values live in `song_audio_features`, not on the song row, and a
  * song that has not been analysed yet should simply not match.
  */
 export const FeatureRuleSchema = z.object({

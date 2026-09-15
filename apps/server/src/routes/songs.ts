@@ -357,7 +357,7 @@ export function songRoutes(container: Container): Router {
     '/songs/:id/motion',
     route({ params: ParamsWithId }, async ({ params, res }) => {
       requireSong(params.id)
-      const stored = container.features.bySong(params.id)
+      const stored = container.audioFeatures.bySong(params.id)
         ? await container.motion.read(params.id)
         : null
       if (!stored) throw new HttpError(404, 'this song has not been analysed yet', 'not-analysed')

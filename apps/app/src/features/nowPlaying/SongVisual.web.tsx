@@ -54,15 +54,21 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
     () =>
       visualColors(
         song.coverTone?.hue ?? hueFromString(song.album || song.title),
-        song.features?.camelot,
+        song.audioFeatures?.camelot,
         song.coverTone?.palette,
       ),
-    [song.coverTone?.hue, song.coverTone?.palette, song.album, song.title, song.features?.camelot],
+    [
+      song.coverTone?.hue,
+      song.coverTone?.palette,
+      song.album,
+      song.title,
+      song.audioFeatures?.camelot,
+    ],
   )
-  const bpmKnown = song.features?.bpm != null
+  const bpmKnown = song.audioFeatures?.bpm != null
   const tuning = useMemo(
-    () => motionTuning(visualFeel(song.features), bpmKnown),
-    [song.features, bpmKnown],
+    () => motionTuning(visualFeel(song.audioFeatures), bpmKnown),
+    [song.audioFeatures, bpmKnown],
   )
 
   const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id })

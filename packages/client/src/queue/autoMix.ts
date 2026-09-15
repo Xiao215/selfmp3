@@ -4,7 +4,7 @@ import {
   type FeatureWeights,
   type QueueState,
   type Song,
-  type SongFeatures,
+  type AudioFeatures,
 } from '@selfmp3/shared'
 
 /**
@@ -36,7 +36,7 @@ export function orderPath(
   ids: readonly number[],
   byId: ReadonlyMap<number, Song>,
 ): number[] {
-  const featuresOf = (id: number): SongFeatures | null => byId.get(id)?.features ?? null
+  const featuresOf = (id: number): AudioFeatures | null => byId.get(id)?.audioFeatures ?? null
 
   const analysed: number[] = []
   const unknown: number[] = []
@@ -101,5 +101,5 @@ export function autoMixCrossfade(
   userCrossfadeSeconds: number,
 ): number {
   const max = userCrossfadeSeconds > 0 ? userCrossfadeSeconds : AUTO_MIX_DEFAULT_CROSSFADE
-  return transitionCrossfade(current?.features ?? null, next?.features ?? null, max)
+  return transitionCrossfade(current?.audioFeatures ?? null, next?.audioFeatures ?? null, max)
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Song, SongFeatures } from './index.js'
+import type { Song, AudioFeatures } from './index.js'
 import {
   bpmDistance,
   camelotDistance,
@@ -12,7 +12,7 @@ import {
   transitionCrossfade,
 } from './audioFeatures.js'
 
-const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
+const feat = (patch: Partial<AudioFeatures> = {}): AudioFeatures => ({
   bpm: 120,
   energy: 0.5,
   loudnessLufs: -14,
@@ -47,7 +47,7 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   addedAt: '2026-01-01',
   missing: false,
   tagIds: [],
-  features: null,
+  audioFeatures: null,
   ...patch,
 })
 
@@ -135,19 +135,19 @@ describe('featureDistance', () => {
 
 describe('songDistance', () => {
   it('rewards shared tags and the same artist', () => {
-    const seed = song(1, { artist: 'Aurora Lane', tagIds: [1, 2], features: feat() })
-    const plain = song(2, { features: feat() })
-    const tagged = song(3, { tagIds: [1, 2], features: feat() })
-    const sameArtist = song(4, { artist: 'aurora lane', features: feat() })
+    const seed = song(1, { artist: 'Aurora Lane', tagIds: [1, 2], audioFeatures: feat() })
+    const plain = song(2, { audioFeatures: feat() })
+    const tagged = song(3, { tagIds: [1, 2], audioFeatures: feat() })
+    const sameArtist = song(4, { artist: 'aurora lane', audioFeatures: feat() })
     expect(songDistance(seed, tagged)).toBeLessThan(songDistance(seed, plain))
     expect(songDistance(seed, sameArtist)).toBeLessThan(songDistance(seed, plain))
     expect(songDistance(seed, tagged)).toBeLessThan(songDistance(seed, sameArtist))
   })
 
   it('caps the tag bonus', () => {
-    const seed = song(1, { tagIds: [1, 2, 3, 4, 5, 6], features: feat() })
-    const three = song(2, { tagIds: [1, 2, 3], features: feat() })
-    const six = song(3, { tagIds: [1, 2, 3, 4, 5, 6], features: feat() })
+    const seed = song(1, { tagIds: [1, 2, 3, 4, 5, 6], audioFeatures: feat() })
+    const three = song(2, { tagIds: [1, 2, 3], audioFeatures: feat() })
+    const six = song(3, { tagIds: [1, 2, 3, 4, 5, 6], audioFeatures: feat() })
     expect(songDistance(seed, six)).toBe(songDistance(seed, three))
   })
 })

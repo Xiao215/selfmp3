@@ -434,7 +434,7 @@ describe('CloudIngest', () => {
         [four, 128, 0.5, '3B'],
       ] as const) {
         db.prepare(
-          'INSERT INTO song_features (song_id, bpm, energy, loudness_lufs, key, camelot, danceability) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO song_audio_features (song_id, bpm, energy, loudness_lufs, key, camelot, danceability) VALUES (?, ?, ?, ?, ?, ?, ?)',
         ).run(id, bpm, energy, -8 - bpm / 100, null, camelot, 0.5)
       }
       const chillUid = uidOf('tags', chill)

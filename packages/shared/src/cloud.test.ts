@@ -338,7 +338,7 @@ describe('snapshot schema', () => {
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,
     tagUids: [],
-    features: null,
+    audioFeatures: null,
   }
 
   it('accepts a well-formed song', () => {

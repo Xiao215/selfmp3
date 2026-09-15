@@ -148,10 +148,10 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
     case 'loudness': {
       const read = (song: CloudSong): number | null | undefined =>
         rule.field === 'bpm'
-          ? song.features?.bpm
+          ? song.audioFeatures?.bpm
           : rule.field === 'energy'
-            ? song.features?.energy
-            : song.features?.loudnessLufs
+            ? song.audioFeatures?.energy
+            : song.audioFeatures?.loudnessLufs
       // A song not analysed yet matches no feature rule, as in the SQL.
       return song => {
         const value = read(song)
@@ -163,7 +163,7 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
       const codes = new Set(
         rule.op === 'is' ? [rule.value.toUpperCase()] : compatibleCamelot(rule.value),
       )
-      return song => song.features?.camelot != null && codes.has(song.features.camelot)
+      return song => song.audioFeatures?.camelot != null && codes.has(song.audioFeatures.camelot)
     }
   }
   throw new Error(`unsupported smart-playlist rule: ${JSON.stringify(rule)}`)

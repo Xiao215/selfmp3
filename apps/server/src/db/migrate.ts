@@ -385,7 +385,18 @@ const SCHEMA = `
 `
 
 /** Changes to the schema after `SCHEMA_VERSION`, oldest first. */
-const MIGRATIONS: readonly Migration[] = []
+const MIGRATIONS: readonly Migration[] = [
+  {
+    // 20. The table says what kind of features it holds, as audioFeatures does
+    // everywhere else. SQLite has no RENAME INDEX, so the index is made again.
+    name: 'song_features is song_audio_features',
+    sql: `
+      ALTER TABLE song_features RENAME TO song_audio_features;
+      DROP INDEX idx_song_features_camelot;
+      CREATE INDEX idx_song_audio_features_camelot ON song_audio_features(camelot);
+    `,
+  },
+]
 
 /** Bring the schema to the latest version. */
 export function migrate(db: Database, logger: Logger): void {

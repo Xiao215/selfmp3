@@ -359,13 +359,13 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
               {song.artist || 'Unknown artist'}
               {song.album ? <Text style={styles.album}> · {song.album}</Text> : null}
             </Text>
-            {song.features ? (
+            {song.audioFeatures ? (
               <View style={styles.features}>
-                {song.features.bpm != null ? (
-                  <Text style={styles.tempo}>{tempoMark(song.features.bpm)}</Text>
+                {song.audioFeatures.bpm != null ? (
+                  <Text style={styles.tempo}>{tempoMark(song.audioFeatures.bpm)}</Text>
                 ) : null}
-                {song.features.energy != null ? (
-                  <EnergyWave energy={song.features.energy} width={30} height={16} />
+                {song.audioFeatures.energy != null ? (
+                  <EnergyWave energy={song.audioFeatures.energy} width={30} height={16} />
                 ) : null}
               </View>
             ) : null}

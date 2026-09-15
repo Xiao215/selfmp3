@@ -1,5 +1,5 @@
 import { oklchToHex, type Rgb } from '@selfmp3/client'
-import type { CoverSwatch, SongFeatures } from '@selfmp3/shared'
+import type { CoverSwatch, AudioFeatures } from '@selfmp3/shared'
 
 /**
  * What a song with no lyrics shows where the words would be: the rules, with
@@ -43,7 +43,7 @@ export const DANCEABLE = 0.6
  * colour. Energy decides first, because a loud song with a steady beat is
  * still loud; the beat decides between the two in the middle.
  */
-export function autoVisual(features: SongFeatures | null | undefined): VisualKind {
+export function autoVisual(features: AudioFeatures | null | undefined): VisualKind {
   const energy = features?.energy
   if (energy == null || energy < CALM_ENERGY) return 'aurora'
   if (energy >= BUSY_ENERGY) return 'spectrum'
@@ -84,7 +84,7 @@ export function withVisualChoice(
 }
 
 /** "No lyrics · 140 BPM · A minor", leaving out what is not known. */
-export function visualCaption(features: SongFeatures | null | undefined): string {
+export function visualCaption(features: AudioFeatures | null | undefined): string {
   const parts = ['No lyrics']
   if (features?.bpm != null) parts.push(`${Math.round(features.bpm)} BPM`)
   if (features?.key) parts.push(features.key)
@@ -228,7 +228,7 @@ export interface VisualFeel {
   readonly loudness: number
 }
 
-export function visualFeel(features: SongFeatures | null | undefined): VisualFeel {
+export function visualFeel(features: AudioFeatures | null | undefined): VisualFeel {
   const bpm = features?.bpm
   return {
     // A tempo detector's half- and double-time answers stay in a drawable range.

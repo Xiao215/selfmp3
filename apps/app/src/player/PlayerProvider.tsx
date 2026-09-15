@@ -750,7 +750,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine.configure({ crossfadeSeconds: sleepAtSongEnd ? 0 : nextCrossfadeSeconds, gapless })
   }, [engine, nextCrossfadeSeconds, gapless, sleepAtSongEnd])
 
-  const currentBpm = resolved.currentSong?.features?.bpm ?? null
+  const currentBpm = resolved.currentSong?.audioFeatures?.bpm ?? null
   useEffect(() => {
     engine.setCountIn(countIn ? countInMs(currentBpm) : 0)
   }, [engine, countIn, currentBpm])

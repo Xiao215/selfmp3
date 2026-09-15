@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { similarSongs } from './audioFeatures.js'
-import type { Song, SongFeatures } from './index.js'
+import type { Song, AudioFeatures } from './index.js'
 
-const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
+const feat = (patch: Partial<AudioFeatures> = {}): AudioFeatures => ({
   bpm: 120,
   energy: 0.5,
   loudnessLufs: -14,
@@ -37,20 +37,23 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   addedAt: '2026-01-01',
   missing: false,
   tagIds: [],
-  features: null,
+  audioFeatures: null,
   ...patch,
 })
 
 describe('similarSongs', () => {
-  const seed = song(1, { artist: 'Aurora Lane', tagIds: [1], features: feat() })
+  const seed = song(1, { artist: 'Aurora Lane', tagIds: [1], audioFeatures: feat() })
   const library = [
     seed,
-    song(2, { features: feat({ bpm: 122, camelot: '9B' }) }), // very close
-    song(3, { features: feat({ bpm: 61, camelot: '8A' }) }), // half time, relative key
-    song(4, { features: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }), // far
-    song(5, { features: null }), // not analysed
-    song(6, { missing: true, features: feat() }), // identical but gone
-    song(7, { artist: 'Aurora Lane', features: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }),
+    song(2, { audioFeatures: feat({ bpm: 122, camelot: '9B' }) }), // very close
+    song(3, { audioFeatures: feat({ bpm: 61, camelot: '8A' }) }), // half time, relative key
+    song(4, { audioFeatures: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }), // far
+    song(5, { audioFeatures: null }), // not analysed
+    song(6, { missing: true, audioFeatures: feat() }), // identical but gone
+    song(7, {
+      artist: 'Aurora Lane',
+      audioFeatures: feat({ bpm: 90, camelot: '2A', energy: 0.95 }),
+    }),
   ]
 
   it('never returns the seed or a missing file', () => {

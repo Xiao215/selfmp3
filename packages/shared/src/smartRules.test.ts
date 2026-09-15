@@ -29,7 +29,7 @@ function song(n: number, overrides: Partial<CloudSong> = {}): CloudSong {
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,
     tagUids: [],
-    features: null,
+    audioFeatures: null,
     ...overrides,
   }
 }
@@ -57,14 +57,14 @@ const LIBRARY: CloudSong[] = [
     playCount: 12,
     lastPlayedAt: '2026-09-10 20:00:00',
     addedAt: '2026-09-05 09:00:00',
-    features: features(128, '8A'),
+    audioFeatures: features(128, '8A'),
   }),
   song(3, { title: 'Sunny', year: 1999, playCount: 3, addedAt: '2026-08-01 09:00:00' }),
   song(2, {
     title: 'Ämne',
     playCount: 12,
     addedAt: '2026-08-01 09:00:00',
-    features: features(90, '9A'),
+    audioFeatures: features(90, '9A'),
     lyrics: { key: `lyrics/${'cd'.repeat(32)}.lrc`, size: 10, kind: 'synced', romanized: null },
   }),
   song(1, { title: 'Old', addedAt: '2025-01-01 09:00:00', lastPlayedAt: '2025-06-01 09:00:00' }),

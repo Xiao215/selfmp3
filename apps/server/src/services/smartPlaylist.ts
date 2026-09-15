@@ -165,7 +165,7 @@ function compileRule(rule: SmartRule): CompiledQuery {
       const column = FEATURE_COLUMNS[rule.field]
       const operator = NUMBER_OPERATORS[rule.op]
       return {
-        sql: `EXISTS (SELECT 1 FROM song_features f WHERE f.song_id = s.id AND ${column} IS NOT NULL AND ${column} ${operator} ?)`,
+        sql: `EXISTS (SELECT 1 FROM song_audio_features f WHERE f.song_id = s.id AND ${column} IS NOT NULL AND ${column} ${operator} ?)`,
         params: [rule.value],
       }
     }
@@ -177,7 +177,7 @@ function compileRule(rule: SmartRule): CompiledQuery {
       if (codes.length === 0) return { sql: '0', params: [] }
       const placeholders = codes.map(() => '?').join(', ')
       return {
-        sql: `EXISTS (SELECT 1 FROM song_features f WHERE f.song_id = s.id AND f.camelot IN (${placeholders}))`,
+        sql: `EXISTS (SELECT 1 FROM song_audio_features f WHERE f.song_id = s.id AND f.camelot IN (${placeholders}))`,
         params: codes,
       }
     }

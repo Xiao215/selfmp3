@@ -55,7 +55,7 @@ export function useSongVisual(song: Song): SongVisualChoice {
   const songId = song.id
   const readChoice = useCallback(() => read()[String(songId)] ?? null, [songId])
   const choice = useSyncExternalStore(subscribe, readChoice, readChoice)
-  const auto = autoVisual(song.features)
+  const auto = autoVisual(song.audioFeatures)
   const pick = useCallback((kind: VisualKind | null) => choose(songId, kind), [songId])
   return { kind: choice ?? auto, auto, chosen: choice !== null, choose: pick }
 }

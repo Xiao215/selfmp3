@@ -108,7 +108,7 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
   const accent = useAccent()
   const { state: downloads, queue, installed } = useDownloads()
   const progress = useDownloadProgress()
-  const features = song.features
+  const features = song.audioFeatures
   const held = isDownloaded(downloads.index, song.id)
   const downloading = downloads.activeSongId === song.id
   const fraction =

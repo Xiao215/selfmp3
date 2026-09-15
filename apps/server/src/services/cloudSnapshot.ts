@@ -118,7 +118,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
         const tagUid = input.tagUids.get(id)
         return tagUid ? [tagUid] : []
       }),
-      features: song.features,
+      audioFeatures: song.audioFeatures,
       ...optional('stamps', stampsOf('song', uid)),
       ...optional(
         'tagStamps',

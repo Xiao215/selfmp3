@@ -44,7 +44,7 @@ export function useMotionSampler(song: Song, active: boolean): MotionSampler {
     [listen, canHear, ask],
   )
 
-  const feel = useMemo(() => visualFeel(song.features), [song.features])
+  const feel = useMemo(() => visualFeel(song.audioFeatures), [song.audioFeatures])
   const songId = song.id
   return useMemo(
     () => chooseSampler({ canHear, analyser, curve, feel, songId }),

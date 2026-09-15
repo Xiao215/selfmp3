@@ -27,7 +27,7 @@ const SONG_SELECT = `
          f.analyzed_at   AS feat_analyzed_at,
          f.version       AS feat_version
   FROM songs s
-  LEFT JOIN song_features f ON f.song_id = s.id
+  LEFT JOIN song_audio_features f ON f.song_id = s.id
 `
 
 export interface NewSong {

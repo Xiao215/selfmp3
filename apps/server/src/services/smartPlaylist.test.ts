@@ -33,7 +33,7 @@ function makeDb(): Database.Database {
     );
     CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE song_tags (song_id INTEGER, tag_id INTEGER, PRIMARY KEY (song_id, tag_id));
-    CREATE TABLE song_features (
+    CREATE TABLE song_audio_features (
       song_id INTEGER PRIMARY KEY,
       bpm REAL, energy REAL, loudness_lufs REAL, key TEXT, camelot TEXT, danceability REAL,
       analyzed_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -137,7 +137,7 @@ function makeDb(): Database.Database {
   // Song 2 has not been analysed; song 3 was analysed but has no beat.
   db.prepare(
     `
-    INSERT INTO song_features (song_id, bpm, energy, loudness_lufs, key, camelot) VALUES
+    INSERT INTO song_audio_features (song_id, bpm, energy, loudness_lufs, key, camelot) VALUES
       (1, 124, 0.8, -9.5, 'A minor', '8A'),
       (3, NULL, 0.2, -22, 'E major', '12B'),
       (4, 128, 0.9, -8, 'A minor', '8A')

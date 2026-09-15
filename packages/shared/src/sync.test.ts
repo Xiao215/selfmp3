@@ -50,7 +50,7 @@ function song(id: string, overrides: Partial<CloudSong> = {}): CloudSong {
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,
     tagUids: [],
-    features: null,
+    audioFeatures: null,
     ...overrides,
   }
 }

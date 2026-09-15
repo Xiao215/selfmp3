@@ -96,8 +96,8 @@ export function PracticePanel({
   const toggle = (group: Group): void =>
     setOpen(current => ({ ...current, [group]: !current[group] }))
 
-  const bpm = song?.features?.bpm ?? null
-  const key = song?.features?.key ?? null
+  const bpm = song?.audioFeatures?.bpm ?? null
+  const key = song?.audioFeatures?.key ?? null
   const loopReady = player.loopA !== null && player.loopB !== null
   const loopLength = loopReady ? Math.abs((player.loopB ?? 0) - (player.loopA ?? 0)) : 0
   // Without pitch lock the speed drags the pitch, which is what a transposing

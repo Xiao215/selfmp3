@@ -473,7 +473,7 @@ const SNAPSHOT: CloudSnapshot = {
       addedAt: '2026-09-01 10:00:00',
       sourceUrl: null,
       tagUids: [],
-      features: null,
+      audioFeatures: null,
     },
   ],
   tags: [],

@@ -222,7 +222,7 @@ function Stage({
     ['about', 'About'],
   ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
-  const features = song.features
+  const features = song.audioFeatures
   const chrome = { opacity: idle ? 0 : 1 }
 
   return (
@@ -496,7 +496,7 @@ function Stage({
               style={[styles.visualCaption, focus && styles.visualCaptionOnVisual]}
               numberOfLines={1}
             >
-              {visualCaption(song.features)}
+              {visualCaption(song.audioFeatures)}
             </Text>
             <Text
               style={[styles.visualFollowing, focus && styles.visualCaptionOnVisual]}

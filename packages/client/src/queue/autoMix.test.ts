@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_QUEUE, type QueueState, type Song, type SongFeatures } from '@selfmp3/shared'
+import { EMPTY_QUEUE, type QueueState, type Song, type AudioFeatures } from '@selfmp3/shared'
 import { autoMixCrossfade, autoMixOrder, orderPath } from './autoMix.js'
 
-const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
+const feat = (patch: Partial<AudioFeatures> = {}): AudioFeatures => ({
   bpm: 120,
   energy: 0.5,
   loudnessLufs: -14,
@@ -14,7 +14,7 @@ const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
   ...patch,
 })
 
-const song = (id: number, features: SongFeatures | null): Song =>
+const song = (id: number, features: AudioFeatures | null): Song =>
   ({
   id,
   path: `${id}.m4a`,
@@ -38,7 +38,7 @@ const song = (id: number, features: SongFeatures | null): Song =>
   addedAt: '2026-01-01',
   missing: false,
   tagIds: [],
-  features,
+  audioFeatures: features,
   }) as Song
 
 const library = new Map<number, Song>(

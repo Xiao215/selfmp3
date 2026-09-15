@@ -744,7 +744,7 @@ function LibraryPanel({
   const analysis = useAnalysisStatus(true)
   const startAnalysis = useStartAnalysis()
   const songs = library.data?.songs ?? []
-  const analysed = songs.filter(song => song.features !== null).length
+  const analysed = songs.filter(song => song.audioFeatures !== null).length
   const missing = songs.filter(song => song.missing).length
   const running = analysis.data?.running === true
 

@@ -6,7 +6,7 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
-import type { FeaturesRepository } from '../repositories/features.js'
+import type { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import type { ScannerService } from './scanner.js'
 import type { ImportQueueService } from './importQueue.js'
 import {
@@ -56,7 +56,7 @@ export class AnalysisService {
   readonly #config: Config
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
-  readonly #features: FeaturesRepository
+  readonly #audioFeatures: AudioFeaturesRepository
   readonly #motion: MotionStore
   readonly #scanner: ScannerService
   readonly #importQueue: ImportQueueService
@@ -76,7 +76,7 @@ export class AnalysisService {
     config: Config
     storage: StorageDriver
     songs: SongRepository
-    features: FeaturesRepository
+    audioFeatures: AudioFeaturesRepository
     motion: MotionStore
     scanner: ScannerService
     importQueue: ImportQueueService
@@ -87,7 +87,7 @@ export class AnalysisService {
     this.#config = deps.config
     this.#storage = deps.storage
     this.#songs = deps.songs
-    this.#features = deps.features
+    this.#audioFeatures = deps.audioFeatures
     this.#motion = deps.motion
     this.#scanner = deps.scanner
     this.#importQueue = deps.importQueue
@@ -98,7 +98,7 @@ export class AnalysisService {
   status(): AnalysisStatus {
     return {
       running: this.#running,
-      pending: this.#features.countPending(ANALYSIS_VERSION),
+      pending: this.#audioFeatures.countPending(ANALYSIS_VERSION),
       done: this.#done,
       failed: this.#failed,
       current: this.#current,
@@ -121,7 +121,7 @@ export class AnalysisService {
    */
   start(force = false): AnalysisStatus {
     if (force) {
-      this.#features.deleteAll()
+      this.#audioFeatures.deleteAll()
     }
     this.#done = 0
     this.#failed = 0
@@ -131,7 +131,7 @@ export class AnalysisService {
 
   /** The file changed underneath a song; its features and its curve are stale. */
   invalidate(songId: number): void {
-    this.#features.delete(songId)
+    this.#audioFeatures.delete(songId)
     void this.#motion.delete(songId)
     this.kick()
   }
@@ -161,7 +161,7 @@ export class AnalysisService {
         }
 
         this.#kickedWhileRunning = false
-        const songId = this.#features.nextPending(ANALYSIS_VERSION)
+        const songId = this.#audioFeatures.nextPending(ANALYSIS_VERSION)
         if (songId === null) break
 
         const song = this.#songs.byId(songId)
@@ -181,7 +181,7 @@ export class AnalysisService {
           // file forever; a forced re-run clears it. A curve from before the
           // file broke would describe some other audio, so it goes.
           await this.#motion.delete(song.id)
-          this.#features.upsert(song.id, {
+          this.#audioFeatures.upsert(song.id, {
             bpm: null,
             energy: null,
             loudnessLufs: null,
@@ -238,7 +238,7 @@ export class AnalysisService {
       if (motion) await this.#motion.write(songId, motion.value)
       else await this.#motion.delete(songId)
 
-      this.#features.upsert(songId, {
+      this.#audioFeatures.upsert(songId, {
         bpm: features.bpm,
         energy: features.energy,
         loudnessLufs: loudness,

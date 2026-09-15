@@ -7,7 +7,7 @@ import { IdSchema } from './common.js'
  * Every value is nullable because analysis is best-effort: a track that is
  * mostly silence has no meaningful BPM, and a spoken-word file has no key.
  * A null says "we looked and found nothing" — distinct from the song having
- * no `features` row at all, which means "not analysed yet".
+ * no row in `song_audio_features` at all, which means "not analysed yet".
  */
 
 /** A Camelot wheel code: 1–12 followed by A (minor) or B (major). */
@@ -17,7 +17,7 @@ export const CamelotSchema = z
   .toUpperCase()
   .regex(/^(1[0-2]|[1-9])[AB]$/, 'not a Camelot code')
 
-export const SongFeaturesSchema = z.object({
+export const AudioFeaturesSchema = z.object({
   bpm: z.number().positive().nullable(),
   /** 0–1. Perceived intensity: a blend of loudness and rhythmic activity. */
   energy: z.number().min(0).max(1).nullable(),
@@ -32,7 +32,7 @@ export const SongFeaturesSchema = z.object({
   /** Bumped when the algorithm changes, so old rows get re-analysed. */
   version: z.number().int().nonnegative(),
 })
-export type SongFeatures = z.infer<typeof SongFeaturesSchema>
+export type AudioFeatures = z.infer<typeof AudioFeaturesSchema>
 
 /** Progress of the background analyser. */
 export const AnalysisStatusSchema = z.object({

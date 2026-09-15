@@ -34,7 +34,7 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   addedAt: '2025-01-01T00:00:00.000Z',
   missing: false,
   tagIds: [],
-  features: null,
+  audioFeatures: null,
   ...patch,
 })
 

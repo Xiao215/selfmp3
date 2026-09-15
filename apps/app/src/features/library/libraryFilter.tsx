@@ -8,9 +8,8 @@ import { createLibraryFilterStore, type LibraryFilterStore } from './libraryFilt
  *
  * At desktop width the tags are chosen from the sidebar, which is the shell's,
  * while the list they filter is the library screen's — two places that must
- * agree on one filter. The web app keeps its tag sets in `App` for the same
- * reason. Only React here: the model reads it, and the model may not import
- * anything that draws.
+ * agree on one filter. Only React here: the model reads it, and the model may
+ * not import anything that draws.
  *
  * The provider hands down a store, not the filter, so the context value never
  * changes and nothing renders just for being below it. Each hook below reads

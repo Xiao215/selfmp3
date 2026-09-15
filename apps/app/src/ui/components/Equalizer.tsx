@@ -12,8 +12,8 @@ import { useAccent } from '../accent'
  * keyframes, so each bar gets its own looping Animated value with the same
  * three durations — 0.9s, 0.7s and 1.1s — which produces the same wander.
  *
- * Paused freezes them part-way rather than hiding them, exactly as the web's
- * `is-paused` does: a stopped equaliser still says *this* is the song.
+ * Paused freezes them part-way rather than hiding them: a stopped equaliser
+ * still says *this* is the song.
  */
 const DURATIONS = [900, 700, 1100]
 

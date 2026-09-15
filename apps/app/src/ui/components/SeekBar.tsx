@@ -16,8 +16,8 @@ const SEEK_LANDED_SECONDS = 2.1
 const SEEK_SETTLE_MS = 1000
 
 /**
- * Scrubber: the web's `.scrubber-large`, a 6px track with a 16px thumb that
- * is always there, in a hit area big enough to grab while walking.
+ * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
+ * big enough to grab while walking.
  *
  * Hand-built on PanResponder rather than a slider package: it is thirty lines,
  * it avoids a dependency, and it lets the bar keep showing the dragged
@@ -40,9 +40,9 @@ export function SeekBar({
   duration: number
   onSeek: (seconds: number) => void
   /**
-   * The desktop bar's scrubber: elapsed, a thin track, and the length on one
-   * line, as the web's `.player-progress` is, rather than the phone page's
-   * thick track with the times beneath it.
+   * The player bar's scrubber: elapsed, a thin track, and the length on
+   * one line, rather than the Now Playing page's thick track with the times
+   * beneath it.
    */
   inline?: boolean
   /** The practice loop, as percentages of the bar, drawn behind the track. */
@@ -56,8 +56,8 @@ export function SeekBar({
   const [dragging, setDragging] = useState<number | null>(null)
   /**
    * Where the finger let go, until the player says it is there. A phone's
-   * engine reports the old time for a tick or two after a seek, and without
-   * this the thumb jumped back to it and forward again.
+   * engine reports the old time for a tick or two after a seek, and without this
+   * the thumb jumped back to it and forward again.
    */
   const [pending, setPending] = useState<number | null>(null)
   // Held only while the player is still somewhere else: once it reports the
@@ -221,7 +221,7 @@ export function SeekBar({
           />
         </View>
       </View>
-      {/* Elapsed on the left, what is left on the right — the phone's page on the web. */}
+      {/* Elapsed on the left, what is left on the right. */}
       <View style={styles.times}>
         <Text style={styles.time}>{formatDuration(shown)}</Text>
         <Text style={styles.time}>-{formatDuration(Math.max(0, duration - shown))}</Text>

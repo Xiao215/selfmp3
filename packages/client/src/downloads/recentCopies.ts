@@ -4,9 +4,8 @@
  * A browser on a cloud library streams from the bucket and keeps nothing by
  * default, which is right for a library of a thousand songs and wrong for the
  * twenty actually played. So a song that counts as a play is kept, up to a
- * budget, and the least recently played copies are let go to make room. Moved
- * from the web app's `offline/recentCache.ts`; where the copies live is the
- * app's (`ports/recentCopies.web.ts`).
+ * budget, and the least recently played copies are let go to make room. Where
+ * the copies live is the app's (`ports/recentCopies.web.ts`).
  *
  * These are a cache, not downloads: they stay out of "on this device", because
  * a mark that can disappear on its own is worse than none, and asking for the

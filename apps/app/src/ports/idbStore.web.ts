@@ -1,12 +1,9 @@
 /**
- * Small things a browser keeps, in IndexedDB: the web app's `offline/mirror.ts`
- * key-value half.
+ * Small things a browser keeps, in IndexedDB.
  *
  * IndexedDB rather than `localStorage` because the service worker reads the
  * same values (the cloud session and each song's files) to fetch a song from
- * the bucket, and a worker cannot see `localStorage` at all. The database, its
- * version and its store are the web app's, so a browser that used it keeps
- * what it had; the worker opens them with the same upgrade.
+ * the bucket, and a worker cannot see `localStorage` at all.
  */
 
 const DB_NAME = 'selfmp3'

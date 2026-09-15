@@ -1,6 +1,5 @@
 /**
- * The browser's answer, and the desktop app's, which is Chromium: the old web
- * app's `canHearMusic` (`apps/web/src/lib/visuals.ts`).
+ * The browser's answer, and the desktop app's, which is Chromium.
  *
  * Listening means routing both audio elements through Web Audio, and that
  * cannot be undone for the life of the page. So not on a phone or a tablet in

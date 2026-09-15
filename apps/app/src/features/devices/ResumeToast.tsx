@@ -17,7 +17,7 @@ import { useDeviceContext } from './DevicesProvider'
 export const RESUME_TOAST_MS = 12_000
 
 /**
- * "Continue where you left off on your phone": the web's `ResumeToast`.
+ * "Continue where you left off on your phone".
  *
  * Offered once per launch, and only when it tells you something: nothing is
  * playing here, this device did not come back to a song of its own, and the

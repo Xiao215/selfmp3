@@ -10,10 +10,8 @@ import type { DownloadEntry, DownloadIndex } from '../downloads/downloadIndex.js
  * index. Neither belongs in this package; this is what `OfflineProvider` is
  * written against so there is one of it.
  *
- * Deliberately only the storage, not the downloading. The two apps have very
- * different shapes today — the browser's is free functions over the Cache API,
- * the phone's is a stateful `DownloadQueue` with pause, resume and retry — but
- * the difference is not platform, it is that the queue was written twice.
+ * Deliberately only the storage, not the downloading. The queue is written once,
+ * in `downloads/queue.ts`, and a platform supplies only where the bytes go.
  * Ordering, progress, pausing and what to do about a failure are policy, and
  * policy goes in the shared provider above this. What genuinely differs is
  * where the bytes go, and that is all this names.
@@ -74,7 +72,7 @@ export interface OfflineStore {
    * The phone needs it: track-player is handed a file path and plays it. The
    * browser has nothing to hand back — its service worker intercepts the
    * ordinary stream URL, so the player never knows a copy was involved, which
-   * is why the web app plays offline without a line of code about it.
+   * is why playing offline needs no code at all in a browser.
    */
   localUri?(songId: number): string | null
 

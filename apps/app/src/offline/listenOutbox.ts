@@ -7,9 +7,9 @@ import '../api/client'
 /**
  * The phone's listen outbox: `packages/client`'s, over a JSON file.
  *
- * The rules moved to the package in phase 1 of the universal migration,
- * because the web app had the same file with the same rules over IndexedDB.
- * What is left is the file, which is genuinely the phone's.
+ * The rules live in the package because every client enforces the same rules,
+ * each over its own storage. What is left here is the file itself, which is
+ * the phone's: in a browser expo-file-system is the stand-in in webStubs/.
  *
  * One JS thread, one copy: the file is only the durable mirror of `events`.
  */
@@ -56,7 +56,6 @@ export const { flushListens, recordListen, loadPendingListens } = outbox
 
 /*
  * `recordSkipListen` and `subscribePendingListens` are the package's too and
- * work here, but nothing on the phone calls them yet: there is no skip button
- * that records one and no badge that shows the count. The web app has both, and
- * the universal app will inherit them rather than have them written again.
+ * work here, but nothing calls them yet: there is no skip button that records
+ * one and no badge that shows the count.
  */

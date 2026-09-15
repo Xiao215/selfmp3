@@ -11,8 +11,8 @@ import { Button } from './Button'
 /**
  * A plain yes-or-no question before something that cannot be taken back.
  *
- * The web app asks these with the browser's own `window.confirm`, which a phone
- * does not have; this is that question drawn as the app's own dialog, with
+ * A browser has its own `window.confirm` for this, which a phone does not
+ * have; this is that question drawn as the app's own dialog, with
  * Cancel first and the destructive choice in red. Removing songs from the
  * library has its own, richer confirmation (`ConfirmRemoveSongs`).
  */

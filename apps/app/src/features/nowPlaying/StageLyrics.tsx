@@ -18,7 +18,7 @@ interface LyricsProps {
 }
 
 /**
- * The lyrics on a computer's Now Playing page: the web's `LyricsView`.
+ * The lyrics on a computer's Now Playing page.
  *
  * The line being sung stays at the same height on screen and the list moves
  * under it. Click a line to jump to it. Scrolling by hand holds off the

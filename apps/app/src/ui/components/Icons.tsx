@@ -3,19 +3,16 @@ import { useUnistyles } from 'react-native-unistyles'
 import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
 
 /**
- * The web app's icons, drawn with the same paths.
+ * The app's icon set, hand-drawn rather than system glyphs.
  *
  * These were text characters — `♪`, `≣`, `⚙`, `↓` — chosen to avoid a native
  * module for "a dozen glyphs". It saved a dependency and cost the app its
- * face: the web hand-draws all fifty-one of these on a 24-unit grid with a
- * 1.8 stroke, and a system font's approximations of them do not sit together,
- * do not share a weight, and do not look like the same product.
+ * face: a system font's approximations of them do not sit together, do not
+ * share a weight, and do not look like the same product.
  *
- * So this is that file, ported: same viewBox, same paths, same stroke. Where
- * the web writes `currentColor` this takes a `color`, and where it knocks a
- * shape out of a filled badge with `--icon-knockout` this takes the surface
- * the badge sits on. Any change to the drawings should be made in
- * `apps/web/src/components/Icons.tsx` and brought across.
+ * Each is hand-drawn on a 24-unit grid with a 1.8 stroke: a `color` prop
+ * stands in for CSS's `currentColor`, and `knockout` takes the surface a
+ * badge sits on, for icons that knock a shape out of a filled badge.
  */
 
 export interface IconProps {
@@ -419,7 +416,7 @@ export const Settings = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-/** A person in a circle: the phone's You tab. Not in the web app, which has no such tab. */
+/** A person in a circle: the You tab. */
 export const User = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   const { theme } = useUnistyles()
   const color = colorGiven ?? theme.colors.textSecondary

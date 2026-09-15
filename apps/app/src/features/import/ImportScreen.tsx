@@ -66,7 +66,7 @@ import { canListenHere } from '../../ports/listen'
 const NO_PLAYLIST = 0
 
 /**
- * Importing: the web's `ImportView`.
+ * Importing.
  *
  * Paste links, fetch their details, review and correct them, then import. The
  * queue takes the review's place once it is sent, and the YouTube library
@@ -496,7 +496,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   )
 }
 
-/** One track in the review: the web's `.import-item`. Three inputs on a line when there is room. */
+/** One track in the review. Three inputs on a line when there is room. */
 function ReviewRow({
   item,
   index,
@@ -586,8 +586,8 @@ function ReviewRow({
     )
   }
 
-  // A phone stacks the three, as the web does: the title with its length beside
-  // it, then artist and album each on a line of their own, so neither is cut off.
+  // At a narrow width the three stack: the title with its length beside it,
+  // then artist and album each on a line of their own, so neither is cut off.
   return (
     <View style={[rowStyle, styles.itemRowNarrow]}>
       {check}
@@ -631,7 +631,7 @@ function FoldAction({
   )
 }
 
-/** One download: the web's `.job-row`. */
+/** One download. */
 function JobRow({
   job,
   onCancel,

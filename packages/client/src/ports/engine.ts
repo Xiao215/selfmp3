@@ -7,12 +7,11 @@
  * screen. This is the surface `PlayerProvider` is written against so there is
  * one of it rather than the two that exist today.
  *
- * Derived from `apps/web/src/player/engine.ts` rather than designed fresh. That
- * engine has years of real behaviour in it — gapless handover, crossfade,
- * count-in, an A/B loop — and inventing a tidier shape here would mean
- * discovering at integration time which parts of it the shape could not
- * express. Its state object was already free of DOM types; only `analyser()`
- * was not, and that is handled below.
+ * Derived from years of real behaviour — gapless handover, crossfade,
+ * count-in, an A/B loop — rather than designed fresh: inventing a tidier shape
+ * here would mean discovering at integration time which parts of that
+ * behaviour the shape could not express. The state object was already free of
+ * DOM types; only `analyser()` was not, and that is handled below.
  */
 
 /** Everything a screen can ask about what is currently sounding. */

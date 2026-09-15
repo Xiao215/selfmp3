@@ -25,19 +25,18 @@ export interface SelectGroup<T> {
 /**
  * Choose one of a few things.
  *
- * The web app's `Select`, which is a button showing the current value and a
- * list of the rest. Here it is that button and a `Popover`, so above the
- * breakpoint the options appear beside the control and below it they arrive as
- * a sheet — decided by the primitive, not by the caller, which is foundation 5.
+ * A button showing the current value and a list of the rest, and a `Popover`,
+ * so above the breakpoint the options appear beside the control and below it
+ * they arrive as a sheet — decided by the primitive, not by the caller, which
+ * is foundation 5.
  *
  * Options come flat, or in labelled groups (the smart-playlist field list:
- * Text, Tags, Numbers…). Three sizes, as on the web: the ordinary control,
- * `small` for a row of them, and `inline` for one that sits inside a sentence
- * ("Match all of these rules").
+ * Text, Tags, Numbers…). Three sizes: the ordinary control, `small` for a row
+ * of them, and `inline` for one that sits inside a sentence ("Match all of
+ * these rules").
  *
- * Not a native picker: the web app's list is styled to match everything around
- * it, and an iOS wheel beside it would be a different control wearing the same
- * label.
+ * Not a native picker: the list is styled to match everything around it, and
+ * an iOS wheel beside it would be a different control wearing the same label.
  */
 export function Select<T extends string | number>({
   value,
@@ -95,12 +94,12 @@ export function Select<T extends string | number>({
           size === 'small' && styles.controlSmall,
           size === 'inline' && styles.controlInline,
           pressed && styles.controlPressed,
-          // Open, the control keeps the accent edge the web gives it.
+          // Open, the control keeps an accent edge.
           open && { borderColor: accent.accent },
         ]}
         onPress={() => setOpen(true)}
         testID={testID}
-        // The web's control is a combobox named by what is chosen, with the
+        // This control is a combobox named by what is chosen, with the
         // current value as its content.
         accessibilityRole="combobox"
         accessibilityLabel={label}

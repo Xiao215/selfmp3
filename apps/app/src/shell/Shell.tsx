@@ -280,8 +280,8 @@ function PaletteHost(): ReactNode {
 }
 
 /**
- * The web's toast row: at the foot of the content column, above the player bar
- * or the mini player, so a message never covers the transport.
+ * The toast row: at the foot of the content column, above the player bar or
+ * the mini player, so a message never covers the transport.
  */
 function Toasts(): ReactNode {
   // Above a phone's floating selection bar rather than over its buttons.

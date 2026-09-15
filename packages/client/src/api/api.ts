@@ -6,17 +6,15 @@
  * becoming `undefined is not an object` inside a component. It costs a
  * millisecond per request and has repeatedly been worth it.
  *
- * This is the merge of `apps/web/src/lib/api.ts` and
- * `apps/mobile/src/api/client.ts`. The two were the same file twice, except
- * that the phone carried a `ServerConnection` through every call and the web
- * read its own page origin. That difference is now `ApiTransport`, supplied
- * once at startup, and the endpoint list below is the web's — unchanged, which
- * is how the phone gains every mutation it was missing (love, tag, playlist
- * membership, settings) without a line being written for it.
+ * What used to differ between platforms was only how each carried the server:
+ * the phone through a `ServerConnection` passed to every call, the browser by
+ * simply reading its own page origin. That difference is now `ApiTransport`,
+ * supplied once at startup, so every mutation (love, tag, playlist membership,
+ * settings) is available on every platform without a line being written twice.
  *
- * The endpoints are deliberately a verbatim move. A rewrite here would have
- * been 74 chances to change a route string nobody would notice until a screen
- * broke.
+ * The endpoints are deliberately a verbatim list, unified once rather than
+ * rewritten: a rewrite here would have been 74 chances to change a route
+ * string nobody would notice until a screen broke.
  */
 import {
   AnalysisStatusSchema,
@@ -94,11 +92,9 @@ const ErrorResponseSchema = z.object({
 /**
  * The bucket answering instead of a server.
  *
- * Both apps had this, worded differently and with one real difference: the web
- * mapped a `CloudRouteError` with code `offline` to status 0 and the phone did
- * not. Status 0 is what `isOffline` reads, and "the bucket is unreachable" is
- * exactly the case the UI wants to call offline, so the web's version is the
- * one kept.
+ * A `CloudRouteError` with code `offline` maps to status 0 here: status 0 is
+ * what `isOffline` reads, and "the bucket is unreachable" is exactly the case
+ * the UI wants to call offline.
  */
 async function cloudAnswer<S extends z.ZodTypeAny>(
   cloudRequest: CloudRequest,
@@ -465,7 +461,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
 
-    /** Links asked of the server, through the bucket: the web app's own imports (lib/cloud). */
+    /** Links asked of the server, through the bucket: a cloud library's own imports (lib/cloud). */
     cloudImports: () => request('GET', '/api/cloud/imports', ImportRequestListSchema),
 
     requestCloudImport: (input: CloudImportRequest) =>

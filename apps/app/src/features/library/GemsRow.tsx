@@ -16,7 +16,7 @@ import { tip } from '../../ui/tip'
 const COLLAPSED_KEY = 'gems.collapsed'
 
 /**
- * Forgotten gems: the web's `GemsRow`.
+ * Forgotten gems.
  *
  * Songs you loved or wore out that have not come up in months. The server
  * re-ranks them with a little randomness on every request, so it is a

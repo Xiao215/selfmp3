@@ -3,8 +3,7 @@ import type { PrefStore } from './prefs'
 export type { PrefStore }
 
 /**
- * The browser's answer: `localStorage`, which is also where the web app keeps
- * its own device-local odds and ends (`apps/web/src/lib/device.ts`).
+ * The browser's answer: `localStorage`.
  *
  * Wrapped, because `localStorage` does not merely come back empty in a private
  * window or with site data blocked — the accessor itself throws, and an app

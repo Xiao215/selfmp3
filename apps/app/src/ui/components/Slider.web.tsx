@@ -7,8 +7,8 @@ import { fractionOf } from './slider.model'
 import type { SliderProps } from './slider.types'
 
 /*
- * A browser already has a good slider, keyboard and all, so on the web this is
- * the web app's `input[type='range']` with its stylesheet. The thumb can only be
+ * A browser already has a good slider, keyboard and all, so this is an
+ * `input[type='range']` with its own stylesheet. The thumb can only be
  * styled from CSS, so the rules are added to the page once.
  */
 const HUE_STOPS = [0, 60, 120, 180, 240, 300, 360]

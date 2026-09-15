@@ -14,9 +14,9 @@ function keyOf(song: Song): string {
  * A component rather than a bare list at each call site because
  * `docs/UNIVERSAL.md` names one — "FlashList v2 behind a `SongList`
  * component" — so that the choice of list can change in one file and no screen
- * knows. It also keeps the table semantics in one place: the web app's library
- * has always been a `role=table` of `role=row`s, and a row with no table around
- * it announces nothing useful.
+ * knows. It also keeps the table semantics in one place: the library is a
+ * `role=table` of `role=row`s, and a row with no table around it announces
+ * nothing useful.
  *
  * **It is a `FlatList`, and the plan's fallback is why.** FlashList v2 was
  * tried here first, as the Stack table asks. It draws correctly and scrolls

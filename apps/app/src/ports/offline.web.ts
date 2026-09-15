@@ -4,21 +4,11 @@ import type { OfflineStore, SaveOptions, StorageUsage as PortStorageUsage } from
 /**
  * The web half of the `OfflineStore` port.
  *
- * `apps/web/src/offline/audioCache.ts`, moved here per phase 3 of
- * docs/UNIVERSAL.md, with one change: the cache key no longer calls the web
- * app's `appPath`.
+ * A song's stream URL, which is also its cache key, is injected wiring: the
+ * same shape the engine port uses for `streamUrl`.
  *
- * That one import is worth a note, because it is the same module the spike had
- * to stub out — the only one in `apps/web` that reads Vite's `import.meta.env`,
- * which Metro cannot evaluate. It was used in exactly one place, to build a
- * stream URL, so it became injected wiring in the same shape the engine port
- * already uses for `streamUrl`. The stub the spike needed is now unnecessary
- * here for the same reason the engine's was: the tie to the web app was one
- * function, and naming it made it go away.
- *
- * Everything below the copy is the adapter onto the port. It is thin, which is
- * the finding: the port was derived from both apps' offline code, and the web
- * side needed no reshaping to meet it.
+ * Everything below is the adapter onto the port. It stays thin because the
+ * browser's offline handling already matches the port's shape one for one.
  */
 
 /**
@@ -470,9 +460,9 @@ export async function requestPersistentStorage(): Promise<boolean> {
 /**
  * The browser's `OfflineStore`.
  *
- * A thin mapping, which is the point: the port was derived from both apps'
- * offline code, and if the web side had needed reshaping to meet it that would
- * have meant the port was describing something other than what exists.
+ * A thin mapping, which is the point: if the browser side had needed reshaping
+ * to meet the port, that would have meant the port was describing something
+ * other than what actually happens here.
  *
  * `localUri` is deliberately absent. The browser has nothing to hand back — the
  * service worker intercepts the ordinary stream URL, so the player never learns

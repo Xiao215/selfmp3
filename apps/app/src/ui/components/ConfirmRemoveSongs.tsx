@@ -14,8 +14,8 @@ import { IconButton } from './IconButton'
 import { Trash, X } from './Icons'
 
 /**
- * The confirmation for removing a selection from the library: the web's
- * `ConfirmRemoveSongs`, with its two faces.
+ * The confirmation for removing a selection from the library, with its two
+ * faces.
  *
  * Untouched it removes rows and leaves every file where it is. Ticking the box
  * turns it red and rewrites the heading, the explanation and the button, and
@@ -25,9 +25,8 @@ import { Trash, X } from './Icons'
  *
  * Mounted only while it is showing, so the box always starts unticked.
  *
- * One difference from the web, because there is no toast to say it in: a
- * failure is shown inside the dialog, which stays open, rather than closing it
- * and reporting underneath.
+ * Because there is no toast to say it in, a failure is shown inside the
+ * dialog, which stays open, rather than closing it and reporting underneath.
  */
 export function ConfirmRemoveSongs({
   songs,

@@ -13,10 +13,10 @@ import { useDeviceContext } from './DevicesProvider'
 /**
  * What else is playing, and what to do about it.
  *
- * The web app's devices popover, as the phone's sheet — below the breakpoint
- * that is what a popover is, and `Popover` would render exactly this. It is a
- * `Sheet` directly because the control that opens it lives in the mini player,
- * which has no anchor worth measuring.
+ * The devices list: beside the control that opened it at desktop width, and a
+ * sheet below the breakpoint. It is a `Sheet` directly rather than a `Popover`
+ * because on a phone that control lives in the mini player, which has no
+ * anchor worth measuring.
  *
  * Two actions per device, and they are opposites: **Play here** pulls that
  * device's queue and position over and stops it there; **Play there** pushes
@@ -31,8 +31,8 @@ export function DevicesSheet({
   open: boolean
   onClose: () => void
   /**
-   * The control that opened it. At desktop width the list opens beside it, as
-   * the web's devices popover does; without one it is a sheet.
+   * The control that opened it. At desktop width the list opens beside it;
+   * without one it is a sheet.
    */
   anchorRef?: RefObject<RNView | null>
 }): ReactNode {

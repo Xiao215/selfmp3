@@ -66,20 +66,12 @@ export type { PlayerProgress }
 /**
  * The React glue between the queue rules and whatever makes a sound.
  *
- * Phase 3's point. This file used to drive react-native-track-player directly:
- * it handed the player the whole queue, then spent half its length keeping two
- * ideas of "which song is playing" in step — the pure `QueueState` and the
- * native player's index — and reconciling the events that arrived while a load
- * was still in flight. The web app's provider had the same job and none of
- * that code, because it drives an engine one song at a time.
- *
- * Now they are the same shape, because they are written against the same
- * `PlaybackEngine`. `QueueState` is the only source of truth for order *and*
- * position; the engine plays the song it is handed and says when that song
- * ended. On the phone `engine.ts` keeps one song queued behind the current one
- * so the handover stays gapless and the lock screen has a Next to offer —
- * which is the engine's business, not this file's, and the reason the index
- * reconciliation is gone rather than moved.
+ * It is written against `PlaybackEngine`, so it drives whichever engine this
+ * platform has the same way. `QueueState` is the only source of truth for
+ * order *and* position; the engine plays the song it is handed and says when
+ * that song ended. On the phone `engine.ts` keeps one song queued behind the
+ * current one so the handover stays gapless and the lock screen has a Next to
+ * offer — which is the engine's business, not this file's.
  *
  * What is still the phone's here: the listen outbox flushing when the app
  * comes back to the foreground, which is a phone's nearest thing to "the server
@@ -192,9 +184,9 @@ export interface PlayerApi {
   setCountIn: (on: boolean) => void
 }
 
-/** Where this device keeps its volume, as the web app does. */
+/** Where this device keeps its volume. */
 const VOLUME_KEY = 'volume'
-/** Practice preferences, kept on this device as the web keeps them. */
+/** Practice preferences, kept on this device. */
 const PITCH_LOCK_KEY = 'pitchlock'
 const COUNT_IN_KEY = 'countin'
 const AUTO_MIX_KEY = 'automix'
@@ -276,7 +268,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     autoMixRef.current = autoMix
   }, [autoMix])
 
-  /** With auto-mix on, anything that brings new songs into Up next re-smooths it, as on the web. */
+  /** With auto-mix on, anything that brings new songs into Up next re-smooths it. */
   const mixed = useCallback(
     (state: QueueState): QueueState =>
       autoMixRef.current ? autoMixOrder(state, songsRef.current) : state,
@@ -420,7 +412,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
           setSleepAtSongEnd(false)
         }
 
-        // Past songs that cannot play here: one not on the phone, offline,
+        // Past songs that cannot play here: one not on this device, offline,
         // would otherwise load and sit paused with no word.
         const { state, stop } = advancePlayable(queueRef.current, true, mayPlay)
         if (stop) {
@@ -467,8 +459,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       autoplay = true,
     ) => {
       const start = (): void => {
-        // "Play" on a list means in order, as on the web; a tapped row keeps
-        // whatever mode is on.
+        // "Play" on a list means in order; a tapped row keeps whatever mode is
+        // on.
         const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
         const next = mixed(playFrom(from, songIds, startIndex))
         setQueue(next)
@@ -540,8 +532,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [loadIndex, mayPlay])
 
   const previous = useCallback(() => {
-    // Match the web: within the first few seconds "previous" means the
-    // previous track, after that it means "start this one again".
+    // Within the first few seconds "previous" means the previous track, after
+    // that it means "start this one again".
     if (engine.playhead > 3) {
       engine.seek(0)
       return

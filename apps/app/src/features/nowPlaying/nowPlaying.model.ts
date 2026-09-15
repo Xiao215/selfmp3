@@ -4,8 +4,7 @@ import { formatLongDuration, type LyricsLanguage, type ParsedLyrics } from '@sel
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
  * page, which words a song has to show, and when "Next" should appear.
  *
- * The numbers are the web app's stylesheet (`feat-now-playing.css`), whose
- * sizes follow the page's own width and height rather than the window's.
+ * The numbers follow the page's own width and height rather than the window's.
  */
 
 export type StageTab = 'lyrics' | 'queue' | 'about'
@@ -174,8 +173,8 @@ export function upNextLine(count: number, seconds: number): string {
 }
 
 /**
- * What auto-mix will do next, beside its switch in the queue: the web's
- * `.automix-fade`. A phone's player cannot crossfade, so there it only orders.
+ * What auto-mix will do next, beside its switch in the queue. A phone's
+ * player cannot crossfade, so there it only orders.
  */
 export function autoMixLine({
   autoMix,

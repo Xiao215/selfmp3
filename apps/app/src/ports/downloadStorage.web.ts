@@ -27,21 +27,20 @@ import { recentIds } from './recentCopies'
  *
  * Not resumable. A cached `Response` is written whole, so there is nothing
  * half-finished to continue; `pause()` lets the song in flight finish and the
- * shared queue stops after it — which is what the web has always done.
+ * shared queue stops after it.
  *
  * **The index is two things kept apart on purpose.** Which songs are kept is
  * the cache's to say: a browser may evict them, and an index that disagreed
  * would offer to play something that is gone. What is known about each — above
  * all the etag recorded when it was fetched — is the saved index's, because
- * the cache does not have it. The earlier web queue rebuilt the whole index
- * from the cache and so lost every etag, and `staleIds` compares exactly that
- * against the manifest.
+ * the cache does not have it. Rebuilding the whole index from the cache would
+ * lose every etag, so `staleIds` compares the saved index against the manifest
+ * instead.
  *
  * It also no longer needs the stream URL to load. Which songs are cached is
  * read off the key's path, and a song's size or deletion wants the full URL,
- * `rev` and all — which the provider configures *after* it loads. Asking for
- * sizes first threw, and the old queue fell back to an empty index: after a
- * reload the web very likely showed nothing kept.
+ * `rev` and all — which the provider configures *after* it loads, since asking
+ * for it too early throws and would show nothing kept after a reload.
  */
 
 const INDEX_KEY = 'selfmp3.downloads'

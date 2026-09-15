@@ -26,13 +26,10 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
 
 /**
- * Presence, handoff and remote control — on the phone, for the first time.
+ * Presence, handoff and remote control.
  *
- * The same shape as the web app's, which is the point: the heartbeat is HTTP
- * and a clock, the handoff rules are `handoffTarget` in `packages/client`, and
- * the only thing that was ever a browser is the live stream, which is now the
- * `ServerEvents` port. What the phone gains is the whole feature; what it
- * needed written was an SSE reader.
+ * The heartbeat is HTTP and a clock, the handoff rules are `handoffTarget` in
+ * `packages/client`, and the live stream comes through the `ServerEvents` port.
  *
  * It sits *inside* `PlayerProvider` rather than around it, so the player stays
  * untouched by any of this: this reads the player to build a heartbeat and

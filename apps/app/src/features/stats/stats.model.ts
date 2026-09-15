@@ -1,7 +1,7 @@
 import type { DailyPlays, HourlyPlays, StatsRange, WrappedRange } from '@selfmp3/shared'
 
 /**
- * Listening stats, without the screen: the web's `StatsView` rules.
+ * Listening stats, without the screen.
  *
  * Everything on the page is derived from stored play events, so the questions
  * can change later without the data having been thrown away. The page leads

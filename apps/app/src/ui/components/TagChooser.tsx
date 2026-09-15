@@ -10,8 +10,7 @@ import { TagSearchList } from './TagPicker'
 
 /**
  * Tags for songs that are not in the library yet: an import, a migration. The
- * web's `TagChooser`. The choice is only held here; whoever runs the import
- * applies it.
+ * choice is only held here; whoever runs the import applies it.
  *
  * Only the chosen tags are on show, so the row stays one line however many
  * tags the library has. The rest are in the picker a song uses.

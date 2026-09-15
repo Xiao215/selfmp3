@@ -1,10 +1,9 @@
 /**
  * Where the server is, and how to make sense of what someone typed.
  *
- * Moved from `apps/mobile/src/server/connection.ts`, minus the keychain. The
- * reading and writing stayed in the phone app because `expo-secure-store` is
- * the phone's; the *rules* came here because they are not, and because the
- * universal app will need exactly the same ones in a browser.
+ * The reading and writing stay in the phone app because `expo-secure-store` is
+ * the phone's; the *rules* live here because they are not, and because the
+ * app needs exactly the same ones in a browser.
  */
 
 import type { ApiTransport } from '../platform.js'

@@ -58,9 +58,9 @@ export function parseQuery(search: string): RouteQuery {
 }
 
 /**
- * The web app's stand-in for the server's API (docs/SYNC.md).
+ * A cloud library's stand-in for the server's API (docs/SYNC.md).
  *
- * Built for the web there is no `/api` to ask, so `request()` in api.ts sends
+ * In a cloud library there is no `/api` to ask, so `request()` in api.ts sends
  * every call here instead. Reading the library, a playlist, lyrics, what to
  * download: answered from this device's copy of the library. Editing it —
  * songs, tags, playlists, plays — is a change recorded here and uploaded to
@@ -506,7 +506,7 @@ export function createCloudRoutes(
 
     throw new CloudRouteError(
       501,
-      'Not in the web app yet — this still needs your server.',
+      'Not in a cloud library yet — this still needs your server.',
       'needs-server',
     )
   }
@@ -551,7 +551,7 @@ export function createCloudRoutes(
     return found
   }
 
-  /** "Reachable" means the doorman answers: the web app's only server. */
+  /** "Reachable" means the doorman answers: a cloud library's only server. */
   async function health(): Promise<unknown> {
     const response = await session_.doormanFetch(null, '/v1/health')
     if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')

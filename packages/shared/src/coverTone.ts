@@ -14,8 +14,6 @@ import type { CoverSwatch, CoverTone } from './schemas/song.js'
  * it: pixels are grouped by hue, weighted by how colourful they are, and the
  * heaviest group wins. Near-black and near-white are ignored — a skyline
  * silhouette or a white border is not what a cover is "about".
- *
- * Moved from the web app's `lib/coverColor.ts`, unchanged.
  */
 
 export interface Oklch {

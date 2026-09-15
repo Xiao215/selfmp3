@@ -6,8 +6,8 @@ import { useAccent } from '../accent'
 import { Check, Minus } from './Icons'
 
 /**
- * The web's `.checkbox`: a 17-point box that fills with the accent when on,
- * with a dim fill and a dash when only some of what it stands for is on.
+ * A 17-point box that fills with the accent when on, with a dim fill and a
+ * dash when only some of what it stands for is on.
  *
  * Only the mark. The thing you press, and what it is called, belong to the
  * caller — a row's checkbox, the selection bar's select-all and the delete
@@ -15,7 +15,7 @@ import { Check, Minus } from './Icons'
  * happen to draw the same square.
  *
  * `danger` is the confirmation's: ticking the box that deletes files turns it
- * red rather than accent, as the web does.
+ * red rather than accent.
  */
 export function Checkbox({
   checked,

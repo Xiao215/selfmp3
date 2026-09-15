@@ -5,8 +5,8 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius } from '@selfmp3/client'
 
 /**
- * A row of mutually exclusive choices: the web's `.segmented`. For a range or a
- * mode, where every option is worth seeing at once.
+ * A row of mutually exclusive choices. For a range or a mode, where every
+ * option is worth seeing at once.
  */
 export function Segmented<T extends string>({
   value,

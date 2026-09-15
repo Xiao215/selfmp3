@@ -3,10 +3,10 @@ import { DoormanError, SESSION_KEY, createCloudSession } from './session.js'
 import type { CloudPlatform, CloudRequestInit, CloudResponse, DeviceStore } from './platform.js'
 
 /**
- * These are the first tests this code has ever had. It moved out of the web
- * app unchanged, where it could not be tested without a browser — which is
- * most of the argument for the port it now sits behind: the fake below is
- * thirty lines, and it can answer 401 on demand.
+ * These are the first tests this code has ever had: it could not be tested
+ * without a browser before, which is most of the argument for the port it now
+ * sits behind: the fake below is thirty lines, and it can answer 401 on
+ * demand.
  */
 
 const DOORMAN = 'https://doorman.test'

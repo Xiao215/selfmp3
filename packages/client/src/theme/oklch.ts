@@ -1,8 +1,8 @@
 /**
  * OKLCH to a hex colour, because React Native cannot do it itself.
  *
- * The web app builds every colour from `oklch(L C var(--accent-hue))` and lets
- * the browser resolve it, which is what keeps the palette evenly weighted as
+ * `tokens.reference.css` builds every colour from `oklch(L C var(--accent-hue))`
+ * and lets the browser resolve it, which is what keeps the palette evenly weighted as
  * the hue moves — the same lightness really does look the same lightness, in a
  * way HSL never manages. React Native has no OKLCH and no custom properties,
  * so the same arithmetic happens here and the result is handed over as hex.
@@ -31,7 +31,7 @@ export function oklchToHex(lightness: number, chroma: number, hueDegrees: number
 
 /**
  * The same colour with an alpha, as `#rrggbbaa` — React Native reads that
- * form, and it is how the web's `oklch(L C H / a)` tints come across.
+ * form, and it is how a browser's `oklch(L C H / a)` tints come across.
  */
 export function oklchToHexAlpha(
   lightness: number,

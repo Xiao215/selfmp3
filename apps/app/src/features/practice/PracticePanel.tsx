@@ -24,8 +24,7 @@ type Group = PracticeGroup
 const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: false }
 
 /**
- * The practice panel: loop, speed and key, in one place. The web's
- * `PracticePanel`.
+ * The practice panel: loop, speed and key, in one place.
  *
  * Learning a part means playing four bars over and over, slowly, without the
  * pitch drifting. Each group collapses, so it still fits a phone. The desktop

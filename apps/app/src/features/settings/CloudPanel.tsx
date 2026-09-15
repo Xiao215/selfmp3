@@ -23,7 +23,7 @@ import { SheetItem } from '../../ui/components/Sheet'
 import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
 
 /**
- * Settings → Cloud: the web's `CloudSettings` (docs/SYNC.md).
+ * Settings → Cloud (docs/SYNC.md).
  *
  * With a doorman set up, this server signs in with Google first, and the bucket
  * belongs to that Google account: connected once, and every device signed in
@@ -373,9 +373,8 @@ function AccountMenu({
 /**
  * The bucket's details: connected directly with no doorman, or — signed in —
  * connected to the Google account, with the doorman trying the key first.
- * The web's `BucketFields`: the four things a bucket's page and B2's key dialog
- * show, in that order, and the region only for an address it cannot be read
- * from.
+ * The four things a bucket's page and B2's key dialog show, in that order,
+ * and the region only for an address it cannot be read from.
  */
 function BucketForm({
   status,

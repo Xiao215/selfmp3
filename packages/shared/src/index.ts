@@ -2,7 +2,7 @@
  * @selfmp3/shared — the contract between the server and every client.
  *
  * If a value crosses the network, its schema lives here. The server validates
- * incoming requests against these schemas and the web app parses responses
+ * incoming requests against these schemas and every client parses responses
  * with the same ones, so a mismatch is a compile error rather than a runtime
  * surprise on a phone somewhere.
  */

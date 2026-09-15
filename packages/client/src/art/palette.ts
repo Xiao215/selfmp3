@@ -4,9 +4,7 @@
  * Now Playing lights its background with three colours from the artwork, so
  * every song's page looks like that song. Working the colours out is plain
  * arithmetic on pixels, shared here; reading the pixels is not, and is done by
- * whichever platform can (a canvas on the web).
- *
- * Moved from the web app's `lib/visuals.ts` unchanged, so both apps light the
+ * whichever platform can (a canvas on the web) — so every client lights the
  * same cover the same way.
  */
 

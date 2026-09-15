@@ -10,7 +10,7 @@ import {
 } from '@selfmp3/shared'
 
 /**
- * Importing, without the screen: the web's `ImportView` rules.
+ * Importing, without the screen.
  *
  * Two steps on purpose: fetch the details first, review and correct them, then
  * commit. A forty-track playlist is exactly the case where you want to see what
@@ -62,7 +62,7 @@ export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
   return null
 }
 
-/** How a job's row is tinted: the web's `is-…` classes. */
+/** How a job's row is tinted. */
 export type JobTone = 'running' | 'done' | 'error' | 'waiting' | 'cancelled' | 'queued'
 
 export function jobTone(job: Pick<ImportJob, 'status' | 'step'>): JobTone {

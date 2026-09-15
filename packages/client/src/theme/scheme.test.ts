@@ -13,8 +13,8 @@ import {
 } from './tokens.js'
 
 /**
- * The light theme against the web's `:root[data-theme='light']`, read from the
- * stylesheet as the dark theme's parity test reads `:root`.
+ * The light theme against `tokens.reference.css`'s `:root[data-theme='light']`,
+ * read from the stylesheet as the dark theme's parity test reads `:root`.
  */
 
 const CSS = readFileSync(

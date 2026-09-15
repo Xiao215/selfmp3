@@ -28,15 +28,13 @@ import { Sparkles, X } from './Icons'
 import { MetadataDialog } from './MetadataDialog'
 
 /**
- * Everything the app knows about one song, in plain words: the web's
- * `SongDetailsDialog`.
+ * Everything the app knows about one song, in plain words.
  *
  * Grouped by what you would want the fact for: how it sounds, whether it is on
  * this device, your history with it, and the file itself.
  *
- * "On this device" is the phone's answer, the download queue's, rather than
- * the browser cache's. The server-only half of the web's version — the file's
- * path and "Show in Finder" — belongs to the server, and is left out.
+ * "On this device" is the download queue's answer. The file's path and "Show
+ * in Finder" belong to the server, and are left out.
  *
  * "Fix metadata…" opens from here rather than from the song menu: it is the
  * place where a wrong title or album is noticed. The lookup runs on the

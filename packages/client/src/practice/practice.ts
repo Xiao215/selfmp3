@@ -1,6 +1,6 @@
 /**
- * Practice helpers: pure functions behind the A–B loop and count-in. Moved from
- * `apps/web/src/player/practice.ts` so both apps' practice panels share them.
+ * Practice helpers: pure functions behind the A–B loop and count-in, shared so
+ * every platform's practice panel behaves the same.
  *
  * The engine owns the actual loop; these decide what the loop *should* be
  * from what the user tapped, and what the UI should draw for it.

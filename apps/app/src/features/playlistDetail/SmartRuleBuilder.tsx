@@ -37,7 +37,7 @@ import {
 } from './rules.model'
 
 /**
- * The smart-playlist rule builder: the web's `SmartRuleBuilder`.
+ * The smart-playlist rule builder.
  *
  * You should always be able to see what a rule set matches. Every edit is
  * previewed against the real library and the count shown beside the rules,

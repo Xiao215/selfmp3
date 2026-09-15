@@ -1,12 +1,14 @@
 /**
  * When a song counts as played, and how much of it was heard.
  *
- * Two numbers decided this in both apps, written out twice: the two-second gap
- * that separates playing from seeking, and the minute that has to be heard. A play counted differently depending on which
- * device was in your hand is a wrong play count, wrong stats and a wrong
- * Wrapped, and nothing would have caught the two drifting apart.
+ * These two numbers must agree everywhere, so they are written once rather
+ * than once per client: the two-second gap that separates playing from
+ * seeking, and the minute that has to be heard. A play counted differently
+ * depending on which device was in your hand is a wrong play count, wrong
+ * stats and a wrong Wrapped, and nothing would have caught the two drifting
+ * apart.
  *
- * The surrounding bookkeeping stays in each app's player: the web reads a
+ * The surrounding bookkeeping stays in each platform's player: the web reads a
  * `<audio>` element's `currentTime` and the phone is told a position by the
  * native player, and each holds it in a ref it mutates on a hot path. Only the
  * arithmetic is here.

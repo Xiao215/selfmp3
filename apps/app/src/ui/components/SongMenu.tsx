@@ -34,7 +34,7 @@ import { SongDetails } from './SongDetails'
 import { TagPicker } from './TagPicker'
 
 /**
- * The ⋯ menu for a song: the web's `SongMenu`, in its order.
+ * The ⋯ menu for a song.
  *
  * At phone width this is a row's only set of actions, so everything a row can
  * do has to be reachable from here, tagging included. The song's name heads it,
@@ -45,9 +45,9 @@ import { TagPicker } from './TagPicker'
  * mis-tap apart.
  *
  * Editing tags and the song's details replace the menu rather than stacking on
- * it, as on the web. Kept short on purpose: the similar-songs pair folds into
- * one row, and fixing the metadata is a button inside Song details, next to
- * the facts it changes, rather than a row of its own here.
+ * it. Kept short on purpose: the similar-songs pair folds into one row, and
+ * fixing the metadata is a button inside Song details, next to the facts it
+ * changes, rather than a row of its own here.
  */
 export function SongMenu({
   song,
@@ -64,13 +64,13 @@ export function SongMenu({
    */
   playlist?: { readonly id: number; readonly name: string }
   /**
-   * The ⋯ that opened it. At desktop width the menu hangs off it, as the web's
-   * does, and does not need to name the song; without one it is a sheet.
+   * The ⋯ that opened it. At desktop width the menu hangs off it, and does
+   * not need to name the song; without one it is a sheet.
    */
   anchorRef?: RefObject<RNView | null>
   /**
    * Where the list supports it, "Select" starts selection mode with this song
-   * ticked — the web's third way in, and the only one a held finger has.
+   * ticked — the only way in a held finger has.
    */
   onStartSelecting?: (song: Song) => void
 }): ReactNode {

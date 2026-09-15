@@ -5,16 +5,16 @@ import { desktop } from './desktop/bridge'
 import { prefs } from './prefs'
 
 /**
- * Who this browser says it is: the web app's `lib/device.ts`.
+ * Who this browser says it is.
  *
  * The phone's file knows what it runs on. A browser does not, so its name and
  * kind are read from the user agent ("Mac · Chrome", an iPhone's Safari as a
- * phone), as the web app did. Without this a browser called itself "self.mp3"
- * in every other device's list, and a phone's browser counted as a desktop.
+ * phone). Without this a browser called itself "self.mp3" in every other
+ * device's list, and a phone's browser counted as a desktop.
  *
  * The installed app is the case in between: it is this same web build, so the
  * user agent is still Chrome's, but it is not a tab and it knows the machine's
- * real name. "Xiao's MacBook Pro" is what should appear in the phone's device
+ * real name. "Xiao's MacBook Pro" is what should appear in the app's device
  * list, not "Mac · Chrome" — and it is a different device from the browser on
  * the same Mac, which the separate `app://selfmp3` origin already gives it a
  * separate stored id under.

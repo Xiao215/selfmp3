@@ -5,17 +5,17 @@ import { useAccent } from '../accent'
 import { oklchToHexAlpha, tagColors, type } from '@selfmp3/client'
 
 /**
- * A tag, as the web draws it: a pill in the tag's own hue, brighter when it
- * is the filter. With no hue it is a plain chip in the app's accent — the
- * sort field, the "downloaded only" switch.
+ * A tag: a pill in the tag's own hue, brighter when it is the filter. With no
+ * hue it is a plain chip in the app's accent — the sort field, the
+ * "downloaded only" switch.
  *
- * Three faces for a tag, as on the web: off, showing only it (`selected`),
- * and hiding it (`excluded`), which draws the pill quiet with an outline in
- * the tag's hue and a red "not" in front of the name.
+ * Three faces for a tag: off, showing only it (`selected`), and hiding it
+ * (`excluded`), which draws the pill quiet with an outline in the tag's hue
+ * and a red "not" in front of the name.
  *
- * A finger's target on a phone (`.mobile-tag-strip .tag-chip`): 8 by 12
- * points of padding around 12-point text. `compact` is the web's ordinary
- * chip, 5 by 10, for the "Filtered by" row. `onRemove` adds the ×.
+ * A finger's target on a phone: 8 by 12 points of padding around 12-point
+ * text. `compact` is the ordinary chip, 5 by 10, for the "Filtered by" row.
+ * `onRemove` adds the ×.
  */
 export function Chip({
   testID,

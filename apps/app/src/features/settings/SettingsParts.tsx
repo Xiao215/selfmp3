@@ -7,10 +7,9 @@ import { useAccent } from '../../ui/accent'
 import { Slider } from '../../ui/components/Slider'
 
 /**
- * The pieces every Settings section is made of: the web's `.panel` and its one
- * row anatomy — name, a quiet line of explanation, the control on the right.
- * On a phone the control drops under the words, as the web's narrow layout
- * does.
+ * The pieces every Settings section is made of: one row anatomy — name, a
+ * quiet line of explanation, the control on the right. On a phone the control
+ * drops under the words.
  */
 
 const Stacked = createContext(false)

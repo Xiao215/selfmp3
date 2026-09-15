@@ -2,8 +2,7 @@ import { LibrarySchema, type Library } from '@selfmp3/shared'
 import { deleteStored, readStored, writeStored } from '../ports/idbStore.web'
 
 /**
- * The last library payload, in a browser: the web app's `offline/mirror.ts`
- * snapshot, in IndexedDB under the key it used.
+ * The last library payload, in a browser: a snapshot kept in IndexedDB.
  *
  * The phone's file (`libraryCache.ts`) writes through expo-file-system, which a
  * browser does not have, so until this file the web build never kept the

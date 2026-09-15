@@ -9,11 +9,12 @@
  * being itself, React Native's satisfies it by being itself, and a test
  * satisfies it in a dozen lines.
  *
- * The difference between the web app and the phone lives entirely here. The web
- * talks to its own origin under a base path and needs no credentials; the phone
- * talks to an absolute address it was told at onboarding, carries a bearer
- * token, and gives up after fifteen seconds because a sleeping server would
- * otherwise hang forever. Neither fact is visible anywhere else in the package.
+ * The difference between running in a browser and on a phone lives entirely
+ * here. In a browser it talks to its own origin under a base path and needs no
+ * credentials; on the phone it talks to an absolute address it was told at
+ * onboarding, carries a bearer token, and gives up after fifteen seconds
+ * because a sleeping server would otherwise hang forever. Neither fact is
+ * visible anywhere else in the package.
  *
  * That last one is why the timeout is not a field here. `setTimeout` and
  * `AbortController` are not in the ES2023 library this package compiles

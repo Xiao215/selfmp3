@@ -1,13 +1,13 @@
 /**
  * Multi-select for a list of songs, as rules rather than a hook.
  *
- * The web app's `useSelection` held these inside React state. They are pulled
- * out so the library and a playlist share them on every platform, and so the
- * parts that decide which songs a batch action touches are tested on their own.
- * The hooks around them only add what is genuinely per-platform: Escape on a
- * keyboard, and clearing when the route changes.
+ * Held as plain rules rather than inside React state, so the library and a
+ * playlist share them on every platform, and so the parts that decide which
+ * songs a batch action touches are tested on their own. The hooks around them
+ * only add what is genuinely per-platform: Escape on a keyboard, and clearing
+ * when the route changes.
  *
- * The rules, unchanged from the web app:
+ * The rules:
  *
  *  1. **The selection is always a subset of what you can see.** Anything that
  *     leaves the visible list leaves the selection with it, so "remove 40

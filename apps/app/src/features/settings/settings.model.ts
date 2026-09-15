@@ -84,7 +84,7 @@ export function landingOffset(top: number, clearance: number): number {
 }
 
 /**
- * Which section the reader is looking at: the web's rule.
+ * Which section the reader is looking at.
  *
  * Normally the last section whose top has passed a line near the top. The last
  * few sections are short and the page runs out before their tops reach that

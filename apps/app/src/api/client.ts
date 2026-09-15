@@ -72,7 +72,7 @@ const transport = (): ApiTransport | null =>
   current.connection ? serverTransport(current.connection) : null
 
 /**
- * `fetch` with a deadline, which is the phone's whole contribution.
+ * `fetch` with a deadline, which is this device's whole contribution.
  *
  * The abort surfaces as a thrown error, which the package turns into an
  * `ApiError` with status 0 — the same "offline" the UI already knows how to
@@ -108,7 +108,7 @@ configureClient({
   api,
   librarySnapshot: {
     read: readCachedLibrary,
-    // The phone's cache write is fire-and-forget by design — it hands the work
+    // This device's cache write is fire-and-forget by design — it hands the work
     // to a background task and returns — so there is nothing to await.
     write: async library => {
       writeCachedLibrary(library)
@@ -135,7 +135,7 @@ configureClient({
 })
 
 /**
- * A throwaway client for an address that is not this phone's yet.
+ * A throwaway client for an address that is not this device's yet.
  *
  * Onboarding has to prove an address before saving it — `/api/health` proves
  * the address and an authenticated call proves the token, so "wrong address"

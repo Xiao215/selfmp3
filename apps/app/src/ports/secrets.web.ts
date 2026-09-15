@@ -24,9 +24,8 @@ const keychain: SecretStore = {
 }
 
 /**
- * The browser's answer: `localStorage`, which is what the web app already uses
- * for the small things it has to remember (`apps/web/src/lib/device.ts` keeps
- * the device id and name there).
+ * The browser's answer: `localStorage`, which is also what `prefs.web.ts` uses
+ * for the small things a device has to remember (its id and name).
  *
  * A browser has no keychain to put this in. That is a real difference in what
  * the platform can promise, not a shortcut: on the web the token is protected

@@ -52,14 +52,10 @@ import type { ImportRequestList } from '@selfmp3/replica'
  * cache invalidation lives here rather than being sprinkled across components.
  * That is what keeps two open tabs — or a phone and a laptop — consistent.
  *
- * Moved from `apps/web/src/lib/queries.ts`, with `apps/mobile`'s four
- * phone-only hooks folded in at the end. The bodies are unchanged: `api.`
- * became `clientApi().` and the two offline-mirror calls became the
- * `LibrarySnapshotStore` port, and that is the whole diff. Everything else that
- * differed between the two apps turned out to be the platform, not the query —
- * the phone keyed every cache entry by the server's address, which is now a
- * `queryClient.clear()` when the address changes, and gated every query on
- * having an address at all, which is `ClientState.ready`.
+ * What looked like platform differences turned out to be about the platform,
+ * not the query: the phone keys every cache entry by the server's address,
+ * which is now a `queryClient.clear()` when the address changes, and every
+ * query is gated on having an address at all, which is `ClientState.ready`.
  */
 
 export const queryKeys = {
@@ -85,7 +81,7 @@ export const queryKeys = {
   gems: (limit: number) => ['gems', limit] as const,
   history: ['stats', 'history'] as const,
   playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
-  /** The phone's, for the two it asks for that the web app reads from `library`. */
+  /** The phone's, for the two it asks for that a browser instead reads from `library`. */
   manifest: ['manifest'] as const,
   lyrics: (id: number) => ['lyrics', id] as const,
   motion: (id: number) => ['motion', id] as const,
@@ -747,7 +743,7 @@ export function useCloudActions() {
 }
 
 /**
- * The web app's imports: links asked of the server through the bucket. Looked at
+ * A cloud library's imports: links asked of the server through the bucket. Looked at
  * again every half minute while one is still waiting or downloading.
  */
 export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
@@ -763,16 +759,15 @@ export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
 
 // --- the phone's own ---------------------------------------------------------
 //
-// Four hooks apps/mobile had and apps/web did not, because the web app reads
-// the same facts out of the library response it already holds. They are here
-// rather than left behind so that the universal app has one queries file, which
-// is the point of the package.
+// Four hooks only the phone needs, because a cloud library reads the same
+// facts out of the library response it already holds. They live in this one
+// queries file, which is the point of the package.
 
 /**
  * The manifest: what the server thinks should be downloaded, and at what size.
  *
- * The phone syncs against it; the web app's offline panel works from the
- * library instead, so this had no web caller until now.
+ * The phone syncs against it; a browser's offline panel worked from the
+ * library instead, so this had no caller in a browser until now.
  */
 export function useManifest(): UseQueryResult<SyncManifest, Error> {
   const { ready } = useClientState()
@@ -886,7 +881,7 @@ export function useMotion(songId: number | null): MotionCurve | null {
  * one thing, and the two clients disagreeing means the same listening is
  * counted differently depending on which one was in your hand.
  *
- * The web app's `useSettings` is the same query; this is the phone's name for
- * it, kept so its call sites did not have to move.
+ * `useServerSettings` is an alias for `useSettings`, kept so existing call
+ * sites did not have to move.
  */
 export const useServerSettings = useSettings

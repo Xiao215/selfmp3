@@ -1,4 +1,4 @@
-/** A key combination's handler: `meta+k`, `ctrl+k`, as the web app names them. */
+/** A key combination's handler: `meta+k`, `ctrl+k`. */
 export type Hotkeys = Readonly<Record<string, () => void>>
 
 /**

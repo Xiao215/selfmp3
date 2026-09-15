@@ -22,7 +22,7 @@ import { ensurePlayer } from '../player/setup'
  * **The question this file answers.** The port hands an engine one song at a
  * time and a hint about what follows; track-player owns a queue and advances
  * through it by itself. Those are two different ideas of who is in charge, and
- * phase 3 could not be finished without deciding between them.
+ * this port has to decide between them.
  *
  * The answer is that neither owns it outright: **the provider owns the order,
  * and the player is lent a window onto it** — the song that is sounding, and

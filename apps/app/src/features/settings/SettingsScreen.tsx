@@ -138,7 +138,7 @@ const LINKED_HOLD_MS = 2500
 type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sign-out' | null
 
 /**
- * Settings: the web's `SettingsView`.
+ * Settings.
  *
  * What syncs and what does not, kept apart. Playback, importing and lyrics
  * live on the server so the server and every phone agree; downloads, the accent
@@ -186,7 +186,7 @@ export function SettingsScreen(): ReactNode {
   const chipsWidth = useRef(0)
 
   // At narrow widths the chip for the section being read is often scrolled out
-  // of its row. Bring it back — sideways only, as the web does.
+  // of its row. Bring it back — sideways only.
   useEffect(() => {
     const chip = chipAt.current.get(active)
     if (!chip || chipsWidth.current === 0) return
@@ -813,9 +813,9 @@ function LibraryPanel({
 }
 
 /**
- * "Find missing cover art": the web's `FixCoversPanel`. The pass runs on the
- * server; this starts, stops and watches it, so leaving Settings interrupts
- * nothing. Covers land one at a time, so the library is refetched as they do.
+ * "Find missing cover art". The pass runs on the server; this starts, stops
+ * and watches it, so leaving Settings interrupts nothing. Covers land one at a
+ * time, so the library is refetched as they do.
  */
 function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean }): ReactNode {
   const { theme } = useUnistyles()

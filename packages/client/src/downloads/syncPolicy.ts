@@ -5,8 +5,8 @@ import { formatBytes } from '@selfmp3/shared'
  *
  * The design Xiao chose on 2026-09-12 (docs/universal-progress.md, "Downloading
  * and streaming"), written once for every client that keeps songs: the phone
- * today, and the desktop app when there is one. A browser always streams, so
- * for it most of this answers "nothing to do".
+ * and the desktop. A browser always streams, so for it most of this answers
+ * "nothing to do".
  *
  * Nothing here knows how the network is detected or where bytes go. It is
  * handed the situation and returns a decision, which is what makes it testable.

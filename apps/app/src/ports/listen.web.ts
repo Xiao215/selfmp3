@@ -1,7 +1,7 @@
 import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
 
 /**
- * Listening before importing, in a browser: the web's `ImportListen`.
+ * Listening before importing, in a browser.
  *
  * An audio element of its own, not the player's, so a preview never touches
  * the queue. The server answers `/api/import/listen` by asking yt-dlp where the

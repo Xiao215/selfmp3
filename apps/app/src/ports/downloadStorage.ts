@@ -20,12 +20,10 @@ import { writeCachedMotion } from '../offline/motionCache'
 /**
  * Where the phone keeps songs: files on disk, beside a JSON index.
  *
- * The storage half of what used to be the phone's `DownloadQueue`, moved
- * behind the `DownloadStorage` port. Ordering, pausing, progress and failure
- * are now the shared queue's, in `packages/client`; what is left here is only
- * where the bytes go and where they come from — and it is the same files, in
- * the same folder, with the same index, so a phone that already has downloads
- * keeps them.
+ * Ordering, pausing, progress and failure are the shared queue's, in
+ * `packages/client`; what is left here is only where the bytes go and where
+ * they come from — and it is the same files, in the same folder, with the
+ * same index, so a phone that already has downloads keeps them.
  *
  * Resumable, which is why a transfer is an object: a paused download task
  * keeps the platform's resume data, and running it again continues the file

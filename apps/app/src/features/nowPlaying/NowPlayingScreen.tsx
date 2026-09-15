@@ -87,7 +87,7 @@ import { VisualStyleMenu } from './VisualStyleMenu'
 type Panel = 'none' | 'queue'
 
 /**
- * The full-screen phone player: the web's `NowPlaying`, on the phone.
+ * The full-screen phone player.
  *
  * Large artwork, thumb-reachable controls, and a scrubber with a hit area
  * big enough to grab while walking. The lyrics are the other page of the
@@ -112,7 +112,7 @@ export function NowPlayingScreen(): ReactNode {
     if (songId === undefined || songParam === String(songId)) return
     router.setParams({ song: String(songId) })
   }, [songId, songParam, router])
-  // A computer gets the web's page, with the lyrics beside the art; a phone
+  // A computer gets `NowPlayingStage`, with the lyrics beside the art; a phone
   // keeps its own screen.
   // A phone presents this page as a native modal, above the whole app, the
   // shell's overlay host included: a sheet drawn there sat under the page and
@@ -521,7 +521,6 @@ function PhoneWords({
   const sampler = useMotionSampler(song, noLyrics)
   const bpm = song.audioFeatures?.bpm
   const on = lyrics.romanizationOn
-  // The web's `clamp(22px, 6.4vw, 28px)`.
   const fontSize = Math.min(28, Math.max(22, width * 0.064))
 
   return (
@@ -695,7 +694,7 @@ function FootAction({
 }
 
 /**
- * The queue: the web's `QueuePanel`, over the stage.
+ * The queue, over the stage.
  *
  * It starts at the song that is playing, as the computer's does: the played
  * songs fold into one line above it (`queueLines`), so there is nothing to

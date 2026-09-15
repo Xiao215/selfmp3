@@ -57,7 +57,7 @@ import { tip } from '../ui/tip'
 import { setPaletteOpen } from './palette'
 
 /**
- * The desktop's left rail: the web app's `.sidebar`.
+ * The desktop's left rail.
  *
  * The same destinations the tab bar carries, in the same order, from the same
  * route files — `docs/UNIVERSAL.md` foundation 5. Only the arrangement differs,
@@ -72,15 +72,15 @@ import { setPaletteOpen } from './palette'
  * you pinned sit under it. A song dragged from the library drops onto a
  * pinned playlist.
  *
- * Below them, the web's tag list, which is how a desktop filters the library:
- * a click shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
+ * Below them, a tag list, which is how a desktop filters the library: a click
+ * shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
  * the foot, a status line: reachable or not, and what is offline.
  */
 const DESTINATIONS: {
   href: '/' | '/import' | '/stats' | '/settings'
   label: string
   Icon: typeof Music
-  /** Needs the server's own tools: a cloud library has none, as on the web. */
+  /** Needs the server's own tools: a cloud library has none. */
   server?: boolean
 }[] = [
   { href: '/', label: 'Library', Icon: Music },

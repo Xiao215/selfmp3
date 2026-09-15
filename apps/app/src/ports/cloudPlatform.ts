@@ -14,7 +14,8 @@ import { AppState, Platform } from 'react-native'
  * sequence numbers — is the same code the browser already runs.
  *
  * The browser's version of this file is cloudPlatform.web.ts.
- * Between them they are the whole difference between the two apps.
+ * Between them they are the whole difference between running on a phone and
+ * running in a browser.
  */
 
 const ROOT = new Directory(Paths.document, 'cloud')

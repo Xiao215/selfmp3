@@ -10,7 +10,7 @@ export interface ListenState {
   readonly duration: number
 }
 
-/** Listening before importing, with nothing drawn: the web's `ImportListen` rules. */
+/** Listening before importing, with nothing drawn. */
 
 export type ListenTrack = Pick<ImportPreviewItem, 'url' | 'title' | 'artist' | 'duration'>
 

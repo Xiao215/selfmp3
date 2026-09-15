@@ -1,12 +1,12 @@
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
- * The web app's palette, resolved to hex.
+ * `tokens.reference.css`'s palette, resolved to hex.
  *
- * The web app's stylesheet built every colour from `oklch(L C var(--accent-hue))`;
- * it is kept beside the tests as `tokens.reference.css`. React Native has neither OKLCH nor custom properties,
- * so the same lightness/chroma pairs are converted here instead, and the two
- * apps stay visually identical.
+ * The stylesheet builds every colour from `oklch(L C var(--accent-hue))`; it
+ * is kept beside the tests as `tokens.reference.css`. React Native has neither
+ * OKLCH nor custom properties, so the same lightness/chroma pairs are
+ * converted here instead, and the browser and the phone draw the same colours.
  *
  * The accent is worked out rather than written down, because on the phone it
  * is a setting: `buildAccent` below is given whatever hue this device has been
@@ -18,7 +18,7 @@ import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 /** The hue everything here was written at, and what a device starts on. */
 export const DEFAULT_ACCENT_HUE = 268
 
-/** Dark, as the app was drawn; or the web's `:root[data-theme='light']`. */
+/** Dark, as the app was drawn; or `tokens.reference.css`'s `:root[data-theme='light']`. */
 export type ColorScheme = 'dark' | 'light'
 
 /*
@@ -43,7 +43,7 @@ export function buildAccent(
   onAccent: string
   /** The filled pill behind the current tab's icon: `oklch(0.45 0.13 h / 0.26)`. */
   accentPill: string
-  /** The progress wash behind the mini player: the web's 26% song colour. */
+  /** The progress wash behind the mini player: a 26% wash of the song colour. */
   accentWash: string
   /** A selected row: `oklch(0.36 0.08 h / 0.4)`. */
   accentSelected: string
@@ -56,7 +56,7 @@ export function buildAccent(
       onAccent: oklchToHex(0.99, 0, 0),
       accentPill: oklchToHexAlpha(0.52, 0.19, hue, 0.14),
       accentWash: oklchToHexAlpha(0.52, 0.19, hue, 0.18),
-      // The web's light theme draws a selected row in the dim accent itself.
+      // The light theme draws a selected row in the dim accent itself.
       accentSelected: oklchToHex(0.9, 0.05, hue),
     }
   }
@@ -71,7 +71,7 @@ export function buildAccent(
   }
 }
 
-/** A tag's chip, in its own hue — the web's `.tag-chip` and `.is-active`. */
+/** A tag's chip, in its own hue. */
 export function tagColors(
   hue: number,
   scheme: ColorScheme = activeScheme,
@@ -145,8 +145,8 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
 export type ThemePalette = ReturnType<typeof darkPalette>
 
 /**
- * The web's light theme, `:root[data-theme='light']` in tokens.reference.css. Its
- * surfaces are tinted by the hue, faintly, as the web's are. Danger, warning
+ * The light theme, `:root[data-theme='light']` in tokens.reference.css. Its
+ * surfaces are tinted by the hue, faintly, as they are there. Danger, warning
  * and good are the same in both.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
@@ -189,7 +189,7 @@ export const radius = { sm: 6, md: 10, lg: 16 } as const
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const
 
-/** Matches the web app's 14px base with a compact 1.5 line height. */
+/** A 14px base with a compact 1.5 line height. */
 export const type = {
   body: 14,
   small: 12,
@@ -199,18 +199,18 @@ export const type = {
   large: 22,
 } as const
 
-/** The web's `--hit-target`: the smallest comfortable touch target. */
+/** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
 export const HIT_TARGET = 44
 
-/** The web's `--mobile-nav-height`, before the safe-area inset is added. */
+/** `tokens.reference.css`'s `--mobile-nav-height`, before the safe-area inset is added. */
 export const NAV_HEIGHT = 58
 
 /** Height of the mini player that sits above the nav: 8px + 40px cover + 8px. */
 export const MINI_PLAYER_HEIGHT = 56
 
 /**
- * The web's motion tokens: quick and subtle. `--dur-fast`, `--dur`,
- * `--dur-slow`, and the `--ease-out` curve.
+ * `tokens.reference.css`'s motion tokens: quick and subtle. `--dur-fast`,
+ * `--dur`, `--dur-slow`, and the `--ease-out` curve.
  */
 export const motion = { fast: 100, base: 140, slow: 220 } as const
 
@@ -224,7 +224,6 @@ export const motion = { fast: 100, base: 140, slow: 220 } as const
  * one their operating system implies.
  *
  * It lives here beside the other tokens because `docs/UNIVERSAL.md` says it
- * does: one design token source, and the breakpoint is a design token. It
- * matches the web app's `useIsMobile(820)`.
+ * does: one design token source, and the breakpoint is a design token.
  */
 export const BREAKPOINT = 820

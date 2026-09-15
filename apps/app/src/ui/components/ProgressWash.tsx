@@ -9,10 +9,10 @@ import { withAlpha } from '@selfmp3/client'
 /**
  * How far the song has got, as a wash behind everything on a bar.
  *
- * The web's `.player-bar::before` and `.mini-progress`: the song's colour fills
- * the bar from the left, and the leading edge fades out over `fade` points
- * instead of stopping at a hard line, so it reads as light rather than as a
- * block. The line along the foot, where there is one, fades with it.
+ * The song's colour fills the bar from the left, and the leading edge fades
+ * out over `fade` points instead of stopping at a hard line, so it reads as
+ * light rather than as a block. The line along the foot, where there is one,
+ * fades with it.
  */
 export function ProgressWash({
   fraction,

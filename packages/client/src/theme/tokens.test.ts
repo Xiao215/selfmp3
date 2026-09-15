@@ -9,8 +9,8 @@ import { buildAccent, colors, DEFAULT_ACCENT_HUE } from './tokens.js'
  *
  * Every expected value below was read out of Chrome: each `oklch(...)` painted
  * onto a 1×1 canvas and the pixel read back, which is the browser doing the
- * conversion the web app relies on. If this file ever disagrees, the two apps
- * have started drawing different colours from the same setting.
+ * conversion the client relies on. If this file ever disagrees, the two
+ * platforms have started drawing different colours from the same setting.
  */
 
 const ACCENT = [
@@ -72,7 +72,7 @@ describe('oklchToHex', () => {
 })
 
 /**
- * Token parity: the hex in `tokens.ts` against the OKLCH in the web app's CSS.
+ * Token parity: the hex in `tokens.ts` against the OKLCH in `tokens.reference.css`.
  *
  * The test above proves the arithmetic is the browser's. This one proves the
  * two files are still describing the same palette — that nobody has nudged

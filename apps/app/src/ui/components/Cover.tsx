@@ -6,8 +6,8 @@ import { hueFromString } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 
 /**
- * Cover art, with the same placeholder the web app uses: a solid colour
- * derived from the title and its first letter. Deriving the hue from the text
+ * Cover art, with a placeholder: a solid colour derived from the title and
+ * its first letter. Deriving the hue from the text
  * means a given album always gets the same colour, which turns out to be
  * surprisingly good at making a list scannable.
  *

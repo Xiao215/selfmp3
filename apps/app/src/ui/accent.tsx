@@ -10,7 +10,7 @@ import { applyAccentHue, applyThemeChoice, onSchemeChange } from './theme/unisty
 export type { ThemeChoice }
 
 /**
- * This phone's accent colour.
+ * This device's accent colour.
  *
  * Deliberately not a server setting, and deliberately not synced. Settings that describe the library — what counts as a play, which
  * tags go on an import — are the same everywhere and belong on the server.
@@ -24,7 +24,7 @@ export type { ThemeChoice }
  * keychain: a hue is nobody's secret.
  */
 
-/** The presets the picker offers, and their hues. The web app offers these. */
+/** The presets the picker offers, and their hues. */
 export const ACCENT_PRESETS: readonly { hue: number; name: string }[] = [
   { hue: 268, name: 'Violet' },
   { hue: 220, name: 'Blue' },

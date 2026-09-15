@@ -2,8 +2,7 @@
 const SAMPLE = 24
 
 /**
- * A cover's pixels in a browser: draw it at 24 pixels and read them back, as
- * the web app did.
+ * A cover's pixels in a browser: draw it at 24 pixels and read them back.
  *
  * The art comes from the server, another origin, so the image asks for CORS;
  * the server answers with this app's origin, which keeps the canvas readable.

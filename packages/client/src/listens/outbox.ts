@@ -21,21 +21,20 @@ import type { OutboxStore } from '../platform.js'
  * sent from there; the server recognises a resent play by its id, so sending
  * twice is harmless.
  *
- * Both apps had this file — the same rules over different storage, IndexedDB in
+ * Every client needs the same rules over different storage — IndexedDB in
  * the browser and a JSON file on the phone — so what is here is everything
  * except the storage, which arrives as an `OutboxStore`.
  *
- * The phone's version also took the server connection and returned early when
- * there was none. It does not need to: with no server configured the API client
- * throws an offline `ApiError`, every event comes back `retry` and nothing is
- * lost, which is what the early return achieved.
+ * There is deliberately no early return for "no server configured": with no
+ * server configured the API client throws an offline `ApiError`, every event
+ * comes back `retry`, and nothing is lost.
  */
 
 type Listener = (pending: number) => void
 
 /*
  * Function-typed properties rather than methods, so that destructuring one off
- * — which is how both apps re-export them — carries no `this`. None of them has
+ * — which is how the app re-exports them — carries no `this`. None of them has
  * one to lose.
  */
 export interface ListenOutbox {

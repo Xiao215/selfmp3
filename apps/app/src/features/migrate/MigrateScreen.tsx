@@ -54,7 +54,7 @@ import {
   type MigrateRow,
 } from './migrate.model'
 
-/** The web's confidence pills, in its own OKLCH values: ground, edge. */
+/** The confidence pills, in their own OKLCH values: ground, edge. */
 const TONE_FILL: Record<ConfidenceTone, [string, string]> = {
   good: [oklchToHexAlpha(0.36, 0.08, 155, 0.45), oklchToHexAlpha(0.5, 0.1, 155, 0.55)],
   fair: [oklchToHexAlpha(0.36, 0.09, 78, 0.5), oklchToHexAlpha(0.5, 0.11, 78, 0.55)],
@@ -62,8 +62,7 @@ const TONE_FILL: Record<ConfidenceTone, [string, string]> = {
 }
 
 /**
- * Migrating a playlist from Spotify, Apple Music or a text file: the web's
- * `MigrateView`.
+ * Migrating a playlist from Spotify, Apple Music or a text file.
  *
  * Paste, match, review. Each song is matched to a YouTube upload by a server
  * job this polls; the matches are checked here, with a different upload a pick
@@ -430,7 +429,7 @@ function ConfidencePill({
   )
 }
 
-/** One song: the web's `.migrate-row`. A table row at desktop width; stacked on a phone. */
+/** One song. A table row at desktop width; stacked on a phone. */
 function MatchRow({
   row,
   wide,

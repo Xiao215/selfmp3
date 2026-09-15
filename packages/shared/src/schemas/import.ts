@@ -5,7 +5,7 @@ import { IdSchema } from './common.js'
  * The import pipeline: a URL goes in, a tagged song with lyrics comes out.
  *
  * Jobs are persisted in SQLite rather than held in memory, so a queue of forty
- * downloads survives a server restart and the phone can watch progress from a
+ * downloads survives a server restart and a client can watch progress from a
  * cold start.
  */
 

@@ -1,7 +1,7 @@
 import { formatLongDuration, type Song, type Tag } from '@selfmp3/shared'
 
 /**
- * The tag inbox, without the screen: the web's `TagInboxView` rules.
+ * The tag inbox, without the screen.
  *
  * Tags are how this library is browsed, so a song without one is a song only
  * ever found by searching, and every import adds more. The inbox counts them;

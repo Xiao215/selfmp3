@@ -1,8 +1,7 @@
 import type { DeviceKind } from '@selfmp3/shared'
 
 /**
- * A browser's name for itself in other devices' lists: the web app's
- * `lib/device.ts` `describeUserAgent`.
+ * A browser's name for itself in other devices' lists.
  *
  * Deliberately coarse, a label for a popover and not analytics. The one
  * subtlety is iPadOS, which claims to be a Mac and is told apart by touch.

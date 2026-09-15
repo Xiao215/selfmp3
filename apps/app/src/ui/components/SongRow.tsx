@@ -39,11 +39,11 @@ const ALBUM_COLUMN_CONTENT_WIDTH = 916
 const SIDEBAR_WIDTH = 244
 
 /**
- * One song in a list: the web's `.song-row`.
+ * One song in a list.
  *
- * Two shapes, as the web has. On a phone, with a finger and no hover: a tap
- * plays, the heart and ⋯ are always there at a finger-sized target, and holding
- * the row opens the same menu. At desktop width it is a table row: the
+ * Two shapes. At phone width, with a finger and no hover: a tap plays, the
+ * heart and ⋯ are always there at a finger-sized target, and holding the row
+ * opens the same menu. At desktop width it is a table row: the
  * position (or the equaliser, for the song that is loaded), the art, the title
  * over the artist with the tempo and energy after it, the album in a column of
  * its own once there is room, the tags, and the heart, length and ⋯.
@@ -152,7 +152,7 @@ export const SongRow = memo(function SongRow({
   // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
   const rowRef = useRef<View>(null)
   useSongDragSource(rowRef, () => [song.id], wide && dense)
-  // The held-finger state, as on the web: the row gives a little under the
+  // The held-finger state: the row gives a little under the
   // finger so something is visibly happening while the menu is on its way.
   const [scale] = useState(() => new Animated.Value(1))
   const press = (down: boolean): void => {
@@ -164,8 +164,7 @@ export const SongRow = memo(function SongRow({
   }
 
   const tint = [
-    // The web's `.song-row.is-selected`: a translucent accent that reads as
-    // picked on the dark UI.
+    // Selected: a translucent accent that reads as picked on the dark UI.
     selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
     (song.missing || unavailable) && styles.missing,
   ]
@@ -498,7 +497,7 @@ function Love({
   )
 }
 
-/** The web's small `.tag-chip`, in the tag's own hue. */
+/** A small tag chip, in the tag's own hue. */
 function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
   const palette = tagColors(tag.hue)
   return (
@@ -516,9 +515,9 @@ function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode 
 }
 
 /**
- * Now playing: the web's `.song-row.is-current`, a wash that comes in from the
- * right, where the row is empty — the cover already fills the left. It stays
- * while the song is paused, so the row still says "this is the one".
+ * Now playing: a wash that comes in from the right, where the row is empty —
+ * the cover already fills the left. It stays while the song is paused, so
+ * the row still says "this is the one".
  */
 function RowWash({ color }: { color: string }): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a

@@ -9,9 +9,8 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
 
 /**
- * A song in a ranked or recent list: the web's `.top-song-row` and
- * `.history-row`. Tapping plays it; a song no longer in the library is shown
- * but cannot be played.
+ * A song in a ranked or recent list. Tapping plays it; a song no longer in
+ * the library is shown but cannot be played.
  */
 export function SongLine({
   song,

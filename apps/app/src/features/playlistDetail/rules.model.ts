@@ -5,9 +5,9 @@ import type { SmartRule, SmartRules, SongSortField, Tag } from '@selfmp3/shared'
  * fields there are and how they are grouped, what each can be compared with,
  * the rule a field starts from, and how the live count is put into words.
  *
- * Taken from the web app's `SmartRuleBuilder`, so a rule reads the same on
- * every device, and kept apart from the screen so the parts that build a
- * query — above all the starting rules — are checked by a test.
+ * So a rule reads the same on every device, and kept apart from the screen so
+ * the parts that build a query — above all the starting rules — are checked
+ * by a test.
  */
 
 export type FieldKey = SmartRule['field']

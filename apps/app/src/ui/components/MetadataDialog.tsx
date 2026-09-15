@@ -30,19 +30,19 @@ import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import { Check, X } from './Icons'
 
-/** The sources' badges, in the web's OKLCH: ground, ink. */
+/** The sources' badges, as an OKLCH pair: ground, ink. */
 const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
   itunes: [oklchToHexAlpha(0.36, 0.09, 340, 0.5), oklchToHexAlpha(0.85, 0.1, 340, 1)],
   musicbrainz: [oklchToHexAlpha(0.36, 0.09, 40, 0.5), oklchToHexAlpha(0.85, 0.1, 40, 1)],
 }
 
 /**
- * "Fix metadata…": the web's `MetadataDialog`. The song as the library has it
- * on one side, suggestions from iTunes and MusicBrainz on the other, and the
- * changes a suggestion would make, each ticked or not, so exactly the
- * corrections agreed with are applied.
+ * "Fix metadata…". The song as the library has it on one side, suggestions
+ * from iTunes and MusicBrainz on the other, and the changes a suggestion
+ * would make, each ticked or not, so exactly the corrections agreed with are
+ * applied.
  *
- * Centred at desktop width; the whole screen on a phone, as the web's is.
+ * Centred at desktop width; the whole screen on a phone.
  */
 export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()

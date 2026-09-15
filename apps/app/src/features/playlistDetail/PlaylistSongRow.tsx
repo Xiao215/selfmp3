@@ -19,7 +19,7 @@ import { Grip, More, X } from '../../ui/components/Icons'
 const LIFT_DELAY = 350
 
 /**
- * One track of a playlist: the web's `.playlist-row`.
+ * One track of a playlist.
  *
  * At desktop width: the position, the cover, title over artist, the length,
  * and — where there is a mouse, once it is on the row — ⋯ for the song's menu

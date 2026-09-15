@@ -7,7 +7,7 @@ import {
 import { formatHour, playsLabel } from '../stats/stats.model'
 
 /**
- * Wrapped, for any window, without the screen: the web's `WrappedView` rules.
+ * Wrapped, for any window, without the screen.
  *
  * Everything comes from the same play events Stats uses, so the two pages
  * agree. The useful version of a yearly summary is being able to ask what last

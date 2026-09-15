@@ -5,7 +5,7 @@ import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
 /**
- * A song's words, and the romanization switch: the web's `useSongLyrics`.
+ * A song's words, and the romanization switch.
  *
  * The romanized lines are made on the server, which has the dictionaries, and
  * come with the words from wherever the words come from: the server's own lyrics

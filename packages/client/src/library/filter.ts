@@ -14,7 +14,7 @@ import {
  *
  * Pure, and built on the shared `fuzzyRank` so a search that matches on the
  * desktop matches the same way on the phone — the whole reason those helpers live
- * in `packages/shared` rather than in the web app.
+ * in `packages/shared` rather than in a client.
  */
 
 export interface LibraryFilter {
@@ -32,7 +32,7 @@ export interface LibraryFilter {
   readonly downloadedOnly: boolean
 }
 
-/** The web's opening view: newest first. */
+/** The app's opening view: newest first. */
 export const DEFAULT_FILTER: LibraryFilter = {
   query: '',
   includedTagIds: [],
@@ -67,7 +67,7 @@ const toggled = (ids: readonly number[], id: number): number[] =>
 
 /**
  * Toggle "only songs with this tag". A tag cannot be both shown and hidden, so
- * including one that was excluded stops excluding it — the web app's rule.
+ * including one that was excluded stops excluding it — the app's rule.
  */
 export function includeTag(filter: LibraryFilter, tagId: number): LibraryFilter {
   return {
@@ -112,7 +112,7 @@ export function filterHeading(
   return parts.length > 0 ? parts.join(' · ') : 'Library'
 }
 
-/** Sort options offered in the UI — the web's list, in the web's order. */
+/** Sort options offered in the UI — the app's list, in the app's order. */
 export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
   { field: 'addedAt', label: 'Recently added' },
   { field: 'title', label: 'Title' },
@@ -171,7 +171,7 @@ export function filterSongs(
   }
 
   // The shared comparison, so the phone and the desktop put the same library in
-  // the same order. A local copy drifted from the web app's in four places.
+  // the same order. A separate local copy once drifted from this in four places.
   return sortSongs(result, filter.sort, filter.descending)
 }
 

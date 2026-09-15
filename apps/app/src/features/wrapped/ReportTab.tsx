@@ -45,7 +45,7 @@ const GAP = 14
 const CHAPTER_MIN = 330
 
 /**
- * Stats' Report tab, a listening report for any window: the web's `WrappedView`.
+ * Stats' Report tab, a listening report for any window.
  *
  * The one screen allowed to be a bit of a show: the figure set large, the top
  * song's cover beside it, each section a numbered chapter. It keeps the app's

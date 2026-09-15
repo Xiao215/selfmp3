@@ -13,8 +13,8 @@ export type { Command, CommandHandlers }
  * Space and the ⌘-arrows are in the menu for discoverability — that is how a
  * person learns their app has them — but registering them as accelerators would
  * take them out of every text field in the app. So the menu shows them, the
- * page handles them, and this is the table both sides read. Empty in a browser,
- * where there is no menu and the web app has never had playback shortcuts.
+ * page handles them, and this is the table both sides read. Empty in a
+ * browser, where there is no menu and so no playback shortcuts.
  */
 const kept: ReadonlyMap<string, Command> = desktop
   ? pageKeptCombinations()

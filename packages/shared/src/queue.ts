@@ -8,10 +8,9 @@ import type { Song } from './schemas/song.js'
  * restoring the original order when shuffle is turned off — can be tested
  * directly, without mounting a component or touching an audio element.
  *
- * It lives in `shared` rather than the web app because it is pure and
- * framework-free, and the native app needs exactly the same rules. Duplicating
- * them would guarantee the two clients eventually disagree about what "next"
- * means.
+ * It lives in `shared` because it is pure and framework-free, and every
+ * platform needs exactly the same rules. Duplicating them would guarantee the
+ * clients eventually disagree about what "next" means.
  */
 
 export interface QueueState {

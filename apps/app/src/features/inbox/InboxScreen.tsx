@@ -47,7 +47,7 @@ import {
 } from './inbox.model'
 
 /**
- * Untagged songs, and a quick way through them: the web's `TagInboxView`.
+ * Untagged songs, and a quick way through them.
  *
  * The list says how many there are; "Start tagging" goes through them one at a
  * time: the song plays, its tags are tapped (or picked with the number keys),

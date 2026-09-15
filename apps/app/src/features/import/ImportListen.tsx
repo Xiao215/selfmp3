@@ -23,8 +23,7 @@ import {
 } from './listen.model'
 
 /**
- * Listening to a track on the review, before it is imported: the web's
- * `ImportListen`.
+ * Listening to a track on the review, before it is imported.
  *
  * Whatever was playing pauses while you listen and carries on when the preview
  * is closed, unless you went back to it yourself in the meantime, which the

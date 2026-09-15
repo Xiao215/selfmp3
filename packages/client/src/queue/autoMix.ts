@@ -10,12 +10,11 @@ import {
 /**
  * Auto-mix: reorder what is coming up into a smooth path.
  *
- * Pure functions in the same spirit as `@selfmp3/shared`'s queue. Moved from the
- * web app's `player/autoMix.ts`. Given the current song,
- * the upcoming queue is walked greedily — always to the nearest neighbour by
- * tempo, key and energy — so each transition is as gentle as the remaining
- * songs allow. Greedy is not optimal, but a queue is short and a listener
- * hears one transition at a time; a perfect tour is not worth the code.
+ * Pure functions in the same spirit as `@selfmp3/shared`'s queue. Given the
+ * current song, the upcoming queue is walked greedily — always to the nearest
+ * neighbour by tempo, key and energy — so each transition is as gentle as the
+ * remaining songs allow. Greedy is not optimal, but a queue is short and a
+ * listener hears one transition at a time; a perfect tour is not worth the code.
  */
 
 /** Loudness matters less here than for "similar": a fade hides a level gap. */

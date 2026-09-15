@@ -3,9 +3,9 @@ import { cachedBytes, cacheSong, isCached, offlineStorageAvailable, uncacheSong 
 import { prefs } from './prefs'
 
 /**
- * Songs kept because they were played, in a browser: the web app's
- * `offline/recentCache.ts`, over the same audio cache downloads use, so the
- * service worker serves a kept copy exactly as it serves a download.
+ * Songs kept because they were played, in a browser: built over the same
+ * audio cache downloads use, so the service worker serves a kept copy exactly
+ * as it serves a download.
  *
  * The rules for when to keep one are the caller's (`DownloadsProvider`: only a
  * cloud library, not a song removed by hand); this only keeps, trims and lists.

@@ -2,7 +2,7 @@ import { CloudServerSchema, IdSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 
 /**
- * The web app's own routes, which only the cloud build answers (routes.ts):
+ * A cloud library's own routes, which only the cloud build answers (routes.ts):
  * importing by asking the server, through the bucket.
  */
 

@@ -1,11 +1,11 @@
 /**
- * Short messages about what just happened: the web's `showToast`.
+ * Short messages about what just happened.
  *
- * The messages live in a module, not in a component, for the web's reason:
- * almost everything worth announcing is the result of an action that removes
- * whatever started it. "Removed 3 songs" is raised by a selection bar the
- * removal has just emptied, and a toast owned by that bar would vanish in the
- * same frame it appeared.
+ * The messages live in a module, not in a component: almost everything worth
+ * announcing is the result of an action that removes whatever started it.
+ * "Removed 3 songs" is raised by a selection bar the removal has just
+ * emptied, and a toast owned by that bar would vanish in the same frame it
+ * appeared.
  */
 
 export type ToastTone = 'info' | 'good' | 'warn' | 'error'

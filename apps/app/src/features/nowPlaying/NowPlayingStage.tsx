@@ -67,8 +67,7 @@ const ENTER_MS = 260
 const LEAVE_MS = 180
 
 /**
- * The page for the song that is playing, on a computer: the web's
- * `NowPlayingPage`.
+ * The page for the song that is playing, on a computer.
  *
  * One page with two modes. **Stage** is what the bar opens: the artwork and
  * what the app knows about the song on the left, and the lyrics, the queue or

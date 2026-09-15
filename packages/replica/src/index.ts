@@ -3,8 +3,8 @@
  *
  * Every device — the server, a browser, the phone — keeps the whole library's
  * metadata and replays other devices' changes onto it. The rules for doing
- * that are the same everywhere, so they live here rather than inside whichever
- * app happened to need them first, which was the web one.
+ * that are the same everywhere, so they live here rather than inside any one
+ * app.
  *
  * **There is no platform in this package, and the compiler enforces it**: its
  * `tsconfig.json` omits the `DOM` library, so a reach for `window`, `caches`

@@ -45,11 +45,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   /*
    * Forget everything cached for the previous server.
    *
-   * The phone's query keys used to carry the server's address for this reason, so
-   * that pointing at a different one could not show the last one's library
-   * while the new one loaded. The keys are the web app's now and carry no
-   * address, so the forgetting happens here instead — once, on the change,
-   * rather than in twenty-odd key builders.
+   * Query keys carry no server address, so without this a switch could still
+   * show the last server's library while the next one loaded. Clearing here
+   * happens once, on the change, rather than in twenty-odd key builders.
    */
   const forgetCachedServer = useCallback(() => {
     queryClient.clear()

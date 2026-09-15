@@ -30,14 +30,13 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, useLibraryModel } from './library.model'
 
 /**
- * The library: the web's phone layout, on the phone.
+ * The library, at every width.
  *
- * The header is the web's `.view-head`: the title and a count, the search on
- * a line of its own, then order and play sharing the next. Under it the tag
- * strip, which is the sidebar's tag list folded into a row. All of the
- * filtering runs over the full in-memory list, exactly as on the web — the
- * whole library arrives in one response, so a keystroke costs one pass over
- * an array and no round trip.
+ * The header holds the title and a count, the search on a line of its own,
+ * then order and play sharing the next. Under it the tag strip, which is the
+ * sidebar's tag list folded into a row. All of the filtering runs over the
+ * full in-memory list — the whole library arrives in one response, so a
+ * keystroke costs one pass over an array and no round trip.
  */
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -235,10 +234,10 @@ export function LibraryScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
       {/*
-        The web's `.view-head`. On a phone: the title, then the search on a line
-        of its own, then order and play. At desktop width it is one row — the
-        title on the left, and search, order and play along from it, with the
-        search giving up width before the row wraps.
+        On a phone: the title, then the search on a line of its own, then order
+        and play. At desktop width it is one row — the title on the left, and
+        search, order and play along from it, with the search giving up width
+        before the row wraps.
       */}
       <View style={[styles.head, headWide && styles.headWide]}>
         <View style={headWide ? styles.titlesWide : undefined}>
@@ -328,7 +327,7 @@ export function LibraryScreen(): ReactNode {
         </View>
       </View>
 
-      {/* At desktop width the sidebar carries the tags, as on the web. */}
+      {/* At desktop width the sidebar carries the tags. */}
       {/* On a phone only what is on the phone; tags are not a filter here. */}
       {!wide && installed && songs.length > 0 ? (
         <View>
@@ -500,7 +499,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'flex-end',
     gap: space.sm,
   },
-  /* With a mouse, the web's control heights: the box 36, the arrow 34 wide. */
+  /* With a mouse, the box 36, the arrow 34 wide. */
   searchDense: { minHeight: 36 },
   directionDense: { width: 34, height: 36 },
   searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },

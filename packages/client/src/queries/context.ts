@@ -34,8 +34,8 @@ export function ClientStateProvider({
 }
 
 /**
- * Defaults to ready, so an app that never mounts the provider — the web app,
- * which has nothing to wait for — behaves exactly as it did.
+ * Defaults to ready, so code that never mounts the provider — a test, say —
+ * behaves as if there is already a server to ask.
  */
 export function useClientState(): ClientState {
   return useContext(ClientStateContext)

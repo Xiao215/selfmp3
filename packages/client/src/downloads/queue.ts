@@ -45,13 +45,12 @@ const INITIAL_STATE: DownloadQueueState = {
 /**
  * Keeping songs on this device: one at a time, in order, stoppable.
  *
- * The policy both apps had written separately — the phone's `DownloadQueue`
- * over `expo-file-system` and the browser's over the Cache API — written once,
- * over the `DownloadStorage` port, so the two differ only in where the bytes
- * go. Extracted from the phone's, which is the older and more exercised of the
- * two, behaviour for behaviour, with its tests written first.
+ * One policy, written once over the `DownloadStorage` port so it behaves the
+ * same whether the underlying storage is the phone's `expo-file-system` or the
+ * browser's Cache API — the two differ only in where the bytes go.
  *
- * Two things differ from the phone's copy, and both are bug fixes the tests pin:
+ * Two behaviours here are bug fixes an earlier, phone-only version got wrong,
+ * and both are pinned by tests:
  *
  *   - Cancelling a *paused* download used to set the flag that says "the next
  *     rejection is only this cancel". A paused transfer never rejects, so the

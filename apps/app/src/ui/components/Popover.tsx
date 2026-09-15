@@ -16,8 +16,7 @@ import { Sheet } from './Sheet'
  *
  * One component, two shapes, and the caller does not know which it got:
  * `docs/UNIVERSAL.md` foundation 5, and its "does not port one-to-one" note
- * that a popover anchored to a button becomes a sheet below the breakpoint,
- * which is what the web app already does with `.popover-sheet`.
+ * that a popover anchored to a button becomes a sheet below the breakpoint.
  *
  * React Native has no `position: fixed`, so above the breakpoint the anchor is
  * measured with `measureInWindow` and the panel is drawn by the shell's

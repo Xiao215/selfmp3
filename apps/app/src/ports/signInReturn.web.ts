@@ -14,9 +14,9 @@ import { createSignInInbox, signInLink, type SignInTarget } from './signInCodes'
  * The installed app has no address to be sent back to — the sign-in happened in
  * the person's own browser, because Google refuses to sign in inside an
  * embedded window — so it comes back by `selfmp3://sign-in` or
- * `selfmp3://settings`, the phone's links. `ports/deepLinks` holds them from the
- * moment the shell hands them over, which on a cold launch is before the page is
- * listening.
+ * `selfmp3://settings`, the same scheme a phone uses. `ports/deepLinks` holds
+ * them from the moment the shell hands them over, which on a cold launch is
+ * before the page is listening.
  */
 
 const inbox = createSignInInbox()

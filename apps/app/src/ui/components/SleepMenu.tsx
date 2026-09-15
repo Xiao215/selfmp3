@@ -11,7 +11,7 @@ import { Sheet, SheetItem } from './Sheet'
 const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
 
 /**
- * The sleep timer's choices: the web's `SleepMenu`.
+ * The sleep timer's choices.
  *
  * Beside the button that opened it on a computer, above the player bar; as a
  * sheet on a phone, where the now-playing screen's Sleep opens it with nothing

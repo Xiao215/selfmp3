@@ -53,7 +53,7 @@ interface Entry {
 }
 
 /**
- * The command palette: the web's `CommandPalette`.
+ * The command palette.
  *
  * One box that searches songs, playlists, tags and lyrics and also runs
  * commands. Arrow keys move through every group as one list, Enter takes the

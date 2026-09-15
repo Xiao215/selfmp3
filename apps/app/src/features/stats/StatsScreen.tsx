@@ -37,7 +37,7 @@ export function StatsScreen({ initialTab = 'overview' }: { initialTab?: StatsTab
 }
 
 /**
- * The numbers: the web's `StatsView`.
+ * The numbers.
  *
  * Tiles first, because most of these answers are a single number; then when
  * the plays happened, and what was played last. What was played most is the

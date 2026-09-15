@@ -5,8 +5,8 @@ import { energyWavePath } from '@selfmp3/client'
 import { useAccent } from '../accent'
 
 /**
- * A song's energy as a small wave: the web's `EnergyWave`, drawn with
- * react-native-svg from the same path `packages/client` computes.
+ * A song's energy as a small wave, drawn with react-native-svg from the path
+ * `packages/client` computes.
  */
 export function EnergyWave({
   energy,

@@ -5,8 +5,8 @@ import { sortSongs } from './songSort.js'
 /**
  * One order for both clients.
  *
- * These are the four places the phone's copy and the web app's had drifted, so
- * the same library read differently depending on which device was in your hand.
+ * These are the four places two copies of this logic had drifted, so the same
+ * library read differently depending on which device was in your hand.
  */
 
 function song(id: number, overrides: Partial<Song> = {}): Song {

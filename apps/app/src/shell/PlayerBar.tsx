@@ -43,7 +43,7 @@ import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 
 /**
- * The transport across the foot of the desktop layout: the web's `.player-bar`.
+ * The transport across the foot of the desktop layout.
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
@@ -56,8 +56,7 @@ import { setPracticeOpen, usePracticeOpen } from './practicePanel'
  * ("1.25×"), and opens Practice at Speed.
  *
  * The bar fills with the cover's colour up to where the song has got, fading
- * out at its leading edge, with a bright line along its top edge, as the web's
- * did.
+ * out at its leading edge, with a bright line along its top edge.
  */
 export const PLAYER_BAR_HEIGHT = 84
 
@@ -99,7 +98,7 @@ export function PlayerBar(): ReactNode {
   const devicesRef = useRef<View>(null)
 
   // Now Playing's tab and mode live in its address, so the bar can read and
-  // change them the way the web's bar changes its page.
+  // change them the same way it changes the page.
   const pathname = usePathname()
   const pageParams = useGlobalSearchParams<{ tab?: string; mode?: string }>()
   const onPage = pathname === '/now-playing'
@@ -507,9 +506,9 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
 }
 
 /**
- * The web's `input.volume`: a thin track that fills with the playing song's
- * colour. Flat beside the speaker when the bar has room; upright in the volume
- * pop-up, a fader that fills from the bottom with a handle on top.
+ * A thin track that fills with the playing song's colour. Flat beside the
+ * speaker when the bar has room; upright in the volume pop-up, a fader that
+ * fills from the bottom with a handle on top.
  */
 function VolumeSlider({
   value,

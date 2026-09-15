@@ -4,7 +4,6 @@ import { topSongs } from '@selfmp3/client'
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
  * query finds, when lyrics are worth searching, and moving through the list.
- * The web's `CommandPalette`, less the destinations this app does not have yet.
  */
 
 export type PaletteCommandId =

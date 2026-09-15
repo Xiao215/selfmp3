@@ -1,6 +1,6 @@
 /**
- * Formatting helpers shared by the server (log lines, scan summaries) and the
- * web app. Pure functions, no dependencies, fully unit tested.
+ * Formatting helpers shared by the server (log lines, scan summaries) and
+ * every client. Pure functions, no dependencies, fully unit tested.
  */
 
 /** `254` -> `4:14`, `3801` -> `1:03:21`. Non-finite input yields `0:00`. */

@@ -21,7 +21,7 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 
 /**
- * Everything you can do to a tag itself: the web's `TagEditor`.
+ * Everything you can do to a tag itself.
  *
  * Filter by it either way, rename it, recolour it, delete it. Tags are the
  * library's only way of being browsed, so their names and colours are how you

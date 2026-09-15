@@ -205,9 +205,9 @@ export function isCloudListPrefix(prefix: string): boolean {
 
 /**
  * The doorman every device signs in through, unless told otherwise
- * (SELFMP3_DOORMAN_URL on the server, VITE_DOORMAN_URL for a web build, or the
- * repository variable DOORMAN_URL for the published web app). A fork deploys
- * its own doorman and changes this one line.
+ * (SELFMP3_DOORMAN_URL on the server, and on the published app, where it comes
+ * from the repository variable DOORMAN_URL). A fork deploys its own doorman
+ * and changes this one line.
  */
 export const DEFAULT_DOORMAN_URL = 'https://selfmp3-doorman.xiaozhang20030215.workers.dev'
 

@@ -21,16 +21,16 @@ import { Popover } from './Popover'
 import { Sheet } from './Sheet'
 
 /**
- * Attach tags to a song: the web's `TagPicker`.
+ * Attach tags to a song.
  *
  * Tagging should never interrupt listening. The list filters as you type,
  * submitting picks the best match, and creating a tag is always one step away.
  * A near-match is shown first, though, because free-form tagging usually goes
  * wrong as "chill", "Chill" and "chilled" becoming three tags.
  *
- * A small window, as on the web: over the button that opened it when there is
- * one (the player bar's), and otherwise — opened from a song's menu, which
- * closes as it opens — a sheet, which on a computer is a small centred window.
+ * A small window: over the button that opened it when there is one (the
+ * player bar's), and otherwise — opened from a song's menu, which closes as
+ * it opens — a sheet, which on a computer is a small centred window.
  */
 export function TagPicker({
   song,

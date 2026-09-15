@@ -5,7 +5,7 @@ import type { CoverSwatch, AudioFeatures } from '@selfmp3/shared'
  * What a song with no lyrics shows where the words would be: the rules, with
  * nothing drawn.
  *
- * Two layers, kept apart on purpose, as the old web app kept them. *Which*
+ * Two layers, kept apart on purpose. *Which*
  * visual a song gets is picked from how it sounds (`autoVisual`), so a
  * nocturne and a big-band chase do not get the same one. *How* that visual
  * moves comes from the song's own tempo, energy, loudness, key and cover

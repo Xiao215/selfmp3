@@ -13,7 +13,7 @@ import {
 } from '../../features/stats/stats.model'
 
 /**
- * The web's charts: hand-drawn, one series, no library.
+ * Hand-drawn charts: one series, no library.
  *
  *  - One colour and no legend; the heading says what it is.
  *  - Thin marks capped at 24px, a rounded data-end and a square baseline.

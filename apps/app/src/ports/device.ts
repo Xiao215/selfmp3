@@ -6,11 +6,10 @@ import { prefs } from './prefs'
 /**
  * Who this device says it is.
  *
- * The web app's `lib/device.ts`, with `localStorage` replaced by the `prefs`
- * port and the user-agent sniffing replaced by the one thing a phone actually
- * knows about itself. The id must survive a restart — it is what other devices
- * address commands to — but not a reinstall, where a fresh id simply looks like
- * a new device.
+ * Uses the `prefs` port instead of `localStorage`, and knows what it is
+ * running on directly instead of sniffing the user agent. The id must survive
+ * a restart — it is what other devices address commands to — but not a
+ * reinstall, where a fresh id simply looks like a new device.
  *
  * A port, and `Platform.OS` is read here because this is the one question that
  * genuinely is about the platform: what kind of thing am I, and what should I

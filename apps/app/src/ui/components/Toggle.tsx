@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 
 /**
- * On or off: the web's `.toggle`.
+ * On or off.
  *
  * A 42 by 24 track with the knob inside it, the accent when on. A switch to
  * assistive technology, named by the setting it changes.

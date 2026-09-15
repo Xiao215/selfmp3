@@ -7,12 +7,12 @@ import { tip } from '../tip'
 import { HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
 
 /**
- * The web's `.button`, in the same three weights: at the phone's 44px, and at
- * the web's own desktop height where there is a mouse (`useLayout().dense`).
+ * The same three weights: 44px with a finger, and a shorter desktop height
+ * where there is a mouse (`useLayout().dense`).
  *
- * An icon goes before the label the way it does on the web (`<Play /> Play`);
- * with no label at all it is the web's icon-only phone button — the shuffle
- * in the library header — which is square rather than a pill.
+ * An icon goes before the label (`<Play /> Play`); with no label at all it is
+ * an icon-only button — the shuffle in the library header — which is square
+ * rather than a pill.
  */
 export function Button({
   testID,
@@ -36,8 +36,8 @@ export function Button({
   /** Take the row's spare width, so a group of buttons shares a line evenly. */
   grow?: boolean
   /**
-   * On, the way the web's `.library-select.is-active` is: a dim accent fill with
-   * an accent edge, for a button that toggles a mode.
+   * On: a dim accent fill with an accent edge, for a button that toggles a
+   * mode.
    */
   active?: boolean
   /** What a screen reader says when there is no label, or a fuller one: a square icon button. */

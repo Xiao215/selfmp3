@@ -18,8 +18,7 @@ const layers: string[] = []
  *
  * Anything else, such as the library's selection, listens in the bubble phase,
  * so a layer has already had its chance. It also stands aside when focus is
- * inside a menu, dialog, listbox or combobox, which is closing itself — the
- * rule the web app's selection followed.
+ * inside a menu, dialog, listbox or combobox, which is closing itself.
  */
 export function useEscape(
   active: boolean,

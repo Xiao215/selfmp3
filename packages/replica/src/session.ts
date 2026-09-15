@@ -62,9 +62,8 @@ export type ClaimOutcome =
 
 /**
  * Written as properties rather than methods on purpose: these are closures
- * over one platform, and callers are meant to take them apart — the web app
- * destructures the lot so every existing import keeps working. A method type
- * would promise a `this` that none of them has.
+ * over one platform, and callers are meant to be free to take them apart. A
+ * method type would promise a `this` that none of them has.
  */
 export interface CloudSessionApi {
   loadSession: () => Promise<CloudSession | null>

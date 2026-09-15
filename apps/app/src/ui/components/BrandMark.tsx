@@ -4,17 +4,15 @@ import { useAccent } from '../accent'
 /**
  * The app mark: the beamed pair of eighth notes, in this device's accent.
  *
- * The web app draws it as an SVG path (components/Icons.tsx). There is no SVG
- * renderer in this app and adding one is a native module — a rebuild of the
- * dev client for one small drawing — so the same shape is laid out with plain
- * views instead: two rounded stems, two rotated ellipses for the noteheads,
- * and a rotated bar for the beam.
+ * There is no SVG renderer in this app and adding one is a native module — a
+ * rebuild of the dev client for one small drawing — so the same shape is laid
+ * out with plain views instead: two rounded stems, two rotated ellipses for
+ * the noteheads, and a rotated bar for the beam.
  *
- * The geometry is the SVG's 512-unit viewBox scaled by `size`, so the two
- * marks stay the same drawing rather than two things that resemble each other.
+ * The geometry is a 512-unit viewBox scaled by `size`.
  */
 
-/** The web mark's viewBox, which every figure below is a fraction of. */
+/** The mark's viewBox, which every figure below is a fraction of. */
 const BOX = 512
 
 export function BrandMark({ size = 22, color }: { size?: number; color?: string }) {

@@ -23,7 +23,7 @@ import { dropIndex } from '../playlistDetail/playlistDetail.model'
 const ROW = 46
 
 /**
- * The queue, as the Now Playing page's second tab: the web's `QueuePanel`.
+ * The queue, as the Now Playing page's second tab.
  *
  * It starts at the song that is playing: the songs already played fold into
  * one "Played" line above it (`queueLines`), which opens them again for a jump
@@ -74,7 +74,7 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
         </View>
       </View>
 
-      {/* Its own row, as on the web, where it has room to say what it is doing. */}
+      {/* Its own row, where it has room to say what it is doing. */}
       <View style={styles.toolbar}>
         <Toggle
           value={player.autoMix}

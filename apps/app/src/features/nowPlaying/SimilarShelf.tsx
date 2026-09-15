@@ -9,7 +9,7 @@ import { Cover } from '../../ui/components/Cover'
 import { playSimilarOrder } from './nowPlaying.model'
 
 /**
- * Similar songs under the controls, on a phone: the web's `.similar-strip`.
+ * Similar songs under the controls, on a phone.
  *
  * Nearest neighbours of the song playing, by tempo, key and energy. A card plays
  * that song with the rest after it; "Queue all" adds them behind what is queued.

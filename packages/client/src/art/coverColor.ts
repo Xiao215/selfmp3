@@ -11,8 +11,8 @@ import { currentColorScheme, type ColorScheme } from '../theme/tokens.js'
  * readable against the rows whatever the cover was, so a black cover never
  * makes a black title, on the dark theme or the light one.
  *
- * Moved from the web app's `lib/coverColor.ts`. What comes out is hex rather
- * than CSS `oklch()`, which React Native cannot read.
+ * What comes out is hex rather than CSS `oklch()`, which React Native cannot
+ * read.
  */
 
 export interface SongColors {

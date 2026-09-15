@@ -1,8 +1,7 @@
 /**
  * The facts about a song, put into words and drawings.
  *
- * Moved from the web app's `FeatureBadges`, `energyWave` and song details
- * dialog so the phone and the desktop describe a song the same way: a tempo
+ * Shared so the phone and the desktop describe a song the same way: a tempo
  * written like a score, the energy as a wave, the file format as a name
  * rather than a MIME type. Pure, and compiled without a DOM, so a URL is
  * parsed by hand rather than with `URL`.

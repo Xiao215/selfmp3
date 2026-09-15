@@ -12,13 +12,11 @@ import {
 } from './idbStore.web'
 
 /**
- * What a browser gives `@selfmp3/replica` (packages/replica/src/platform.ts): the
- * web app's `lib/cloud/webPlatform.ts`.
+ * What a browser gives `@selfmp3/replica` (packages/replica/src/platform.ts).
  *
- * Until this file the web build used the phone's, whose store writes files
- * through expo-file-system, which a browser does not have. Signing in to the
- * cloud there threw on the first write, so GitHub Pages could not keep a
- * session.
+ * The phone's store writes files through expo-file-system, which a browser
+ * does not have; using it there throws on the first write, so signing in to
+ * the cloud in a browser needs its own store instead.
  */
 
 const store: DeviceStore = {

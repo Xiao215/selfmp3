@@ -1,10 +1,9 @@
 /**
  * The one error type every screen already knows how to read.
  *
- * Moved verbatim from `apps/web/src/lib/api.ts`, which had a byte-identical
- * copy in `apps/mobile/src/api/client.ts`. `isOffline` in particular decides
- * what the UI says, so the two having drifted would have been a real bug rather
- * than an untidiness.
+ * `isOffline` in particular decides what the UI says, so this is written once
+ * rather than duplicated per platform, where drifting would have been a real
+ * bug rather than an untidiness.
  */
 export class ApiError extends Error {
   readonly status: number

@@ -15,7 +15,7 @@ import { readHue, readTheme, resolveScheme, type ThemeChoice } from '../appearan
  * The app's two themes, as Unistyles holds them (docs/UNIVERSAL.md, "Stack":
  * Unistyles 3).
  *
- * Both are built from the same OKLCH tokens the web app's CSS is written in
+ * Both are built from the same OKLCH tokens
  * (`packages/client/src/theme/tokens.ts`), at this device's accent hue. A
  * stylesheet made with `StyleSheet.create(theme => …)` reads its colours from
  * whichever theme is showing, and Unistyles restyles it when the theme or the

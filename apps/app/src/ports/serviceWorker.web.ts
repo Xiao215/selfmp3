@@ -2,8 +2,8 @@ import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 
 /**
- * The service worker and the web manifest: the web app's `main.tsx`
- * registration, and its `<link rel="manifest">`.
+ * The service worker and the web manifest: its registration, and the
+ * `<link rel="manifest">` tag.
  *
  * The worker (`public/sw.js`, built from `sw/sw.ts`) opens the app offline,
  * serves downloaded songs with range requests, and, signed in to the cloud,

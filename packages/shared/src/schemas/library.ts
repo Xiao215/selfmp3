@@ -9,8 +9,8 @@ import { PlaylistSchema } from './playlist.js'
  *
  * A personal library is small — a few thousand songs at most — so sending it
  * all at once is both simpler and faster than paginating: the client filters,
- * sorts and searches locally with no round trip, and the phone can mirror the
- * entire payload into IndexedDB for offline use.
+ * sorts and searches locally with no round trip, and every client can mirror
+ * the entire payload for offline use.
  */
 export const LibrarySchema = z.object({
   songs: z.array(SongSchema),
@@ -38,7 +38,7 @@ export const PlaylistSongsSchema = z.object({
 })
 export type PlaylistSongs = z.infer<typeof PlaylistSongsSchema>
 
-/** Small payload the phone polls to decide whether a full sync is needed. */
+/** Small payload a device polls to decide whether a full sync is needed. */
 export const SyncManifestSchema = z.object({
   version: z.number().int().nonnegative(),
   songCount: z.number().int().nonnegative(),

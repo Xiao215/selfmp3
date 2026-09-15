@@ -14,16 +14,15 @@ import { PanelDenseContext, usePanelDense } from './panel'
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
  * small window in the middle of it.
  *
- * The web's popovers become sheets on a phone (`.popover-sheet`): a song's ⋯
- * menu, the sort field, a sleep timer. This is that sheet. It rises with the
- * web's slow curve, dims what is behind it, and goes back down the way it
- * came before it unmounts — the same "hold the leaving state" the web does
- * with `is-leaving`, so it never blinks out.
+ * A popover becomes a sheet below the breakpoint: a song's ⋯ menu, the sort
+ * field, a sleep timer. This is that sheet. It rises with a slow curve, dims
+ * what is behind it, and goes back down the way it came before it unmounts,
+ * holding the leaving state so it never blinks out.
  *
  * At desktop width a sheet across the whole foot of the window is a phone's
  * gesture on a screen that has none: a tag list opened from a song's menu ran
  * two thousand pixels wide. There it is a window the size of its content,
- * centred, as the web's dialogs are.
+ * centred.
  *
  * Detached from whatever opened it, so a title names the thing it is about.
  */
@@ -44,8 +43,8 @@ export function Sheet({
   /** How wide the window may grow at desktop width, for content wider than a menu. */
   width?: number
   /**
-   * `label` is the web's `.popover-title`: small and quiet, for a list whose
-   * title only says what is being chosen ("Sort by"). `heading` names the
+   * `label` is small and quiet, for a list whose title only says what is
+   * being chosen ("Sort by"). `heading` names the
    * thing the sheet is about, the way the song menu's head does.
    */
   titleTone?: 'heading' | 'label'
@@ -62,7 +61,7 @@ export function Sheet({
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
   const [progress] = useState(() => new Animated.Value(0))
-  // Escape closes it on the web, as the web's popovers do. Nothing on a phone.
+  // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
@@ -191,10 +190,10 @@ export function SheetItem({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const dense = usePanelDense()
-  // With a mouse the row under it lights up, as the web's menus do.
+  // With a mouse the row under it lights up.
   const [hovered, setHovered] = useState(false)
-  // In a panel the web's items are quiet until pointed at or chosen; in a
-  // sheet they are a finger's list and read at full strength.
+  // In a panel the items are quiet until pointed at or chosen; in a sheet
+  // they are a finger's list and read at full strength.
   const ink = danger
     ? theme.colors.danger
     : dense

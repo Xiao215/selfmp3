@@ -14,15 +14,14 @@ import { ProgressWash } from './ProgressWash'
 import { Devices, Next, Pause, Play } from './Icons'
 
 /**
- * The compact strip above the tab bar: the web's `.mini-player`.
+ * The compact strip above the tab bar.
  *
  * Nothing when there is no current track, so the list gets the full screen
- * until something is playing; then it rises into place. The progress wash is
- * the web's: the cover's colour fills the card from the left as the song
- * plays, fading out at its leading edge, with a thin line along its foot.
- * Tapping anywhere but the two transport buttons opens the song's own page,
- * and those two are full touch targets — the only transport on the phone's
- * home screen.
+ * until something is playing; then it rises into place. The progress wash:
+ * the cover's colour fills the card from the left as the song plays, fading
+ * out at its leading edge, with a thin line along its foot. Tapping anywhere
+ * but the two transport buttons opens the song's own page, and those two are
+ * full touch targets — the only transport on the compact layout's home screen.
  */
 export function MiniPlayer(): ReactNode {
   const { theme } = useUnistyles()
@@ -97,8 +96,8 @@ export function MiniPlayer(): ReactNode {
         </Text>
       </Animated.View>
 
-      {/* Where else this could be playing, first in the row as on the web's
-          mini player: beside the transport, not buried in a menu. */}
+      {/* Where else this could be playing, first in the row: beside the
+          transport, not buried in a menu. */}
       <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
         <Devices size={19} color={theme.colors.textSecondary} />
       </IconButton>

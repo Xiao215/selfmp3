@@ -22,9 +22,9 @@ export interface Layout {
   /** Below it: tab bar, mini player, full-screen now playing, sheets. */
   compact: boolean
   /**
-   * Wide, with a mouse: draw controls at the web's desktop size (34–38
-   * points) rather than a finger's 44. A tablet at the same width is not
-   * dense, because it is still a finger.
+   * Wide, with a mouse: draw controls at desktop size (34–38 points) rather
+   * than a finger's 44. A tablet at the same width is not dense, because it
+   * is still a finger.
    */
   dense: boolean
   /**

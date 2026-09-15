@@ -79,7 +79,7 @@ export function useSelectionBarFloating(): boolean {
 }
 
 /**
- * The bar that runs a multi-selection: the web's `SelectionBar`.
+ * The bar that runs a multi-selection.
  *
  * It floats over the list rather than sitting in it. In the page it pushed
  * every row down by its own height the moment the first row was ticked, so the
@@ -211,7 +211,7 @@ export function SelectionBar({
     setMenuOpen(false)
     setNested(null)
   }
-  /** Run a menu action, close the menu, and say what happened, as the web does. */
+  /** Run a menu action, close the menu, and say what happened. */
   const act = (run: () => void, message?: string) => (): void => {
     run()
     closeMenu()
@@ -541,7 +541,7 @@ export function SelectionBar({
                 onSuccess: result => {
                   setConfirming(false)
                   onDone()
-                  // The web's summary: what went, what was deleted, what did not.
+                  // The summary: what went, what was deleted, what did not.
                   const parts = [
                     `Removed ${result.removed} ${result.removed === 1 ? 'song' : 'songs'}`,
                   ]

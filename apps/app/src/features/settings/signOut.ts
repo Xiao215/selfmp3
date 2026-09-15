@@ -1,5 +1,5 @@
 /**
- * Signing this device out of the cloud: the web app's `CloudGate` sign-out.
+ * Signing this device out of the cloud.
  *
  * The order matters, and each step is the caller's to supply so the order can
  * be tested without a doorman, a bucket or a device:

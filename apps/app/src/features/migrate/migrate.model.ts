@@ -7,7 +7,7 @@ import type {
 } from '@selfmp3/shared'
 
 /**
- * Migrating a playlist, without the screen: the web's `MigrateView` rules.
+ * Migrating a playlist, without the screen.
  *
  * Three stages on one page: paste, match, review. Matching is a server job
  * that is polled, because fifty YouTube searches take a minute and a phone

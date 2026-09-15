@@ -14,10 +14,10 @@ import { DownloadQueue } from './queue.js'
 /**
  * The download queue, against a storage that does nothing but record.
  *
- * Written before the queue was, from the phone's `DownloadQueue` as it behaves
- * today, because that queue had no tests at all and is the only thing that lets
- * the phone play with no signal. Two tests assert behaviour the phone's copy got
- * wrong; they say so where they are.
+ * Written for `DownloadQueue`'s existing behaviour, because it had no tests at
+ * all and is the only thing that lets the phone play with no signal. Two tests
+ * assert behaviour an earlier, phone-only version of it got wrong; they say so
+ * where they are.
  */
 
 /**

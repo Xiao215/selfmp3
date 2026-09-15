@@ -68,7 +68,7 @@ export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
 
 /**
  * Reordering sends the full ordered id list rather than a move instruction.
- * It is a few more bytes but it is idempotent, which matters when the phone
+ * It is a few more bytes but it is idempotent, which matters when a client
  * retries a request over a flaky connection.
  */
 export const ReorderPlaylistSchema = z.object({

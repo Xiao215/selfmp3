@@ -6,7 +6,7 @@ import type { AudioFeatures } from './schemas/audioFeatures.js'
  * songs, and how long a transition between two of them should be.
  *
  * Shared because both sides need the same answers — the server ranks
- * "similar songs" with these, and the web app orders the queue with them,
+ * "similar songs" with these, and every client orders the queue with them,
  * offline, without a round trip.
  */
 

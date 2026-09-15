@@ -9,20 +9,19 @@ import { activeTab, type TabHref } from './bottomNav.model'
 import { Download, ListMusic, Music, User } from './Icons'
 
 /**
- * The tab bar: the web's `.mobile-nav`, drawn with the same icons.
+ * The tab bar.
  *
  * Hand-rolled rather than expo-router's Tabs: a mini player has to sit
- * directly above the tabs, and a custom bar is both less code and an exact
- * match for the web app's mobile nav.
+ * directly above the tabs, and a custom bar is less code besides.
  *
  * Four tabs. Library, Playlists and Import are places you go every day; the
  * fourth, You, lists the rest — Stats, Untagged, Tags and Settings — rather
  * than giving the bar's last slot to Settings alone. Import works anywhere:
  * connected, it looks a link up; signed in to the cloud, it asks the server.
  *
- * The current tab is marked twice, as on the web: the accent colour, and a
- * filled pill behind the icon. Colour alone is a weak signal at 20px and no
- * signal at all to anyone who cannot separate the accent from the grey.
+ * The current tab is marked twice: the accent colour, and a filled pill
+ * behind the icon. Colour alone is a weak signal at 20px and no signal at all
+ * to anyone who cannot separate the accent from the grey.
  */
 const TABS: { href: TabHref; label: string; Icon: typeof Music }[] = [
   { href: '/', label: 'Library', Icon: Music },

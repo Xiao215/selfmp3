@@ -1,8 +1,7 @@
 import type { ApplyMetadata, FixCoversStatus, MetadataCandidate, Song } from '@selfmp3/shared'
 
 /**
- * Fixing a song's metadata, without the dialog: the web's `MetadataDialog`
- * rules.
+ * Fixing a song's metadata, without the dialog.
  *
  * Current values on one side, suggestions from iTunes and MusicBrainz on the
  * other, and a per-field list of what a suggestion would change, so exactly

@@ -6,11 +6,11 @@ import { useLayout } from '../../shell/useLayout'
 import { tip } from '../tip'
 
 /**
- * The web's `.icon-button`: a square target that darkens while pressed.
+ * A square target that darkens while pressed.
  *
  * 34px with a mouse, which is the default where there is one at desktop
- * width; otherwise the web's own touch size, `--hit-target`. The icon inside
- * is the caller's, because every icon already takes its own size and colour.
+ * width; otherwise the touch size, `HIT_TARGET`. The icon inside is the
+ * caller's, because every icon already takes its own size and colour.
  */
 export function IconButton({
   children,

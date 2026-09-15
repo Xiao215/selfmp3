@@ -9,27 +9,12 @@ import type {
 /**
  * The web half of the `PlaybackEngine` port.
  *
- * `apps/web/src/player/engine.ts`, moved here per phase 3 of
- * docs/UNIVERSAL.md and changed as little as it is possible to change it. The
- * spike established that this file runs unchanged under Metro's web target
- * (check 4), so the less it differs from the one that has been playing music
- * for a year, the more that result is worth.
+ * The stream URL comes from the wiring, which whoever owns the queue always
+ * sets; an unset `streamUrl` reaches `#urlFor` and an error nobody should ever
+ * see.
  *
- * Two differences, both forced:
- *
- * The `mediaUrl` import is gone. It reached into the web app's API client for
- * a default stream URL when `streamUrl` was unset; here the wiring is always
- * set, by whoever owns the queue, so the fallback became `#urlFor` and an
- * error nobody should ever see.
- *
- * `capabilities` is new — the port declares what a platform can do so the
- * practice panel and the visualiser can stop guessing. Everything it claims is
- * something this file already did.
- *
- * The copy in `apps/web` stays where it is until phase 5 deletes that app. Two
- * copies of an engine is not a thing to be relaxed about; what makes it
- * tolerable is that one of them is on its way out and neither is being edited
- * meanwhile.
+ * `capabilities` declares what this engine can do, so the practice panel and
+ * the visualiser need not guess.
  */
 
 /**

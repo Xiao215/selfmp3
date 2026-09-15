@@ -1,5 +1,9 @@
-import { editDistance, type MigrateCandidate, type MigrateSourceTrack } from '@selfmp3/shared'
-import { cleanTitle } from './migrateParse.js'
+import {
+  cleanTitle,
+  editDistance,
+  type MigrateCandidate,
+  type MigrateSourceTrack,
+} from '@selfmp3/shared'
 
 /**
  * Deciding which YouTube result is the song.

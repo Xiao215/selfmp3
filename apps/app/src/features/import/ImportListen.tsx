@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { ImportPreviewItem } from '@selfmp3/shared'
-import { radius, type ServerConnection } from '@selfmp3/client'
+import { isSquareCover, radius, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createListenAudio } from '../../ports/listen'
@@ -12,7 +12,6 @@ import { useAccent } from '../../ui/accent'
 import { IconButton } from '../../ui/components/IconButton'
 import { Pause, Play, X } from '../../ui/components/Icons'
 import { SeekBar } from '../../ui/components/SeekBar'
-import { isSquareCover } from './import.model'
 import {
   followAudio,
   listenDetail,

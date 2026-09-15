@@ -1,5 +1,5 @@
-import type { ServerConnection } from '@selfmp3/client'
 import type { CloudServer } from '@selfmp3/shared'
+import type { ServerConnection } from './connection.js'
 
 /**
  * Finding the server from a device signed in to the cloud, without the screen.

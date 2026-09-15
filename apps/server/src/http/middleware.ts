@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import { DESKTOP_APP_ORIGIN } from '@selfmp3/shared'
+import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
@@ -110,10 +110,11 @@ export function isAuthenticated(req: Request, config: Config): boolean {
  * to be tricked.
  *
  * The desktop app is one of ours, and always let through: its page is
- * served from `app://selfmp3`, which no website can claim.
+ * served from `app://selfmp3`, which no website can claim. So is the browser
+ * extension, whose origin carries an id only its own committed key produces.
  */
 export function sameOriginWrites(config: Config): RequestHandler {
-  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN])
+  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
 
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next()
@@ -134,9 +135,9 @@ export function sameOriginWrites(config: Config): RequestHandler {
   }
 }
 
-/** CORS, for the origins listed in config and the desktop app's own. */
+/** CORS, for the origins listed in config, the desktop app's own and the extension's. */
 export function cors(config: Config): RequestHandler {
-  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN])
+  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.headers.origin

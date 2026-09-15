@@ -1,13 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { clientApi, queryKeys, type ServerConnection } from '@selfmp3/client'
-import { library as cloudLibrary } from '../../replica'
 import {
   candidates,
+  clientApi,
   LOOK_AGAIN_MS,
   PROBE_TIMEOUT_MS,
+  queryKeys,
   reachServer,
   type Reach,
-} from './serverReach.model'
+  type ServerConnection,
+} from '@selfmp3/client'
+import { library as cloudLibrary } from '../../replica'
 
 /**
  * `/api/health` at one address, within the deadline. It needs no token, and
@@ -28,7 +30,7 @@ async function probe(connection: ServerConnection): Promise<boolean> {
 
 /**
  * Whether the server behind this cloud library can be reached from here, and how
- * (serverReach.model.ts). Looks again every little while for as long as the
+ * (@selfmp3/client reach.ts). Looks again every little while for as long as the
  * screen that asks is open, so a server switched on is found without a tap.
  */
 export function useServerDirect(): Reach & { readonly lookAgain: () => void } {

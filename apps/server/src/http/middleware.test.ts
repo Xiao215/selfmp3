@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
+import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { HttpError } from './errors.js'
@@ -54,6 +55,18 @@ describe('sameOriginWrites', () => {
 
   it('lets through the desktop app, whose origin no website can claim', () => {
     expect(run('POST', { origin: 'app://selfmp3', host: '192.168.1.20:4600' })).toBeNull()
+  })
+
+  it('lets through the browser extension, whose id its committed key fixes', () => {
+    expect(run('POST', { origin: EXTENSION_ORIGIN, host: '100.101.1.2:4600' })).toBeNull()
+  })
+
+  it('refuses any other extension', () => {
+    const error = run('POST', {
+      origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+      host: '127.0.0.1:4600',
+    })
+    expect(error?.status).toBe(403)
   })
 
   it('lets through an origin the config allows', () => {

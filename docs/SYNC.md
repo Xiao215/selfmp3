@@ -320,6 +320,6 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
-| Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `serverReach.model.ts`, `useServerDirect.ts`, `importSource.ts`; `apps/server/src/services/addresses.ts` |
+| Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `useServerDirect.ts`, `importSource.ts`; `packages/client/src/connection/reach.ts`; `apps/server/src/services/addresses.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |

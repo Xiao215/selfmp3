@@ -27,6 +27,10 @@ export {
   serverTransport,
   type ServerConnection,
 } from './connection/connection.js'
+// Which of a server's addresses answers, for a device that learned them from the bucket.
+export * from './connection/reach.js'
+// Importing without a screen: review, choices, the queue's words.
+export * from './import/model.js'
 
 export { configureClient, clientApi, librarySnapshot, type ClientRuntime } from './runtime.js'
 

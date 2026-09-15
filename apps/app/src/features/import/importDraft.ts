@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Review } from './import.model'
+import type { Review } from '@selfmp3/client'
 
 /**
  * What the Import screen holds between a link being fetched and imported:

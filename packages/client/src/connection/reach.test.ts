@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ServerConnection } from '@selfmp3/client'
-import { awayCopy, candidates, reachServer } from './serverReach.model'
+import type { ServerConnection } from './connection.js'
+import { awayCopy, candidates, reachServer } from './reach.js'
 
 const server = {
   addresses: ['http://localhost:4600', 'http://192.168.1.20:4600', 'http://100.101.1.2:4600'],

@@ -1,4 +1,9 @@
-import type { MigrateParseResult, MigrateSourceTrack } from '@selfmp3/shared'
+import {
+  cleanArtist,
+  cleanTitle,
+  type MigrateParseResult,
+  type MigrateSourceTrack,
+} from '@selfmp3/shared'
 
 /**
  * Turning "whatever the other app gave you" into a list of tracks.
@@ -13,36 +18,8 @@ import type { MigrateParseResult, MigrateSourceTrack } from '@selfmp3/shared'
  * pinned down by tests rather than discovered one support question at a time.
  */
 
-// --- shared cleaning ---------------------------------------------------------
-
-/** Bracketed noise that download sites and exports add to a title. */
-const NOISE_IN_BRACKETS =
-  /\s*[([{][^)\]}]*\b(?:official|video|audio|lyric|lyrics|hd|hq|4k|mv|m\/v|visuali[sz]er|remaster|remastered|explicit|clean|radio edit|single version|album version|bonus track|from|soundtrack|ost)\b[^)\]}]*[)\]}]/gi
-
-/** A trailing "- Remastered 2011" / "- Radio Edit" suffix, as Spotify writes it. */
-const NOISE_AFTER_DASH =
-  /\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?(?:\s+\d{4})?|radio edit|single version|album version|mono|stereo)(?:\s+version)?\s*$/i
-
-/** "feat. X", "ft. X", "featuring X" — with or without brackets. */
-const FEATURING = /\s+[([]?(?:feat\.?|ft\.?|featuring)\s+[^)\]]*[)\]]?\s*$/i
-const FEATURING_INLINE = /\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s+[^)\]]*[)\]]/gi
-
-export function cleanTitle(raw: string): string {
-  return raw
-    .replace(NOISE_IN_BRACKETS, '')
-    .replace(FEATURING_INLINE, '')
-    .replace(FEATURING, '')
-    .replace(NOISE_AFTER_DASH, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-export function cleanArtist(raw: string): string {
-  return raw
-    .replace(/\s*-\s*Topic$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// Titles and artists are cleaned by packages/shared/src/titles.ts, which the
+// import path shares.
 
 /** "3:45" → 225, "1:02:03" → 3723, "225" → 225, "225000" (ms) → 225. */
 export function parseDurationValue(raw: string, unit: 'seconds' | 'ms' | 'auto' = 'auto'): number {

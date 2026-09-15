@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
-import type { ToolStatus } from '@selfmp3/shared'
+import { cleanArtist, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
 
@@ -166,7 +166,7 @@ export interface ProbedTrack {
 }
 
 /** The subset of yt-dlp's JSON dump this app reads. */
-interface YtDlpJson {
+export interface YtDlpJson {
   _type?: string
   /** Which extractor a flat entry belongs to: `Youtube` for a video, `YoutubeTab` for a page. */
   ie_key?: string
@@ -184,6 +184,35 @@ interface YtDlpJson {
   thumbnail?: string
   entries?: YtDlpJson[]
   playlist_title?: string
+}
+
+/** One entry of yt-dlp's JSON as a track to review and import. */
+export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack {
+  // Flat playlist entries carry only an id, so rebuild a watch URL from it.
+  const url =
+    json.webpage_url ??
+    (json.url && /^https?:/.test(json.url)
+      ? json.url
+      : json.id
+        ? `https://www.youtube.com/watch?v=${json.id}`
+        : fallbackUrl)
+
+  // `track` and `artist` are the song's own when YouTube has music metadata.
+  // Without them `title` is the video's — "YOASOBI「アイドル」Official Music
+  // Video" — so it is tidied into the song's name, and the artist it writes in
+  // front is preferred to the channel's name (titles.ts).
+  const credited = json.artist ?? json.creator
+  const channel = cleanArtist(credited ?? json.uploader ?? json.channel ?? '')
+  const tidied = json.track ? null : tidyVideoTitle(json.title ?? '', channel)
+
+  return {
+    url,
+    title: (json.track ?? tidied?.title ?? '').trim(),
+    artist: credited ? channel : (tidied?.artist ?? channel),
+    album: (json.album ?? '').trim(),
+    duration: typeof json.duration === 'number' ? json.duration : 0,
+    thumbnail: json.thumbnail ?? null,
+  }
 }
 
 /**
@@ -310,7 +339,7 @@ export class YtDlpService {
     if (parsed._type === 'playlist' && Array.isArray(parsed.entries)) {
       const tracks = parsed.entries
         .filter((entry): entry is YtDlpJson => entry != null && isVideoEntry(entry))
-        .map(entry => this.#toTrack(entry, url))
+        .map(entry => toProbedTrack(entry, url))
         .filter(track => track.url.length > 0)
       return {
         kind: 'playlist',
@@ -319,7 +348,7 @@ export class YtDlpService {
       }
     }
 
-    return { kind: 'single', playlistTitle: null, tracks: [this.#toTrack(parsed, url)] }
+    return { kind: 'single', playlistTitle: null, tracks: [toProbedTrack(parsed, url)] }
   }
 
   /**
@@ -353,31 +382,6 @@ export class YtDlpService {
       .find(line => /^https?:\/\//.test(line))
     if (!direct) throw new Error('yt-dlp found no audio for that link')
     return direct
-  }
-
-  #toTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack {
-    // Flat playlist entries carry only an id, so rebuild a watch URL from it.
-    const url =
-      json.webpage_url ??
-      (json.url && /^https?:/.test(json.url)
-        ? json.url
-        : json.id
-          ? `https://www.youtube.com/watch?v=${json.id}`
-          : fallbackUrl)
-
-    // `track` is the real song title when YouTube has music metadata;
-    // `title` is the video title, which often carries junk.
-    const title = json.track ?? json.title ?? ''
-    const rawArtist = json.artist ?? json.creator ?? json.uploader ?? json.channel ?? ''
-
-    return {
-      url,
-      title: title.trim(),
-      artist: rawArtist.replace(/\s*-\s*Topic$/i, '').trim(),
-      album: (json.album ?? '').trim(),
-      duration: typeof json.duration === 'number' ? json.duration : 0,
-      thumbnail: json.thumbnail ?? null,
-    }
   }
 
   /**

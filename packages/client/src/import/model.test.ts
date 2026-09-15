@@ -23,7 +23,7 @@ import {
   selectedCount,
   sharedLinks,
   toggleChosen,
-} from './import.model'
+} from './model.js'
 
 describe('isSquareCover', () => {
   it('knows YouTube Music art from a video still', () => {

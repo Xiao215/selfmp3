@@ -75,6 +75,21 @@ describe('allowedOrigins', () => {
     }
   })
 
+  /*
+   * The browser extension sends its own origin on every write, and its sign-in
+   * comes back through Chrome's address for it. Both have to be on the list.
+   */
+  it('takes the browser extension’s origin and the address its sign-in returns to', () => {
+    expect(
+      origins(
+        'chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi,https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org',
+      ),
+    ).toEqual([
+      'chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi',
+      'https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org',
+    ])
+  })
+
   it('keeps the good entries when one alongside them is bad', () => {
     expect(origins('mailto:me@example.com,https://xiao215.github.io')).toEqual([
       'https://xiao215.github.io',

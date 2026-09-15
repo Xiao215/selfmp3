@@ -4471,3 +4471,59 @@ runs send a normal one.
 
 The anchor table, triggers and fixture shapes went into EXTENSION.md's pill
 section.
+
+## Phase 1 — groundwork — branch `extension/phase-1`
+
+Everything the extension needs from the rest of the repository, before the
+extension exists.
+
+### What changed
+
+- **The extension's origin is ours.** `EXTENSION_ID` and `EXTENSION_ORIGIN`
+  (`chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi`) in
+  `packages/shared/src/origins.ts`; the server's `cors` and `sameOriginWrites`
+  let it through beside `app://selfmp3`. Tests: its write passes, another
+  extension's is refused.
+- **The doorman lists it.** `APP_ORIGINS` in both `[vars]` and `[env.dev.vars]`
+  gains the origin and `https://<id>.chromiumapp.org`; the test harness does
+  too. `cors.test.ts` reads both entries, and `auth.test.ts` sends a sign-in back
+  to the chromiumapp address with the code in the fragment and claims the
+  session with it. **The deployed doorman still refuses the extension until Xiao
+  redeploys it.**
+- **Titles.** `cleanTitle`/`cleanArtist` moved from `migrateParse.ts` to
+  `packages/shared/src/titles.ts` (their tests with them), and
+  `tidyVideoTitle(title, channel)` joined them. It removes brackets that hold
+  only what a video says about itself (`(Official Music Video)`, `【MV】`,
+  `［Official Video］`), a trailing `MV` or `| Official Video`, takes the song out
+  of 「」 or 『』 with the artist written before them, and reads `artist - title`
+  only when one side is the channel's name. `(Live)`, `(From "Frozen")`,
+  featuring credits and "Video Killed the Radio Star" stay.
+- **The server's preview uses it**, as Xiao decided: yt-dlp's track mapping is
+  now an exported `toProbedTrack` (tested), which tidies the title when YouTube
+  gave no `track`, and prefers the artist the title names to the channel. So the
+  app's Import page, the share Shortcut and the queue's resolving step all get
+  it. Checked against real yt-dlp output: "YOASOBI「アイドル」 Official Music
+  Video" → アイドル; "Adele - Hello (Official Music Video)" → Hello, by Adele.
+  (The アイドル video's `creator` is "YOASOBI, Echoes", which yt-dlp credits and the
+  mapping keeps, as before.)
+- **Two pure models left the app.** `import.model.ts` →
+  `packages/client/src/import/model.ts`, `serverReach.model.ts` →
+  `packages/client/src/connection/reach.ts`, tests with them; the app imports
+  both from `@selfmp3/client`. SYNC.md and share-to-import.md point at the new
+  places.
+- **`@selfmp3/client/core`**: a second entry with the API client, errors,
+  `serverTransport`, `reach`, the import model and the theme tokens, and no React
+  — what the extension's worker will import.
+- The Dockerfile line moved to Phase 2: copying `apps/extension/package.json`
+  fails the image build until the workspace exists.
+
+### The gates
+
+`npm run check`: typecheck and lint pass; vitest 174 files, 1714 passed, 1
+skipped. `npm run check:app`: typecheck, lint, 3 suites / 9 tests pass.
+
+Two things this worktree was missing, neither from this change: the
+`@selfmp3/desktop-bridge` build (the app's lint resolves it from `dist`), and
+Electron's binary — npm 11 skips install scripts it has not been told to allow,
+so `apps/desktop`'s three test files failed to load until
+`node node_modules/electron/install.js` fetched it.

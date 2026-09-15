@@ -1,4 +1,4 @@
-import { DoormanClaimResultSchema } from '@selfmp3/shared'
+import { DoormanClaimResultSchema, EXTENSION_ID, EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import type { Fetch, FetchInit } from './bucket.js'
 import type { Env } from './context.js'
@@ -19,6 +19,8 @@ import type { KvStore } from './kv.js'
 
 export const DOORMAN_ORIGIN = 'https://doorman.example'
 export const APP_ORIGIN = 'https://xiao215.github.io'
+/** Where Chrome brings the browser extension's sign-in back to. */
+export const EXTENSION_RETURN = `https://${EXTENSION_ID}.chromiumapp.org`
 export const CLIENT_ID = 'selfmp3-test.apps.googleusercontent.com'
 export const CLIENT_SECRET = 'test-google-client-secret'
 export const B2_HOST = 's3.us-west-004.backblazeb2.com'
@@ -485,7 +487,7 @@ export function harness(): Harness {
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
     ALLOWED_EMAILS: 'me@example.com, Friend@Example.com',
-    APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600,app://selfmp3`,
+    APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600,app://selfmp3,${EXTENSION_ORIGIN},${EXTENSION_RETURN}`,
   }
   const logs: Harness['logs'] = []
   const doorman = createDoorman({

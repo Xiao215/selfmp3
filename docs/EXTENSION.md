@@ -1,7 +1,7 @@
 # The browser extension
 
-> **Status:** plan, 2026-09-15. Phase 0 is done (results below); nothing else
-> is built. Written for an agent with this
+> **Status:** plan, 2026-09-15. Phase 0 (the spike) and Phase 1 (groundwork,
+> branch `extension/phase-1`) are done; the extension itself is not built yet. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -182,8 +182,8 @@ through it.
    `packages/client/src/import/model.ts` and `serverReach.model.ts` →
    `packages/client/src/connection/reach.ts`, with their tests. The app imports
    them from the package. Both already depend on nothing but shared.
-6. **Dockerfile.** `COPY apps/extension/package.json apps/extension/` in both
-   stages.
+6. ~~Dockerfile~~ — moved to Phase 2: `COPY apps/extension/package.json` fails
+   the image build until the workspace exists.
 
 ---
 
@@ -402,7 +402,8 @@ The six changes above, each with its tests. No extension yet.
 
 ### Phase 2 — The workspace, and A through the server
 
-Manifest, build script, bridge, background with a typed-in server connection,
+The Dockerfile's `COPY apps/extension/package.json apps/extension/` in both
+stages, manifest, build script, bridge, background with a typed-in server connection,
 the link index, the popup's single-song states, the queue footer, the options
 page (address and token only).
 

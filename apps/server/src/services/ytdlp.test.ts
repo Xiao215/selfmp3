@@ -1,5 +1,42 @@
 import { describe, expect, it } from 'vitest'
-import { isVideoEntry, parseProgress, run } from './ytdlp.js'
+import { isVideoEntry, parseProgress, run, toProbedTrack } from './ytdlp.js'
+
+describe('toProbedTrack', () => {
+  const WATCH = 'https://www.youtube.com/watch?v=ZRtdQ81jPUQ'
+
+  it('keeps the song’s own title and artist when YouTube has them', () => {
+    const track = toProbedTrack(
+      {
+        track: 'アイドル',
+        artist: 'YOASOBI',
+        title: 'YOASOBI「アイドル」Official Music Video',
+        uploader: 'Ayase / YOASOBI',
+      },
+      WATCH,
+    )
+    expect(track).toMatchObject({ title: 'アイドル', artist: 'YOASOBI', url: WATCH })
+  })
+
+  it('tidies a video’s title into the song’s, with the artist it names', () => {
+    const track = toProbedTrack(
+      {
+        title: 'YOASOBI「アイドル」Official Music Video',
+        uploader: 'Ayase / YOASOBI',
+        id: 'ZRtdQ81jPUQ',
+      },
+      WATCH,
+    )
+    expect(track).toMatchObject({ title: 'アイドル', artist: 'YOASOBI', url: WATCH })
+  })
+
+  it('keeps the channel as the artist when the title names none', () => {
+    const track = toProbedTrack(
+      { title: 'Shinunoga E-Wa (Official Video)', channel: 'Fujii Kaze - Topic' },
+      WATCH,
+    )
+    expect(track).toMatchObject({ title: 'Shinunoga E-Wa', artist: 'Fujii Kaze' })
+  })
+})
 
 /**
  * A stand-in for yt-dlp, run as a real child process: progress on stdout, the

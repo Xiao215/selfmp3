@@ -1,14 +1,13 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius } from '@selfmp3/client'
+import { awayCopy, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportScreen } from './ImportScreen'
-import { awayCopy } from './serverReach.model'
 import { useServerDirect } from './useServerDirect'
 
 /**
@@ -16,7 +15,7 @@ import { useServerDirect } from './useServerDirect'
  *
  * The bucket has no yt-dlp, so a link can only be read, listened to and
  * downloaded by the server — and that is the whole import screen, the same one
- * the server shows for itself, pointed at the server directly (serverReach.model.ts).
+ * the server shows for itself, pointed at the server directly (@selfmp3/client reach.ts).
  * What it downloads goes up to the bucket as every import does, and this
  * device sees it with the next sync. When no address of the server's answers,
  * there is nothing to import with, and this says so instead.

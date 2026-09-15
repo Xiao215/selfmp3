@@ -75,7 +75,7 @@ Shortcut.
 - `packages/shared/src/links.ts` — `extractUrls()` is the one link parser, used by the
   server for the import box and share endpoint and by the client for the share target.
 - `apps/app/public/manifest.webmanifest` — declares the share target.
-- `sharedLinks` in `apps/app/src/features/import/import.model.ts` — reads `url` / `text` /
+- `sharedLinks` in `packages/client/src/import/model.ts` — reads `url` / `text` /
   `title` from the query; `ImportScreen.tsx` prefills the box and clears them.
 - `apps/server/src/services/importPreview.ts` — the probe step, shared by
   `/import/preview` and `/import/share` so both resolve links identically.

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cleanTitle,
   detectCsv,
   guessOrder,
   parseDelimited,
@@ -12,33 +11,6 @@ import {
 
 const brief = (tracks: { title: string; artist: string }[]) =>
   tracks.map(track => `${track.artist}|${track.title}`)
-
-describe('cleanTitle', () => {
-  it('strips bracketed noise but keeps meaningful brackets', () => {
-    expect(cleanTitle('Get Lucky (Official Audio)')).toBe('Get Lucky')
-    expect(cleanTitle('Get Lucky [HD]')).toBe('Get Lucky')
-    expect(cleanTitle('Get Lucky (Lyrics)')).toBe('Get Lucky')
-    expect(cleanTitle('Hotel California (2013 Remaster)')).toBe('Hotel California')
-    expect(cleanTitle('Hotel California (Live)')).toBe('Hotel California (Live)')
-    expect(cleanTitle('Blue (Da Ba Dee)')).toBe('Blue (Da Ba Dee)')
-    expect(cleanTitle('Hold On (Ahead Of Time)')).toBe('Hold On (Ahead Of Time)')
-  })
-
-  it('strips Spotify-style dash suffixes', () => {
-    expect(cleanTitle('Come Together - Remastered 2009')).toBe('Come Together')
-    expect(cleanTitle('Bohemian Rhapsody - 2011 Remaster')).toBe('Bohemian Rhapsody')
-    expect(cleanTitle('Levels - Radio Edit')).toBe('Levels')
-  })
-
-  it('strips featuring credits in every spelling', () => {
-    expect(cleanTitle('Get Lucky (feat. Pharrell Williams)')).toBe('Get Lucky')
-    expect(cleanTitle('Get Lucky feat. Pharrell Williams')).toBe('Get Lucky')
-    expect(cleanTitle('Get Lucky ft Pharrell')).toBe('Get Lucky')
-    expect(cleanTitle('Get Lucky [featuring Pharrell Williams]')).toBe('Get Lucky')
-    expect(cleanTitle('Soft Cell')).toBe('Soft Cell')
-    expect(cleanTitle('Left Hand Free')).toBe('Left Hand Free')
-  })
-})
 
 describe('parseDurationValue', () => {
   it('reads clocks, seconds and milliseconds', () => {

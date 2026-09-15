@@ -12,8 +12,7 @@ export type { ThemeChoice }
 /**
  * This phone's accent colour.
  *
- * Deliberately *not* the server's `accentHue` setting, and deliberately not
- * synced. Settings that describe the library — what counts as a play, which
+ * Deliberately not a server setting, and deliberately not synced. Settings that describe the library — what counts as a play, which
  * tags go on an import — are the same everywhere and belong on the server.
  * What colour this screen is belongs to the screen, the same way the volume
  * and which songs are downloaded already do: a phone in a dark pocket and a

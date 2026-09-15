@@ -1,20 +1,16 @@
 import type { Request, Response } from 'express'
 import { pipeline } from 'node:stream/promises'
 
-import { answerRange, parseRange } from '@selfmp3/shared'
-
-export { parseRange }
+import { answerRange } from '@selfmp3/shared'
 
 /**
  * HTTP range request handling for audio: Express's half of it.
  *
  * The rule itself — what `bytes=…` means, and which bytes it asks for — lives in
- * `@selfmp3/shared` (`packages/shared/src/range.ts`) since phase 3 of
- * docs/DESKTOP.md, because the desktop shell has to answer the same header for
- * the files it serves over `app://`, and two implementations of a byte range is
- * one too many. This file keeps what only a server has: the streaming, the 304,
- * and the aborted-request handling. `parseRange` is re-exported so nothing that
- * imported it from here has to change.
+ * `@selfmp3/shared` (`packages/shared/src/range.ts`), because the desktop shell
+ * has to answer the same header for the files it serves over `app://`, and two
+ * implementations of a byte range is one too many. This file keeps what only a
+ * server has: the streaming, the 304, and the aborted-request handling.
  *
  * Without a correct 206 response the browser has to download a whole track
  * before it can jump to the middle of it, and iOS Safari refuses to play at all.

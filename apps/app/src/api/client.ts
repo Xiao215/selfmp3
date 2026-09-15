@@ -162,6 +162,3 @@ export function apiFor(connection: ServerConnection) {
 export function mediaUrlFor(connection: ServerConnection) {
   return createMediaUrl(serverTransport(connection))
 }
-
-export { ApiError } from '@selfmp3/client'
-export type { ServerConnection } from '@selfmp3/client'

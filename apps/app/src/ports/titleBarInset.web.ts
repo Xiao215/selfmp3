@@ -1,8 +1,5 @@
 import { desktop } from './desktop/bridge'
-// Not from './titleBarInset': on web that is this file. See titleBarDragId.ts.
 import { TITLE_BAR_DRAG_ID } from './titleBarDragId'
-
-export { TITLE_BAR_DRAG_ID }
 
 /** See `titleBarInset.ts`. Zero in a tab, which has no title bar of its own. */
 export const titleBarInset: number = desktop?.info.titleBarInset ?? 0

@@ -10,6 +10,7 @@ import {
   PlayEventSchema,
   SONG_FIELDS,
   SetSongTagsSchema,
+  similarSongs,
   SkipEventSchema,
   SongPatchSchema,
   type BulkDeleteFailure,
@@ -24,7 +25,6 @@ import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { transact } from '../db/index.js'
 import { sqliteTime } from '../repositories/stats.js'
-import { similarSongs } from '../services/similar.js'
 import { isLocalRequest, revealInFileManager } from '../services/reveal.js'
 import { removeFolderIfEmpty } from '../services/libraryLayout.js'
 import { romanizedLines } from '../services/romanizedLines.js'

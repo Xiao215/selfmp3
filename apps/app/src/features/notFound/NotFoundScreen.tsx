@@ -34,8 +34,8 @@ const PLACES: readonly { href: Href; label: string; server?: boolean }[] = [
  * The shell stays around it (the sidebar and player bar on a computer, the
  * tabs on a phone), so the way out is everywhere it usually is. The one
  * picture is a waveform with a bar missing: something should be here and
- * isn't. It names the address it was given, since an old bookmark is the
- * usual cause, and offers the library first.
+ * isn't. It names the address it was given, so a mistyped or broken link
+ * shows as one, and offers the library first.
  *
  * A phone keeps it to the heading and one button: it has the tab bar for
  * everything else, and links arrive there from notes and messages, where the

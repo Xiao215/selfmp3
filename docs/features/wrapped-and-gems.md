@@ -8,7 +8,7 @@ migration is needed.
 
 ## Wrapped
 
-`/stats/wrapped`, reachable from the **Wrapped** button on the Stats page.
+`/stats/report`: the Stats page, opened on its **Report** tab.
 
 The yearly version of this is a marketing exercise that arrives once, in December. The
 useful version is being able to ask *"what did last week sound like"* on a Tuesday, so the

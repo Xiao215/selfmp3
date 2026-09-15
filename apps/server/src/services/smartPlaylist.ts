@@ -222,6 +222,3 @@ export function compileSmartRules(rules: SmartRules): CompiledQuery {
 
   return { sql, params }
 }
-
-/** Human-readable summary of a rule set — shared now, so a device can say it too. */
-export { describeSmartRules } from '@selfmp3/shared'

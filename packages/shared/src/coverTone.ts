@@ -6,8 +6,8 @@ import type { CoverSwatch, CoverTone } from './schemas/song.js'
  * The playing song's row and the player bars are drawn in it, so what is
  * playing looks like the music rather than like the app's own accent. The
  * server picks it once from each cover and sends it with the song; a browser
- * talking to an older server can still pick it from the image itself. Both use
- * this, so a cover is the same colour whichever did the reading.
+ * picks it from the image itself for a cover the server has not read yet. Both
+ * use this, so a cover is the same colour whichever did the reading.
  *
  * The picking is plain arithmetic on a handful of pixels (the cover drawn at
  * 24×24), done in OKLCH so "the most vivid colour" means what the eye means by

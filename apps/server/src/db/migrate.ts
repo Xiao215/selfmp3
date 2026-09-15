@@ -2,620 +2,437 @@ import type { Database } from 'better-sqlite3'
 import type { Logger } from '../logger.js'
 
 /**
- * Schema migrations.
+ * The database schema, and how a database comes to have it.
  *
- * SQLite's `user_version` pragma tracks which migrations have run. Each
- * migration is applied inside a transaction, so a failure leaves the database
- * exactly as it was rather than half-upgraded.
- *
- * Rules for adding one: append to the end, never edit an existing entry, and
- * never renumber. The array index *is* the version.
+ * `SCHEMA` is the whole schema at version `SCHEMA_VERSION`, and a new database
+ * is made from it in one step. A later change is appended to `MIGRATIONS` —
+ * never edited once it has run anywhere, never reordered — and each one brings
+ * a database to the version after the last. SQLite's `user_version` pragma
+ * records where a database is, and every step runs in a transaction, so a
+ * failure leaves the database exactly as it was.
  */
 
 interface Migration {
   readonly name: string
   readonly sql: string
-  /**
-   * Rebuilds a table other tables point at. SQLite can only change a column's
-   * CHECK by making the table again, and dropping the old one with foreign
-   * keys on would cascade its rows' children away with it. Foreign keys are
-   * off for the migration (it cannot be done inside the transaction) and are
-   * checked before it commits.
-   */
-  readonly rebuildsTable?: boolean
 }
 
-const MIGRATIONS: readonly Migration[] = [
-  {
-    name: 'initial schema',
-    sql: `
-      CREATE TABLE songs (
-        id            INTEGER PRIMARY KEY,
-        path          TEXT    NOT NULL UNIQUE,
-        title         TEXT    NOT NULL,
-        artist        TEXT    NOT NULL DEFAULT '',
-        album         TEXT    NOT NULL DEFAULT '',
-        album_artist  TEXT    NOT NULL DEFAULT '',
-        track_no      INTEGER,
-        year          INTEGER,
-        duration      REAL    NOT NULL DEFAULT 0,
-        size_bytes    INTEGER NOT NULL DEFAULT 0,
-        mime          TEXT    NOT NULL DEFAULT 'audio/mp4',
-        mtime_ms      INTEGER NOT NULL DEFAULT 0,
-        has_art       INTEGER NOT NULL DEFAULT 0,
-        art_ext       TEXT,
-        lyrics_kind   TEXT    NOT NULL DEFAULT 'none',
-        play_count    INTEGER NOT NULL DEFAULT 0,
-        skip_count    INTEGER NOT NULL DEFAULT 0,
-        loved         INTEGER NOT NULL DEFAULT 0,
-        source_url    TEXT,
-        last_played_at TEXT,
-        added_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-        updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-        missing       INTEGER NOT NULL DEFAULT 0
-      );
+/** Where the migrations `SCHEMA` replaced left off, so no database has to be made again. */
+const SCHEMA_VERSION = 19
 
-      CREATE INDEX idx_songs_added   ON songs(added_at DESC);
-      CREATE INDEX idx_songs_artist  ON songs(artist COLLATE NOCASE);
-      CREATE INDEX idx_songs_album   ON songs(album COLLATE NOCASE);
-      CREATE INDEX idx_songs_plays   ON songs(play_count DESC);
-      CREATE INDEX idx_songs_missing ON songs(missing) WHERE missing = 1;
+const SCHEMA = `
+  CREATE TABLE songs (
+    id             INTEGER PRIMARY KEY,
+    path           TEXT    NOT NULL UNIQUE,
+    title          TEXT    NOT NULL,
+    artist         TEXT    NOT NULL DEFAULT '',
+    album          TEXT    NOT NULL DEFAULT '',
+    album_artist   TEXT    NOT NULL DEFAULT '',
+    track_no       INTEGER,
+    year           INTEGER,
+    duration       REAL    NOT NULL DEFAULT 0,
+    size_bytes     INTEGER NOT NULL DEFAULT 0,
+    mime           TEXT    NOT NULL DEFAULT 'audio/mp4',
+    mtime_ms       INTEGER NOT NULL DEFAULT 0,
+    has_art        INTEGER NOT NULL DEFAULT 0,
+    art_ext        TEXT,
+    lyrics_kind    TEXT    NOT NULL DEFAULT 'none',
+    play_count     INTEGER NOT NULL DEFAULT 0,
+    skip_count     INTEGER NOT NULL DEFAULT 0,
+    loved          INTEGER NOT NULL DEFAULT 0,
+    -- The link an import came from: how its own timed lyrics are found.
+    source_url     TEXT,
+    last_played_at TEXT,
+    added_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    missing        INTEGER NOT NULL DEFAULT 0,
+    -- Bumped whenever a song's cover is written. Cover URLs carry it, so a
+    -- replaced cover is fetched fresh instead of served from a cache that
+    -- treats /api/art/<id> as forever.
+    art_rev        INTEGER NOT NULL DEFAULT 0,
+    -- Set when lrclib says a track has no words, or when you mark it so. Not a
+    -- lyrics_kind value, because the scanner rewrites that column from the
+    -- files on every rescan, and smart playlists read lyrics_kind != 'none' as
+    -- "has lyrics".
+    instrumental   INTEGER NOT NULL DEFAULT 0,
+    -- How the song is known outside this database (docs/SYNC.md). The integer
+    -- id stays a local handle: SQLite reuses ids after a delete, and another
+    -- device would hand out the same numbers.
+    uid            TEXT,
+    -- The cover's most vivid colour, picked from a 24×24 drawing of it so no
+    -- device has to decode the image to draw the playing song in it, and the
+    -- handful of colours it is made of (JSON, most of the cover first), which
+    -- the no-lyrics visuals draw in. cover_tone_rev is the art_rev they were
+    -- picked from: a new cover makes them stale. A cover with no colour in it
+    -- keeps a null hue with the revision set, so it is not read again.
+    cover_hue      REAL,
+    cover_chroma   REAL,
+    cover_tone_rev INTEGER,
+    cover_palette  TEXT
+  );
 
-      CREATE TABLE tags (
-        id         INTEGER PRIMARY KEY,
-        name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
-        hue        INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  CREATE INDEX idx_songs_added   ON songs(added_at DESC);
+  CREATE INDEX idx_songs_artist  ON songs(artist COLLATE NOCASE);
+  CREATE INDEX idx_songs_album   ON songs(album COLLATE NOCASE);
+  CREATE INDEX idx_songs_plays   ON songs(play_count DESC);
+  CREATE INDEX idx_songs_missing ON songs(missing) WHERE missing = 1;
 
-      CREATE TABLE song_tags (
-        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
-        tag_id  INTEGER NOT NULL REFERENCES tags(id)  ON DELETE CASCADE,
-        PRIMARY KEY (song_id, tag_id)
-      );
+  CREATE TABLE tags (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+    hue        INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    uid        TEXT
+  );
 
-      CREATE INDEX idx_song_tags_tag ON song_tags(tag_id);
+  CREATE TABLE song_tags (
+    song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    tag_id  INTEGER NOT NULL REFERENCES tags(id)  ON DELETE CASCADE,
+    PRIMARY KEY (song_id, tag_id)
+  );
 
-      CREATE TABLE playlists (
-        id          INTEGER PRIMARY KEY,
-        name        TEXT    NOT NULL,
-        description TEXT    NOT NULL DEFAULT '',
-        kind        TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','smart')),
-        rules       TEXT,
-        pinned      INTEGER NOT NULL DEFAULT 0,
-        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-        updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  CREATE INDEX idx_song_tags_tag ON song_tags(tag_id);
 
-      CREATE TABLE playlist_items (
-        playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
-        song_id     INTEGER NOT NULL REFERENCES songs(id)     ON DELETE CASCADE,
-        position    INTEGER NOT NULL,
-        added_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-        PRIMARY KEY (playlist_id, song_id)
-      );
+  -- A 'live' playlist follows its rules and updates itself; a 'manual' one
+  -- holds the songs put in it.
+  CREATE TABLE playlists (
+    id             INTEGER PRIMARY KEY,
+    name           TEXT    NOT NULL,
+    description    TEXT    NOT NULL DEFAULT '',
+    kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
+    rules          TEXT,
+    pinned         INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    uid            TEXT,
+    -- Set when a playlist is started as one (Play, Shuffle, a row in it), so
+    -- the playlists page can put the ones in use first. Not synced: it moves
+    -- on every play, and an edit stamp for it would put a playlist in every
+    -- device's log each time music started.
+    last_played_at TEXT
+  );
 
-      CREATE INDEX idx_playlist_items_order ON playlist_items(playlist_id, position);
+  CREATE TABLE playlist_items (
+    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    song_id     INTEGER NOT NULL REFERENCES songs(id)     ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    added_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (playlist_id, song_id)
+  );
 
-      -- Every play is kept as an event rather than only a counter, so stats can
-      -- be recomputed or asked new questions of later.
-      CREATE TABLE play_events (
-        id        INTEGER PRIMARY KEY,
-        song_id   INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
-        played_at TEXT    NOT NULL DEFAULT (datetime('now')),
-        ms_played INTEGER NOT NULL DEFAULT 0,
-        completed INTEGER NOT NULL DEFAULT 0
-      );
+  CREATE INDEX idx_playlist_items_order ON playlist_items(playlist_id, position);
 
-      CREATE INDEX idx_play_events_time ON play_events(played_at DESC);
-      CREATE INDEX idx_play_events_song ON play_events(song_id);
+  -- Every play is kept as an event rather than only a counter, so stats can
+  -- be recomputed or asked new questions of later.
+  CREATE TABLE play_events (
+    id        INTEGER PRIMARY KEY,
+    song_id   INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    played_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    ms_played INTEGER NOT NULL DEFAULT 0,
+    completed INTEGER NOT NULL DEFAULT 0,
+    -- A play made with the server out of reach is sent later, and sent again
+    -- if the first response goes missing. The id the client gave it is how
+    -- the second copy is recognised and ignored. Live plays have none.
+    client_id TEXT
+  );
 
-      -- The import queue lives in the database so it survives a restart.
-      CREATE TABLE import_jobs (
-        id           TEXT    PRIMARY KEY,
-        url          TEXT    NOT NULL,
-        status       TEXT    NOT NULL DEFAULT 'queued',
-        step         TEXT    NOT NULL DEFAULT 'waiting',
-        progress     REAL,
-        title        TEXT    NOT NULL DEFAULT '',
-        artist       TEXT    NOT NULL DEFAULT '',
-        album        TEXT    NOT NULL DEFAULT '',
-        thumbnail    TEXT,
-        duration     REAL    NOT NULL DEFAULT 0,
-        error        TEXT,
-        song_id      INTEGER REFERENCES songs(id) ON DELETE SET NULL,
-        attempts     INTEGER NOT NULL DEFAULT 0,
-        tag_ids      TEXT    NOT NULL DEFAULT '[]',
-        playlist_id  INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
-        position     INTEGER NOT NULL DEFAULT 0,
-        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
-        updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  CREATE INDEX idx_play_events_time ON play_events(played_at DESC);
+  CREATE INDEX idx_play_events_song ON play_events(song_id);
 
-      CREATE INDEX idx_import_jobs_status ON import_jobs(status, position);
+  -- The import queue lives in the database so it survives a restart.
+  CREATE TABLE import_jobs (
+    id           TEXT    PRIMARY KEY,
+    url          TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'queued',
+    step         TEXT    NOT NULL DEFAULT 'waiting',
+    progress     REAL,
+    title        TEXT    NOT NULL DEFAULT '',
+    artist       TEXT    NOT NULL DEFAULT '',
+    album        TEXT    NOT NULL DEFAULT '',
+    thumbnail    TEXT,
+    duration     REAL    NOT NULL DEFAULT 0,
+    error        TEXT,
+    song_id      INTEGER REFERENCES songs(id) ON DELETE SET NULL,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    tag_ids      TEXT    NOT NULL DEFAULT '[]',
+    playlist_id  INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
+    position     INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    -- The import request (below) the job was made for, if another device asked.
+    request_uid  TEXT
+  );
 
-      CREATE TABLE settings (
-        key   TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
+  CREATE INDEX idx_import_jobs_status ON import_jobs(status, position);
 
-      -- Full-text search over the fields people actually search by. An external
-      -- content table means the text is stored once, in the songs table.
-      CREATE VIRTUAL TABLE songs_fts USING fts5(
-        title, artist, album,
-        content = 'songs',
-        content_rowid = 'id',
-        tokenize = 'unicode61 remove_diacritics 2'
-      );
+  CREATE TABLE settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 
-      CREATE TRIGGER songs_fts_insert AFTER INSERT ON songs BEGIN
-        INSERT INTO songs_fts(rowid, title, artist, album)
-        VALUES (new.id, new.title, new.artist, new.album);
-      END;
+  -- Full-text search over the fields people actually search by. An external
+  -- content table means the text is stored once, in the songs table.
+  CREATE VIRTUAL TABLE songs_fts USING fts5(
+    title, artist, album,
+    content = 'songs',
+    content_rowid = 'id',
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
 
-      CREATE TRIGGER songs_fts_delete AFTER DELETE ON songs BEGIN
-        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
-        VALUES ('delete', old.id, old.title, old.artist, old.album);
-      END;
+  CREATE TRIGGER songs_fts_insert AFTER INSERT ON songs BEGIN
+    INSERT INTO songs_fts(rowid, title, artist, album)
+    VALUES (new.id, new.title, new.artist, new.album);
+  END;
 
-      CREATE TRIGGER songs_fts_update AFTER UPDATE ON songs BEGIN
-        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
-        VALUES ('delete', old.id, old.title, old.artist, old.album);
-        INSERT INTO songs_fts(rowid, title, artist, album)
-        VALUES (new.id, new.title, new.artist, new.album);
-      END;
-    `,
-  },
-  {
-    name: 'lyrics+: lyric search index and provider secrets',
-    sql: `
-      -- One row per lyric line. \`tokens\` is the line with every CJK character
-      -- space-separated so unicode61 can match inside a run of Han/kana; the
-      -- original \`line\` is kept unindexed for display.
-      CREATE VIRTUAL TABLE lyrics_fts USING fts5(
-        song_id UNINDEXED,
-        line_no UNINDEXED,
-        line UNINDEXED,
-        tokens,
-        tokenize = 'unicode61 remove_diacritics 2'
-      );
+  CREATE TRIGGER songs_fts_delete AFTER DELETE ON songs BEGIN
+    INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
+    VALUES ('delete', old.id, old.title, old.artist, old.album);
+  END;
 
-      -- Which text each song's index rows were built from, so a re-index is
-      -- skipped when nothing changed and the boot backfill knows what is missing.
-      CREATE TABLE lyrics_index (
-        song_id    INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
-        hash       TEXT    NOT NULL,
-        indexed_at TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  -- One row per lyric line. \`tokens\` is the line with every CJK character
+  -- space-separated so unicode61 can match inside a run of Han/kana; the
+  -- original \`line\` is kept unindexed for display.
+  CREATE VIRTUAL TABLE lyrics_fts USING fts5(
+    song_id UNINDEXED,
+    line_no UNINDEXED,
+    line UNINDEXED,
+    tokens,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
 
-      -- A virtual table cannot cascade, so mirror the delete by trigger.
-      CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
-        DELETE FROM lyrics_fts WHERE song_id = old.id;
-      END;
+  -- Which text each song's index rows were built from, so a re-index is
+  -- skipped when nothing changed and the boot backfill knows what is missing.
+  CREATE TABLE lyrics_index (
+    song_id    INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+    hash       TEXT    NOT NULL,
+    indexed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
 
-      -- API keys live apart from settings so they can never be returned by
-      -- accident from GET /api/settings.
-      CREATE TABLE secrets (
-        name  TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `,
-  },
-  {
-    name: 'audio features',
-    sql: `
-      -- One row per analysed song. Nullable columns mean "looked, found
-      -- nothing" (a silent file has no tempo); a missing row means "not yet".
-      CREATE TABLE song_features (
-        song_id       INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
-        bpm           REAL,
-        energy        REAL,
-        loudness_lufs REAL,
-        key           TEXT,
-        camelot       TEXT,
-        danceability  REAL,
-        analyzed_at   TEXT    NOT NULL DEFAULT (datetime('now')),
-        version       INTEGER NOT NULL DEFAULT 1
-      );
+  -- A virtual table cannot cascade, so mirror the delete by trigger.
+  CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
+    DELETE FROM lyrics_fts WHERE song_id = old.id;
+  END;
 
-      CREATE INDEX idx_song_features_camelot ON song_features(camelot);
-    `,
-  },
-  {
-    name: 'devices: presence and last playback state',
-    sql: `
-      -- One row per client that has ever heartbeated. \`state\` is the last
-      -- PlaybackState as JSON, kept so "continue where you left off" works
-      -- across a restart and from a device that is now asleep.
-      CREATE TABLE devices (
-        id           TEXT    PRIMARY KEY,
-        name         TEXT    NOT NULL,
-        kind         TEXT    NOT NULL DEFAULT 'other' CHECK (kind IN ('phone','desktop','other')),
-        state        TEXT    NOT NULL,
-        last_seen_at INTEGER NOT NULL,
-        created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  -- API keys live apart from settings so they can never be returned by
+  -- accident from GET /api/settings.
+  CREATE TABLE secrets (
+    name  TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 
-      CREATE INDEX idx_devices_seen ON devices(last_seen_at DESC);
-    `,
-  },
-  {
-    name: 'songs: art revision for cache-busting cover URLs',
-    sql: `
-      -- Bumped whenever a song's cover is written. Cover URLs carry it, so a
-      -- replaced cover is fetched fresh instead of served from a cache that
-      -- treats /api/art/<id> as forever.
-      ALTER TABLE songs ADD COLUMN art_rev INTEGER NOT NULL DEFAULT 0;
-    `,
-  },
-  {
-    name: 'play events: client ids for plays reported late',
-    sql: `
-      -- A play made with the server out of reach is sent later, and sent again
-      -- if the first response goes missing. The id the client gave it is how
-      -- the second copy is recognised and ignored. Live plays have none.
-      ALTER TABLE play_events ADD COLUMN client_id TEXT;
-      CREATE UNIQUE INDEX idx_play_events_client
-        ON play_events(client_id) WHERE client_id IS NOT NULL;
-    `,
-  },
-  {
-    name: 'songs: remember that a song is instrumental',
-    sql: `
-      -- Set when lrclib says a track has no words, or when you mark it so.
-      -- It is not a lyrics_kind value because the scanner rewrites that column
-      -- from the files on every rescan, and smart playlists read
-      -- lyrics_kind != 'none' as "has lyrics".
-      ALTER TABLE songs ADD COLUMN instrumental INTEGER NOT NULL DEFAULT 0;
-    `,
-  },
-  {
-    name: 'songs: remember where imported songs came from',
-    sql: `
-      -- The column was there from the start but the importer never filled it.
-      -- A song's YouTube link is how its own timed lyrics are found, so take
-      -- it from the import job for every song whose job is still on record.
-      UPDATE songs
-         SET source_url = (
-           SELECT url FROM import_jobs
-            WHERE import_jobs.song_id = songs.id
-            ORDER BY updated_at DESC
-            LIMIT 1
-         )
-       WHERE source_url IS NULL
-         AND EXISTS (SELECT 1 FROM import_jobs WHERE import_jobs.song_id = songs.id);
-    `,
-  },
-  {
-    name: 'cloud: stable ids, and what has been uploaded',
-    sql: `
-      -- A uid is how a song, tag or playlist is known outside this database
-      -- (docs/SYNC.md). Integer ids stay as local handles: SQLite reuses them
-      -- after a delete, and another device would hand out the same numbers.
-      -- ALTER TABLE cannot give a column a random default, so every existing
-      -- row is filled here and every new one by trigger — unless it arrives
-      -- with a uid of its own, as a song made on another device will.
-      --
-      -- The search index's update trigger first becomes one for the columns
-      -- it indexes. As it was, any update to a song rewrote its search entry —
-      -- every play did — and the uid trigger below would fire it for a song
-      -- whose entry the insert trigger had not written yet, and FTS5 corrupts
-      -- itself deleting an entry it does not have.
-      DROP TRIGGER songs_fts_update;
-      CREATE TRIGGER songs_fts_update AFTER UPDATE OF title, artist, album ON songs BEGIN
-        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
-        VALUES ('delete', old.id, old.title, old.artist, old.album);
-        INSERT INTO songs_fts(rowid, title, artist, album)
-        VALUES (new.id, new.title, new.artist, new.album);
-      END;
+  -- One row per analysed song. Nullable columns mean "looked, found
+  -- nothing" (a silent file has no tempo); a missing row means "not yet".
+  CREATE TABLE song_features (
+    song_id       INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+    bpm           REAL,
+    energy        REAL,
+    loudness_lufs REAL,
+    key           TEXT,
+    camelot       TEXT,
+    danceability  REAL,
+    analyzed_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    version       INTEGER NOT NULL DEFAULT 1
+  );
 
-      ALTER TABLE songs ADD COLUMN uid TEXT;
-      UPDATE songs SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
-      CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
-      CREATE TRIGGER songs_uid AFTER INSERT ON songs WHEN new.uid IS NULL BEGIN
-        UPDATE songs SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
-      END;
+  CREATE INDEX idx_song_features_camelot ON song_features(camelot);
 
-      ALTER TABLE tags ADD COLUMN uid TEXT;
-      UPDATE tags SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
-      CREATE UNIQUE INDEX idx_tags_uid ON tags(uid);
-      CREATE TRIGGER tags_uid AFTER INSERT ON tags WHEN new.uid IS NULL BEGIN
-        UPDATE tags SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
-      END;
+  -- One row per client that has ever heartbeated. \`state\` is the last
+  -- PlaybackState as JSON, kept so "continue where you left off" works
+  -- across a restart and from a device that is now asleep.
+  CREATE TABLE devices (
+    id           TEXT    PRIMARY KEY,
+    name         TEXT    NOT NULL,
+    kind         TEXT    NOT NULL DEFAULT 'other' CHECK (kind IN ('phone','desktop','other')),
+    state        TEXT    NOT NULL,
+    last_seen_at INTEGER NOT NULL,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
 
-      ALTER TABLE playlists ADD COLUMN uid TEXT;
-      UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
-      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
-      CREATE TRIGGER playlists_uid AFTER INSERT ON playlists WHEN new.uid IS NULL BEGIN
-        UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
-      END;
+  CREATE INDEX idx_devices_seen ON devices(last_seen_at DESC);
 
-      -- What was uploaded for each song, and from which state of it: the audio
-      -- file's size and mtime, the cover's revision, the lyric sidecar's size
-      -- and mtime. A song whose signatures still match is not read again, so a
-      -- rescan or a restart does not re-hash the whole library.
-      CREATE TABLE cloud_songs (
-        song_id     INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
-        audio_key   TEXT    NOT NULL,
-        audio_size  INTEGER NOT NULL,
-        audio_sig   TEXT    NOT NULL,
-        cover_key   TEXT,
-        cover_size  INTEGER,
-        cover_sig   TEXT    NOT NULL,
-        lyrics_key  TEXT,
-        lyrics_size INTEGER,
-        lyrics_kind TEXT,
-        lyrics_sig  TEXT    NOT NULL,
-        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
+  CREATE UNIQUE INDEX idx_play_events_client
+    ON play_events(client_id) WHERE client_id IS NOT NULL;
 
-      -- Every file known to be in the bucket. Files are named by their hash
-      -- and never change, so "is it there?" is asked of the bucket once.
-      CREATE TABLE cloud_files (
-        key         TEXT    PRIMARY KEY,
-        size        INTEGER NOT NULL,
-        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
-      );
-    `,
-  },
-  {
-    name: 'sync: edits from every device',
-    sql: `
-      -- For each field an edit has set, when it was set (docs/SYNC.md): the
-      -- stamp of the change, from a hybrid logical clock. An edit from another
-      -- device that is older than the stamp arrived late, and loses. \`field\`
-      -- is a column's name, or for a tag on a song the tag's uid, and for a
-      -- song in a playlist the song's. A field with no stamp was never edited
-      -- anywhere, and any edit replaces it.
-      CREATE TABLE sync_stamps (
-        kind  TEXT NOT NULL CHECK (kind IN ('song','songTag','tag','playlist','playlistSong')),
-        uid   TEXT NOT NULL,
-        field TEXT NOT NULL,
-        hlc   TEXT NOT NULL,
-        PRIMARY KEY (kind, uid, field)
-      ) WITHOUT ROWID;
-      CREATE INDEX idx_sync_stamps_field ON sync_stamps(kind, field);
+  -- Only for the columns it indexes: any other update — every play is one —
+  -- would rewrite the entry, and the uid trigger below would fire it for a
+  -- song whose entry the insert trigger had not written yet, which FTS5
+  -- corrupts itself deleting.
+  CREATE TRIGGER songs_fts_update AFTER UPDATE OF title, artist, album ON songs BEGIN
+    INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
+    VALUES ('delete', old.id, old.title, old.artist, old.album);
+    INSERT INTO songs_fts(rowid, title, artist, album)
+    VALUES (new.id, new.title, new.artist, new.album);
+  END;
 
-      -- A stamp goes with the thing it is about, however that thing is deleted.
-      CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
-        DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
-        DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
-      END;
-      CREATE TRIGGER sync_stamps_tag_delete AFTER DELETE ON tags BEGIN
-        DELETE FROM sync_stamps WHERE kind = 'tag' AND uid = old.uid;
-        DELETE FROM sync_stamps WHERE kind = 'songTag' AND field = old.uid;
-      END;
-      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
-        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
-      END;
+  -- ALTER TABLE cannot give a column a random default, so a row that arrives
+  -- without a uid gets one by trigger. One made on another device arrives
+  -- with its own.
+  CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
+  CREATE TRIGGER songs_uid AFTER INSERT ON songs WHEN new.uid IS NULL BEGIN
+    UPDATE songs SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+  END;
 
-      -- A tag made on two devices under one name, before either had heard of
-      -- the other, is one tag here. The second uid is kept, so a change that
-      -- names it still finds the tag.
-      CREATE TABLE tag_aliases (
-        uid    TEXT    PRIMARY KEY,
-        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE
-      );
+  CREATE UNIQUE INDEX idx_tags_uid ON tags(uid);
+  CREATE TRIGGER tags_uid AFTER INSERT ON tags WHEN new.uid IS NULL BEGIN
+    UPDATE tags SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+  END;
 
-      -- How far into each other device's log this server has read.
-      CREATE TABLE cloud_log_cursors (
-        device TEXT    PRIMARY KEY,
-        seq    INTEGER NOT NULL
-      );
+  CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+  CREATE TRIGGER playlists_uid AFTER INSERT ON playlists WHEN new.uid IS NULL BEGIN
+    UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
+  END;
 
-      -- Skips from other devices already counted. Plays have play_events'
-      -- client ids for the same job.
-      CREATE TABLE counted_skips (
-        id TEXT PRIMARY KEY
-      ) WITHOUT ROWID;
-    `,
-  },
-  {
-    name: 'sync: links other devices ask to import',
-    sql: `
-      -- A link a device that cannot fetch asked this server to import, and how
-      -- it went: every device reads that in the snapshot (docs/SYNC.md). Its
-      -- import jobs point back at it, and once they are all finished the
-      -- outcome is kept here, so clearing the jobs does not lose it.
-      CREATE TABLE import_requests (
-        uid          TEXT PRIMARY KEY,
-        url          TEXT NOT NULL,
-        tag_uids     TEXT NOT NULL DEFAULT '[]',
-        playlist_uid TEXT,
-        requested_by TEXT NOT NULL,
-        requested_at TEXT NOT NULL,
-        state        TEXT NOT NULL DEFAULT 'waiting'
-                     CHECK (state IN ('waiting','working','done','failed','cancelled')),
-        title        TEXT,
-        song_uids    TEXT NOT NULL DEFAULT '[]',
-        error        TEXT,
-        updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE INDEX idx_import_requests_time ON import_requests(requested_at);
+  -- What was uploaded for each song, and from which state of it: the audio
+  -- file's size and mtime, the cover's revision, the lyric sidecar's size and
+  -- mtime, the romanized lines and the motion curve beside the lyrics. A song
+  -- whose signatures still match is not read again, so a rescan or a restart
+  -- does not re-hash the whole library.
+  CREATE TABLE cloud_songs (
+    song_id       INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+    audio_key     TEXT    NOT NULL,
+    audio_size    INTEGER NOT NULL,
+    audio_sig     TEXT    NOT NULL,
+    cover_key     TEXT,
+    cover_size    INTEGER,
+    cover_sig     TEXT    NOT NULL,
+    lyrics_key    TEXT,
+    lyrics_size   INTEGER,
+    lyrics_kind   TEXT,
+    lyrics_sig    TEXT    NOT NULL,
+    uploaded_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    romanized_key TEXT,
+    motion_key    TEXT,
+    motion_sig    TEXT NOT NULL DEFAULT ''
+  );
 
-      ALTER TABLE import_jobs ADD COLUMN request_uid TEXT;
-      CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
-    `,
-  },
-  {
-    name: 'songs: the colour of each cover',
-    sql: `
-      -- The cover's most vivid colour, picked here from a 24×24 drawing of it
-      -- so no device has to decode the image to draw the playing song in it.
-      -- cover_tone_rev is the art_rev it was picked from: a new cover makes it
-      -- stale. A cover with no colour in it keeps a null hue with the revision
-      -- set, so it is not read again.
-      ALTER TABLE songs ADD COLUMN cover_hue REAL;
-      ALTER TABLE songs ADD COLUMN cover_chroma REAL;
-      ALTER TABLE songs ADD COLUMN cover_tone_rev INTEGER;
-    `,
-  },
-  {
-    name: 'songs: read colourless covers again',
-    sql: `
-      -- The picking took a cover whose colour was spread over a few hues (green
-      -- trees under a blue sky) for grey, and kept it that way against its
-      -- revision. It now weighs all the colour; forget the old "none" answers so
-      -- those covers are read once more.
-      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
-    `,
-  },
-  {
-    name: 'playlists: live instead of smart, and when each was last played',
-    rebuildsTable: true,
-    sql: `
-      -- A playlist that follows rules and updates itself is a "live" playlist.
-      -- "Smart" is now the name of a way to make an ordinary playlist (a
-      -- template picks its songs once), so the stored kind says what it is.
-      -- SQLite cannot change a CHECK constraint, so the table is made again.
-      --
-      -- last_played_at is set when a playlist is started as one (Play,
-      -- Shuffle, a row in it), so the playlists page can put the ones in use
-      -- first. A song's own last_played_at cannot say this: a song is in
-      -- several lists. It is not synced: it moves on every play, and an edit
-      -- stamp for it would put a playlist in every device's log each time
-      -- music started.
-      CREATE TABLE playlists_next (
-        id             INTEGER PRIMARY KEY,
-        name           TEXT    NOT NULL,
-        description    TEXT    NOT NULL DEFAULT '',
-        kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
-        rules          TEXT,
-        pinned         INTEGER NOT NULL DEFAULT 0,
-        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-        uid            TEXT,
-        last_played_at TEXT
-      );
+  -- Every file known to be in the bucket. Files are named by their hash and
+  -- never change, so "is it there?" is asked of the bucket once.
+  CREATE TABLE cloud_files (
+    key         TEXT    PRIMARY KEY,
+    size        INTEGER NOT NULL,
+    uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
 
-      INSERT INTO playlists_next (id, name, description, kind, rules, pinned, created_at, updated_at, uid)
-        SELECT id, name, description, CASE kind WHEN 'smart' THEN 'live' ELSE kind END,
-               rules, pinned, created_at, updated_at, uid
-          FROM playlists;
+  -- For each field an edit has set, when it was set (docs/SYNC.md): the stamp
+  -- of the change, from a hybrid logical clock. An edit from another device
+  -- that is older than the stamp arrived late, and loses. \`field\` is a
+  -- column's name, or for a tag on a song the tag's uid, and for a song in a
+  -- playlist the song's. A field with no stamp was never edited anywhere, and
+  -- any edit replaces it.
+  CREATE TABLE sync_stamps (
+    kind  TEXT NOT NULL CHECK (kind IN ('song','songTag','tag','playlist','playlistSong')),
+    uid   TEXT NOT NULL,
+    field TEXT NOT NULL,
+    hlc   TEXT NOT NULL,
+    PRIMARY KEY (kind, uid, field)
+  ) WITHOUT ROWID;
+  CREATE INDEX idx_sync_stamps_field ON sync_stamps(kind, field);
 
-      DROP TABLE playlists;
-      ALTER TABLE playlists_next RENAME TO playlists;
+  -- A stamp goes with the thing it is about, however that thing is deleted.
+  CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
+    DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
+    DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
+  END;
+  CREATE TRIGGER sync_stamps_tag_delete AFTER DELETE ON tags BEGIN
+    DELETE FROM sync_stamps WHERE kind = 'tag' AND uid = old.uid;
+    DELETE FROM sync_stamps WHERE kind = 'songTag' AND field = old.uid;
+  END;
+  CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+    DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+  END;
 
-      -- Dropping the table took its index and triggers with it.
-      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
-      CREATE TRIGGER playlists_uid AFTER INSERT ON playlists WHEN new.uid IS NULL BEGIN
-        UPDATE playlists SET uid = lower(hex(randomblob(16))) WHERE id = new.id;
-      END;
-      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
-        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
-      END;
-    `,
-  },
-  {
-    name: 'cloud: romaji beside the lyrics',
-    sql: `
-      -- Each song's romanized lines go up beside its words, as JSON
-      -- (docs/SYNC.md). Every lyrics signature is forgotten, so the next pass
-      -- reads each song's words once more and puts their romaji up; the audio
-      -- and the covers are left as they are.
-      ALTER TABLE cloud_songs ADD COLUMN romanized_key TEXT;
-      UPDATE cloud_songs SET lyrics_sig = '';
-    `,
-  },
-  {
-    name: 'cover tones: read again, without the black bars',
-    sql: `
-      -- The picking no longer counts near-black or near-white towards how grey
-      -- a cover is, so soft-coloured art letterboxed in a video's frame gets
-      -- its colour. Every cover is read once more at the next start.
-      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
-    `,
-  },
-  {
-    name: 'cover tones: soft colours count',
-    sql: `
-      -- The picking keeps a soft colour when all of it is one colour — beige
-      -- paper, a sepia print — where before it took anything that pale for
-      -- grey. Every cover read as colourless is read once more at the next start.
-      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
-    `,
-  },
-  {
-    name: 'cloud: motion curves beside the lyrics',
-    sql: `
-      -- Each song's motion curve goes up beside its words, as JSON in lyrics/
-      -- (docs/SYNC.md). An empty signature matches neither a curve nor "none",
-      -- so the next pass looks at every song's curve once; the audio, covers
-      -- and words are left as they are.
-      ALTER TABLE cloud_songs ADD COLUMN motion_key TEXT;
-      ALTER TABLE cloud_songs ADD COLUMN motion_sig TEXT NOT NULL DEFAULT '';
-    `,
-  },
-  {
-    name: 'cover tones: the colours each cover is made of',
-    sql: `
-      -- Beside the one hue, the handful of colours a cover is made of (JSON,
-      -- most of the cover first), which the no-lyrics visuals draw in. Every
-      -- cover is read once more at the next start to fill it in.
-      ALTER TABLE songs ADD COLUMN cover_palette TEXT;
-      UPDATE songs SET cover_tone_rev = NULL;
-    `,
-  },
-]
+  -- A tag made on two devices under one name, before either had heard of the
+  -- other, is one tag here. The second uid is kept, so a change that names it
+  -- still finds the tag.
+  CREATE TABLE tag_aliases (
+    uid    TEXT    PRIMARY KEY,
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE
+  );
 
-/**
- * Bring the schema up to `target` — the latest, unless a test wants a
- * database as it was before some migration, to watch that migration run.
- */
-export function migrate(db: Database, logger: Logger, target = MIGRATIONS.length): void {
-  const currentVersion = db.pragma('user_version', { simple: true }) as number
+  -- How far into each other device's log this server has read.
+  CREATE TABLE cloud_log_cursors (
+    device TEXT    PRIMARY KEY,
+    seq    INTEGER NOT NULL
+  );
 
-  if (currentVersion > MIGRATIONS.length) {
+  -- Skips from other devices already counted. Plays have play_events' client
+  -- ids for the same job.
+  CREATE TABLE counted_skips (
+    id TEXT PRIMARY KEY
+  ) WITHOUT ROWID;
+
+  -- A link a device that cannot fetch asked this server to import, and how it
+  -- went: every device reads that in the snapshot (docs/SYNC.md). Its import
+  -- jobs point back at it, and once they are all finished the outcome is kept
+  -- here, so clearing the jobs does not lose it.
+  CREATE TABLE import_requests (
+    uid          TEXT PRIMARY KEY,
+    url          TEXT NOT NULL,
+    tag_uids     TEXT NOT NULL DEFAULT '[]',
+    playlist_uid TEXT,
+    requested_by TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    state        TEXT NOT NULL DEFAULT 'waiting'
+                 CHECK (state IN ('waiting','working','done','failed','cancelled')),
+    title        TEXT,
+    song_uids    TEXT NOT NULL DEFAULT '[]',
+    error        TEXT,
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX idx_import_requests_time ON import_requests(requested_at);
+
+  CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
+`
+
+/** Changes to the schema after `SCHEMA_VERSION`, oldest first. */
+const MIGRATIONS: readonly Migration[] = []
+
+/** Bring the schema to the latest version. */
+export function migrate(db: Database, logger: Logger): void {
+  const current = db.pragma('user_version', { simple: true }) as number
+  const latest = SCHEMA_VERSION + MIGRATIONS.length
+
+  if (current > latest) {
     throw new Error(
-      `Database schema is version ${currentVersion} but this build only knows about ` +
-        `${MIGRATIONS.length}. You are running an older server against a newer database.`,
+      `Database schema is version ${current} but this build only knows about ` +
+        `${latest}. You are running an older server against a newer database.`,
     )
   }
-
-  const goal = Math.min(target, MIGRATIONS.length)
-  if (currentVersion >= goal) {
-    logger.debug('schema up to date', { version: currentVersion })
+  if (current > 0 && current < SCHEMA_VERSION) {
+    throw new Error(
+      `Database schema is version ${current}, older than the ${SCHEMA_VERSION} this build ` +
+        'starts from. Point the server at a new data directory.',
+    )
+  }
+  if (current === latest) {
+    logger.debug('schema up to date', { version: current })
     return
   }
 
-  for (let version = currentVersion; version < goal; version++) {
-    const migration = MIGRATIONS[version]
-    if (!migration) continue
-    const nextVersion = version + 1
-    logger.info(`applying migration ${nextVersion}: ${migration.name}`)
-
-    // Only changeable outside a transaction, so set before BEGIN and put back after.
-    const foreignKeys = db.pragma('foreign_keys', { simple: true }) as number
-    if (migration.rebuildsTable) db.pragma('foreign_keys = OFF')
-
-    // better-sqlite3 cannot run DDL inside its transaction() wrapper reliably
-    // when the statements include CREATE VIRTUAL TABLE, so drive it manually.
-    db.exec('BEGIN')
-    try {
-      db.exec(migration.sql)
-      if (migration.rebuildsTable) {
-        const broken = db.pragma('foreign_key_check') as unknown[]
-        if (broken.length > 0) throw new Error(`${broken.length} rows lost what they point at`)
-      }
-      db.pragma(`user_version = ${nextVersion}`)
-      db.exec('COMMIT')
-    } catch (error) {
-      db.exec('ROLLBACK')
-      throw new Error(
-        `Migration ${nextVersion} (${migration.name}) failed: ` +
-          (error instanceof Error ? error.message : String(error)),
-      )
-    } finally {
-      if (migration.rebuildsTable) db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`)
-    }
+  if (current === 0) apply(db, logger, SCHEMA_VERSION, { name: 'schema', sql: SCHEMA })
+  for (let version = Math.max(current, SCHEMA_VERSION) + 1; version <= latest; version++) {
+    const migration = MIGRATIONS[version - SCHEMA_VERSION - 1]
+    if (migration) apply(db, logger, version, migration)
   }
 
-  logger.info('schema migrated', { to: goal })
+  logger.info('schema migrated', { to: latest })
 }
 
-/** The version a migration brings the schema to, found by its name. */
-export function migrationVersion(name: string): number {
-  const index = MIGRATIONS.findIndex(migration => migration.name === name)
-  if (index === -1) throw new Error(`no migration called ${JSON.stringify(name)}`)
-  return index + 1
+function apply(db: Database, logger: Logger, version: number, migration: Migration): void {
+  logger.info(`applying migration ${version}: ${migration.name}`)
+
+  // better-sqlite3 cannot run DDL inside its transaction() wrapper reliably
+  // when the statements include CREATE VIRTUAL TABLE, so drive it manually.
+  db.exec('BEGIN')
+  try {
+    db.exec(migration.sql)
+    db.pragma(`user_version = ${version}`)
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw new Error(
+      `Migration ${version} (${migration.name}) failed: ` +
+        (error instanceof Error ? error.message : String(error)),
+    )
+  }
 }

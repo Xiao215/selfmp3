@@ -12,9 +12,8 @@ const tones = new Map<string, CoverTone | null>()
  * its letter tile where it has not.
  *
  * The server picks a cover's colour once and sends it with the song, so this
- * is usually just arithmetic. A song from a server too old to send it, or one
- * it has not read yet, is read here where the platform can (a canvas, in a
- * browser). Until then, and for a cover with no colour in it, the accent
+ * is usually just arithmetic. A song the server has not read yet is read here
+ * where the platform can (a canvas, in a browser). Until then, and for a cover with no colour in it, the accent
  * stands in, which is what these used to be drawn in.
  *
  * Only asked for the song that is playing — its row, the player bar, the mini
@@ -22,7 +21,7 @@ const tones = new Map<string, CoverTone | null>()
  */
 export function useSongColor(song: Song | null, uri: string | null): SongColors {
   const accent = useAccent()
-  const key = song ? `${song.id}:${song.rev ?? ''}` : ''
+  const key = song ? `${song.id}:${song.rev}` : ''
   const [, setRead] = useState(0)
   const sent = song?.coverTone ?? null
   const unread = song !== null && song.hasArt && sent === null && uri !== null && !tones.has(key)

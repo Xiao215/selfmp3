@@ -34,7 +34,7 @@ Each play carries two things it did not before:
   running fast) is treated as now.
 - **`clientId`** — unique per play. A send whose response is lost gets retried, and the server
   ignores an id it has already recorded. There is a partial unique index on
-  `play_events.client_id` (migration 6), so live plays without one are unaffected.
+  `play_events.client_id`, so live plays without one are unaffected.
 
 "Last played" only ever moves forward: a late play from last week does not overwrite one from
 an hour ago.

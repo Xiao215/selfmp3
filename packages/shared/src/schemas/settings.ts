@@ -35,11 +35,6 @@ export const SettingsSchema = z.object({
     .default('chrome'),
   /** Absolute path to a cookies.txt, used when ytCookieSource is 'file'. */
   ytCookieFile: z.string().trim().max(1000).default(''),
-  theme: z.enum(['dark', 'light', 'system']).default('dark'),
-  /** Accent hue for the whole UI. */
-  accentHue: z.number().int().min(0).max(359).default(268),
-  /** Lyrics+: show pinyin / romaji under each lyric line. */
-  lyricsRomanization: z.enum(['off', 'on']).default('off'),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

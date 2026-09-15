@@ -1,7 +1,6 @@
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
 import { listenAddresses } from './services/addresses.js'
-import { organizeLegacyImports } from './services/libraryLayout.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
 
@@ -41,20 +40,7 @@ function main(): void {
   // Lyrics+: the Japanese dictionary takes a second or two; load it now, not on first tap.
   container.romanization.warmUp()
 
-  // Songs imported before each had a folder move into one first: the scan, the
-  // watcher and new imports all expect to find them there.
-  void organizeLegacyImports(container)
-    .then(moved => {
-      if (moved > 0) container.bumpLibraryVersion()
-    })
-    .catch((error: unknown) => {
-      logger.error('could not move imported songs into their folders', {
-        message: error instanceof Error ? error.message : String(error),
-      })
-    })
-    .finally(() => {
-      if (!shuttingDown) startLibrary(container)
-    })
+  startLibrary(container)
 
   const autoScanMinutes = container.settings.get().autoScanMinutes
   let scanTimer: NodeJS.Timeout | null = null
@@ -121,7 +107,7 @@ function main(): void {
   })
 }
 
-/** The work that reads or writes the library folder, once it is in shape. */
+/** The work that reads or writes the library folder. */
 function startLibrary(container: Container): void {
   const { config, logger } = container
 

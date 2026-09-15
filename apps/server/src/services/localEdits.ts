@@ -45,7 +45,7 @@ export class SyncClock {
  *
  * Nothing is stamped for making or deleting things. A new tag is simply there
  * in the next snapshot, and a deleted one takes its stamps with it (the
- * triggers in migration 10).
+ * `sync_stamps_*_delete` triggers in db/migrate.ts).
  */
 export class LocalEdits {
   readonly #db: Db

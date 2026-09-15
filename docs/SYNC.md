@@ -316,7 +316,7 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
-| The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (migrations 9, 10, 11) |
+| The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |
 | The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |

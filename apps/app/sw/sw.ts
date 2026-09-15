@@ -93,9 +93,6 @@ self.addEventListener('activate', event => {
           .filter(name => name.startsWith('selfmp3-') && !OWNED_CACHES.has(name))
           .map(name => caches.delete(name)),
       )
-      // The library an older worker kept (networkFirst): stale by now, and
-      // nothing serves it any more.
-      await (await caches.open(API_CACHE)).delete(`${BASE}api/library`)
       await self.clients.claim()
     })(),
   )

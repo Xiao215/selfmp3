@@ -4,10 +4,10 @@ import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-n
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { apiFor, ApiError } from '../../api/client'
+import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
-import { normaliseBaseUrl, radius, space, type } from '@selfmp3/client'
+import { ApiError, normaliseBaseUrl, radius, space, type } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 
 /**

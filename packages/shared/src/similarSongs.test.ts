@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Song, SongFeatures } from '@selfmp3/shared'
-import { similarSongs } from './similar.js'
+import { similarSongs } from './audioFeatures.js'
+import type { Song, SongFeatures } from './index.js'
 
 const feat = (patch: Partial<SongFeatures> = {}): SongFeatures => ({
   bpm: 120,

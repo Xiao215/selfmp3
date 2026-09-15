@@ -26,8 +26,8 @@ included — goes through kuroshiro; Han with no kana is Chinese and goes throug
 pinyin. Latin-only lines are left alone. Detection is in
 `packages/shared/src/script.ts`.
 
-The switch is the `lyricsRomanization` setting (`'off' | 'on'`), synced across
-devices, also in Settings → Lyrics. Results are cached on disk at
+The switch is a preference of each device rather than a synced setting
+(`apps/app/src/features/nowPlaying/romanizationPref.ts`), in Settings → Lyrics. Results are cached on disk at
 `data/lyrics/<songId>/romanized.<hash>.json`, keyed by a hash of the lyrics
 text — edit the `.lrc` and the cache misses automatically. Like cover art, the
 folder is disposable.

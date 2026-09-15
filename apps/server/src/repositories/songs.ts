@@ -58,7 +58,6 @@ export class SongRepository {
   readonly #updateScanned
   readonly #markMissing
   readonly #clearMissing
-  readonly #setPath
   readonly #setSourceUrl
   readonly #deleteById
   readonly #recordPlay
@@ -104,7 +103,6 @@ export class SongRepository {
 
     this.#markMissing = db.prepare('UPDATE songs SET missing = 1 WHERE path = ?')
     this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
-    this.#setPath = db.prepare('UPDATE songs SET path = ? WHERE id = ?')
     this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
     this.#deleteById = db.prepare('DELETE FROM songs WHERE id = ?')
 
@@ -225,15 +223,6 @@ export class SongRepository {
 
   clearMissing(id: number): void {
     this.#clearMissing.run(id)
-  }
-
-  /**
-   * The file moved, and the song goes with it. The scanner knows songs by
-   * path, so without this a moved file would come back as a new song and the
-   * old one, tags and plays and all, would be marked missing.
-   */
-  setPath(id: number, path: string): void {
-    this.#setPath.run(path, id)
   }
 
   /** Where an imported song came from: how its own lyrics are found later. */

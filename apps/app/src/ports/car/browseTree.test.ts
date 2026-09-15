@@ -22,6 +22,8 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   sizeBytes: 1000,
   mime: 'audio/mpeg',
   hasArt: false,
+  rev: `${id}.0`,
+  coverTone: null,
   lyricsKind: 'none',
   instrumental: false,
   playCount: 0,

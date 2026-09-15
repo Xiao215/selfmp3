@@ -101,14 +101,13 @@ export const CloudSongSchema = z.object({
   duration: z.number().nonnegative(),
   audio: CloudAudioSchema,
   cover: CloudCoverSchema.nullable(),
-  /** The cover's colour, as the server picked it (schemas/song.ts). Absent from older snapshots. */
+  /** The cover's colour, as the server picked it (schemas/song.ts). Absent until it has read the cover. */
   coverTone: CoverToneSchema.nullable().optional(),
   lyrics: CloudLyricsSchema.nullable(),
   /**
    * The song's motion curve (schemas/motion.ts), as JSON in `lyrics/`: how loud
    * it is and where the hits are, for the visuals on a device that cannot
-   * listen live. Null or absent until the server has analysed the song, and
-   * absent from older snapshots.
+   * listen live. Absent until the server has analysed the song and put it up.
    */
   motion: fileKey('lyrics').nullable().optional(),
   instrumental: z.boolean(),

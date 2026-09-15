@@ -53,22 +53,21 @@ export const SongSchema = z.object({
   hasArt: z.boolean(),
   /**
    * Changes whenever the audio file or the cover changes. Media URLs carry it
-   * so caches never serve an old file under a reused id. Optional because
-   * older servers do not send it.
+   * so caches never serve an old file under a reused id.
    */
-  rev: z.string().optional(),
+  rev: z.string(),
   /**
    * The cover's colour. Null for a song with no cover, a cover with no colour
-   * in it, or one the server has not read yet. Absent from older servers.
+   * in it, or one the server has not read yet.
    */
-  coverTone: CoverToneSchema.nullable().optional(),
+  coverTone: CoverToneSchema.nullable(),
   lyricsKind: LyricsKindSchema,
   /**
    * True when the song is known to have no words: lrclib said so, or you
    * marked it. Distinct from lyricsKind 'none', which only means none were
-   * found. Defaults to false for older servers.
+   * found.
    */
-  instrumental: z.boolean().default(false),
+  instrumental: z.boolean(),
   playCount: z.number().int().nonnegative(),
   skipCount: z.number().int().nonnegative(),
   loved: z.boolean(),

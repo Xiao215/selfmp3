@@ -13,7 +13,6 @@ import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
-import { useRomanizationSeed } from '../src/features/nowPlaying/romanizationPref'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
@@ -101,8 +100,6 @@ function Shell(): ReactNode {
   usePlaybackMemory()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
-  // A device that never chose whether to draw romaji starts from the server's old setting.
-  useRomanizationSeed()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.
@@ -124,8 +121,8 @@ function Shell(): ReactNode {
     if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])
 
-  // Already connected, sign-in has nothing to offer: an old bookmark drew it
-  // inside the whole app, sidebar and library around it. The one exception is
+  // Already connected, sign-in has nothing to offer, and a link to it would draw
+  // it inside the whole app, sidebar and library around it. The one exception is
   // Settings sending a server-connected device there to move it to the cloud.
   const { switching } = useGlobalSearchParams<{ switching?: string }>()
   useEffect(() => {

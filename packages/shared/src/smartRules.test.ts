@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { MISSING_TAG_UID } from './cloud.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
-import { livePlaylistSongs } from './smartRules.js'
+import { SmartRulesSchema } from './schemas/smart.js'
+import { describeSmartRules, livePlaylistSongs } from './smartRules.js'
 
 const uid = (n: number): string => n.toString(16).padStart(32, '0')
 const CHILL = uid(0x71)
@@ -134,5 +135,47 @@ describe('smart playlists on a device', () => {
       })(),
     })
     expect(shuffled).toEqual(ids(4, 2, 3, 1, 5))
+  })
+})
+
+describe('describeSmartRules', () => {
+  const tagNames = new Map([[1, 'chill']])
+
+  it('describes an empty rule set', () => {
+    expect(describeSmartRules(SmartRulesSchema.parse({}), tagNames)).toBe('Every song')
+  })
+
+  it('describes a limited empty rule set', () => {
+    expect(describeSmartRules(SmartRulesSchema.parse({ limit: 50 }), tagNames)).toBe('50 songs')
+  })
+
+  it('reads like English', () => {
+    const rules = SmartRulesSchema.parse({
+      match: 'all',
+      rules: [
+        { field: 'tag', op: 'has', tagId: 1 },
+        { field: 'playCount', op: 'gt', value: 5 },
+      ],
+    })
+    expect(describeSmartRules(rules, tagNames)).toBe('tagged chill and playCount > 5')
+  })
+
+  it('describes feature rules', () => {
+    const rules = SmartRulesSchema.parse({
+      match: 'any',
+      rules: [
+        { field: 'bpm', op: 'gte', value: 120 },
+        { field: 'loudness', op: 'lt', value: -12 },
+        { field: 'key', op: 'compatible', value: '8a' },
+      ],
+    })
+    expect(describeSmartRules(rules, tagNames)).toBe(
+      'bpm >= 120 or loudness < -12 LUFS or key mixes with 8A',
+    )
+  })
+
+  it('falls back gracefully for a deleted tag', () => {
+    const rules = SmartRulesSchema.parse({ rules: [{ field: 'tag', op: 'has', tagId: 99 }] })
+    expect(describeSmartRules(rules, tagNames)).toBe('tagged #99')
   })
 })

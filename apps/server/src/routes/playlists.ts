@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   AddToPlaylistSchema,
   CreatePlaylistSchema,
+  describeSmartRules,
   IdSchema,
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
@@ -11,7 +12,6 @@ import {
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
-import { describeSmartRules } from '../services/smartPlaylist.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 const ParamsWithSong = z.object({ id: IdSchema, songId: IdSchema })

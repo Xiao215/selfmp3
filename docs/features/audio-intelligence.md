@@ -90,5 +90,5 @@ the next run.
 - `apps/server/src/services/dsp.ts` — FFT, onsets, tempo, chroma, key (tested with
   synthesised click tracks and chords)
 - `apps/server/src/services/analysis.ts` — ffmpeg decode, `ebur128`, the background loop
-- `apps/server/src/services/similar.ts` — nearest neighbours
+- `packages/shared/src/audioFeatures.ts` (`similarSongs`) — nearest neighbours
 - `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)

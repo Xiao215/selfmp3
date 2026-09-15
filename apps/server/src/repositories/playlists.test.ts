@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { migrate, migrationVersion } from '../db/migrate.js'
+import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { PlaylistRepository } from './playlists.js'
 
@@ -60,36 +60,6 @@ describe('a playlist holding a song whose file is missing', () => {
     db.exec('UPDATE songs SET missing = 0 WHERE id = 2')
     const playlist = playlists.byId(1)
     expect(playlists.songIds(playlist!).sort()).toEqual([1, 2, 3])
-  })
-})
-
-describe('the migration that renames smart playlists to live ones', () => {
-  it('keeps every playlist, its songs and its uid, and calls the rules kind live', () => {
-    const db = new Database(':memory:')
-    db.pragma('foreign_keys = ON')
-    const logger = createLogger('silent')
-    const migration = migrationVersion('playlists: live instead of smart, and when each was last played')
-    migrate(db, logger, migration - 1)
-    db.exec(`
-      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B');
-      INSERT INTO playlists (id, name, kind, rules, uid) VALUES
-        (1, 'Mix', 'manual', NULL, 'mix'),
-        (2, 'Long', 'smart', '{"match":"all","rules":[],"orderBy":"addedAt","order":"desc","limit":null}', 'long');
-      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (1, 2, 0), (1, 1, 1);
-    `)
-
-    migrate(db, logger)
-
-    const playlists = new PlaylistRepository(db)
-    expect(playlists.byId(1)).toMatchObject({ kind: 'manual', lastPlayedAt: null })
-    expect(playlists.byId(2)?.kind).toBe('live')
-    // Dropping the old table must not have cascaded the songs away.
-    expect(playlists.songIds(playlists.byId(1)!)).toEqual([2, 1])
-    expect(db.pragma('foreign_keys', { simple: true })).toBe(1)
-    // The uid trigger came back with the table.
-    playlists.create({ name: 'New', description: '', kind: 'manual', rules: null })
-    const uid = db.prepare<[], { uid: string | null }>("SELECT uid FROM playlists WHERE name = 'New'").get()
-    expect(uid?.uid).toMatch(/^[0-9a-f]{32}$/)
   })
 })
 

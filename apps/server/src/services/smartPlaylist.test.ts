@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { SmartRulesSchema, type SmartRules } from '@selfmp3/shared'
-import { compileSmartRules, describeSmartRules } from './smartPlaylist.js'
+import { compileSmartRules } from './smartPlaylist.js'
 
 /**
  * These tests run the compiled SQL against a real in-memory SQLite database.
@@ -289,47 +289,5 @@ describe('compileSmartRules', () => {
     expect(ids).toEqual([])
     // The table had better still be there.
     expect(db.prepare('SELECT COUNT(*) AS n FROM songs').get()).toEqual({ n: 4 })
-  })
-})
-
-describe('describeSmartRules', () => {
-  const tagNames = new Map([[1, 'chill']])
-
-  it('describes an empty rule set', () => {
-    expect(describeSmartRules(SmartRulesSchema.parse({}), tagNames)).toBe('Every song')
-  })
-
-  it('describes a limited empty rule set', () => {
-    expect(describeSmartRules(SmartRulesSchema.parse({ limit: 50 }), tagNames)).toBe('50 songs')
-  })
-
-  it('reads like English', () => {
-    const rules = SmartRulesSchema.parse({
-      match: 'all',
-      rules: [
-        { field: 'tag', op: 'has', tagId: 1 },
-        { field: 'playCount', op: 'gt', value: 5 },
-      ],
-    })
-    expect(describeSmartRules(rules, tagNames)).toBe('tagged chill and playCount > 5')
-  })
-
-  it('describes feature rules', () => {
-    const rules = SmartRulesSchema.parse({
-      match: 'any',
-      rules: [
-        { field: 'bpm', op: 'gte', value: 120 },
-        { field: 'loudness', op: 'lt', value: -12 },
-        { field: 'key', op: 'compatible', value: '8a' },
-      ],
-    })
-    expect(describeSmartRules(rules, tagNames)).toBe(
-      'bpm >= 120 or loudness < -12 LUFS or key mixes with 8A',
-    )
-  })
-
-  it('falls back gracefully for a deleted tag', () => {
-    const rules = SmartRulesSchema.parse({ rules: [{ field: 'tag', op: 'has', tagId: 99 }] })
-    expect(describeSmartRules(rules, tagNames)).toBe('tagged #99')
   })
 })

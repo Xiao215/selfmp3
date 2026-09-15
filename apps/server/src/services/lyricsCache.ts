@@ -13,9 +13,7 @@ import type { Logger } from '../logger.js'
  * those files, so — like cover art — it lives under the data directory
  * (`data/lyrics/<songId>/`), keyed by a hash of the lyric text. Edit the
  * sidecar and the hash changes, so a stale cache is simply never hit; the old
- * entries are swept when a new one is written. Older versions also cached
- * translations here; those files are never read again and go with the song's
- * directory when the song is deleted.
+ * entries are swept when a new one is written.
  */
 export class LyricsCache {
   readonly #dir: string

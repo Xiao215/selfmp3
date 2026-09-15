@@ -1,36 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
-import { migrate, migrationVersion } from '../db/migrate.js'
+import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from './songs.js'
 
 /**
- * The instrumental flag, against a database built from the real migrations,
- * so the column, the row mapping and the patch allow-list are checked together.
+ * The instrumental flag, against a database built from the real schema, so
+ * the column, the row mapping and the patch allow-list are checked together.
  */
-
-describe('backfilling where imported songs came from', () => {
-  it('takes each song’s link from its import job, and leaves the rest', () => {
-    const db = new Database(':memory:')
-    const logger = createLogger('silent')
-    // A database from just before the backfill, which then runs as an upgrade would.
-    migrate(db, logger, migrationVersion('songs: remember where imported songs came from') - 1)
-    db.exec(`
-      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B'), (3, 'c.m4a', 'C');
-      UPDATE songs SET source_url = 'https://kept.example' WHERE id = 3;
-      INSERT INTO import_jobs (id, url, status, song_id) VALUES
-        ('j1', 'https://www.youtube.com/watch?v=fCh0qfxElm8', 'done', 1),
-        ('j3', 'https://www.youtube.com/watch?v=dGZqpVCJP3k', 'done', 3);
-    `)
-
-    migrate(db, logger)
-
-    const songs = new SongRepository(db)
-    expect(songs.byId(1)?.sourceUrl).toBe('https://www.youtube.com/watch?v=fCh0qfxElm8')
-    expect(songs.byId(2)?.sourceUrl).toBeNull()
-    expect(songs.byId(3)?.sourceUrl).toBe('https://kept.example')
-  })
-})
 
 describe('SongRepository instrumental flag', () => {
   let db: Database.Database

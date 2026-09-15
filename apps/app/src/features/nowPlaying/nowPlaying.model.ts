@@ -32,10 +32,13 @@ export const IDLE_MS = 3_000
 export const UP_NEXT_LEAD = 15
 
 /**
- * What a song has to read, in one of four states.
+ * What a song has to read, in one of three states.
  *
- * `instrumental` and `missing` are kept apart on purpose: an instrumental is
- * known to have no words, while `missing` means we looked and found nothing.
+ * `missing` is one state however the song came to have no words: the lookup
+ * found nothing, or it answered before that the song has none and that answer
+ * was kept. Both show the song's visual (`visuals.model.ts`), so the app never
+ * has to say which. Only `offline` is told apart, because there the words may
+ * well exist and simply cannot be asked for.
  */
 export type SongWords =
   | { readonly status: 'loading' }
@@ -45,7 +48,6 @@ export type SongWords =
       /** Pinyin or romaji, one per line; null when off or not lined up. */
       readonly roman: readonly string[] | null
     }
-  | { readonly status: 'instrumental' }
   | { readonly status: 'missing'; readonly offline: boolean }
 
 export function resolveSongWords({
@@ -54,14 +56,12 @@ export function resolveSongWords({
   romanizationOn,
   romanized,
   offline,
-  instrumental,
 }: {
   loading: boolean
   parsed: ParsedLyrics | null
   romanizationOn: boolean
   romanized: readonly string[] | null
   offline: boolean
-  instrumental: boolean
 }): SongWords {
   if (loading) return { status: 'loading' }
   if (parsed) {
@@ -70,9 +70,7 @@ export function resolveSongWords({
       romanizationOn && romanized && romanized.length === parsed.lines.length ? romanized : null
     return { status: 'lyrics', parsed, roman }
   }
-  if (offline) return { status: 'missing', offline: true }
-  if (instrumental) return { status: 'instrumental' }
-  return { status: 'missing', offline: false }
+  return { status: 'missing', offline }
 }
 
 /** What the romanization switch is called for these lyrics. */

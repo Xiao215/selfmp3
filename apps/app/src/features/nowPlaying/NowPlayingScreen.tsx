@@ -54,6 +54,7 @@ import {
   RepeatOne,
   Romanize,
   Shuffle,
+  Sparkles,
   X,
 } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
@@ -73,8 +74,12 @@ import {
   upNextLine,
   type QueueLine,
 } from './nowPlaying.model'
+import { SongVisual } from './SongVisual'
 import { StageLyrics } from './StageLyrics'
 import { useSongWords } from './useSongWords'
+import { useSongVisual } from './visualChoice'
+import { VISUAL_NAMES } from './visuals.model'
+import { VisualStyleMenu } from './VisualStyleMenu'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
 type Panel = 'none' | 'queue'
@@ -404,14 +409,8 @@ function PhoneNowPlaying(): ReactNode {
         finger-sized target — the same trade the tab bar makes.
       */}
         <View style={styles.foot}>
-          <FootAction
-            icon={
-              <Mic
-                size={19}
-                color={showWords && panel === 'none' ? songColor.color : theme.colors.textMuted}
-              />
-            }
-            label="Lyrics"
+          <WordsFootAction
+            song={song}
             active={showWords && panel === 'none'}
             onPress={() => {
               setPanel('none')
@@ -440,7 +439,7 @@ function PhoneNowPlaying(): ReactNode {
                   <CloudDownload size={19} color={theme.colors.textMuted} />
                 )
               }
-              label={held ? 'On this phone' : 'Keep'}
+              label={held ? 'Downloaded' : 'Download'}
               active={held}
               onPress={() => {
                 if (!held) downloadQueue.enqueue([song.id])
@@ -492,6 +491,11 @@ function PhoneNowPlaying(): ReactNode {
  * The lyrics face on a phone: the song on one line with romaji or pinyin
  * beside it when the words can have them, and the same lyric view the
  * computer's page uses, sized for arm's length.
+ *
+ * A song with no lyrics shows its visual across the whole face instead, edge
+ * to edge behind the song's name, and the romaji pill's place becomes the
+ * style pill, which opens a sheet with the same choices as the computer's
+ * "Style ▾".
  */
 function PhoneWords({
   song,
@@ -506,13 +510,23 @@ function PhoneWords({
 }): ReactNode {
   const { theme } = useUnistyles()
   const lyrics = useSongWords(song)
+  const visual = useSongVisual(song)
+  const [styleOpen, setStyleOpen] = useState(false)
+  const styleButtonRef = useRef<View>(null)
   const words = lyrics.words
+  const noLyrics = words.status === 'missing' && !words.offline
+  const bpm = song.features?.bpm
   const on = lyrics.romanizationOn
   // The web's `clamp(22px, 6.4vw, 28px)`.
   const fontSize = Math.min(28, Math.max(22, width * 0.064))
 
   return (
     <>
+      {noLyrics ? (
+        <View pointerEvents="none" style={styles.wordsVisual}>
+          <SongVisual song={song} kind={visual.kind} />
+        </View>
+      ) : null}
       <View style={styles.wordsHeadRow}>
         <Pressable
           style={[styles.wordsHead, styles.wordsHeadGrow]}
@@ -522,11 +536,12 @@ function PhoneWords({
         >
           <Cover uri={artUri} title={song.album || song.title} size={44} />
           <View style={styles.wordsTitles}>
-            <Text style={styles.wordsTitle} numberOfLines={1}>
+            <Text style={[styles.wordsTitle, noLyrics && styles.onVisual]} numberOfLines={1}>
               {song.title}
             </Text>
-            <Text style={styles.wordsArtist} numberOfLines={1}>
+            <Text style={[styles.wordsArtist, noLyrics && styles.onVisualQuiet]} numberOfLines={1}>
               {song.artist || 'Unknown artist'}
+              {noLyrics && bpm != null ? ` · ${Math.round(bpm)} BPM` : ''}
             </Text>
           </View>
         </Pressable>
@@ -542,8 +557,26 @@ function PhoneWords({
               {romanName(lyrics.language)}
             </Text>
           </Pressable>
+        ) : noLyrics ? (
+          <Pressable
+            ref={styleButtonRef}
+            onPress={() => setStyleOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
+            style={[styles.tool, styles.toolOnVisual]}
+          >
+            <Text style={[styles.toolText, styles.onVisual]}>{VISUAL_NAMES[visual.kind]}</Text>
+            <ChevronDown size={14} color="rgba(255, 255, 255, 0.85)" />
+          </Pressable>
         ) : null}
       </View>
+      <VisualStyleMenu
+        open={styleOpen}
+        onClose={() => setStyleOpen(false)}
+        anchorRef={styleButtonRef}
+        visual={visual}
+        onLookAgain={lyrics.lookAgain}
+      />
       <View style={[styles.words, styles.wordsPadded]}>
         {words.status === 'lyrics' ? (
           <StageLyrics
@@ -552,15 +585,11 @@ function PhoneWords({
             focus={false}
             fontSize={fontSize}
           />
-        ) : (
+        ) : noLyrics ? null : (
           <Text style={styles.wordsStatus}>
             {words.status === 'loading'
               ? 'Looking for lyrics…'
-              : words.status === 'instrumental'
-                ? 'Instrumental'
-                : words.offline
-                  ? 'Lyrics need your library — they’ll show once it’s reachable.'
-                  : 'No lyrics for this one.'}
+              : 'Lyrics need your library — they’ll show once it’s reachable.'}
           </Text>
         )}
       </View>
@@ -592,6 +621,35 @@ const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
   off: 'Repeat off',
   all: 'Repeat all',
   one: 'Repeat this song',
+}
+
+/**
+ * The foot's first button: Lyrics, or Visual for a song with no lyrics — the
+ * same words the face it opens shows.
+ */
+function WordsFootAction({
+  song,
+  active,
+  onPress,
+}: {
+  song: Song
+  active: boolean
+  onPress: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const artFor = useArt()
+  const songColor = useSongColor(song, artFor(song))
+  const { words } = useSongWords(song)
+  const visual = words.status === 'missing' && !words.offline
+  const color = active ? songColor.color : theme.colors.textMuted
+  return (
+    <FootAction
+      icon={visual ? <Sparkles size={19} color={color} /> : <Mic size={19} color={color} />}
+      label={visual ? 'Visual' : 'Lyrics'}
+      active={active}
+      onPress={onPress}
+    />
+  )
 }
 
 function FootAction({
@@ -873,6 +931,18 @@ const styles = StyleSheet.create(theme => ({
   wordsHeadGrow: { flex: 1, minWidth: 0 },
   wordsPadded: { paddingHorizontal: space.lg - 6 },
   wordsStatus: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
+  // The whole face and out to the screen's sides, behind the song's name.
+  wordsVisual: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: -space.lg,
+    right: -space.lg,
+  },
+  // Light on the visual's dark ground, in either theme.
+  onVisual: { color: '#ffffff' },
+  onVisualQuiet: { color: 'rgba(255, 255, 255, 0.72)' },
+  toolOnVisual: { backgroundColor: 'rgba(255, 255, 255, 0.16)' },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',

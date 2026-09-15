@@ -32,6 +32,7 @@ import {
   autoMixOrder,
   countInMs,
   type EngineState,
+  type FrequencyAnalyser,
   listenedDelta,
   peekPlayable,
   queryKeys,
@@ -126,6 +127,17 @@ export interface PlayerApi {
   getPosition: () => number
   /** Called whenever the position or length moves; read them with `getPosition`. */
   subscribeProgress: (listener: () => void) => () => void
+  /**
+   * The playhead from the engine itself, between progress ticks: for a drawing
+   * that moves on the beat. Read it in an animation frame, never in a render.
+   */
+  getPlayhead: () => number
+  /**
+   * The live sound, where this engine can tap it (a browser's Web Audio); null
+   * on a phone. Asking routes playback through Web Audio for good, so a visual
+   * asks only where that is safe (`ports/liveAudio`).
+   */
+  analyser: () => FrequencyAnalyser | null
   toggleShuffle: () => void
   cycleRepeatMode: () => void
   playNext: (songIds: readonly number[]) => void
@@ -726,6 +738,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       seekBy,
       getPosition: stores.progress.getPosition,
       subscribeProgress: stores.progress.subscribe,
+      getPlayhead: () => engine.playhead,
+      analyser: () => (engine.capabilities.analyser ? engine.analyser() : null),
       toggleShuffle,
       cycleRepeatMode,
       playNext,

@@ -306,7 +306,7 @@ const LyricLine = memo(function LyricLine({
       onHoverIn={() => onHoverIn(index)}
       onHoverOut={() => onHoverOut(index)}
       accessibilityRole="button"
-      accessibilityLabel={text || 'Instrumental break'}
+      accessibilityLabel={text || 'Music break'}
       accessibilityHint="Jump to this line"
     >
       {content}

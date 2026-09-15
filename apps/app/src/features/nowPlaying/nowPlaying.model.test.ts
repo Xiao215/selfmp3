@@ -31,7 +31,6 @@ const base = {
   romanizationOn: false,
   romanized: null,
   offline: false,
-  instrumental: false,
 }
 
 describe('now playing', () => {
@@ -63,13 +62,12 @@ describe('now playing', () => {
     expect(off).toMatchObject({ status: 'lyrics', roman: null })
   })
 
-  it('tells loading, offline, instrumental and missing apart', () => {
+  it('tells loading, offline and no lyrics apart', () => {
     expect(resolveSongWords({ ...base, loading: true })).toEqual({ status: 'loading' })
-    expect(resolveSongWords({ ...base, offline: true, instrumental: true })).toEqual({
+    expect(resolveSongWords({ ...base, offline: true })).toEqual({
       status: 'missing',
       offline: true,
     })
-    expect(resolveSongWords({ ...base, instrumental: true })).toEqual({ status: 'instrumental' })
     expect(resolveSongWords(base)).toEqual({ status: 'missing', offline: false })
   })
 

@@ -15,22 +15,13 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import {
-  radius,
-  rgba,
-  tagColors,
-  tempoMark,
-  useLibrary,
-  usePatchSong,
-  withAlpha,
-} from '@selfmp3/client'
+import { radius, rgba, tagColors, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
-import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { IconButton } from '../../ui/components/IconButton'
@@ -52,6 +43,10 @@ import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
 import { COVER_TOP, coverPose, wordsFrame, wordsPose } from './stageMove.model'
 import { StageQueue } from './StageQueue'
+import { SongVisual } from './SongVisual'
+import { useSongVisual } from './visualChoice'
+import { VISUAL_NAMES, visualCaption } from './visuals.model'
+import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
@@ -79,6 +74,10 @@ const LEAVE_MS = 180
  * the song's details on the right. **Focus** is the same page when only the
  * words matter: the cover glides into the header, the lyrics widen and grow,
  * and after a few still seconds the controls step aside.
+ *
+ * A song with no lyrics shows its visual where the words would be, and the
+ * first tab reads Visual: in a box on the stage, across the whole page in
+ * Focus, with "Style ▾" to choose another or to look for lyrics again.
  *
  * The page covers the sidebar but not the player bar, so play and pause never
  * move under your hand. Which tab and mode are showing live in the address,
@@ -147,11 +146,12 @@ function Stage({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const accent = useAccent()
   const artFor = useArt()
   const library = useLibrary()
-  const patchSong = usePatchSong()
   const lyrics = useSongWords(song)
+  const visual = useSongVisual(song)
+  const [styleOpen, setStyleOpen] = useState(false)
+  const styleButtonRef = useRef<View>(null)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
   // The key and the energy wave, like the player bar's lit controls.
@@ -212,6 +212,13 @@ function Stage({
 
   const words = lyrics.words
   const hasLyrics = words.status === 'lyrics'
+  // Not while offline: the words may exist, and there is text to say why they are not here.
+  const noLyrics = words.status === 'missing' && !words.offline
+  const tabs: readonly (readonly [StageTab, string])[] = [
+    ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
+    ['queue', 'Queue'],
+    ['about', 'About'],
+  ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const features = song.features
   const chrome = { opacity: idle ? 0 : 1 }
@@ -266,6 +273,12 @@ function Stage({
         pointerEvents="none"
         style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
       />
+      {/* Focus with no words: the visual is the page, under the cover and the head. */}
+      {focus && noLyrics ? (
+        <View pointerEvents="none" style={[styles.fill, styles.focusVisual]}>
+          <SongVisual song={song} kind={visual.kind} />
+        </View>
+      ) : null}
 
       {/* Laid out at the stage's size always, and scaled into the header for
           Focus: its artwork and its shadow shrink with it. */}
@@ -371,27 +384,17 @@ function Stage({
               focus={focus}
               fontSize={focus ? g.focusLyric : g.lyric}
             />
+          ) : noLyrics ? (
+            focus ? null : (
+              <View style={styles.visualBox}>
+                <SongVisual song={song} kind={visual.kind} rounded />
+              </View>
+            )
           ) : (
             <View style={styles.status}>
-              {words.status === 'instrumental' ? (
-                <Text style={styles.statusStrong}>Instrumental</Text>
-              ) : words.offline ? (
-                <Text style={styles.statusText}>
-                  Lyrics need your library — reconnect to look them up
-                </Text>
-              ) : (
-                <>
-                  <Text style={styles.statusText}>No lyrics found</Text>
-                  <Pressable
-                    onPress={() => patchSong.mutate({ id: song.id, patch: { instrumental: true } })}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.statusLink, { color: accent.accent }]}>
-                      It’s instrumental
-                    </Text>
-                  </Pressable>
-                </>
-              )}
+              <Text style={styles.statusText}>
+                Lyrics need your library — reconnect to look them up
+              </Text>
             </View>
           )
         ) : shownTab === 'queue' ? (
@@ -428,13 +431,7 @@ function Stage({
               {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
             </Text>
             <View style={styles.tabs} role="tablist" aria-label="Show">
-              {(
-                [
-                  ['lyrics', 'Lyrics'],
-                  ['queue', 'Queue'],
-                  ['about', 'About'],
-                ] as const
-              ).map(([value, label]) => (
+              {tabs.map(([value, label]) => (
                 <Pressable
                   key={value}
                   role="tab"
@@ -482,6 +479,37 @@ function Stage({
         </View>
       ) : null}
 
+      {shownTab === 'lyrics' && noLyrics ? (
+        <View
+          style={[
+            styles.visualFoot,
+            chrome,
+            focus
+              ? { left: HEAD_LEFT, right: 20, bottom: BAR + 20 }
+              : { left: frame.left, right: frame.right, top: height - 42 },
+          ]}
+        >
+          <Text
+            style={[styles.visualCaption, focus && styles.visualCaptionOnVisual]}
+            numberOfLines={1}
+          >
+            {visualCaption(song.features)}
+          </Text>
+          <Pressable
+            ref={styleButtonRef}
+            onPress={() => setStyleOpen(open => !open)}
+            accessibilityRole="button"
+            accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
+            aria-haspopup="menu"
+            aria-expanded={styleOpen}
+            style={({ pressed }) => [styles.tool, (pressed || styleOpen) && styles.toolPressed]}
+          >
+            <Text style={styles.toolText}>Style</Text>
+            <ChevronDown size={13} color={theme.colors.textSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
+
       {shownTab === 'lyrics' ? (
         <Pressable
           onPress={() => onMode(focus ? 'stage' : 'focus')}
@@ -509,6 +537,14 @@ function Stage({
         right={g.right}
         bottom={BAR + (focus ? 28 : 64)}
         lowered={idle}
+      />
+
+      <VisualStyleMenu
+        open={styleOpen && noLyrics}
+        onClose={() => setStyleOpen(false)}
+        anchorRef={styleButtonRef}
+        visual={visual}
+        onLookAgain={lyrics.lookAgain}
       />
 
       <TagPicker
@@ -705,8 +741,19 @@ const styles = StyleSheet.create(theme => ({
     gap: 9,
   },
   statusText: { color: theme.colors.textMuted, fontSize: 13 },
-  statusStrong: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
-  statusLink: { fontSize: 13, fontWeight: '600' },
+  // Clear of the tabs' row above and of the caption and Style under it.
+  visualBox: { position: 'absolute', top: 12, left: 0, right: 0, bottom: 52 },
+  focusVisual: { zIndex: 1 },
+  visualFoot: {
+    position: 'absolute',
+    zIndex: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  visualCaption: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: 12 },
+  // On the visual's own dark ground, in either theme.
+  visualCaptionOnVisual: { color: 'rgba(255, 255, 255, 0.7)' },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
   aboutBody: { maxWidth: 600 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
@@ -720,6 +767,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
+  toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
   toolTextOn: { color: theme.colors.surface0 },
   expand: {

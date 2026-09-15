@@ -69,8 +69,6 @@ export function LibraryScreen(): ReactNode {
   const tagAnchorRef = useRef<View | null>(null)
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
-  // Holding a chip opens its editor, as on the web's phone strip. A sheet on a
-  // phone; above the breakpoint it opens beside the strip.
 
   // Multi-select runs off the visible list, so "select all" means the songs on
   // screen and a song a search has hidden drops out of the selection rather

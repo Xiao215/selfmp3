@@ -171,9 +171,9 @@ export function playsLabel(plays: number): string {
   return plural(plays, 'play', 'plays')
 }
 
-/** "best: 4 days", once there has been a streak at all. */
+/** "best: 4 days" ("best: 1 day"), once there has been a streak at all. */
 export function bestStreakHint(longest: number): string | undefined {
-  return longest > 0 ? `best: ${longest} days` : undefined
+  return longest > 0 ? `best: ${daysLabel(longest)}` : undefined
 }
 
 /** A bar's share of the longest, never so thin it disappears. */

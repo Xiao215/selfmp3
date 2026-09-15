@@ -114,9 +114,10 @@ export function rankShare(plays: number, max: number): number {
   return Math.max(6, (plays / Math.max(max, 1)) * 100)
 }
 
-/** "46 plays · 83 minutes". */
+/** "46 plays · 83 minutes" ("1 play · 1 minute"). */
 export function numberOneLine(song: { plays: number; minutes: number }): string {
-  return `${playsLabel(song.plays)} · ${Math.round(song.minutes)} minutes`
+  const minutes = Math.round(song.minutes)
+  return `${playsLabel(song.plays)} · ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
 }
 
 export function repeatNote(wrapped: Pick<Wrapped, 'busiestDate'>): string {

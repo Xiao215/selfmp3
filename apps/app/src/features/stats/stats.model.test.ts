@@ -61,6 +61,7 @@ describe('stats ranges and labels', () => {
     expect(daysLabel(4)).toBe('4 days')
     expect(playsLabel(1)).toBe('1 play')
     expect(bestStreakHint(4)).toBe('best: 4 days')
+    expect(bestStreakHint(1)).toBe('best: 1 day')
     expect(bestStreakHint(0)).toBeUndefined()
   })
 })

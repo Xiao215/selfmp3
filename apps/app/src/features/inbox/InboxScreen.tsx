@@ -23,6 +23,7 @@ import { Check, ChevronRight, Inbox, Play, Plus, X } from '../../ui/components/I
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
+import { BackToYou } from '../../ui/components/BackToYou'
 import { Toggle } from '../../ui/components/Toggle'
 import { cameFrom } from '../playlistDetail/playlistDetail.model'
 import {
@@ -97,6 +98,7 @@ export function InboxScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={[styles.page, wide ? styles.pageWide : styles.pageNarrow]} testID="inbox-screen">
+        <BackToYou />
         <View style={[styles.head, !wide && styles.headNarrow]}>
           <View style={styles.titles}>
             <Text

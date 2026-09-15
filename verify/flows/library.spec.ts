@@ -49,6 +49,12 @@ test.describe('library', () => {
   test('reversing the sort changes which song is first', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'a phone library has no sort: that is a computer’s')
     await skipIfNoLibrary(page, 2)
+    // By title, not the default "Recently added": a library scanned in one go
+    // has every song added in the same second, and ties keep their order
+    // whichever way the arrow points (`sortSongs`), so nothing would move.
+    await page.getByRole('combobox', { name: 'Sort by' }).click()
+    await page.getByRole('option', { name: 'Title', exact: true }).click()
+    await expect(page.getByRole('combobox', { name: 'Sort by' })).toContainText('Title')
     const first = await titleOf(await topRow(page))
 
     await page.getByLabel(/^Sort (ascending|descending)$/).click()

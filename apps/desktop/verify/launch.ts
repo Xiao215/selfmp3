@@ -134,13 +134,20 @@ export function freshUserData(): string {
   return mkdtempSync(join(tmpdir(), 'selfmp3-smoke-'))
 }
 
-/** The dev server the "connects and plays" flow needs, when there is one. */
+/**
+ * The server the "connects and plays" flow needs, when there is one. Read by
+ * the test, which hands it to the app as the `selfmp3.baseUrl` secret; the app
+ * itself never reads this variable.
+ */
 export const appApi = process.env['SELFMP3_APP_API'] ?? null
 
+/** A server that answers and has at least one song, which `/api/health` counts. */
 export async function serverHasSongs(baseUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(3000) })
-    return response.ok
+    if (!response.ok) return false
+    const health = (await response.json()) as { songCount?: number }
+    return (health.songCount ?? 0) > 0
   } catch {
     return false
   }

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
 
@@ -21,7 +21,13 @@ test.describe('selecting songs', () => {
     await skipIfNoLibrary(page, 2)
 
     const rows = songRows(page)
-    const total = await rows.count()
+    // What is drawn, which is not the library: a long list draws a screenful
+    // or so. The library's own count is the one select-all states.
+    const drawn = await rows.count()
+    const stated = async (control: Locator): Promise<number> => {
+      const name = await control.evaluate(el => el.getAttribute('aria-label') ?? el.textContent ?? '')
+      return Number(/^Select all (\d+) /.exec(name)?.[1])
+    }
     const first = await titleOf(rows.nth(0))
     const second = await titleOf(rows.nth(1))
 
@@ -47,15 +53,21 @@ test.describe('selecting songs', () => {
 
     // Select-all spells out what "all" is. A phone's bar is one line of icons,
     // and select-all is the first thing in its More.
+    let total: number
     if (info.project.name === 'phone') {
       await page.getByRole('button', { name: /^More$/ }).click()
-      await page.getByRole('menuitem', { name: /^Select all \d+ songs? in your library$/ }).click()
+      const selectAll = page.getByRole('menuitem', { name: /^Select all \d+ songs? in your library$/ })
+      total = await stated(selectAll)
+      await selectAll.click()
       await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
     } else {
-      await page.getByRole('checkbox', { name: /^Select all \d+ songs? in your library$/ }).click()
+      const selectAll = page.getByRole('checkbox', { name: /^Select all \d+ songs? in your library$/ })
+      total = await stated(selectAll)
+      await selectAll.click()
       await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
       await expect(page.getByText('everything in your library')).toBeVisible()
     }
+    expect(total).toBeGreaterThanOrEqual(drawn)
 
     // The destructive action asks first; cancelling leaves everything.
     await page.getByRole('button', { name: /^More$/ }).click()
@@ -68,6 +80,12 @@ test.describe('selecting songs', () => {
 
     await page.getByRole('button', { name: /^Done selecting/ }).click()
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
-    await expect(songRows(page)).toHaveCount(total)
+    // Asked of the server rather than counted off the screen, which draws a
+    // different number of rows once select-all has scrolled through them.
+    const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
+    const library = (await (await page.request.get(`${api}/api/library`)).json()) as {
+      songs: unknown[]
+    }
+    expect(library.songs).toHaveLength(total)
   })
 })

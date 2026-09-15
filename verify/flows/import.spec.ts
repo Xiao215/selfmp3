@@ -55,6 +55,14 @@ test.describe('importing', () => {
     await fetch.click()
 
     await expect(page.getByText('1 track found')).toBeVisible({ timeout: 60_000 })
+    // A track the library already has — the same artist and title — starts
+    // unticked. Whether this one is depends on the library it runs against,
+    // so read what the review says rather than assume it.
+    const tick = page.getByRole('checkbox', { name: /^Import / })
+    if (await page.getByText('1 already in your library').isVisible()) {
+      await expect(page.getByText('0 of 1 selected')).toBeVisible()
+      await tick.click()
+    }
     await expect(page.getByText('1 of 1 selected')).toBeVisible()
 
     // Listening before importing: the row's thumbnail plays it, and a bar
@@ -66,7 +74,6 @@ test.describe('importing', () => {
     await expect(bar).toHaveCount(0)
 
     // Unticking the only track leaves nothing to import.
-    const tick = page.getByRole('checkbox', { name: /^Import / })
     await tick.click()
     await expect(page.getByText('0 of 1 selected')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Import 0 tracks' })).toBeDisabled()

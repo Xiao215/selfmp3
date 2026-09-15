@@ -857,18 +857,50 @@ test.describe('connects and plays', () => {
   test('a row plays from a server, and the bar shows it', async () => {
     test.skip(
       appApi === null,
-      'needs a dev server with the thirteen-song library: set SELFMP3_APP_API=http://localhost:4600',
+      'needs a server with the dev library: set SELFMP3_APP_API, e.g. http://localhost:4600',
     )
     const reachable = appApi !== null && (await serverHasSongs(appApi))
-    test.skip(!reachable, `no server answering at ${String(appApi)}`)
+    test.skip(!reachable, `no server answering with songs at ${String(appApi)}`)
 
-    const app = await launchApp({ env: { SELFMP3_APP_API: String(appApi) } })
+    const app = await launchApp()
     try {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
-      await expect(page.getByTestId('song-row').first()).toBeVisible({ timeout: 30_000 })
-      await page.getByTestId('song-row').first().dblclick()
-      await expect(page.getByTestId('player-bar')).toBeVisible()
+
+      /*
+       * Nothing in the app reads SELFMP3_APP_API: it takes its server from the
+       * `selfmp3.baseUrl` secret (connection/storedConnection.ts), the one the
+       * sign-in screen writes. Handed over in the environment, the window stayed
+       * on sign-in and this waited out its thirty seconds. So write the secret
+       * the way the app would, and load again to pick it up.
+       */
+      await page.evaluate(async baseUrl => {
+        const desktop = (window as unknown as {
+          selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
+        }).selfmp3Desktop
+        await desktop.secrets.set('selfmp3.baseUrl', baseUrl)
+      }, String(appApi))
+      await page.reload()
+
+      // Rows are `song-row-<index>`; there is no bare `song-row`.
+      const row = page.getByTestId(/^song-row-\d+$/).first()
+      await expect(row).toBeVisible({ timeout: 30_000 })
+      // Nothing is playing yet, so there is no bar to show.
+      await expect(page.getByTestId('player-bar')).toHaveCount(0)
+
+      const label = await row.getByRole('button', { name: /^More actions for / }).getAttribute('aria-label')
+      const title = (label ?? '').replace(/^More actions for /, '')
+      expect(title).not.toBe('')
+
+      // The window is the wide layout, where a row has no double-click: its
+      // play button appears on hover, in place of the index.
+      await row.hover()
+      await row.getByRole('button', { name: `Play ${title}` }).click()
+
+      const bar = page.getByTestId('player-bar')
+      await expect(bar).toBeVisible()
+      await expect(bar.getByRole('button', { name: `Open now playing: ${title}` })).toBeVisible()
+      await expect(bar.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
     } finally {
       await app.close()
     }

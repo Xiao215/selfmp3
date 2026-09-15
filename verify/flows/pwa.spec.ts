@@ -6,11 +6,13 @@ import { expect, test } from '@playwright/test'
  *
  * Only a production build registers the worker (a dev server's modules would
  * otherwise be cached and every change hidden), so this runs against the build
- * the Mac serves, not the dev server the other flows use. Point it elsewhere
- * with SELFMP3_BUILD_URL; it skips when no worker is there to test.
+ * the Mac serves, not the dev server the other flows use. That is the flows'
+ * own address unless SELFMP3_BUILD_URL says otherwise; it skips when no worker
+ * is there to test.
  */
 
-const BUILD = process.env.SELFMP3_BUILD_URL ?? 'http://localhost:4600'
+const BUILD =
+  process.env.SELFMP3_BUILD_URL ?? process.env.SELFMP3_WEB_URL ?? 'http://localhost:4600'
 
 test.describe('the installable web app', () => {
   test('has a manifest that takes shared links', async ({ page }) => {

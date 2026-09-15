@@ -1,6 +1,40 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyReason, songTagLookup } from './library.model'
+import { emptyReason, noMatchesTitle, songTagLookup, unreachableCopy } from './library.model'
+
+describe('saying the library cannot be reached', () => {
+  it('names the address it tried, without the scheme', () => {
+    expect(
+      unreachableCopy({ fromCloud: false, address: 'http://192.168.1.20:4600/', compact: false }),
+    ).toEqual({
+      title: 'Can’t reach your server',
+      body: 'self.mp3 tried 192.168.1.20:4600. Check that the server is on and this device is on the same network.',
+    })
+  })
+
+  it('names the cloud for a cloud library, with no address', () => {
+    const copy = unreachableCopy({ fromCloud: true, address: 'http://old:4600', compact: false })
+    expect(copy.title).toBe('Can’t reach the cloud')
+    expect(copy.body).not.toContain('old:4600')
+  })
+
+  it('says one short line on a phone', () => {
+    expect(unreachableCopy({ fromCloud: false, address: 'http://a:1', compact: true }).body).toBe(
+      'Check that it’s on, then try again.',
+    )
+  })
+})
+
+describe('a search that matched nothing', () => {
+  it('quotes the query', () => {
+    expect(noMatchesTitle('  yorushika ', true)).toBe('Nothing matches “yorushika”')
+  })
+
+  it('blames the tags when nothing was typed', () => {
+    expect(noMatchesTitle('', true)).toBe('Nothing matches these tags')
+    expect(noMatchesTitle(' ', false)).toBe('Nothing matches')
+  })
+})
 
 describe('a song’s tags', () => {
   const tags = [

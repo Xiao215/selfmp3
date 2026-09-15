@@ -7,8 +7,20 @@ import {
   newPlaylist,
   pinnedPlaylists,
   playlistsToAddTo,
+  playlistSubtitle,
   sortPlaylists,
 } from './playlists.model'
+
+describe('the line under a playlist’s name', () => {
+  it('is its songs and length, whatever kind it is', () => {
+    expect(playlistSubtitle({ songCount: 25, totalDuration: 6240 })).toBe('25 songs · 1 hr 44 min')
+    expect(playlistSubtitle({ songCount: 1, totalDuration: 180 })).toBe('1 song · 3 min')
+  })
+
+  it('says Empty rather than counting nothing', () => {
+    expect(playlistSubtitle({ songCount: 0, totalDuration: 0 })).toBe('Empty')
+  })
+})
 
 const playlist = (name: string, patch: Partial<Playlist> = {}): Playlist => ({
   id: name.length,

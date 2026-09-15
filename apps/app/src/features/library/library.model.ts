@@ -78,6 +78,8 @@ export interface LibraryModel {
   excludeTag: (tagId: number) => void
   clearTags: () => void
   toggleDownloadedOnly: () => void
+  /** Ask the server for the library again, after it did not answer. */
+  retry: () => void
 }
 
 export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
@@ -142,7 +144,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     [setFilter],
   )
 
-  const { isPending, isError } = library
+  const { isPending, isError, refetch } = library
+  const retry = useCallback(() => void refetch(), [refetch])
   return useMemo(
     () => ({
       filter,
@@ -172,8 +175,10 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       excludeTag: excludeTagId,
       clearTags,
       toggleDownloadedOnly,
+      retry,
     }),
     [
+      retry,
       filter,
       songs,
       visible,
@@ -232,6 +237,52 @@ export function songTagLookup<T extends { readonly id: number }>(
     }
     return found
   }
+}
+
+/**
+ * What the "can't reach" card says: which thing did not answer, and what to
+ * check.
+ *
+ * The address is the one this device actually asked, without its scheme, so a
+ * reader can see a typo or a stale address at a glance. A cloud library names
+ * the cloud and no address. On a phone there is room for one short line, and
+ * the address is in Settings, one press away.
+ */
+export function unreachableCopy({
+  fromCloud,
+  address,
+  compact,
+}: {
+  fromCloud: boolean
+  address: string | null
+  compact: boolean
+}): { title: string; body: string } {
+  const where = fromCloud ? 'the cloud' : 'your server'
+  const title = `Can’t reach ${where}`
+  if (compact) {
+    return {
+      title,
+      body: fromCloud ? 'Check that you’re online, then try again.' : 'Check that it’s on, then try again.',
+    }
+  }
+  if (fromCloud) {
+    return { title, body: 'self.mp3 tried the cloud. Check that this device is online.' }
+  }
+  const host = address ? address.replace(/^[a-z]+:\/\//i, '').replace(/\/+$/, '') : null
+  return {
+    title,
+    body: `${host ? `self.mp3 tried ${host}. ` : ''}Check that the server is on and this device is on the same network.`,
+  }
+}
+
+/**
+ * The heading over a search or filter that matched nothing: the query itself,
+ * in quotes, so a typo is visible where the songs would have been.
+ */
+export function noMatchesTitle(query: string, tagFiltered: boolean): string {
+  const trimmed = query.trim()
+  if (trimmed) return `Nothing matches “${trimmed}”`
+  return tagFiltered ? 'Nothing matches these tags' : 'Nothing matches'
 }
 
 /**

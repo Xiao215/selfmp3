@@ -23,6 +23,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Live, Pin, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
+import { CantReach } from '../library/CantReach'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
 import {
@@ -30,6 +31,7 @@ import {
   isPlaylistSort,
   LIVE_NAME,
   PLAYLIST_SORTS,
+  playlistSubtitle,
   usePlaylistsModel,
   type PlaylistSort,
 } from './playlists.model'
@@ -108,9 +110,11 @@ export function PlaylistsScreen(): ReactNode {
             <Text style={styles.sub}>
               {model.loading
                 ? 'Loading…'
-                : playlists.length === 0
-                  ? 'None of your own yet'
-                  : `${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'} · ${formatLongDuration(totalDuration)}`}
+                : model.unreachable
+                  ? 'Not loaded'
+                  : playlists.length === 0
+                    ? 'None of your own yet'
+                    : `${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'} · ${formatLongDuration(totalDuration)}`}
             </Text>
           </View>
           <View style={styles.headActions}>
@@ -164,9 +168,7 @@ export function PlaylistsScreen(): ReactNode {
                       {playlist.name}
                     </Text>
                     <Text style={styles.tileSub} numberOfLines={1}>
-                      {isLive(playlist)
-                        ? `${LIVE_NAME} · ${playlist.songCount}`
-                        : `${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`}
+                      {playlistSubtitle(playlist)}
                     </Text>
                   </View>
                 </Pressable>
@@ -184,6 +186,9 @@ export function PlaylistsScreen(): ReactNode {
 
         {model.loading ? (
           <ActivityIndicator style={styles.spinner} color={accent.accent} />
+        ) : model.unreachable ? (
+          // Not "nothing of your own yet": nothing is known about them at all.
+          <CantReach onRetry={model.retry} />
         ) : (
           <View
             style={styles.grid}
@@ -285,7 +290,6 @@ function PlaylistTile({
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const live = isLive(playlist)
-  const songs = `${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`
   // With a mouse the play button waits for the pointer; a finger opens the page.
   const showPlay = finePointer && hovered && playlist.songCount > 0 && width !== undefined
 
@@ -320,7 +324,7 @@ function PlaylistTile({
           {playlist.name}
         </Text>
         <Text style={styles.tileSub} numberOfLines={1}>
-          {live ? `${LIVE_NAME} · ${songs}` : `${songs} · ${formatLongDuration(playlist.totalDuration)}`}
+          {playlistSubtitle(playlist)}
         </Text>
       </Pressable>
 

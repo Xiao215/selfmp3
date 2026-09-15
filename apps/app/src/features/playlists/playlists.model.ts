@@ -1,5 +1,11 @@
 import { useMemo } from 'react'
-import { EMPTY_SMART_RULES, type CreatePlaylist, type Playlist, type SmartRules } from '@selfmp3/shared'
+import {
+  EMPTY_SMART_RULES,
+  formatLongDuration,
+  type CreatePlaylist,
+  type Playlist,
+  type SmartRules,
+} from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 
 /**
@@ -35,6 +41,19 @@ export function isLive(playlist: Pick<Playlist, 'kind'>): boolean {
   return playlist.kind === 'live'
 }
 
+/**
+ * The line under a playlist's name: "25 songs · 1 hr 44 min", or "Empty".
+ *
+ * The same for a live playlist as for any other: the Live badge is already on
+ * its cover, and "Live · 25 songs" said it twice while leaving out the length.
+ * An empty playlist reads "Empty" rather than "0 songs · 0 min".
+ */
+export function playlistSubtitle(playlist: Pick<Playlist, 'songCount' | 'totalDuration'>): string {
+  if (playlist.songCount === 0) return 'Empty'
+  const songs = `${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`
+  return `${songs} · ${formatLongDuration(playlist.totalDuration)}`
+}
+
 export interface PlaylistsModel {
   playlists: readonly Playlist[]
   /** Pinned ones, for the sidebar and the phone's row along the top. */
@@ -42,6 +61,13 @@ export interface PlaylistsModel {
   loading: boolean
   /** True when the library answered and there is genuinely nothing to show. */
   empty: boolean
+  /**
+   * The library did not answer and nothing is kept from before, so "none of
+   * your own yet" would be a guess: there may be twenty.
+   */
+  unreachable: boolean
+  /** Ask for the library again. */
+  retry: () => void
 }
 
 export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel {
@@ -50,11 +76,14 @@ export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel
   const playlists = useMemo(() => sortPlaylists(all ?? [], sort), [all, sort])
   const pinned = useMemo(() => pinnedPlaylists(all ?? []), [all])
 
+  const unreachable = library.isError && all === undefined
   return {
     playlists,
     pinned,
     loading: library.isPending,
-    empty: !library.isPending && playlists.length === 0,
+    empty: !library.isPending && !unreachable && playlists.length === 0,
+    unreachable,
+    retry: () => void library.refetch(),
   }
 }
 

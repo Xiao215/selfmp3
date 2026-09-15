@@ -87,6 +87,11 @@ function songIdOf(track: Track | undefined | null): number | null {
   return typeof raw === 'number' ? raw : null
 }
 
+/** Everything the Now Playing card shows of a song, as one string to compare. */
+function cardKey(meta: TrackMetadata): string {
+  return [meta.title, meta.artist ?? '', meta.album ?? '', meta.artwork ?? '', meta.duration ?? 0].join('\u0000')
+}
+
 export class NativeEngine implements PlaybackEngine {
   readonly capabilities = capabilities
 
@@ -101,6 +106,8 @@ export class NativeEngine implements PlaybackEngine {
   /** Counts loads, so one overtaken by a newer load stops at its next await. */
   #loadGeneration = 0
   #destroyed = false
+  /** What each song handed to the player was shown as on the card (`cardKey`), so an unchanged one is not sent again. */
+  #cardShown = new Map<number, string>()
   #volume = 1
   #muted = false
   #rate = 1
@@ -167,6 +174,10 @@ export class NativeEngine implements PlaybackEngine {
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
       if (overtaken()) return
+      // It was lent as the next song, so the card has what it was lent with:
+      // a cover kept since then is not on it yet.
+      await this.#refreshNowPlaying(songId)
+      if (overtaken()) return
       await this.#topUpLookahead()
       return
     }
@@ -204,7 +215,49 @@ export class NativeEngine implements PlaybackEngine {
       if (!overtaken()) this.#loading = false
     }
     if (overtaken()) return
+    // A cover that arrived while this load was awaiting went nowhere.
+    await this.#refreshNowPlaying(songId)
+    if (overtaken()) return
     await this.#topUpLookahead()
+  }
+
+  /**
+   * Tell the lock screen and Control Center again what the sounding song is,
+   * if what they were handed has changed since: a cover kept after the song
+   * started — a bucket cover is fetched while it plays — or a title edited
+   * meanwhile. The provider calls this when either changes; nothing in the
+   * engine hears of a cover arriving.
+   */
+  refreshNowPlaying(songId: number): void {
+    void this.#refreshNowPlaying(songId)
+  }
+
+  async #refreshNowPlaying(songId: number): Promise<void> {
+    if (this.#destroyed || this.#loading || this.#currentSongId !== songId) return
+    const meta = this.trackMetadata?.(songId)
+    if (!meta) return
+    const key = cardKey(meta)
+    if (this.#cardShown.get(songId) === key) return
+    try {
+      const [index, active] = await Promise.all([
+        TrackPlayer.getActiveTrackIndex(),
+        TrackPlayer.getActiveTrack(),
+      ])
+      // A load may have started meanwhile: never write this song onto another's card.
+      if (index === undefined || songIdOf(active) !== songId) return
+      if (this.#loading || this.#currentSongId !== songId) return
+      await TrackPlayer.updateMetadataForTrack(index, {
+        title: meta.title,
+        ...(meta.artist ? { artist: meta.artist } : {}),
+        ...(meta.album ? { album: meta.album } : {}),
+        // Left out, the card's picture is cleared, not kept from the last song.
+        ...(meta.artwork ? { artwork: meta.artwork } : {}),
+        ...(meta.duration ? { duration: meta.duration } : {}),
+      })
+      this.#cardShown.set(songId, key)
+    } catch {
+      // The card keeps what it had; the next change to the song tries again.
+    }
   }
 
   async play(): Promise<void> {
@@ -372,6 +425,7 @@ export class NativeEngine implements PlaybackEngine {
     const url = this.streamUrl?.(songId)
     if (!url) return null
     const meta = this.trackMetadata?.(songId) ?? null
+    if (meta) this.#cardShown.set(songId, cardKey(meta))
     return {
       songId,
       id: String(songId),

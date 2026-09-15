@@ -44,12 +44,13 @@ import {
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
-import { coversNow, coversVersion, subscribeCovers } from '../offline/covers'
+import { coverFor, coversNow, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../connection/ConnectionProvider'
 import { showToast } from '../ui/toast'
+import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
 import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
 import {
@@ -222,7 +223,7 @@ interface PlayTracking {
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
-  const { connection } = useConnection()
+  const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed } = useDownloads()
   const { data: serverSettings } = useServerSettings()
@@ -255,6 +256,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const queueRef = useRef(queue)
   const songsRef = useRef(songsById)
   const connectionRef = useRef(connection)
+  const fromCloudRef = useRef(fromCloud)
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
   const lastPositionRef = useRef(0)
   const autoMixRef = useRef(autoMix)
@@ -281,7 +283,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
   useEffect(() => {
     connectionRef.current = connection
-  }, [connection])
+    fromCloudRef.current = fromCloud
+  }, [connection, fromCloud])
 
   /*
    * The clock to its store, everything else to state.
@@ -384,14 +387,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       trackMetadata: songId => {
         const song = songsRef.current.get(songId)
         if (!song) return null
-        const server = connectionRef.current
+        // The lock screen's cover: the copy on this device, read now rather than
+        // from a render, since this is asked when the player takes the song.
+        // One kept later reaches the card through `refreshNowPlaying`, below.
+        const artwork = nowPlayingArtwork(
+          song,
+          artSources(coverFor(songId), connectionRef.current, fromCloudRef.current),
+        )
         return {
           title: song.title,
           artist: song.artist,
           album: song.album,
-          // Art needs a header the OS player cannot send, so a bucket song has
-          // none until its cover is downloaded beside the audio.
-          ...(song.hasArt && server ? { artwork: mediaUrlFor(server).art(song.id, song.rev) } : {}),
+          ...(artwork ? { artwork } : {}),
           ...(song.duration > 0 ? { duration: song.duration } : {}),
           contentType: song.mime,
         }
@@ -929,11 +936,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [stores, currentId, engineState.playing])
 
   /*
-   * What the operating system is shown: the lock screen on a phone, Control
-   * Center and the Dock in the installed app, nothing in a tab that has no
-   * media session. The artwork is a cover already on this device where there is
-   * one — the OS fetches the URL itself and cannot send the doorman's header —
-   * and the server's own address otherwise.
+   * What the operating system is shown: Control Center and the Dock in the
+   * installed app through the media session, the lock screen and Control
+   * Center on a phone through the engine, nothing in a tab that has no media
+   * session. The artwork is chosen the same way for both (`nowPlayingArtwork`).
    *
    * The kept covers are read when they change, not on every render: reading
    * them builds a map of every cover on this device, and this provider used
@@ -947,13 +953,22 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // `coversSeen` is not read, but it is why the map is read again.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const keptCovers = useMemo(() => coversNow(), [coversSeen])
-  const nowPlayingArt = useMemo(() => {
-    if (!currentSong?.hasArt) return null
-    const kept = keptCovers.get(currentSong.id)
-    if (kept) return kept
-    return connection ? mediaUrlFor(connection).art(currentSong.id, currentSong.rev) : null
-  }, [currentSong, keptCovers, connection])
+  const nowPlayingArt = useMemo(
+    () =>
+      currentSong
+        ? nowPlayingArtwork(currentSong, artSources(keptCovers.get(currentSong.id), connection, fromCloud))
+        : null,
+    [currentSong, keptCovers, connection, fromCloud],
+  )
   useNowPlaying(value, stores.progress, nowPlayingArt)
+  // The phone's card is the engine's: it hears here when the playing song's
+  // cover arrives or its words change, and sends only what did.
+  const currentTitle = currentSong?.title
+  const currentArtist = currentSong?.artist
+  const currentAlbum = currentSong?.album
+  useEffect(() => {
+    if (currentId !== null) refreshNowPlaying(engine, currentId)
+  }, [engine, currentId, currentTitle, currentArtist, currentAlbum, nowPlayingArt])
 
   return (
     <PlayerContext.Provider value={value}>
@@ -970,6 +985,27 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
  * know which is which — which is exactly what foundation 2 forbids — this asks
  * for the method and does nothing when it is not there.
  */
+/** Where the Now Playing card may take a cover from; the server's only for a server library. */
+function artSources(
+  kept: string | undefined,
+  connection: Parameters<typeof mediaUrlFor>[0] | null,
+  fromCloud: boolean,
+): ArtSources {
+  return {
+    kept,
+    serverArt:
+      !fromCloud && connection
+        ? (songId, rev) => mediaUrlFor(connection).art(songId, rev, KEPT_COVER_SIZE)
+        : null,
+  }
+}
+
+/** The phone's engine re-tells the lock screen; the browser's has a media session for that. */
+function refreshNowPlaying(engine: unknown, songId: number): void {
+  const candidate = engine as { refreshNowPlaying?: (songId: number) => void }
+  candidate.refreshNowPlaying?.(songId)
+}
+
 function refreshLookahead(engine: unknown): void {
   const candidate = engine as { refreshLookahead?: () => void }
   candidate.refreshLookahead?.()

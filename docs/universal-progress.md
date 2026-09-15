@@ -4314,3 +4314,47 @@ Genshin's glows are green, blue and amber playing, faint paused, and faint
 again when Aurora is picked while paused. The gates: `npm run typecheck`,
 `npm run lint`, `npm run test` (172 files, 1697 passed, 1 skipped) and
 `npm run check:app`.
+
+## The iPhone's lock screen and Control Center — `claude/iphone-now-playing`
+
+Xiao asked for the Mac's Control Center card on the iPhone's lock screen and
+Control Center. That card already existed: track-player fills iOS's Now
+Playing from the metadata `PlayerProvider` hands the engine, with play, pause,
+next, previous and the scrubber, and background audio is on. What was wrong
+with it was the cover, which for the normal phone flow — a signed-in library,
+read from the bucket — never showed.
+
+- **The cover was only ever a server's address.** `trackMetadata` gave the OS
+  `/api/art/<id>` when there was a connection and nothing otherwise, so a
+  cloud library had no cover at all; a server library away (a plane) had an
+  address nobody answered, even for a song whose cover was on the phone; and
+  the address still stored after signing in to the cloud pointed the OS at a
+  server that is not running. `nowPlayingArtwork` (`player/nowPlayingArt.model.ts`)
+  now decides for the phone and the Mac alike: the copy on this device
+  (`coverFor`, a `file://` track-player reads from disk) whenever there is one,
+  a server's 640-pixel cover for a server library with nothing kept, and none
+  for a cloud library until its cover is kept.
+- **The card kept what it was handed when the song started.** A bucket cover
+  is fetched while its song plays, and a title edited meanwhile never reached
+  the card either. `NativeEngine.refreshNowPlaying` sends the playing song's
+  metadata again — `updateMetadataForTrack` on the active track — only when it
+  differs from what the player was handed for that song, and never onto another
+  song's card while a load is under way. `PlayerProvider` calls it when the
+  playing song's cover or words change, and the engine calls it itself after a
+  load, for a cover that arrived during one and a lent song that became the
+  playing one. The browser's engine has none; its card is the media session's.
+- No heart on the card (Xiao, 2026-09-15).
+
+The simulator draws no Now Playing card on its lock screen and has no media
+module in Control Center, so the card itself is for a real iPhone. What the
+simulator could show, with temporary logs on the engine against a private
+server (a copy of the dev library, cloud sign-in removed): playing songs and
+the one lent behind them were handed their kept `file://` covers where before
+they were handed the server's address; with three kept covers removed and the
+app reopened, the playing song went in with the server's address, the mini
+player kept its cover a moment later, and the engine sent the card the kept
+copy (`updateMetadataForTrack` on index 0); an unchanged song was not sent
+again. The cloud path — a bucket cover fetched while playing — goes through the
+same `coverFor` and the same refresh, and needs a signed-in phone to see. The
+gates: `npm run typecheck`, `npm run lint`, `npm run test` (173 files, 1701
+passed, 1 skipped) and `npm run check:app`.

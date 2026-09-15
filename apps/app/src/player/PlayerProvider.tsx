@@ -48,6 +48,7 @@ import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../connection/ConnectionProvider'
+import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
 import {
   createProgressStore,
@@ -546,6 +547,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     setQueue(state)
     loadIndex(state, true)
   }, [engine, loadIndex])
+
+  // The lock screen's and the headphones' Next and Previous, as these buttons.
+  useEffect(
+    () => handleRemoteCommands(command => (command === 'next' ? next() : previous())),
+    [next, previous],
+  )
 
   const seekTo = useCallback(
     (seconds: number) => {

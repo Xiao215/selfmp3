@@ -1,5 +1,7 @@
 import TrackPlayer, { Event } from 'react-native-track-player'
 
+import { sendRemoteCommand } from './remoteCommands'
+
 /**
  * The playback service.
  *
@@ -43,12 +45,13 @@ export async function playbackService(): Promise<void> {
     void TrackPlayer.stop()
   })
 
+  // Through the app's queue while it is there (see remoteCommands.ts).
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    void TrackPlayer.skipToNext()
+    if (!sendRemoteCommand('next')) void TrackPlayer.skipToNext()
   })
 
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    void TrackPlayer.skipToPrevious()
+    if (!sendRemoteCommand('previous')) void TrackPlayer.skipToPrevious()
   })
 
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {

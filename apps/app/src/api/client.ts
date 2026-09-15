@@ -1,22 +1,20 @@
 /**
- * The phone's API client: `@selfmp3/client`, with a phone behind it.
+ * This device's API client: `@selfmp3/client`, with this device behind it — a
+ * phone, a browser tab or the desktop app.
  *
- * Everything that was here — the request layer, the error mapping, the twelve
- * endpoints — now lives in `packages/client`, which the web app uses too. Two
- * things stayed, because they are genuinely the phone's:
+ * The request layer, the error mapping and the endpoints live in
+ * `packages/client`. Two things are here instead, because they depend on where
+ * the app runs:
  *
- * The address. The phone talks to an absolute origin it was told about at
- * onboarding and carries a bearer token; the browser talks to its own page
- * origin and carries nothing. `serverTransport` is that difference.
+ * The address. A phone or the desktop app talks to an absolute origin it was
+ * told about at onboarding and carries a bearer token; a page the server serves
+ * talks to its own origin and carries nothing. `serverTransport` is that
+ * difference.
  *
  * The timeout. A server that is asleep accepts the connection and then says
  * nothing, so without one a request hangs for as long as the OS allows. It
  * lives in the fetch below rather than in the package, which compiles without
  * a DOM and so cannot name an `AbortController`.
- *
- * Every endpoint the web app has now answers here too, which is most of what
- * phase 1 was for — love, tags, playlist membership and settings arrived
- * without a line being written for them.
  */
 import {
   configureClient,

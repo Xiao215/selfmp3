@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "The API contract. Zod schemas here are the single source of truth for both the server and the web app.",
+  "description": "The API contract. Zod schemas here are the single source of truth for the server and every client: the app on a phone, in a browser and on a computer.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

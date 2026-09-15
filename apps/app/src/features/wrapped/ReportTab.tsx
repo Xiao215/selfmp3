@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet as NativeStyleSheet, Text, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet as NativeStyleSheet,
+  Text,
+  View,
+} from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
-import { useRouter } from 'expo-router'
-import { WRAPPED_RANGE_LABELS, type Song, type WrappedRange } from '@selfmp3/shared'
+import type { Song } from '@selfmp3/shared'
 import { radius, withAlpha } from '@selfmp3/client'
 import { useLibrary, useWrapped } from '../../api/queries'
 import { useArt } from '../../offline/useArt'
@@ -12,14 +17,16 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { canShareCard, shareWrappedCard } from '../../ports/shareCard'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { useBackTo } from '../../ui/components/BackRow'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play, Sparkles } from '../../ui/components/Icons'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { Segmented } from '../../ui/components/Segmented'
 import { SongLine } from '../stats/SongLine'
-import { longDate, playsLabel } from '../stats/stats.model'
+import { StatsFrame, type StatsFrameProps } from '../stats/StatsFrame'
+import { longDate, periodOfWrapped, playsLabel, wrappedRangeFor } from '../stats/stats.model'
 import {
+  DISCOVERED_SHOWN,
   discoveredChapter,
   emptyHint,
   emptyTitle,
@@ -29,31 +36,33 @@ import {
   figureUnit,
   longerRanges,
   numberOneLine,
-  RANGE_SHORT,
   rankShare,
   repeatNote,
+  showDiscovered,
   tryLabel,
-  WRAPPED_RANGES,
 } from './wrapped.model'
 
 const GAP = 14
 const CHAPTER_MIN = 330
 
 /**
- * Wrapped, for any window you like: the web's `WrappedView`.
+ * Stats' Report tab, a listening report for any window: the web's `WrappedView`.
  *
  * The one screen allowed to be a bit of a show: the figure set large, the top
  * song's cover beside it, each section a numbered chapter. It keeps the app's
  * type scale, spacing and accent, so it reads as the same app in its good coat.
+ *
+ * The window is the Stats page's (StatsFrame), and so is the header: sharing
+ * the report as an image is an icon in its corner.
  */
-export function WrappedScreen(): ReactNode {
+export function ReportTab(frame: StatsFrameProps): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const router = useRouter()
+  const backTo = useBackTo()
   const player = usePlayer()
   const artFor = useArt()
   const { wide } = useLayout()
-  const [range, setRange] = useState<WrappedRange>('month')
+  const range = wrappedRangeFor(frame.period)
   const { data: wrapped, isLoading } = useWrapped(range)
   const { data: library } = useLibrary()
   const [sharing, setSharing] = useState(false)
@@ -101,53 +110,25 @@ export function WrappedScreen(): ReactNode {
     if (present.length > 0) player.playFrom(present, 0)
   }
 
-  const header = (
-    <View style={[styles.head, !wide && styles.headNarrow]}>
-      <View>
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
-          Report
-        </Text>
-        <Text style={styles.sub}>
-          {WRAPPED_RANGE_LABELS[range]} ·{' '}
-          <Text
-            style={[styles.link, { color: accent.accent }]}
-            onPress={() => router.push('/stats')}
-            accessibilityRole="link"
-          >
-            back to stats
-          </Text>
-        </Text>
-      </View>
-      <View style={[styles.actions, !wide && styles.actionsNarrow]}>
-        <Segmented
-          value={range}
-          onChange={setRange}
-          label="Report range"
-          options={WRAPPED_RANGES.map(option => ({ value: option, label: RANGE_SHORT[option] }))}
-        />
-        {canShareCard ? (
-          <Button
-            label={sharing ? 'Rendering…' : 'Share as image'}
-            variant="primary"
-            icon={<Download size={15} color={accent.onAccent} />}
-            disabled={!wrapped || wrapped.totals.plays === 0 || sharing}
-            onPress={() => void share()}
-          />
-        ) : null}
-      </View>
-    </View>
-  )
+  // Only where an image can be made and handed on: a browser and the Mac app.
+  const shareButton = canShareCard ? (
+    <IconButton
+      label={sharing ? 'Making the image…' : 'Share as image'}
+      disabled={!wrapped || wrapped.totals.plays === 0 || sharing}
+      onPress={() => void share()}
+    >
+      {sharing ? (
+        <ActivityIndicator size="small" color={theme.colors.textMuted} />
+      ) : (
+        <Download size={18} color={theme.colors.textSecondary} />
+      )}
+    </IconButton>
+  ) : null
 
   const shell = (children: ReactNode): ReactNode => (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        testID="wrapped-screen"
-      >
-        {header}
-        {children}
-      </ScrollView>
-    </SafeAreaView>
+    <StatsFrame {...frame} actions={shareButton} testID="wrapped-screen">
+      {children}
+    </StatsFrame>
   )
 
   if (isLoading && !wrapped) return shell(<Text style={styles.hint}>Working it out…</Text>)
@@ -171,13 +152,17 @@ export function WrappedScreen(): ReactNode {
         <Text style={[styles.hint, styles.center]}>{emptyHint(range)}</Text>
         <View style={styles.emptyActions}>
           {longerRanges(range).map(option => (
-            <Button key={option} label={tryLabel(option)} onPress={() => setRange(option)} />
+            <Button
+              key={option}
+              label={tryLabel(option)}
+              onPress={() => frame.onPeriod(periodOfWrapped(option))}
+            />
           ))}
           <Button
             label="Go to the library"
             variant="primary"
             icon={<Play size={15} color={accent.onAccent} />}
-            onPress={() => router.push('/')}
+            onPress={() => backTo('/')}
           />
         </View>
       </View>,
@@ -331,35 +316,37 @@ export function WrappedScreen(): ReactNode {
           </Chapter>
         ) : null}
 
-        <Chapter
-          number={discoveredChapter(wrapped)}
-          title="Discovered"
-          width={chapterWidth}
-          action={
-            wrapped.discovered.length > 0 ? (
-              <Button
-                label="Play all"
-                icon={<Play size={13} color={theme.colors.textPrimary} />}
-                onPress={() => playTop(wrapped.discovered.map(song => song.songId))}
+        {showDiscovered(wrapped) ? (
+          <Chapter
+            number={discoveredChapter(wrapped)}
+            title="Discovered"
+            width={chapterWidth}
+            action={
+              wrapped.discovered.length > 0 ? (
+                <Button
+                  label="Play all"
+                  icon={<Play size={13} color={theme.colors.textPrimary} />}
+                  onPress={() => playTop(wrapped.discovered.map(song => song.songId))}
+                />
+              ) : null
+            }
+          >
+            {wrapped.discovered.length === 0 ? (
+              <Text style={styles.hint}>
+                Nothing new stuck in this window — a song counts once you have added it and played
+                it three times.
+              </Text>
+            ) : (
+              <RankList
+                entries={wrapped.discovered.slice(0, DISCOVERED_SHOWN).map(song => ({
+                  key: song.title,
+                  sub: song.artist || 'Unknown artist',
+                  plays: song.plays,
+                }))}
               />
-            ) : null
-          }
-        >
-          {wrapped.discovered.length === 0 ? (
-            <Text style={styles.hint}>
-              Nothing new stuck in this window — a song counts once you have added it and played it
-              three times.
-            </Text>
-          ) : (
-            <RankList
-              entries={wrapped.discovered.slice(0, 8).map(song => ({
-                key: song.title,
-                sub: song.artist || 'Unknown artist',
-                plays: song.plays,
-              }))}
-            />
-          )}
-        </Chapter>
+            )}
+          </Chapter>
+        ) : null}
       </View>
     </>,
   )
@@ -472,24 +459,6 @@ function RankList({
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  head: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 16,
-    marginBottom: 20,
-  },
-  headNarrow: { flexDirection: 'column', gap: 12 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
-  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 6 },
-  link: { textDecorationLine: 'underline' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsNarrow: { flexDirection: 'column', alignItems: 'flex-start' },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   strong: { color: theme.colors.textPrimary, fontWeight: '700' },
   center: { textAlign: 'center', maxWidth: 420 },

@@ -1,24 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
-import {
-  formatLongDuration,
-  formatRelative,
-  STATS_RANGE_LABELS,
-  type StatsRange,
-} from '@selfmp3/shared'
+import { formatLongDuration, formatRelative, STATS_RANGE_LABELS } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 import { useHistory, useLibrary, useStats } from '../../api/queries'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
-import { Button } from '../../ui/components/Button'
-import { BarList, ColumnChart, StatTile } from '../../ui/components/charts'
-import { Sparkles } from '../../ui/components/Icons'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { ColumnChart, StatTile } from '../../ui/components/charts'
+import { ReportTab } from '../wrapped/ReportTab'
 import { SongLine } from './SongLine'
-import { Segmented } from '../../ui/components/Segmented'
+import { StatsFrame, type StatsFrameProps } from './StatsFrame'
 import {
   bestStreakHint,
   dailyColumns,
@@ -26,31 +17,39 @@ import {
   formatHour,
   hourlyColumns,
   peakHour,
-  playsLabel,
-  rangeButtonLabel,
   recentSongs,
-  STATS_RANGES,
+  statsRangeFor,
+  type StatsPeriod,
+  type StatsTab,
 } from './stats.model'
 
-const GAP = 14
-/** The web's panels: at least this wide, as many to a row as fit. */
-const PANEL_MIN = 320
+/**
+ * Stats: one page with two tabs, Overview and Report, over one shared window.
+ *
+ * `/stats` opens Overview and `/stats/report` opens Report; after that the
+ * tabs switch in place, and the window chosen on one is the window the other
+ * shows.
+ */
+export function StatsScreen({ initialTab = 'overview' }: { initialTab?: StatsTab } = {}): ReactNode {
+  const [tab, setTab] = useState<StatsTab>(initialTab)
+  const [period, setPeriod] = useState<StatsPeriod>('month')
+  const frame: StatsFrameProps = { tab, onTab: setTab, period, onPeriod: setPeriod }
+  return tab === 'overview' ? <Overview {...frame} /> : <ReportTab {...frame} />
+}
 
 /**
- * Listening stats: the web's `StatsView`.
+ * The numbers: the web's `StatsView`.
  *
- * Tiles first, because most of these answers are a single number; then the
- * charts, the top artists and tags, the most played, and what was played last.
+ * Tiles first, because most of these answers are a single number; then when
+ * the plays happened, and what was played last. What was played most is the
+ * Report's to tell, so it is not said twice.
  */
-export function StatsScreen(): ReactNode {
-  const router = useRouter()
-  const accent = useAccent()
+function Overview(frame: StatsFrameProps): ReactNode {
   const { wide } = useLayout()
-  const [range, setRange] = useState<StatsRange>('30d')
+  const range = statsRangeFor(frame.period)
   const { data: stats, isLoading } = useStats(range)
   const { data: history } = useHistory()
   const { data: library } = useLibrary()
-  const [gridWidth, setGridWidth] = useState(0)
 
   const songById = useMemo(
     () => new Map((library?.songs ?? []).map(song => [song.id, song])),
@@ -61,184 +60,107 @@ export function StatsScreen(): ReactNode {
   const recent = useMemo(() => recentSongs(history?.events ?? []), [history])
   const peak = stats ? peakHour(stats.hourly) : null
 
-  const columns = wide ? Math.max(1, Math.floor((gridWidth + GAP) / (PANEL_MIN + GAP))) : 1
-  const half = gridWidth > 0 && columns > 1 ? (gridWidth - GAP) / 2 : undefined
-
-  const header = (
-    <View style={[styles.head, !wide && styles.headNarrow]}>
-      <View>
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
-          Stats
-        </Text>
-        <Text style={styles.sub}>{STATS_RANGE_LABELS[range]}</Text>
-      </View>
-      <View style={[styles.actions, !wide && styles.actionsNarrow]}>
-        <Segmented
-          value={range}
-          onChange={setRange}
-          label="Time range"
-          options={STATS_RANGES.map(option => ({ value: option, label: rangeButtonLabel(option) }))}
-        />
-        <Button
-          label="Report"
-          variant="primary"
-          icon={<Sparkles size={15} color={accent.onAccent} />}
-          onPress={() => router.push('/stats/report')}
-        />
-      </View>
-    </View>
-  )
-
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        testID="stats-screen"
-      >
-        {header}
+    <StatsFrame {...frame} testID="stats-screen">
+      {isLoading && !stats ? (
+        <Text style={styles.hint}>Working it out…</Text>
+      ) : !stats ? (
+        <Empty
+          title="Stats need your library"
+          hint="They’ll be here when your server is reachable again."
+        />
+      ) : stats.totals.plays === 0 ? (
+        <Empty
+          emoji="📊"
+          title="Nothing to show yet"
+          hint="Play some music and this fills in — what you played, when, and how often."
+        />
+      ) : (
+        <>
+          <View style={styles.tiles}>
+            {[
+              <StatTile key="plays" label="Plays" value={stats.totals.plays.toLocaleString()} />,
+              <StatTile
+                key="time"
+                label="Time listening"
+                value={formatLongDuration(stats.totals.minutes * 60)}
+              />,
+              <StatTile
+                key="songs"
+                label="Different songs"
+                value={stats.totals.songsPlayed.toLocaleString()}
+                hint={`of ${stats.totals.librarySize.toLocaleString()} in your library`}
+              />,
+              <StatTile
+                key="streak"
+                label="Current streak"
+                value={daysLabel(stats.streakDays)}
+                hint={bestStreakHint(stats.longestStreakDays)}
+              />,
+              <StatTile
+                key="never"
+                label="Never played"
+                value={stats.totals.neverPlayed.toLocaleString()}
+                hint="worth a shuffle sometime"
+              />,
+            ].map(tile => (
+              <View key={tile.key} style={styles.tileCell}>
+                {tile}
+              </View>
+            ))}
+          </View>
 
-        {isLoading && !stats ? (
-          <Text style={styles.hint}>Working it out…</Text>
-        ) : !stats ? (
-          <Empty
-            title="Stats need your library"
-            hint="They’ll be here when your server is reachable again."
-          />
-        ) : stats.totals.plays === 0 ? (
-          <Empty
-            emoji="📊"
-            title="Nothing to show yet"
-            hint="Play some music and this fills in — what you played, when, and how often."
-          />
-        ) : (
-          <>
-            <View style={styles.tiles}>
-              {[
-                <StatTile key="plays" label="Plays" value={stats.totals.plays.toLocaleString()} />,
-                <StatTile
-                  key="time"
-                  label="Time listening"
-                  value={formatLongDuration(stats.totals.minutes * 60)}
-                />,
-                <StatTile
-                  key="songs"
-                  label="Different songs"
-                  value={stats.totals.songsPlayed.toLocaleString()}
-                  hint={`of ${stats.totals.librarySize.toLocaleString()} in your library`}
-                />,
-                <StatTile
-                  key="streak"
-                  label="Current streak"
-                  value={daysLabel(stats.streakDays)}
-                  hint={bestStreakHint(stats.longestStreakDays)}
-                />,
-                <StatTile
-                  key="never"
-                  label="Never played"
-                  value={stats.totals.neverPlayed.toLocaleString()}
-                  hint="worth a shuffle sometime"
-                />,
-              ].map(tile => (
-                <View key={tile.key} style={styles.tileCell}>
-                  {tile}
-                </View>
-              ))}
-            </View>
+          <View style={styles.panels}>
+            <Panel title="Plays per day" hint={STATS_RANGE_LABELS[range]}>
+              <ColumnChart
+                data={daily}
+                height={170}
+                emptyMessage="No plays in this window"
+                caption={`Plays per day, ${STATS_RANGE_LABELS[range].toLowerCase()}`}
+              />
+            </Panel>
 
-            <View
-              style={styles.panels}
-              onLayout={event => setGridWidth(event.nativeEvent.layout.width)}
+            <Panel
+              title="When you listen"
+              hint={peak ? `busiest around ${formatHour(peak.hour)}` : undefined}
             >
-              <Panel title="Plays per day" hint={STATS_RANGE_LABELS[range]}>
-                <ColumnChart
-                  data={daily}
-                  height={170}
-                  emptyMessage="No plays in this window"
-                  caption={`Plays per day, ${STATS_RANGE_LABELS[range].toLowerCase()}`}
-                />
-              </Panel>
+              <ColumnChart data={hourly} height={140} labelEvery={6} caption="Plays by hour of the day" />
+            </Panel>
 
-              <Panel
-                title="When you listen"
-                hint={peak ? `busiest around ${formatHour(peak.hour)}` : undefined}
-                width={half}
-              >
-                <ColumnChart
-                  data={hourly}
-                  height={140}
-                  labelEvery={6}
-                  caption="Plays by hour of the day"
-                />
-              </Panel>
-
-              <Panel title="Top artists" width={half}>
-                <BarList
-                  data={stats.topArtists.map(entry => ({ label: entry.key, value: entry.plays }))}
-                  emptyMessage="No artists yet"
-                />
-              </Panel>
-
-              {stats.topTags.length > 0 ? (
-                <Panel title="Top tags" width={half}>
-                  <BarList
-                    data={stats.topTags.map(entry => ({ label: entry.key, value: entry.plays }))}
-                  />
-                </Panel>
-              ) : null}
-
-              <Panel title="Most played" hint={STATS_RANGE_LABELS[range]}>
-                <View style={styles.list}>
-                  {stats.topSongs.slice(0, 10).map((entry, index) => (
-                    <SongLine
-                      key={entry.songId}
-                      song={songById.get(entry.songId)}
-                      title={entry.title}
-                      artist={entry.artist}
-                      rank={index + 1}
-                      trailing={playsLabel(entry.plays)}
-                    />
+            {recent.length > 0 ? (
+              <Panel title="Recently played">
+                <View style={[styles.list, wide && styles.listColumns]}>
+                  {recent.slice(0, 24).map(event => (
+                    <View key={event.songId} style={wide ? styles.columnCell : undefined}>
+                      <SongLine
+                        song={songById.get(event.songId)}
+                        title={event.title}
+                        artist={event.artist}
+                        trailing={formatRelative(event.playedAt)}
+                      />
+                    </View>
                   ))}
                 </View>
               </Panel>
-
-              {recent.length > 0 ? (
-                <Panel title="Recently played">
-                  <View style={[styles.list, wide && styles.listColumns]}>
-                    {recent.slice(0, 24).map(event => (
-                      <View key={event.songId} style={wide ? styles.columnCell : undefined}>
-                        <SongLine
-                          song={songById.get(event.songId)}
-                          title={event.title}
-                          artist={event.artist}
-                          trailing={formatRelative(event.playedAt)}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                </Panel>
-              ) : null}
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+            ) : null}
+          </View>
+        </>
+      )}
+    </StatsFrame>
   )
 }
 
 function Panel({
   title,
   hint,
-  width,
   children,
 }: {
   title: string
   hint?: string
-  /** Half the grid at desktop width; the full width otherwise. */
-  width?: number
   children: ReactNode
 }): ReactNode {
   return (
-    <View style={[styles.panel, width !== undefined ? { width } : styles.panelFull]}>
+    <View style={styles.panel}>
       <View style={styles.panelHead}>
         <Text style={styles.panelTitle} accessibilityRole="header">
           {title}
@@ -262,27 +184,10 @@ function Empty({ emoji, title, hint }: { emoji?: string; title: string; hint: st
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  head: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 16,
-    marginBottom: 20,
-  },
-  headNarrow: { flexDirection: 'column', gap: 12 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
-  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 6 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsNarrow: { flexDirection: 'column', alignItems: 'flex-start' },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 22 },
   tileCell: { flexGrow: 1, flexBasis: 170 },
-  panels: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: GAP },
+  panels: { gap: 14 },
   panel: {
     padding: 18,
     gap: 12,
@@ -291,7 +196,6 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.border,
     borderRadius: radius.md,
   },
-  panelFull: { width: '100%' },
   panelHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

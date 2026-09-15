@@ -14,11 +14,12 @@ import { formatHour, playsLabel } from '../stats/stats.model'
  * week sounded like on a Tuesday.
  */
 
-export const WRAPPED_RANGES: readonly WrappedRange[] = ['week', 'month', 'year', 'all']
+export const WRAPPED_RANGES: readonly WrappedRange[] = ['week', 'month', 'quarter', 'year', 'all']
 
 export const RANGE_SHORT: Record<WrappedRange, string> = {
   week: 'Week',
   month: 'Month',
+  quarter: '3 months',
   year: 'Year',
   all: 'All time',
 }
@@ -92,6 +93,21 @@ export function tryLabel(range: WrappedRange): string {
 export function discoveredChapter(wrapped: Pick<Wrapped, 'mostInOneDay'>): string {
   return wrapped.mostInOneDay ? '04' : '03'
 }
+
+/**
+ * Discovered is worth a chapter only when it says something Top songs has not.
+ * In a window where everything played was new — a first week, a fresh library —
+ * the two lists were the same songs in the same order, one under the other.
+ */
+export function showDiscovered(wrapped: Pick<Wrapped, 'topSongs' | 'discovered'>): boolean {
+  const discovered = wrapped.discovered.slice(0, DISCOVERED_SHOWN).map(song => song.songId)
+  const top = wrapped.topSongs.map(song => song.songId)
+  const same = discovered.length === top.length && discovered.every((id, i) => id === top[i])
+  return !(same && discovered.length > 0)
+}
+
+/** How many discoveries the chapter lists. */
+export const DISCOVERED_SHOWN = 8
 
 /** Each ranked row's share of the first, as a quiet bar behind its name. */
 export function rankShare(plays: number, max: number): number {

@@ -1,2 +1,7 @@
-/** The listening report's route: a thin file that renders its feature. */
-export { WrappedScreen as default } from '../../src/features/wrapped/WrappedScreen'
+import type { ReactNode } from 'react'
+import { StatsScreen } from '../../src/features/stats/StatsScreen'
+
+/** The listening report's route: the same Stats page, opened on its Report tab. */
+export default function ReportRoute(): ReactNode {
+  return <StatsScreen initialTab="report" />
+}

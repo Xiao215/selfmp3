@@ -12,16 +12,38 @@ import {
   longDate,
   niceCeiling,
   peakHour,
+  periodLabel,
+  periodOfWrapped,
   playsLabel,
-  rangeButtonLabel,
   recentSongs,
   shortDate,
-  STATS_RANGES,
+  STATS_PERIODS,
+  statsRangeFor,
+  wrappedRangeFor,
 } from './stats.model'
 
 describe('stats ranges and labels', () => {
-  it('offers five ranges, labelled in days, months and years', () => {
-    expect(STATS_RANGES.map(rangeButtonLabel)).toEqual(['7d', '1m', '3m', '1y', 'All'])
+  it('offers five windows, in full with room and in short on a phone', () => {
+    expect(STATS_PERIODS.map(period => periodLabel(period, true))).toEqual([
+      'Week',
+      'Month',
+      '3 months',
+      'Year',
+      'All time',
+    ])
+    expect(STATS_PERIODS.map(period => periodLabel(period, false))).toEqual([
+      'Wk',
+      'Mo',
+      '3 mo',
+      'Yr',
+      'All',
+    ])
+  })
+
+  it('asks both endpoints for the same window', () => {
+    expect(STATS_PERIODS.map(statsRangeFor)).toEqual(['7d', '30d', '90d', '365d', 'all'])
+    expect(STATS_PERIODS.map(wrappedRangeFor)).toEqual(['week', 'month', 'quarter', 'year', 'all'])
+    expect(periodOfWrapped('quarter')).toBe('quarter')
   })
 
   it('names hours the way a clock face does', () => {

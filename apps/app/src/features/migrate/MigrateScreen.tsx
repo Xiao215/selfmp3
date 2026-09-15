@@ -23,7 +23,7 @@ import {
   useLibrary,
   useMigrateJob,
 } from '@selfmp3/client'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { BackRow, useBackTo } from '../../ui/components/BackRow'

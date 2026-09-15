@@ -36,6 +36,7 @@ import {
   useFixCoversStatus,
   useLibrary,
   useManifest,
+  normaliseBaseUrl,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../cloud'
@@ -51,8 +52,7 @@ import { installedApp } from '../../ports/install'
 import { canConnectByAddress } from '../../ports/serverAddress'
 import { clearRecent } from '../../ports/recentCopies'
 import { apiFor, ApiError } from '../../api/client'
-import { normaliseBaseUrl } from '../../server/connection'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
 import { BackToYou } from '../../ui/components/BackToYou'

@@ -33,7 +33,7 @@ import { acceleratorKeys } from '../features/settings/shortcuts.model'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { isUntagged } from '../features/inbox/inbox.model'
-import { useConnection } from '../server/ConnectionProvider'
+import { useConnection } from '../connection/ConnectionProvider'
 import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
 import {

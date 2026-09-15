@@ -4,7 +4,7 @@ import { useQueries } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { buildBrowseTree, type BrowseTree } from './browseTree'
 import { connectAndroidAuto } from './androidAuto'
 

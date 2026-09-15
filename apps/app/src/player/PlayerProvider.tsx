@@ -47,7 +47,7 @@ import { coversNow, onCoversChanged } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
-import { useConnection } from '../server/ConnectionProvider'
+import { useConnection } from '../connection/ConnectionProvider'
 import { useNowPlaying } from './useNowPlaying'
 import {
   createProgressStore,

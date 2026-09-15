@@ -17,7 +17,7 @@ import {
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'

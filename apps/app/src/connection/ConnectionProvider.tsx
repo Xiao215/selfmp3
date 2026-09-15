@@ -1,15 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ClientStateProvider } from '@selfmp3/client'
+import { ClientStateProvider, type ServerConnection } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
 import { library as cloudLibrary, session as cloudSession } from '../cloud'
-import {
-  clearConnection,
-  loadConnection,
-  saveConnection,
-  type ServerConnection,
-} from './connection'
+import { clearConnection, loadConnection, saveConnection } from './storedConnection'
 import { servedByServer } from '../ports/servedBy'
 
 /**

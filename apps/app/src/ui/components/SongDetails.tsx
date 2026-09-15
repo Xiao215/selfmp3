@@ -16,7 +16,7 @@ import {
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../accent'

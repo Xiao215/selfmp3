@@ -17,7 +17,7 @@ import { useRomanizationSeed } from '../src/features/nowPlaying/romanizationPref
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
-import { ConnectionProvider, useConnection } from '../src/server/ConnectionProvider'
+import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { useLayout } from '../src/shell/useLayout'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'

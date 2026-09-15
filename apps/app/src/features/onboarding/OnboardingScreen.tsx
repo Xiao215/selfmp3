@@ -5,10 +5,9 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { apiFor, ApiError } from '../../api/client'
-import { normaliseBaseUrl } from '../../server/connection'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
-import { radius, space, type } from '@selfmp3/client'
+import { normaliseBaseUrl, radius, space, type } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 
 /**

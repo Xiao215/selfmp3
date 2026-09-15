@@ -1,7 +1,7 @@
 import { useCallback, useState, useSyncExternalStore } from 'react'
 import type { Song } from '@selfmp3/shared'
 import { mediaUrlFor } from '../api/client'
-import { useConnection } from '../server/ConnectionProvider'
+import { useConnection } from '../connection/ConnectionProvider'
 import { watchCovers } from './coverChanges'
 import {
   coverFor,

@@ -3,7 +3,7 @@ import { useGlobalSearchParams } from 'expo-router'
 import { useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { prefs } from '../ports/prefs'
-import { useConnection } from '../server/ConnectionProvider'
+import { useConnection } from '../connection/ConnectionProvider'
 import { usePlayer, type PlayerApi } from './PlayerProvider'
 import { launchPlayback, parseSession, SESSION_KEY, sessionFromQueue } from './session.model'
 

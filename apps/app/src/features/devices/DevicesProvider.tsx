@@ -22,7 +22,7 @@ import { clientApi, handoffTarget, queryKeys, useDevices } from '@selfmp3/client
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
-import { useConnection } from '../../server/ConnectionProvider'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
 
 /**

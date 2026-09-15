@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { ImportScreen } from '../../src/features/import/ImportScreen'
 import { ImportViaServer } from '../../src/features/import/ImportViaServer'
-import { useConnection } from '../../src/server/ConnectionProvider'
+import { useConnection } from '../../src/connection/ConnectionProvider'
 
 /**
  * The import route. A server imports itself; a cloud library imports through the

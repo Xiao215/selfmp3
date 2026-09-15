@@ -27,7 +27,7 @@ import {
 import { installedApp } from '../ports/install'
 import { clearRecent, forgetRecent, keepRecentlyPlayed } from '../ports/recentCopies'
 import { prefs as prefStore } from '../ports/prefs'
-import { useConnection } from '../server/ConnectionProvider'
+import { useConnection } from '../connection/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
 import { downloadQueue, type DownloadQueue, type DownloadState } from './downloads'
 

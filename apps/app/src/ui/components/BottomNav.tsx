@@ -59,6 +59,8 @@ export function BottomNav(): ReactNode {
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}
+            // react-native-web does not turn `accessibilityState` into aria-selected.
+            aria-selected={active}
           >
             <View style={[styles.pill, active && { backgroundColor: accent.accentPill }]}>
               <tab.Icon size={20} color={active ? accent.accent : theme.colors.textMuted} />

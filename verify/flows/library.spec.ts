@@ -22,7 +22,17 @@ test.describe('library', () => {
 
   test('search narrows the list, and clearing it restores it', async ({ page }) => {
     await skipIfNoLibrary(page, 2)
-    const before = await songRows(page).count()
+    // The list draws its rows in batches, so count once the count has settled:
+    // read too early it is 16 of 36, and clearing the search then "restores" more.
+    let before = -1
+    await expect
+      .poll(async () => {
+        const now = await songRows(page).count()
+        const settled = now === before
+        before = now
+        return settled
+      })
+      .toBe(true)
 
     const title = await titleOf(await topRow(page))
     const term = title.slice(0, 4).trim()

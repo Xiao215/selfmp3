@@ -78,10 +78,14 @@ test.describe('now playing', () => {
     await page.getByRole('button', { name: 'Show only the words' }).click()
     await expect(page.getByRole('button', { name: 'Back to the full page' }).first()).toBeVisible()
 
+    // The bar fades rather than leaving (opacity 0, hidden from assistive tech),
+    // which Playwright's own visibility does not count, so ask what a reader is told.
     const bar = page.getByTestId('player-bar')
-    await expect(bar).toBeHidden({ timeout: 8_000 })
+    const stepsAside = bar.locator('xpath=ancestor::*[@aria-hidden="true"]')
+    await expect(stepsAside).toHaveCount(1, { timeout: 8_000 })
     await page.mouse.move(400, 300)
     await page.mouse.move(420, 320)
+    await expect(stepsAside).toHaveCount(0)
     await expect(bar).toBeVisible()
   })
 

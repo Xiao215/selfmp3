@@ -16,4 +16,7 @@ export { DownloadQueue }
 export type DownloadState = DownloadQueueState
 
 /** One queue for the whole app; downloads must outlive any single screen. */
-export const downloadQueue = new DownloadQueue(downloadStorage)
+export const downloadQueue = new DownloadQueue(downloadStorage, {
+  // A failed song is tried again after a wait, before it counts as failed.
+  wait: ms => new Promise(resolve => setTimeout(resolve, ms)),
+})

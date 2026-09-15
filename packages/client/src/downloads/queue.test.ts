@@ -152,9 +152,17 @@ function fakeStorage(
 
 const NOW = new Date('2026-09-12T00:00:00.000Z')
 
-function setup(options: Parameters<typeof fakeStorage>[0] = {}) {
+function setup(
+  options: Parameters<typeof fakeStorage>[0] = {},
+  // No retries unless a test is about them: a failure is final at once.
+  retryDelaysMs: readonly number[] = [],
+) {
   const storage = fakeStorage(options)
-  const queue = new DownloadQueue(storage, { now: () => NOW })
+  const queue = new DownloadQueue(storage, {
+    now: () => NOW,
+    retryDelaysMs,
+    wait: () => Promise.resolve(),
+  })
   queue.configure(null, [FIRST, SECOND, THIRD])
   return { storage, queue }
 }
@@ -347,6 +355,72 @@ describe('keeping songs on this device', () => {
     expect(two.storage.transfers.map(transfer => transfer.songId)).toEqual([1, 2])
   })
 
+  it('tries a failed song again before saying anything, and carries on when it works', async () => {
+    const { storage, queue } = setup({}, [1, 1])
+    queue.enqueue([1, 2])
+    await settle()
+
+    storage.last(1).fail('The network connection was lost.')
+    await settle()
+    // A fresh transfer, and nothing said.
+    expect(storage.transfers.map(transfer => transfer.songId)).toEqual([1, 1])
+    expect(queue.getState().error).toBeNull()
+
+    storage.last(1).finish(1000)
+    await settle()
+    expect(entryFor(queue.getState().index, 1)).toBeTruthy()
+    expect(storage.transfers.map(transfer => transfer.songId)).toEqual([1, 1, 2])
+  })
+
+  it('reports a song once every try has failed', async () => {
+    const { storage, queue } = setup({}, [1, 1])
+    queue.enqueue([1])
+    await settle()
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      expect(queue.getState().error).toBeNull()
+      storage.last(1).fail('HTTP 500')
+      await settle()
+    }
+    expect(storage.transfers.filter(transfer => transfer.songId === 1)).toHaveLength(3)
+    expect(queue.getState()).toMatchObject({ error: 'もう少しだけ: HTTP 500', queue: [] })
+  })
+
+  it('does not try again once everything was called off while it waited', async () => {
+    let release: () => void = () => undefined
+    const storage = fakeStorage()
+    const queue = new DownloadQueue(storage, {
+      now: () => NOW,
+      retryDelaysMs: [1],
+      wait: () =>
+        new Promise<void>(resolve => {
+          release = resolve
+        }),
+    })
+    queue.configure(null, [FIRST])
+    queue.enqueue([1])
+    await settle()
+
+    storage.last(1).fail('HTTP 500')
+    await settle()
+    queue.cancelAll()
+    release()
+    await settle()
+    expect(storage.transfers).toHaveLength(1)
+    expect(queue.getState()).toMatchObject({ queue: [], error: null })
+  })
+
+  it('forgets a failure for a fresh start', async () => {
+    const { storage, queue } = setup()
+    queue.enqueue([1])
+    await settle()
+    storage.last(1).fail('HTTP 500')
+    await settle()
+
+    queue.clearError()
+    expect(queue.getState().error).toBeNull()
+  })
+
   it('says so when asked for a song the library does not have', async () => {
     const { storage, queue } = setup()
     queue.enqueue([99])
@@ -368,7 +442,7 @@ describe('keeping songs on this device', () => {
         throw new Error('no server, and not signed in to the cloud')
       },
     }
-    const queue = new DownloadQueue(nowhere, { now: () => NOW })
+    const queue = new DownloadQueue(nowhere, { now: () => NOW, retryDelaysMs: [] })
     queue.configure(null, [FIRST])
 
     queue.enqueue([1])

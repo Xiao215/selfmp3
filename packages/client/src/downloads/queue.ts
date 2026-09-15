@@ -18,6 +18,9 @@ import { createThrottle, type Throttle } from './throttle.js'
  */
 export const PROGRESS_INTERVAL_MS = 250
 
+/** Waits before trying a failed song again: twice, and then it has failed. */
+const RETRY_DELAYS_MS = [2_000, 10_000]
+
 type Connection = Parameters<NonNullable<DownloadStorage['configure']>>[0]
 
 export interface DownloadQueueState {
@@ -83,6 +86,10 @@ export class DownloadQueue {
    * current; only the telling is skipped.
    */
   readonly #progressNotice: Throttle
+  readonly #retryDelaysMs: readonly number[]
+  readonly #wait: (ms: number) => Promise<void>
+  /** Failed attempts so far at the song in flight. */
+  #failures = 0
 
   constructor(
     storage: DownloadStorage,
@@ -90,15 +97,20 @@ export class DownloadQueue {
       now?: () => Date
       /** Milliseconds, for pacing progress; a test's own clock. */
       nowMs?: () => number
+      /** How long to wait before each retry of a failed song; its length is how many. */
+      retryDelaysMs?: readonly number[]
+      /**
+       * How to wait before a retry. This package compiles with no timers (see
+       * throttle.ts), so the app brings one; without it a failure is final at once.
+       */
+      wait?: (ms: number) => Promise<void>
     } = {},
   ) {
     this.#storage = storage
     this.#now = options.now ?? (() => new Date())
-    this.#progressNotice = createThrottle(
-      () => this.#notify(),
-      PROGRESS_INTERVAL_MS,
-      options.nowMs,
-    )
+    this.#retryDelaysMs = options.wait ? (options.retryDelaysMs ?? RETRY_DELAYS_MS) : []
+    this.#wait = options.wait ?? (() => Promise.resolve())
+    this.#progressNotice = createThrottle(() => this.#notify(), PROGRESS_INTERVAL_MS, options.nowMs)
   }
 
   subscribe(listener: (state: DownloadQueueState) => void): () => void {
@@ -194,6 +206,14 @@ export class DownloadQueue {
     this.#patch({ queue: [], activeSongId: null, bytesWritten: 0, totalBytes: 0, paused: false })
   }
 
+  /**
+   * Forget the last failure. It is kept so it can be seen, and while it is
+   * there nothing downloads by itself; a fresh start (Wi-Fi back) clears it.
+   */
+  clearError(): void {
+    if (this.#state.error !== null) this.#patch({ error: null })
+  }
+
   async remove(songIds: readonly number[]): Promise<void> {
     let index = this.#state.index
     for (const songId of songIds) {
@@ -287,6 +307,7 @@ export class DownloadQueue {
         return false
       }
 
+      this.#failures = 0
       this.#pausedSongId = null
       this.#transfer = null
       await this.#commit(
@@ -311,8 +332,27 @@ export class DownloadQueue {
       // be reporting the tap back to the person who made it.
       if (this.#cancelling) {
         this.#cancelling = false
+        this.#failures = 0
         return true
       }
+      /*
+       * Tried again, from the start, before it counts as failed. A moment
+       * without Wi-Fi ended a song's download for good, and the error it left
+       * stopped automatic downloads until something was downloaded by hand.
+       */
+      const delay = this.#retryDelaysMs[this.#failures]
+      if (delay !== undefined) {
+        this.#failures += 1
+        await this.#wait(delay)
+        // Paused or called off while it waited: that decides, not this.
+        if (this.#state.paused) return false
+        if (this.#state.queue[0] !== songId) {
+          this.#failures = 0
+          return true
+        }
+        return this.#downloadOne(songId)
+      }
+      this.#failures = 0
       this.#patch({
         error: `${song.title}: ${error instanceof Error ? error.message : 'download failed'}`,
       })

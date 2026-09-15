@@ -191,6 +191,12 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     return () => clearTimeout(timer)
   }, [dataAllowedAnswer, network])
 
+  // A failure stops automatic downloads while it stands. Wi-Fi coming back is
+  // a fresh start, and what is still missing is tried again.
+  useEffect(() => {
+    if (onWifi(network)) downloadQueue.clearError()
+  }, [network])
+
   const songIds = useMemo(
     () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
     [library.data],

@@ -76,9 +76,10 @@ import {
 } from './nowPlaying.model'
 import { SongVisual } from './SongVisual'
 import { StageLyrics } from './StageLyrics'
+import { useMotionSampler } from './useMotionSampler'
 import { useSongWords } from './useSongWords'
 import { useSongVisual } from './visualChoice'
-import { VISUAL_NAMES } from './visuals.model'
+import { motionCaption, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
@@ -516,6 +517,7 @@ function PhoneWords({
   const styleButtonRef = useRef<View>(null)
   const words = lyrics.words
   const noLyrics = words.status === 'missing' && !words.offline
+  const sampler = useMotionSampler(song, noLyrics)
   const bpm = song.features?.bpm
   const on = lyrics.romanizationOn
   // The web's `clamp(22px, 6.4vw, 28px)`.
@@ -525,7 +527,7 @@ function PhoneWords({
     <>
       {noLyrics ? (
         <View pointerEvents="none" style={styles.wordsVisual}>
-          <SongVisual song={song} kind={visual.kind} />
+          <SongVisual song={song} kind={visual.kind} sampler={sampler} />
         </View>
       ) : null}
       <View style={styles.wordsHeadRow}>
@@ -576,6 +578,7 @@ function PhoneWords({
         onClose={() => setStyleOpen(false)}
         anchorRef={styleButtonRef}
         visual={visual}
+        following={motionCaption(sampler.source)}
         onLookAgain={lyrics.lookAgain}
       />
       <View style={[styles.words, styles.wordsPadded]}>

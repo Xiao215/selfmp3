@@ -10,8 +10,8 @@ import {
   keyedHue,
   KEY_PULL,
   loudnessLevel,
+  motionCaption,
   parseVisualChoices,
-  pulseRingAges,
   synthLevels,
   visualCaption,
   visualColors,
@@ -78,6 +78,14 @@ describe('the caption', () => {
   })
 })
 
+describe('what the visual follows', () => {
+  it('names the sound, the song or the tempo', () => {
+    expect(motionCaption('live')).toBe('Following the sound')
+    expect(motionCaption('curve')).toBe('Following the song')
+    expect(motionCaption('beat')).toBe('Following the tempo')
+  })
+})
+
 describe('colour from the key', () => {
   it('pulls a minor key cooler and a major key warmer, by a nudge', () => {
     expect(keyedHue(200, '8A')).toBe(200 + KEY_PULL)
@@ -121,10 +129,6 @@ describe('motion from the song', () => {
     expect(beatPhase(1, 120)).toBeCloseTo(0)
     expect(beatKick(0)).toBe(1)
     expect(beatKick(0.9)).toBeLessThan(0.02)
-  })
-
-  it('sends rings out one beat apart', () => {
-    expect(pulseRingAges(0.5)).toEqual([0.125, 0.375, 0.625, 0.875])
   })
 
   it('turns Drift faster with tempo and draws it in with energy', () => {

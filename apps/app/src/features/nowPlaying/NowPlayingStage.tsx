@@ -44,8 +44,9 @@ import { Moving, useStageMove } from './StageMove'
 import { COVER_TOP, coverPose, wordsFrame, wordsPose } from './stageMove.model'
 import { StageQueue } from './StageQueue'
 import { SongVisual } from './SongVisual'
+import { useMotionSampler } from './useMotionSampler'
 import { useSongVisual } from './visualChoice'
-import { VISUAL_NAMES, visualCaption } from './visuals.model'
+import { motionCaption, VISUAL_NAMES, visualCaption } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
@@ -214,6 +215,7 @@ function Stage({
   const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
+  const sampler = useMotionSampler(song, noLyrics)
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
     ['queue', 'Queue'],
@@ -276,7 +278,7 @@ function Stage({
       {/* Focus with no words: the visual is the page, under the cover and the head. */}
       {focus && noLyrics ? (
         <View pointerEvents="none" style={[styles.fill, styles.focusVisual]}>
-          <SongVisual song={song} kind={visual.kind} />
+          <SongVisual song={song} kind={visual.kind} sampler={sampler} />
         </View>
       ) : null}
 
@@ -387,7 +389,7 @@ function Stage({
           ) : noLyrics ? (
             focus ? null : (
               <View style={styles.visualBox}>
-                <SongVisual song={song} kind={visual.kind} rounded />
+                <SongVisual song={song} kind={visual.kind} sampler={sampler} rounded />
               </View>
             )
           ) : (
@@ -489,12 +491,20 @@ function Stage({
               : { left: frame.left, right: frame.right, top: height - 42 },
           ]}
         >
-          <Text
-            style={[styles.visualCaption, focus && styles.visualCaptionOnVisual]}
-            numberOfLines={1}
-          >
-            {visualCaption(song.features)}
-          </Text>
+          <View style={styles.visualCaptions}>
+            <Text
+              style={[styles.visualCaption, focus && styles.visualCaptionOnVisual]}
+              numberOfLines={1}
+            >
+              {visualCaption(song.features)}
+            </Text>
+            <Text
+              style={[styles.visualFollowing, focus && styles.visualCaptionOnVisual]}
+              numberOfLines={1}
+            >
+              {motionCaption(sampler.source)}
+            </Text>
+          </View>
           <Pressable
             ref={styleButtonRef}
             onPress={() => setStyleOpen(open => !open)}
@@ -544,6 +554,7 @@ function Stage({
         onClose={() => setStyleOpen(false)}
         anchorRef={styleButtonRef}
         visual={visual}
+        following={motionCaption(sampler.source)}
         onLookAgain={lyrics.lookAgain}
       />
 
@@ -751,7 +762,10 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 12,
   },
-  visualCaption: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: 12 },
+  visualCaptions: { flex: 1, minWidth: 0 },
+  visualCaption: { color: theme.colors.textMuted, fontSize: 12 },
+  // What the visual follows: under the caption, smaller and quieter still.
+  visualFollowing: { color: theme.colors.textMuted, fontSize: 10.5, opacity: 0.8, marginTop: 1 },
   // On the visual's own dark ground, in either theme.
   visualCaptionOnVisual: { color: 'rgba(255, 255, 255, 0.7)' },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },

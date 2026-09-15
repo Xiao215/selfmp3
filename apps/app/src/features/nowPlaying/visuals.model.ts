@@ -92,6 +92,19 @@ export function visualCaption(features: SongFeatures | null | undefined): string
 }
 
 /**
+ * What the visual is following, said quietly under the caption: the sound
+ * itself where the browser can listen, the song's stored motion where it
+ * cannot, and only its tempo when neither is there.
+ */
+export function motionCaption(source: 'live' | 'curve' | 'beat'): string {
+  return source === 'live'
+    ? 'Following the sound'
+    : source === 'curve'
+      ? 'Following the song'
+      : 'Following the tempo'
+}
+
+/**
  * The cover's hue, pulled a little toward cool for a minor key and toward warm
  * for a major one — Camelot's "A" and "B". A nudge, not a repaint: the colour
  * still says which cover it came from.
@@ -173,16 +186,13 @@ export function beatPhase(seconds: number, bpm: number): number {
   return ((beats % 1) + 1) % 1
 }
 
-/** The kick a beat gives: 1 on it, falling away quickly after. */
+/**
+ * The kick a beat gives: 1 on it, falling away quickly after. Only the tempo
+ * stand-in uses it now (`beatSampler`); a song with a curve or a sound to
+ * hear follows that instead.
+ */
 export function beatKick(phase: number): number {
   return Math.exp(-phase * 5)
-}
-
-/** The Pulse rings on screen: how far each has travelled from the centre, 0–1. */
-export const PULSE_RINGS = 4
-
-export function pulseRingAges(phase: number): number[] {
-  return Array.from({ length: PULSE_RINGS }, (_, ring) => (phase + ring) / PULSE_RINGS)
 }
 
 /** Drift's turn, in radians a second: a faster song turns faster. */
@@ -209,7 +219,7 @@ export function synthLevels(count: number, seconds: number, bpm: number, energy:
   for (let i = 0; i < count; i++) {
     const x = count > 1 ? i / (count - 1) : 0
     const tilt = Math.pow(1 - x, 1.3) * 0.8 + 0.06
-    let level = tilt * (0.3 + 0.7 * noise(i * 0.33, seconds * (1 + 2 * energy))) * (0.3 + 0.7 * energy)
+    let level = tilt * (0.3 + 0.7 * valueNoise(i * 0.33, seconds * (1 + 2 * energy))) * (0.3 + 0.7 * energy)
     level += kick * (x < 0.14 ? 0.6 : x < 0.3 ? 0.22 : 0.05) * (0.3 + energy)
     level += hat * (x > 0.6 ? 0.28 : 0) * energy
     levels.push(Math.max(0, Math.min(1, level)))
@@ -225,8 +235,8 @@ function hash(x: number, y: number): number {
   return s - Math.floor(s)
 }
 
-/** Smooth value noise, for the stand-in spectrum's wander. */
-function noise(x: number, y: number): number {
+/** Smooth value noise, 0–1: the stand-in spectrum's wander, and the curve's per-band wobble. */
+export function valueNoise(x: number, y: number): number {
   const xi = Math.floor(x)
   const yi = Math.floor(y)
   const xf = x - xi

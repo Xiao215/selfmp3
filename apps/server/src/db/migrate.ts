@@ -535,6 +535,17 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
     `,
   },
+  {
+    name: 'cloud: motion curves beside the lyrics',
+    sql: `
+      -- Each song's motion curve goes up beside its words, as JSON in lyrics/
+      -- (docs/SYNC.md). An empty signature matches neither a curve nor "none",
+      -- so the next pass looks at every song's curve once; the audio, covers
+      -- and words are left as they are.
+      ALTER TABLE cloud_songs ADD COLUMN motion_key TEXT;
+      ALTER TABLE cloud_songs ADD COLUMN motion_sig TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ]
 
 /**

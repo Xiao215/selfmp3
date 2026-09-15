@@ -115,6 +115,8 @@ describe('CloudIngest', () => {
       lyricsKind: fields.lyrics ? 'synced' : null,
       romanizedKey: null,
       lyricsSig: 'sig',
+      motionKey: null,
+      motionSig: 'none',
     })
     return id
   }

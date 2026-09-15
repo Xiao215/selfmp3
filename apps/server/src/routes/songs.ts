@@ -6,6 +6,7 @@ import {
   BulkLovedSchema,
   IdSchema,
   isSynced,
+  MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
   SetSongTagsSchema,
@@ -106,6 +107,7 @@ export function songRoutes(container: Container): Router {
         }
         await container.covers.delete(song.id)
         await container.lyricsCache.delete(song.id)
+        await container.motion.delete(song.id)
         container.lyricsIndex.remove(song.id)
       }
 
@@ -342,6 +344,37 @@ export function songRoutes(container: Container): Router {
   )
 
   /**
+   * The song's motion curve (schemas/motion.ts): how loud it is and where the
+   * hits are, twenty times a second, made when the song was analysed.
+   *
+   * A 404 coded `not-analysed` until analysis has run — including for a song
+   * whose file changed since, because the features row goes with the old file
+   * and a curve is only answered beside one. The file changes only when the
+   * song is analysed again, so a client may keep it for an hour and then ask
+   * again with the ETag.
+   */
+  router.get(
+    '/songs/:id/motion',
+    route({ params: ParamsWithId }, async ({ params, res }) => {
+      requireSong(params.id)
+      const stored = container.features.bySong(params.id)
+        ? await container.motion.read(params.id)
+        : null
+      if (!stored) throw new HttpError(404, 'this song has not been analysed yet', 'not-analysed')
+
+      res.setHeader('Cache-Control', 'private, max-age=3600')
+      // Which algorithm, and when analysis wrote it: a re-analysis is a new tag.
+      res.setHeader(
+        'ETag',
+        `"motion-${MOTION_VERSION}-${Math.round(stored.mtimeMs).toString(36)}-${stored.size}"`,
+      )
+      // Sent as written; `send` answers a matching If-None-Match with a 304.
+      res.type('application/json').send(stored.json)
+      return undefined
+    }),
+  )
+
+  /**
    * Save hand-edited or hand-timed lyrics as a sidecar.
    *
    * Words written by hand mean the song is not instrumental after all, so the
@@ -412,6 +445,7 @@ export function songRoutes(container: Container): Router {
 
         await container.covers.delete(song.id)
         await container.lyricsCache.delete(song.id)
+        await container.motion.delete(song.id)
         container.songs.delete(song.id)
         // A tag this was the last song of goes too.
         container.tags.pruneEmpty()

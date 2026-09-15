@@ -17,6 +17,8 @@ import {
   type LogFile,
   type SyncLibrary,
   type SyncManifest,
+  MotionSchema,
+  type Motion,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
@@ -139,6 +141,8 @@ export interface CloudLibraryApi {
     session: CloudSession | null,
     songId: number,
   ) => Promise<{ text: string; kind: 'plain' | 'synced'; romanized: string[] | null } | null>
+  /** A song's motion curve, from this device if it has read it before, else the bucket; null when there is none. */
+  cloudMotion: (session: CloudSession | null, songId: number) => Promise<Motion | null>
   /** A song's cover in the bucket (`covers/<sha256>.<ext>`), or null. */
   cloudCoverKey: (songId: number) => Promise<string | null>
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
@@ -727,6 +731,24 @@ export function createCloudLibrary(
   }
 
   /**
+   * A song's motion curve, the way the server's own motion answer carries it.
+   * Read like the words — a text file named by its hash, kept once read — so a
+   * song played once on a cloud library has its visuals on the plane too.
+   */
+  async function cloudMotion(session: CloudSession | null, songId: number): Promise<Motion | null> {
+    const files = await filesOf(songId)
+    if (!files?.motion) return null
+    const json = await cloudText(session, files.motion)
+    if (json === null) return null
+    try {
+      const parsed = MotionSchema.safeParse(JSON.parse(json))
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * A text file from the bucket, named by the hash of its own bytes, so a
    * cached copy is never stale. The cache is a convenience: one that fails is
    * a miss, never a failure. Anything thrown here reaches the screen as
@@ -847,6 +869,7 @@ export function createCloudLibrary(
     flushCloudChanges,
     cloudPlaylistSongs,
     cloudLyrics,
+    cloudMotion,
     cloudCoverKey,
     cloudManifest,
     forgetCloudLibrary,

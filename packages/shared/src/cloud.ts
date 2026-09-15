@@ -72,6 +72,16 @@ export function romanizedKey(sha256: string): string {
   return `lyrics/${sha256}.json`
 }
 
+/**
+ * A song's motion curve (schemas/motion.ts), as JSON, also in `lyrics/`: the
+ * doorman's key rule already allows the folder, and a new folder would need
+ * every doorman redeployed before a device could read it. Named by the hash of
+ * its bytes, so it can never be mistaken for a lyric's romanized lines.
+ */
+export function motionKey(sha256: string): string {
+  return `lyrics/${sha256}.json`
+}
+
 export const FORMAT_KEY = 'format.json'
 export const SNAPSHOTS_FOLDER = 'snapshots/'
 

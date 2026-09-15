@@ -2,6 +2,7 @@ import type { Api } from './api/api.js'
 import type {
   LibrarySnapshotStore,
   LyricsSnapshotStore,
+  MotionSnapshotStore,
   PlaylistSnapshotStore,
 } from './platform.js'
 
@@ -31,6 +32,8 @@ export interface ClientRuntime {
   readonly playlistSnapshot?: PlaylistSnapshotStore
   /** Each song's last known words, so a kept song can be sung along to on a plane. */
   readonly lyricsSnapshot?: LyricsSnapshotStore
+  /** Each song's last known motion curve, so a kept song's visuals still follow it offline. */
+  readonly motionSnapshot?: MotionSnapshotStore
 }
 
 let configured: ClientRuntime | null = null
@@ -67,4 +70,9 @@ export function playlistSnapshot(): PlaylistSnapshotStore | null {
 /** The offline copies of songs' words, or null where the app keeps none. */
 export function lyricsSnapshot(): LyricsSnapshotStore | null {
   return configured?.lyricsSnapshot ?? null
+}
+
+/** The offline copies of songs' motion curves, or null where the app keeps none. */
+export function motionSnapshot(): MotionSnapshotStore | null {
+  return configured?.motionSnapshot ?? null
 }

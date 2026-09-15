@@ -39,6 +39,9 @@ export interface CloudSongState {
   /** The words' romanized lines, uploaded beside them; null when they need none. */
   readonly romanizedKey: string | null
   readonly lyricsSig: string
+  /** The song's motion curve (`lyrics/<sha256>.json`), or null before analysis has made one. */
+  readonly motionKey: string | null
+  readonly motionSig: string
 }
 
 /** What the sync needs to know about a song's files, straight from its row. */
@@ -130,6 +133,8 @@ interface CloudSongRow {
   lyrics_kind: string | null
   romanized_key: string | null
   lyrics_sig: string
+  motion_key: string | null
+  motion_sig: string
 }
 
 export class CloudRepository {
@@ -162,10 +167,12 @@ export class CloudRepository {
     this.#saveState = db.prepare(`
       INSERT INTO cloud_songs (
         song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
-        lyrics_key, lyrics_size, lyrics_kind, romanized_key, lyrics_sig, uploaded_at
+        lyrics_key, lyrics_size, lyrics_kind, romanized_key, lyrics_sig,
+        motion_key, motion_sig, uploaded_at
       ) VALUES (
         @songId, @audioKey, @audioSize, @audioSig, @coverKey, @coverSize, @coverSig,
-        @lyricsKey, @lyricsSize, @lyricsKind, @romanizedKey, @lyricsSig, datetime('now')
+        @lyricsKey, @lyricsSize, @lyricsKind, @romanizedKey, @lyricsSig,
+        @motionKey, @motionSig, datetime('now')
       )
       ON CONFLICT (song_id) DO UPDATE SET
         audio_key = excluded.audio_key, audio_size = excluded.audio_size,
@@ -173,7 +180,8 @@ export class CloudRepository {
         cover_size = excluded.cover_size, cover_sig = excluded.cover_sig,
         lyrics_key = excluded.lyrics_key, lyrics_size = excluded.lyrics_size,
         lyrics_kind = excluded.lyrics_kind, romanized_key = excluded.romanized_key,
-        lyrics_sig = excluded.lyrics_sig, uploaded_at = excluded.uploaded_at
+        lyrics_sig = excluded.lyrics_sig, motion_key = excluded.motion_key,
+        motion_sig = excluded.motion_sig, uploaded_at = excluded.uploaded_at
     `)
     this.#hasFile = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM cloud_files WHERE key = ?',
@@ -323,6 +331,8 @@ export class CloudRepository {
           row.lyrics_kind === 'plain' || row.lyrics_kind === 'synced' ? row.lyrics_kind : null,
         romanizedKey: row.romanized_key,
         lyricsSig: row.lyrics_sig,
+        motionKey: row.motion_key,
+        motionSig: row.motion_sig,
       })
     }
     return states
@@ -363,7 +373,8 @@ export class CloudRepository {
             WHERE audio_key NOT IN (SELECT key FROM cloud_files)
                OR (cover_key IS NOT NULL AND cover_key NOT IN (SELECT key FROM cloud_files))
                OR (lyrics_key IS NOT NULL AND lyrics_key NOT IN (SELECT key FROM cloud_files))
-               OR (romanized_key IS NOT NULL AND romanized_key NOT IN (SELECT key FROM cloud_files))`,
+               OR (romanized_key IS NOT NULL AND romanized_key NOT IN (SELECT key FROM cloud_files))
+               OR (motion_key IS NOT NULL AND motion_key NOT IN (SELECT key FROM cloud_files))`,
         )
         .run().changes
     })()

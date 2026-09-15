@@ -33,6 +33,7 @@ import {
   FixCoversStatusSchema,
   MetadataLookupResponseSchema,
   LyricsResponseSchema,
+  MotionSchema,
   MigrateEnqueueResultSchema,
   MigrateMatchJobSchema,
   MigrateParseResultSchema,
@@ -284,6 +285,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     revealSong: (id: number) => request('POST', `/api/songs/${id}/reveal`, OkSchema),
 
     lyrics: (id: number) => request('GET', `/api/songs/${id}/lyrics`, LyricsResponseSchema),
+
+    /** How loud the song is and where its hits are, over time: a 404 coded `not-analysed` until analysis has run. */
+    motion: (id: number) => request('GET', `/api/songs/${id}/motion`, MotionSchema),
 
     // --- lyrics+ ------------------------------------------------------------
 

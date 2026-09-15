@@ -26,12 +26,20 @@ import type {
   ToolStatus,
   MigrateMatchJob,
   LyricsResponse,
+  Motion,
   PlaylistSongs,
   SyncManifest,
 } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
-import { clientApi, librarySnapshot, lyricsSnapshot, playlistSnapshot } from '../runtime.js'
+import {
+  clientApi,
+  librarySnapshot,
+  lyricsSnapshot,
+  motionSnapshot,
+  playlistSnapshot,
+} from '../runtime.js'
+import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
 import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
@@ -80,6 +88,7 @@ export const queryKeys = {
   /** The phone's, for the two it asks for that the web app reads from `library`. */
   manifest: ['manifest'] as const,
   lyrics: (id: number) => ['lyrics', id] as const,
+  motion: (id: number) => ['motion', id] as const,
   health: ['health'] as const,
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
   fixCovers: ['metadata', 'fix-covers'] as const,
@@ -844,6 +853,52 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
       }
     },
   })
+}
+
+/**
+ * A song's motion curve, decoded, for the visuals to sample every frame; null
+ * until there is one (not analysed yet, or never fetched and offline).
+ *
+ * The curve only changes when the song is analysed again, so it is fresh for
+ * an hour and a 404 is not asked again three times. `select` is a module
+ * function, so React Query decodes each answer once and hands every render the
+ * same bytes. The raw answer is what is kept offline, as the server sent it.
+ */
+export function useMotion(songId: number | null): MotionCurve | null {
+  const { ready } = useClientState()
+  const client = useQueryClient()
+
+  const query = useQuery({
+    queryKey: queryKeys.motion(songId ?? 0),
+    enabled: ready && songId !== null,
+    staleTime: 60 * 60_000,
+    // A song not analysed yet is a 404 until it is, and a device offline is
+    // answered from its copy below; only a server stumbling is worth another go.
+    retry: (failures, error) =>
+      failures < 1 &&
+      error instanceof ApiError &&
+      error.status >= 500 &&
+      error.code !== 'contract_mismatch',
+    select: decodeMotion,
+    queryFn: async (): Promise<Motion> => {
+      if (songId === null) throw new Error('no song')
+      try {
+        const motion = await clientApi().motion(songId)
+        void motionSnapshot()?.write(songId, motion)
+        return motion
+      } catch (error) {
+        // As for lyrics: only when the server could not be asked.
+        if (error instanceof ApiError && error.isOffline) {
+          const key = queryKeys.motion(songId)
+          const cached = (await motionSnapshot()?.read(songId)) ?? null
+          if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+        }
+        throw error
+      }
+    },
+  })
+
+  return songId === null ? null : (query.data ?? null)
 }
 
 /**

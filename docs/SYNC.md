@@ -88,6 +88,7 @@ selfmp3/
   covers/<sha256>.<ext>              cover art. Never changes.
   lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
   lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
+  lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
 ```

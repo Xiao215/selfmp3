@@ -125,7 +125,17 @@ describe('snapshotToLibrary', () => {
       lyrics: `lyrics/${hash('d')}.txt`,
       lyricsKind: 'plain',
       romanized: `lyrics/${hash('r')}.json`,
+      motion: null,
     })
+  })
+
+  it('knows where a song’s motion curve is, once the server has put one up', () => {
+    const { library, files } = snapshotToLibrary(
+      snapshot({ songs: [song('a', { motion: `lyrics/${hash('m')}.json` })] }),
+      NO_IDS,
+      1,
+    )
+    expect(files[library.songs[0]?.id ?? 0]?.motion).toBe(`lyrics/${hash('m')}.json`)
   })
 
   it('keeps playlists in order, and names smart rules’ tags by this device’s ids', () => {

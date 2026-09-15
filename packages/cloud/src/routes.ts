@@ -96,6 +96,7 @@ export function createCloudRoutes(
     cloudLibraryVersion,
     cloudLyrics,
     cloudManifest,
+    cloudMotion,
     cloudPlaylistSongs,
     currentSongs,
     loadCloudLibrary,
@@ -139,6 +140,17 @@ export function createCloudRoutes(
         const found = await cloudLyrics(session, id(params))
         if (!found) throw new CloudRouteError(404, 'No lyrics for this song.', 'not_found')
         return { source: 'sidecar', kind: found.kind, text: found.text, romanized: found.romanized }
+      },
+    ],
+    [
+      'GET',
+      '/api/songs/:id/motion',
+      async ({ session, params }) => {
+        const found = await cloudMotion(session, id(params))
+        if (!found) {
+          throw new CloudRouteError(404, 'This song has not been analysed yet.', 'not-analysed')
+        }
+        return found
       },
     ],
 

@@ -10,8 +10,12 @@ import type { SongFeatures } from './schemas/features.js'
  * offline, without a round trip.
  */
 
-/** Bump when the analysis algorithm changes enough that old rows should be redone. */
-export const FEATURES_VERSION = 2
+/**
+ * Bump when the analysis algorithm changes enough that old rows should be redone.
+ * 3: analysis also writes each song's motion curve (schemas/motion.ts), so every
+ * song analysed before it is analysed once more to gain one.
+ */
+export const FEATURES_VERSION = 3
 
 export const PITCH_NAMES = [
   'C',

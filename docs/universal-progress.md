@@ -4195,3 +4195,41 @@ dragged aside; and Maestro's `point` wants whole percentages ("16.5%" throws).
 
 The gates on the merged branch: `npm run typecheck`, `npm run lint`,
 `npm run test` (164 files, 1669 passed, 1 skipped) and `npm run check:app`.
+
+## Colour from the cover's palette — same branch
+
+Xiao, on the Mac app playing Genshin's theme: the visual's colours "look slightly
+weird and incompatible". They were one hue — the most vivid colour family in the
+cover, which for Genshin is the grass — so the ground was a dark yellow-green,
+which reads as olive, pulled toward khaki by the major key; the pink sky and
+blue water never showed. Three ways were mocked on six real covers
+(https://claude.ai/artifact/Q9BNGRApkuqKQkycZwxtqD); Xiao chose B.
+
+- **The server keeps a palette per cover** beside the hue: `pickCoverPalette` in
+  `packages/shared/src/coverTone.ts` groups the same 24×24 drawing by k-means in
+  OKLab (six groups, deterministic, specks under 2% dropped), and
+  `CoverToneSchema` gains an optional `palette` of `{l, c, h, share}`. Stored in
+  `songs.cover_palette` (JSON); migration 19 adds it and clears every
+  `cover_tone_rev`, so each cover is read once more at the next start. It rides
+  in `coverTone`, so the library, the cloud snapshot and a phone's saved library
+  all carry it with no other change.
+- **A visual draws in it** (`paletteColors` in `visuals.model.ts`): up to three
+  vivid colours at least 35° apart, ranked by share, colour and lightness,
+  lifted to one brightness — the lead is the Pulse's dot (`inks[2]`), the next
+  two the halo and rings; the ground is the cover's deepest colour, dark and
+  quiet, and `groundHue` steers anything between 65° and 125° to a warm brown
+  or a teal. The key no longer pulls the hue when there is a palette. A cover
+  with none (colourless, or not read again yet) draws exactly as before.
+- On the dev library 32 of 36 songs have a palette (the other four have no
+  colour to read). Genshin's is blue sky, cream light, a faint pink, teal and
+  the grass, with a dark teal deepest: a light-blue dot, green and cream rings,
+  a dark teal ground.
+
+Checked against a private server on a copy of the dev library (its cloud
+sign-in removed): migration 19 ran and every cover was read again. Genshin's
+Pulse was captured in Chromium, WebKit, the Mac app (Electron) and on the
+iPhone 17 simulator — the same light-blue dot and cream and green rings on a
+dark teal ground on all four, no olive — with no page errors in any. 幼年期's
+cover is mostly grey, has no tone and so no palette, and still draws by the old
+rule. The gates: `npm run typecheck`, `npm run lint`, `npm run test` (165 files,
+1680 passed, 1 skipped) and `npm run check:app`.

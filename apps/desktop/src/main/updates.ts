@@ -35,6 +35,10 @@ let status: UpdateStatus = {
   message: null,
 }
 
+/** Where electron-updater's events go: the window that asked last. */
+let updateWindow: BrowserWindow | null = null
+let listening = false
+
 /**
  * Set by `scripts/build.mjs` from the tier `scripts/dist.mjs` chose. Nothing
  * asks the running app about its own signature — there is no API for it, and
@@ -73,16 +77,22 @@ export async function check(window_: BrowserWindow | null): Promise<UpdateStatus
       // when it loads, and an ad-hoc build never needs it at all.
       const { autoUpdater } = await import('electron-updater')
       autoUpdater.autoDownload = true
-      autoUpdater.on('update-available', info =>
-        publish(window_, { state: 'downloading', version: info.version }),
-      )
-      autoUpdater.on('update-not-available', () => publish(window_, { state: 'none' }))
-      autoUpdater.on('update-downloaded', info =>
-        publish(window_, { state: 'ready', version: info.version }),
-      )
-      autoUpdater.on('error', error =>
-        publish(window_, { state: 'error', message: error.message }),
-      )
+      updateWindow = window_
+      // Once, however often this is asked: listeners added on every check
+      // piled up, and each event then published once per check so far.
+      if (!listening) {
+        listening = true
+        autoUpdater.on('update-available', info =>
+          publish(updateWindow, { state: 'downloading', version: info.version }),
+        )
+        autoUpdater.on('update-not-available', () => publish(updateWindow, { state: 'none' }))
+        autoUpdater.on('update-downloaded', info =>
+          publish(updateWindow, { state: 'ready', version: info.version }),
+        )
+        autoUpdater.on('error', error =>
+          publish(updateWindow, { state: 'error', message: error.message }),
+        )
+      }
       await autoUpdater.checkForUpdates()
       return status
     } catch (error) {

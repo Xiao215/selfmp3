@@ -150,6 +150,9 @@ export class NativeEngine implements PlaybackEngine {
     // position on the song the person had just picked.
     const generation = ++this.#loadGeneration
     const overtaken = (): boolean => generation !== this.#loadGeneration
+    // Cleared before anything is awaited, so a failure of this load is a
+    // change the provider hears even when it says what the last one did.
+    this.#patch({ error: null })
     await ensurePlayer()
     if (this.#destroyed || overtaken()) return
 
@@ -301,6 +304,10 @@ export class NativeEngine implements PlaybackEngine {
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackError, ({ message }) => {
+        // A failed item stays failed in the player: loading the same song again
+        // has to build it afresh, not recognise it as the one already sounding.
+        this.#currentSongId = null
+        this.#queuedNextId = null
         this.#patch({ error: message ?? 'playback failed' })
       }),
     )

@@ -41,6 +41,7 @@ export * from './downloads/recentCopies.js'
 export * from './downloads/throttle.js'
 export * from './downloads/limited.js'
 export * from './queue/playable.js'
+export * from './queue/recovery.js'
 // Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
 export * from './queue/autoMix.js'
 

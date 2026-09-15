@@ -240,6 +240,9 @@ export class AudioEngine implements PlaybackEngine {
   ): Promise<void> {
     const { autoplay = true, startAt = 0 } = options
     const generation = ++this.#loadGeneration
+    // Cleared before anything is awaited, so a failure of this load is a
+    // change the provider hears even when it says what the last one did.
+    if (this.#state.error !== null) this.#update({ error: null })
 
     // A crossfade that just finished has already put this track on and faded
     // it in. Anything else means we really are changing tracks.

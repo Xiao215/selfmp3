@@ -36,6 +36,7 @@ import {
   listenedDelta,
   peekPlayable,
   queryKeys,
+  recoverPlayback,
   secondsToCount,
   tapLoop,
   useLibrary,
@@ -48,6 +49,7 @@ import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { useConnection } from '../connection/ConnectionProvider'
+import { showToast } from '../ui/toast'
 import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
 import {
@@ -258,6 +260,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const autoMixRef = useRef(autoMix)
   // Read by the engine's end-of-track callback, which is wired once.
   const sleepAtSongEndRef = useRef(false)
+  // Told every engine state; set once the commands it needs exist, below.
+  const playbackErrorRef = useRef<(state: EngineState) => void>(() => undefined)
 
   useEffect(() => {
     queueRef.current = queue
@@ -292,6 +296,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engine.subscribe(state => {
         stores.progress.set(state.currentTime, state.duration)
         stores.stalled.set(state.stalled)
+        playbackErrorRef.current(state)
         setEngineState(previous => (differsBesidesClock(previous, state) ? state : previous))
       }),
     [engine, stores],
@@ -553,6 +558,67 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     () => handleRemoteCommands(command => (command === 'next' ? next() : previous())),
     [next, previous],
   )
+
+  /*
+   * A song that stops with an error: tried again, then skipped, then stopped,
+   * and each said on screen (recoverPlayback). Nothing read the engine's error
+   * before — a dropped connection ended the music without a word.
+   */
+  const recoveryRef = useRef({
+    lastError: null as string | null,
+    retriedSongId: null as number | null,
+    retriedFrom: 0,
+    skippedInARow: 0,
+  })
+  useEffect(() => {
+    playbackErrorRef.current = state => {
+      const recovery = recoveryRef.current
+      const songId = queueRef.current.items[queueRef.current.index]
+
+      // Playing on well past where it failed: that song, and the run, are fine again.
+      const from = songId === recovery.retriedSongId ? recovery.retriedFrom : 0
+      if (state.playing && state.error === null && state.currentTime > from + 10) {
+        recovery.retriedSongId = null
+        recovery.skippedInARow = 0
+      }
+
+      // Each load clears the error first, so a second failure is a change too.
+      const failed = state.error !== null && state.error !== recovery.lastError
+      recovery.lastError = state.error
+      if (!failed || songId === undefined) return
+
+      const title = songsRef.current.get(songId)?.title ?? 'this song'
+      const recovering = recoverPlayback({
+        songId,
+        retriedSongId: recovery.retriedSongId,
+        skippedInARow: recovery.skippedInARow,
+        hasNext: peekPlayable(queueRef.current, mayPlay) !== null,
+      })
+      if (recovering === 'retry') {
+        // From where it stopped. Asking again also finds a copy downloaded since.
+        const at = lastPositionRef.current
+        recovery.retriedSongId = songId
+        recovery.retriedFrom = at
+        void engine.load(songId, at > 0 ? { autoplay: true, startAt: at } : { autoplay: true })
+        return
+      }
+      if (recovering === 'skip') {
+        recovery.skippedInARow += 1
+        showToast(`Skipped “${title}”: ${state.error}`, 'warn')
+        const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
+        if (stop) {
+          engine.pause()
+          return
+        }
+        setQueue(after)
+        loadIndex(after, true)
+        return
+      }
+      recovery.skippedInARow = 0
+      engine.pause()
+      showToast(`Couldn’t play “${title}”: ${state.error}`, 'error')
+    }
+  }, [engine, loadIndex, mayPlay])
 
   const seekTo = useCallback(
     (seconds: number) => {

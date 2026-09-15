@@ -23,5 +23,5 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "permissions": ["activeTab"]
+  "permissions": ["activeTab", "contextMenus", "notifications", "alarms"]
 }

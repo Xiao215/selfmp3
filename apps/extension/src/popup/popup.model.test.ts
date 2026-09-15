@@ -2,6 +2,7 @@ import type { ImportJob, ImportPreview } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { pageKind } from '../pageKind.js'
 import {
+  batchProgress,
   cleanedFrom,
   connectionOf,
   hostOf,
@@ -134,7 +135,7 @@ describe('popupView', () => {
     )
   })
 
-  it('counts a list of songs', () => {
+  it('hands a list of songs over whole, to be ticked through', () => {
     const list: ImportPreview = {
       kind: 'playlist',
       playlistTitle: 'City pop night drive',
@@ -142,9 +143,7 @@ describe('popupView', () => {
     }
     expect(view({ preview: { status: 'done', value: list } })).toEqual({
       name: 'list',
-      title: 'City pop night drive',
-      count: 2,
-      have: 1,
+      preview: list,
     })
   })
 })
@@ -183,6 +182,26 @@ describe('jobForLink', () => {
     expect(jobForLink([old, recent], IDOL, new Set(), now)?.id).toBe('recent')
     const cancelled = job({ id: 'c', status: 'cancelled', updatedAt: '2026-09-15 12:04:00' })
     expect(jobForLink([cancelled], IDOL, new Set(), now)).toBeNull()
+  })
+})
+
+describe('batchProgress', () => {
+  it('follows what a list started: the one still going, then how many landed', () => {
+    const jobs = [
+      job({ id: 'one', status: 'done', step: 'finished' }),
+      job({ id: 'two' }),
+      job({ id: 'elsewhere' }),
+    ]
+    const started = new Set(['one', 'two'])
+    expect(batchProgress(jobs, started)).toMatchObject({ total: 2, added: 1 })
+    expect(batchProgress(jobs, started)?.job.id).toBe('two')
+
+    const finished = [
+      job({ id: 'one', status: 'done', step: 'finished' }),
+      job({ id: 'two', status: 'done', step: 'finished' }),
+    ]
+    expect(batchProgress(finished, started)).toMatchObject({ total: 2, added: 2 })
+    expect(batchProgress(jobs, new Set())).toBeNull()
   })
 })
 

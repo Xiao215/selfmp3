@@ -1,8 +1,8 @@
 # The browser extension
 
-> **Status:** 2026-09-15. Phase 0 (the spike), Phase 1 (groundwork) and Phase 2
-> (the workspace, and A through the server, branch `extension/phase-2`) are
-> done. Phases 3 to 6 are still the plan below. Written for an agent with this
+> **Status:** 2026-09-15. Phase 0 (the spike), Phase 1 (groundwork), Phase 2
+> (the workspace, and A through the server) and Phase 3 (C, F1 and B2, branch
+> `extension/phase-3`) are done. Phases 4 to 6 are still the plan below. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -427,6 +427,21 @@ Playlist review, batches, badge, notifications, both context menus and
 
 **Gate:** as Phase 2, plus the badge spec (enqueue three, badge reads 3, finishes,
 one notification).
+
+**Done, 2026-09-15.** Eight specs pass; the playlist one ticks through a list,
+creates the playlist, watches the badge count the batch and clear, and reads
+back the notice the worker sent. Three things differ from the plan:
+
+- **No `review.html`.** The popup already takes `?url=`, so "Import with tags and
+  playlist…" opens *it* in a window of its own. One page, not two.
+- **The popup follows a batch it started.** A playlist's tracks are queued under
+  their own links, so the job for the page's link (`jobForLink`) finds nothing
+  and the popup sat on the list saying nothing — caught by the spec, not by
+  hand. `batchProgress` follows the first track still going, and the added state
+  says "2 songs added to your library" when several landed.
+- **The badge counts only this extension's imports** (`jobs.model.ts`): a share
+  from a phone and a folder scan both add jobs nobody at this computer asked
+  for, and a badge that counted those would be noise.
 
 ### Phase 4 — B1, the pill
 

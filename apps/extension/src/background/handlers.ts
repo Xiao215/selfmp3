@@ -5,7 +5,7 @@ import {
   type Api,
   type ServerConnection,
 } from '@selfmp3/client/core'
-import { youtubeVideoId } from '@selfmp3/shared'
+import { youtubeVideoId, type ImportJob } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { Handlers, Status } from '../bridge.js'
 import { LibraryCache } from './library.js'
@@ -31,9 +31,17 @@ export class Refusal extends Error {
   }
 }
 
+/** As much of the watcher as the handlers use (watcher.ts). */
+export interface JobWatcher {
+  add(jobs: readonly ImportJob[], label: string | null): Promise<void>
+  seen(): Promise<void>
+}
+
 export interface HandlerDeps {
   readonly store: KeyValueStore
   readonly fetch: typeof fetch
+  /** Absent in the tests that are only about talking to a server. */
+  readonly watcher?: JobWatcher
 }
 
 /** The server this extension imports through, if one is connected. */
@@ -42,7 +50,7 @@ export async function storedServer(store: KeyValueStore): Promise<ServerConnecti
   return parsed.success ? parsed.data : null
 }
 
-export function createHandlers({ store, fetch }: HandlerDeps): Handlers {
+export function createHandlers({ store, fetch, watcher }: HandlerDeps): Handlers {
   const library = new LibraryCache(store)
 
   async function connected(): Promise<{ server: ServerConnection; api: Api }> {
@@ -130,11 +138,17 @@ export function createHandlers({ store, fetch }: HandlerDeps): Handlers {
       return (await library.get(server, api)).links[videoId] ?? null
     },
 
-    async enqueue({ request }) {
-      return (await connected()).api.importEnqueue(request)
+    async enqueue({ request, label }) {
+      const result = await (await connected()).api.importEnqueue(request)
+      // The badge and the notification are about what this extension started.
+      await watcher?.add(result.jobs, label)
+      return result
     },
 
     async queue() {
+      // A page asking for the queue is someone looking at it, so a failure the
+      // badge was holding up has been seen.
+      void watcher?.seen()
       return (await connected()).api.importQueue()
     },
 

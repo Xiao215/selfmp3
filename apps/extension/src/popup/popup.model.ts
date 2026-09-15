@@ -60,12 +60,8 @@ export type PopupView =
       readonly cover: string | null
     }
   | { readonly name: 'song'; readonly item: ImportPreviewItem }
-  | {
-      readonly name: 'list'
-      readonly title: string | null
-      readonly count: number
-      readonly have: number
-    }
+  /** A playlist, an album or an artist: the whole list, to tick through (C). */
+  | { readonly name: 'list'; readonly preview: ImportPreview }
 
 /** Whether to ask the server about the link: a YouTube song or list, or anything pasted. */
 export function shouldLookUp(page: PageKind, typed: boolean): boolean {
@@ -98,14 +94,7 @@ export function popupView(input: PopupInputs): PopupView {
   if (preview.status === 'error') return { name: 'failed', message: preview.message, jobId: null }
 
   const { value } = preview
-  if (value.kind === 'playlist') {
-    return {
-      name: 'list',
-      title: value.playlistTitle,
-      count: value.items.length,
-      have: value.items.filter(item => item.alreadyHave).length,
-    }
-  }
+  if (value.kind === 'playlist') return { name: 'list', preview: value }
   const item = value.items[0]
   if (!item)
     return { name: 'failed', message: 'There is nothing to import at this link.', jobId: null }
@@ -154,6 +143,24 @@ export function jobForLink(
     ) ??
     null
   )
+}
+
+/**
+ * An import started here whose songs are not the page's: a playlist's tracks,
+ * ticked through and sent from the list (C). Their links are the songs' own, so
+ * `jobForLink` never finds them — the popup follows the first that is still
+ * going, and says how many landed once they have all finished.
+ */
+export function batchProgress(
+  jobs: readonly ImportJob[],
+  startedHere: ReadonlySet<string>,
+): { job: ImportJob; total: number; added: number } | null {
+  const mine = jobs.filter(job => startedHere.has(job.id))
+  if (mine.length === 0) return null
+  const going = mine.find(job => job.status === 'queued' || job.status === 'running')
+  const job = going ?? mine.find(each => each.status === 'done') ?? mine[0]
+  if (!job) return null
+  return { job, total: mine.length, added: mine.filter(each => each.status === 'done').length }
 }
 
 /** A tab's title without YouTube's name on the end or its unread count in front. */

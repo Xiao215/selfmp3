@@ -1,11 +1,11 @@
-import { enqueueRequest } from '@selfmp3/client/core'
-import type { ImportPreviewItem, ImportQueue } from '@selfmp3/shared'
+import type { ImportEnqueue, ImportQueue } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask } from '../bridge.js'
 import { pageKind } from '../pageKind.js'
 import { currentPage } from './page.js'
 import {
+  batchProgress,
   cleanedFrom,
   connectionOf,
   jobForLink,
@@ -25,7 +25,7 @@ import {
   Have,
   Header,
   Importing,
-  List,
+  ListReview,
   Looking,
   Paste,
   QueueFooter,
@@ -104,7 +104,11 @@ export function Popup(): ReactNode {
       return data && data.active + data.queued > 0 ? BUSY_POLL_MS : IDLE_POLL_MS
     },
   })
-  const job = jobForLink(queue.data?.jobs ?? [], link, started, new Date())
+  const linkJob = jobForLink(queue.data?.jobs ?? [], link, started, new Date())
+  // A playlist's tracks are queued under their own links, so what was started
+  // from the list is followed as a batch instead.
+  const batch = linkJob ? null : batchProgress(queue.data?.jobs ?? [], started)
+  const job = linkJob ?? batch?.job ?? null
 
   const view = popupView({
     connection,
@@ -120,26 +124,12 @@ export function Popup(): ReactNode {
   const choices = useQuery({
     queryKey: ['choices'],
     queryFn: () => ask({ type: 'choices' }),
-    enabled: view.name === 'song',
+    enabled: view.name === 'song' || view.name === 'list',
   })
 
   const enqueue = useMutation({
-    mutationFn: ({
-      item,
-      tagIds,
-      playlistId,
-    }: {
-      item: ImportPreviewItem
-      tagIds: number[]
-      playlistId: number | null
-    }) =>
-      ask({
-        type: 'enqueue',
-        request: enqueueRequest(
-          { items: [item], chosen: new Set([0]), playlistTitle: null },
-          { tagIds: new Set(tagIds), playlistId, createPlaylist: false },
-        ),
-      }),
+    mutationFn: ({ request, label }: { request: ImportEnqueue; label: string | null }) =>
+      ask({ type: 'enqueue', request, label }),
     onSuccess: result => {
       setStarted(previous => new Set([...previous, ...result.jobs.map(each => each.id)]))
       setImportAnyway(false)
@@ -191,7 +181,7 @@ export function Popup(): ReactNode {
             choices={choices.data}
             pending={enqueue.isPending}
             error={enqueue.error?.message ?? null}
-            onImport={(item, tagIds, playlistId) => enqueue.mutate({ item, tagIds, playlistId })}
+            onImport={(request, label) => enqueue.mutate({ request, label })}
           />
         )
       case 'importing':
@@ -203,7 +193,13 @@ export function Popup(): ReactNode {
           />
         )
       case 'added':
-        return <Added job={view.job} onOpen={() => openApp('/import')} />
+        return (
+          <Added
+            job={view.job}
+            {...(batch && batch.total > 1 ? { count: batch.added } : {})}
+            onOpen={() => openApp('/import')}
+          />
+        )
       case 'failed': {
         const { jobId } = view
         return (
@@ -230,11 +226,14 @@ export function Popup(): ReactNode {
         )
       case 'list':
         return (
-          <List
-            title={view.title}
-            count={view.count}
-            have={view.have}
-            onReview={() => openApp(`/import?url=${encodeURIComponent(link ?? '')}`)}
+          <ListReview
+            key={link}
+            preview={view.preview}
+            choices={choices.data}
+            pending={enqueue.isPending}
+            error={enqueue.error?.message ?? null}
+            onImport={(request, label) => enqueue.mutate({ request, label })}
+            onOpenFull={() => openApp(`/import?url=${encodeURIComponent(link ?? '')}`)}
           />
         )
     }

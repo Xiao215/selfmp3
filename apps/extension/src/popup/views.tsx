@@ -1,8 +1,22 @@
-import { hasLink, jobAction, linkHint, queueActivity } from '@selfmp3/client/core'
+import {
+  chosenItems,
+  enqueueRequest,
+  hasLink,
+  importButtonLabel,
+  jobAction,
+  linkHint,
+  queueActivity,
+  reviewFrom,
+  reviewHeading,
+  toggleChosen,
+  type Review,
+} from '@selfmp3/client/core'
 import {
   extractUrls,
   formatDuration,
+  type ImportEnqueue,
   type ImportJob,
+  type ImportPreview,
   type ImportPreviewItem,
   type ImportQueue,
   type Tag,
@@ -217,6 +231,81 @@ function TagChip({
   )
 }
 
+function toggleId(ids: ReadonlySet<number>, id: number): ReadonlySet<number> {
+  const next = new Set(ids)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return next
+}
+
+/** Everything a form sends: the tags always added, and the ones you picked. */
+function tagIdsFor(choices: Choices | undefined, picked: ReadonlySet<number>): Set<number> {
+  return new Set([...(choices?.defaultTagIds ?? []), ...picked])
+}
+
+function TagChips({
+  choices,
+  picked,
+  onToggle,
+}: {
+  choices: Choices | undefined
+  picked: ReadonlySet<number>
+  onToggle: (id: number) => void
+}): ReactNode {
+  const defaults = new Set(choices?.defaultTagIds ?? [])
+  return (
+    <fieldset className="tags">
+      <legend>Tags</legend>
+      {choices ? (
+        <div className="chips">
+          {choices.tags.map(tag => (
+            <TagChip
+              key={tag.id}
+              tag={tag}
+              on={defaults.has(tag.id) || picked.has(tag.id)}
+              fixed={defaults.has(tag.id)}
+              onToggle={() => onToggle(tag.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="skeleton" />
+      )}
+      {defaults.size > 0 && (
+        <p className="hint">Tags from Settings → Importing are always added.</p>
+      )}
+    </fieldset>
+  )
+}
+
+function PlaylistSelect({
+  choices,
+  value,
+  onChange,
+}: {
+  choices: Choices | undefined
+  value: number | null
+  onChange: (id: number | null) => void
+}): ReactNode {
+  return (
+    <label className="field">
+      <span>Add to playlist</span>
+      <select
+        id="playlist"
+        value={value ?? ''}
+        onChange={event => onChange(event.target.value ? Number(event.target.value) : null)}
+      >
+        <option value="">No playlist</option>
+        {(choices?.playlists ?? []).map(list => (
+          <option key={list.id} value={list.id}>
+            {list.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 export function SongForm({
   item,
   cleanedFrom,
@@ -230,20 +319,12 @@ export function SongForm({
   choices: Choices | undefined
   pending: boolean
   error: string | null
-  onImport: (item: ImportPreviewItem, tagIds: number[], playlistId: number | null) => void
+  onImport: (request: ImportEnqueue, label: string | null) => void
 }): ReactNode {
   const [title, setTitle] = useState(item.title)
   const [artist, setArtist] = useState(item.artist)
   const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
   const [playlistId, setPlaylistId] = useState<number | null>(null)
-  const defaults = new Set(choices?.defaultTagIds ?? [])
-
-  const toggle = (id: number): void => {
-    const next = new Set(picked)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setPicked(next)
-  }
 
   return (
     <>
@@ -268,42 +349,12 @@ export function SongForm({
           <input id="artist" value={artist} onChange={event => setArtist(event.target.value)} />
         </label>
       </div>
-      <fieldset className="tags">
-        <legend>Tags</legend>
-        {choices ? (
-          <div className="chips">
-            {choices.tags.map(tag => (
-              <TagChip
-                key={tag.id}
-                tag={tag}
-                on={defaults.has(tag.id) || picked.has(tag.id)}
-                fixed={defaults.has(tag.id)}
-                onToggle={() => toggle(tag.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="skeleton" />
-        )}
-        {defaults.size > 0 && (
-          <p className="hint">Tags from Settings → Importing are always added.</p>
-        )}
-      </fieldset>
-      <label className="field">
-        <span>Add to playlist</span>
-        <select
-          id="playlist"
-          value={playlistId ?? ''}
-          onChange={event => setPlaylistId(event.target.value ? Number(event.target.value) : null)}
-        >
-          <option value="">No playlist</option>
-          {(choices?.playlists ?? []).map(list => (
-            <option key={list.id} value={list.id}>
-              {list.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <TagChips
+        choices={choices}
+        picked={picked}
+        onToggle={id => setPicked(toggleId(picked, id))}
+      />
+      <PlaylistSelect choices={choices} value={playlistId} onChange={setPlaylistId} />
       {error && (
         <p className="banner bad" role="alert">
           {error}
@@ -315,9 +366,15 @@ export function SongForm({
         disabled={pending || !title.trim()}
         onClick={() =>
           onImport(
-            { ...item, title: title.trim(), artist: artist.trim() },
-            [...defaults, ...picked],
-            playlistId,
+            enqueueRequest(
+              {
+                items: [{ ...item, title: title.trim(), artist: artist.trim() }],
+                chosen: new Set([0]),
+                playlistTitle: null,
+              },
+              { tagIds: tagIdsFor(choices, picked), playlistId, createPlaylist: false },
+            ),
+            null,
           )
         }
       >
@@ -362,11 +419,24 @@ export function Importing({
   )
 }
 
-export function Added({ job, onOpen }: { job: ImportJob; onOpen: () => void }): ReactNode {
+export function Added({
+  job,
+  count,
+  onOpen,
+}: {
+  job: ImportJob
+  /** How many songs landed, when the import was of several. */
+  count?: number
+  onOpen: () => void
+}): ReactNode {
   return (
     <>
       <SongCard cover={job.thumbnail} title={job.title} artist={job.artist} />
-      <p className="banner good">Added to your library</p>
+      <p className="banner good">
+        {count !== undefined && count > 1
+          ? `${count} songs added to your library`
+          : 'Added to your library'}
+      </p>
       <button type="button" className="secondary" onClick={onOpen}>
         Open in self.mp3
       </button>
@@ -428,27 +498,107 @@ export function Have({
   )
 }
 
-export function List({
-  title,
-  count,
-  have,
-  onReview,
+/** How many of a list's songs the popup has room for before it says "+ N more". */
+const SHOWN = 8
+
+/**
+ * A playlist, an album or an artist (C): every song it holds, the ones you
+ * already have unticked, and the playlist it came from offered as a new one.
+ */
+export function ListReview({
+  preview,
+  choices,
+  pending,
+  error,
+  onImport,
+  onOpenFull,
 }: {
-  title: string | null
-  count: number
-  have: number
-  onReview: () => void
+  preview: ImportPreview
+  choices: Choices | undefined
+  pending: boolean
+  error: string | null
+  onImport: (request: ImportEnqueue, label: string | null) => void
+  onOpenFull: () => void
 }): ReactNode {
-  const songs = `${count} ${count === 1 ? 'song' : 'songs'}`
+  const [review, setReview] = useState<Review>(() => reviewFrom(preview))
+  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
+  const [playlistId, setPlaylistId] = useState<number | null>(null)
+  const [alsoCreate, setAlsoCreate] = useState(false)
+  const heading = reviewHeading(review)
+  const chosen = chosenItems(review).length
+
   return (
     <>
       <SongCard
         cover={null}
-        title={title ?? 'A list of songs'}
-        artist={have > 0 ? `${songs} · ${have} already in your library` : songs}
+        title={review.playlistTitle ?? 'A list of songs'}
+        artist={heading.duplicates ? `${heading.found} · ${heading.duplicates}` : heading.found}
       />
-      <button type="button" className="primary" onClick={onReview}>
-        Open the full review
+      <ul className="picks">
+        {review.items.slice(0, SHOWN).map((item, index) => (
+          <li key={item.url}>
+            <label className="pick">
+              <input
+                type="checkbox"
+                checked={review.chosen.has(index)}
+                onChange={() =>
+                  setReview({ ...review, chosen: toggleChosen(review.chosen, index) })
+                }
+              />
+              <span className="pick-name">
+                <span className="row-title">{item.title}</span>
+                <span className="row-sub">{item.artist}</span>
+              </span>
+              {item.alreadyHave && <span className="tagh">have</span>}
+            </label>
+          </li>
+        ))}
+      </ul>
+      {review.items.length > SHOWN && (
+        <p className="hint">
+          + {review.items.length - SHOWN} more ·{' '}
+          <button type="button" className="link" onClick={onOpenFull}>
+            Open the full review
+          </button>
+        </p>
+      )}
+      {review.playlistTitle && playlistId === null && (
+        <label className="pick">
+          <input
+            type="checkbox"
+            checked={alsoCreate}
+            onChange={event => setAlsoCreate(event.target.checked)}
+          />
+          <span>Also create playlist “{review.playlistTitle}”</span>
+        </label>
+      )}
+      <TagChips
+        choices={choices}
+        picked={picked}
+        onToggle={id => setPicked(toggleId(picked, id))}
+      />
+      <PlaylistSelect choices={choices} value={playlistId} onChange={setPlaylistId} />
+      {error && (
+        <p className="banner bad" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        className="primary"
+        disabled={pending || chosen === 0}
+        onClick={() =>
+          onImport(
+            enqueueRequest(review, {
+              tagIds: tagIdsFor(choices, picked),
+              playlistId,
+              createPlaylist: alsoCreate,
+            }),
+            review.playlistTitle,
+          )
+        }
+      >
+        {pending ? 'Importing…' : importButtonLabel(chosen)}
       </button>
     </>
   )

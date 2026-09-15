@@ -29,7 +29,12 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('preview'), url: z.string().trim().min(1).max(20_000) }),
   z.object({ type: z.literal('choices') }),
   z.object({ type: z.literal('songFor'), url: z.string().max(2000) }),
-  z.object({ type: z.literal('enqueue'), request: ImportEnqueueSchema }),
+  z.object({
+    type: z.literal('enqueue'),
+    request: ImportEnqueueSchema,
+    /** What the import was of — a playlist's name — for the notification. */
+    label: z.string().max(200).nullable().default(null),
+  }),
   z.object({ type: z.literal('queue') }),
   z.object({ type: z.literal('cancel'), id: z.string().min(1).max(100) }),
   z.object({ type: z.literal('retry'), id: z.string().min(1).max(100) }),

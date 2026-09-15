@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Worker } from '@playwright/test'
 import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { startFakeServer, TOKEN, type FakeServer } from './fakeServer.js'
 import { HELLO_URL, IDOL_TAB_TITLE, IDOL_URL, PLAYLIST_URL, PRIVATE_URL } from './fixtures.js'
@@ -26,6 +26,13 @@ test.afterAll(async () => {
   await extension?.close()
   await server?.close()
 })
+
+/** The extension's background worker, however Chrome has it at this moment. */
+async function serviceWorker(): Promise<Worker> {
+  return (
+    extension.context.serviceWorkers()[0] ?? (await extension.context.waitForEvent('serviceworker'))
+  )
+}
 
 async function popup(url: string, title?: string): Promise<Page> {
   const page = await extension.context.newPage()
@@ -108,12 +115,73 @@ test('a link the server cannot read shows its reason', async () => {
   await page.close()
 })
 
-test('a playlist counts its songs and offers the full review', async () => {
+test('a playlist is ticked through, and the badge and a notice follow the batch', async () => {
+  const worker = await serviceWorker()
+  await worker.evaluate(() => {
+    // Keep what the worker announces, so the spec can read it back.
+    const scope = globalThis as unknown as { __notices: unknown[] }
+    scope.__notices = []
+    const create = chrome.notifications.create.bind(chrome.notifications)
+    chrome.notifications.create = ((...args: unknown[]) => {
+      scope.__notices.push(args)
+      return create(...(args as Parameters<typeof create>))
+    }) as typeof chrome.notifications.create
+  })
+
   const page = await popup(PLAYLIST_URL)
-  await expect(page.getByText('City pop night drive')).toBeVisible()
-  await expect(page.getByText('3 songs · 1 already in your library')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open the full review' })).toBeVisible()
+  // Exactly: the playlist's name is also inside the "Also create playlist" label.
+  await expect(page.getByText('City pop night drive', { exact: true })).toBeVisible()
+  await expect(page.getByText('3 tracks found · 1 already in your library')).toBeVisible()
+  // The one already in the library starts unticked, the others ticked.
+  const rows = page.locator('.pick input[type=checkbox]')
+  await expect(rows.nth(0)).toBeChecked()
+  await expect(rows.nth(2)).not.toBeChecked()
+  await page.getByText(/^Also create playlist/).click()
+
+  await page.getByRole('button', { name: 'Import 2 tracks' }).click()
+  await expect(page.getByText(/^Downloading|Waiting in queue/)).toBeVisible()
+
+  const enqueued = server.enqueued.at(-1)
+  expect(enqueued?.items).toHaveLength(2)
+  expect(enqueued?.createPlaylistName).toBe('City pop night drive')
+
+  // The toolbar badge counts this extension's imports, then clears.
+  await expect
+    .poll(() => worker.evaluate(() => chrome.action.getBadgeText({})), { timeout: 15_000 })
+    .toBe('2')
+  await expect
+    .poll(() => worker.evaluate(() => chrome.action.getBadgeText({})), { timeout: 30_000 })
+    .toBe('')
+  await expect(page.getByText('2 songs added to your library')).toBeVisible()
+
+  const notices = await worker.evaluate(() =>
+    JSON.stringify((globalThis as unknown as { __notices: unknown[] }).__notices),
+  )
+  expect(notices).toContain('2 songs added')
+  expect(notices).toContain('City pop night drive')
   await page.close()
+})
+
+test('the right-click items are there for any link', async () => {
+  const worker = await serviceWorker()
+  const menus = await worker.evaluate(
+    () =>
+      new Promise<{ id: string; title: string; contexts: string[] }[]>(resolve => {
+        // The worker keeps no list of its own menus, so ask Chrome to make one
+        // it already has: a duplicate id is refused, which says it exists.
+        const ids = ['selfmp3-import', 'selfmp3-import-with']
+        const found: { id: string; title: string; contexts: string[] }[] = []
+        let left = ids.length
+        for (const id of ids) {
+          chrome.contextMenus.create({ id, title: id, contexts: ['link'] }, () => {
+            const error = chrome.runtime.lastError?.message ?? ''
+            if (error.includes('duplicate')) found.push({ id, title: id, contexts: ['link'] })
+            if (--left === 0) resolve(found)
+          })
+        }
+      }),
+  )
+  expect(menus.map(menu => menu.id).sort()).toEqual(['selfmp3-import', 'selfmp3-import-with'])
 })
 
 test('a page with nothing to import offers the paste box', async () => {

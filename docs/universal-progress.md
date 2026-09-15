@@ -4599,3 +4599,54 @@ to allow.
   the next read, or the song form would flash back for a second.
 - `popup.js` is 862 KB unminified (React and zod, mostly); the worker is 207 KB.
   Nothing is minified yet — worth doing before a store listing, not before then.
+
+## Phase 3 — lists, the badge and the right-click — branch `extension/phase-3`
+
+C, F1 and B2 together: a playlist ticked through in the popup, the toolbar
+saying what is going on, and importing a link from anywhere without opening
+anything.
+
+### What changed
+
+- **A list is reviewed in the popup** (`ListReview` in `views.tsx`). Every track
+  with a tick, the ones you already have unticked, the first eight shown and
+  "+ N more · Open the full review" for the rest, "Also create playlist" when the
+  link was one, the same tags and playlist pickers as a single song — extracted
+  out of `SongForm` so both draw the same thing — and `Import N tracks`. The
+  review rules are `packages/client`'s, the app's own (`reviewFrom`,
+  `toggleChosen`, `enqueueRequest`), so the popup and the Import page agree
+  about what a tick means.
+- **Batches** (`jobs.model.ts`, `watcher.ts`). Each import the extension starts
+  is remembered by its job ids, so the badge counts *those* — not the jobs a
+  phone's share or a folder scan added. While the worker is awake it reads the
+  queue every two seconds; a `chrome.alarms` alarm every thirty seconds (Chrome's
+  floor) wakes it if it was stopped, and the batches live in IndexedDB for the
+  same reason. A finished batch is announced once — "2 songs added · City pop
+  night drive · 1 couldn't be downloaded" — and forgotten, so it cannot be
+  announced twice. A failure leaves `!` on the badge until the popup is opened.
+- **Right-click** (`menus.ts`): "Import link to self.mp3" imports with your
+  defaults, and "Import with tags and playlist…" opens the popup on that link in
+  a window of its own. Both work from a link, the selected text or the page
+  itself, on any site — no host permission, because a link is all they need.
+- The manifest gained `contextMenus`, `notifications` and `alarms`.
+
+### Two things the specs caught
+
+- **After importing a playlist, the popup showed nothing.** The tracks are queued
+  under their own links, so the job lookup for the page's link found none and the
+  list just sat there. `batchProgress` fixes it, and the added state now counts
+  ("2 songs added to your library") rather than claiming one song.
+- **Opening the popup cost an extra read of the queue.** Clearing the failure
+  mark re-read the server every second the popup was open; it now redraws the
+  badge from what the last read counted.
+
+### The gates
+
+`npm run build:extension`, `npm run typecheck`, `npm run lint`,
+`npx vitest run apps/extension` (8 files, 44 tests), `npm run verify:extension`
+(8 specs), `npm run test` (182 files, 1758 passed, 1 skipped) and
+`npm run check:app`.
+
+The badge and the notice are checked from inside the worker: the spec reads
+`chrome.action.getBadgeText`, and wraps `chrome.notifications.create` before the
+import so it can read back what was announced.

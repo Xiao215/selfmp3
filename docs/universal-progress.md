@@ -3345,22 +3345,88 @@ it, and passes.
 |---|---|
 | `npm run check` | **pass** — the menu model's tests among them: no duplicate accelerator, every command in the contract, and every accelerator owned by the menu or the page but never both. |
 | `npm run verify:desktop -- --grep "command\|window bounds"` | **pass** — a real menu item, clicked in the main process, arrives at the page as its command; bounds set in one launch come back in the next. The whole smoke is 16 passed, 1 skipped. |
-| By hand, once: media keys, Now Playing in Control Center with artwork, the Dock menu, hide and show, ⌘Q, full screen, the lid | **blocked, and this is the phase where that bites hardest.** None of it exists off macOS: `app.dock` is undefined on Linux, there is no Control Center, and no media keys to press. What did run here is everything underneath them — the menu is built and its items send their commands, the power-save blocker starts and stops with playback, the bounds survive a relaunch, and the page's media session is Chromium's own code path, the same one a browser runs. |
+| By hand, once: media keys, Now Playing in Control Center with artwork, the Dock menu, hide and show, ⌘Q, full screen, the lid | **pass, on the Mac, 2026-09-14/15** (below). Blocked in the container, where none of it exists; checked by Xiao against a development window, with four of the seven turning up bugs that are now fixed. |
 
-### For Xiao, when this is opened on a Mac
+### On a Mac, by hand — branch `mac/desktop-by-hand`, 2026-09-14 and 15
 
-Four things this container could not see, in the order they are quickest to check:
+Xiao went through the list on the M1 against a development window
+(`apps/desktop/scripts/dev.mjs`, its own `--user-data-dir`) on Metro at 4611 and
+a server of its own at 4610 (`SELFMP3_PROFILE=dev`, a fresh data directory),
+with the installed self.mp3 quit so only one app answered the keys. Each step
+was explained first and judged by Xiao; a passive recorder in the page logged
+what it received — key presses, menu commands, play and pause, the song, and
+whether the window was hidden. No key was simulated.
 
-1. Right-click the Dock icon while a song plays: the song's title and artist,
-   then Pause, Next, Previous.
-2. ⌘← and ⌘→ in the library's search box: the caret should move to the start and
-   end of the line, not skip a track. Then the same keys with the list focused:
-   they should skip.
-3. The red button, then the Dock icon: the window comes back and the song never
-   stopped. Then ⌘Q, which should actually quit.
-4. Now Playing in Control Center: the title, the artist, and the artwork — the
-   artwork is the one most likely to be missing, because a cover only has a URL
-   the OS can fetch once it is on disk.
+Two things the lane needed that no script sets up. The shell has no way to open
+DevTools, so the window took `--remote-debugging-port` to have
+`selfmp3.baseUrl` set in it (`docs/DESKTOP.md` still says the development
+window opens with DevTools). And a page on Metro cannot read a server on another
+port unless `SELFMP3_CORS_ORIGINS` names Metro's origin: every request got a 200
+and the window said "Can't reach your server".
+
+1. **The Dock menu — pass.** "Nothing playing", then Play, Next, Previous; while
+   playing, the title and artist, then Pause, Next, Previous. Previous turned out
+   to depend on the playhead in a way that read as random — past three seconds it
+   restarted the song and stayed paused, within three it went back and always
+   played — and Next always played. Xiao chose that a skip never changes whether
+   the music is playing (`60611f5`).
+2. **Space and the ⌘-arrows — pass, after three fixes.** On macOS a menu acts on
+   an item's key whenever the page leaves the key unhandled, whatever
+   `registerAccelerator` says, and a text field leaves Space unhandled: every
+   space typed in the palette or the search field also played or paused the
+   music. The keys stay drawn in the menu's key column, and an item the page
+   keeps now ignores being chosen by its key (`menuClickSends`, from the click's
+   `triggeredByAccelerator`; `7a49fbe`). After a click on a song, focus sat on
+   that row's button, which took Space as a press of itself and played the song
+   again from the start: the playback keys now answer before whatever has focus,
+   once per press rather than at key-repeat speed, and the focus ring draws only
+   while Tab moves focus (`b0cbfb7`). A browser tab, which had no app keys at
+   all, now has Space for play and pause and nothing else (`9a7540e`).
+3. **The red button, the Dock icon, ⌘Q — pass.** Hidden, the music played on
+   without a pause through hide and show; ⌘Q quit.
+4. **Full screen and the lid — pass.** Still full screen on waking, the same
+   song at the same place, the player showing its true state. Nothing in the
+   shell handles sleep; Chromium and macOS do.
+5. **Now Playing in Control Center — pass, after a fix.** Title, artist and
+   controls worked, and the artwork did too — but only because that launch had
+   handed the OS the server's address. The installed app prefers the cover it
+   keeps, `app://selfmp3/_media/covers/…`, and Chromium takes a media session
+   image only from http, https, data and blob: it dropped the picture, and macOS
+   went on showing the previous song's cover under the new name (Control Center
+   showed exactly that for a test title with a kept cover, and the right cover
+   for the same file as `data:`). A signed-in library has no other address. Kept
+   covers now reach the media session as `data:` addresses, and the provider no
+   longer misses covers already on disk at launch (`b8b8872`; `20c91ec` since
+   picks the same cover for the phone's lock screen).
+6. **Download, Reveal in Finder, downloads still listed — pass, after a fix.**
+   A song removed by hand could not be downloaded again: Settings read "35 of 36
+   songs downloaded" over a greyed-out "Everything is downloaded", because the
+   button offered only what downloading by itself may take (`9f82b94`). On this
+   Mac, Reveal in Finder wrote its `.DS_Store` into the folder above `songs/`,
+   not into it; moved into `songs/`, Finder's own file was skipped by
+   `files.list` and every download stayed listed.
+7. **Media keys — pass.** The keyboard's keys and AirPods (a press to pause, two
+   for the next song) drove the window, with it hidden too — the recorder showed
+   play and pause arriving with the window hidden. With Music or a browser tab
+   also open, the player last started gets the keys, which is macOS's to decide.
+
+On the way, the lane's server served no covers at all: `res.sendFile` refuses a
+path with a dot-segment, and its data directory was under `~/.selfmp3-lanes` —
+as the server's own Linux default is under `~/.local/share` (`3a7da40`). The art
+route had also set its week-long cache headers before sending, so a failed cover
+was kept for a week by the window's cache (`5e141ea`). And on Xiao's question
+why Plagiarism's visual was green under an orange player bar, a cover's colour is
+now read from its centre square, the part every screen shows (`4c0a974`, with
+migration 21 reading every cover again).
+
+Every fix was committed only with `npm run check` and
+`npm run verify:desktop -- --grep "command|window bounds"` green, and went to
+main on 2026-09-15. Open, and not changed here: whether the no-sign-in server
+connection should go; whether the offline copies, named by song id, and the
+library's files should carry the song's title and artist and follow its edits
+(the server never renames a file); and main's Docker image, whose build check
+cannot find the server's `sharp` — installed under `apps/server/node_modules`,
+which the runtime stage never copies.
 
 ## Phase 5 — shipping — branch `desktop/phase-5`
 

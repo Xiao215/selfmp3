@@ -22,7 +22,12 @@ import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { ContentWidthContext } from './contentWidth'
 import { setPaletteOpen, usePaletteOpen } from './palette'
-import { practiceOpen, setPracticeOpen, usePracticeOpen } from './practicePanel'
+import {
+  practiceOpen,
+  setPracticeOpen,
+  usePracticeOpen,
+  usePracticeSection,
+} from './practicePanel'
 
 /**
  * The frame around every screen, and the only thing that knows the width.
@@ -153,7 +158,10 @@ function WideFrame({
 /** The practice panel beside the page, while the player bar's metronome has it open. */
 function PracticeSide(): ReactNode {
   const open = usePracticeOpen()
-  return open ? <PracticePanel side onClose={() => setPracticeOpen(false)} /> : null
+  const section = usePracticeSection()
+  return open ? (
+    <PracticePanel side section={section} onClose={() => setPracticeOpen(false)} />
+  ) : null
 }
 
 /**

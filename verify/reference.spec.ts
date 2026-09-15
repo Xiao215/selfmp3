@@ -458,15 +458,6 @@ test.describe('reference', () => {
       await settle(page, 300)
     }
 
-    const speed = page.getByRole('button', { name: /^Playback speed: / }).first()
-    if (await speed.isVisible().catch(() => false)) {
-      await speed.click()
-      await settle(page, 700)
-      await shot(page, project, 'sheet-speed')
-      await page.keyboard.press('Escape')
-      await settle(page, 300)
-    }
-
     const volume = page.getByRole('button', { name: /^Volume: / }).first()
     if (await volume.isVisible().catch(() => false)) {
       await volume.click()

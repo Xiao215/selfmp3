@@ -141,11 +141,17 @@ export interface PlayerApi {
   readonly rate: number
   /** When the sleep timer stops playback, or null when none is set. */
   readonly sleepTimerEndsAt: number | null
+  /** The sleep timer waits for the song playing to end, rather than a clock. */
+  readonly sleepAtSongEnd: boolean
   setVolume: (volume: number) => void
   toggleMute: () => void
   setRate: (rate: number) => void
-  /** Minutes from now, or null to cancel. */
-  setSleepTimer: (minutes: number | null) => void
+  /**
+   * Minutes from now; `song-end` to stop when the song playing now ends (the
+   * first track end after choosing, whichever song that turns out to be); or
+   * null to cancel either.
+   */
+  setSleepTimer: (choice: number | 'song-end' | null) => void
 
   // --- auto-mix ------------------------------------------------------------
   /** Upcoming songs kept in a smooth order by tempo, key and energy. */
@@ -221,6 +227,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
+  const [sleepAtSongEnd, setSleepAtSongEnd] = useState(false)
   const [countIn, setCountInState] = useState(() => prefs.get(COUNT_IN_KEY) === '1')
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
   const [stores] = useState<PlayerStores>(() => ({
@@ -243,6 +250,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
   const lastPositionRef = useRef(0)
   const autoMixRef = useRef(autoMix)
+  // Read by the engine's end-of-track callback, which is wired once.
+  const sleepAtSongEndRef = useRef(false)
 
   useEffect(() => {
     queueRef.current = queue
@@ -389,11 +398,30 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // threshold — it finished, which is the strongest evidence there is.
         flushPlay(true)
 
+        // "End of this song": used up by the first song to end after it was
+        // chosen, whichever that is — skipping ahead meanwhile moves the stop
+        // with you rather than cancelling it.
+        const sleeping = sleepAtSongEndRef.current
+        if (sleeping) {
+          sleepAtSongEndRef.current = false
+          setSleepAtSongEnd(false)
+        }
+
         // Past songs that cannot play here: one not on the phone, offline,
         // would otherwise load and sit paused with no word.
         const { state, stop } = advancePlayable(queueRef.current, true, mayPlay)
         if (stop) {
           engine.pause()
+          return
+        }
+
+        if (sleeping) {
+          // Stopped, with the next song waiting at its start: play tomorrow
+          // carries on from where the night left off rather than replaying the
+          // end of the last one.
+          engine.pause()
+          setQueue(state)
+          loadIndex(state, false)
           return
         }
 
@@ -642,8 +670,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     if (prefs.get(PITCH_LOCK_KEY) === '0') engine.setPreservesPitch(false)
   }, [engine])
 
-  const setSleepTimer = useCallback((minutes: number | null) => {
-    setSleepTimerEndsAt(minutes === null ? null : Date.now() + minutes * 60_000)
+  const setSleepTimer = useCallback((choice: number | 'song-end' | null) => {
+    const atSongEnd = choice === 'song-end'
+    sleepAtSongEndRef.current = atSongEnd
+    setSleepAtSongEnd(atSongEnd)
+    setSleepTimerEndsAt(typeof choice === 'number' ? Date.now() + choice * 60_000 : null)
   }, [])
 
   useEffect(() => {
@@ -701,8 +732,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [autoMix, currentSong, nextSong, crossfadeSeconds],
   )
   useEffect(() => {
-    engine.configure({ crossfadeSeconds: nextCrossfadeSeconds, gapless })
-  }, [engine, nextCrossfadeSeconds, gapless])
+    // No fade into a song that is about to be stopped: with one, the next song
+    // would already be playing when this one "ends".
+    engine.configure({ crossfadeSeconds: sleepAtSongEnd ? 0 : nextCrossfadeSeconds, gapless })
+  }, [engine, nextCrossfadeSeconds, gapless, sleepAtSongEnd])
 
   const currentBpm = resolved.currentSong?.features?.bpm ?? null
   useEffect(() => {
@@ -737,6 +770,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       muted: engineState.muted,
       rate: engineState.rate,
       sleepTimerEndsAt,
+      sleepAtSongEnd,
       setVolume,
       toggleMute,
       setRate,
@@ -762,6 +796,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engineState.rate,
       stores,
       sleepTimerEndsAt,
+      sleepAtSongEnd,
       setVolume,
       toggleMute,
       setRate,

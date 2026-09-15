@@ -6,8 +6,12 @@
  * from what the user tapped, and what the UI should draw for it.
  */
 
-/** Speeds the practice panel offers. Slower than the transport bar goes. */
-export const PRACTICE_SPEEDS = [0.5, 0.75, 0.9, 1, 1.25] as const
+/**
+ * The speeds there are, everywhere: the practice panel is speed's one home
+ * (the player bar's own speed menu went, 2026-09-14), so this list runs from
+ * learning a passage slowly to getting through a podcast.
+ */
+export const PRACTICE_SPEEDS = [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2] as const
 
 /** One beat at the song's tempo, or half a second when the tempo is unknown. */
 export const DEFAULT_COUNT_IN_MS = 500

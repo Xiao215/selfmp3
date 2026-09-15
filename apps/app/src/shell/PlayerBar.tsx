@@ -31,7 +31,6 @@ import {
   Repeat,
   RepeatOne,
   Shuffle,
-  Speed,
   TagPlus,
   Volume,
   VolumeMute,
@@ -39,7 +38,6 @@ import {
 import { Popover } from '../ui/components/Popover'
 import { SleepMenu, useSleepMinutesLeft } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
-import { SheetItem } from '../ui/components/Sheet'
 import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
 import { useLayout } from './useLayout'
@@ -50,9 +48,13 @@ import { setPracticeOpen, usePracticeOpen } from './practicePanel'
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
- * right, three groups with a hairline between them, because nine controls in a
- * row read as a wall of icons and they are three jobs: what is on screen, how
- * it plays, and where it comes out.
+ * right, three groups with a hairline between them, because a row of controls
+ * reads as a wall of icons and they are three jobs: what is on screen, how it
+ * plays, and where it comes out.
+ *
+ * Speed has no button here: it lives in Practice with every other way of
+ * changing how a song plays back. While it is not 1× the metronome says so
+ * ("1.25×"), and opens Practice at Speed.
  *
  * The bar fills with the cover's colour up to where the song has got, fading
  * out at its leading edge, with a bright line along its top edge, as the web's
@@ -64,8 +66,6 @@ export const PLAYER_BAR_HEIGHT = 84
 const COMPACT_WIDTH = 1160
 /** Below this the song and the transport shrink, so the tools on the right still fit. */
 const TIGHT_WIDTH = 900
-
-const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const
 
 const REPEAT_LABEL = {
   off: 'Repeat off',
@@ -236,21 +236,32 @@ export function PlayerBar(): ReactNode {
           <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
             <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
           </IconButton>
-          <IconButton
-            onPress={() => setPracticeOpen(!practiceOpen)}
-            label="Practice tools"
-            active={practiceOpen || player.loopB !== null}
-          >
-            <Metronome
-              size={17}
-              color={
-                practiceOpen || player.loopB !== null ? songColor.color : theme.colors.textSecondary
-              }
+          {player.rate !== 1 ? (
+            <ValuePill
+              Icon={Metronome}
+              value={`${player.rate}×`}
+              label={`Practice tools, speed ${player.rate}×`}
+              caption="Practice: speed"
+              onPress={() => setPracticeOpen(!practiceOpen, 'speed')}
             />
-          </IconButton>
+          ) : (
+            <IconButton
+              onPress={() => setPracticeOpen(!practiceOpen)}
+              label="Practice tools"
+              active={practiceOpen || player.loopB !== null}
+            >
+              <Metronome
+                size={17}
+                color={
+                  practiceOpen || player.loopB !== null
+                    ? songColor.color
+                    : theme.colors.textSecondary
+                }
+              />
+            </IconButton>
+          )}
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Playback">
-          <SpeedButton />
           <SleepButton />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Output">
@@ -370,9 +381,10 @@ function usePlayingTone(): { color: string; tint: string } {
 }
 
 /**
- * A lit control that says its value — "1.25×", "24 min" — so a changed speed
- * or a running timer can be read off the bar without opening its menu. Shown
- * only while the setting differs from normal; otherwise the plain icon is.
+ * A lit control that says its value — "1.25×", "24 min", "End of song" — so a
+ * changed speed or a running timer can be read off the bar without opening
+ * anything. Shown only while the setting differs from normal; otherwise the
+ * plain icon is.
  */
 function ValuePill({
   Icon,
@@ -381,7 +393,7 @@ function ValuePill({
   caption,
   onPress,
 }: {
-  Icon: typeof Speed
+  Icon: typeof Moon
   value: string
   label: string
   caption: string
@@ -405,53 +417,6 @@ function ValuePill({
   )
 }
 
-function SpeedButton(): ReactNode {
-  const { theme } = useUnistyles()
-  const player = usePlayer()
-  const [open, setOpen] = useState(false)
-  const anchorRef = useRef<View>(null)
-  const toggle = (): void => setOpen(value => !value)
-  return (
-    <View ref={anchorRef} collapsable={false}>
-      {player.rate !== 1 ? (
-        <ValuePill
-          Icon={Speed}
-          value={`${player.rate}×`}
-          label={`Playback speed: ${player.rate}×`}
-          caption="Playback speed"
-          onPress={toggle}
-        />
-      ) : (
-        <IconButton onPress={toggle} label="Playback speed: 1×">
-          <Speed size={17} color={theme.colors.textSecondary} />
-        </IconButton>
-      )}
-      <Popover
-        open={open}
-        onClose={() => setOpen(false)}
-        anchorRef={anchorRef}
-        placement="above"
-        title="Playback speed"
-        titleTone="label"
-        width={160}
-        testID="speed-menu"
-      >
-        {SPEEDS.map(rate => (
-          <SheetItem
-            key={rate}
-            label={`${rate}×${rate === 1 ? ' (normal)' : ''}`}
-            active={player.rate === rate}
-            onPress={() => {
-              player.setRate(rate)
-              setOpen(false)
-            }}
-          />
-        ))}
-      </Popover>
-    </View>
-  )
-}
-
 function SleepButton(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
@@ -466,7 +431,9 @@ function SleepButton(): ReactNode {
         <ValuePill
           Icon={Moon}
           value={left}
-          label={`Sleep timer: ${left} left`}
+          label={
+            player.sleepAtSongEnd ? 'Sleep timer: at the end of this song' : `Sleep timer: ${left} left`
+          }
           caption="Sleep timer"
           onPress={toggle}
         />

@@ -37,9 +37,10 @@ describe('the untagged list', () => {
     expect(untaggedSongs(songs).map(s => s.id)).toEqual([4, 1])
   })
 
-  it('says how many and how long, or that every song has a tag', () => {
+  it('says how many and how long, and nothing once every song has a tag', () => {
     expect(inboxSubtitle(true, [])).toBe('Loading…')
-    expect(inboxSubtitle(false, [])).toBe('Every song has a tag')
+    // "All tagged" on the page says it; the subtitle does not say it again.
+    expect(inboxSubtitle(false, [])).toBeNull()
     expect(inboxSubtitle(false, [song(1, { duration: 400 }), song(2, { duration: 260 })])).toBe(
       '2 songs without a tag · 11 min · newest first',
     )

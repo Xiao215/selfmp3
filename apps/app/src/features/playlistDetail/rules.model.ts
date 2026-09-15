@@ -256,6 +256,42 @@ export function describeOrder(rules: Pick<SmartRules, 'orderBy' | 'order'>): str
   }
 }
 
+/**
+ * The two directions the order select offers, named for the field they sort:
+ * "Longest first" for a length, "Most played" for plays, "A–Z" for a name.
+ *
+ * "Highest first" and "Lowest first" were one pair of words for every field,
+ * and the playlist's own summary said "longest first" a line above the
+ * select that said "Highest first" — two names for one choice. These follow
+ * `describeOrder`, so the select and the summary say the same thing. Random
+ * has no direction, and the builder hides the select for it.
+ */
+export function orderOptions(
+  orderBy: SongSortField,
+): readonly [Option<'desc'>, Option<'asc'>] {
+  const pair = (desc: string, asc: string): readonly [Option<'desc'>, Option<'asc'>] => [
+    { value: 'desc', label: desc },
+    { value: 'asc', label: asc },
+  ]
+  switch (orderBy) {
+    case 'duration':
+      return pair('Longest first', 'Shortest first')
+    case 'playCount':
+      return pair('Most played', 'Least played')
+    case 'addedAt':
+      return pair('Newest', 'Oldest')
+    case 'lastPlayedAt':
+      return pair('Last played first', 'Longest unplayed first')
+    case 'title':
+    case 'artist':
+    case 'album':
+      // `describeOrder` reads ascending as the plain "by title", so A–Z is `asc`.
+      return pair('Z–A', 'A–Z')
+    default:
+      return pair('Highest first', 'Lowest first')
+  }
+}
+
 /** The word before a rule: the rules read as one sentence. */
 export function joinWord(index: number, match: SmartRules['match']): string {
   if (index === 0) return 'Where'

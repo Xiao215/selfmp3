@@ -23,13 +23,17 @@ export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'missing' |
   return songs.filter(isUntagged).sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
 }
 
-/** "3 songs without a tag · 11 min · newest first". */
+/**
+ * "3 songs without a tag · 11 min · newest first", or nothing at all when
+ * every song has a tag: the page's own "All tagged" says so, and a subtitle
+ * saying it too was the same news twice on one screen.
+ */
 export function inboxSubtitle(
   loading: boolean,
   untagged: readonly Pick<Song, 'duration'>[],
-): string {
+): string | null {
   if (loading) return 'Loading…'
-  if (untagged.length === 0) return 'Every song has a tag'
+  if (untagged.length === 0) return null
   const seconds = untagged.reduce((sum, song) => sum + song.duration, 0)
   return `${untagged.length} ${untagged.length === 1 ? 'song' : 'songs'} without a tag · ${formatLongDuration(seconds)} · newest first`
 }

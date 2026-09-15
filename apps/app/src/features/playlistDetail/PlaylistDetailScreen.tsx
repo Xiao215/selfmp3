@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
 import {
@@ -52,7 +52,7 @@ import {
 } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SelectionBar } from '../../ui/components/SelectionBar'
+import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -63,7 +63,7 @@ import { AddSongsSheet } from './AddSongsSheet'
 import { PlaylistSongRow } from './PlaylistSongRow'
 import { RulesPanel, RulesSheet } from './RulesEditor'
 import { RulesSummary } from './RulesSummary'
-import { dropIndex, moveItem } from './playlistDetail.model'
+import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
 
 /**
  * One playlist.
@@ -72,6 +72,9 @@ import { dropIndex, moveItem } from './playlistDetail.model'
  * then one loud button, Play, with Shuffle beside it. Everything else a
  * playlist can have done to it — queueing, pinning, renaming, copying,
  * deleting — waits in its ⋯, so none of it sits a thumb's width from Play.
+ * A phone's head is in the computer's order, Play and Shuffle at the start and
+ * Download, ＋ and ⋯ at the end; an empty playlist shows none of Play, Shuffle
+ * or the head's Add songs, which could only do nothing.
  *
  * A playlist you made adds Add songs, which searches the library without
  * leaving; its rows move by their grip at desktop width and by holding them on
@@ -90,6 +93,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const params = useLocalSearchParams<{ id: string; rules?: string; rename?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
+  const navigation = useNavigation()
   const queryClient = useQueryClient()
 
   const library = useLibrary()
@@ -118,6 +122,30 @@ export function PlaylistDetailScreen(): ReactNode {
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
   const [rowHeight, setRowHeight] = useState(0)
+  /*
+   * Where the list is scrolled, and how tall the head above the songs is: at
+   * desktop width the selection bar floats just under the head and follows it
+   * up as it scrolls away, then stays at the top. An animated value fed by the
+   * list's scroll, so following it draws nothing.
+   */
+  const [scrollY] = useState(() => new Animated.Value(0))
+  const [headHeight, setHeadHeight] = useState(0)
+  const barTop = useMemo(
+    () =>
+      scrollY.interpolate({
+        inputRange: [0, Math.max(1, headHeight)],
+        outputRange: [headHeight, 0],
+        extrapolate: 'clamp',
+      }),
+    [scrollY, headHeight],
+  )
+  const onListScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+      }),
+    [scrollY],
+  )
 
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
   const live = playlist !== null && isLive(playlist)
@@ -335,6 +363,9 @@ export function PlaylistDetailScreen(): ReactNode {
     ? songs.reduce((sum, song) => sum + song.duration, 0)
     : (playlist?.totalDuration ?? 0)
   const nothing = songs.length === 0
+  // Known to be empty, not merely not loaded yet: Play, Shuffle and the head's
+  // Add songs go, and the empty state's own Add songs is the one way in.
+  const emptyPlaylist = count === 0
 
   const menuAction = (run: () => void) => (): void => {
     setHeadMenuOpen(false)
@@ -430,11 +461,12 @@ export function PlaylistDetailScreen(): ReactNode {
       <Shuffle size={20} color={theme.colors.textSecondary} />
     </IconButton>
   )
-  const offlineButton = installed ? (
+  // Nothing to download in an empty playlist, and "Downloaded" would be a boast.
+  const offlineButton = installed && !emptyPlaylist ? (
     <IconButton
       testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
       onPress={() => downloadByHand(songIds)}
-      label={pendingBytes > 0 ? `Keep on this phone, ${formatBytes(pendingBytes)}` : 'On this phone'}
+      label={pendingBytes > 0 ? `Download · ${formatBytes(pendingBytes)}` : 'Downloaded'}
       disabled={pendingBytes === 0}
     >
       {pendingBytes > 0 ? (
@@ -462,10 +494,16 @@ export function PlaylistDetailScreen(): ReactNode {
   // now — a live playlist with no rules is the whole library — and this is its
   // header rather than the top of a ScrollView drawing every row at once.
   const header = (
-    <>
+    <View onLayout={event => setHeadHeight(Math.round(event.nativeEvent.layout.height))}>
       {wide ? null : (
         <Pressable
-          onPress={() => router.back()}
+          // Back when the Playlists page is behind; after a playlist made from a
+          // selection, or a link, Playlists takes this page's place instead.
+          onPress={() =>
+            cameFrom(navigation.getState(), 'playlists/index')
+              ? router.back()
+              : router.replace('/playlists')
+          }
           accessibilityRole="button"
           accessibilityLabel="Back to playlists"
           hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
@@ -484,12 +522,12 @@ export function PlaylistDetailScreen(): ReactNode {
               {titles}
             </View>
             <View style={styles.controls}>
-              {playButton}
-              {shuffleButton}
+              {emptyPlaylist ? null : playButton}
+              {emptyPlaylist ? null : shuffleButton}
               {offlineButton}
               {moreButton}
               <View style={styles.spacer} />
-              {manual ? (
+              {manual && !emptyPlaylist ? (
                 <Button
                   label="Add songs"
                   icon={<Plus size={15} color={theme.colors.textPrimary} />}
@@ -503,17 +541,18 @@ export function PlaylistDetailScreen(): ReactNode {
           <View style={styles.head}>
             <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={148} />
             {titles}
+            {/* The computer's order: Play and Shuffle first, the rest at the far end. */}
             <View style={styles.controls}>
+              {emptyPlaylist ? null : playButton}
+              {emptyPlaylist ? null : shuffleButton}
+              <View style={styles.spacer} />
               {offlineButton}
-              {manual ? (
+              {manual && !emptyPlaylist ? (
                 <IconButton onPress={() => setAdding(true)} label="Add songs" testID="playlist-add-songs">
                   <Plus size={20} color={theme.colors.textSecondary} />
                 </IconButton>
               ) : null}
               {moreButton}
-              <View style={styles.spacer} />
-              {shuffleButton}
-              {playButton}
             </View>
           </View>
         )
@@ -528,21 +567,7 @@ export function PlaylistDetailScreen(): ReactNode {
         />
       ) : null}
 
-      {selection.active && playlist ? (
-        <SelectionBar
-          songs={selectedSongs}
-          total={songs.length}
-          scope="in this playlist"
-          allSelected={selection.allSelected}
-          onSelectAll={selection.selectAll}
-          onDeselectAll={selection.deselectAll}
-          onDone={selection.clear}
-          // A live playlist has no membership to edit, so removing from it
-          // would be a lie.
-          playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
-        />
-      ) : null}
-    </>
+    </View>
   )
 
   // What stands where the songs would, when there are none (the list shows it
@@ -591,22 +616,45 @@ export function PlaylistDetailScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.split}>
-        <LiftContext.Provider value={lift}>
-          <SongList
-            songs={songs}
-            label={`${name} songs`}
-            renderSong={renderSong}
-            header={header}
-            empty={empty}
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            scrollEnabled={drag === null}
-            keyboardShouldPersistTaps="handled"
-            // A name or a description being typed in the head stays open through a scroll.
-            keyboardDismissMode="none"
-            CellRendererComponent={LiftedCell}
-          />
-        </LiftContext.Provider>
+        {/* The songs, and the selection bar floating over them: no row moves when it comes. */}
+        <View style={styles.listArea}>
+          <LiftContext.Provider value={lift}>
+            <SongList
+              songs={songs}
+              label={`${name} songs`}
+              renderSong={renderSong}
+              header={header}
+              empty={empty}
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.content,
+                selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
+              ]}
+              scrollEnabled={drag === null}
+              keyboardShouldPersistTaps="handled"
+              // A name or a description being typed in the head stays open through a scroll.
+              keyboardDismissMode="none"
+              CellRendererComponent={LiftedCell}
+              onScroll={wide ? onListScroll : undefined}
+            />
+          </LiftContext.Provider>
+
+          {selection.active && playlist ? (
+            <SelectionBar
+              songs={selectedSongs}
+              total={songs.length}
+              scope="in this playlist"
+              allSelected={selection.allSelected}
+              onSelectAll={selection.selectAll}
+              onDeselectAll={selection.deselectAll}
+              onDone={selection.clear}
+              // A live playlist has no membership to edit, so removing from it
+              // would be a lie.
+              playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+              top={barTop}
+            />
+          ) : null}
+        </View>
 
         {wide && live && playlist && editingRules ? (
           <RulesPanel playlist={playlist} tags={tags} onDone={() => setEditingRules(false)} />
@@ -661,7 +709,16 @@ export function PlaylistDetailScreen(): ReactNode {
         ) : null}
         <SheetItem
           icon={menuIcon(Pin)}
-          label={playlist?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
+          // A phone has no sidebar to pin to: there it is the Playlists page's Pinned row.
+          label={
+            wide
+              ? playlist?.pinned
+                ? 'Unpin from sidebar'
+                : 'Pin to sidebar'
+              : playlist?.pinned
+                ? 'Unpin'
+                : 'Pin'
+          }
           onPress={menuAction(() => {
             if (!playlist) return
             updatePlaylist.mutate({ id: playlist.id, patch: { pinned: !playlist.pinned } })
@@ -852,6 +909,7 @@ function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellPr
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   split: { flex: 1, flexDirection: 'row' },
+  listArea: { flex: 1, minWidth: 0 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
   backRow: {

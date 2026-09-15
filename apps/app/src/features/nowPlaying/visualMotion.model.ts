@@ -10,7 +10,7 @@ import { driftSpeed, STILL_SECONDS, synthLevels, type VisualFeel } from './visua
  *
  * - Aurora: `glow` (the level, smoothed over about 300 ms) sets how tall and
  *   bright the bands are and how fast they sway; `flash` brightens them on a
- *   strong hit.
+ *   strong hit. Never fully dark while the song is on screen (`auroraBrightness`).
  * - Pulse: a ring leaves the centre on each onset peak — past a threshold,
  *   no sooner than a refractory period after the last one — with its
  *   strength from the onset; the dot follows `glow` and kicks on the hit.
@@ -200,6 +200,25 @@ export function stepMotion(
   const base = driftSpeed(tuning.feel.bpm)
   state.spin += dt * base * (0.06 + 1.7 * state.glow + 1.2 * state.burst)
   state.sway += dt * (0.04 + 1.1 * state.glow)
+}
+
+/* ----------------------------------------------------------------- aurora */
+
+/**
+ * Which ink (`VisualColors.inks`) each Aurora band draws in, back to front:
+ * the cover's second colour, its lead, its third, its lead again. Cycling the
+ * inks in order gave the second colour two of the four bands, and a green
+ * cover with a blue sky drew as green. The phone's three glows take the first
+ * three, so it too shows every colour once.
+ */
+export const AURORA_INKS = [0, 2, 1, 2] as const
+
+/** How bright Aurora is in silence, of its loudest: a quiet verse still shows the cover's colours. */
+export const AURORA_FLOOR = 0.3
+
+/** Aurora's brightness, 0–1: the floor in silence, rising with the level and a strong hit. */
+export function auroraBrightness(glow: number, flash: number): number {
+  return Math.min(1, AURORA_FLOOR + 0.45 * clamp01(glow) + 0.25 * clamp01(flash))
 }
 
 /**

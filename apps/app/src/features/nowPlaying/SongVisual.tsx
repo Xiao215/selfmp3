@@ -7,6 +7,8 @@ import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource'
 import { useReducedMotion } from './useReducedMotion'
 import {
+  AURORA_INKS,
+  auroraBrightness,
   createMotionState,
   MAX_RINGS,
   motionTuning,
@@ -98,6 +100,9 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
     const motion = createMotionState(BARS)
     let last = performance.now()
     let frame = 0
+    // The channels outlive a style: a paused Pulse left them settled, and a
+    // style picked then must still write its first frame, or Aurora never draws its floor.
+    let first = true
     const tick = (): void => {
       frame = requestAnimationFrame(tick)
       const now = performance.now()
@@ -105,7 +110,8 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
       last = now
       const { player: p, sampler: s, tuning: tu } = live.current
       stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
-      apply(kind, motion, channels, tu, size, false)
+      apply(kind, motion, channels, tu, size, first)
+      first = false
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
@@ -211,7 +217,7 @@ function apply(
   if (kind === 'aurora') {
     const r = Math.max(size.width, size.height) * 0.42
     ch.blobs.forEach((blob, i) => {
-      blob.opacity.setValue(Math.min(1, 0.1 + 0.5 * g + 0.25 * m.flash))
+      blob.opacity.setValue(auroraBrightness(g, m.flash))
       blob.x.setValue(Math.sin(m.sway * 0.9 + i * 2.1) * r * 0.3 * (0.3 + 0.7 * g))
       blob.y.setValue(Math.cos(m.sway * 0.7 + i * 1.3) * r * 0.12)
       blob.scale.setValue(0.75 + 0.35 * g + 0.08 * m.flash)
@@ -257,7 +263,7 @@ function Aurora({ size, colors, channels }: StyleProps): ReactNode {
     <>
       {channels.blobs.map((blob, index) => {
         const id = `aurora-${index}`
-        const ink = rgbCss(colors.inks[index]!)
+        const ink = rgbCss(colors.inks[AURORA_INKS[index]!])
         return (
           <Animated.View
             key={index}

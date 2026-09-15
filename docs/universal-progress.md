@@ -4284,3 +4284,33 @@ dark teal ground on all four, no olive — with no page errors in any. 幼年期
 cover is mostly grey, has no tone and so no palette, and still draws by the old
 rule. The gates: `npm run typecheck`, `npm run lint`, `npm run test` (165 files,
 1680 passed, 1 skipped) and `npm run check:app`.
+
+## Aurora shows every cover colour — `claude/aurora-palette-bands`
+
+Xiao, on Genshin's Aurora after the palette landed: it did not look like mock B,
+just dim green. The palette was right; Aurora drew it badly. Its four bands
+cycled the three inks, so `inks[0]` (the grass) had two bands and the lead
+colour one, and the bands' brightness was loudness alone (`0.05 + 0.24·glow`),
+so a quiet opening left them nearly black and only the green read.
+
+- `AURORA_INKS` in `visualMotion.model.ts`: the bands draw green, lead, third,
+  lead (`[0, 2, 1, 2]`). The phone's three glows take the first three, so each
+  colour shows once there too.
+- `auroraBrightness(glow, flash)`: a floor of 0.3 in silence, rising with the
+  level and a strong hit to 1. The canvas draws a band at 0.45 of it (plus the
+  small sway shimmer); the phone's glows take it as their opacity. Paused or
+  quiet, the bands still show the cover's colours faintly.
+- The phone's style loop writes its first frame whatever state it finds. Its
+  animated values are shared by every style and a paused Pulse had left them
+  marked settled, so an Aurora picked while paused skipped every frame and
+  stayed black — invisible before, when Aurora's silence was nearly black anyway.
+
+Checked against the private copy of the dev library: Genshin, 幼年期 and
+Telepath in Aurora, playing and paused, in Chromium, WebKit and the Mac app
+(its `dist/web` rebuilt first — the old one was yesterday's), and Genshin on
+the iPhone 17 simulator. Genshin now shows green, grey-blue and olive bands
+paused as well as playing; 幼年期 shows olive, rose and brown. On the phone
+Genshin's glows are green, blue and amber playing, faint paused, and faint
+again when Aurora is picked while paused. The gates: `npm run typecheck`,
+`npm run lint`, `npm run test` (172 files, 1697 passed, 1 skipped) and
+`npm run check:app`.

@@ -7,6 +7,8 @@ import type { MotionSampler } from './motionSource'
 import { useReducedMotion } from './useReducedMotion'
 import { recordVisualFrame } from './visualDebug'
 import {
+  AURORA_INKS,
+  auroraBrightness,
   createMotionState,
   motionTuning,
   resizeBands,
@@ -197,9 +199,9 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
       }
       ctx.lineTo(w, h)
       ctx.closePath()
-      const breath = 0.05 + 0.24 * g + 0.2 * m.flash + 0.03 * Math.sin(t * 2.2 + band)
+      const breath = 0.45 * auroraBrightness(g, m.flash) + 0.03 * Math.sin(t * 2.2 + band)
       const fill = ctx.createLinearGradient(0, y0 - h * 0.2, 0, h)
-      const ink = c.inks[band % 3]!
+      const ink = c.inks[AURORA_INKS[band]!]
       fill.addColorStop(0, rgbCss(ink, breath))
       fill.addColorStop(1, rgbCss(ink, 0))
       ctx.fillStyle = fill

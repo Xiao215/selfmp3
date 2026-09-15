@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { curveSampler, type MotionCurveLike, type MotionSampler } from './motionSource'
 import {
+  AURORA_FLOOR,
+  AURORA_INKS,
+  auroraBrightness,
   createMotionState,
   DEFAULT_REFRACTORY,
   MAX_RINGS,
@@ -119,6 +122,23 @@ describe('following the level', () => {
     stepMotion(state, scripted(() => ({ level: 0, onset: 0 })), 0, DT * 3, true, tuning)
     expect(risen).toBeGreaterThan(0.7)
     expect(state.bands[0]!).toBeGreaterThan(risen * 0.7)
+  })
+})
+
+describe('aurora', () => {
+  it('gives every cover colour a band, and the phone’s three glows one each', () => {
+    expect(new Set(AURORA_INKS)).toEqual(new Set([0, 1, 2]))
+    expect(new Set(AURORA_INKS.slice(0, 3))).toEqual(new Set([0, 1, 2]))
+    // The second colour no longer takes two bands of four.
+    expect(AURORA_INKS.filter(ink => ink === 0)).toHaveLength(1)
+  })
+
+  it('keeps a floor in silence and brightens with the level and a hit', () => {
+    expect(auroraBrightness(0, 0)).toBe(AURORA_FLOOR)
+    expect(auroraBrightness(0.5, 0)).toBeGreaterThan(AURORA_FLOOR)
+    expect(auroraBrightness(1, 0)).toBeGreaterThan(auroraBrightness(0.5, 0))
+    expect(auroraBrightness(1, 1)).toBe(1)
+    expect(auroraBrightness(2, 2)).toBe(1)
   })
 })
 

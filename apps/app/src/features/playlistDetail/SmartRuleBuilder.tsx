@@ -28,6 +28,7 @@ import {
   KEY_OPTIONS,
   matchLabel,
   NUMBER_OPS,
+  orderOptions,
   SORT_OPTIONS,
   TAG_OPS,
   TEXT_OPS,
@@ -45,6 +46,12 @@ import {
  * At desktop width each rule is one line of a sentence, its controls in fixed
  * columns so six rules line up as six lines. On a phone each rule is a small
  * card: the joining word and ✕, then field, comparison and value, one to a line.
+ *
+ * "Match all / any" appears with the second rule, when there is something to
+ * join. The order is named in the words of the field being sorted ("Longest
+ * first"), which are the words the playlist's summary uses, and a limit is a
+ * choice — all the songs, or only the first so many — rather than a box that
+ * reads "no limit".
  *
  * Saves follow the preview's pace — once typing pauses — and only rules the
  * server will accept are saved, so a text rule still waiting for its text is
@@ -71,6 +78,9 @@ export function SmartRuleBuilder({
   const wide = compactProp === undefined ? layout.wide : !compactProp
   const [rules, setRules] = useState<SmartRules>(initial ?? EMPTY_SMART_RULES)
   const [matchCount, setMatchCount] = useState<number | null>(null)
+  // "Only the first" stays chosen while its number is cleared to type another,
+  // a moment in which the rules themselves say there is no limit.
+  const [limiting, setLimiting] = useState(rules.limit !== null)
 
   const debounced = useDebounced(rules, 350)
   // While the two disagree the number on screen belongs to earlier rules, so it
@@ -141,18 +151,23 @@ export function SmartRuleBuilder({
       <View style={[styles.head, !wide && styles.headCompact]}>
         <View style={styles.sentence}>
           <Sparkles size={16} color={accent.accent} />
-          <Text style={styles.sentenceText}>Match</Text>
-          <Select
-            size="inline"
-            value={rules.match}
-            options={[
-              { value: 'all', label: 'all' },
-              { value: 'any', label: 'any' },
-            ]}
-            onChange={match => setRules(current => ({ ...current, match }))}
-            label="Match all or any rule"
-          />
-          <Text style={styles.sentenceText}>of these rules</Text>
+          {/* All or any only means something once there are two rules to join. */}
+          {rules.rules.length >= 2 ? (
+            <>
+              <Text style={styles.sentenceText}>Match</Text>
+              <Select
+                size="inline"
+                value={rules.match}
+                options={[
+                  { value: 'all', label: 'all' },
+                  { value: 'any', label: 'any' },
+                ]}
+                onChange={match => setRules(current => ({ ...current, match }))}
+                label="Match all or any rule"
+              />
+              <Text style={styles.sentenceText}>of these rules</Text>
+            </>
+          ) : null}
         </View>
         <View
           style={[
@@ -216,32 +231,44 @@ export function SmartRuleBuilder({
             <Select
               size="small"
               value={rules.order}
-              options={[
-                { value: 'desc', label: 'Highest first' },
-                { value: 'asc', label: 'Lowest first' },
-              ]}
+              options={orderOptions(rules.orderBy)}
               onChange={order => setRules(current => ({ ...current, order }))}
               label="Order"
             />
           </View>
         ) : null}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Limit to</Text>
-          <TextInput
-            style={[styles.input, styles.limit]}
-            keyboardType="number-pad"
-            placeholder="no limit"
-            placeholderTextColor={theme.colors.textMuted}
-            value={rules.limit === null ? '' : String(rules.limit)}
-            onChangeText={text => {
-              const trimmed = text.trim()
-              const limit = trimmed === '' ? null : Number(trimmed)
-              if (limit !== null && !Number.isFinite(limit)) return
-              setRules(current => ({ ...current, limit }))
+          <Text style={styles.fieldLabel}>Songs</Text>
+          <Select
+            size="small"
+            value={limiting ? 'first' : 'all'}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'first', label: 'Only the first' },
+            ]}
+            onChange={choice => {
+              setLimiting(choice === 'first')
+              setRules(current => ({
+                ...current,
+                limit: choice === 'first' ? (current.limit ?? DEFAULT_LIMIT) : null,
+              }))
             }}
-            accessibilityLabel="Limit to"
+            label="Songs"
           />
-          <Text style={styles.fieldLabel}>songs</Text>
+          {limiting ? (
+            <TextInput
+              style={[styles.input, styles.limit]}
+              keyboardType="number-pad"
+              value={rules.limit === null ? '' : String(rules.limit)}
+              onChangeText={text => {
+                const trimmed = text.trim()
+                const limit = trimmed === '' ? null : Number(trimmed)
+                if (limit !== null && !Number.isFinite(limit)) return
+                setRules(current => ({ ...current, limit }))
+              }}
+              accessibilityLabel="How many songs"
+            />
+          ) : null}
         </View>
       </View>
     </View>
@@ -521,6 +548,9 @@ function RuleRow({
     </View>
   )
 }
+
+/** What "Only the first" starts from. */
+const DEFAULT_LIMIT = 25
 
 const styles = StyleSheet.create(theme => ({
   builder: {

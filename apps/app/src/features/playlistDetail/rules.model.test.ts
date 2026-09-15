@@ -11,6 +11,7 @@ import {
   parseClock,
   KEY_OPTIONS,
   matchLabel,
+  orderOptions,
   unitFor,
   type FieldKey,
 } from './rules.model'
@@ -93,6 +94,18 @@ describe('smart playlist rules', () => {
     expect(describeOrder({ orderBy: 'duration', order: 'desc' })).toBe('longest first')
     expect(describeOrder({ orderBy: 'playCount', order: 'desc' })).toBe('most played first')
     expect(describeOrder({ orderBy: 'random', order: 'asc' })).toBe('in random order')
+  })
+
+  it('names the order the way the summary does, for the field being sorted', () => {
+    const labels = (orderBy: Parameters<typeof orderOptions>[0]) =>
+      orderOptions(orderBy).map(option => `${option.value}:${option.label}`)
+    expect(labels('duration')).toEqual(['desc:Longest first', 'asc:Shortest first'])
+    expect(labels('playCount')).toEqual(['desc:Most played', 'asc:Least played'])
+    expect(labels('addedAt')).toEqual(['desc:Newest', 'asc:Oldest'])
+    expect(labels('lastPlayedAt')).toEqual(['desc:Last played first', 'asc:Longest unplayed first'])
+    expect(labels('title')).toEqual(['desc:Z–A', 'asc:A–Z'])
+    // The summary agrees: descending by title is the one that says Z to A.
+    expect(describeOrder({ orderBy: 'title', order: 'desc' })).toBe('by title, Z to A')
   })
 
   it('lists the Camelot wheel in order', () => {

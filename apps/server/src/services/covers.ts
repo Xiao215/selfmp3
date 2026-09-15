@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
@@ -28,6 +29,8 @@ export class CoverService {
   readonly #logger: Logger
   /** A cover was written: its colour wants reading. */
   onSaved: ((songId: number) => void) | null = null
+  /** Thumbnails being made, so requests for the same one share the work. */
+  readonly #making = new Map<string, Promise<{ path: string; contentType: string }>>()
 
   constructor(config: Config, songs: SongRepository, logger: Logger) {
     this.#dir = path.join(config.dataDir, 'covers')
@@ -78,19 +81,44 @@ export class CoverService {
   ): Promise<{ path: string; contentType: string } | null> {
     const cover = this.find(songId)
     if (!cover) return null
-    const stat = fs.statSync(cover.path)
+    const stat = await fsp.stat(cover.path)
     const dir = path.join(this.#dir, 'thumbs')
     const file = path.join(dir, `${songId}-${size}-${Math.floor(stat.mtimeMs).toString(16)}.jpg`)
     if (fs.existsSync(file)) return { path: file, contentType: 'image/jpeg' }
+    let making = this.#making.get(file)
+    if (!making) {
+      making = this.#makeThumbnail(songId, size, cover, file).finally(() =>
+        this.#making.delete(file),
+      )
+      this.#making.set(file, making)
+    }
+    return making
+  }
+
+  /**
+   * Written under a name of its own and renamed into place, so the thumbnail's
+   * real name only ever holds a whole file. Written straight there, a second
+   * request arriving mid-write found the name, was sent the half a JPEG it
+   * held, and kept that for a week.
+   */
+  async #makeThumbnail(
+    songId: number,
+    size: number,
+    cover: { path: string; contentType: string },
+    file: string,
+  ): Promise<{ path: string; contentType: string }> {
+    const partial = `${file}.${randomUUID()}.partial`
     try {
-      await fsp.mkdir(dir, { recursive: true })
+      await fsp.mkdir(path.dirname(file), { recursive: true })
       await sharp(cover.path)
         .rotate()
         .resize(size, size, { fit: 'cover', withoutEnlargement: true })
         .jpeg({ quality: 82, mozjpeg: true })
-        .toFile(file)
+        .toFile(partial)
+      await fsp.rename(partial, file)
       return { path: file, contentType: 'image/jpeg' }
     } catch (error) {
+      await fsp.rm(partial, { force: true }).catch(() => undefined)
       // A cover that cannot be resized is still a cover: the original is served.
       this.#logger.warn('could not make a thumbnail', {
         songId,

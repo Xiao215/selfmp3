@@ -18,8 +18,11 @@ appId: com.selfmp3.app
     timeout: 60000
 
 # --- both settings off ---------------------------------------------------------
+# Settings is one of the pages the You tab lists.
 - tapOn:
-    id: 'tab-settings'
+    id: 'tab-you'
+- tapOn:
+    id: 'you-settings'
 - scrollUntilVisible:
     element:
       id: 'setting-stream'
@@ -57,7 +60,9 @@ appId: com.selfmp3.app
 
 # --- back as it was ------------------------------------------------------------------
 - tapOn:
-    id: 'tab-settings'
+    id: 'tab-you'
+- tapOn:
+    id: 'you-settings'
 - scrollUntilVisible:
     element:
       id: 'setting-stream'

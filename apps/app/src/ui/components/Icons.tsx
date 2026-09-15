@@ -419,6 +419,19 @@ export const Settings = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
+/** A person in a circle: the phone's You tab. Not in the web app, which has no such tab. */
+export const User = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
+  const { theme } = useUnistyles()
+  const color = colorGiven ?? theme.colors.textSecondary
+  return (
+    <Icon color={color} {...rest}>
+      <Circle cx="12" cy="12" r="9" />
+      <Circle cx="12" cy="10" r="3" />
+      <Path d="M6.2 18.4a7 7 0 0 1 11.6 0" />
+    </Icon>
+  )
+}
+
 export const Moon = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   const { theme } = useUnistyles()
   const color = colorGiven ?? theme.colors.textSecondary

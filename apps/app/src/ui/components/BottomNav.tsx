@@ -5,29 +5,30 @@ import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAccent } from '../accent'
 import { NAV_HEIGHT, type } from '@selfmp3/client'
-import { Download, ListMusic, Music, Settings } from './Icons'
+import { activeTab, type TabHref } from './bottomNav.model'
+import { Download, ListMusic, Music, User } from './Icons'
 
 /**
  * The tab bar: the web's `.mobile-nav`, drawn with the same icons.
  *
- * Hand-rolled rather than expo-router's Tabs: this app has three destinations
- * and a mini player that has to sit directly above them, and a custom bar is
- * both less code and an exact match for the web app's mobile nav.
+ * Hand-rolled rather than expo-router's Tabs: a mini player has to sit
+ * directly above the tabs, and a custom bar is both less code and an exact
+ * match for the web app's mobile nav.
  *
- * Four destinations rather than the web's five: Stats needs a live connection
- * to the server, which a phone signed in to the cloud does not have. Import
- * works anywhere: connected, it looks a link up; signed in to the cloud, it
- * asks the server to fetch it next time it is on.
+ * Four tabs. Library, Playlists and Import are places you go every day; the
+ * fourth, You, lists the rest — Stats, Untagged, Tags and Settings — rather
+ * than giving the bar's last slot to Settings alone. Import works anywhere:
+ * connected, it looks a link up; signed in to the cloud, it asks the server.
  *
  * The current tab is marked twice, as on the web: the accent colour, and a
  * filled pill behind the icon. Colour alone is a weak signal at 20px and no
  * signal at all to anyone who cannot separate the accent from the grey.
  */
-const TABS: { href: '/' | '/playlists' | '/import' | '/settings'; label: string; Icon: typeof Music }[] = [
+const TABS: { href: TabHref; label: string; Icon: typeof Music }[] = [
   { href: '/', label: 'Library', Icon: Music },
   { href: '/playlists', label: 'Playlists', Icon: ListMusic },
   { href: '/import', label: 'Import', Icon: Download },
-  { href: '/settings', label: 'Settings', Icon: Settings },
+  { href: '/you', label: 'You', Icon: User },
 ]
 
 export function BottomNav(): ReactNode {
@@ -36,6 +37,7 @@ export function BottomNav(): ReactNode {
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
   const accent = useAccent()
+  const current = activeTab(pathname)
 
   return (
     <View
@@ -43,13 +45,15 @@ export function BottomNav(): ReactNode {
       accessibilityRole="tablist"
     >
       {TABS.map(tab => {
-        const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href)
+        const active = tab.href === current
         return (
           <Pressable
             key={tab.href}
             style={styles.tab}
             onPress={() => {
-              if (!active) router.navigate(tab.href)
+              // A lit tab still goes to its own first page: You from Settings,
+              // Playlists from a playlist, as a phone's tab bar does.
+              if (pathname !== tab.href) router.navigate(tab.href)
             }}
             testID={`tab-${tab.label.toLowerCase()}`}
             accessibilityRole="tab"

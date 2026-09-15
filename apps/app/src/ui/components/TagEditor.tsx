@@ -17,8 +17,9 @@ import { SheetItem } from './Sheet'
  *
  * Filter by it either way, rename it, recolour it, delete it. Tags are the
  * library's only way of being browsed, so their names and colours are how you
- * find things. On a phone this is what holding a chip opens, and it is the
- * only place a phone can manage tags at all.
+ * find things. It opens from the ⋯ beside a tag: in the sidebar on a
+ * computer, and on the Tags page (You › Tags) on a phone, which is the only
+ * place a phone can manage tags at all.
  *
  * A popover beside the control at desktop width and a sheet on a phone — the
  * primitive decides, not this.

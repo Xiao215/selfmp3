@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -16,7 +16,10 @@ import { onSignInCode, signInReturnUrl } from '../../ports/signInReturn'
 import { LINK_GRACE_MS } from '../signIn/signIn.model'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { CloudUpload, Refresh, Trash, X } from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import { CloudUpload, More, Refresh, Trash, X } from '../../ui/components/Icons'
+import { Popover } from '../../ui/components/Popover'
+import { SheetItem } from '../../ui/components/Sheet'
 import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
 
 /**
@@ -285,13 +288,17 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         last
       >
         <Button label={account ? 'Change bucket…' : 'Change…'} onPress={onChange} />
-        <Button
-          label={account ? 'Sign out' : 'Disconnect'}
-          icon={<Trash size={15} color={theme.colors.danger} />}
-          variant="danger"
-          disabled={disconnect.isPending}
-          onPress={() => setConfirming(true)}
-        />
+        {account ? (
+          <AccountMenu disabled={disconnect.isPending} onSignOut={() => setConfirming(true)} />
+        ) : (
+          <Button
+            label="Disconnect"
+            icon={<Trash size={15} color={theme.colors.danger} />}
+            variant="danger"
+            disabled={disconnect.isPending}
+            onPress={() => setConfirming(true)}
+          />
+        )}
       </Row>
 
       <ConfirmDialog
@@ -311,6 +318,55 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         onCancel={() => setConfirming(false)}
       />
     </>
+  )
+}
+
+/**
+ * Sign out, one step away from Change bucket…: side by side as buttons, the red
+ * one that stops this server publishing sat a finger's slip from the everyday
+ * one. It still asks before it does anything.
+ */
+function AccountMenu({
+  disabled,
+  onSignOut,
+}: {
+  disabled: boolean
+  onSignOut: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const [open, setOpen] = useState(false)
+  const anchorRef = useRef<View>(null)
+  return (
+    <View ref={anchorRef} collapsable={false}>
+      <IconButton
+        onPress={() => setOpen(value => !value)}
+        label="More for this Google account"
+        caption="More"
+        active={open}
+        disabled={disabled}
+      >
+        <More size={17} color={theme.colors.textSecondary} />
+      </IconButton>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={anchorRef}
+        title="Google account"
+        titleTone="label"
+        width={180}
+        testID="cloud-account-menu"
+      >
+        <SheetItem
+          label="Sign out"
+          icon={<Trash size={15} color={theme.colors.danger} />}
+          danger
+          onPress={() => {
+            setOpen(false)
+            onSignOut()
+          }}
+        />
+      </Popover>
+    </View>
   )
 }
 

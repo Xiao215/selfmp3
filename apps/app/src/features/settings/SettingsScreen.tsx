@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatBytes, type Settings, type Song } from '@selfmp3/shared'
+import { formatBytes, type Device, type Settings, type Song } from '@selfmp3/shared'
 import {
   buildAccent,
   clientApi,
@@ -29,6 +29,7 @@ import {
   useAnalysisStatus,
   useScanLibrary,
   useSettings,
+  useDevices,
   useStartAnalysis,
   useUpdateSettings,
 } from '@selfmp3/client'
@@ -53,12 +54,30 @@ import { ACCENT_PRESETS, useAccent, type ThemeChoice } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
-import { CloudDownload, Refresh, Sparkles, Trash, X } from '../../ui/components/Icons'
+import {
+  ChevronDown,
+  ChevronRight,
+  CloudDownload,
+  Refresh,
+  Sparkles,
+  Trash,
+  X,
+} from '../../ui/components/Icons'
 import { Select } from '../../ui/components/Select'
 import { Slider } from '../../ui/components/Slider'
 import { Toggle } from '../../ui/components/Toggle'
 import { useDeviceContext } from '../devices/DevicesProvider'
+import {
+  knownAsDevices,
+  LAST_KNOWN_DEVICES_KEY,
+  parseKnownDevices,
+  serializeKnownDevices,
+} from '../devices/lastKnownDevices.model'
+import { useServerDirect } from '../import/useServerDirect'
+import { usePlayer } from '../../player/PlayerProvider'
+import { menuCommands, type MenuCommand } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
+import { prefs } from '../../ports/prefs'
 import {
   ButtonRow,
   Kbd,
@@ -81,8 +100,10 @@ import {
   healthLine,
   scanHint,
   sectionsFor,
+  splitDevices,
   type SectionId,
 } from './settings.model'
+import { shortcutRows } from './shortcuts.model'
 import {
   coverArtHint,
   coverProgress,
@@ -118,8 +139,10 @@ export function SettingsScreen(): ReactNode {
     staleTime: 60_000,
   })
 
-  // A mouse or trackpad stands in for a keyboard: a phone has no ⌘K to explain.
+  // A mouse or trackpad stands in for a keyboard, and only the installed app —
+  // the one with a login item — has a menu of keys to list.
   const sections = sectionsFor(fromCloud, installedApp, finePointer, loginItem.available)
+  const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
   const tops = useRef(new Map<SectionId, number>())
@@ -230,7 +253,13 @@ export function SettingsScreen(): ReactNode {
           <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
             Settings
           </Text>
-          <Text style={styles.sub}>{healthLine(health.data)}</Text>
+          <Text style={styles.sub}>
+            {healthLine(health.data, {
+              loading: health.isPending,
+              error: health.isError,
+              fromCloud,
+            })}
+          </Text>
         </View>
 
         {column ? null : (
@@ -271,20 +300,10 @@ export function SettingsScreen(): ReactNode {
                 hint="shared across your devices"
                 onTop={top => onTop('playback', top)}
               >
-                <Row
-                  label="Crossfade"
-                  hint="Overlap the end of one track with the start of the next. Zero turns it off."
-                >
-                  <SliderSetting
-                    value={settings.data.crossfadeSeconds}
-                    min={0}
-                    max={12}
-                    step={1}
-                    label="Crossfade"
-                    format={crossfadeLabel}
-                    onCommit={value => set('crossfadeSeconds', value)}
-                  />
-                </Row>
+                <CrossfadeRow
+                  seconds={settings.data.crossfadeSeconds}
+                  onCommit={value => set('crossfadeSeconds', value)}
+                />
                 <Row
                   label="Look up lyrics automatically"
                   hint="Fetches synced lyrics from lrclib.net when a song is imported, and saves them next to the audio so they work offline."
@@ -338,26 +357,13 @@ export function SettingsScreen(): ReactNode {
               </Row>
             </Panel>
 
-            {fromCloud ? null : <DevicesPanel onTop={top => onTop('devices', top)} />}
+            <DevicesPanel onTop={top => onTop('devices', top)} />
 
             {loginItem.available ? <DesktopPanel onTop={top => onTop('desktop', top)} /> : null}
             <AppearancePanel onTop={top => onTop('appearance', top)} />
 
-            {finePointer ? (
-              <Panel
-                title="Keyboard shortcuts"
-                hint="on the server"
-                onTop={top => onTop('shortcuts', top)}
-              >
-                <Text style={partStyles.hint}>Everything else is done with the mouse.</Text>
-                <View style={styles.shortcut}>
-                  <View style={styles.keys}>
-                    <Kbd>⌘</Kbd>
-                    <Kbd>K</Kbd>
-                  </View>
-                  <Text style={partStyles.hint}>Search everything</Text>
-                </View>
-              </Panel>
+            {shortcuts ? (
+              <ShortcutsPanel items={shortcuts} onTop={top => onTop('shortcuts', top)} />
             ) : null}
 
             <Panel title="About" onTop={top => onTop('about', top)}>
@@ -366,10 +372,6 @@ export function SettingsScreen(): ReactNode {
                   {String(Constants.expoConfig?.version ?? '1.0.0')}
                 </Text>
               </Row>
-              <Text style={partStyles.hint}>
-                Crossfade is the web app&rsquo;s: it overlaps two audio elements to do it, and this
-                app plays gapless instead, so the crossfade setting above has no effect here yet.
-              </Text>
             </Panel>
           </View>
         </StackedRows>
@@ -762,7 +764,65 @@ function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean })
   )
 }
 
+// --------------------------------------------------------------- playback
+
+/**
+ * Crossfade, where this device's engine can fade one song into the next — a
+ * browser and the installed app can. A phone's engine plays gapless and cannot
+ * fade, and a slider that does nothing there is worse than none: the row stays
+ * away until it can.
+ */
+function CrossfadeRow({
+  seconds,
+  onCommit,
+}: {
+  seconds: number
+  onCommit: (value: number) => void
+}): ReactNode {
+  // Its own component: the player changes on every play and pause, and the
+  // whole of Settings has no reason to redraw for that.
+  const { canCrossfade } = usePlayer()
+  if (!canCrossfade) return null
+  return (
+    <Row
+      label="Crossfade"
+      hint="Overlap the end of one track with the start of the next. Zero turns it off."
+    >
+      <SliderSetting
+        value={seconds}
+        min={0}
+        max={12}
+        step={1}
+        label="Crossfade"
+        format={crossfadeLabel}
+        onCommit={onCommit}
+      />
+    </Row>
+  )
+}
+
 // ------------------------------------------------------------- connection
+
+/** Rows that are there when asked for: shut until "Details" is pressed. */
+function Details({ children }: { children: ReactNode }): ReactNode {
+  const { theme } = useUnistyles()
+  const [open, setOpen] = useState(false)
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(value => !value)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [styles.details, pressed && styles.detailsPressed]}
+      >
+        <Chevron size={14} color={theme.colors.textMuted} />
+        <Text style={styles.detailsText}>Details</Text>
+      </Pressable>
+      {open ? children : null}
+    </>
+  )
+}
 
 function ConnectionPanel({
   onTop,
@@ -786,30 +846,37 @@ function ConnectionPanel({
           />
         </Row>
       ) : (
-        <>
-          <Row label="Address">
-            <Text style={styles.valueText} numberOfLines={1}>
-              {connection?.baseUrl ?? 'Not set'}
-            </Text>
-          </Row>
+        <Row label="Address">
+          <Text style={styles.valueText} numberOfLines={1}>
+            {connection?.baseUrl ?? 'Not set'}
+          </Text>
+        </Row>
+      )}
+      {/*
+        Folded away: a token and a library version are for someone working out
+        why something is wrong, and the line under Settings' title already says
+        whether the library can be reached.
+      */}
+      <Details>
+        {fromCloud ? null : (
           <Row label="Token">
             <Text style={styles.valueText}>
               {connection?.token ? 'Saved in the keychain' : 'None'}
             </Text>
           </Row>
-        </>
-      )}
-      <Row label="Library" last>
-        <Text style={styles.valueText}>
-          {library.isError
-            ? library.data
-              ? `Unreachable — showing the cached copy, ${library.data.songs.length} songs`
-              : 'Unreachable, and nothing is cached yet'
-            : library.data
-              ? `${library.data.songs.length} songs · version ${library.data.version}`
-              : 'Loading…'}
-        </Text>
-      </Row>
+        )}
+        <Row label="Library" last>
+          <Text style={styles.valueText}>
+            {library.isError
+              ? library.data
+                ? `Unreachable — showing the cached copy, ${library.data.songs.length} songs`
+                : 'Unreachable, and nothing is cached yet'
+              : library.data
+                ? `${library.data.songs.length} songs · version ${library.data.version}`
+                : 'Loading…'}
+          </Text>
+        </Row>
+      </Details>
       <ButtonRow>
         <Button
           label="Refresh"
@@ -978,17 +1045,29 @@ function ServerSwitch(): ReactNode {
 
 // ---------------------------------------------------------------- devices
 
+/** Whether the device list came from a server just now, is being looked for, or cannot be had. */
+type DevicesReach = 'reachable' | 'looking' | 'away'
+
+/**
+ * Settings › Devices, on every device and for either kind of library.
+ *
+ * The list is the server's. A device talking to the server asks it; a cloud
+ * library finds the server the way Import does (`useServerDirect`) and asks it
+ * directly. With no server in reach it shows the last list it was given, each
+ * row marked offline, and says so in one line — there is nothing to press,
+ * since the page keeps looking by itself.
+ */
 function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
-  const { theme } = useUnistyles()
-  const { deviceId, name, rename, devices, connected } = useDeviceContext()
+  const { fromCloud } = useConnection()
+  return fromCloud ? <CloudDevices onTop={onTop} /> : <ServerDevices onTop={onTop} />
+}
+
+/** A server library: the list the devices provider keeps, from the same query. */
+function ServerDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const { devices, connected } = useDeviceContext()
   const client = useQueryClient()
-  const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
-  const [showOlder, setShowOlder] = useState(false)
-  const shown = draft && draft.from === name ? draft.text : name
-  // Offline devices that share a name folded into one row, this device and
-  // what was seen in the last day first, the rest behind a button.
-  const view = useMemo(() => deviceListView(devices, deviceId), [devices, deviceId])
-  const rows = showOlder ? [...view.recent, ...view.older] : view.recent
+  const query = useDevices(connected)
+  const reach: DevicesReach = query.isError ? 'away' : query.data ? 'reachable' : 'looking'
 
   const forget = (ids: readonly string[]): void => {
     void Promise.all(
@@ -1001,7 +1080,111 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   }
 
   return (
-    <Panel title="Devices" hint={connected ? 'live updates' : 'polling'} onTop={onTop}>
+    <DevicesList
+      onTop={onTop}
+      hint={reach === 'reachable' ? (connected ? 'live updates' : 'polling') : undefined}
+      reach={reach}
+      devices={devices}
+      onForget={forget}
+    />
+  )
+}
+
+/** A cloud library: the server found by its addresses, and asked directly. */
+function CloudDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
+  const server = useServerDirect()
+  const client = useQueryClient()
+  const connection = server.state === 'reachable' ? server.connection : null
+  const key = [...queryKeys.devices, 'through', connection?.baseUrl ?? null] as const
+  const list = useQuery({
+    queryKey: key,
+    queryFn: () => {
+      if (!connection) throw new Error('no server in reach')
+      return apiFor(connection).devices()
+    },
+    enabled: connection !== null,
+    retry: false,
+    staleTime: 10_000,
+  })
+  const reach: DevicesReach =
+    connection === null
+      ? server.state === 'looking'
+        ? 'looking'
+        : 'away'
+      : list.isError
+        ? 'away'
+        : list.data
+          ? 'reachable'
+          : 'looking'
+
+  const forget = (ids: readonly string[]): void => {
+    if (!connection) return
+    void Promise.all(
+      ids.map(id =>
+        apiFor(connection)
+          .forgetDevice(id)
+          .catch(() => undefined),
+      ),
+    ).then(() => client.invalidateQueries({ queryKey: key }))
+  }
+
+  return (
+    <DevicesList
+      onTop={onTop}
+      hint={reach === 'reachable' ? 'through your server' : undefined}
+      reach={reach}
+      devices={list.data?.devices ?? []}
+      onForget={forget}
+    />
+  )
+}
+
+/** The panel itself, whichever way its list arrived. */
+function DevicesList({
+  onTop,
+  hint,
+  reach,
+  devices,
+  onForget,
+}: {
+  onTop: (top: number) => void
+  hint: string | undefined
+  reach: DevicesReach
+  devices: readonly Device[]
+  onForget: (ids: readonly string[]) => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const { deviceId, name, rename } = useDeviceContext()
+  const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
+  const [showOlder, setShowOlder] = useState(false)
+  const shown = draft && draft.from === name ? draft.text : name
+  const live = reach === 'reachable'
+
+  // The last real answer, kept for the day there is none. Read once, as the
+  // panel opens: the rows it draws do not change under the reader.
+  const [known] = useState(() => parseKnownDevices(prefs.get(LAST_KNOWN_DEVICES_KEY)))
+  useEffect(() => {
+    if (live && devices.length > 0) {
+      prefs.set(LAST_KNOWN_DEVICES_KEY, serializeKnownDevices(devices, Date.now()))
+    }
+  }, [live, devices])
+  const listed = useMemo(
+    () => (live ? devices : knownAsDevices(known?.devices ?? [])),
+    [live, devices, known],
+  )
+
+  // Offline devices that share a name folded into one row; this device, what
+  // is online and what was seen in the last week first; the rest behind a button.
+  const [now] = useState(Date.now)
+  const view = useMemo(() => {
+    const folded = deviceListView(listed, deviceId, now)
+    return splitDevices([...folded.recent, ...folded.older], deviceId, now)
+  }, [listed, deviceId, now])
+  const rows = showOlder ? [...view.recent, ...view.older] : view.recent
+  const olderIds = view.older.flatMap(row => row.ids)
+
+  return (
+    <Panel title="Devices" hint={hint} onTop={onTop}>
       <Lead>
         Every device you open self.mp3 on shows up here and can hand playback to any of the others.
         Nothing is stored beyond a name and what was last playing.
@@ -1025,7 +1208,9 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
             key={device.id}
             style={[styles.device, position === rows.length - 1 && styles.deviceLast]}
           >
-            <View style={[styles.dot, device.online && { backgroundColor: theme.colors.good }]} />
+            <View
+              style={[styles.dot, live && device.online && { backgroundColor: theme.colors.good }]}
+            />
             <View style={styles.deviceName}>
               <Text style={styles.deviceText} numberOfLines={1}>
                 {device.name}
@@ -1034,35 +1219,81 @@ function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
               {ids.length > 1 ? <Text style={styles.deviceTag}>{`×${ids.length}`}</Text> : null}
             </View>
             <Text style={styles.deviceWhen}>
-              {device.online ? 'online' : `last seen ${relativeTime(device.lastSeenAt)}`}
+              {!live
+                ? `offline · last seen ${relativeTime(device.lastSeenAt)}`
+                : device.online
+                  ? 'online'
+                  : `last seen ${relativeTime(device.lastSeenAt)}`}
             </Text>
-            <IconButton
-              onPress={() => forget(ids)}
-              label={
-                ids.length > 1 ? `Forget ${device.name} (${ids.length})` : `Forget ${device.name}`
-              }
-              size={28}
-            >
-              <Trash size={14} color={theme.colors.textMuted} />
-            </IconButton>
+            {/* Forgetting is the server's to do, so only while it answers. */}
+            {live ? (
+              <IconButton
+                onPress={() => onForget(ids)}
+                label={
+                  ids.length > 1 ? `Forget ${device.name} (${ids.length})` : `Forget ${device.name}`
+                }
+                size={28}
+              >
+                <Trash size={14} color={theme.colors.textMuted} />
+              </IconButton>
+            ) : null}
           </View>
         ))}
-        {devices.length === 0 ? (
+        {live && devices.length === 0 ? (
           <Text style={partStyles.hint}>No devices registered yet.</Text>
+        ) : null}
+        {!live ? (
+          <Text style={[partStyles.hint, rows.length > 0 && styles.devicesNote]}>
+            {listed.length === 0
+              ? 'Devices show up when this device can reach your server.'
+              : reach === 'looking'
+                ? 'Looking for your server — showing the last list.'
+                : 'Can’t reach your server — showing the last list.'}
+          </Text>
         ) : null}
         {view.older.length > 0 ? (
           <View style={styles.devicesMore}>
             <Button
-              label={
-                showOlder
-                  ? 'Show fewer devices'
-                  : `Show ${view.older.length} older ${view.older.length === 1 ? 'device' : 'devices'}`
-              }
+              label={showOlder ? 'Show fewer' : `Show ${view.older.length} older`}
               onPress={() => setShowOlder(open => !open)}
             />
+            {live ? (
+              <Button label="Forget all older" onPress={() => onForget(olderIds)} />
+            ) : null}
           </View>
         ) : null}
       </View>
+    </Panel>
+  )
+}
+
+// -------------------------------------------------------------- shortcuts
+
+/**
+ * The installed app's menu keys, read from the menu itself (`menuKeys` port),
+ * so this lists what the menu bar really has. Nowhere else: a browser tab has
+ * no shortcuts of its own, and a phone has no keys.
+ */
+function ShortcutsPanel({
+  items,
+  onTop,
+}: {
+  items: readonly MenuCommand[]
+  onTop: (top: number) => void
+}): ReactNode {
+  const rows = useMemo(() => shortcutRows(items), [items])
+  return (
+    <Panel title="Keyboard shortcuts" hint="on this device" onTop={onTop}>
+      {rows.map(row => (
+        <View key={row.label} style={styles.shortcut}>
+          <View style={styles.keys}>
+            {row.keys.map((key, index) => (
+              <Kbd key={`${index}-${key}`}>{key}</Kbd>
+            ))}
+          </View>
+          <Text style={partStyles.hint}>{row.label}</Text>
+        </View>
+      ))}
     </Panel>
   )
 }
@@ -1379,7 +1610,18 @@ const styles = StyleSheet.create(theme => ({
   progress: { marginVertical: 14, gap: 8 },
   progressText: { color: theme.colors.textSecondary, fontSize: 13 },
   shortcut: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
-  keys: { flexDirection: 'row', gap: 3, minWidth: 92 },
+  keys: { flexDirection: 'row', gap: 3, minWidth: 116 },
+  details: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 8,
+    paddingRight: 8,
+    borderRadius: radius.sm,
+  },
+  detailsPressed: { opacity: 0.7 },
+  detailsText: { color: theme.colors.textMuted, fontSize: 13 },
   devices: { marginTop: 6 },
   device: {
     flexDirection: 'row',
@@ -1390,7 +1632,8 @@ const styles = StyleSheet.create(theme => ({
     borderBottomColor: theme.colors.border,
   },
   deviceLast: { borderBottomWidth: 0 },
-  devicesMore: { paddingTop: 10, alignItems: 'flex-start' },
+  devicesMore: { paddingTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  devicesNote: { paddingTop: 10 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   deviceText: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },

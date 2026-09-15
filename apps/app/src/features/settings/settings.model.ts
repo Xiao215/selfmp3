@@ -19,7 +19,12 @@ export type SectionId =
   | 'shortcuts'
   | 'about'
 
-/** The index, in page order. `server`: the section acts on the server, so a cloud library has none. */
+/**
+ * The index, in page order. `server`: the section acts on the server, so a cloud library has none.
+ *
+ * Devices is not one of those any more: a cloud library finds its server the way
+ * Import does, and with no server in reach it still shows the last list it had.
+ */
 export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boolean }[] = [
   { id: 'playback', label: 'Playback' },
   { id: 'offline', label: 'Offline music' },
@@ -29,18 +34,20 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boo
   { id: 'connection', label: 'Connection' },
   // Not the server's: romaji is kept with the words in the cloud too, and the switch is this device's.
   { id: 'lyrics', label: 'Lyrics' },
-  { id: 'devices', label: 'Devices', server: true },
+  { id: 'devices', label: 'Devices' },
   { id: 'desktop', label: 'Desktop app' },
   { id: 'appearance', label: 'Appearance' },
-  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'about', label: 'About' },
 ]
 
 /**
  * `installed`: a browser streams and keeps no songs, so it has no Offline music.
- * `keyboard`: a finger has no ⌘K, so a phone has no Shortcuts.
+ * `keyboard`: a finger has no keys to press, so a phone has no Keyboard shortcuts.
  * `shell`: only the installed desktop app can open at login, and a section with
  * nothing in it is worse than one that is not there — so it defaults to absent.
+ * It is also the only place with keyboard shortcuts: its menu has them, and a
+ * browser tab has none (decided 2026-09-14).
  */
 export function sectionsFor(
   fromCloud: boolean,
@@ -52,7 +59,7 @@ export function sectionsFor(
     section =>
       (!fromCloud || !section.server) &&
       (installed || section.id !== 'offline') &&
-      (keyboard || section.id !== 'shortcuts') &&
+      ((keyboard && shell) || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop'),
   )
 }
@@ -95,11 +102,54 @@ export function accentName(hue: number, presets: readonly { hue: number; name: s
   return presets.find(preset => preset.hue === hue)?.name ?? `Hue ${hue}°`
 }
 
-/** The line under the title. */
-export function healthLine(health: Health | undefined): string {
-  if (!health) return 'Not connected to your library right now'
-  const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
-  return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
+/**
+ * The line under the title.
+ *
+ * While the check is out it says so, rather than "not connected": the phone
+ * said that for the second it took to ask, with a song playing from the very
+ * server it claimed not to reach.
+ */
+export function healthLine(
+  health: Health | undefined,
+  asking: { readonly loading?: boolean; readonly error?: boolean; readonly fromCloud?: boolean } = {},
+): string {
+  if (health) {
+    const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
+    return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
+  }
+  if (asking.loading) return 'Checking your library…'
+  if (asking.error) return asking.fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server'
+  return 'Not connected to your library right now'
+}
+
+/** How long a device counts as one you still use: a week. */
+export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Settings' device rows, split: this device, anything online, and anything
+ * seen in the last week first; the rest behind "Show N older".
+ *
+ * Takes the rows already folded by name (`deviceListView`) and in their order,
+ * which is this device, then online, then most recently seen — so the split
+ * keeps that order on both sides.
+ */
+export function splitDevices<
+  T extends { readonly device: { readonly id: string; readonly online: boolean; readonly lastSeenAt: number } },
+>(
+  rows: readonly T[],
+  thisDeviceId: string | null,
+  now: number,
+  windowMs: number = RECENT_DEVICE_WINDOW_MS,
+): { recent: T[]; older: T[] } {
+  const recent: T[] = []
+  const older: T[] = []
+  for (const row of rows) {
+    const { device } = row
+    if (device.id === thisDeviceId || device.online || now - device.lastSeenAt <= windowMs) {
+      recent.push(row)
+    } else older.push(row)
+  }
+  return { recent, older }
 }
 
 export function scanHint(result: ScanResult | undefined): string {

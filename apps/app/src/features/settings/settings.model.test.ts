@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest'
 import {
   accentName,
   activeSection,
+  ALL_SECTIONS,
   crossfadeLabel,
   healthLine,
   percentLabel,
+  RECENT_DEVICE_WINDOW_MS,
   scanHint,
   sectionsFor,
+  splitDevices,
 } from './settings.model'
+
+const ALL_LABEL = (id: string): string | undefined =>
+  ALL_SECTIONS.find(section => section.id === id)?.label
 
 const TOPS = [
   { id: 'a', top: 0 },
@@ -18,19 +24,24 @@ const TOPS = [
 ]
 
 describe('settings', () => {
-  it('leaves out the server sections for a library in the cloud', () => {
+  it('leaves out the server sections for a library in the cloud, but not Devices', () => {
     const ids = sectionsFor(true).map(section => section.id)
     expect(ids).toContain('playback')
     expect(ids).not.toContain('importing')
-    expect(ids).not.toContain('devices')
     expect(ids).not.toContain('cloud')
-    expect(sectionsFor(false)).toHaveLength(11)
+    // Found through the server the way Import finds it, or the last list kept here.
+    expect(ids).toContain('devices')
+    expect(sectionsFor(false)).toHaveLength(10)
     expect(sectionsFor(false, false).map(section => section.id)).not.toContain('offline')
   })
 
-  it('leaves out Shortcuts where there is no keyboard to press them on', () => {
-    expect(sectionsFor(false, true, false).map(section => section.id)).not.toContain('shortcuts')
-    expect(sectionsFor(false).map(section => section.id)).toContain('shortcuts')
+  it('lists keyboard shortcuts only in the installed app, which has a menu of them', () => {
+    const ids = (...args: Parameters<typeof sectionsFor>) => sectionsFor(...args).map(section => section.id)
+    // A browser tab has a keyboard and no shortcuts of its own.
+    expect(ids(false, false, true, false)).not.toContain('shortcuts')
+    expect(ids(false, true, false, true)).not.toContain('shortcuts')
+    expect(ids(false, true, true, true)).toContain('shortcuts')
+    expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
   })
 
   it('shows the desktop section only where there is a shell to ask', () => {
@@ -55,6 +66,29 @@ describe('settings', () => {
     expect(percentLabel(0.55)).toBe('55%')
     expect(accentName(330, [{ hue: 330, name: 'Pink' }])).toBe('Pink')
     expect(accentName(30, [{ hue: 330, name: 'Pink' }])).toBe('Hue 30°')
+  })
+
+  it('says it is checking while it checks, and which side it could not reach', () => {
+    expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
+    expect(healthLine(undefined, { error: true })).toBe('Can’t reach your server')
+    expect(healthLine(undefined, { error: true, fromCloud: true })).toBe('Can’t reach the cloud')
+  })
+
+  it('keeps this device, what is online and the last week, and folds the rest away', () => {
+    const now = 100 * RECENT_DEVICE_WINDOW_MS
+    const row = (id: string, ageMs: number, online = false) => ({
+      device: { id, online, lastSeenAt: now - ageMs },
+      ids: [id],
+    })
+    const rows = [
+      row('me', 30 * RECENT_DEVICE_WINDOW_MS),
+      row('phone', 0, true),
+      row('mac', RECENT_DEVICE_WINDOW_MS - 1),
+      row('old', RECENT_DEVICE_WINDOW_MS + 1),
+    ]
+    const { recent, older } = splitDevices(rows, 'me', now)
+    expect(recent.map(entry => entry.device.id)).toEqual(['me', 'phone', 'mac'])
+    expect(older.map(entry => entry.device.id)).toEqual(['old'])
   })
 
   it('says what it is connected to', () => {

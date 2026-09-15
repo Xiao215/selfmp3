@@ -99,4 +99,4 @@ GET /api/songs/:id/lyrics
 | Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests; used for YouTube Music's lyrics) |
 | Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index` (its `secrets` table belonged to a since-removed translation feature and is unused); later `songs.instrumental` |
 | Server | `services/lyrics.ts` (lrclib, instrumental), `romanization.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
-| App | `apps/app/src/features/nowPlaying/` (see [now-playing.md](now-playing.md)), `romanizationPref.ts` there; Lyrics group in `apps/app/src/features/palette/CommandPalette.tsx` |
+| App | `apps/app/src/features/nowPlaying/` (see [now-playing.md](now-playing.md)), `romanizationPref.ts` there; Lyrics group in `apps/app/src/features/commandPalette/CommandPalette.tsx` |

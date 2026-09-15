@@ -19,17 +19,21 @@ export const StackedRows = Stacked.Provider
 export function Panel({
   title,
   hint,
-  onTop,
+  anchor,
   children,
 }: {
   title: string
   hint?: string
-  /** Where the panel sits in the page, so the index can scroll to it. */
-  onTop: (top: number) => void
+  /**
+   * The panel's own view, so the index can ask where it sits when it scrolls
+   * there. A view rather than an `onLayout` offset: in a browser a view reports
+   * its layout only when its size changes, not when a panel above it grows.
+   */
+  anchor: (node: View | null) => void
   children: ReactNode
 }): ReactNode {
   return (
-    <View style={styles.panel} onLayout={event => onTop(event.nativeEvent.layout.y)}>
+    <View ref={anchor} style={styles.panel}>
       <View style={styles.panelHead}>
         <Text style={styles.panelTitle} accessibilityRole="header">
           {title}

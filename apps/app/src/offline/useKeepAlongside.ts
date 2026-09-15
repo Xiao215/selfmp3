@@ -7,6 +7,7 @@ import { useConnection } from '../server/ConnectionProvider'
 import { ensureCover, ensureServerCover, KEPT_COVER_SIZE } from './covers'
 import { useDownloads } from './DownloadsProvider'
 import { hasCachedLyrics, writeCachedLyrics } from './lyricsCache'
+import { hasCachedMotion, writeCachedMotion } from './motionCache'
 import { writeCachedPlaylist } from './playlistCache'
 
 /**
@@ -22,7 +23,9 @@ import { writeCachedPlaylist } from './playlistCache'
  *  - every playlist's members, so a playlist opens offline;
  *  - the words of every downloaded song. A download fetches its own words as
  *    it goes (ports/downloadStorage.ts); this catches songs downloaded before
- *    the app kept words, and words edited on the server since.
+ *    the app kept words, and words edited on the server since;
+ *  - the motion curve of every downloaded song, for the same reason, and for
+ *    songs the server had not analysed yet when they were downloaded.
  *
  * A song with no words is a 404 and is simply skipped; it is asked again next
  * time. Everything here is best effort: a request that fails is left for the
@@ -115,11 +118,19 @@ export function useKeepAlongside(): void {
           // Words go with a kept file: an installed app's downloads, or a
           // browser's played copies, which the download queue also keeps.
           if (!installed || !isDownloaded(latest.current.index, song.id)) return
-          if (cancelled || (await hasCachedLyrics(song.id))) return
-          try {
-            writeCachedLyrics(song.id, await api.lyrics(song.id))
-          } catch {
-            // No words, or the server went away mid-pass: the next pass asks again.
+          if (!cancelled && !(await hasCachedLyrics(song.id))) {
+            try {
+              writeCachedLyrics(song.id, await api.lyrics(song.id))
+            } catch {
+              // No words, or the server went away mid-pass: the next pass asks again.
+            }
+          }
+          if (!cancelled && !(await hasCachedMotion(song.id))) {
+            try {
+              writeCachedMotion(song.id, await api.motion(song.id))
+            } catch {
+              // Not analysed yet, or the server went away: likewise.
+            }
           }
         },
         isCancelled,

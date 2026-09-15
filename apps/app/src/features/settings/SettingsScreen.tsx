@@ -39,6 +39,7 @@ import { library as cloudLibrary, session as cloudSession } from '../../cloud'
 import { clearCachedLibrary } from '../../offline/libraryCache'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { clearCachedLyrics } from '../../offline/lyricsCache'
+import { clearCachedMotion } from '../../offline/motionCache'
 import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { downloadsFolder } from '../../ports/downloadsFolder'
 import { loginItem } from '../../ports/loginItem'
@@ -1609,6 +1610,7 @@ function Confirmations({
             await clearCachedLibrary()
             clearCachedPlaylists()
             clearCachedLyrics()
+            clearCachedMotion()
           },
           done: () => {
             signedOutOfCloud()

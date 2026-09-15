@@ -15,6 +15,7 @@ import { api, mediaUrlFor } from '../api/client'
 import { cloudPlatform, session as cloudSession } from '../cloud'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
 import { writeCachedLyrics } from '../offline/lyricsCache'
+import { writeCachedMotion } from '../offline/motionCache'
 
 /**
  * Where the phone keeps songs: files on disk, beside a JSON index.
@@ -74,6 +75,19 @@ async function keepLyrics(song: Song): Promise<void> {
   }
 }
 
+/**
+ * A song's motion curve onto this device, so its visuals follow it on the plane.
+ * Never fails a download: a song not analysed yet is a 404, and a curve the
+ * server could not send now is fetched by the catch-up pass (useKeepAlongside).
+ */
+async function keepMotion(song: Song): Promise<void> {
+  try {
+    writeCachedMotion(song.id, await api.motion(song.id))
+  } catch {
+    // No curve: the visual follows the tempo instead.
+  }
+}
+
 function transferFor(
   song: Song,
   onProgress: (progress: TransferProgress) => void,
@@ -98,6 +112,8 @@ function transferFor(
       // not, and fails the download here before any of the file is fetched,
       // so the queue tries the whole thing again later.
       await keepLyrics(song)
+      // Beside the words, but never in the way of the file.
+      void keepMotion(song)
       const from = await sourceFor(song)
       // Called off while the source was being worked out.
       if (cancelled) throw new Error('cancelled')

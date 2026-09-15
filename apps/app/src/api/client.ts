@@ -30,6 +30,7 @@ import {
 import { cloudRequest, library as cloudLibrary } from '../cloud'
 import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
 import { readCachedLyrics, writeCachedLyrics } from '../offline/lyricsCache'
+import { readCachedMotion, writeCachedMotion } from '../offline/motionCache'
 import { readCachedPlaylist, writeCachedPlaylist } from '../offline/playlistCache'
 
 /** A slow request is almost always a sleeping server; do not hang forever. */
@@ -125,6 +126,12 @@ configureClient({
     read: readCachedLyrics,
     write: async (songId, lyrics) => {
       writeCachedLyrics(songId, lyrics)
+    },
+  },
+  motionSnapshot: {
+    read: readCachedMotion,
+    write: async (songId, motion) => {
+      writeCachedMotion(songId, motion)
     },
   },
 })

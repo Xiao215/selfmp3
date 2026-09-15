@@ -14,6 +14,7 @@ export type {
   ClientResponse,
   CloudRequest,
   LibrarySnapshotStore,
+  MotionSnapshotStore,
   OutboxStore,
 } from './platform.js'
 
@@ -98,3 +99,6 @@ export {
 } from './selection/selection.js'
 
 export * from './songs/facts.js'
+
+// A song's motion curve, decoded once and sampled against the playhead by the visuals.
+export * from './motion/motion.js'

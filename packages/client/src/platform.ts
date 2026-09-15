@@ -22,7 +22,7 @@
  * time it was tested, which is a good sign for it.
  */
 
-import type { Library, LyricsResponse, OutboxEvent, PlaylistSongs } from '@selfmp3/shared'
+import type { Library, LyricsResponse, Motion, OutboxEvent, PlaylistSongs } from '@selfmp3/shared'
 
 /** As much of a response as anything here reads. */
 export interface ClientResponse {
@@ -137,6 +137,12 @@ export interface PlaylistSnapshotStore {
 export interface LyricsSnapshotStore {
   read(songId: number): Promise<LyricsResponse | null>
   write(songId: number, lyrics: LyricsResponse): Promise<void>
+}
+
+/** Each song's last known motion curve, as the server sent it, for the visuals offline. */
+export interface MotionSnapshotStore {
+  read(songId: number): Promise<Motion | null>
+  write(songId: number, motion: Motion): Promise<void>
 }
 
 /**

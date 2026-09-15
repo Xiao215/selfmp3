@@ -217,6 +217,45 @@ describe('lyrics', () => {
   })
 })
 
+describe('motion curves', () => {
+  const CURVE = { version: 1, rate: 20, duration: 0.15, loudness: 'AED/', onset: '/wAA' }
+
+  const withFiles = async (motion: string | null | undefined) => {
+    const made = build()
+    await made.store.write(FILES_KEY, {
+      4: {
+        audio: 'audio/4.m4a',
+        cover: null,
+        lyrics: null,
+        lyricsKind: null,
+        romanized: null,
+        // Left out entirely, as a library kept by an older build has it.
+        ...(motion === undefined ? {} : { motion }),
+      },
+    })
+    return made
+  }
+
+  it('reads a song’s curve from the bucket, the way the server answers it', async () => {
+    const made = await withFiles('lyrics/4.json')
+    made.bucket.files.set('lyrics/4.json', CURVE)
+
+    await expect(made.library.cloudMotion(SESSION, 4)).resolves.toEqual(CURVE)
+  })
+
+  it('answers null for a song with no curve, one from an older build, and one that is not a curve', async () => {
+    expect(await (await withFiles(null)).library.cloudMotion(SESSION, 4)).toBeNull()
+    expect(await (await withFiles(undefined)).library.cloudMotion(SESSION, 4)).toBeNull()
+
+    const odd = await withFiles('lyrics/4.json')
+    odd.bucket.files.set('lyrics/4.json', ['not', 'a', 'curve'])
+    expect(await odd.library.cloudMotion(SESSION, 4)).toBeNull()
+
+    const gone = await withFiles('lyrics/4.json')
+    expect(await gone.library.cloudMotion(SESSION, 4)).toBeNull()
+  })
+})
+
 describe('the outbox', () => {
   it('gives every log file its own sequence number', async () => {
     const made = build()

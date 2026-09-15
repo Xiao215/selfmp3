@@ -155,11 +155,16 @@ export class NativeEngine implements PlaybackEngine {
 
     // Already the song that is sounding. This is the ordinary case right after
     // the player advanced by itself and the provider agreed with it, and
-    // reloading here is what would turn a gapless join into a stutter.
+    // reloading here is what would turn a gapless join into a stutter. The
+    // player used up the song lent behind this one to get here, so lend the
+    // next: without it the join after this song is a gap, and Next on the lock
+    // screen has nowhere to go.
     if (this.#currentSongId === songId) {
       if (startAt !== undefined) await TrackPlayer.seekTo(startAt)
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
+      if (overtaken()) return
+      await this.#topUpLookahead()
       return
     }
 

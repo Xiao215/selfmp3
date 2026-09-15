@@ -15,8 +15,10 @@ import { beatKick, beatPhase, synthLevels, valueNoise, type VisualFeel } from '.
  * keeps time on its own.
  *
  * All three sit behind one small interface, so the four styles draw the same
- * way whichever is behind them, and the styles never learn which it is. Pure
- * apart from the analyser it is handed: vitest runs every sampler.
+ * way whichever is behind them, and the styles never learn which it is. Live
+ * and curve agree on what "loud" means: both become a level through the same
+ * decibel scale (`levelFromDb`). Pure apart from the analyser it is handed:
+ * vitest runs every sampler.
  */
 
 /** What the visual reads every frame: 0–1 overall level, 0–1 onset, and 0–1 bands low→high. */
@@ -70,87 +72,197 @@ export const sampleCurve: CurveSample = (curve, seconds) => {
   return { level: lerp(curve.loudness), onset: lerp(curve.onset) }
 }
 
+/* ------------------------------------------------------------------ level */
+
+/** The loudness a quiet passage sits at, in dBFS of short-term RMS: level 0 from here down. */
+export const QUIET_DB = -40
+/** The loudness a loud master's chorus reaches: level 1 from here up. */
+export const LOUD_DB = -9
+
+/**
+ * A short-term loudness in dBFS as a visual level. Music lives between about
+ * -40 and -9 dBFS; a bend keeps the quiet end quiet, so a verse at -30 draws
+ * small and a chorus at -10 draws big.
+ */
+export function levelFromDb(db: number): number {
+  if (!Number.isFinite(db)) return 0
+  const x = (db - QUIET_DB) / (LOUD_DB - QUIET_DB)
+  return Math.pow(Math.max(0, Math.min(1, x)), 1.6)
+}
+
+/** The curve's loudness byte (0–1 across -60 to 0 dBFS) as a visual level. */
+export function curveLevel(loudness: number): number {
+  return levelFromDb(loudness * 60 - 60)
+}
+
 /* ------------------------------------------------------------------- live */
 
-/** How a live band is shaped from the analyser's byte: the curve Spectrum has always drawn with. */
-export function shapeBin(byte: number): number {
-  // A modern master sits near the top of the byte range, and a gentle curve
-  // draws every bar at full length; a steep one leaves room for quiet.
-  return Math.min(1, Math.pow(byte / 255, 2.6) * 1.25)
+/** How a live band is shaped from the analyser's reading (0–1 across its range): Spectrum's curve. */
+export function shapeBin(value: number): number {
+  // A modern master sits near the top of the analyser's range, and a gentle
+  // curve draws every bar at full length; a steep one leaves room for quiet.
+  return Math.min(1, Math.pow(Math.max(0, Math.min(1, value)), 2.6) * 1.25)
 }
 
 /** The share of the analyser's bins with any music in them: the top quarter is almost always empty. */
 export const LIVE_USABLE = 0.75
 /** The share of the usable bins that carry the hits: the bass, the kick and the snare's body. */
 export const LIVE_LOW = 0.14
-/** The shaped mean a loud chorus reaches, which maps to a level of 1. */
-export const LIVE_LOUD = 0.34
+/**
+ * The shaped root mean square of the bins, and the loudness it was measured at
+ * (Chromium, songs from the dev library, against ffmpeg's RMS): it moves about
+ * 17 dB per factor of e, so a level comes from it through the curve's scale.
+ */
+export const LIVE_REF_RMS = 0.376
+export const LIVE_REF_DB = -10
+export const LIVE_DB_PER_E = 17.3
 /** Seconds the running average of the low bins looks back: an onset is a rise above it. */
 export const FLUX_MEMORY = 0.1
 /** Seconds the onset normaliser's peak takes to fall to a third. */
-export const FLUX_PEAK_DECAY = 3
+export const FLUX_PEAK_DECAY = 1.5
 /**
- * The smallest rise that can count as a whole onset, in the byte scale's
- * units (0–1 across the analyser's 70 dB): below it a quiet passage's small
- * movements stay small instead of being normalised up into hits.
+ * The smallest rise that can count as a whole onset, in the analyser's range
+ * (1 across its 70 dB): below it a quiet passage's small movements stay small
+ * instead of being normalised up into hits.
  */
-export const FLUX_FLOOR = 0.045
+export const FLUX_FLOOR = 0.03
+/** A playhead jump bigger than this, in seconds, is a seek rather than a slow frame. */
+export const SEEK_JUMP = 0.75
+/** Seconds after a seek before a rise can count as a hit: the analyser's own smoothing settling. */
+export const SEEK_SETTLE = 0.3
+
+/** The live sampler's raw numbers from its last frame, for calibrating it against real songs. */
+export interface LiveTrace {
+  rms: number
+  flux: number
+}
+
+/** An analyser that can also answer in decibels, unclipped: a browser's `AnalyserNode`. */
+interface DecibelAnalyser extends FrequencyAnalyser {
+  getFloatFrequencyData(into: Float32Array): void
+  readonly minDecibels: number
+  readonly maxDecibels: number
+}
+
+function hasDecibels(analyser: FrequencyAnalyser): analyser is DecibelAnalyser {
+  const candidate = analyser as Partial<DecibelAnalyser>
+  return (
+    typeof candidate.getFloatFrequencyData === 'function' &&
+    typeof candidate.minDecibels === 'number' &&
+    typeof candidate.maxDecibels === 'number'
+  )
+}
 
 const clock = (): number => (globalThis.performance?.now() ?? Date.now()) / 1000
+
+/** The live level from the shaped root mean square: an estimate of the loudness, on the curve's scale. */
+export function liveLevel(rms: number): number {
+  if (!(rms > 0)) return 0
+  return levelFromDb(LIVE_REF_DB + LIVE_DB_PER_E * Math.log(rms / LIVE_REF_RMS))
+}
 
 /**
  * The sound itself, from the engine's analyser.
  *
- * Bands are the usable bins averaged into as many bands as asked for, on
- * Spectrum's curve. Level is the root mean square of all of them, scaled so a
- * loud chorus reaches 1 — a quiet verse is genuinely lower, not normalised
- * up. Onset is spectral flux on the low bins: how far each has risen above
- * its own short running average, summed, and divided by a peak that falls
- * away slowly, so a hit reads near 1 in a loud song and in a quiet one alike,
- * but a floor keeps the hush between hits from becoming hits of its own.
+ * Each bin is read as a share of the analyser's decibel range. Bands are the
+ * usable bins averaged into as many bands as asked for, on Spectrum's curve;
+ * level is their root mean square, turned into an estimate of the loudness,
+ * so a quiet verse is genuinely lower rather than normalised up. Onset is
+ * spectral flux on the low bins: how far each has risen above its own short
+ * running average, summed, over a peak that falls away over a second or two,
+ * so a hit reads near 1 in a loud song and a quiet one alike, with a floor so
+ * the hush between hits does not become hits of its own.
+ *
+ * The flux reads the analyser in decibels where it can. Its bytes stop at the
+ * top of its range, and a loud chorus's bass sits there: every kick would be
+ * 255 rising to 255, and the loudest part of a song would have no hits at all.
  */
-export function liveSampler(analyser: FrequencyAnalyser, now: () => number = clock): MotionSampler {
-  const bins = new Uint8Array(analyser.frequencyBinCount)
-  const usable = Math.max(1, Math.floor(bins.length * LIVE_USABLE))
+export function liveSampler(
+  analyser: FrequencyAnalyser,
+  now: () => number = clock,
+): MotionSampler & { readonly trace: LiveTrace } {
+  const count = analyser.frequencyBinCount
+  const decibels = hasDecibels(analyser) ? analyser : null
+  const bytes = decibels ? null : new Uint8Array(count)
+  const floats = decibels ? new Float32Array(count) : null
+  const values = new Float32Array(count)
+  const usable = Math.max(1, Math.floor(count * LIVE_USABLE))
   const low = Math.max(2, Math.round(usable * LIVE_LOW))
   const average = new Float32Array(low)
+  const trace: LiveTrace = { rms: 0, flux: 0 }
   let primed = false
+  let settling = 0
   let peak = FLUX_FLOOR
   let last: number | null = null
+  let lastSeconds: number | null = null
+
+  /** Fills `values` with each bin as a share of the analyser's range: 0 at its floor, 1 at its top, more above it. */
+  const read = (): void => {
+    if (decibels && floats) {
+      decibels.getFloatFrequencyData(floats)
+      const floor = decibels.minDecibels
+      const span = decibels.maxDecibels - floor || 1
+      for (let i = 0; i < count; i++) {
+        const db = floats[i] ?? -Infinity
+        values[i] = Number.isFinite(db) ? Math.max(0, (db - floor) / span) : 0
+      }
+    } else if (bytes) {
+      analyser.getByteFrequencyData(bytes)
+      for (let i = 0; i < count; i++) values[i] = (bytes[i] ?? 0) / 255
+    }
+  }
 
   return {
     source: 'live',
-    sample(_seconds, into) {
+    trace,
+    sample(seconds, into) {
       const at = now()
       const dt = last === null ? 1 / 60 : Math.max(0, Math.min(0.1, at - last))
       last = at
-      analyser.getByteFrequencyData(bins)
+      // A seek, or the next song, jumps the playhead and the whole spectrum
+      // with it. That is not a hit: forget the running average and the peak,
+      // and let the analyser's own smoothing catch up before listening again.
+      if (lastSeconds !== null && Math.abs(seconds - lastSeconds) > SEEK_JUMP) {
+        primed = false
+        settling = SEEK_SETTLE
+        peak = FLUX_FLOOR
+      }
+      lastSeconds = seconds
+      read()
 
       let squares = 0
       for (let i = 0; i < usable; i++) {
-        const shaped = shapeBin(bins[i] ?? 0)
+        const shaped = shapeBin(values[i] ?? 0)
         squares += shaped * shaped
       }
-      const level = Math.min(1, Math.sqrt(squares / usable) / LIVE_LOUD)
+      trace.rms = Math.sqrt(squares / usable)
+      const level = liveLevel(trace.rms)
 
-      const count = into.length
-      for (let band = 0; band < count; band++) {
-        const start = Math.floor((band / count) * usable)
-        const end = Math.max(start + 1, Math.floor(((band + 1) / count) * usable))
+      const bands = into.length
+      for (let band = 0; band < bands; band++) {
+        const start = Math.floor((band / bands) * usable)
+        const end = Math.max(start + 1, Math.floor(((band + 1) / bands) * usable))
         let sum = 0
-        for (let i = start; i < end; i++) sum += bins[i] ?? 0
+        for (let i = start; i < end; i++) sum += Math.min(1, values[i] ?? 0)
         into[band] = shapeBin(sum / (end - start))
       }
 
       let flux = 0
       const follow = 1 - Math.exp(-dt / FLUX_MEMORY)
       for (let i = 0; i < low; i++) {
-        const value = (bins[i] ?? 0) / 255
+        const value = values[i] ?? 0
         if (primed) flux += Math.max(0, value - (average[i] ?? 0))
         average[i] = primed ? (average[i] ?? 0) + (value - (average[i] ?? 0)) * follow : value
       }
-      primed = true
       flux /= low
+      if (settling > 0) {
+        settling -= dt
+        primed = false
+        flux = 0
+      } else {
+        primed = true
+      }
+      trace.flux = flux
       peak = Math.max(flux, FLUX_FLOOR, peak * Math.exp(-dt / FLUX_PEAK_DECAY))
       return { level, onset: Math.min(1, flux / peak) }
     },
@@ -158,23 +270,6 @@ export function liveSampler(analyser: FrequencyAnalyser, now: () => number = clo
 }
 
 /* ------------------------------------------------------------------ curve */
-
-/** The loudness a quiet passage sits at, in dBFS of short-term RMS: level 0 from here down. */
-export const CURVE_QUIET_DB = -45
-/** The loudness a loud master's chorus reaches: level 1 from here up. */
-export const CURVE_LOUD_DB = -9
-
-/**
- * The curve's loudness byte as a visual level. The byte covers -60 to 0 dBFS,
- * but music lives between about -45 and -9, so a straight read would squeeze
- * a quiet intro and a loud chorus together near the middle. A gentle bend
- * keeps the quiet end quiet.
- */
-export function curveLevel(loudness: number): number {
-  const db = loudness * 60 - 60
-  const x = (db - CURVE_QUIET_DB) / (CURVE_LOUD_DB - CURVE_QUIET_DB)
-  return Math.pow(Math.max(0, Math.min(1, x)), 1.4)
-}
 
 /** A seed from the song, so two songs' bars do not wobble identically. */
 export function songSeed(songId: number): number {

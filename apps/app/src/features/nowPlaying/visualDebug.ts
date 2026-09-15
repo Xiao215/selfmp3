@@ -22,6 +22,9 @@ export interface VisualDebugFrame {
   glow: number
   fired: boolean
   rings: number
+  /** The live sampler's raw numbers, before they become a level and an onset. */
+  rms?: number
+  flux?: number
 }
 
 interface VisualDebug {

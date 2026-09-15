@@ -110,6 +110,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
           glow: motion.glow,
           fired: motion.fired,
           rings: motion.rings.length,
+          ...(s as { trace?: object }).trace,
         })
       }
       draw(kind, ctx, width, height, c, tu, motion)

@@ -159,6 +159,56 @@ describe('the live sampler', () => {
     expect(Math.max(...onsets.slice(1, hitAt))).toBe(0)
   })
 
+  it('does not read a seek as a hit', () => {
+    let seconds = 0
+    let spectrum = 60
+    const sampler = liveSampler(
+      fakeAnalyser(() => steady(spectrum)),
+      () => seconds,
+    )
+    const bands = new Float32Array(16)
+    const onsets: number[] = []
+    for (let frame = 0; frame < 60; frame++) {
+      // A seek at frame 20: the playhead jumps a minute and the spectrum with it.
+      if (frame === 20) spectrum = 220
+      const playhead = frame < 20 ? frame / 60 : 60 + frame / 60
+      seconds = frame / 60
+      onsets.push(sampler.sample(playhead, bands).onset)
+    }
+    expect(Math.max(...onsets)).toBe(0)
+  })
+
+  it('hears a hit in a loud chorus whose bass sits at the top of the byte range', () => {
+    // An AnalyserNode: in decibels, the kick rises from -20 to -8 dB, both
+    // above the -30 dB top where every byte would read 255.
+    let call = 0
+    let seconds = 0
+    const node = {
+      frequencyBinCount: 128,
+      minDecibels: -100,
+      maxDecibels: -30,
+      getByteFrequencyData(into: Uint8Array) {
+        into.fill(255)
+      },
+      getFloatFrequencyData(into: Float32Array) {
+        into.fill(-20)
+        if (call === 30) for (let i = 0; i < 16; i++) into[i] = -8
+        call++
+      },
+    }
+    const sampler = liveSampler(node, () => seconds)
+    const bands = new Float32Array(16)
+    const onsets: number[] = []
+    for (let frame = 0; frame < 40; frame++) {
+      seconds = frame / 60
+      onsets.push(sampler.sample(seconds, bands).onset)
+    }
+    expect(onsets[30]).toBeGreaterThan(0.9)
+    expect(Math.max(...onsets.slice(1, 30))).toBe(0)
+    // The bars still stop at the top, as Spectrum always drew them.
+    expect(bands[0]).toBe(1)
+  })
+
   it('fills the bands low to high from the usable bins', () => {
     const sampler = liveSampler(fakeAnalyser(() => Array.from({ length: 128 }, (_, i) => 255 - i * 2)), () => 0)
     const bands = new Float32Array(12)

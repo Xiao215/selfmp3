@@ -13,12 +13,11 @@ Files:
 
 | What | Where |
 |---|---|
-| The selection itself | `apps/web/src/lib/selection.ts` |
-| The bar and its actions | `apps/web/src/components/SelectionBar.tsx` |
-| The destructive confirmation | `apps/web/src/components/ConfirmRemoveSongs.tsx` |
-| Result messages | `apps/web/src/components/Toast.tsx` |
-| Row checkbox | `apps/web/src/components/SongRow.tsx` |
-| Styles | `apps/web/src/styles/parts/feat-multi-select.css` |
+| The selection itself | `packages/client/src/selection/selection.ts`, `apps/app/src/selection/useSelection.ts` |
+| The bar and its actions | `apps/app/src/ui/components/SelectionBar.tsx` |
+| The destructive confirmation | `apps/app/src/ui/components/ConfirmRemoveSongs.tsx` |
+| Result messages | `apps/app/src/ui/toast.ts`, `apps/app/src/ui/components/ToastHost.tsx` |
+| Row checkbox | `apps/app/src/ui/components/SongRow.tsx`, `Checkbox.tsx` |
 | Bulk routes | `apps/server/src/routes/songs.ts`, `routes/playlists.ts` |
 | Bulk SQL | `apps/server/src/repositories/songs.ts`, `repositories/playlists.ts` |
 | Wire schemas | `packages/shared/src/schemas/song.ts`, `schemas/playlist.ts` |
@@ -90,9 +89,10 @@ songs deleted by accident.
 
 ## The bar
 
-It is a sticky row at the head of the list, not a floating overlay — it pushes the songs down
-rather than sitting on them, and it is nowhere near the player bar, so the two can never be in
-each other's way. Same reasoning as the toast row in `App.tsx`.
+On a computer it is a sticky row at the head of the list, not a floating overlay — it pushes
+the songs down rather than sitting on them, and it is nowhere near the player bar, so the two
+can never be in each other's way. On a phone it sits at the bottom, within reach of a thumb,
+and the toast row (`apps/app/src/shell/Shell.tsx`) lifts above it.
 
 Left to right: the tri-state checkbox (select all / select none), the count, the scope, then
 the actions, then Done.
@@ -111,7 +111,7 @@ The count is also announced to assistive technology through a polite `aria-live`
 screen-reader user hears "3 songs selected" without hunting for it.
 
 Every batch action that changed something says so in a toast — "Removed 3 songs", "Tagged 2
-songs “evening”". Toasts live in a module-level queue (`Toast.tsx`) rather than in a component,
+songs “evening”". Toasts live in a module-level queue (`ui/toast.ts`) rather than in a component,
 because almost every message is raised by a bar that the action has just emptied and unmounted.
 The message has to outlive its sender.
 

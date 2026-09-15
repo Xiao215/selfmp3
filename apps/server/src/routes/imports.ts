@@ -145,8 +145,6 @@ export function importRoutes(container: Container): Router {
    * iOS has no Web Share Target, so a Shortcut posts the shared link here and
    * gets the created jobs back. The default import tags from settings are
    * applied so the result matches what the interactive flow would have done.
-   * Mounted at both `/import/share` (this file's convention) and
-   * `/imports/share` (the documented name), since a Shortcut is fiddly to edit.
    */
   const share = route(
     { body: ImportShareRequestSchema },
@@ -176,7 +174,6 @@ export function importRoutes(container: Container): Router {
     },
   )
   router.post('/import/share', share)
-  router.post('/imports/share', share)
 
   /**
    * Does yt-dlp see a signed-in YouTube Music session? Liked Music is private,

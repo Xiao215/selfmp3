@@ -91,8 +91,6 @@ GET /api/songs/:id/lyrics
 - `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by
   hand.
 
-Older servers do not send the field; the schema defaults it to `false`.
-
 ## Files
 
 | Area | Where |
@@ -101,4 +99,4 @@ Older servers do not send the field; the schema defaults it to `false`.
 | Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests; used for YouTube Music's lyrics) |
 | Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index` (its `secrets` table belonged to a since-removed translation feature and is unused); later `songs.instrumental` |
 | Server | `services/lyrics.ts` (lrclib, instrumental), `romanization.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
-| Web | `components/nowplaying/` (see [now-playing.md](now-playing.md)), `LyricsSettings.tsx`; Lyrics group in `CommandPalette.tsx` |
+| App | `apps/app/src/features/nowPlaying/` (see [now-playing.md](now-playing.md)), `romanizationPref.ts` there; Lyrics group in `apps/app/src/features/palette/CommandPalette.tsx` |

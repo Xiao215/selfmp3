@@ -78,11 +78,6 @@ export function camelotDistance(a: string, b: string): number {
   return steps + (x.letter === y.letter ? 0 : 1)
 }
 
-/** True when a DJ would happily mix from `a` into `b`. */
-export function isCamelotCompatible(a: string, b: string): boolean {
-  return camelotDistance(a, b) <= 1
-}
-
 /** Every code that mixes cleanly with `code`, including itself. */
 export function compatibleCamelot(code: string): string[] {
   const parsed = parseCamelot(code)
@@ -199,17 +194,6 @@ export function transitionCrossfade(
     (1 - Math.min(1, bpm / 0.25)) * 0.6 + (1 - Math.min(1, Math.max(0, key - 1) / 3)) * 0.4
   const seconds = 2 + (max - 2) * fit
   return Math.max(1, Math.min(max, Math.round(seconds)))
-}
-
-/** "128 BPM · A minor · 8A". Omits whatever is unknown. */
-export function formatFeatures(features: SongFeatures | null): string {
-  if (!features) return ''
-  const parts: string[] = []
-  if (features.bpm != null) parts.push(`${Math.round(features.bpm)} BPM`)
-  if (features.key)
-    parts.push(features.camelot ? `${features.key} · ${features.camelot}` : features.key)
-  if (features.energy != null) parts.push(`energy ${Math.round(features.energy * 100)}%`)
-  return parts.join(' · ')
 }
 
 /**

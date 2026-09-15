@@ -11,9 +11,6 @@ import { z } from 'zod'
 export const IdSchema = z.coerce.number().int().positive()
 export type Id = z.infer<typeof IdSchema>
 
-/** An ISO-ish timestamp as stored by SQLite's `datetime('now')`. */
-export const TimestampSchema = z.string().min(1)
-
 /** Trimmed, non-empty user text with a sane ceiling. */
 export const NameSchema = z.string().trim().min(1).max(200)
 

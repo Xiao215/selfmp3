@@ -333,7 +333,7 @@ Xcode, no Android SDK.
   warnings. That includes the 37 queue tests, which now live in
   `packages/shared` and still pass unchanged after the move.
 - `npm run build` (shared + server + web): passes.
-- `npm run check:mobile`: `tsc --noEmit` with the real React Native, Expo,
+- `npm run check:app`: `tsc --noEmit` with the real React Native, Expo,
   track-player type definitions, plus ESLint with
   `eslint-config-expo` — both clean, zero errors and zero warnings. Every API
   used was checked against the actual `.d.ts` in `node_modules`, not from
@@ -346,8 +346,7 @@ Xcode, no Android SDK.
 - Autolinking resolves as intended: `react-native-track-player` on both
   platforms.
 - After a clean install there is exactly one copy on disk of `react`,
-  `react-dom`, `react-native-reanimated` and `react-native-worklets`
-  (`apps/mobile/node_modules` holds nothing but `@types`), and `npm ls` reports
+  `react-dom`, `react-native-reanimated` and `react-native-worklets`, and `npm ls` reports
   no invalid peer ranges.
 
 **Not verified, and it needs a device or a Mac**
@@ -370,6 +369,6 @@ Xcode, no Android SDK.
   certificates would be less trouble.
 
 The sensible first hour on a Mac: `npm install`, `npm run build --workspace
-@selfmp3/shared`, `cd apps/mobile && npx expo-doctor`, then `npx expo run:ios`.
+@selfmp3/shared`, `cd apps/app && npx expo-doctor`, then `npx expo run:ios`.
 If the track-player pod fails, that is the known risk, and the SDK 54 fallback
 is the answer.

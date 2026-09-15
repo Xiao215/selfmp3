@@ -60,18 +60,6 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
   }
 }
 
-/** A copy to replay into without touching the original. Things in it are never changed in place. */
-export function copySyncLibrary(library: SyncLibrary): SyncLibrary {
-  return {
-    songs: new Map(library.songs),
-    tags: new Map(library.tags),
-    playlists: new Map(library.playlists),
-    aliases: new Map(library.aliases),
-    imports: new Map(library.imports),
-    counted: new Set(library.counted),
-  }
-}
-
 export function snapshotOf(
   library: SyncLibrary,
   meta: { writtenAt: string; writtenBy: string; upTo: Readonly<Record<string, number>> },

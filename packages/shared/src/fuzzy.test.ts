@@ -6,7 +6,6 @@ import {
   fuzzyTopPrepared,
   isSubsequence,
   preparedTextFor,
-  scoreMatch,
 } from './fuzzy.js'
 
 describe('editDistance', () => {
@@ -31,40 +30,6 @@ describe('isSubsequence', () => {
     expect(isSubsequence('mdr', 'midnight drive')).toBe(true)
     expect(isSubsequence('rdm', 'midnight drive')).toBe(false)
     expect(isSubsequence('', 'anything')).toBe(true)
-  })
-})
-
-describe('scoreMatch', () => {
-  it('ranks an exact match above a prefix above a substring', () => {
-    const exact = scoreMatch('chill', 'chill')
-    const prefix = scoreMatch('chi', 'chill')
-    const substring = scoreMatch('ill', 'chill')
-    expect(exact).not.toBeNull()
-    expect(prefix).not.toBeNull()
-    expect(substring).not.toBeNull()
-    expect(exact!).toBeGreaterThan(prefix!)
-    expect(prefix!).toBeGreaterThan(substring!)
-  })
-
-  it('matches word boundaries inside a phrase', () => {
-    expect(scoreMatch('drive', 'midnight drive')).not.toBeNull()
-  })
-
-  it('matches acronyms', () => {
-    expect(scoreMatch('md', 'midnight drive')).not.toBeNull()
-  })
-
-  it('tolerates a typo in a long query but not a short one', () => {
-    expect(scoreMatch('chilll', 'chill')).not.toBeNull()
-    expect(scoreMatch('xy', 'ab')).toBeNull()
-  })
-
-  it('returns null for a genuine non-match', () => {
-    expect(scoreMatch('jazz', 'chill')).toBeNull()
-  })
-
-  it('treats an empty query as neutral', () => {
-    expect(scoreMatch('', 'anything')).toBe(0)
   })
 })
 

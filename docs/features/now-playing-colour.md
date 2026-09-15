@@ -8,10 +8,10 @@ Files:
 
 | What | Where |
 |---|---|
-| Picking the colour from pixels (tested) | `apps/web/src/lib/coverColor.ts` |
-| Reading a cover, caching the result | `apps/web/src/lib/useCoverColor.ts` |
-| The row | `apps/web/src/components/SongRow.tsx`, `styles/parts/songs.css` |
-| The player bar and mini player | `apps/web/src/components/PlayerBar.tsx`, `styles/parts/player.css`, `mobile.css` |
+| Picking the colour from pixels (tested) | `packages/client/src/art/palette.ts`, `packages/client/src/art/coverColor.ts` |
+| Reading a cover, caching the result | `apps/app/src/ui/useSongColor.ts`, `apps/app/src/ports/coverPixels.ts` (+ `.web.ts`) |
+| The row | `apps/app/src/ui/components/SongRow.tsx`, `Equalizer.tsx` |
+| The player bar and mini player | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/ui/components/MiniPlayer.tsx`, `ProgressWash.tsx` |
 
 ## What you see
 

@@ -8,11 +8,11 @@ Files:
 
 | What | Where |
 |---|---|
-| Dropdown | `apps/web/src/components/Select.tsx`, `styles/parts/select.css` |
-| Floating-layer shell | `apps/web/src/components/Menu.tsx`, `styles/parts/popovers.css` |
-| Hover captions | `apps/web/src/components/Tooltip.tsx`, `styles/parts/popovers.css` |
-| Tokens | `apps/web/src/styles/parts/tokens.css` |
-| Control styling | `apps/web/src/styles/parts/controls.css`, `parts/base.css` |
+| Dropdown | `apps/app/src/ui/components/Select.tsx` |
+| Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
+| Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
+| Tokens | `packages/client/src/theme/tokens.ts`, `tokens.reference.css`; themes in `apps/app/src/ui/theme/unistyles.ts` |
+| Focus | `apps/app/src/shell/FocusStyle.web.tsx` |
 
 ## `<Select>` — the dropdown
 
@@ -26,82 +26,61 @@ own, following the ARIA select-only combobox pattern.
   value={sort}
   onChange={setSort}
   options={SORT_OPTIONS}         // [{ value, label, hint?, disabled? }]
-  label="Sort by"                 // the accessible name; use labelledBy instead if a
-  align="end"                     // visible <label> already names it
+  label="Sort by"                 // what is being chosen, read out before the value
 />
 ```
 
 | Prop | Meaning |
 |---|---|
-| `value` / `onChange` | Controlled, generic over the value type — call sites keep their unions (`Select<SongSortField>`), and values need not be strings (`number`, `number \| null`, …) |
-| `options` | Either `{ value, label, hint?, disabled? }[]` or groups: `{ label, options }[]` |
-| `label` / `labelledBy` | Accessible name. One of them is required in practice |
-| `placeholder` | Shown when `value` matches no option. A dropdown used as a command ("Add tag…") holds a value that never matches, so it always shows the placeholder |
-| `size` | `default` \| `small` \| `inline` — matching `.button`, `.button-small`, and text-sized for use inside a sentence |
-| `align` | `start` (default) or `end`: which edge lines up with the trigger's |
-| `placement` | `auto` (prefer below) or `above`. Both flip when the preferred side has no room |
-| `tip` | Hover caption on the trigger (see below) |
-| `className`, `disabled`, `id` | As you would expect; `className` is for layout (`input-grow`, `migrate-pick`), not for restyling the trigger |
+| `value` / `onChange` | Controlled, generic over the value type — call sites keep their unions (`Select<SongSortField>`), and values may be strings or numbers |
+| `options` / `groups` | Either `{ value, label, hint?, disabled? }[]`, or labelled groups: `{ label, options }[]` |
+| `label` | What is being chosen. Required |
+| `size` | `normal` \| `small` \| `inline` — the ordinary control, one in a row of them, and text-sized for use inside a sentence |
+| `testID` | For the end-to-end flows |
 
 Behaviour worth knowing:
 
-- **Keyboard.** Enter, Space, ↓, ↑, Home, End open the list. While open, ↑/↓/Home/End move
-  the cursor, letters jump by type-ahead (repeat a letter to cycle matches), Enter or Space
-  picks, Escape closes, Tab closes and moves on. Focus stays on the trigger the whole time —
-  the list is driven by `aria-activedescendant` — so focus is never lost on close.
-- **Pointer.** Hovering moves the same cursor the arrow keys move, so the mouse and the
-  keyboard can never disagree about what Enter will pick. Clicking the trigger again closes.
-- **Portalled.** The list renders at the end of `<body>`, so an `overflow: hidden` ancestor
-  (the rule builder, the queue panel, a table cell) cannot clip it. It is positioned under
-  the trigger, flips above near the bottom of the window, is clamped inside the viewport
-  horizontally, and gets a `max-height` for whatever room is left.
-- **Phone.** Below 820px the list becomes a full-width bottom sheet with ≥44px rows,
-  safe-area padding and a scrim, titled with the `label`.
+- **A `Popover` underneath.** The trigger is a button showing the current value; the list is
+  a `Popover`, so it is drawn by the shell's overlay host (nothing can clip it), sits under
+  the trigger, and flips above near the bottom of the window.
+- **Phone.** Below 820px (`BREAKPOINT`) the list becomes a bottom sheet, titled with the
+  `label` — decided by the primitive, not by the caller.
 - The selected option is marked with a check; long values truncate with an ellipsis in the
   trigger rather than stretching the row.
 
 ## `<Popover>` — the floating-layer shell
 
-`components/Menu.tsx` holds the parts every menu, popover and dropdown needs: a portal,
-anchored positioning with flipping, a backdrop that dismisses, Escape, focus into the layer
-and back to the trigger, optional arrow-key roving, and the phone bottom sheet. What a
-popover *contains* is entirely the caller's business — this is a shell, not a menu
-framework. `SongMenu`, `TagPicker`, the speed and sleep menus and the devices popover all
-use it.
+`ui/components/Popover.tsx` holds the parts every menu, popover and dropdown needs: anchored
+positioning with flipping, a backdrop that dismisses, Escape, and the phone bottom sheet.
+What a popover *contains* is entirely the caller's business — this is a shell, not a menu
+framework. `SongMenu`, `TagPicker`, `Select`, the sleep menu and the devices list all use it.
 
 ```tsx
-const buttonRef = useRef<HTMLButtonElement>(null)
+const buttonRef = useRef<View>(null)
 
-<button ref={buttonRef} aria-haspopup="menu" aria-expanded={open} onClick={…}>…</button>
+<View ref={buttonRef} collapsable={false}>
+  <IconButton onPress={() => setOpen(true)} … />
+</View>
 
-{open && (
-  <Popover anchorRef={buttonRef} onClose={close} label="Song actions" sheet roving>
-    <button type="button" role="menuitem" className="popover-item">Play next</button>
-  </Popover>
-)}
+<Popover open={open} anchorRef={buttonRef} onClose={close} title="Song actions">
+  <SheetItem label="Play next" onPress={…} />
+</Popover>
 ```
 
 | Prop | Meaning |
 |---|---|
-| `anchorRef` | The trigger. Used for positioning and for handing focus back |
-| `onClose` | Called on Escape, on a click outside, and on Tab (unless trapping) |
-| `role` | `menu` (default) for action lists, `dialog` for anything with its own controls, `listbox` for `Select` |
-| `label` / `labelledBy` / `id` | Accessible name and id of the layer |
-| `placement` / `align` / `matchAnchorWidth` | Positioning, as for `Select` |
-| `focus` | `first` (default) moves focus into the layer, `trap` also keeps Tab inside it, `none` leaves focus on the trigger (what a combobox wants) |
-| `roving` | ↑/↓/Home/End move focus between the items — menu behaviour |
-| `sheet` | Present as a bottom sheet at phone width |
+| `open` / `onClose` | Controlled; `onClose` is called on Escape and on a press outside |
+| `anchorRef` | The control this belongs to. Measured with `measureInWindow` when it opens |
+| `title` / `titleTone` | Shown when it falls back to a sheet, where a panel has room for a heading |
+| `placement` | `auto` (below when it fits, else above), `below` or `above` |
+| `align` | `end` (default) or `start`: which edge of the control the panel lines up with |
+| `width` | The panel's width above the breakpoint (240 by default) |
 
 Notes for anyone extending it:
 
-- The backdrop is a real element, not a document listener. It swallows the dismissing click,
-  so closing a menu never also activates whatever was underneath, and a second click on the
-  trigger closes rather than close-then-reopen.
-- A `role="menu"` layer must contain `role="menuitem"` (or `menuitemradio`) children.
-- A layer is hidden for its first frame with `opacity`, not `visibility`, because a
-  `visibility: hidden` element cannot take focus — that silently broke "focus the first item".
-- `useAnchoredLayer(anchorRef, layerRef, options)` is exported if you need the positioning
-  without the rest.
+- React Native has no `position: fixed`, so above the breakpoint the panel is drawn by the
+  shell's overlay host (`shell/Overlay.tsx`) at the anchor's measured coordinates, and kept
+  on screen. Below it, the same children go into a `Sheet`.
 - Global hotkeys (`useHotkeys`) ignore keystrokes aimed at a `combobox`, `listbox`, `menu`
   or `dialog`, exactly as they already ignored a focused `<select>` or text field. If you
   build a control with its own keyboard language, give it one of those roles.
@@ -110,13 +89,14 @@ Notes for anyone extending it:
 
 A native `title` is drawn by the operating system, like a native `<select>`: on a Mac it
 waits about a second and a half and then drops a pale system label onto a dark app. So
-nothing uses `title`; a control that wants a caption says `data-tip` instead:
+nothing uses `title`; a control that wants a caption spreads `tip()` from `ui/tip.ts`, which
+React Native for web turns into a `data-tip` attribute (a phone ignores it):
 
 ```tsx
-<button aria-label="Queue" data-tip="Up next">…</button>
+<Pressable accessibilityLabel="Queue" {...tip('Up next')}>…</Pressable>
 ```
 
-`TooltipHost`, mounted once in the shell, listens on the document and draws the caption
+`TooltipHost` (`shell/TooltipHost.web.tsx`), mounted once in the shell, listens on the document and draws the caption
 above the control (below near the top of the window, clamped at the sides). A trailing
 `(key)` of up to five characters, as in "Done (Esc)", is drawn as a key cap.
 
@@ -136,7 +116,10 @@ above the control (below near the top of the window, clamped at the sides). A tr
 
 ## Tokens
 
-New ones added alongside the existing colours, radii and sizes:
+The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `radius`,
+`space`, `type`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and Unistyles holds the light and dark
+themes built from them. The stylesheet's custom properties they came from are kept for
+reference in `tokens.reference.css`, including:
 
 ```css
 --radius-pill: 999px;                  /* chips, toasts, the toggle track   */
@@ -166,28 +149,26 @@ inventing a number:
 Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog has to sit
 above it.
 
-**Motion.** Transitions are 100–220ms and ease out. `prefers-reduced-motion: reduce`
-collapses every transition (in `base.css`) and turns off the one-shot entrances where they
-are defined. Looping indicators — the spinner, the equalizer — are left alone, because they
-are saying that something is still happening.
+**Motion.** Transitions are 100–220ms (`motion` in `tokens.ts`) and ease out. With Reduce
+Motion on (`shell/useReducedMotion.ts`) the one-shot movements are instant. Looping
+indicators — the spinner, the equalizer — are left alone, because they are saying that
+something is still happening.
 
 ## Focus and interaction
 
-- One `:focus-visible` rule in `base.css` gives every focusable element the accent ring;
-  rows and controls inside clipping containers draw it inset (`outline-offset: -2px`) so it
-  is not cropped. Text inputs get the ring back explicitly, because their
-  `:focus { outline: none }` would otherwise eat it.
-- The search box shows the ring on `:focus-within`: the input inside it has no border.
-- Hover, active and disabled states are defined together in `controls.css` for `.button`,
-  `.icon-button`, `.link-button`, `.play-button`, `.segmented-item` and `.toggle`. Disabled
-  controls read at 45% and are never focusable.
-- Range inputs keep the hover-reveal thumb on a mouse, but under
-  `@media (hover: none), (pointer: coarse)` the thumb is always visible, 18px, in a 26px hit
-  area — a hover-only affordance is no affordance at all on a phone.
+- In a browser, `shell/FocusStyle.web.tsx` turns the browser's own ring off once and draws
+  ours: one line in the accent, only for keyboard focus (`:focus-visible`), so a Tab still
+  shows where you are and a click shows nothing. The colour follows the accent picker.
+- A text field with a border of its own takes the accent as its border colour instead; a
+  field without one sits in a box that shows focus itself (the library's search turns its
+  border to the accent while its input has focus).
+- Sliders and checkboxes keep what they draw. In a browser the slider is a real
+  `input[type='range']` with its own rules (`ui/components/Slider.web.tsx`), keyboard and all.
 
 ## The toast row
 
-Toasts are not an overlay. `.toast-layer` is a row of the app shell between the content and
-the player bar (see `App.tsx`), so a toast can never cover a song row, the transport, or the
-tab bar. The layer takes no pointer events itself and hides when empty; each toast is
-dismissible. Put new transient messages in that row rather than positioning them by hand.
+Toasts are one layer of the app shell (`Toasts` in `shell/Shell.tsx`): centred near the foot of
+the content, with the resume offer and every message raised with `showToast` (`ui/toast.ts`),
+drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
+floating selection bar rather than covering its buttons; each toast is dismissible. Put new
+transient messages in that row rather than positioning them by hand.

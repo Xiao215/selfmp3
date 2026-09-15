@@ -131,14 +131,6 @@ function scoreCompiled(query: CompiledQuery, candidate: FuzzyText): number | nul
   return null
 }
 
-/**
- * Score one candidate against a query. Returns null when it does not match at
- * all, which lets callers filter and rank in a single pass.
- */
-export function scoreMatch(query: string, candidate: string): number | null {
-  return scoreCompiled(compileQuery(query), new FuzzyText(candidate))
-}
-
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

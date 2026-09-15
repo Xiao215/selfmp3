@@ -23,7 +23,7 @@ iOS has no Web Share Target, so the server exposes a one-shot endpoint that prob
 enqueues in a single request:
 
 ```
-POST /api/imports/share        (also mounted at /api/import/share)
+POST /api/import/share
 Content-Type: application/json
 
 { "url": "https://music.youtube.com/watch?v=…", "tagIds": [3], "createPlaylist": false }
@@ -51,8 +51,8 @@ from a Shortcut; the header is tidier.
 2. Tap the **ⓘ** (details) → turn on **Show in Share Sheet** → under *Share Sheet Types*
    keep **URLs** and **Text** ticked. This makes the Shortcut receive whatever was shared.
 3. Add action **Get Contents of URL**:
-   - URL: `https://<your-server>.<tailnet>.ts.net/api/imports/share`
-     (or `http://<tailscale-ip>:4600/api/imports/share`)
+   - URL: `https://<your-server>.<tailnet>.ts.net/api/import/share`
+     (or `http://<tailscale-ip>:4600/api/import/share`)
    - Method: **POST**
    - Headers: `Authorization` → `Bearer <your token>` (only if you set one)
    - Request Body: **JSON**, add a field `url` of type **Text** and set its value to the
@@ -74,6 +74,8 @@ Shortcut.
 
 - `packages/shared/src/links.ts` — `extractUrls()` is the one link parser, used by the
   server for the import box and share endpoint and by the client for the share target.
-- `apps/web/src/lib/shareTarget.ts` — reads `url` / `text` / `title` from the query.
+- `apps/app/public/manifest.webmanifest` — declares the share target.
+- `sharedLinks` in `apps/app/src/features/import/import.model.ts` — reads `url` / `text` /
+  `title` from the query; `ImportScreen.tsx` prefills the box and clears them.
 - `apps/server/src/services/importPreview.ts` — the probe step, shared by
-  `/import/preview` and `/imports/share` so both resolve links identically.
+  `/import/preview` and `/import/share` so both resolve links identically.

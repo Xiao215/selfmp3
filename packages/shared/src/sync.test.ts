@@ -7,7 +7,6 @@ import type { Change } from './schemas/sync.js'
 import {
   applyChange,
   applyChanges,
-  copySyncLibrary,
   logFile,
   readLogFile,
   reordered,
@@ -540,14 +539,6 @@ describe('a replayed library', () => {
     })
     expect(CloudSnapshotSchema.parse(written)).toEqual(written)
     expect(written.aliases).toEqual({ [uid(0x76)]: TAG_RAIN })
-  })
-
-  it('can be copied and replayed into without touching the original', () => {
-    const original = syncLibrary(snapshot())
-    const copy = copySyncLibrary(original)
-    applyChange(copy, { type: 'songRemoved', hlc: at(1), uid: SONG_A })
-    expect(original.songs.has(SONG_A)).toBe(true)
-    expect(original.playlists.get(LIST)?.songUids).toEqual([SONG_A, SONG_B])
   })
 })
 

@@ -5,7 +5,6 @@ import {
   formatLongDuration,
   formatRelative,
   hueFromString,
-  joinWithAnd,
   sanitizeFilename,
 } from './format.js'
 
@@ -95,14 +94,5 @@ describe('hueFromString', () => {
     expect(hue).toBe(hueFromString('chill'))
     expect(hue).toBeGreaterThanOrEqual(0)
     expect(hue).toBeLessThan(360)
-  })
-})
-
-describe('joinWithAnd', () => {
-  it('reads like a sentence', () => {
-    expect(joinWithAnd([])).toBe('')
-    expect(joinWithAnd(['a'])).toBe('a')
-    expect(joinWithAnd(['a', 'b'])).toBe('a and b')
-    expect(joinWithAnd(['a', 'b', 'c'])).toBe('a, b and c')
   })
 })

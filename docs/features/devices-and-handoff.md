@@ -12,7 +12,7 @@ it.
 ## What you get
 
 **A devices button in the player bar** (and in the now-playing screen on a
-phone). It opens a list of every browser that currently has self.mp3 open, and
+phone). It opens a list of every device that currently has self.mp3 open, and
 what each one is playing right now.
 
 **Play here.** Takes the other device's queue and position and continues it on
@@ -47,9 +47,9 @@ lets you rename this device, and lets you forget a device you are done with.
 
 ### The heartbeat
 
-Every open tab has a `deviceId` — generated once and kept in `localStorage` —
-and a name guessed from the user agent (`iPhone · Safari`, `Mac · Chrome`),
-editable in Settings.
+Every open app or tab has a `deviceId` — generated once and kept on the device
+(`ports/device.ts`; `localStorage` in a browser) — and a name guessed from the
+user agent (`iPhone · Safari`, `Mac · Chrome`), editable in Settings.
 
 It posts to `POST /api/devices/heartbeat` every 10 seconds, and immediately
 whenever the playback state materially changes — a play, a pause, a track
@@ -110,9 +110,10 @@ down that device's stream, and answers with how many live connections received
 it — `404` if there is no such device, `409` if it exists but nothing is
 listening.
 
-On the receiving side `apps/web/src/devices/useRemoteCommands.ts` is the only
-place that turns a command into player calls, as an exhaustive switch. Adding a
-variant to the shared schema makes that file stop compiling until it is handled.
+On the receiving side `apps/app/src/features/devices/DevicesProvider.tsx` is the
+only place that turns a command into player calls, as an exhaustive switch.
+Adding a variant to the shared schema makes that file stop compiling until it is
+handled.
 
 `transfer` is the "take over from that one" primitive: the receiving device
 adopts the named device's state and then tells that device to pause. "Play here"
@@ -129,16 +130,17 @@ apps/server/src/services/events.ts       the SSE hub and frame encoder
 apps/server/src/services/devices.ts      presence sweep, command forwarding
 apps/server/src/routes/devices.ts        /api/devices, /command, /events
 
-apps/web/src/lib/device.ts               this device's id and name
-apps/web/src/devices/DevicesProvider.tsx heartbeats in, events out
-apps/web/src/devices/useServerEvents.ts  EventSource, parsed through the schema
-apps/web/src/devices/useRemoteCommands.ts executing a command locally
-apps/web/src/devices/useTransport.ts     local player or remote device
-apps/web/src/devices/handoff.ts          state → playable queue/index/position
-apps/web/src/devices/DevicesButton.tsx   the button, the chip
-apps/web/src/devices/DevicesPopover.tsx  the list and its actions
-apps/web/src/devices/ResumeToast.tsx     "continue from your phone"
-apps/web/src/devices/DevicesSettings.tsx the Settings panel
+packages/client/src/devices/handoff.ts   state → playable queue/index/position
+packages/client/src/devices/deviceList.ts   the list as the sheet shows it
+packages/client/src/devices/userAgent.ts    a name guessed from the user agent
+
+apps/app/src/ports/device.ts             this device's id and name (+ .web.ts)
+apps/app/src/ports/events.ts             the event stream, parsed through the schema
+                                         (.web.ts: EventSource; native: an SSE reader)
+apps/app/src/features/devices/DevicesProvider.tsx  heartbeats in, events out, commands executed locally
+apps/app/src/features/devices/DevicesSheet.tsx     the list and its actions
+apps/app/src/features/devices/ResumeToast.tsx      "continue from your phone"
+apps/app/src/features/settings/SettingsScreen.tsx  the Settings panel
 ```
 
 The provider sits *inside* `PlayerProvider`, not around it. That is what keeps

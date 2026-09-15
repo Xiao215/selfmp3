@@ -10,8 +10,8 @@ complete backup.
 ```
 your server                      your phone                    your car
 ┌──────────────────────┐        ┌──────────────────────┐      ┌──────────────┐
-│  library/  *.m4a     │        │  self.mp3 (PWA or    │      │  CarPlay /   │
-│  data/selfmp3.db     │◄──────►│  native app)         │◄────►│  Android     │
+│  ~/Music/selfmp3/    │        │  self.mp3 (PWA or    │      │  CarPlay /   │
+│  selfmp3.db          │◄──────►│  native app)         │◄────►│  Android     │
 │  self.mp3 server     │  Tail  │  downloaded audio    │      │  Auto        │
 └──────────────────────┘  scale └──────────────────────┘      └──────────────┘
                                  plays with the server asleep
@@ -45,11 +45,8 @@ npm run dev                    # api on :4600, the app's web dev server on :4601
 
 To reach it from your phone anywhere in the world, see **[docs/SETUP.md](docs/SETUP.md)** —
 it walks through Tailscale, HTTPS, and running the server in the background.
-**[docs/INSTALL.md](docs/INSTALL.md)** covers Docker, backups, updating, and migrating from
-the old `hum` app. Every feature has a page under
-**[docs/features/](docs/features)**; pages written before the one app name files in
-`apps/web` and `apps/mobile`, and [docs/universal-progress.md](docs/universal-progress.md)
-says where each moved. **[docs/SYNC.md](docs/SYNC.md)** is how every device
+**[docs/INSTALL.md](docs/INSTALL.md)** covers Docker, backups and updating. Every feature
+has a page under **[docs/features/](docs/features)**. **[docs/SYNC.md](docs/SYNC.md)** is how every device
 keeps in step through a storage bucket you own — sign in with Google, and your library, your
 edits and your imports reach every device whether or not the server is awake.
 
@@ -57,9 +54,9 @@ edits and your imports reach every device whether or not the server is awake.
 
 ## What it does
 
-**Library.** Drop audio files into `library/` and they appear — the folder is watched, so a
-drag into Finder is enough. Or import them from a link: each import gets a folder of its own,
-`library/Artist - Title/`, with its lyrics beside it. Everything is filtered, sorted and
+**Library.** Drop audio files into `~/Music/selfmp3` and they appear — the folder is watched,
+so a drag into Finder is enough. Or import them from a link: each import gets a folder of its
+own, `Artist - Title/`, with its lyrics beside it. Everything is filtered, sorted and
 searched client-side, so it stays instant and works with no connection.
 
 **Tags instead of folders.** One flat vocabulary you define. Combine them with AND —
@@ -141,7 +138,8 @@ and tags, listening streaks, and how many songs you have never played once. A Wr
 for any range — week, month, year, all time — that you can export as a square image.
 Forgotten gems resurfaces things you loved and stopped playing.
 
-**⌘K.** One box that searches songs, playlists, tags and lyrics, and runs commands.
+**Search everything.** One box that searches songs, playlists, tags and lyrics, and runs
+commands — Search in the sidebar, or `⌘K` in the desktop app.
 
 ---
 
@@ -218,8 +216,9 @@ Everything is optional; the defaults work.
 |---|---|---|
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. `127.0.0.1` restricts to this machine |
-| `SELFMP3_LIBRARY_DIR` | `./library` | Where your audio lives |
-| `SELFMP3_DATA_DIR` | `./data` | Database and cover art cache |
+| `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | Where your audio lives |
+| `SELFMP3_DATA_DIR` | `~/Library/Application Support/selfmp3` | Database and cover art cache |
+| `SELFMP3_PROFILE` | none | A separate installation; `dev` adds `-dev` to both folders (`npm run dev` sets it) |
 | `SELFMP3_AUTH_TOKEN` | none | Optional bearer token, on top of Tailscale |
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
@@ -241,20 +240,21 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 
 ## Keyboard shortcuts
 
-Everything is done with the mouse for now. The one key is `⌘K` (`Ctrl+K`), to search
-everything.
+Everything is done with the mouse for now. In the desktop app, `⌘K` (View › Search) searches
+everything; a browser tab leaves `⌘K` to the browser, so there it is Search in the sidebar.
 
 ---
 
 ## Backing up
 
 ```bash
-npm run cli -- backup /Volumes/Backup/selfmp3     # or just: cp -r library/ data/ …
+npm run cli -- backup /Volumes/Backup/selfmp3     # or just copy the two folders
 ```
 
-That is the whole thing. `library/` is your audio and lyric sidecars; `data/selfmp3.db`
-holds tags, playlists, play history and metadata edits. Cover art in `data/covers/` is a
-disposable cache and rebuilds itself on the next scan.
+That is the whole thing. The library folder (`~/Music/selfmp3`) is your audio and lyric
+sidecars; `selfmp3.db` in the data folder (`~/Library/Application Support/selfmp3`) holds
+tags, playlists, play history and metadata edits. Cover art in the data folder's `covers/` is
+a disposable cache and rebuilds itself on the next scan.
 
 ---
 

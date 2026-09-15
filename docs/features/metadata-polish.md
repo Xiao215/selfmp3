@@ -59,7 +59,8 @@ Schemas live in `packages/shared/src/schemas/metadata.ts`.
 - `apps/server/src/services/rateLimiter.ts` — the 1 req/s gate for MusicBrainz
 - `apps/server/src/services/fixCovers.ts` — the background pass
 - `apps/server/src/routes/metadata.ts` — the routes above
-- `apps/web/src/components/MetadataDialog.tsx`, `FixCoversPanel.tsx` — the UI
+- `apps/app/src/ui/components/MetadataDialog.tsx`, `apps/app/src/features/metadata/metadata.model.ts`,
+  and `FixCoversPanel` in `apps/app/src/features/settings/SettingsScreen.tsx` — the UI
 
 Tests cover scoring, the rate limiter, the parsers (against fixture JSON in
 `services/fixtures/`) and the service's failure modes with a fake `fetch`. A live iTunes

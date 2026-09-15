@@ -12,12 +12,11 @@ Files:
 
 | What | Where |
 |---|---|
-| Rename, recolour, filter, delete | `apps/web/src/components/TagEditor.tsx` |
-| Sidebar rows, hide button, ⋯ | `apps/web/src/components/Sidebar.tsx` |
-| Excluded filter, phone strip | `apps/web/src/views/LibraryView.tsx`, `App.tsx` |
-| Tagging what is playing | `apps/web/src/components/PlayerBar.tsx`, `NowPlaying.tsx` |
-| Untagged inbox and quick tagging | `apps/web/src/views/TagInboxView.tsx` |
-| Styles | `apps/web/src/styles/parts/feat-offline-tagging.css` |
+| Rename, recolour, filter, delete | `apps/app/src/ui/components/TagEditor.tsx`, `apps/app/src/features/tags/TagsScreen.tsx` |
+| Sidebar rows, hide button, ⋯ | `apps/app/src/shell/Sidebar.tsx` |
+| Excluded filter | `packages/client/src/library/filter.ts`, `apps/app/src/features/library/libraryFilter.tsx` |
+| Tagging what is playing | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/features/nowPlaying/NowPlayingStage.tsx`, `apps/app/src/ui/components/TagPicker.tsx` |
+| Untagged inbox and quick tagging | `apps/app/src/features/inbox/InboxScreen.tsx` |
 
 ## Hiding a tag
 
@@ -32,7 +31,7 @@ A tag filters one of two ways: **only songs with it**, or **none of them**. Comb
 
 ## Editing a tag
 
-The **⋯** on a sidebar row — or, on a phone, **holding a chip** in the tag strip — opens one
+The **⋯** on a sidebar row — or, on a phone, a tag on the **Tags** page — opens one
 editor: show only / hide, rename, colour, delete. A tag made before the palette existed keeps
 its own colour as the first swatch. Delete says how many songs carry the tag and that they
 stay in the library.
@@ -40,12 +39,12 @@ stay in the library.
 ## Tagging what is playing
 
 How a song feels is clearest while it is playing. The tag button beside the heart in the player
-bar opens the tag picker for the current song, and so does **T**. On a phone, Now Playing shows
+bar opens the tag picker for the current song. On a phone, Now Playing shows
 the song's tags under its title with **Add tags** / **Edit tags**.
 
 ## Untagged
 
-The sidebar (and, on a phone, the start of the tag strip) shows **Untagged** with a count
+The sidebar (and, on a phone, the **You** tab) shows **Untagged** with a count
 whenever any song has no tag. The page lists them newest first.
 
 **Start tagging** goes through them one at a time:

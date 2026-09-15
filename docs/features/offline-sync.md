@@ -12,13 +12,12 @@ Files:
 
 | What | Where |
 |---|---|
-| The listening outbox, shared rules | `packages/shared/src/outbox.ts` |
-| …on the web (IndexedDB) | `apps/web/src/offline/playOutbox.ts` |
-| …on the phone (a JSON file) | `apps/mobile/src/offline/listenOutbox.ts` |
-| Automatic downloads | `apps/web/src/offline/OfflineProvider.tsx` |
-| Per-device preferences, connection type | `apps/web/src/offline/autoDownload.ts` |
-| Download, prune, storage guard | `apps/web/src/offline/audioCache.ts` |
-| Row mark, status pill, Settings sentence | `apps/web/src/offline/OfflineStatus.tsx` |
+| The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
+| …kept on the device (a JSON file) | `apps/app/src/offline/listenOutbox.ts` |
+| Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
+| Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
+| Download, prune, storage guard | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
+| Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
 | Late plays on the server | `apps/server/src/routes/songs.ts`, `repositories/stats.ts` |
 | Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts` |
 
@@ -62,8 +61,6 @@ missing and fetches it, one song at a time.
   downloads and all. The status then says how many songs did not fit.
 - **Songs removed by hand stay removed.** "Remove download" remembers the song, so the next
   pass does not put it straight back; downloading it again by hand forgets that.
-- **The server itself.** On `localhost` automatic downloads start off: the songs are already on
-  that disk.
 - **Remove all downloads** also turns automatic downloads off, or the cache would simply fill
   again.
 
@@ -80,13 +77,8 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   fills as the bytes arrive while one downloads, for a single song asked for by hand as well
   as during an automatic pass. A song that is not on the device carries no mark; Song details
   (in the ⋯ menu) says what will happen to it.
-- **On the computer the library lives on**, every song whose file is present is on this
-  device — the disc shows on all of them, Settings → Offline music says "3 of 3 songs on this
-  device", and there is nothing to download (`holdsLibrary` in `OfflineProvider.tsx`). Copies
-  saved in that browser before this are cleared on start, since they only doubled the files.
-  The song menu offers **Show in Finder** instead. The server opens Finder only for a request
-  made on that machine (`services/reveal.ts`) — loopback *and* a loopback Host, since
-  `tailscale serve` also connects from loopback.
+- **A browser tab streams** and keeps nothing; the installed desktop app downloads the way a
+  phone does (see [desktop-app.md](desktop-app.md)).
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for
@@ -96,7 +88,5 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
 
 ## Not done yet
 
-- The native app keeps plays offline but does not download automatically: Wi-Fi detection
-  there needs `expo-network` or `@react-native-community/netinfo`, which are not installed.
 - Loves and tag edits made offline still fail rather than queue. The outbox is the place they
   would go.

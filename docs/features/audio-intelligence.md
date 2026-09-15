@@ -46,7 +46,8 @@ GET  /api/library/analyze                               progress
 **Song rows** show the tempo and energy after the artist, muted: `♩ = 130`, the way a score
 marks tempo, and a small waveform drawn straight from the 0–1 energy value — taller and
 denser as a song gets more intense, with no steps or level names
-(`apps/web/src/lib/energyWave.ts`). The key stays off the row. It shows in the queue while
+(`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
+`apps/app/src/ui/components/EnergyWave.tsx`). The key stays off the row. It shows in the queue while
 auto-mix is ordering by it, and in **Song details** (the song's ⋯ menu), which spells out
 tempo, energy and key in words alongside download state, play history and the file.
 
@@ -90,4 +91,4 @@ the next run.
   synthesised click tracks and chords)
 - `apps/server/src/services/analysis.ts` — ffmpeg decode, `ebur128`, the background loop
 - `apps/server/src/services/similar.ts` — nearest neighbours
-- `apps/web/src/player/autoMix.ts` — queue ordering and per-transition crossfade (tested)
+- `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)

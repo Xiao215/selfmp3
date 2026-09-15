@@ -4,8 +4,6 @@
 # It signs in through the doorman named by DEFAULT_DOORMAN_URL in
 # packages/shared/src/cloud.ts, or by the repository variable DOORMAN_URL if
 # one is set (Settings → Secrets and variables → Actions → Variables).
-#
-# Until 2026-09-13 this published apps/web; see docs/universal-progress.md.
 name: Pages
 
 on:

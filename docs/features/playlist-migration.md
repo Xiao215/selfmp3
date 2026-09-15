@@ -68,4 +68,5 @@ committed to, and redoing a search costs seconds rather than a download.
 - `apps/server/src/services/migrateScore.ts` — candidate scoring and library de-duplication (pure, tested).
 - `apps/server/src/services/migrate.ts` — the job runner and the yt-dlp searcher.
 - `apps/server/src/routes/migrate.ts` — the routes.
-- `apps/web/src/views/MigrateView.tsx` — the page.
+- `apps/app/src/features/migrate/MigrateScreen.tsx`, `migrate.model.ts` — the page
+  (route `apps/app/app/import/migrate.tsx`).

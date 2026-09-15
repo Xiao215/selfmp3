@@ -64,14 +64,14 @@ yourself, which is the only kind of "personality" worth putting a name to.
 
 ### Share as image
 
-**Share as image** renders a 1080×1080 PNG on a canvas and downloads it —
-`selfmp3-wrapped-<range>-<date>.png`.
+**Share as image** renders a 1080×1350 PNG on a canvas and downloads it; the file name
+comes from `shareFileName` in `apps/app/src/features/wrapped/wrapped.model.ts`. It is offered
+in a browser and the desktop app only (`canShareCard`).
 
-It is drawn rather than screenshotted, so the result is identical from a phone and a laptop
-and has no app chrome in it. The colours are read out of the live stylesheet (via a probe
-element, because `--accent` resolves to `oklch(… var(--accent-hue))` and canvas cannot parse
-that), so a card made with a different accent hue matches the app it came from. It is a few
-dozen `fillText` calls in `apps/web/src/lib/wrappedCard.ts` — no image library.
+It is drawn rather than screenshotted, so it has no app chrome in it. The colours are the
+theme on screen, passed in already resolved, so a card made with a different accent hue
+matches the app it came from. It is `fillText` calls on a canvas in
+`apps/app/src/ports/shareCard.web.ts` — no image library.
 
 ### API
 

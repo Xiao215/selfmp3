@@ -5,7 +5,7 @@ bars, slow them down without the key sliding, and read the key you are actually 
 They live together in a **Practice** panel so you are not hunting across the transport bar
 with an instrument in your hands.
 
-Open it from the metronome button — in the transport bar on a Mac, in the Now Playing
+Open it from the metronome button — in the transport bar on a computer, in the Now Playing
 footer on a phone. Each group inside collapses, so on a phone you can keep the loop open
 and fold the rest away.
 
@@ -45,12 +45,12 @@ pressing pause cancels it.
 `timeupdate` fires roughly four times a second, so a loop guard hung off it would overshoot
 B by up to a quarter of a second — audible, and worse at slow speeds where a quarter second
 is a large fraction of a beat. The guard runs on its own 30 ms interval instead
-(`LOOP_TICK_MS` in `player/engine.ts`), which keeps the jump back within about 30 ms and
+(`LOOP_TICK_MS` in `ports/engine.web.ts`), which keeps the jump back within about 30 ms and
 costs nothing measurable. It only runs while both bounds are set.
 
 ## Speed, with pitch lock
 
-Chips at 0.5×, 0.75×, 0.9×, 1× and 1.25× — slower than the transport bar's menu offers,
+Chips at 0.5×, 0.75×, 0.9×, 1×, 1.25×, 1.5× and 2× (`PRACTICE_SPEEDS`) — slower than the transport bar's menu offers,
 because 0.5× is where a fast run becomes learnable.
 
 **Pitch lock** (on by default) sets `preservesPitch` on the audio elements, so slowing down
@@ -63,7 +63,7 @@ Turn pitch lock off and speed drags the pitch with it — the panel then says by
 semitones (12·log₂(rate), so 0.5× is an octave down). That is occasionally what you want: it
 is how a tape machine behaves, and it is a quick way to hear a part a tone lower.
 
-The setting is remembered per device in `localStorage`, like volume.
+The setting is remembered per device, like volume.
 
 ## Transpose (display only)
 
@@ -107,11 +107,11 @@ the right UI for it.
 
 | Piece | File |
 |---|---|
-| Loop guard, count-in, `preservesPitch` | `apps/web/src/player/engine.ts` |
-| Pure helpers: tap ordering, count-in length, region geometry | `apps/web/src/player/practice.ts` (+ tests) |
+| Loop guard, count-in, `preservesPitch` | `apps/app/src/ports/engine.web.ts` (`engine.ts` on a phone) |
+| Pure helpers: tap ordering, count-in length, region geometry | `packages/client/src/practice/practice.ts` (+ tests) |
 | Key transposition, semitones from rate | `packages/shared/src/transpose.ts` (+ tests) |
-| React glue and stored preferences | `apps/web/src/player/PlayerProvider.tsx` |
-| The panel | `apps/web/src/components/PracticePanel.tsx` |
+| React glue and stored preferences | `apps/app/src/player/PlayerProvider.tsx` |
+| The panel | `apps/app/src/features/practice/PracticePanel.tsx` |
 
 No new dependencies, no new settings on the server, no migration. Pitch lock and count-in
-are per-device preferences in `localStorage` (`selfmp3:pitchlock`, `selfmp3:countin`).
+are per-device preferences (`pitchlock`, `countin`, through `apps/app/src/ports/prefs.ts`).

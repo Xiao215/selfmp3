@@ -20,7 +20,7 @@ Everything below assumes you have the repo checked out and a terminal open in it
 
 That is the whole thing. It checks you have Node 22 or newer, installs `yt-dlp` and
 `ffmpeg` with Homebrew if they are missing, installs the npm packages, builds the app,
-creates `library/` and `data/`, and offers to install the background service so the server
+creates the library and data folders, and offers to install the background service so the server
 starts at login.
 
 It is safe to run again whenever you like — every step is a no-op once it has been done,
@@ -42,8 +42,8 @@ When it finishes, open <http://localhost:4600>.
 ```
 
 One screen: Node, `yt-dlp` and `ffmpeg` versions, whether the build is there, whether the
-background service is running, whether the port is answering, how big `library/` and
-`data/` are, your Tailscale address, and the last few log lines. Every line is a tick or a
+background service is running, whether the port is answering, where the library and data
+folders are and how big, your Tailscale address, and the last few log lines. Every line is a tick or a
 cross, and the crosses tell you the command that fixes them.
 
 Run it first whenever something is wrong. It is usually one of five things and this tells
@@ -267,7 +267,7 @@ selfmp3 doctor                   # after `npm link`, or inside the container
 | `selfmp3 start` | run the server in the foreground |
 | `selfmp3 scan` | rescan the library folder |
 | `selfmp3 import <url…>` | queue one or more links for download |
-| `selfmp3 backup <dest-dir>` | copy `data/` and `library/`, only what changed |
+| `selfmp3 backup <dest-dir>` | copy the data and library folders, only what changed |
 | `selfmp3 doctor` | node, yt-dlp, ffmpeg, the server, the folders |
 | `selfmp3 --version` | print the version |
 
@@ -288,33 +288,15 @@ docker compose exec selfmp3 node apps/server/dist/cli.js doctor
 
 ## Where your music lives
 
-A fresh install keeps the two folders outside the checkout:
+The server keeps the two folders outside the checkout, so a `git pull` can never touch
+your music and every checkout or worktree finds the same library:
 
 | | Where |
 |---|---|
-| Your music | `~/Music/selfmp3` |
-| The database and cover art | `~/Library/Application Support/selfmp3` |
+| Your music | `~/Music/selfmp3` (`~/Music/selfmp3-dev` with `SELFMP3_PROFILE=dev`) |
+| The database and cover art | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) |
 
-**If you already have a `library/` in your checkout, it stays there and nothing
-moves.** That is deliberate: a server that quietly relocated your collection at
-boot would be a worse bug than the one this avoids.
-
-It is worth moving anyway, for two reasons. Your music is currently inside the
-folder you `git pull` in. And the location is tied to that one clone, so a
-second checkout — or a git worktree — comes up as an *empty* library rather
-than the same one, which matters now that an empty library can be published to
-your bucket as though it were the truth.
-
-To move it, with the server stopped:
-
-```bash
-mkdir -p ~/Music/selfmp3 "~/Library/Application Support/selfmp3"
-rsync -a --remove-source-files library/ ~/Music/selfmp3/
-rsync -a --remove-source-files data/ "$HOME/Library/Application Support/selfmp3/"
-```
-
-Start it again and it will find them by itself. Check with `./scripts/doctor.sh`,
-which prints both paths.
+`./scripts/doctor.sh` prints both paths.
 
 To keep them somewhere else entirely — an external drive, say — name it and the
 defaults are not consulted at all:
@@ -334,7 +316,7 @@ Docker sets both variables itself, so none of this changes anything there.
 npm run cli -- backup /Volumes/Backup/selfmp3
 ```
 
-It copies `data/` and `library/` and skips anything already there with the same size and
+It copies the data and library folders and skips anything already there with the same size and
 timestamp, so the first run is as slow as your disk and every run after it takes seconds.
 It never deletes from the destination.
 
@@ -348,7 +330,7 @@ Nightly, if you want, with cron:
 0 3 * * *  cd ~/self.mp3 && npm run cli -- backup /Volumes/Backup/selfmp3 >> ~/Library/Logs/selfmp3-backup.log 2>&1
 ```
 
-Restoring is copying the two folders back. `data/covers/` is a disposable cache and rebuilds
+Restoring is copying the two folders back. `covers/` in the data folder is a disposable cache and rebuilds
 itself on the next scan, so if you are short of space that is the one directory you can drop.
 
 ---
@@ -379,42 +361,6 @@ something:
 brew upgrade yt-dlp             # on a Mac
 docker compose pull && docker compose up -d   # in Docker, it comes from the image
 ```
-
----
-
-## Migrating from hum
-
-If you were running the earlier version — a folder with `data/hum.db` and a `library/` —
-this brings the audio, the lyrics sidecars, the tags and the play counts across:
-
-```bash
-npm start                                             # in one terminal
-node scripts/migrate-from-hum.mjs ~/hum --dry-run     # in another
-node scripts/migrate-from-hum.mjs ~/hum
-```
-
-The dry run prints exactly what the real run will do and writes nothing.
-
-What happens, in order: audio files and their `.lrc` / `.txt` sidecars are copied into the
-new library folder, skipping anything already there; the server is asked to rescan; the old
-tags are recreated by name and linked to the songs they were on; and play counts are carried
-over. Songs are matched by file path first, then by file name, so a reorganised folder is
-still recognised.
-
-Everything goes through the running server's API, which is why the server has to be up:
-there is no second copy of the schema in the script and no chance of writing to a database
-the server has open. The old `hum.db` is opened read-only and never modified — run it twice
-and the second run changes nothing.
-
-```bash
-node scripts/migrate-from-hum.mjs ~/hum --url http://localhost:4600 --token … --no-plays
-```
-
-`--no-plays` skips the play counts. They arrive stamped as of now, since hum only kept a
-counter and not per-play timestamps, so your listening history charts start on migration day
-even though the totals are right.
-
-When it is done, open the app and hit refresh.
 
 ---
 

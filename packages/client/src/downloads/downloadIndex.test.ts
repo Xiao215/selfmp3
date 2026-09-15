@@ -4,7 +4,6 @@ import {
   addEntry,
   bytesToDownload,
   downloadedCount,
-  downloadedIds,
   EMPTY_INDEX,
   entryFor,
   fileNameFor,
@@ -85,7 +84,8 @@ describe('entries', () => {
     const index = withEntries(entry(1))
     addEntry(index, entry(2))
     removeEntry(index, 1)
-    expect(downloadedIds(index)).toEqual([1])
+    expect(isDownloaded(index, 1)).toBe(true)
+    expect(downloadedCount(index)).toBe(1)
   })
 
   it('replaces an existing entry rather than duplicating it', () => {

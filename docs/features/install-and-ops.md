@@ -1,8 +1,7 @@
 # Install and ops
 
 Everything for getting self.mp3 running and keeping it running: a one-command Mac setup, a
-health check, a `selfmp3` command, a Docker image, and a migration from the old hum
-database. The user-facing walkthrough is **[docs/INSTALL.md](../INSTALL.md)**; this file is
+health check, a `selfmp3` command and a Docker image. The user-facing walkthrough is **[docs/INSTALL.md](../INSTALL.md)**; this file is
 what the pieces are and why they are shaped that way.
 
 ## `scripts/setup-mac.sh`
@@ -80,32 +79,6 @@ symlinks in `node_modules` still point somewhere real.
 
 `docker-compose.yml` bind-mounts `./library` and `./data` so the backup story is unchanged,
 and binds the port to `127.0.0.1` so Tailscale (or another reverse proxy) is the only way in.
-
-## `scripts/migrate-from-hum.mjs`
-
-```
-node scripts/migrate-from-hum.mjs <old-hum-dir> [--url …] [--token …] [--dry-run] [--no-plays]
-```
-
-Copies audio and `.lrc` / `.txt` sidecars into the new library folder (skipping anything
-already there), asks the server to rescan, recreates the old tags by name, links them to
-songs, and carries play counts over.
-
-The old schema is inspected with `PRAGMA table_info` and only the columns that exist are
-migrated — `play_count` in particular is optional. The new side is only ever touched through
-the API: `POST /library/scan`, `POST /api/tags`, `POST /api/tags/bulk`,
-`POST /api/songs/:id/played`. No SQL outside `repositories/`, and no chance of writing to a
-database the server has open, which is why it insists the server is running and says how to
-start it when it is not.
-
-Idempotent in both directions: the old `hum.db` is opened read-only, existing files are
-skipped, tag names are matched case-insensitively against the tags already there, links
-already present are counted and skipped, and play counts are only applied to songs that have
-never been played on the new side. `--dry-run` reports exactly what the real run would do —
-including songs that will only match once their files are copied — and writes nothing.
-
-Play counts arrive stamped as of now: hum stored a counter, not per-play rows, so the totals
-are right but the history charts start on migration day. `--no-plays` skips them.
 
 ## Also changed
 

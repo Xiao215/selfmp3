@@ -1,5 +1,10 @@
 # The desktop app, and the iPad finished
 
+> **Status:** phases 0 through 5 are on `main` (2026-09-14) and `apps/desktop`
+> ships from them. The spike scripts and the reference captures this plan
+> mentions have since been deleted; the sections about them are history. The
+> run is logged in [universal-progress.md](universal-progress.md).
+
 The plan for putting self.mp3 on a computer as an installed app — macOS first,
 with the door left open for Windows and Linux — and for finishing the iPad as a
 surface of its own. A companion to [UNIVERSAL.md](UNIVERSAL.md), written the
@@ -52,14 +57,14 @@ Facts about the tree this plan starts from, checked on `main` at `2ae1562`:
 | The web export | `npm run export:web --workspace @selfmp3/app` → `apps/app/dist`, a single-page app with absolute `/_expo/...` asset paths and a hand-written service worker copied from `public/`. The server and GitHub Pages serve the same files. |
 | The desktop hook | `apps/app/src/ports/install.web.ts` already reads `window.selfmp3Desktop`: present means an installed app, which downloads by default. Nothing sets it yet. Settings hides the Offline section, the song menu hides Download, and `playBlock` streams, when it is absent. |
 | Platform differences | Some thirty named ports under `apps/app/src/ports/`, each a `name.ts` (phone) and `name.web.ts` (browser) pair, resolved by Metro. Screens never read `Platform.OS` (ESLint enforces it). |
-| Downloads | One shared queue in `packages/client` (`downloads/queue.ts`) over a `DownloadStorage` port. The phone's is files + a JSON index (`ports/downloadStorage.ts`); the browser's is the Cache API behind the service worker (`ports/downloadStorage.web.ts`). The player prefers `localUri` when the storage has one (`player/PlayerProvider.tsx:281`, `player/tracks.ts`). |
-| Covers, words, playlists kept offline | The phone keeps covers as files (`offline/covers.ts`, expo-file-system); a browser keeps words and playlists in IndexedDB. On web `covers.ts` runs against the spike's expo-file-system stub (`verify/stubs/`), so a bucket library in a browser has no kept covers — confirm before relying on it. |
+| Downloads | One shared queue in `packages/client` (`downloads/queue.ts`) over a `DownloadStorage` port. The phone's is files + a JSON index (`ports/downloadStorage.ts`); the browser's is the Cache API behind the service worker (`ports/downloadStorage.web.ts`). The player prefers `localUri` when the storage has one (`player/PlayerProvider.tsx`). |
+| Covers, words, playlists kept offline | The phone keeps covers as files (`offline/covers.ts`, expo-file-system); a browser keeps words and playlists in IndexedDB. On web `covers.ts` runs against the expo-file-system stub (`apps/app/verify/stubs/`), so a bucket library in a browser has no kept covers — confirm before relying on it. |
 | Sign-in | Google, through the doorman. A browser comes back to its own origin with `#signin-code=`; a phone comes back to `selfmp3://sign-in` (`ports/cloudPlatform.ts:150`), which the doorman's `safeReturn` already allows by scheme (`apps/doorman/src/auth.ts`), and the `http://localhost` loopback is allowed too. Both paths exist; the desktop needs neither changed. |
 | Server address | Every device starts with Google sign-in; the address screen renders only in development builds (`app/onboarding.tsx`) and Settings has no "Change server". The code path (`ConnectionProvider.connect`, `loadConnection`) is intact. |
 | Media session | `navigator.mediaSession` is named as "its own port" in `engine.web.ts` but nothing in `apps/app/src` implements it. The phone's lock screen is track-player's. The desktop has to add it, and the browser gets it for free. |
 | Keyboard | `shell/useHotkeys.web.ts` and `useEscape.web.ts` listen on the window; the native pair are no-ops. The iPad therefore has no shortcuts, and stays that way in this plan (Xiao, 2026-09-14): what it would take is under "Later". |
 | iPad | Portrait at 834 checked and fixed (safe area, bar, header). `app.config.js` says `orientation: 'portrait'`, so landscape and Split View are impossible today. Landscape was never seen. |
-| Verification | Root `verify/flows` (18 Playwright specs at 1280 and 375, against a running dev server with the 13-song library on 4600), `apps/app/.maestro` on the phone, reference captures under `docs/reference/`. |
+| Verification | Root `verify/flows` (18 Playwright specs at 1280 and 375, against a running dev server with the 13-song library on 4600), `apps/app/.maestro` on the phone. |
 | Server | Express 5, better-sqlite3, sharp, yt-dlp and ffmpeg; moving from the Mac to a Raspberry Pi (`docker.yml`). It is **not** part of the desktop app in this plan (see "What this is not"). |
 
 ## What "desktop" means here
@@ -280,8 +285,7 @@ is on the desktop asks a port for the *capability*, never for the platform.
 Three small things in `apps/app` that are not ports:
 
 1. **`localUri` on the web path.** `PlayerProvider.tsx:281` asks
-   `downloadQueue.localUri(songId)` and `tracks.ts` prefers it; that is the
-   phone's path. Confirm the web engine's `load()` is handed the same URL when
+   `downloadQueue.localUri(songId)` and prefers it; that is the phone's path. Confirm the web engine's `load()` is handed the same URL when
    the storage answers one (today the web storage answers null and the service
    worker intercepts the stream URL instead). If the web provider short-circuits
    to the stream URL, wire it — one function, and the spike's engine check
@@ -354,9 +358,9 @@ to `main`:
    `.part` size and the finished file's SHA-256 matches the whole. Against the
    dev server's `/api/stream/<id>`, which already answers ranges.
 
-Each check is a script under `apps/desktop/verify/spike/` that exits non-zero
-on failure, and the branch is deleted once the results are in the progress
-file. If 1 or 2 fails the plan stops here and the reason is written down.
+Each check was a script under `apps/desktop/verify/spike/` that exited non-zero
+on failure; all six passed, the results are in the progress file, and the
+scripts have since been deleted.
 
 ### Phase 2 — The shell, signing in, playing
 
@@ -651,8 +655,7 @@ dependency without a Stack line, ports before screens. Added for this work:
   the browser at 1280 beyond the inset title bar; a change to a
   `packages/shared` *schema* (moving the range helper is not a schema).
 - **Never** commit `release/`, a `.p12`, an API key, or `ios/`; never run
-  `expo prebuild --clean` with uncommitted native changes; never delete
-  `docs/reference/`.
+  `expo prebuild --clean` with uncommitted native changes.
 
 ### Environment
 
@@ -682,16 +685,8 @@ the root project graph, so `typecheck`, `lint` and `test` already cover them.
 
 ### Gates
 
-**Spike (phase 1)** — each exits 0, run from `apps/desktop`:
-
-```
-node verify/spike/1-app-scheme.mjs        # boots, routes, reloads under app://
-node verify/spike/2-engine.mjs            # plays, seeks (206), crossfades, analyser > 0
-node verify/spike/3-now-playing.mjs       # metadata visible; play/pause key toggles (asks a human to press it, times out at 60 s)
-node verify/spike/4-deep-link.mjs         # open "selfmp3://sign-in#signin-code=TEST-CODE" reaches the handler, running and cold
-node verify/spike/5-keychain.mjs          # safeStorage round-trip across relaunch
-node verify/spike/6-resume.mjs            # interrupted download resumes; sha256 matches
-```
+**Spike (phase 1)** — six throwaway scripts, all passed and since deleted; see
+the progress file.
 
 **Phase 2**
 

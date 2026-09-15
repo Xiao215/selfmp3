@@ -33,7 +33,6 @@
     "check": "npm run typecheck && npm run lint && npm run test && npm run check:app",
     "clean": "rm -rf packages/*/dist apps/*/dist apps/*/tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo",
     "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone",
-    "verify:reference": "playwright test -c verify/playwright.config.ts reference --project=desktop --project=phone",
     "test:app": "npm run test --workspace @selfmp3/app",
     "verify:desktop": "playwright test -c apps/desktop/verify/playwright.config.ts"
   },

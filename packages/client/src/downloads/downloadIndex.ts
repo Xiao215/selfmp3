@@ -98,11 +98,6 @@ export function totalBytes(index: DownloadIndex): number {
   return Object.values(index.entries).reduce((sum, entry) => sum + entry.sizeBytes, 0)
 }
 
-export function downloadedIds(index: DownloadIndex): number[] {
-  return Object.values(index.entries)
-    .map(entry => entry.songId)
-    .sort((a, b) => a - b)
-}
 
 /**
  * Of `songIds`, the ones not on disk yet — in the order asked for, so

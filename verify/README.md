@@ -7,9 +7,8 @@ checks the thing the other three cannot: that the app still *behaves* the same
 after everything moved into `packages/client`. The other three prove it
 compiles, lints and passes its unit tests.
 
-They were written against the web app, which was known to be right, and have
-run against `apps/app` since phase 2. The web app is gone now (phase 5); the
-reference captures under `docs/reference/` are what is left of it.
+They were written against the old web app, which was known to be right, and
+have run against `apps/app` since phase 2.
 
 ## What they need
 
@@ -51,7 +50,7 @@ They run on the Mac.
 
 ## Why not fixtures
 
-A fabricated library would make the command green anywhere, and it would make
-the phase 4 comparison a lie: the reference captures under `docs/reference/`
-are supposed to be the app as it actually looks with real songs in it. A
-comparison against invented songs proves the app matches its own invention.
+A fabricated library would make the command green anywhere, which is exactly
+the problem: the flows are supposed to check the app as it actually behaves
+with real songs in it. A run against invented songs proves the app matches its
+own invention.

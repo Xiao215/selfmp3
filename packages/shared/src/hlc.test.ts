@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HLC_PATTERN, HlcClock, formatHlc, hlcTime, hlcWins, laterHlc, parseHlc } from './hlc.js'
+import { HLC_PATTERN, HlcClock, formatHlc, hlcTime, hlcWins, parseHlc } from './hlc.js'
 
 describe('clock stamps', () => {
   it('read back what they were made from', () => {
@@ -41,9 +41,6 @@ describe('clock stamps', () => {
     expect(hlcWins(early, early)).toBe(false)
     expect(hlcWins(early, undefined)).toBe(true)
     expect(hlcWins(early, null)).toBe(true)
-    expect(laterHlc(early, late)).toBe(late)
-    expect(laterHlc(null, early)).toBe(early)
-    expect(laterHlc(undefined, undefined)).toBeNull()
   })
 })
 

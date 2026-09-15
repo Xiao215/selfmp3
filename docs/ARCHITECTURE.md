@@ -55,8 +55,7 @@ apps/desktop             the Electron shell around apps/app's web export
   src/preload/           the only door — `contextBridge`, and nothing of Node
                          reaches the page
   scripts/               esbuild bundling, the icon, and the signing tiers
-  verify/                Playwright against the built app; `verify/spike/` is the
-                         throwaway that proved it could work at all
+  verify/                Playwright against the built app
 ```
 
 The desktop app is a *shell*, not a fourth client. The page inside it is

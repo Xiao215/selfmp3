@@ -107,7 +107,7 @@ Errors from yt-dlp are translated into actionable messages
 
 - `POST /api/import/youtube/test` → `{ ok, source, count, playlistTitle, error }`
 - `POST /api/import/enqueue` accepts `createPlaylistName` (ignored when `playlistId` set)
-- `POST /api/imports/share` accepts `createPlaylist: true`
+- `POST /api/import/share` accepts `createPlaylist: true`
 
 ## A note on terms
 

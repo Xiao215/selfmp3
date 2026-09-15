@@ -224,6 +224,3 @@ export const usageSchema = z.object({
   free: z.number().int().nonnegative(),
 })
 export type Usage = z.infer<typeof usageSchema>
-
-/** Nothing to say, said in a way zod can parse. */
-export const emptySchema = z.undefined()

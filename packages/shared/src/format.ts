@@ -81,10 +81,3 @@ export function hueFromString(input: string): number {
   }
   return Math.abs(hash) % 360
 }
-
-/** `["a","b","c"]` -> `a, b and c`. */
-export function joinWithAnd(items: readonly string[]): string {
-  if (items.length === 0) return ''
-  if (items.length === 1) return items[0] ?? ''
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`
-}

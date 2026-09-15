@@ -57,8 +57,8 @@ You should see something like:
 14:22:01 INFO  listening on http://192.168.1.44:4600
 ```
 
-Open <http://localhost:4600>. If your old library was in `hum/library/`, copy those files
-into `library/` and hit **Rescan library** — everything gets picked up.
+Open <http://localhost:4600>. To bring in music you already have, copy the files into
+`~/Music/selfmp3` and hit **Rescan library** — everything gets picked up.
 
 Stop it with `Ctrl-C` for now.
 

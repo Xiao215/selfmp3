@@ -23,36 +23,21 @@ const APP_DIR_NAME = 'selfmp3'
 /**
  * Where your music and your database live, when nothing says otherwise.
  *
- * They used to default to `library/` and `data/` inside the checkout, which
- * made a person's entire collection live in the folder they are told to
- * `git pull` in — and tied it to one clone, so a second checkout or a git
- * worktree came up as an empty library rather than as the same one. It is
- * also the reason an installer cannot simply be bolted on: there is no
- * "the app" to install, only the folder you happened to clone into.
- *
- * So the default is now a place of their own, outside any checkout. Two
+ * A place of their own, outside any checkout, so a `git pull` can never touch
+ * your music and every checkout or worktree finds the same library. Two
  * places, because they are different kinds of thing: the music goes under
  * `~/Music`, where you can open it in Finder and drag things in — the
  * watched folder expects exactly that — and the database and the artwork
- * derived from it go where a Mac keeps application data.
- *
- * **An existing checkout keeps its folders.** If `library/` is already there
- * it is still the library, and nothing moves on its own: a server that
- * silently relocated forty gigabytes of somebody's music at boot would be a
- * far worse bug than the one this fixes. `docs/INSTALL.md` says how to move
- * them deliberately. Docker sets both variables explicitly and is unaffected.
+ * derived from it go where a Mac keeps application data. Docker sets both
+ * variables explicitly.
  */
 export function defaultDirs({
-  repoRoot = REPO_ROOT,
   home = os.homedir(),
   platform = process.platform,
-  exists = fs.existsSync,
   profile = process.env['SELFMP3_PROFILE'] ?? '',
 }: {
-  repoRoot?: string
   home?: string
   platform?: NodeJS.Platform
-  exists?: (dir: string) => boolean
   profile?: string
 } = {}): { libraryDir: string; dataDir: string } {
   // A profile is a whole separate installation — its own music, its own
@@ -60,18 +45,7 @@ export function defaultDirs({
   // It is how you work on the code without the real library being what you
   // work on. `npm run dev` sets it, so the dev server can never be pointed at
   // your own collection by accident.
-  const suffix = profileSuffix(profile)
-
-  const inRepo = {
-    libraryDir: path.join(repoRoot, 'library'),
-    dataDir: path.join(repoRoot, 'data'),
-  }
-  // Only an existing library keeps the old spot, and only for the real one:
-  // asking for a profile means asking not to be here. `data/` follows the
-  // music, so the database and what it describes are never split across homes.
-  if (!suffix && exists(inRepo.libraryDir)) return inRepo
-
-  const dir = APP_DIR_NAME + suffix
+  const dir = APP_DIR_NAME + profileSuffix(profile)
   return {
     libraryDir: path.join(home, 'Music', dir),
     dataDir:

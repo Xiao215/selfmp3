@@ -6,8 +6,6 @@ import {
   camelotFromKey,
   compatibleCamelot,
   featureDistance,
-  formatFeatures,
-  isCamelotCompatible,
   keyName,
   parseCamelot,
   songDistance,
@@ -96,8 +94,6 @@ describe('Camelot wheel', () => {
     expect(compatibleCamelot('12B').sort()).toEqual(['11B', '12A', '12B', '1B'])
     expect(compatibleCamelot('1A').sort()).toEqual(['12A', '1A', '1B', '2A'])
     expect(compatibleCamelot('bad')).toEqual([])
-    expect(isCamelotCompatible('8A', '9A')).toBe(true)
-    expect(isCamelotCompatible('8A', '10A')).toBe(false)
   })
 })
 
@@ -176,13 +172,5 @@ describe('transitionCrossfade', () => {
   it('falls back to a middle value without features', () => {
     expect(transitionCrossfade(null, feat(), 8)).toBe(4)
     expect(transitionCrossfade(null, null, 2)).toBe(2)
-  })
-})
-
-describe('formatFeatures', () => {
-  it('lists what is known and skips what is not', () => {
-    expect(formatFeatures(feat({ bpm: 127.6 }))).toBe('128 BPM · C major · 8B · energy 50%')
-    expect(formatFeatures(feat({ bpm: null, key: null, camelot: null }))).toBe('energy 50%')
-    expect(formatFeatures(null)).toBe('')
   })
 })

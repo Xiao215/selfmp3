@@ -55,16 +55,6 @@ export function hlcWins(incoming: string, current: string | null | undefined): b
   return current == null || incoming > current
 }
 
-/** The later of two stamps, either of which may be missing. */
-export function laterHlc(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): string | null {
-  if (a == null) return b ?? null
-  if (b == null) return a
-  return a > b ? a : b
-}
-
 /**
  * One device's clock. Stamps it makes are later than every stamp it has made
  * or seen, and as close to the wall clock as that allows.

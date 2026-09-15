@@ -32,14 +32,14 @@ widen and grow around the line being sung. In Focus:
 - after three seconds without the mouse or a key, the header and the player bar fade out
   and the words take the whole window. Any movement brings them back.
 
-Switching is one class on the page — every piece has a Stage position and a Focus position
-in `feat-now-playing.css` and moves between them, so nothing remounts and the line you are
-reading never leaves the screen. Sizes come from container units, so the page fits a wide
-window, a narrow one, and a page sharing the window with the practice panel. With Reduce
-Motion on, the switch is instant.
+Switching moves every piece between its Stage position and its Focus position
+(`StageMove`, `stageMove.model.ts`), so nothing remounts and the line you are reading never
+leaves the screen. The page fits a wide window, a narrow one, and a page sharing the window
+with the practice panel. With Reduce Motion on, the switch is instant.
 
 The page takes its glow from the cover's own colours: a 24-pixel thumbnail of the art is
-sampled in the browser (`paletteFromPixels` in `lib/visuals.ts`). A song with no art uses
+sampled in the browser (`paletteFromPixels` in `packages/client/src/art/palette.ts`, read by
+`ports/coverPalette.web.ts`). A song with no art uses
 the same hue as its placeholder cover.
 
 ## Lyrics on the page
@@ -58,34 +58,34 @@ the same hue as its placeholder cover.
 ## Songs with no words
 
 A song never opens onto an empty page. When there are no lyrics, the words area shows a
-visual drawn from the song itself, with one line under it saying why:
+visual drawn from the song itself, with one line under it: *No lyrics · 140 BPM · A minor*,
+leaving out what is not known (`visualCaption`). "No lyrics" is one state — a saved answer
+that the song has no words and a lookup that found nothing look the same (see
+[lyrics-plus.md](lyrics-plus.md#instrumental-songs) for the flag the server keeps).
+**Style ▾** chooses another visual, or looks for lyrics again.
 
-- **Instrumental** — the song is known to have no words (lrclib said so, it has a tag
-  called "instrumental", or you chose **Mark as instrumental** from its ⋯ menu). No nudge to
-  add lyrics. See [lyrics-plus.md](lyrics-plus.md#instrumental-songs) for how the flag is
-  kept.
-- **No lyrics found** — offers **It's instrumental**, so the song stops being looked up.
+Four visuals, drawn on a canvas each frame in a browser (`SongVisual.web.tsx`) and with
+views on a phone (`SongVisual.tsx`), from the same rules in `visuals.model.ts`:
 
-Four visuals, all drawn on a canvas each frame (`components/nowplaying/visualDraw.ts`):
+| Visual | What it draws |
+|---|---|
+| Aurora | Slow bands in the cover's colours |
+| Pulse | The cover breathing on each beat, sending out a ring |
+| Spectrum | Frequency bars standing on a faint reflection |
+| Drift | Specks orbiting the centre, faster the louder it is, thrown outward on a hit |
 
-| Visual | What it draws | Moved by |
-|---|---|---|
-| Pulse | The cover breathing on each beat, sending out a ring | Tempo; energy sets how far the rings travel |
-| Aurora | Slow ribbons in the cover's colours | Energy sets the drift, danceability the ripple |
-| Spectrum ring | Frequency bars around a slowly turning cover | The live sound |
-| Ridgelines | A short history of the spectrum stacked into ridges | The live sound |
+Which one a song gets is picked from how it sounds (`autoVisual`): below 0.35 energy, or
+not analysed yet, **Aurora**; from 0.7, **Spectrum**; in between, **Pulse** when the beat
+is steady (danceability 0.6 and up) and **Drift** when it is not. The name under the visual
+is a menu: choose another for that song and the choice is kept on this device.
 
-Which one a song gets is picked from its analysed energy (`autoVisual`): below 0.35, or
-not analysed yet, **Aurora**; from 0.35, **Pulse**; from 0.7, where the music can be
-heard, **Spectrum ring**. Ridgelines only plays when chosen. The name under the visual is
-a menu: choose another for that song and the choice is kept on this device.
-
-**Where the live visuals run.** The spectrum visuals read the sound through a Web Audio
-analyser (`AudioEngine.analyser()`), which routes both audio elements through an
-`AudioContext` for the rest of the session. That only happens in desktop Chrome, Edge and
-Firefox. On a phone or tablet a locked screen suspends Web Audio and would stop the music
-with it; Safari has a history of ignoring an element's volume once it is routed, and the
-crossfade is made of volume. Those get Pulse instead, and the live visuals are not offered.
+**What moves them** (`motionSource.ts`), in this order. Where the browser can listen
+(`ports/liveAudio`: Chrome, Edge, Firefox, the desktop app) the engine's Web Audio analyser
+(`analyser()` in `ports/engine.web.ts`) is the sound itself. Everywhere else — a phone,
+Safari, a touch browser, a cloud library, offline — the song's motion curve, worked out by
+the server when it analysed the song, is played back against the playhead. A song with
+neither falls back to a stand-in drawn from its tempo and energy. The line under the caption
+says which: *Following the sound*, *Following the song* or *Following the tempo*.
 
 ## On the phone
 
@@ -98,11 +98,10 @@ brings the artwork back.
 
 | What | Where |
 |---|---|
-| Page | `apps/web/src/components/nowplaying/NowPlayingPage.tsx` |
-| Lyrics, visual, status line | `nowplaying/SongWords.tsx`, `LyricsView.tsx`, `SongVisual.tsx`, `visualDraw.ts` |
-| Lyrics state, cover colours, clock | `nowplaying/useSongLyrics.ts`, `useCoverArt.ts`, `clock.ts` |
-| Up next card | `nowplaying/UpNextCard.tsx` |
-| Visual choice, palettes | `apps/web/src/lib/visuals.ts` (+ tests) |
-| Playhead and analyser | `apps/web/src/player/engine.ts`, exposed by `PlayerProvider.tsx` |
-| Shell, keys, the bar | `apps/web/src/App.tsx`, `components/PlayerBar.tsx`, phone: `components/NowPlaying.tsx` |
-| Styles | `apps/web/src/styles/parts/feat-now-playing.css` |
+| Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx` |
+| Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`), `VisualStyleMenu.tsx` |
+| Lyrics state, cover colours, Stage ↔ Focus | `nowPlaying/useSongWords.ts`, `useCoverPalette.ts`, `stageMove.model.ts` |
+| Up next | `nowPlaying/StageQueue.tsx` |
+| Visual choice, motion, palettes | `apps/app/src/features/nowPlaying/visuals.model.ts`, `visualChoice.ts`, `motionSource.ts` (+ tests) |
+| Playhead and analyser | `apps/app/src/ports/engine.web.ts`, exposed by `apps/app/src/player/PlayerProvider.tsx` |
+| Shell, keys, the bar | `apps/app/src/shell/Shell.tsx`, `useHotkeys.web.ts`, `PlayerBar.tsx` |

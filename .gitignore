@@ -44,11 +44,6 @@ Thumbs.db
 npm-debug.log*
 .claude/
 
-# Superseded v1 files, kept until you delete them
-_to_delete/
-
-# A local build of the web app for GitHub Pages
-
 # Playwright
 test-results/
 playwright-report/
@@ -59,6 +54,3 @@ apps/desktop/release/
 # Rendered from apps/app/public/icons/icon.svg by apps/desktop/scripts/icon.mjs,
 # which every packaging run calls first. A checked-in copy is one that drifts.
 apps/desktop/resources/
-
-# The new app photographed for phase 4 comparison; attached to PRs, not committed.
-verify/captures/

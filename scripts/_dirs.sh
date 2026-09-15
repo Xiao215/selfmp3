@@ -7,11 +7,10 @@
 # must answer the same, and config.test.ts pins the TypeScript side. Change one,
 # change the other.
 #
-# Expects PROJECT_DIR to be set. Sets LIBRARY_DIR and DATA_DIR.
+# Sets LIBRARY_DIR and DATA_DIR.
 
 # A profile is a whole separate installation: its own music, its own database,
-# and so its own cloud sign-in, since that lives in the database. Asking for one
-# means asking not to be the real library, so a checkout's own folders lose.
+# and so its own cloud sign-in, since that lives in the database.
 # The same normalisation as `profileSuffix` in config.ts, character for
 # character: lower-cased, any run of other characters collapsed to one dash,
 # dashes trimmed off both ends, then cut to twenty. Written with sed rather
@@ -26,20 +25,11 @@ else
   _suffix=""
 fi
 
-# Otherwise both defaults turn on the same question — is there already a library
-# in this checkout? — and neither is affected by the other being overridden,
-# which is how config.ts computes them. An existing library stays where it is:
-# an upgrade must never look like losing your music.
-if [[ -z "$_suffix" && -d "$PROJECT_DIR/library" ]]; then
-  _default_library="$PROJECT_DIR/library"
-  _default_data="$PROJECT_DIR/data"
+_default_library="$HOME/Music/selfmp3$_suffix"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  _default_data="$HOME/Library/Application Support/selfmp3$_suffix"
 else
-  _default_library="$HOME/Music/selfmp3$_suffix"
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    _default_data="$HOME/Library/Application Support/selfmp3$_suffix"
-  else
-    _default_data="$HOME/.local/share/selfmp3$_suffix"
-  fi
+  _default_data="$HOME/.local/share/selfmp3$_suffix"
 fi
 
 LIBRARY_DIR="${SELFMP3_LIBRARY_DIR:-$_default_library}"

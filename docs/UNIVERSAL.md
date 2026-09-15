@@ -1,5 +1,12 @@
 # One app for three screens
 
+> **Status: done.** Phases 1 through 5 are on `main`: `apps/web` and
+> `apps/mobile` are deleted and `apps/app` is the only UI. This file stays as
+> the record of the decisions — the stack, the ports, what does not port
+> one-to-one — and everything below about phases, gates, the spike and the
+> reference captures is history. The run itself is logged in
+> [universal-progress.md](universal-progress.md).
+
 The plan for folding `apps/web` and `apps/mobile` into a single Expo app that
 renders on iOS, Android and in the browser, with the phone treated as a first
 surface rather than a companion.
@@ -180,7 +187,7 @@ apps/app                 NEW — the one UI, grown out of apps/mobile
   app/                   expo-router routes: thin files that render a feature
     _layout.tsx          providers + the shell
     (tabs)/…             library, playlists, settings — native tabs < 820
-    playlist/[id].tsx  now-playing.tsx  import/…  stats/…  sign-in.tsx
+    playlists/[id].tsx  now-playing.tsx  import/…  stats/…  sign-in.tsx
   src/shell/             the responsive frame: tabs + mini player, or sidebar
                          + player bar + side panels; the one place that reads width
   src/features/          one folder per feature:
@@ -338,33 +345,16 @@ same captures.
 
 ### The reference set
 
-Before phase 4 starts, capture the old app once and commit the images under
-`docs/reference/<short-sha>/`. The old app is deleted in phase 5; the
-captures are what outlives it. The list is fixed so the two sides are always
-compared like for like:
-
-| Screen | States to capture (each at 1280 and 375) |
-|---|---|
-| Library | at rest · a search typed · one tag filtered, one excluded · sort sheet or menu open · selection mode with two rows · a row's ⋯ menu open · a song playing (row tint, equaliser, mini player / player bar) |
-| Playlists | list · empty state |
-| Playlist detail | manual list · smart list with rules open · empty |
-| Now playing | art face · lyrics (synced, with a line active) · romanisation on · queue · about · desktop stage · desktop focus · nothing playing |
-| Player bar / mini player | playing · paused · remote device chip · progress at ~40% |
-| Settings | every section, scrolled top and bottom · accent changed · light theme |
-| Devices | popover with two devices · resume toast |
-| Sheets and popovers | song menu · sleep timer · speed · volume (compact) |
-| Sign-in and onboarding | idle · waiting · code entry |
-
-Capture with the same seeded library (the thirteen songs the dev server has),
-the same song playing, the same accent. The Playwright script
-`apps/app/verify/reference.spec.ts` produces the set from whichever commit
-still has the old app, so it is reproducible and not a one-off.
+The old app was photographed at both widths before phase 4 (`docs/reference/`,
+made by `verify/reference.spec.ts`) and compared screen by screen with
+`verify/side-by-side.mjs`. With the migration finished, all three were deleted;
+git history still has them.
 
 ### Three checks, in order
 
 **1. Tokens are identical.** A test parses `apps/web/src/styles/parts/tokens.css`,
 resolves each `oklch(L C var(--accent-hue))` at hue 268 with the converter in
-`packages/client/theme`, and asserts the hex the Unistyles theme produces for
+`packages/client/src/theme`, and asserts the hex the Unistyles theme produces for
 the same name. `apps/mobile/src/ui/oklch.test.ts` is the start of this. Once
 the CSS is gone the test compares the theme against the committed reference
 values instead. Spacing, radii, type sizes and the breakpoint are asserted the
@@ -385,7 +375,7 @@ the new app's own 375 web capture — those two must agree with each other
 exactly, since they are the same code.
 
 **3. Flows behave the same.** Walked on the old app and the new one, then
-automated: Playwright for the web at both widths (`apps/app/verify/flows/`),
+automated: Playwright for the web at both widths (`verify/flows/`),
 Maestro on the phone (`apps/app/.maestro/`). The flows are the ones that
 cross screens or touch the player:
 
@@ -555,8 +545,7 @@ gate has not passed on `main`.
   from the old app would be visible to a user. Everything else is the agent's
   call, recorded in the commit.
 - **Never** run `expo prebuild --clean` on a branch that has uncommitted
-  native changes, delete `docs/reference/`, or change `packages/shared`
-  schemas — the server owns those.
+  native changes, or change `packages/shared` schemas — the server owns those.
 
 ### Environment
 
@@ -624,8 +613,6 @@ maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 
 ```
 npm run check:app
-npx playwright test verify/reference.spec.ts --update-snapshots   # capture new app at both widths
-node verify/side-by-side.mjs docs/reference/<sha> verify/captures # builds the comparison sheet for the PR
 npx playwright test verify/flows                                  # all flows, both widths
 maestro test .maestro/                                            # all phone flows
 SELFMP3_WEB_DIR=apps/app/dist npm run start & curl -sf localhost:4600/ | grep -q '<div id="root"'

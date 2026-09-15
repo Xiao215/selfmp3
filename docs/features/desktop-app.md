@@ -45,7 +45,7 @@ offline settings behave as they do on a phone at home.
 
 ## What it is not
 
-- **Not a second UI.** The renderer is `apps/app/dist`, byte for byte.
+- **Not a second UI.** The renderer is `apps/app`'s web export (`dist/`), byte for byte.
   Desktop-only code lives in `apps/app/src/ports/`, chosen at runtime by the
   presence of the bridge — never a second Metro platform or a build switch.
 - **Not the server.** It does not hold the library, run yt-dlp or open the
@@ -90,7 +90,7 @@ error at the boundary rather than a crash in the middle. There is no
   the Mac it runs on simply opens.
 - The signing tier is decided by the environment, not by a flag: `CSC_LINK` and
   `CSC_KEY_PASSWORD` make a signed build, their absence an ad-hoc one, and
-  `scripts/dist.mjs` prints which. It is baked into the bundle as well, because
+  `apps/desktop/scripts/dist.mjs` prints which. It is baked into the bundle as well, because
   the updater has to know and a running app cannot ask about its own signature.
 - Five of the Playback menu's accelerators are drawn without being registered
   (Space, ⌘←, ⌘→, ⌥⌘←, ⌥⌘→). A registered Electron accelerator fires inside text

@@ -42,7 +42,7 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
-import type { CloudImportRequest, ImportRequestList } from '@selfmp3/cloud'
+import type { ImportRequestList } from '@selfmp3/cloud'
 
 /**
  * Server state, handled by TanStack Query.
@@ -450,11 +450,6 @@ export const useBulkLoved = () =>
 
 export const useScanLibrary = () => useVoidLibraryMutation(() => clientApi().scan())
 
-export const useCreatePlaylist = () =>
-  useLibraryMutation((input: Parameters<Api['createPlaylist']>[0]) =>
-    clientApi().createPlaylist(input),
-  )
-
 export function useUpdatePlaylist() {
   const client = useQueryClient()
   return useMutation({
@@ -764,23 +759,6 @@ export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
         ? 30_000
         : false,
   })
-}
-
-export function useCloudImportActions() {
-  const queryClient = useQueryClient()
-  const onSuccess = (): void => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.cloudImports })
-  }
-  return {
-    request: useMutation({
-      mutationFn: (input: CloudImportRequest) => clientApi().requestCloudImport(input),
-      onSuccess,
-    }),
-    cancel: useMutation({
-      mutationFn: (uid: string) => clientApi().cancelCloudImport(uid),
-      onSuccess,
-    }),
-  }
 }
 
 // --- the phone's own ---------------------------------------------------------

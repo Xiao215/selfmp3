@@ -7,8 +7,8 @@ export type { MenuCommand }
  * menu: the installed desktop app's View, Playback and Settings… items.
  *
  * `null` everywhere else, and on a phone above all. A phone has no menu bar,
- * and a browser tab has no keyboard shortcuts of its own (decided 2026-09-14):
- * the keys a tab would take are the browser's. So a screen that shows keys —
+ * and a browser tab has no menu keys (decided 2026-09-14): the keys a tab would
+ * take are the browser's, all but Space for play and pause. So a screen that shows keys —
  * Settings › Keyboard shortcuts, the sidebar's ⌘K beside Search — asks this,
  * and shows nothing when the answer is no menu.
  *

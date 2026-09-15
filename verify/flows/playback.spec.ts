@@ -38,6 +38,37 @@ test.describe('playback', () => {
     await expect(transport(page, 'Play')).toBeVisible()
   })
 
+  /*
+   * A browser tab's one app shortcut. It is pressed right after starting the
+   * song from its row, where focus is on that row's button — which took Space
+   * as a press of itself and played the song again from the start.
+   */
+  test('Space pauses and plays again', async ({ page }) => {
+    await page.goto('/')
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+
+    await playSong(page, await topRow(page))
+    await expect(transport(page, 'Pause')).toBeVisible()
+
+    await page.keyboard.press('Space')
+    await expect(transport(page, 'Play')).toBeVisible()
+    await page.keyboard.press('Space')
+    await expect(transport(page, 'Pause')).toBeVisible()
+
+    // Typing in the search field is typing, not playback.
+    const search = page.getByLabel('Search library')
+    if (await search.isVisible()) {
+      await search.fill('')
+      await search.pressSequentially('a b')
+      await expect(search).toHaveValue('a b')
+      await expect(transport(page, 'Pause')).toBeVisible()
+      await search.fill('')
+    }
+
+    await transport(page, 'Pause').click()
+  })
+
   test('next moves to another song', async ({ page }) => {
     await page.goto('/')
     await libraryReady(page)

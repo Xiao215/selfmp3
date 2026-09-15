@@ -1,24 +1,21 @@
 import { useEffect, useRef } from 'react'
-import { pageKeptCombinations } from '@selfmp3/desktop-bridge'
 
 import type { Command, CommandHandlers } from './useCommands'
+import { playbackKeys } from './playbackKeys'
 import { useHotkeys } from './useHotkeys'
 import { desktop } from '../ports/desktop/bridge'
 
 export type { Command, CommandHandlers }
 
 /**
- * The keys the menu draws but does not take, and what each one means.
+ * The playback keys the page answers, and what each one means.
  *
- * Space and the ⌘-arrows are in the menu for discoverability — that is how a
- * person learns their app has them — but registering them as accelerators would
- * take them out of every text field in the app. So the menu shows them, the
- * page handles them, and this is the table both sides read. Empty in a
- * browser, where there is no menu and so no playback shortcuts.
+ * In the installed app, the ones its menu draws but does not take: Space and
+ * the ⌘-arrows are in the menu for discoverability, but taking them there would
+ * take them out of every text field. In a browser tab, Space alone — the rest
+ * are the browser's (`playbackKeys`).
  */
-const kept: ReadonlyMap<string, Command> = desktop
-  ? pageKeptCombinations()
-  : new Map<string, Command>()
+const kept: ReadonlyMap<string, Command> = playbackKeys(Boolean(desktop))
 
 /**
  * Menu items and media keys, from the desktop shell.

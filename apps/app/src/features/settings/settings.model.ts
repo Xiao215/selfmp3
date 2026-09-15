@@ -46,8 +46,8 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boo
  * `keyboard`: a finger has no keys to press, so a phone has no Keyboard shortcuts.
  * `shell`: only the installed desktop app can open at login, and a section with
  * nothing in it is worse than one that is not there — so it defaults to absent.
- * It is also the only place with keyboard shortcuts: its menu has them, and a
- * browser tab has none (decided 2026-09-14).
+ * It is also the only place with keyboard shortcuts to list: its menu has them,
+ * and a browser tab has only Space, for play and pause.
  */
 export function sectionsFor(
   fromCloud: boolean,

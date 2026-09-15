@@ -50,11 +50,6 @@
       "name": "Import music",
       "url": "./import",
       "description": "Paste a link and add it to your library"
-    },
-    {
-      "name": "Listening stats",
-      "url": "./stats",
-      "description": "What you have been playing"
     }
   ]
 }

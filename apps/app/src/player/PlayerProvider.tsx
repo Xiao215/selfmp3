@@ -528,14 +528,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     else void engine.play()
   }, [engine])
 
+  /*
+   * Next and Previous change the song, never whether it is playing: paused,
+   * they land on the new song paused, the way a restart already did. They used
+   * to start the new song regardless, so Previous left a paused player paused
+   * or set it playing depending only on whether it was past three seconds.
+   */
   const next = useCallback(() => {
     // Pressing Next is not the song running out: `auto` false, so repeat-one
     // moves on rather than playing the same song again.
     const { state, stop } = advancePlayable(queueRef.current, false, mayPlay)
     if (stop) return
     setQueue(state)
-    loadIndex(state, true)
-  }, [loadIndex, mayPlay])
+    loadIndex(state, engine.state.playing)
+  }, [engine, loadIndex, mayPlay])
 
   const previous = useCallback(() => {
     // Within the first few seconds "previous" means the previous track, after
@@ -550,7 +556,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       return
     }
     setQueue(state)
-    loadIndex(state, true)
+    loadIndex(state, engine.state.playing)
   }, [engine, loadIndex])
 
   // The lock screen's and the headphones' Next and Previous, as these buttons.

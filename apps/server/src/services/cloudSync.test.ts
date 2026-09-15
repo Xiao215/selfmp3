@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { gunzipSync } from 'node:zlib'
+import { gunzipSync, gzipSync } from 'node:zlib'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -669,6 +669,46 @@ describe('CloudSyncService', () => {
       const keys = snapshotKeys()
       expect(keys).toContain(theirs)
       expect(keys.filter(key => key !== theirs)).toHaveLength(3)
+    })
+
+    /** Another device's snapshot of a library far larger than this server's. */
+    const largerLibraryIn = (store: MemoryCloudStore): string => {
+      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
+      const songsThere = Array.from({ length: 20 }, (_, index) => ({ uid: String(index) }))
+      store.objects.set(theirs, {
+        body: gzipSync(Buffer.from(JSON.stringify({ songs: songsThere }))),
+        contentType: 'application/json',
+        contentEncoding: 'gzip',
+      })
+      return theirs
+    }
+
+    it('refuses to publish over a larger library, on every pass, and keeps saying why', async () => {
+      addSong('A - One', 'one')
+      const theirs = largerLibraryIn(bucket)
+      await connect()
+
+      expect(snapshotKeys()).toEqual([theirs])
+      expect(sync.status()).toMatchObject({ state: 'error' })
+      expect(sync.status().lastError).toContain('refused to publish')
+
+      // The next pass asks again, rather than taking the first answer as done.
+      await pass()
+      expect(snapshotKeys()).toEqual([theirs])
+      expect(sync.status().lastError).toContain('refused to publish')
+    })
+
+    it('checks a bucket it moves to, not only the first', async () => {
+      addSong('A - One', 'one')
+      await connect()
+      const other = new MemoryCloudStore()
+      buckets.set('their-music', other)
+      const theirs = largerLibraryIn(other)
+
+      await connect({ bucket: 'their-music' })
+
+      expect(snapshotKeys(other)).toEqual([theirs])
+      expect(sync.status().lastError).toContain('refused to publish')
     })
   })
 

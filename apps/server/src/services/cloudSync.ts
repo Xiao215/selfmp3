@@ -222,9 +222,10 @@ export class CloudSyncService {
   #lastSnapshotAt: string | null = null
   #lastError: string | null = null
   /**
-   * Whether this run has checked its library against the one in the bucket.
-   * Once per process: after the first snapshot goes up, the bucket's newest is
-   * this device's own, and comparing it with itself proves nothing.
+   * Whether this library has been checked against the one in the bucket. Once
+   * per bucket: after a snapshot from here goes up, the bucket's newest is this
+   * device's own, and comparing it with itself proves nothing. A refusal leaves
+   * it unset, so every pass asks again until the bucket agrees.
    */
   #checkedAgainstBucket = false
 
@@ -1113,12 +1114,12 @@ export class CloudSyncService {
     // there: is this server about to throw away somebody's library?
     if (!this.#checkedAgainstBucket) {
       const refusal = await this.#refuseToLoseLibrary(store, snapshot.songs.length)
-      this.#checkedAgainstBucket = true
+      // Thrown, not returned. Returned, the pass that asked carried on, called
+      // itself idle and cleared the error — and with the check marked done,
+      // the next pass seconds later published over the library after all.
       if (refusal) {
-        this.#lastError = refusal
-        this.#state = 'error'
         this.#logger.error(refusal)
-        return
+        throw new CloudError('other', refusal)
       }
     }
 
@@ -1127,6 +1128,8 @@ export class CloudSyncService {
       contentType: 'application/json',
       contentEncoding: 'gzip',
     })
+    // Only now is the bucket's newest snapshot this device's own.
+    this.#checkedAgainstBucket = true
     this.#lastSnapshotHash = hash
     this.#lastSnapshotAt = snapshot.writtenAt
 
@@ -1219,6 +1222,7 @@ export class CloudSyncService {
     this.#target = target
     this.#formatChecked = false
     this.#verified = false
+    this.#checkedAgainstBucket = false
     this.#lastSnapshotHash = null
     this.#lastError = null
     this.#retryIndex = 0

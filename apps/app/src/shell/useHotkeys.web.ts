@@ -10,15 +10,20 @@ export type { Hotkeys }
  * Combinations the desktop's application menu has taken.
  *
  * macOS runs a menu accelerator *and* still delivers the keydown to the page,
- * so without this ⌘K would open the palette twice — once from the menu's
- * command and once from here. Empty in a browser, where there is no menu.
+ * so without this a screen that also answered one of the menu's keys would
+ * run twice — once from the menu's command and once from here. Empty in a
+ * browser, where there is no menu.
  *
  * Computed once: the menu is built from a constant.
  */
 const menuOwned: ReadonlySet<string> = desktop ? menuOwnedCombinations() : new Set<string>()
 
 /**
- * Keyboard shortcuts on the web: the web app's `useHotkeys`.
+ * A screen's own keys on the web: the web app's `useHotkeys`.
+ *
+ * The page registers no app-wide shortcut here — see `useHotkeys.ts`. A tab's
+ * ⌘K belongs to the browser; the installed app's menu keys arrive through
+ * `useCommands`, which is the one caller that binds keys beyond a screen.
  *
  * Never while someone is typing, or while a dropdown, menu or dialog has the
  * keyboard: those run their own keys. Escape is left to `useEscape`, which

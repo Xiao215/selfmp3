@@ -34,7 +34,14 @@ test.describe('practice', () => {
 
     await page.getByRole('button', { name: '0.75×', exact: true }).click()
     await expect(page.getByText('0.75×', { exact: true }).first()).toBeVisible()
+
+    // Speed has no bar button of its own: the metronome wears the speed, and
+    // opens Practice at Speed.
+    await page.getByRole('button', { name: 'Close practice' }).click()
+    await expect(page.getByText('A–B loop')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Practice tools, speed 0.75×' }).click()
     await page.getByRole('button', { name: '1×', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Practice tools', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'Close practice' }).click()
     await expect(page.getByText('A–B loop')).toHaveCount(0)

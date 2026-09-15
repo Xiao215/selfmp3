@@ -25,7 +25,9 @@ import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
+import { menuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID, titleBarInset } from '../ports/titleBarInset'
+import { acceleratorKeys } from '../features/settings/shortcuts.model'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { isUntagged } from '../features/inbox/inbox.model'
@@ -42,12 +44,14 @@ import {
   More,
   Music,
   Plus,
+  Search,
   Settings,
   Tag as TagIcon,
   X,
 } from '../ui/components/Icons'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
+import { setPaletteOpen } from './palette'
 
 /**
  * The desktop's left rail: the web app's `.sidebar`.
@@ -57,9 +61,13 @@ import { tip } from '../ui/tip'
  * which is what a breakpoint is for: a row of icons along the bottom under 820,
  * a column with words beside them above it.
  *
- * Playlists are a section rather than a destination: the ones you pinned, and
- * "Show all" for the playlists page, with a ＋ that makes any of the three
- * kinds. A song dragged from the library drops onto a pinned playlist.
+ * At the top, under the brand, a Search row that opens the command palette —
+ * the one way to it in a browser tab, which has no ⌘K of its own.
+ *
+ * Playlists are a section whose header is itself the way to the playlists
+ * page, with the count and a ＋ that makes any of the three kinds; the ones
+ * you pinned sit under it. A song dragged from the library drops onto a
+ * pinned playlist.
  *
  * Below them, the web's tag list, which is how a desktop filters the library:
  * a click shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
@@ -108,6 +116,8 @@ export function Sidebar(): ReactNode {
         <Text style={styles.wordmark}>self.mp3</Text>
       </View>
 
+      <SearchRow />
+
       <View accessibilityRole="tablist" style={styles.nav}>
         {DESTINATIONS.filter(destination => !fromCloud || !destination.server).map(destination => {
           const active =
@@ -143,6 +153,57 @@ export function Sidebar(): ReactNode {
   )
 }
 
+/**
+ * The key the installed app's menu gives Search, drawn beside the row. Only
+ * there: a browser tab has no ⌘K (its ⌘K is the browser's), and a row that
+ * named a key that does nothing would teach the wrong thing.
+ */
+const SEARCH_KEYS = (() => {
+  const accelerator = menuCommands?.find(item => item.command === 'search')?.accelerator
+  if (!accelerator) return null
+  const { modifiers, key } = acceleratorKeys(accelerator)
+  return [...modifiers, key]
+})()
+
+/**
+ * Search, at the top of the rail: opens the command palette. A button rather
+ * than a field, because the palette is where the typing happens — a second
+ * box here would be two places to type the same thing.
+ *
+ * Under the title-bar strip in the installed app, which the rail's padding
+ * already clears, so the window's drag region never covers it.
+ */
+function SearchRow(): ReactNode {
+  const { theme } = useUnistyles()
+  const [hovered, setHovered] = useState(false)
+  return (
+    <Pressable
+      onPress={() => setPaletteOpen(true)}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel="Search"
+      testID="nav-search"
+      style={({ pressed }) => [
+        styles.search,
+        (pressed || hovered) && { borderColor: theme.colors.borderStrong },
+      ]}
+    >
+      <Search size={15} color={theme.colors.textMuted} />
+      <Text style={styles.searchText}>Search</Text>
+      {SEARCH_KEYS ? (
+        <View style={styles.searchKeys}>
+          {SEARCH_KEYS.map(key => (
+            <Text key={key} style={styles.searchKey}>
+              {key}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </Pressable>
+  )
+}
+
 function Playlists(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -154,12 +215,43 @@ function Playlists(): ReactNode {
 
   const all = library?.playlists
   const pinned = useMemo(() => pinnedPlaylists(all ?? []), [all])
-  const onPage = pathname === '/playlists'
+  // Lit on a playlist's own page too: that page is inside this section.
+  const onPage = pathname === '/playlists' || pathname.startsWith('/playlists/')
 
   return (
     <View style={styles.playlists} testID="sidebar-playlists">
-      <View style={styles.groupTitle}>
-        <Text style={styles.groupTitleText}>PLAYLISTS</Text>
+      {/*
+        The header is the row: "Show all" under the pins was a second name for
+        the same page, and the header above it did nothing when clicked. The ＋
+        sits beside the row rather than inside it, so it is its own button.
+      */}
+      <View style={[styles.playlistsHead, onPage && { backgroundColor: accent.accentPill }]}>
+        <Pressable
+          onPress={() => {
+            if (pathname !== '/playlists') router.navigate('/playlists')
+          }}
+          accessibilityRole="tab"
+          accessibilityLabel="Playlists"
+          accessibilityState={{ selected: onPage }}
+          testID="nav-playlists"
+          style={({ pressed }) => [
+            styles.playlistsHeadMain,
+            pressed && !onPage && { backgroundColor: theme.colors.surface2 },
+          ]}
+        >
+          <ListMusic size={18} color={onPage ? accent.accent : theme.colors.textMuted} />
+          <Text
+            style={[
+              styles.label,
+              styles.playlistsHeadLabel,
+              onPage && { color: accent.accent, fontWeight: '600' },
+            ]}
+            numberOfLines={1}
+          >
+            Playlists
+          </Text>
+          <Text style={styles.count}>{all?.length ?? ''}</Text>
+        </Pressable>
         <View ref={plusRef} collapsable={false}>
           <Pressable
             style={styles.tinyButton}
@@ -168,7 +260,7 @@ function Playlists(): ReactNode {
             accessibilityLabel="New playlist"
             {...tip('New playlist')}
           >
-            <Plus size={14} color={theme.colors.textMuted} />
+            <Plus size={14} color={onPage ? accent.accent : theme.colors.textMuted} />
           </Pressable>
         </View>
       </View>
@@ -186,29 +278,6 @@ function Playlists(): ReactNode {
       {pinned.length === 0 && (all?.length ?? 0) > 0 ? (
         <Text style={[styles.hint, styles.pinHint]}>Pin a playlist from its ⋯ menu.</Text>
       ) : null}
-
-      <Pressable
-        onPress={() => {
-          if (!onPage) router.navigate('/playlists')
-        }}
-        accessibilityRole="tab"
-        accessibilityLabel="Playlists"
-        accessibilityState={{ selected: onPage }}
-        testID="nav-playlists"
-        style={({ pressed }) => [
-          styles.playlistRow,
-          onPage && { backgroundColor: accent.accentPill },
-          pressed && !onPage && { backgroundColor: theme.colors.surface2 },
-        ]}
-      >
-        <View style={styles.playlistIcon}>
-          <ListMusic size={15} color={onPage ? accent.accent : theme.colors.textMuted} />
-        </View>
-        <Text style={[styles.playlistName, onPage && { color: accent.accent, fontWeight: '600' }]}>
-          Show all
-        </Text>
-        <Text style={styles.count}>{all?.length ?? ''}</Text>
-      </Pressable>
 
       <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} anchorRef={plusRef} />
     </View>
@@ -416,7 +485,12 @@ function Tags(): ReactNode {
             onExclude={() => exclude(tag.id)}
           />
         ))}
-        {tags.length === 0 && !adding ? (
+        {!library && !adding ? (
+          // Not "no tags yet": with the library unreachable or still coming,
+          // this device does not know whether there are any.
+          <Text style={[styles.hint, styles.pinHint]}>Tags load with your library.</Text>
+        ) : null}
+        {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
             <TagIcon size={16} color={theme.colors.textMuted} />
             <Text style={styles.hint}>
@@ -620,7 +694,46 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textSecondary,
     fontSize: type.body,
   },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 32,
+    paddingHorizontal: space.sm,
+    marginTop: -space.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+  },
+  searchText: { flex: 1, color: theme.colors.textMuted, fontSize: 13 },
+  searchKeys: { flexDirection: 'row', gap: 3 },
+  searchKey: {
+    minWidth: 18,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    backgroundColor: theme.colors.surface1,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
   playlists: { gap: 1, marginTop: -space.sm },
+  playlistsHead: { flexDirection: 'row', alignItems: 'center', paddingRight: 4, borderRadius: radius.md },
+  playlistsHeadMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
+    borderRadius: radius.md,
+  },
+  playlistsHeadLabel: { flex: 1 },
   playlistRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -631,7 +744,6 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  playlistIcon: { width: 22, alignItems: 'center' },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
   pinHint: { paddingHorizontal: 10, paddingVertical: 4 },
   dropping: { borderStyle: 'dashed', backgroundColor: theme.colors.surface2 },

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
-import { Stack, usePathname, useRouter } from 'expo-router'
+import { Stack, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -123,6 +123,16 @@ function Shell(): ReactNode {
     const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
     if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
   }, [status, pathname, router])
+
+  // Already connected, sign-in has nothing to offer: an old bookmark drew it
+  // inside the whole app, sidebar and library around it. The one exception is
+  // Settings sending a server-connected device there to move it to the cloud.
+  const { switching } = useGlobalSearchParams<{ switching?: string }>()
+  useEffect(() => {
+    if (status === 'ready' && pathname === '/sign-in' && switching === undefined) {
+      router.replace('/')
+    }
+  }, [status, pathname, switching, router])
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'

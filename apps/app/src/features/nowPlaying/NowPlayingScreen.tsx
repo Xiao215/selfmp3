@@ -426,7 +426,8 @@ function PhoneNowPlaying(): ReactNode {
                 }
               />
             }
-            label="Practice"
+            // Speed lives in Practice, so a changed speed shows where it is changed.
+            label={player.rate !== 1 ? `${player.rate}×` : 'Practice'}
             active={practiceOpen}
             onPress={() => setPracticeOpen(true)}
           />
@@ -450,11 +451,11 @@ function PhoneNowPlaying(): ReactNode {
             icon={
               <Moon
                 size={19}
-                color={player.sleepTimerEndsAt !== null ? songColor.color : theme.colors.textMuted}
+                color={sleepLeft !== null ? songColor.color : theme.colors.textMuted}
               />
             }
             label={sleepLeft ?? 'Sleep'}
-            active={player.sleepTimerEndsAt !== null}
+            active={sleepLeft !== null}
             onPress={() => setSleepOpen(true)}
           />
           <FootAction

@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { formatDuration } from '@selfmp3/shared'
 import {
@@ -25,6 +25,7 @@ import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import {
   BarChart,
+  Download,
   Inbox,
   ListMusic,
   Mic,
@@ -43,6 +44,7 @@ import {
   stepIndex,
   type PaletteCommandId,
   type PaletteResults,
+  type RecentItem,
 } from './palette.model'
 
 interface Entry {
@@ -51,17 +53,22 @@ interface Entry {
 }
 
 /**
- * The ⌘K palette: the web's `CommandPalette`.
+ * The command palette: the web's `CommandPalette`.
  *
  * One box that searches songs, playlists, tags and lyrics and also runs
  * commands. Arrow keys move through every group as one list, Enter takes the
  * highlighted row, Escape closes. It is the fastest way to anything on a big
- * library, which is why it exists at all.
+ * library, which is why it exists at all. The sidebar's Search row opens it,
+ * and in the installed app so does ⌘K; a browser tab leaves ⌘K to the browser.
+ *
+ * Opened with nothing typed it leads with what was played lately, since the
+ * thing most often looked for is the thing just heard.
  */
 export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
+  const pathname = usePathname()
   const player = usePlayer()
   const library = useLibrary()
   const scan = useScanLibrary()
@@ -80,10 +87,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   // library, follow when there is time, and are skipped for letters typed
   // faster than they can be drawn.
   const shownQuery = useDeferredValue(query)
-  const resultsFor = (text: string) => paletteResults(text, library.data, fromCloud)
+  const currentSongId = player.current?.id ?? null
+  const resultsFor = (text: string) =>
+    paletteResults(text, library.data, fromCloud, { pathname, currentSongId })
   const results = useMemo(
-    () => paletteResults(shownQuery, library.data, fromCloud),
-    [shownQuery, library.data, fromCloud],
+    () => paletteResults(shownQuery, library.data, fromCloud, { pathname, currentSongId }),
+    [shownQuery, library.data, fromCloud, pathname, currentSongId],
   )
 
   const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
@@ -130,14 +139,25 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     const index = songIds.indexOf(songId)
     if (index >= 0) player.playFrom(songIds, index)
   }
+  const openPlaylist = (playlistId: number): void => router.navigate(`/playlists/${playlistId}`)
+  /** The loaded song carries on where it is rather than starting again. */
+  const runRecent = (recent: RecentItem): void => {
+    if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)
+    else if (recent.song.id === currentSongId) {
+      if (!player.isPlaying) player.toggle()
+    } else playSong(recent.song.id)
+  }
+  const recentKey = (recent: RecentItem): string =>
+    recent.kind === 'song' ? `recent-song-${recent.song.id}` : `recent-playlist-${recent.playlist.id}`
 
   /** One flat list of everything selectable, so arrow keys work across groups. */
   const entriesFor = (found: PaletteResults): Entry[] => [
+    ...found.recent.map(recent => ({ key: recentKey(recent), run: () => runRecent(recent) })),
     ...found.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
     ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
     ...found.playlists.map(playlist => ({
       key: `playlist-${playlist.id}`,
-      run: () => router.navigate(`/playlists/${playlist.id}`),
+      run: () => openPlaylist(playlist.id),
     })),
     ...found.tags.map(tag => ({
       key: `tag-${tag.id}`,
@@ -201,7 +221,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const commandIcon: Record<PaletteCommandId, ReactNode> = {
     'nav-library': icon(Music),
     'nav-playlists': icon(ListMusic),
-    'nav-import': icon(Search),
+    'nav-import': icon(Download),
     'nav-stats': icon(BarChart),
     'nav-inbox': icon(Inbox),
     'nav-settings': icon(Settings),
@@ -280,6 +300,46 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           contentContainerStyle={styles.results}
           keyboardShouldPersistTaps="handled"
         >
+          {group(
+            'Recent',
+            results.recent.length,
+            results.recent.map(recent =>
+              recent.kind === 'song'
+                ? item(
+                    <>
+                      <Cover
+                        uri={artFor(recent.song)}
+                        title={recent.song.album || recent.song.title}
+                        size={28}
+                      />
+                      <View style={styles.labelBox}>
+                        <Text style={styles.label} numberOfLines={1}>
+                          {recent.song.title}
+                        </Text>
+                        <Text style={styles.sub} numberOfLines={1}>
+                          {recent.song.artist || 'Unknown artist'}
+                        </Text>
+                      </View>
+                      <Text style={styles.hint}>
+                        {recent.song.id === currentSongId ? 'playing now' : 'song'}
+                      </Text>
+                    </>,
+                    recentKey(recent),
+                    `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
+                  )
+                : item(
+                    <>
+                      {icon(ListMusic)}
+                      <Text style={styles.label} numberOfLines={1}>
+                        {recent.playlist.name}
+                      </Text>
+                      <Text style={styles.hint}>playlist</Text>
+                    </>,
+                    recentKey(recent),
+                    recent.playlist.name,
+                  ),
+            ),
+          )}
           {group(
             'Actions',
             results.commands.length,
@@ -381,7 +441,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           )}
           {trimmed && entries.length === 0 ? (
             <Text style={styles.empty}>
-              Nothing matches “{trimmed}”.{'\n'}Try fewer letters, or part of a lyric.
+              Nothing matches “{trimmed}”.{'\n'}
+              {/* A cloud library has no lyric index to search. */}
+              {fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
             </Text>
           ) : null}
         </ScrollView>

@@ -2,7 +2,7 @@ import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
 import { topSongs } from '@selfmp3/client'
 
 /**
- * The ⌘K palette's rules, with nothing drawn: which commands there are, what a
+ * The command palette's rules, with nothing drawn: which commands there are, what a
  * query finds, when lyrics are worth searching, and moving through the list.
  * The web's `CommandPalette`, less the destinations this app does not have yet.
  */
@@ -23,17 +23,35 @@ export interface PaletteCommand {
   readonly hint?: string
 }
 
-/** `fromCloud`: a cloud library has no server to count plays on or tag from; its imports wait for one. */
+/**
+ * The page each "Go to" command goes to, and whether an address is that page.
+ * A playlist's own page is not the Playlists page: going to the list of them
+ * from inside one is still somewhere to go.
+ */
+const COMMAND_PAGE: Partial<Record<PaletteCommandId, (pathname: string) => boolean>> = {
+  'nav-library': pathname => pathname === '/',
+  'nav-playlists': pathname => pathname === '/playlists',
+  'nav-import': pathname => pathname === '/import',
+  'nav-stats': pathname => pathname === '/stats' || pathname.startsWith('/stats/'),
+  'nav-settings': pathname => pathname === '/settings',
+  'nav-inbox': pathname => pathname === '/inbox',
+}
+
+/**
+ * `fromCloud`: a cloud library has no server to count plays on or tag from; its imports wait for one.
+ * `pathname`: the page the palette was opened on, whose own "Go to" is left out.
+ */
 export function paletteCommands(
   songCount: number,
   fromCloud = false,
   untaggedCount = 0,
+  pathname: string | null = null,
 ): readonly PaletteCommand[] {
-  return [
+  const commands: PaletteCommand[] = [
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
     { id: 'nav-import', label: 'Import music' },
-    ...(fromCloud ? [] : [{ id: 'nav-stats' as const, label: 'Listening stats' }]),
+    ...(fromCloud ? [] : [{ id: 'nav-stats' as const, label: 'Go to Stats' }]),
     { id: 'nav-settings', label: 'Settings' },
     ...(fromCloud
       ? []
@@ -48,13 +66,57 @@ export function paletteCommands(
     // The sidebar's foot used to hold this; a bucket has no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
   ]
+  if (pathname === null) return commands
+  return commands.filter(command => !COMMAND_PAGE[command.id]?.(pathname))
 }
 
 type Songs = Library['songs']
 type Playlists = Library['playlists']
 type Tags = Library['tags']
 
+/** Something played lately, offered before anything is typed. */
+export type RecentItem =
+  | { readonly kind: 'song'; readonly song: Songs[number] }
+  | { readonly kind: 'playlist'; readonly playlist: Playlists[number] }
+
+/** How many recent things the empty palette offers: a glance, not a history page. */
+export const RECENT_LIMIT = 5
+
+/**
+ * What was played lately, newest first: the song loaded now, then songs and
+ * playlists by when they were last played.
+ *
+ * The loaded song leads because it is the one most likely wanted back — a
+ * restored session, paused — and its last play may not have counted yet. The
+ * rest come from the library's own `lastPlayedAt`, which the server keeps for
+ * every device, so a song finished on the phone is recent here too.
+ */
+export function recentItems(
+  library: Pick<Library, 'songs' | 'playlists'> | undefined,
+  currentSongId: number | null = null,
+  limit = RECENT_LIMIT,
+): readonly RecentItem[] {
+  if (!library || limit <= 0) return []
+  const current =
+    currentSongId === null ? undefined : library.songs.find(song => song.id === currentSongId)
+  const dated: { at: string; item: RecentItem }[] = []
+  for (const song of library.songs) {
+    if (song.lastPlayedAt && song.id !== currentSongId && !song.missing) {
+      dated.push({ at: song.lastPlayedAt, item: { kind: 'song', song } })
+    }
+  }
+  for (const playlist of library.playlists) {
+    if (playlist.lastPlayedAt) dated.push({ at: playlist.lastPlayedAt, item: { kind: 'playlist', playlist } })
+  }
+  // ISO timestamps sort as text; the newest is the largest.
+  dated.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+  const items = dated.map(entry => entry.item)
+  return (current ? [{ kind: 'song' as const, song: current }, ...items] : items).slice(0, limit)
+}
+
 export interface PaletteResults {
+  /** Only with nothing typed. */
+  readonly recent: readonly RecentItem[]
   readonly commands: readonly PaletteCommand[]
   readonly songs: Songs
   readonly playlists: Playlists
@@ -77,21 +139,41 @@ export function untaggedCount(songs: Songs): number {
   return count
 }
 
-/** Every command with no query; with one, the best few of each kind. */
+/** Where the palette was opened, and what is loaded: what the empty palette leaves out and leads with. */
+export interface PaletteContext {
+  readonly pathname?: string | null
+  readonly currentSongId?: number | null
+}
+
+/**
+ * With no query, what was played lately and then every command but the one for
+ * this page; with one, the best few of each kind, commands included.
+ */
 export function paletteResults(
   query: string,
   library: Pick<Library, 'songs' | 'playlists' | 'tags'> | undefined,
   fromCloud = false,
+  context: PaletteContext = {},
 ): PaletteResults {
   const songs = library?.songs ?? []
-  const commands = paletteCommands(songs.length, fromCloud, untaggedCount(songs))
   const trimmed = query.trim()
-  if (!trimmed) return { commands, songs: [], playlists: [], tags: [] }
+  if (!trimmed) {
+    return {
+      recent: recentItems(library, context.currentSongId ?? null),
+      commands: paletteCommands(songs.length, fromCloud, untaggedCount(songs), context.pathname),
+      songs: [],
+      playlists: [],
+      tags: [],
+    }
+  }
+  // Typed, every command is findable: "library" on the Library still finds it.
+  const commands = paletteCommands(songs.length, fromCloud, untaggedCount(songs))
   const top = <T>(items: readonly T[], text: (item: T) => string, count: number): T[] =>
     fuzzyRank(trimmed, items, text)
       .slice(0, count)
       .map(match => match.item)
   return {
+    recent: [],
     commands: top(commands, command => command.label, 5),
     // The library's own search, top eight picked without ranking the other
     // few thousand: this runs on every letter typed.

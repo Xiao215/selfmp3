@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -15,10 +15,10 @@ import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, ChevronRight, Metronome, X } from '../../ui/components/Icons'
-import { Segmented } from '../../ui/components/Segmented'
 import { Toggle } from '../../ui/components/Toggle'
 
-type Group = 'loop' | 'speed' | 'key'
+export type PracticeGroup = 'loop' | 'speed' | 'key'
+type Group = PracticeGroup
 
 /** Which groups start open. The loop is the reason people open this panel. */
 const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: false }
@@ -37,14 +37,49 @@ const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: fal
 export function PracticePanel({
   onClose,
   side = false,
+  section = null,
 }: {
   onClose: () => void
   side?: boolean
+  /**
+   * A group to open and scroll to: the player bar's "1.25×" opens the panel at
+   * Speed. Asked again for a different one, the panel opens that one too.
+   */
+  section?: Group | null
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const song = player.current
-  const [open, setOpen] = useState(INITIAL_OPEN)
+  const [open, setOpen] = useState(() =>
+    section ? { ...INITIAL_OPEN, [section]: true } : INITIAL_OPEN,
+  )
+  // Adjusted during render, not in an effect, so the group is never drawn shut for a frame.
+  const [openedFor, setOpenedFor] = useState(section)
+  if (section !== openedFor) {
+    setOpenedFor(section)
+    if (section) setOpen(current => ({ ...current, [section]: true }))
+  }
+  /*
+   * Scrolled to once its group has a place: the group's top is only known after
+   * it lays out, which on first opening is after this effect has run. So both
+   * sides try — the effect with a top already measured, the layout with a
+   * scroll still owed.
+   */
+  const scrollRef = useRef<ScrollView>(null)
+  const tops = useRef(new Map<Group, number>())
+  const owed = useRef<Group | null>(null)
+  useEffect(() => {
+    if (!section) return
+    const top = tops.current.get(section)
+    if (top === undefined) owed.current = section
+    else scrollRef.current?.scrollTo({ y: Math.max(0, top - 4), animated: true })
+  }, [section])
+  const onGroupLayout = (group: Group, top: number): void => {
+    tops.current.set(group, top)
+    if (owed.current !== group) return
+    owed.current = null
+    scrollRef.current?.scrollTo({ y: Math.max(0, top - 4), animated: false })
+  }
   // Transposing is a thought about one song: carrying +3 into the next would
   // quietly misstate its key. Kept with the song it was set for.
   const [transpose, setTranspose] = useState<{ songId: number | null; semitones: number }>({
@@ -102,9 +137,10 @@ export function PracticePanel({
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyContent}>
           {player.canLoop ? (
             <GroupSection
+              onTop={top => onGroupLayout('loop', top)}
               title="A–B loop"
               state={
                 loopReady
@@ -152,17 +188,13 @@ export function PracticePanel({
           ) : null}
 
           <GroupSection
+            onTop={top => onGroupLayout('speed', top)}
             title="Speed"
             state={`${player.rate}×`}
             open={open.speed}
             onToggle={() => toggle('speed')}
           >
-            <Segmented
-              value={String(player.rate)}
-              onChange={value => player.setRate(Number(value))}
-              label="Playback speed"
-              options={PRACTICE_SPEEDS.map(speed => ({ value: String(speed), label: `${speed}×` }))}
-            />
+            <SpeedChoice value={player.rate} onChange={player.setRate} />
             {player.canLoop ? (
               <>
                 <View style={styles.check}>
@@ -191,6 +223,7 @@ export function PracticePanel({
           </GroupSection>
 
           <GroupSection
+            onTop={top => onGroupLayout('key', top)}
             title="Transpose"
             state={formatSemitones(semitones)}
             open={open.key}
@@ -229,24 +262,69 @@ export function PracticePanel({
   )
 }
 
+/**
+ * Every speed there is, as one row that fills the panel's width.
+ *
+ * Not the shared `Segmented`: seven of its segments sized to their labels run
+ * past a 340-point panel and a phone's sheet. These share the row equally and
+ * leave the "×" to the group's header, which already reads "1.25×".
+ */
+function SpeedChoice({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (rate: number) => void
+}): ReactNode {
+  return (
+    <View style={styles.speeds} role="group" accessibilityLabel="Playback speed">
+      {PRACTICE_SPEEDS.map(speed => {
+        const active = speed === value
+        return (
+          <Pressable
+            key={speed}
+            onPress={() => onChange(speed)}
+            accessibilityRole="button"
+            accessibilityLabel={`${speed}×`}
+            accessibilityState={{ selected: active }}
+            aria-pressed={active}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+              styles.speed,
+              (pressed || hovered) && !active && styles.speedHovered,
+              active && styles.speedActive,
+            ]}
+          >
+            <Text style={[styles.speedLabel, active && styles.speedLabelActive]} numberOfLines={1}>
+              {speed}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
 /** A group whose header says what state it is in, and opens or closes it. */
 function GroupSection({
   title,
   state,
   open,
   onToggle,
+  onTop,
   children,
 }: {
   title: string
   state: string
   open: boolean
   onToggle: () => void
+  /** Where the group starts inside the panel's scroll, once it is laid out. */
+  onTop: (top: number) => void
   children: ReactNode
 }): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   return (
-    <View style={styles.group}>
+    <View style={styles.group} onLayout={event => onTop(event.nativeEvent.layout.y)}>
       <Pressable
         onPress={onToggle}
         onHoverIn={() => setHovered(true)}
@@ -365,6 +443,25 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   groupBody: { gap: 12, paddingHorizontal: 16, paddingBottom: 16 },
+  speeds: {
+    flexDirection: 'row',
+    gap: 2,
+    padding: 2,
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: radius.sm,
+  },
+  speed: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 6, borderRadius: 5 },
+  speedHovered: { backgroundColor: theme.colors.surface3 },
+  speedActive: { backgroundColor: theme.colors.surface3 },
+  speedLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  speedLabelActive: { color: theme.colors.textPrimary },
   ab: { flexDirection: 'row', gap: 8 },
   abButton: {
     flex: 1,

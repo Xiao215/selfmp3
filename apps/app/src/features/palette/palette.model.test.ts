@@ -5,7 +5,9 @@ import {
   lyricsQueryFor,
   paletteCommands,
   paletteResults,
+  recentItems,
   stepIndex,
+  type RecentItem,
   untaggedCount,
 } from './palette.model'
 
@@ -32,6 +34,7 @@ describe('the command palette', () => {
       'rescan-library',
     ])
     expect(results.songs).toEqual([])
+    expect(results.recent).toEqual([])
     expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
     expect(paletteCommands(13, false, 2)[5]?.hint).toBe('2 untagged')
     // A cloud library has no server to count plays on or tag from; its imports wait for one.
@@ -39,6 +42,45 @@ describe('the command palette', () => {
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-stats')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-inbox')
     expect(paletteCommands(13, true).map(command => command.id)).not.toContain('rescan-library')
+  })
+
+  it('leaves out the page it was opened on, until something is typed', () => {
+    const on = (pathname: string) =>
+      paletteResults('', library, false, { pathname }).commands.map(command => command.id)
+    expect(on('/')).not.toContain('nav-library')
+    expect(on('/stats/report')).not.toContain('nav-stats')
+    expect(on('/settings')).not.toContain('nav-settings')
+    // A playlist's own page still has the list of playlists to go to.
+    expect(on('/playlists/3')).toContain('nav-playlists')
+    expect(on('/playlists')).not.toContain('nav-playlists')
+    expect(
+      paletteResults('library', library, false, { pathname: '/' }).commands.map(c => c.id),
+    ).toContain('nav-library')
+  })
+
+  it('names the destinations the way the sidebar does', () => {
+    expect(paletteCommands(1).find(command => command.id === 'nav-stats')?.label).toBe('Go to Stats')
+  })
+
+  it('offers what was played lately, the loaded song first', () => {
+    const dated = {
+      ...library,
+      songs: [
+        { ...(song(1, 'アイドル') as object), lastPlayedAt: '2026-09-10T10:00:00Z' },
+        { ...(song(2, 'Racing') as object), lastPlayedAt: '2026-09-12T10:00:00Z' },
+        { ...(song(3, 'Monster') as object), lastPlayedAt: null },
+        { ...(song(4, 'Gone') as object), lastPlayedAt: '2026-09-13T10:00:00Z', missing: true },
+      ] as never,
+      playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
+    }
+    const keys = (items: readonly RecentItem[]) =>
+      items.map(item => (item.kind === 'song' ? `song-${item.song.id}` : `playlist-${item.playlist.id}`))
+    expect(keys(recentItems(dated))).toEqual(['song-2', 'playlist-9', 'song-1'])
+    expect(keys(recentItems(dated, 3))).toEqual(['song-3', 'song-2', 'playlist-9', 'song-1'])
+    expect(keys(recentItems(dated, 1, 2))).toEqual(['song-1', 'song-2'])
+    expect(recentItems(undefined)).toEqual([])
+    expect(paletteResults('', dated, false, { currentSongId: 3 }).recent).toHaveLength(4)
+    expect(paletteResults('mon', dated, false, { currentSongId: 3 }).recent).toEqual([])
   })
 
   it('finds songs, playlists and tags by what is typed', () => {

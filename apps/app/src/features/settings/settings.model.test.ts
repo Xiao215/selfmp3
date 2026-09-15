@@ -6,6 +6,7 @@ import {
   ALL_SECTIONS,
   crossfadeLabel,
   healthLine,
+  landingOffset,
   percentLabel,
   RECENT_DEVICE_WINDOW_MS,
   scanHint,
@@ -52,6 +53,22 @@ describe('settings', () => {
   it('picks the last section past the reading line', () => {
     expect(activeSection(TOPS, 0, 800, 2400)).toBe('a')
     expect(activeSection(TOPS, 520, 800, 2400)).toBe('b')
+  })
+
+  it('lands a chosen section under whatever covers the top, and past the reading line', () => {
+    // Beside the index column: under the page's 28pt top padding.
+    expect(landingOffset(1250, 28)).toBe(1222)
+    // Narrow: under the sticky chips (53pt) and their 14pt gap.
+    expect(landingOffset(1780, 67)).toBe(1713)
+    // Near the start the page cannot scroll above itself.
+    expect(landingOffset(40, 67)).toBe(0)
+    // Once there, the scroll-spy agrees it is the section being read.
+    const tops = [
+      { id: 'a', top: 0 },
+      { id: 'b', top: 1250 },
+      { id: 'c', top: 1900 },
+    ]
+    expect(activeSection(tops, landingOffset(1250, 67), 800, 3200)).toBe('b')
   })
 
   it('gives the short last sections their turn over the final screenful', () => {

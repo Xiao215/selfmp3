@@ -68,6 +68,22 @@ export function sectionsFor(
 export const READING_LINE = 96
 
 /**
+ * Where to scroll so a section chosen from the index lands at the top of what
+ * can be read.
+ *
+ * `top` is the section's top in the scroll content, measured as it is now: a
+ * panel above it that has since loaded its data has pushed it down, and an
+ * offset kept from the first layout would stop a panel or two short.
+ * `clearance` is what covers the top of the scroll area — the page's top
+ * padding beside the index column, the sticky chips and their gap on a narrow
+ * screen — so the heading sits where the first panel sits unscrolled. Never
+ * above the start of the page; the end of the page is the scroll view's to clamp.
+ */
+export function landingOffset(top: number, clearance: number): number {
+  return Math.max(0, Math.round(top - clearance))
+}
+
+/**
  * Which section the reader is looking at: the web's rule.
  *
  * Normally the last section whose top has passed a line near the top. The last

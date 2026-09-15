@@ -33,7 +33,7 @@ import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row } from './Settin
  * This is the server's cloud, asked about through the server: it is shown wherever
  * the app talks to a server, and hidden for a library that is itself the cloud's.
  */
-export function CloudPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+export function CloudPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { data: status, error } = useCloudStatus()
   const [editing, setEditing] = useState(false)
 
@@ -63,7 +63,7 @@ export function CloudPanel({ onTop }: { onTop: (top: number) => void }): ReactNo
   }
 
   return (
-    <Panel title="Cloud" hint={status ? stateLabel(status) : undefined} onTop={onTop}>
+    <Panel title="Cloud" hint={status ? stateLabel(status) : undefined} anchor={anchor}>
       <SignInReturn />
       {body}
     </Panel>

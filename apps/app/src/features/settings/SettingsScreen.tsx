@@ -11,7 +11,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -99,6 +99,7 @@ import {
   activeSection,
   crossfadeLabel,
   healthLine,
+  landingOffset,
   scanHint,
   sectionsFor,
   splitDevices,
@@ -115,6 +116,20 @@ import {
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
 
+/** The page's top padding beside the index column, and on a narrow screen. */
+const COLUMN_TOP = 28
+const NARROW_TOP = 18
+/** The gap under the sticky chips, which a section chosen from them lands below. */
+const CHIPS_GAP = 14
+
+/**
+ * How long the index holds a chosen section — no scroll-spy, and landed again
+ * if the page grows — once the page has stopped growing. Longer for a link from
+ * elsewhere, which arrives while the panels above are still filling in.
+ */
+const CHOSEN_HOLD_MS = 900
+const LINKED_HOLD_MS = 2500
+
 type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sign-out' | null
 
 /**
@@ -124,7 +139,8 @@ type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sig
  * live on the server so the server and every phone agree; downloads, the accent
  * and the theme belong to this device. The page carries its own index — a
  * column beside the panels on a wide screen, a sticky row of chips above them
- * on a narrow one — and every setting has the same anatomy.
+ * on a narrow one — and every setting has the same anatomy. A link from
+ * elsewhere names its section (`/settings?section=connection`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -146,11 +162,19 @@ export function SettingsScreen(): ReactNode {
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
+  // Each shown panel's view, and where it was last measured in the scroll content.
+  const anchors = useRef(new Map<SectionId, View>())
   const tops = useRef(new Map<SectionId, number>())
-  const panelsTop = useRef(0)
+  const headRef = useRef<View>(null)
+  const chipBarRef = useRef<View>(null)
+  const chipBarHeight = useRef(0)
   const metrics = useRef({ view: 0, content: 0 })
-  const pinned = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [active, setActive] = useState<SectionId>('playback')
+  const held = useRef<{ id: SectionId; ms: number; timer: ReturnType<typeof setTimeout> } | null>(
+    null,
+  )
+  const { section: linked } = useLocalSearchParams<{ section?: string }>()
+  const linkedSection = sections.find(section => section.id === linked)?.id
+  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'playback')
   const accent = useAccent()
   const chipsRef = useRef<ScrollView>(null)
   const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
@@ -171,16 +195,87 @@ export function SettingsScreen(): ReactNode {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
     updateSettings.mutate({ [key]: value } as Partial<Settings>)
   }
-  const onTop = (id: SectionId, top: number): void => {
-    tops.current.set(id, top)
+  const anchorAt = (id: SectionId, node: View | null): void => {
+    if (node) anchors.current.set(id, node)
+    else anchors.current.delete(id)
+  }
+
+  /**
+   * Where every shown panel is now, in the scroll content, and how tall the
+   * sticky chips are.
+   *
+   * Asked for rather than kept from `onLayout`: in a browser a view reports its
+   * layout only when its own size changes, so a panel pushed down by Playback or
+   * Library filling in never says it moved, and the index would stop a panel or
+   * two short. Measured against the head, which starts the content and stays put.
+   */
+  const measure = async (): Promise<void> => {
+    const head = headRef.current
+    if (!head) return
+    const at = (node: View): Promise<{ y: number; height: number } | null> =>
+      new Promise(resolve => {
+        node.measureLayout(
+          head,
+          (_x, y, _width, height) => resolve({ y, height }),
+          () => resolve(null),
+        )
+      })
+    const chips = chipBarRef.current
+    const [bar, placed] = await Promise.all([
+      chips ? at(chips) : null,
+      Promise.all([...anchors.current].map(async ([id, node]) => ({ id, place: await at(node) }))),
+    ])
+    chipBarHeight.current = bar?.height ?? 0
+    const pageTop = column ? COLUMN_TOP : NARROW_TOP
+    tops.current = new Map(
+      placed.flatMap(({ id, place }) => (place ? [[id, pageTop + place.y] as const] : [])),
+    )
+  }
+
+  /** Scrolls so `id`'s heading sits under whatever covers the top of the scroll area. */
+  const land = (id: SectionId, animated: boolean): void => {
+    void measure().then(() => {
+      const top = tops.current.get(id)
+      if (top === undefined) return
+      const clearance = column ? COLUMN_TOP : chipBarHeight.current + CHIPS_GAP
+      scrollRef.current?.scrollTo({ y: landingOffset(top, clearance), animated })
+    })
+  }
+
+  const hold = (id: SectionId, ms: number): void => {
+    if (held.current) clearTimeout(held.current.timer)
+    const timer = setTimeout(() => {
+      held.current = null
+    }, ms)
+    held.current = { id, ms, timer }
+  }
+
+  /** The reader took the page back: stop holding the section they chose. */
+  const letGo = (): void => {
+    if (!held.current) return
+    clearTimeout(held.current.timer)
+    held.current = null
+  }
+
+  const onContentSizeChange = (_width: number, height: number): void => {
+    metrics.current.content = height
+    // A panel above filled in and pushed everything down. Holding a section,
+    // land on it again where it is now; otherwise just keep the scroll-spy true.
+    const on = held.current
+    if (on) {
+      hold(on.id, on.ms)
+      land(on.id, false)
+    } else {
+      void measure()
+    }
   }
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
     // Chosen from the index: held until the jump has landed.
-    if (pinned.current !== null) return
+    if (held.current !== null) return
     const list = sections.map(section => ({
       id: section.id,
-      top: panelsTop.current + (tops.current.get(section.id) ?? Number.POSITIVE_INFINITY),
+      top: tops.current.get(section.id) ?? Number.POSITIVE_INFINITY,
     }))
     const next = activeSection(
       list,
@@ -191,16 +286,22 @@ export function SettingsScreen(): ReactNode {
     if (next !== null && next !== active) setActive(next)
   }
 
-  const go = (id: SectionId): void => {
-    const top = tops.current.get(id)
-    if (top === undefined) return
+  const go = (id: SectionId, ms = CHOSEN_HOLD_MS, animated = true): void => {
     setActive(id)
-    if (pinned.current !== null) clearTimeout(pinned.current)
-    pinned.current = setTimeout(() => {
-      pinned.current = null
-    }, 900)
-    scrollRef.current?.scrollTo({ y: Math.max(0, panelsTop.current + top - 28), animated: true })
+    hold(id, ms)
+    land(id, animated)
   }
+
+  // A link from elsewhere, such as a can't-reach screen's "Connection settings":
+  // straight there, and held while the panels above it fill in. The index
+  // already starts on it.
+  useEffect(() => {
+    if (!linkedSection) return
+    hold(linkedSection, LINKED_HOLD_MS)
+    land(linkedSection, false)
+    // Once per link: `hold` and `land` are new on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedSection])
 
   const index = sections.map(section => {
     const on = active === section.id
@@ -241,16 +342,15 @@ export function SettingsScreen(): ReactNode {
         onLayout={event => {
           metrics.current.view = event.nativeEvent.layout.height
         }}
-        onContentSizeChange={(_, height) => {
-          metrics.current.content = height
-        }}
+        onContentSizeChange={onContentSizeChange}
+        onScrollBeginDrag={letGo}
         stickyHeaderIndices={column ? undefined : [1]}
         contentContainerStyle={[
           styles.content,
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        <View style={styles.head}>
+        <View ref={headRef} style={styles.head}>
           <BackToYou />
           <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
             Settings
@@ -266,6 +366,7 @@ export function SettingsScreen(): ReactNode {
 
         {column ? null : (
           <View
+            ref={chipBarRef}
             style={[
               styles.chipBar,
               // Colours inline, not only from the sheet: a sticky header is
@@ -290,17 +391,12 @@ export function SettingsScreen(): ReactNode {
         )}
 
         <StackedRows value={!wide}>
-          <View
-            style={styles.panels}
-            onLayout={event => {
-              panelsTop.current = event.nativeEvent.layout.y
-            }}
-          >
+          <View style={styles.panels}>
             {settings.data ? (
               <Panel
                 title="Playback"
                 hint="shared across your devices"
-                onTop={top => onTop('playback', top)}
+                anchor={node => anchorAt('playback', node)}
               >
                 <CrossfadeRow
                   seconds={settings.data.crossfadeSeconds}
@@ -322,30 +418,30 @@ export function SettingsScreen(): ReactNode {
 
             {/* A browser streams and keeps nothing: only an installed app has offline music. */}
             {installedApp ? (
-              <OfflinePanel onTop={top => onTop('offline', top)} onConfirm={setConfirming} />
+              <OfflinePanel anchor={node => anchorAt('offline', node)} onConfirm={setConfirming} />
             ) : null}
 
             {settings.data && !fromCloud ? (
               <ImportingPanel
                 settings={settings.data}
                 set={set}
-                onTop={top => onTop('importing', top)}
+                anchor={node => anchorAt('importing', node)}
               />
             ) : null}
 
             {fromCloud ? null : (
               <LibraryPanel
                 libraryPath={health.data?.libraryPath}
-                onTop={top => onTop('library', top)}
+                anchor={node => anchorAt('library', node)}
                 onConfirm={setConfirming}
               />
             )}
 
-            {fromCloud ? null : <CloudPanel onTop={top => onTop('cloud', top)} />}
+            {fromCloud ? null : <CloudPanel anchor={node => anchorAt('cloud', node)} />}
 
-            <ConnectionPanel onTop={top => onTop('connection', top)} onConfirm={setConfirming} />
+            <ConnectionPanel anchor={node => anchorAt('connection', node)} onConfirm={setConfirming} />
 
-            <Panel title="Lyrics" hint="on this device" onTop={top => onTop('lyrics', top)}>
+            <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
               <Row
                 label="Show pinyin / romaji"
                 hint="A romanized line under each Chinese or Japanese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
@@ -359,16 +455,16 @@ export function SettingsScreen(): ReactNode {
               </Row>
             </Panel>
 
-            <DevicesPanel onTop={top => onTop('devices', top)} />
+            <DevicesPanel anchor={node => anchorAt('devices', node)} />
 
-            {loginItem.available ? <DesktopPanel onTop={top => onTop('desktop', top)} /> : null}
-            <AppearancePanel onTop={top => onTop('appearance', top)} />
+            {loginItem.available ? <DesktopPanel anchor={node => anchorAt('desktop', node)} /> : null}
+            <AppearancePanel anchor={node => anchorAt('appearance', node)} />
 
             {shortcuts ? (
-              <ShortcutsPanel items={shortcuts} onTop={top => onTop('shortcuts', top)} />
+              <ShortcutsPanel items={shortcuts} anchor={node => anchorAt('shortcuts', node)} />
             ) : null}
 
-            <Panel title="About" onTop={top => onTop('about', top)}>
+            <Panel title="About" anchor={node => anchorAt('about', node)}>
               <Row label="Version" last>
                 <Text style={styles.valueText}>
                   {String(Constants.expoConfig?.version ?? '1.0.0')}
@@ -394,10 +490,10 @@ export function SettingsScreen(): ReactNode {
 // ---------------------------------------------------------------- offline
 
 function OfflinePanel({
-  onTop,
+  anchor,
   onConfirm,
 }: {
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -445,7 +541,7 @@ function OfflinePanel({
   const working = downloads.queue.length > 0
 
   return (
-    <Panel title="Offline music" hint="on this device" onTop={onTop}>
+    <Panel title="Offline music" hint="on this device" anchor={anchor}>
       <Lead>
         {fromCloud
           ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'
@@ -592,14 +688,14 @@ function DownloadMeter(): ReactNode {
 function ImportingPanel({
   settings,
   set,
-  onTop,
+  anchor,
 }: {
   settings: Settings
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
 }): ReactNode {
   return (
-    <Panel title="Importing" hint="shared across your devices" onTop={onTop}>
+    <Panel title="Importing" hint="shared across your devices" anchor={anchor}>
       <Row
         label="Downloads at once"
         hint="More is rarely faster and makes YouTube throttle. Two is a good default."
@@ -630,11 +726,11 @@ function ImportingPanel({
 
 function LibraryPanel({
   libraryPath,
-  onTop,
+  anchor,
   onConfirm,
 }: {
   libraryPath: string | undefined
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -648,7 +744,7 @@ function LibraryPanel({
   const running = analysis.data?.running === true
 
   return (
-    <Panel title="Library" hint={`${songs.length} songs`} onTop={onTop}>
+    <Panel title="Library" hint={`${songs.length} songs`} anchor={anchor}>
       {libraryPath !== undefined ? (
         <Lead>
           Your music lives at <Text style={partStyles.code}>{libraryPath}</Text>. It is just a
@@ -827,17 +923,17 @@ function Details({ children }: { children: ReactNode }): ReactNode {
 }
 
 function ConnectionPanel({
-  onTop,
+  anchor,
   onConfirm,
 }: {
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   return (
-    <Panel title="Connection" hint="on this device" onTop={onTop}>
+    <Panel title="Connection" hint="on this device" anchor={anchor}>
       {fromCloud ? (
         <Row label="Signed in" hint="With Google — the library is the bucket’s.">
           <Button
@@ -1059,13 +1155,13 @@ type DevicesReach = 'reachable' | 'looking' | 'away'
  * row marked offline, and says so in one line — there is nothing to press,
  * since the page keeps looking by itself.
  */
-function DevicesPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+function DevicesPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { fromCloud } = useConnection()
-  return fromCloud ? <CloudDevices onTop={onTop} /> : <ServerDevices onTop={onTop} />
+  return fromCloud ? <CloudDevices anchor={anchor} /> : <ServerDevices anchor={anchor} />
 }
 
 /** A server library: the list the devices provider keeps, from the same query. */
-function ServerDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
+function ServerDevices({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { devices, connected } = useDeviceContext()
   const client = useQueryClient()
   const query = useDevices(connected)
@@ -1083,7 +1179,7 @@ function ServerDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
 
   return (
     <DevicesList
-      onTop={onTop}
+      anchor={anchor}
       hint={reach === 'reachable' ? (connected ? 'live updates' : 'polling') : undefined}
       reach={reach}
       devices={devices}
@@ -1093,7 +1189,7 @@ function ServerDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
 }
 
 /** A cloud library: the server found by its addresses, and asked directly. */
-function CloudDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
+function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerDirect()
   const client = useQueryClient()
   const connection = server.state === 'reachable' ? server.connection : null
@@ -1132,7 +1228,7 @@ function CloudDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
 
   return (
     <DevicesList
-      onTop={onTop}
+      anchor={anchor}
       hint={reach === 'reachable' ? 'through your server' : undefined}
       reach={reach}
       devices={list.data?.devices ?? []}
@@ -1143,13 +1239,13 @@ function CloudDevices({ onTop }: { onTop: (top: number) => void }): ReactNode {
 
 /** The panel itself, whichever way its list arrived. */
 function DevicesList({
-  onTop,
+  anchor,
   hint,
   reach,
   devices,
   onForget,
 }: {
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
   hint: string | undefined
   reach: DevicesReach
   devices: readonly Device[]
@@ -1186,7 +1282,7 @@ function DevicesList({
   const olderIds = view.older.flatMap(row => row.ids)
 
   return (
-    <Panel title="Devices" hint={hint} onTop={onTop}>
+    <Panel title="Devices" hint={hint} anchor={anchor}>
       <Lead>
         Every device you open self.mp3 on shows up here and can hand playback to any of the others.
         Nothing is stored beyond a name and what was last playing.
@@ -1278,14 +1374,14 @@ function DevicesList({
  */
 function ShortcutsPanel({
   items,
-  onTop,
+  anchor,
 }: {
   items: readonly MenuCommand[]
-  onTop: (top: number) => void
+  anchor: (node: View | null) => void
 }): ReactNode {
   const rows = useMemo(() => shortcutRows(items), [items])
   return (
-    <Panel title="Keyboard shortcuts" hint="on this device" onTop={onTop}>
+    <Panel title="Keyboard shortcuts" hint="on this device" anchor={anchor}>
       {rows.map(row => (
         <View key={row.label} style={styles.shortcut}>
           <View style={styles.keys}>
@@ -1310,7 +1406,7 @@ function ShortcutsPanel({
  * last asked for, so turning it off in System Settings › General › Login Items
  * is reflected here the next time Settings is opened.
  */
-function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const [open, setOpen] = useState<boolean | null>(null)
   const [update, setUpdate] = useState<UpdateState | null>(null)
   const [looking, setLooking] = useState(false)
@@ -1338,7 +1434,7 @@ function DesktopPanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
   }
 
   return (
-    <Panel title="Desktop app" hint={updates.version === null ? 'on this computer' : `version ${updates.version}`} onTop={onTop}>
+    <Panel title="Desktop app" hint={updates.version === null ? 'on this computer' : `version ${updates.version}`} anchor={anchor}>
       <Row
         label="Open at login"
         hint="Starts self.mp3 when you log in to this computer. macOS keeps this in System Settings › General › Login Items, and turning it off there turns it off here."
@@ -1401,14 +1497,14 @@ function updateHint(update: UpdateState | null, looking: boolean): string {
   }
 }
 
-function AppearancePanel({ onTop }: { onTop: (top: number) => void }): ReactNode {
+function AppearancePanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { theme: ui } = useUnistyles()
   const accent = useAccent()
   const chooseTheme = (choice: ThemeChoice): void => {
     accent.setTheme(choice)
   }
   return (
-    <Panel title="Appearance" hint="on this device" onTop={onTop}>
+    <Panel title="Appearance" hint="on this device" anchor={anchor}>
       <Row
         label="Theme"
         hint={`“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way.`}
@@ -1551,14 +1647,14 @@ function Confirmations({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentColumn: { paddingTop: 28, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
+  contentColumn: { paddingTop: COLUMN_TOP, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
+  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 16 },
   head: { marginBottom: 20 },
   title: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700', letterSpacing: -0.4 },
   titleNarrow: { fontSize: 22 },
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   panels: { gap: 14, maxWidth: 780 },
-  indexColumn: { position: 'absolute', top: 28, left: 32, width: 172, gap: 1 },
+  indexColumn: { position: 'absolute', top: COLUMN_TOP, left: 32, width: 172, gap: 1 },
   indexTitle: {
     color: theme.colors.textMuted,
     fontSize: 10,
@@ -1582,7 +1678,7 @@ const styles = StyleSheet.create(theme => ({
   chipBar: {
     marginHorizontal: -16,
     paddingVertical: 10,
-    marginBottom: 14,
+    marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,

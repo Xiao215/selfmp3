@@ -5,8 +5,8 @@ Maestro flows for the phone halves of the checks in `docs/UNIVERSAL.md`.
 These need a Mac: a booted simulator, a dev client built from this workspace,
 and `maestro` on the `PATH` (`curl -Ls https://get.maestro.mobile.dev | bash`,
 which installs to `~/.maestro/bin`). None of them can run in a Linux
-container, which is why the web halves of the same checks live in `../verify/`
-as Playwright specs.
+container, which is why the web halves of the same checks live in the
+repository's `verify/` as Playwright specs.
 
 Before any of these, from `apps/app`:
 

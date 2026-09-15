@@ -28,23 +28,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-// The two native modules the phone app reaches for directly, which have no
-// place in a web bundle.
+// Two native modules that code in the web bundle still imports directly,
+// resolved to stand-ins there. Each file in webStubs/ says who reaches it.
 //
 // track-player's web implementation pulls in `shaka-player`, which is not a
-// dependency of this repository and is not wanted — docs/UNIVERSAL.md gives the
-// web side of the PlaybackEngine port to the existing two-`<audio>` engine.
-// expo-file-system has no web implementation at all: its `File` throws on
-// construction, and six files build one at module scope, so the app cannot boot
-// on web without this.
+// dependency of this repository and is not wanted: on web, playback is the
+// two-`<audio>` engine behind ports/engine.web.ts. expo-file-system has no web
+// implementation at all, and its `File` throws on construction.
 //
-// Phase 3 deletes this block by moving both behind
-// `src/ports/{engine,offline}.{web,native}.ts`, which is where the difference
-// belongs. That these two are the *whole* list is itself the finding: nothing
-// else in the phone app blocks a web build.
+// A stub can go once nothing the web bundle includes imports its module, which
+// means giving those files a `.web` sibling or moving the call behind a port.
 const webStubs = {
-  'react-native-track-player': path.resolve(projectRoot, 'verify/stubs/track-player.web.js'),
-  'expo-file-system': path.resolve(projectRoot, 'verify/stubs/expo-file-system.web.js'),
+  'react-native-track-player': path.resolve(projectRoot, 'webStubs/track-player.js'),
+  'expo-file-system': path.resolve(projectRoot, 'webStubs/expo-file-system.js'),
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

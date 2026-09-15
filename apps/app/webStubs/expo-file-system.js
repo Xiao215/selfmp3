@@ -1,17 +1,11 @@
-// Spike-only stand-in for expo-file-system in the web bundle.
+// expo-file-system, as the web bundle sees it (metro.config.js resolves it here).
 //
 // expo-file-system has no web implementation: it warns "not supported on web"
 // and its `File` throws `this.validatePath is not a function` on construction.
-// Six files in apps/app build a `File` or a `Directory` at module scope
-// (src/offline/*, src/ports/cloudPlatform.ts, src/ui/accent.tsx), so the app
-// crashes on web before any screen renders. That is the single reason the phone
-// app cannot simply be exported to the browser today.
-//
-// docs/UNIVERSAL.md already answers it: phase 3 puts all of this behind the
-// OfflineStore port, whose web implementation is apps/web's existing Cache API
-// and IndexedDB code. Until then the spike needs the app to *boot* on web so
-// check 4 can measure the audio engine, so this shim stands in — inert, and
-// honest about being empty rather than pretending files were written.
+// Nearly every file that uses it has a `.web` sibling that keeps things in
+// IndexedDB or the Cache API instead. src/offline/listenOutbox.ts has none, so
+// in a browser it runs against this — inert, and honest about being empty
+// rather than pretending files were written.
 
 const NOT_HERE = 'no file system on web; this belongs behind the OfflineStore port'
 

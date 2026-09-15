@@ -1,20 +1,17 @@
-// Spike-only stand-in for react-native-track-player in the web bundle.
+// react-native-track-player, as the web bundle sees it (metro.config.js
+// resolves it here).
 //
 // track-player 5.0.0-alpha0 ships a web implementation that imports
 // `shaka-player`, a dependency this repository does not have and does not want:
-// docs/UNIVERSAL.md makes the existing two-`<audio>` engine the web side of the
-// PlaybackEngine port, and track-player the native side. So on web the module
-// should never be reached at all.
-//
-// Phase 3 removes the need for this file by putting every call behind
-// `src/ports/engine.{web,native}.ts`. Until then the seven files that import
-// track-player directly would drag shaka into the web bundle, so the spike
-// resolves the specifier here instead (see metro.config.js) to answer the only
-// question it is asking: does apps/app export to web at all.
+// on web, playback is the two-`<audio>` engine behind src/ports/engine.web.ts,
+// and track-player is only the native side. But the web bundle still includes
+// files that import it directly — app/_layout.tsx registers the playback
+// service at module scope, and src/player/service.ts subscribes to remote
+// controls — so the specifier has to resolve to something.
 //
 // Every member below throws rather than no-oping, so that if a screen ever does
-// reach the native player on web it fails loudly in the spike instead of going
-// quiet and looking like it worked.
+// reach the native player on web it fails loudly instead of going quiet and
+// looking like it worked.
 
 // Setting the native player up is exactly what a web build should skip, so
 // these answer quietly. Anything that would make or control sound still throws:

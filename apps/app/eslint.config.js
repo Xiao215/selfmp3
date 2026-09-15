@@ -35,10 +35,9 @@ module.exports = [
     },
   },
   {
-    // Node scripts under verify/ run outside the app: Playwright's runner and
-    // plain `node` both give them Node's globals, which eslint-config-expo does
-    // not assume because the app itself has none of them.
-    files: ['verify/**/*.ts', 'verify/**/*.mjs', 'verify/**/*.js', '*.config.ts'],
+    // Config files run under Node, which gives them Node's globals;
+    // eslint-config-expo does not assume those because the app itself has none.
+    files: ['*.config.ts'],
     languageOptions: {
       globals: {
         Buffer: 'readonly',
@@ -122,7 +121,7 @@ module.exports = [
     // places allowed to ask which platform this is are the ports themselves and
     // the shell, because deciding that is their whole job.
     files: ['**/*.ts', '**/*.tsx'],
-    ignores: ['src/ports/**', 'src/shell/**', 'verify/**', '*.config.js', '*.config.ts'],
+    ignores: ['src/ports/**', 'src/shell/**', '*.config.js', '*.config.ts'],
     rules: {
       'no-restricted-properties': [
         'error',

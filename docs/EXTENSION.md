@@ -5,12 +5,14 @@
 > extension imports through your server from the popup, the page and a
 > right-click, and `npm run zip:extension` packages it.
 >
-> **Phase 5 — the bucket — is the one left**, and it is the one that needs
-> something only Xiao can do: the doorman redeployed with the extension's
-> origin. Until then, importing needs the server awake.
+> **Phase 5 — the bucket — is the one left.** It waited on a doorman carrying
+> the extension's origin; that was deployed on 2026-09-16, so nothing blocks it
+> now. Until it is built, importing needs the server awake.
 >
-> It has never been loaded in Xiao's own Chrome: everything below was proven in
-> Playwright's Chromium against a fake server. Written for an agent with this
+> It has been loaded in Xiao's own Chrome since 2026-09-16, and the pill was
+> seen working on a real YouTube watch page — it lands in YouTube's own button
+> row, left of Like, and reads the library correctly. Everything else below was
+> proven in Playwright's Chromium against a fake server. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.

@@ -109,6 +109,12 @@ remove them together. See [multi-select.md](docs/features/multi-select.md).
 so you can correct it, listen to a track and untick duplicates before anything downloads.
 The queue lives in the database, so it survives a restart.
 
+**And from anywhere.** Only your server can fetch a link, but you do not have to be near it
+to add one. Out of its reach, the link goes into the bucket with the tags and the playlist
+you chose, and your server takes it the next time it is awake; it arrives on your devices
+with the sync after that. What you lose while away is the looking — what a link holds, and
+playing a song before it is added — not the adding.
+
 **Titles arrive as song titles.** Where YouTube has no music metadata of its own, the
 video's title is read as the song's: "YOASOBI「アイドル」 Official Music Video" comes in as
 アイドル by YOASOBI. It drops what the video says about itself — "Official Music Video",

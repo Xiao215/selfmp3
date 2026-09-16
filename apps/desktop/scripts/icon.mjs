@@ -27,7 +27,10 @@ const target = join(desktop, 'resources', 'icon.png')
 const SIZE = 1024
 
 const svg = await readFile(source)
-const png = await sharp(svg, { density: 384 }).resize(SIZE, SIZE, { fit: 'contain' }).png().toBuffer()
+const png = await sharp(svg, { density: 384 })
+  .resize(SIZE, SIZE, { fit: 'contain' })
+  .png()
+  .toBuffer()
 
 await mkdir(dirname(target), { recursive: true })
 await writeFile(target, png)

@@ -100,7 +100,9 @@ function ToastItem({
         {
           borderColor: border,
           opacity: shown,
-          transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
+          transform: [
+            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) },
+          ],
         },
       ]}
       pointerEvents={leaving ? 'none' : 'auto'}

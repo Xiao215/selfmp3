@@ -84,10 +84,7 @@ describe('oklchToHex', () => {
  * values would go stale in the same way and for the same reason.
  */
 describe('token parity with the web stylesheet', () => {
-  const CSS = readFileSync(
-    new URL('./tokens.reference.css', import.meta.url),
-    'utf8',
-  )
+  const CSS = readFileSync(new URL('./tokens.reference.css', import.meta.url), 'utf8')
 
   /** `--name: oklch(L C H)`, where H is a number or `var(--accent-hue)`. */
   function cssToken(name: string): { l: number; c: number; h: number } {

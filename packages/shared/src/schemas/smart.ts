@@ -96,4 +96,3 @@ export const EMPTY_SMART_RULES: SmartRules = {
   order: 'desc',
   limit: null,
 }
-

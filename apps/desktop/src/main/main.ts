@@ -83,7 +83,8 @@ if (!app.requestSingleInstanceLock()) {
        */
       if (process.defaultApp) {
         const entry = process.argv[1]
-        if (entry !== undefined) app.setAsDefaultProtocolClient('selfmp3', process.execPath, [entry])
+        if (entry !== undefined)
+          app.setAsDefaultProtocolClient('selfmp3', process.execPath, [entry])
       } else {
         app.setAsDefaultProtocolClient('selfmp3')
       }

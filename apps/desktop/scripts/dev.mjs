@@ -37,9 +37,13 @@ built.on('exit', code => {
    * `npm run dev --workspace @selfmp3/desktop -- --user-data-dir=…`, or
    * `node apps/desktop/scripts/dev.mjs --user-data-dir=…`.
    */
-  const child = spawn(electronBinary(), [join(root, 'dist', 'main.cjs'), ...process.argv.slice(2)], {
-    stdio: 'inherit',
-    env: { ...process.env, SELFMP3_DESKTOP_DEV_URL: devUrl },
-  })
+  const child = spawn(
+    electronBinary(),
+    [join(root, 'dist', 'main.cjs'), ...process.argv.slice(2)],
+    {
+      stdio: 'inherit',
+      env: { ...process.env, SELFMP3_DESKTOP_DEV_URL: devUrl },
+    },
+  )
   child.on('exit', code => process.exit(code ?? 0))
 })

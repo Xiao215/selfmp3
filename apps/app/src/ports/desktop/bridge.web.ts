@@ -20,8 +20,8 @@ import { BRIDGE_GLOBAL, type DesktopBridge } from '@selfmp3/desktop-bridge'
 const found =
   typeof window === 'undefined'
     ? null
-    : ((window as unknown as Record<string, unknown>)[BRIDGE_GLOBAL] as DesktopBridge | undefined) ??
-      null
+    : (((window as unknown as Record<string, unknown>)[BRIDGE_GLOBAL] as
+        DesktopBridge | undefined) ?? null)
 
 export const desktop: DesktopBridge | null = found
 

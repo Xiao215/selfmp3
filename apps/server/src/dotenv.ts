@@ -30,9 +30,7 @@ export function dotEnvCandidates(
   if (toplevel) files.push(path.join(toplevel, '.env'))
   if (commonDir) {
     // `.git` in the main checkout, an absolute `…/main/.git` from a worktree.
-    const gitDir = path.isAbsolute(commonDir)
-      ? commonDir
-      : path.resolve(toplevel ?? '.', commonDir)
+    const gitDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(toplevel ?? '.', commonDir)
     const main = path.join(path.dirname(gitDir), '.env')
     if (!files.includes(main)) files.push(main)
   }

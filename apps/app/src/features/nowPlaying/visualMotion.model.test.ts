@@ -49,15 +49,21 @@ function run(sampler: MotionSampler, seconds: number, tuning = motionTuning(feel
 describe('rings on the hits', () => {
   it('sends a ring on each onset peak and none in silence', () => {
     // Silent for 3 s, then a hit every half second at a loud level.
-    const hit = (t: number): boolean => t >= 3 && ((t - 3) % 0.5) < 0.05
-    const { fired } = run(scripted(t => ({ level: t < 3 ? 0 : 0.8, onset: hit(t) ? 1 : 0.05 })), 6)
+    const hit = (t: number): boolean => t >= 3 && (t - 3) % 0.5 < 0.05
+    const { fired } = run(
+      scripted(t => ({ level: t < 3 ? 0 : 0.8, onset: hit(t) ? 1 : 0.05 })),
+      6,
+    )
     expect(fired.filter(t => t < 3)).toEqual([])
     expect(fired).toHaveLength(6)
     fired.forEach((t, i) => expect(t).toBeCloseTo(3 + i * 0.5, 1))
   })
 
   it('keeps a refractory gap: a beat-long swell rings once, not every frame', () => {
-    const { fired } = run(scripted(() => ({ level: 0.7, onset: 0.9 })), 1)
+    const { fired } = run(
+      scripted(() => ({ level: 0.7, onset: 0.9 })),
+      1,
+    )
     expect(fired).toHaveLength(1)
   })
 
@@ -66,49 +72,82 @@ describe('rings on the hits', () => {
     expect(tuning.refractory).toBeCloseTo(0.3)
     expect(motionTuning(feel, false).refractory).toBe(DEFAULT_REFRACTORY)
     // Hits every 0.2 s at 120 BPM: only every other one can ring.
-    const hit = (t: number): boolean => (t % 0.2) < 0.02
-    const { fired } = run(scripted(() => ({ level: 0.7, onset: 0 })), 0) // warm the types
+    const hit = (t: number): boolean => t % 0.2 < 0.02
+    const { fired } = run(
+      scripted(() => ({ level: 0.7, onset: 0 })),
+      0,
+    ) // warm the types
     expect(fired).toEqual([])
     const flicker = run(
       scripted(t => ({ level: 0.7, onset: hit(t) ? 1 : 0 })),
       2,
       tuning,
     ).fired
-    for (let i = 1; i < flicker.length; i++) expect(flicker[i]! - flicker[i - 1]!).toBeGreaterThanOrEqual(0.3)
+    for (let i = 1; i < flicker.length; i++)
+      expect(flicker[i]! - flicker[i - 1]!).toBeGreaterThanOrEqual(0.3)
   })
 
   it('makes a quiet hit fainter than a loud one', () => {
     const tuning = motionTuning(feel, false)
-    const quiet = run(scripted(t => ({ level: 0.1, onset: t < 0.05 ? 1 : 0 })), 0.2).state
-    const loud = run(scripted(t => ({ level: 0.9, onset: t < 0.05 ? 1 : 0 })), 0.2).state
+    const quiet = run(
+      scripted(t => ({ level: 0.1, onset: t < 0.05 ? 1 : 0 })),
+      0.2,
+    ).state
+    const loud = run(
+      scripted(t => ({ level: 0.9, onset: t < 0.05 ? 1 : 0 })),
+      0.2,
+    ).state
     expect(ringFade(quiet.rings[0]!, tuning)).toBeLessThan(ringFade(loud.rings[0]!, tuning))
   })
 
   it('never keeps more rings than the phone has views for', () => {
-    const { state } = run(scripted(t => ({ level: 1, onset: (t % 0.2) < 0.02 ? 1 : 0 })), 3)
+    const { state } = run(
+      scripted(t => ({ level: 1, onset: t % 0.2 < 0.02 ? 1 : 0 })),
+      3,
+    )
     expect(state.rings.length).toBeLessThanOrEqual(MAX_RINGS)
   })
 })
 
 describe('following the level', () => {
   it('glows with the level, smoothed over about 300 ms', () => {
-    const { glow } = run(scripted(() => ({ level: 1, onset: 0 })), 1)
+    const { glow } = run(
+      scripted(() => ({ level: 1, onset: 0 })),
+      1,
+    )
     expect(glow[Math.round(0.3 / DT)]!).toBeGreaterThan(0.55)
     expect(glow[Math.round(0.3 / DT)]!).toBeLessThan(0.75)
     expect(glow.at(-1)!).toBeGreaterThan(0.95)
   })
 
   it('stands nearly still in silence and turns in a loud part', () => {
-    const silent = run(scripted(() => ({ level: 0, onset: 0 })), 2).state
-    const loud = run(scripted(() => ({ level: 1, onset: 0 })), 2).state
+    const silent = run(
+      scripted(() => ({ level: 0, onset: 0 })),
+      2,
+    ).state
+    const loud = run(
+      scripted(() => ({ level: 1, onset: 0 })),
+      2,
+    ).state
     expect(silent.spin).toBeLessThan(loud.spin / 10)
     expect(silent.sway).toBeLessThan(loud.sway / 10)
   })
 
   it('settles when paused instead of freezing mid-hit', () => {
     const tuning = motionTuning(feel, false)
-    const { state } = run(scripted(() => ({ level: 1, onset: 0 })), 1)
-    for (let i = 0; i < 120; i++) stepMotion(state, scripted(() => ({ level: 1, onset: 1 })), 1, DT, false, tuning)
+    const { state } = run(
+      scripted(() => ({ level: 1, onset: 0 })),
+      1,
+    )
+    for (let i = 0; i < 120; i++)
+      stepMotion(
+        state,
+        scripted(() => ({ level: 1, onset: 1 })),
+        1,
+        DT,
+        false,
+        tuning,
+      )
     expect(state.glow).toBeLessThan(0.01)
     expect(state.bands[0]!).toBeLessThan(0.01)
     expect(state.rings).toEqual([])
@@ -117,9 +156,23 @@ describe('following the level', () => {
   it('raises bars fast and lets them fall slowly', () => {
     const tuning = motionTuning(feel, false)
     const state = createMotionState(4)
-    stepMotion(state, scripted(() => ({ level: 1, onset: 0 })), 0, DT * 3, true, tuning)
+    stepMotion(
+      state,
+      scripted(() => ({ level: 1, onset: 0 })),
+      0,
+      DT * 3,
+      true,
+      tuning,
+    )
     const risen = state.bands[0]!
-    stepMotion(state, scripted(() => ({ level: 0, onset: 0 })), 0, DT * 3, true, tuning)
+    stepMotion(
+      state,
+      scripted(() => ({ level: 0, onset: 0 })),
+      0,
+      DT * 3,
+      true,
+      tuning,
+    )
     expect(risen).toBeGreaterThan(0.7)
     expect(state.bands[0]!).toBeGreaterThan(risen * 0.7)
   })

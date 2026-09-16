@@ -24,7 +24,13 @@ export function ImportViaServer(): ReactNode {
   const reach = useServerDirect()
   if (reach.state === 'reachable') return <ImportScreen via={reach.connection} />
 
-  return <ServerAway looking={reach.state === 'looking'} said={reach.state === 'away' && reach.said} onLookAgain={reach.lookAgain} />
+  return (
+    <ServerAway
+      looking={reach.state === 'looking'}
+      said={reach.state === 'away' && reach.said}
+      onLookAgain={reach.lookAgain}
+    />
+  )
 }
 
 function ServerAway({

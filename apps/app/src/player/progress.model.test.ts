@@ -78,9 +78,9 @@ describe('what counts as the engine changing', () => {
   }
 
   it('ignores the clock', () => {
-    expect(differsBesidesClock(base, { ...base, currentTime: 11, duration: 201, buffered: 80 })).toBe(
-      false,
-    )
+    expect(
+      differsBesidesClock(base, { ...base, currentTime: 11, duration: 201, buffered: 80 }),
+    ).toBe(false)
   })
 
   it('notices anything else', () => {

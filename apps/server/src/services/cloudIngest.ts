@@ -122,10 +122,7 @@ export class CloudIngest {
     return { applied, removed, requested }
   }
 
-  #applyOne(
-    change: Change,
-    removed: { id: number; path: string; deleteFile: boolean }[],
-  ): boolean {
+  #applyOne(change: Change, removed: { id: number; path: string; deleteFile: boolean }[]): boolean {
     switch (change.type) {
       case 'songEdited': {
         const id = this.#sync.songId(change.uid)

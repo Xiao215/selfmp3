@@ -66,7 +66,13 @@ export function AddSongsSheet({
   }
 
   return (
-    <Sheet open={open} onClose={close} title={`Add to ${playlistName}`} width={480} testID="add-songs">
+    <Sheet
+      open={open}
+      onClose={close}
+      title={`Add to ${playlistName}`}
+      width={480}
+      testID="add-songs"
+    >
       <View style={styles.body}>
         <View style={[styles.search, focused && { borderColor: accent.accent }]}>
           <Search size={15} color={theme.colors.textMuted} />
@@ -132,9 +138,7 @@ export function AddSongsSheet({
         </ScrollView>
 
         <View style={styles.foot}>
-          <Text style={styles.hint}>
-            {added.size === 0 ? ' ' : `${added.size} added`}
-          </Text>
+          <Text style={styles.hint}>{added.size === 0 ? ' ' : `${added.size} added`}</Text>
           <Button label="Done" variant="primary" onPress={close} testID="add-songs-done" />
         </View>
       </View>
@@ -176,7 +180,13 @@ const styles = StyleSheet.create(theme => ({
   artist: { color: theme.colors.textMuted, fontSize: 11.5 },
   time: { color: theme.colors.textMuted, fontSize: 11.5, fontVariant: ['tabular-nums'] },
   state: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
-  addedMark: { flexDirection: 'row', alignItems: 'center', gap: 3, minWidth: 64, justifyContent: 'flex-end' },
+  addedMark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    minWidth: 64,
+    justifyContent: 'flex-end',
+  },
   add: {
     width: 32,
     height: 28,

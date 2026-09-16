@@ -8,7 +8,8 @@
  */
 
 /** Where a link asks the app to go. Sign-in returns are not one of these. */
-export type DeepLinkRoute = { readonly kind: 'now-playing' } | { readonly kind: 'playlist'; readonly id: string }
+export type DeepLinkRoute =
+  { readonly kind: 'now-playing' } | { readonly kind: 'playlist'; readonly id: string }
 
 /**
  * Each `selfmp3://…#signin-code=…` link, whole, for `ports/signInReturn` to sort

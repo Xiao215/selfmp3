@@ -123,11 +123,13 @@ export function ListenButton({
       onPress={onToggle}
       accessibilityRole="button"
       accessibilityLabel={listenLabel(item.title, status)}
-      style={({ pressed }) => [styles.thumb, square && styles.thumbSquare, pressed && styles.thumbPressed]}
+      style={({ pressed }) => [
+        styles.thumb,
+        square && styles.thumbSquare,
+        pressed && styles.thumbPressed,
+      ]}
     >
-      {item.thumbnail ? (
-        <Image source={{ uri: item.thumbnail }} style={styles.fill} />
-      ) : null}
+      {item.thumbnail ? <Image source={{ uri: item.thumbnail }} style={styles.fill} /> : null}
       <View style={[styles.cover, status ? styles.coverOn : null]}>
         {status === 'loading' ? (
           <ActivityIndicator size="small" color="#fff" />

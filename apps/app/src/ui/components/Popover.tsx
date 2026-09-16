@@ -185,7 +185,10 @@ function AnchoredPopover({
             accessibilityLabel="Close"
           />
           <Pressable
-            style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
+            style={[
+              styles.catcher,
+              { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 },
+            ]}
             onPress={onClose}
           />
           <Pressable

@@ -222,7 +222,8 @@ export function songRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }) => {
       requireSong(params.id)
       const counted = transact(container.db, () => {
-        if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId)) return false
+        if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId))
+          return false
         container.songs.recordSkip(params.id)
         return true
       })

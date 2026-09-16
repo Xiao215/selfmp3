@@ -71,8 +71,7 @@ await build({
 const webExport = join(repoRoot, 'apps', 'app', 'dist')
 if (!existsSync(join(webExport, 'index.html'))) {
   console.error(
-    '\nNo web export at apps/app/dist.\n' +
-      'Run: npm run export:web --workspace @selfmp3/app\n',
+    '\nNo web export at apps/app/dist.\n' + 'Run: npm run export:web --workspace @selfmp3/app\n',
   )
   process.exit(1)
 }

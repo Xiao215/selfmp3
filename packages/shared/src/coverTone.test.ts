@@ -72,7 +72,12 @@ describe('pickCoverTone', () => {
     expect(pickCoverTone(paper)?.hue).toBeGreaterThan(40)
     // The same little colour spread over every hue is a grey collage (Plagiarism).
     const collage = pickCoverTone(
-      pixels([140, 132, 130, 100], [130, 138, 132, 100], [130, 132, 142, 100], [138, 130, 138, 100]),
+      pixels(
+        [140, 132, 130, 100],
+        [130, 138, 132, 100],
+        [130, 132, 142, 100],
+        [138, 130, 138, 100],
+      ),
     )
     expect(collage).toBeNull()
   })

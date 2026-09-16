@@ -89,7 +89,9 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   if (query) {
     const tracks = await deps.youtubeMusicLists.songs(query)
     if (!tracks) {
-      throw HttpError.unprocessable('YouTube Music did not answer that search. Try again in a moment.')
+      throw HttpError.unprocessable(
+        'YouTube Music did not answer that search. Try again in a moment.',
+      )
     }
     return { kind: 'playlist', playlistTitle: query, tracks }
   }
@@ -104,7 +106,8 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   const playlistId = youtubePlaylistId(url)
   if (playlistId) {
     const playlist = await deps.youtubeMusicLists.playlist(playlistId)
-    if (playlist) return { kind: 'playlist', playlistTitle: playlist.title, tracks: playlist.tracks }
+    if (playlist)
+      return { kind: 'playlist', playlistTitle: playlist.title, tracks: playlist.tracks }
     return probeWithYtDlp(deps, url)
   }
 

@@ -53,13 +53,25 @@ const header = (title: string, options: { artist?: string; count?: string; cover
   },
 })
 
-const answer = (body: unknown) => () => Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
+const answer = (body: unknown) => () =>
+  Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
 
 describe('songRow', () => {
   it('reads a search row: title, every artist, album, length, and a cover worth keeping', () => {
     const duet = row(
       'abc',
-      [[{ text: 'Duet' }], [artist('Ayase'), { text: ' & ' }, artist('ikura'), { text: ' • ' }, album('Singles'), { text: ' • ' }, { text: '4:22' }]],
+      [
+        [{ text: 'Duet' }],
+        [
+          artist('Ayase'),
+          { text: ' & ' },
+          artist('ikura'),
+          { text: ' • ' },
+          album('Singles'),
+          { text: ' • ' },
+          { text: '4:22' },
+        ],
+      ],
       '',
       'abc',
     )
@@ -103,7 +115,9 @@ describe('YouTubeMusicLists', () => {
     const asked: { url: string; body: unknown }[] = []
     const lists = new YouTubeMusicLists(logger, (url, init) => {
       asked.push({ url, body: JSON.parse(String(init?.body)) })
-      return answer({ contents: [row('by4', [[{ text: '夜に駆ける' }], [artist('YOASOBI')]], '4:22', 'by4')] })()
+      return answer({
+        contents: [row('by4', [[{ text: '夜に駆ける' }], [artist('YOASOBI')]], '4:22', 'by4')],
+      })()
     })
     const songs = await lists.songs('yoasobi')
     expect(asked[0]?.url).toContain('youtubei/v1/search')
@@ -115,7 +129,11 @@ describe('YouTubeMusicLists', () => {
     const lists = new YouTubeMusicLists(
       logger,
       answer({
-        header: header('THE BOOK', { artist: 'YOASOBI', count: '2 songs • 5 minutes', cover: 'book' }),
+        header: header('THE BOOK', {
+          artist: 'YOASOBI',
+          count: '2 songs • 5 minutes',
+          cover: 'book',
+        }),
         contents: [
           row('k_Z', [[{ text: 'Epilogue' }], [], [{ text: '5.1M plays' }]], '0:51'),
           row('qFe', [[{ text: 'アンコール' }], [], [{ text: '90M plays' }]], '4:32'),
@@ -136,7 +154,14 @@ describe('YouTubeMusicLists', () => {
       asked.push(JSON.parse(String(init?.body)))
       return answer({
         header: header('Never Ending Stories Tour', { count: '1 song • 3 minutes' }),
-        contents: [row('m9S', [[{ text: 'アイドル' }], [artist('YOASOBI')], [album('アイドル')]], '3:34', 'idol')],
+        contents: [
+          row(
+            'm9S',
+            [[{ text: 'アイドル' }], [artist('YOASOBI')], [album('アイドル')]],
+            '3:34',
+            'idol',
+          ),
+        ],
       })()
     })
     const result = await lists.playlist('PLcKNQQ5neMz2J5RP49n')
@@ -163,7 +188,9 @@ describe('YouTubeMusicLists', () => {
   })
 
   it('is null when YouTube Music does not answer, or answers no page', async () => {
-    const down = new YouTubeMusicLists(logger, () => Promise.resolve(new Response('', { status: 503 })))
+    const down = new YouTubeMusicLists(logger, () =>
+      Promise.resolve(new Response('', { status: 503 })),
+    )
     expect(await down.songs('yoasobi')).toBeNull()
     expect(await down.album('MPREb_x')).toBeNull()
     const empty = new YouTubeMusicLists(logger, answer({ contents: [] }))
@@ -173,7 +200,11 @@ describe('YouTubeMusicLists', () => {
 
 describe('coverSized', () => {
   it('asks the same address for a larger picture, and leaves other addresses be', () => {
-    expect(coverSized('https://yt3.test/x=w120-h120-l90-rj')).toBe('https://yt3.test/x=w544-h544-l90-rj')
-    expect(coverSized('https://i.ytimg.test/vi/x/hqdefault.jpg')).toBe('https://i.ytimg.test/vi/x/hqdefault.jpg')
+    expect(coverSized('https://yt3.test/x=w120-h120-l90-rj')).toBe(
+      'https://yt3.test/x=w544-h544-l90-rj',
+    )
+    expect(coverSized('https://i.ytimg.test/vi/x/hqdefault.jpg')).toBe(
+      'https://i.ytimg.test/vi/x/hqdefault.jpg',
+    )
   })
 })

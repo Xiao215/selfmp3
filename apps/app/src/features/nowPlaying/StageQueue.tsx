@@ -226,9 +226,7 @@ const QueueRow = memo(function QueueRow({
       ]}
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
       onPointerLeave={finePointer ? () => setHovered(false) : undefined}
-      onLayout={
-        measure ? event => onLayoutHeight(event.nativeEvent.layout.height + 1) : undefined
-      }
+      onLayout={measure ? event => onLayoutHeight(event.nativeEvent.layout.height + 1) : undefined}
     >
       {dropEdge ? (
         <View

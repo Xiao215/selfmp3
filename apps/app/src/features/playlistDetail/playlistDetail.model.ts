@@ -18,7 +18,8 @@
  * says what it does and no page is stacked twice.
  */
 export function cameFrom(
-  state: { readonly index: number; readonly routes: readonly { readonly name: string }[] } | undefined,
+  state:
+    { readonly index: number; readonly routes: readonly { readonly name: string }[] } | undefined,
   route: string,
 ): boolean {
   if (!state || state.index < 1) return false

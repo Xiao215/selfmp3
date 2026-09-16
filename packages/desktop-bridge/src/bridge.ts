@@ -138,7 +138,6 @@ export interface DesktopBridge {
    * the Dock menu with what is on.
    */
   setPlaybackState(state: PlaybackState): Promise<void>
-
 }
 
 /*

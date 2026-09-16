@@ -24,7 +24,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 describe('electronBinary', () => {
   it('ends with the relative path the electron package named for this platform', () => {
     const binary = electronBinary()
-    const named = readFileSync(join(repoRoot, 'node_modules', 'electron', 'path.txt'), 'utf8').trim()
+    const named = readFileSync(
+      join(repoRoot, 'node_modules', 'electron', 'path.txt'),
+      'utf8',
+    ).trim()
 
     expect(named).not.toBe('')
     expect(binary.endsWith(named)).toBe(true)

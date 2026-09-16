@@ -18,7 +18,10 @@ export function onlyTag(filter: LibraryFilter, tagId: number): LibraryFilter {
 }
 
 /** The tag this name already is, whatever the case, so "＋ New tag" does not make a twin. */
-export function existingTag<T extends { name: string }>(tags: readonly T[], name: string): T | null {
+export function existingTag<T extends { name: string }>(
+  tags: readonly T[],
+  name: string,
+): T | null {
   const wanted = name.trim().toLowerCase()
   if (!wanted) return null
   return tags.find(tag => tag.name.trim().toLowerCase() === wanted) ?? null

@@ -383,7 +383,10 @@ function NumberOne({
       <Cover uri={art} title={song.title} size={wide ? 176 : 56} />
       <View style={styles.numberOneText}>
         <Text style={[styles.numberOneLabel, { color: accent.accent }]}>YOUR NUMBER ONE</Text>
-        <Text style={[styles.numberOneTitle, !wide && styles.numberOneTitleNarrow]} numberOfLines={1}>
+        <Text
+          style={[styles.numberOneTitle, !wide && styles.numberOneTitleNarrow]}
+          numberOfLines={1}
+        >
           {song.title}
         </Text>
         <Text style={styles.numberOnePlays} numberOfLines={2}>

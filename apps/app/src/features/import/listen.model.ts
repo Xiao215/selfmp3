@@ -39,7 +39,8 @@ export function followAudio(current: Listening, state: ListenState): Listening {
     ...current,
     status: state.status,
     currentTime: state.currentTime,
-    duration: Number.isFinite(state.duration) && state.duration > 0 ? state.duration : current.duration,
+    duration:
+      Number.isFinite(state.duration) && state.duration > 0 ? state.duration : current.duration,
   }
 }
 

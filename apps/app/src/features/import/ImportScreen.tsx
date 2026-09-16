@@ -464,7 +464,9 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
                   </Text>
                   <FoldAction
                     label={showFinished ? 'Hide' : 'Show'}
-                    accessibilityLabel={showFinished ? 'Hide finished imports' : 'Show finished imports'}
+                    accessibilityLabel={
+                      showFinished ? 'Hide finished imports' : 'Show finished imports'
+                    }
                     expanded={showFinished}
                     onPress={() => setShowFinished(open => !open)}
                   />
@@ -491,7 +493,6 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
             </View>
           </View>
         ) : null}
-
       </ScrollView>
     </SafeAreaView>
   )
@@ -554,20 +555,21 @@ function ReviewRow({
     </Pressable>
   )
 
-  const thumb = canListenHere && canListen(item) ? (
-    <ListenButton item={item} listening={listening} onToggle={onListen} />
-  ) : item.thumbnail ? (
-    <Image
-      source={{ uri: item.thumbnail }}
-      style={[
-        styles.thumb,
-        isSquareCover(item.thumbnail) && styles.thumbSquare,
-        item.alreadyHave && styles.faded,
-      ]}
-    />
-  ) : (
-    <View style={[styles.thumb, styles.thumbEmpty]} />
-  )
+  const thumb =
+    canListenHere && canListen(item) ? (
+      <ListenButton item={item} listening={listening} onToggle={onListen} />
+    ) : item.thumbnail ? (
+      <Image
+        source={{ uri: item.thumbnail }}
+        style={[
+          styles.thumb,
+          isSquareCover(item.thumbnail) && styles.thumbSquare,
+          item.alreadyHave && styles.faded,
+        ]}
+      />
+    ) : (
+      <View style={[styles.thumb, styles.thumbEmpty]} />
+    )
 
   const rowStyle = [
     styles.itemRow,

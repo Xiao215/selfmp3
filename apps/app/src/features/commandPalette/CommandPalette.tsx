@@ -148,7 +148,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     } else playSong(recent.song.id)
   }
   const recentKey = (recent: RecentItem): string =>
-    recent.kind === 'song' ? `recent-song-${recent.song.id}` : `recent-playlist-${recent.playlist.id}`
+    recent.kind === 'song'
+      ? `recent-song-${recent.song.id}`
+      : `recent-playlist-${recent.playlist.id}`
 
   /** One flat list of everything selectable, so arrow keys work across groups. */
   const entriesFor = (found: PaletteResults): Entry[] => [

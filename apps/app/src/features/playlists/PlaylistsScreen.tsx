@@ -211,9 +211,10 @@ export function PlaylistsScreen(): ReactNode {
                 <Text style={styles.emptyTitle}>Nothing of your own yet</Text>
                 <Text style={styles.emptyHint}>
                   Make a <Text style={styles.emptyStrong}>playlist</Text> and pick the songs, let a{' '}
-                  <Text style={styles.emptyStrong}>smart playlist</Text> pick them from a template like
-                  Most played, or make a <Text style={styles.emptyStrong}>{LIVE_NAME.toLowerCase()} playlist</Text>{' '}
-                  that follows rules and keeps itself up to date.
+                  <Text style={styles.emptyStrong}>smart playlist</Text> pick them from a template
+                  like Most played, or make a{' '}
+                  <Text style={styles.emptyStrong}>{LIVE_NAME.toLowerCase()} playlist</Text> that
+                  follows rules and keeps itself up to date.
                 </Text>
                 <View style={styles.emptyAction}>
                   <Button

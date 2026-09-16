@@ -60,8 +60,20 @@ export function NewPlaylist({
 
   return (
     <>
-      <Popover open={open} onClose={onClose} anchorRef={anchorRef} title="New" width={250} testID="new-playlist-menu">
-        <SheetItem icon={icon(ListMusic)} label="Playlist" detail="You pick" onPress={choose('manual')} />
+      <Popover
+        open={open}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        title="New"
+        width={250}
+        testID="new-playlist-menu"
+      >
+        <SheetItem
+          icon={icon(ListMusic)}
+          label="Playlist"
+          detail="You pick"
+          onPress={choose('manual')}
+        />
         <SheetItem
           icon={icon(Sparkles)}
           label="Smart playlist"
@@ -328,14 +340,22 @@ function SmartDialog({ open, onClose }: { open: boolean; onClose: () => void }):
   const picker = (
     <View style={styles.picker}>
       {wide ? null : (
-        <Pressable onPress={() => setStep('templates')} accessibilityRole="button" style={styles.back}>
+        <Pressable
+          onPress={() => setStep('templates')}
+          accessibilityRole="button"
+          style={styles.back}
+        >
           <ChevronLeft size={16} color={theme.colors.textSecondary} />
           <Text style={styles.backText}>Templates</Text>
         </Pressable>
       )}
       <NameField value={shownName} onChange={setName} label="Playlist name" />
       {template === 'tag' && tags.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+        >
           {tags.map(item => (
             <Pressable
               key={item.id}
@@ -402,7 +422,13 @@ function SmartDialog({ open, onClose }: { open: boolean; onClose: () => void }):
   )
 
   return (
-    <Sheet open={open} onClose={close} title="New smart playlist" width={680} testID="new-smart-playlist">
+    <Sheet
+      open={open}
+      onClose={close}
+      title="New smart playlist"
+      width={680}
+      testID="new-smart-playlist"
+    >
       {wide ? (
         <View style={styles.split}>
           {templates}
@@ -436,7 +462,11 @@ function PickedRow({
       accessibilityRole="checkbox"
       accessibilityState={{ checked: ticked }}
       accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
-      style={({ pressed }) => [styles.pickedRow, pressed && styles.pressed, !ticked && styles.unticked]}
+      style={({ pressed }) => [
+        styles.pickedRow,
+        pressed && styles.pressed,
+        !ticked && styles.unticked,
+      ]}
     >
       <Cover uri={artUri} title={song.album || song.title} size={32} />
       <View style={styles.templateText}>
@@ -517,30 +547,39 @@ function LiveDialog({ open, onClose }: { open: boolean; onClose: () => void }): 
   const matches = count?.key === key ? count.value : null
 
   return (
-    <Sheet open={open} onClose={close} title={`New ${LIVE_NAME.toLowerCase()} playlist`} width={460} testID="new-live-playlist">
+    <Sheet
+      open={open}
+      onClose={close}
+      title={`New ${LIVE_NAME.toLowerCase()} playlist`}
+      width={460}
+      testID="new-live-playlist"
+    >
       <View style={styles.body}>
         <Text style={styles.lede}>Follows rules and updates itself as your library changes.</Text>
         <NameField value={shownName} onChange={setName} label="Playlist name" autoFocus />
         <Text style={styles.section}>START FROM</Text>
         <View style={styles.wrapChips}>
-          {[...LIVE_TEMPLATES.filter(item => item.id !== 'tag' || tag), { id: 'blank' as const, name: 'Blank' }].map(
-            item => (
-              <Pressable
-                key={item.id}
-                onPress={() => setStart(item.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: item.id === start }}
-                style={[styles.chip, item.id === start && { borderColor: accent.accent }]}
-              >
-                <Text style={styles.chipText}>
-                  {item.id === 'tag' && tag ? `Tag: ${tag.name}` : item.name}
-                </Text>
-              </Pressable>
-            ),
-          )}
+          {[
+            ...LIVE_TEMPLATES.filter(item => item.id !== 'tag' || tag),
+            { id: 'blank' as const, name: 'Blank' },
+          ].map(item => (
+            <Pressable
+              key={item.id}
+              onPress={() => setStart(item.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: item.id === start }}
+              style={[styles.chip, item.id === start && { borderColor: accent.accent }]}
+            >
+              <Text style={styles.chipText}>
+                {item.id === 'tag' && tag ? `Tag: ${tag.name}` : item.name}
+              </Text>
+            </Pressable>
+          ))}
         </View>
         <Text style={[styles.count, styles.liveCount, { color: accent.accent }]}>
-          {matches === null ? 'Checking…' : `${matches} ${matches === 1 ? 'song matches' : 'songs match'} today`}
+          {matches === null
+            ? 'Checking…'
+            : `${matches} ${matches === 1 ? 'song matches' : 'songs match'} today`}
         </Text>
         <Text style={styles.hint}>You can change the rules on the next screen.</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -606,7 +645,13 @@ const styles = StyleSheet.create(theme => ({
   templateHint: { color: theme.colors.textMuted, fontSize: 11.5 },
   pressed: { backgroundColor: theme.colors.surface3 },
   disabled: { opacity: 0.45 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingVertical: 4 },
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
   backText: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
   chips: { gap: 6 },
   wrapChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

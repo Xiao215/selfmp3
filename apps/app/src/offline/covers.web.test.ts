@@ -14,7 +14,9 @@ let clearing: Promise<void> = Promise.resolve()
 const port = {
   uriFor: (name: string) => `app://selfmp3/_media/covers/${name}`,
   has: vi.fn(async (name: string) => kept.has(name)),
-  keep: vi.fn(async (name: string, _url: string, _headers?: Record<string, string>) => void kept.add(name)),
+  keep: vi.fn(
+    async (name: string, _url: string, _headers?: Record<string, string>) => void kept.add(name),
+  ),
   list: vi.fn(async () => [...kept]),
   forget: vi.fn(async () => {
     await clearing
@@ -27,7 +29,11 @@ const replica = {
   session: { loadSession: vi.fn(async () => ({ token: 't' })) },
 }
 
-vi.mock('../ports/coverFiles', () => ({ get coverFiles() { return port } }))
+vi.mock('../ports/coverFiles', () => ({
+  get coverFiles() {
+    return port
+  },
+}))
 vi.mock('../replica', () => replica)
 
 async function covers() {
@@ -39,7 +45,8 @@ describe('covers on the web platforms', () => {
     vi.resetModules()
     kept.clear()
     clearing = Promise.resolve()
-    for (const fn of [port.has, port.keep, port.list, port.forget, replica.library.cloudCoverKey]) fn.mockClear()
+    for (const fn of [port.has, port.keep, port.list, port.forget, replica.library.cloudCoverKey])
+      fn.mockClear()
     replica.session.loadSession.mockResolvedValue({ token: 't' })
   })
   afterEach(() => {
@@ -92,7 +99,9 @@ describe('covers on the web platforms', () => {
     expect(coversNow().size).toBe(2)
 
     let finishClearing = () => undefined as void
-    clearing = new Promise<void>(resolve => { finishClearing = resolve })
+    clearing = new Promise<void>(resolve => {
+      finishClearing = resolve
+    })
     const forgetting = forgetCovers()
     // The clear has not landed; a render asks in the meantime.
     expect(coversNow().size).toBe(0)

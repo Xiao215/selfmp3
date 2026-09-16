@@ -190,7 +190,11 @@ function PhoneNowPlaying(): ReactNode {
   // modal's own slide, the same one the chevron plays, so the two feel alike
   // and there is never a torn edge between the page and the frame behind it.
   const [pull] = useState(() => new Animated.Value(0))
-  const give = pull.interpolate({ inputRange: [0, 600], outputRange: [0, 150], extrapolate: 'clamp' })
+  const give = pull.interpolate({
+    inputRange: [0, 600],
+    outputRange: [0, 150],
+    extrapolate: 'clamp',
+  })
   const dismiss = useMemo(() => {
     const settle = (): void => {
       Animated.spring(pull, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start()
@@ -826,9 +830,7 @@ function QueuePanel({
       <FlatList
         data={lines}
         keyExtractor={line =>
-          line.kind === 'song'
-            ? `${player.songs[line.index]?.id ?? 0}-${line.index}`
-            : line.kind
+          line.kind === 'song' ? `${player.songs[line.index]?.id ?? 0}-${line.index}` : line.kind
         }
         renderItem={renderItem}
         initialNumToRender={14}

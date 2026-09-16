@@ -264,7 +264,11 @@ export const PlaylistSongRow = memo(function PlaylistSongRow({
 
       {wide && manual && !selecting && onRemove ? (
         <View style={{ opacity: revealed ? 1 : 0 }}>
-          <IconButton onPress={onRemove} label={`Remove ${song.title} from ${playlistName}`} caption="Remove from playlist">
+          <IconButton
+            onPress={onRemove}
+            label={`Remove ${song.title} from ${playlistName}`}
+            caption="Remove from playlist"
+          >
             <X size={15} color={theme.colors.textMuted} />
           </IconButton>
         </View>

@@ -9,7 +9,9 @@ describe('where a back link goes', () => {
   })
 
   it('goes back when the page it names is just behind', () => {
-    expect(cameFrom(stack('index', 'playlists/index', 'playlists/[id]'), 'playlists/index')).toBe(true)
+    expect(cameFrom(stack('index', 'playlists/index', 'playlists/[id]'), 'playlists/index')).toBe(
+      true,
+    )
   })
 
   it('does not, after a playlist made from the library, or a deep link', () => {

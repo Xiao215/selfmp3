@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { runLimited } from './limited.js'
 
 /** A promise and the means to settle it from outside. */
-function deferred(): { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } {
+function deferred(): {
+  promise: Promise<void>
+  resolve: () => void
+  reject: (error: Error) => void
+} {
   let resolve: () => void = () => undefined
   let reject: (error: Error) => void = () => undefined
   const promise = new Promise<void>((res, rej) => {

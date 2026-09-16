@@ -105,14 +105,20 @@ export function Sidebar(): ReactNode {
   const { fromCloud } = useConnection()
 
   return (
-    <View style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]} testID="sidebar">
+    <View
+      style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]}
+      testID="sidebar"
+    >
       {/*
         The installed desktop app's traffic lights sit over this corner. The strip
         is what the window is dragged by, since there is no title bar above it
         any more; it is nothing at all in a browser, where the inset is zero.
       */}
       {titleBarInset > 0 ? (
-        <View nativeID={TITLE_BAR_DRAG_ID} style={[styles.titleBarDrag, { height: titleBarInset }]} />
+        <View
+          nativeID={TITLE_BAR_DRAG_ID}
+          style={[styles.titleBarDrag, { height: titleBarInset }]}
+        />
       ) : null}
       <View style={styles.brand}>
         <BrandMark size={20} />
@@ -636,7 +642,10 @@ function Foot(): ReactNode {
   return (
     <View style={styles.foot}>
       <Pressable
-        style={({ pressed }) => [styles.status, pressed && { backgroundColor: theme.colors.surface2 }]}
+        style={({ pressed }) => [
+          styles.status,
+          pressed && { backgroundColor: theme.colors.surface2 },
+        ]}
         onPress={() => router.navigate('/settings')}
         accessibilityRole="button"
         accessibilityLabel={library.data ? `${label}, ${detail}` : label}
@@ -725,7 +734,12 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   playlists: { gap: 1, marginTop: -space.sm },
-  playlistsHead: { flexDirection: 'row', alignItems: 'center', paddingRight: 4, borderRadius: radius.md },
+  playlistsHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 4,
+    borderRadius: radius.md,
+  },
   playlistsHeadMain: {
     flex: 1,
     minWidth: 0,

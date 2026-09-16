@@ -5,7 +5,11 @@ import { createThrottle } from './throttle.js'
 describe('createThrottle', () => {
   it('delivers the first request at once', () => {
     let delivered = 0
-    const throttle = createThrottle(() => (delivered += 1), 250, () => 0)
+    const throttle = createThrottle(
+      () => (delivered += 1),
+      250,
+      () => 0,
+    )
     throttle.request()
     expect(delivered).toBe(1)
   })
@@ -13,7 +17,11 @@ describe('createThrottle', () => {
   it('holds a burst to one delivery per interval', () => {
     let now = 0
     let delivered = 0
-    const throttle = createThrottle(() => (delivered += 1), 250, () => now)
+    const throttle = createThrottle(
+      () => (delivered += 1),
+      250,
+      () => now,
+    )
     for (let chunk = 0; chunk < 1000; chunk += 1) {
       throttle.request()
       now += 1
@@ -25,7 +33,11 @@ describe('createThrottle', () => {
   it('delivers again as soon as the interval is up', () => {
     let now = 0
     let delivered = 0
-    const throttle = createThrottle(() => (delivered += 1), 250, () => now)
+    const throttle = createThrottle(
+      () => (delivered += 1),
+      250,
+      () => now,
+    )
     throttle.request()
     now = 249
     throttle.request()
@@ -38,7 +50,11 @@ describe('createThrottle', () => {
   it('counts a delivery made some other way', () => {
     let now = 0
     let delivered = 0
-    const throttle = createThrottle(() => (delivered += 1), 250, () => now)
+    const throttle = createThrottle(
+      () => (delivered += 1),
+      250,
+      () => now,
+    )
     now = 1000
     throttle.settle()
     now = 1100

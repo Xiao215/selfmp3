@@ -37,7 +37,8 @@ describe('settings', () => {
   })
 
   it('lists keyboard shortcuts only in the installed app, which has a menu of them', () => {
-    const ids = (...args: Parameters<typeof sectionsFor>) => sectionsFor(...args).map(section => section.id)
+    const ids = (...args: Parameters<typeof sectionsFor>) =>
+      sectionsFor(...args).map(section => section.id)
     // A browser tab has a keyboard and no shortcuts of its own.
     expect(ids(false, false, true, false)).not.toContain('shortcuts')
     expect(ids(false, true, false, true)).not.toContain('shortcuts')

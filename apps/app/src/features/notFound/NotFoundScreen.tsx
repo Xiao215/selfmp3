@@ -53,7 +53,11 @@ export function NotFoundScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.body} testID="not-found">
-        <View style={styles.wave} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View
+          style={styles.wave}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
           {BARS.map((height, index) => (
             <View
               key={index}
@@ -63,8 +67,7 @@ export function NotFoundScreen(): ReactNode {
                   ? styles.barMissing
                   : {
                       height,
-                      backgroundColor:
-                        index === ACCENT_BAR ? accent.accent : theme.colors.surface3,
+                      backgroundColor: index === ACCENT_BAR ? accent.accent : theme.colors.surface3,
                     },
               ]}
             />
@@ -77,8 +80,8 @@ export function NotFoundScreen(): ReactNode {
         <Text style={styles.line}>
           {wide ? (
             <>
-              <Text style={styles.address}>{shownAddress(pathname)}</Text> isn’t a page in
-              self.mp3. It may be an old link.
+              <Text style={styles.address}>{shownAddress(pathname)}</Text> isn’t a page in self.mp3.
+              It may be an old link.
             </>
           ) : (
             'It may be an old link.'
@@ -162,8 +165,20 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 460,
   },
   address: { color: theme.colors.textSecondary, fontWeight: '600' },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.sm, marginTop: space.sm },
-  places: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: space.xs },
+  buttons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.sm,
+    marginTop: space.sm,
+  },
+  places: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: space.xs,
+  },
   place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.sm },
   placePressed: { backgroundColor: theme.colors.surface2 },
   placeText: { color: theme.colors.textMuted, fontSize: 13 },

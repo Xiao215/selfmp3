@@ -90,7 +90,12 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   chipText: { fontSize: 12 },
-  edit: { marginLeft: 'auto', paddingVertical: 4, paddingHorizontal: space.sm, borderRadius: radius.sm },
+  edit: {
+    marginLeft: 'auto',
+    paddingVertical: 4,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.sm,
+  },
   editText: { fontSize: 12.5, fontWeight: '600' },
   pressed: { backgroundColor: theme.colors.surface2 },
 }))

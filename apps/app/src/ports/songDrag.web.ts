@@ -47,7 +47,10 @@ export function useSongDragSource(
       const carried = ids.current()
       if (!event.dataTransfer || carried.length === 0) return
       event.dataTransfer.setData(TYPE, JSON.stringify(carried))
-      event.dataTransfer.setData('text/plain', `${carried.length} song${carried.length === 1 ? '' : 's'}`)
+      event.dataTransfer.setData(
+        'text/plain',
+        `${carried.length} song${carried.length === 1 ? '' : 's'}`,
+      )
       event.dataTransfer.effectAllowed = 'copy'
       setDragging(true)
     }

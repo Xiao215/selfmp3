@@ -123,7 +123,15 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   }, [forgetCachedServer])
 
   const value = useMemo<ConnectionContextValue>(
-    () => ({ connection, fromCloud, status, connect, disconnect, signedInToCloud, signedOutOfCloud }),
+    () => ({
+      connection,
+      fromCloud,
+      status,
+      connect,
+      disconnect,
+      signedInToCloud,
+      signedOutOfCloud,
+    }),
     [connection, fromCloud, status, connect, disconnect, signedInToCloud, signedOutOfCloud],
   )
 

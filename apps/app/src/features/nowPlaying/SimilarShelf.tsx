@@ -38,7 +38,11 @@ export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
           <Text style={styles.queueAllText}>Queue all</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.list}
+      >
         {songs.map(song => (
           <Pressable
             key={song.id}

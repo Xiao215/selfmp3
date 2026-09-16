@@ -185,8 +185,10 @@ export function parseClock(text: string): number | null {
   return null
 }
 
-const labelOf = <T extends string>(options: readonly { value: T; label: string }[], value: T): string =>
-  options.find(option => option.value === value)?.label ?? value
+const labelOf = <T extends string>(
+  options: readonly { value: T; label: string }[],
+  value: T,
+): string => options.find(option => option.value === value)?.label ?? value
 
 const FIELD_LABELS = new Map(
   FIELD_GROUPS.flatMap(group => group.options.map(option => [option.value, option.label] as const)),
@@ -266,9 +268,7 @@ export function describeOrder(rules: Pick<SmartRules, 'orderBy' | 'order'>): str
  * `describeOrder`, so the select and the summary say the same thing. Random
  * has no direction, and the builder hides the select for it.
  */
-export function orderOptions(
-  orderBy: SongSortField,
-): readonly [Option<'desc'>, Option<'asc'>] {
+export function orderOptions(orderBy: SongSortField): readonly [Option<'desc'>, Option<'asc'>] {
   const pair = (desc: string, asc: string): readonly [Option<'desc'>, Option<'asc'>] => [
     { value: 'desc', label: desc },
     { value: 'asc', label: asc },
@@ -302,7 +302,10 @@ export function joinWord(index: number, match: SmartRules['match']): string {
 export function matchLabel(count: number | null): { number: string; text: string } {
   if (count === null) return { number: '', text: 'Checking…' }
   if (count === 0) return { number: '', text: 'Nothing matches yet' }
-  return { number: count.toLocaleString('en-US'), text: count === 1 ? 'song matches' : 'songs match' }
+  return {
+    number: count.toLocaleString('en-US'),
+    text: count === 1 ? 'song matches' : 'songs match',
+  }
 }
 
 /** The unit written after a number, where the number needs one. */

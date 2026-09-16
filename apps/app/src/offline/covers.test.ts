@@ -22,7 +22,8 @@ class FakeDirectory {
     disk.add(this.uri)
   }
   delete(): void {
-    for (const path of [...disk]) if (path === this.uri || path.startsWith(`${this.uri}/`)) disk.delete(path)
+    for (const path of [...disk])
+      if (path === this.uri || path.startsWith(`${this.uri}/`)) disk.delete(path)
   }
   list(): FakeFile[] {
     return [...disk]
@@ -81,7 +82,9 @@ describe('covers on a phone', () => {
     const uris = await Promise.all([ensureCover(7), ensureCover(7)])
     expect(uris).toEqual(Array(2).fill('file:///cache/covers/hash-7.jpg'))
     expect(FakeFile.downloadFileAsync).toHaveBeenCalledTimes(1)
-    expect(FakeFile.downloadFileAsync.mock.calls[0]?.[0]).toBe('https://doorman.example/v1/files/covers/hash-7.jpg')
+    expect(FakeFile.downloadFileAsync.mock.calls[0]?.[0]).toBe(
+      'https://doorman.example/v1/files/covers/hash-7.jpg',
+    )
   })
 
   it('forgets everything at sign-out: memory and both folders', async () => {

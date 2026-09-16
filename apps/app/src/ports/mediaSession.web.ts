@@ -64,7 +64,15 @@ function handlers(actions: MediaSessionActions | null): void {
     }
   }
   if (!actions) {
-    for (const action of ['play', 'pause', 'nexttrack', 'previoustrack', 'seekto', 'seekforward', 'seekbackward'] as const) {
+    for (const action of [
+      'play',
+      'pause',
+      'nexttrack',
+      'previoustrack',
+      'seekto',
+      'seekforward',
+      'seekbackward',
+    ] as const) {
       set(action, null)
     }
     return

@@ -62,7 +62,7 @@ describe('isRoute', () => {
 })
 
 describe('contentTypeFor', () => {
-  it('knows the export\'s kinds', () => {
+  it("knows the export's kinds", () => {
     expect(contentTypeFor('/index.html')).toBe('text/html; charset=utf-8')
     expect(contentTypeFor('/_expo/static/js/web/index-abc.js')).toBe(
       'text/javascript; charset=utf-8',

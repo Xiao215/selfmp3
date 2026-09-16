@@ -88,7 +88,10 @@ export function samePlayback(a: SongPlaybackState, b: SongPlaybackState): boolea
  * null for every other row. A primitive, so a song change wakes the two rows
  * whose answer changed and a pause wakes one — not the whole list.
  */
-export function songPlayback(state: SongPlaybackState, songId: number): 'playing' | 'paused' | null {
+export function songPlayback(
+  state: SongPlaybackState,
+  songId: number,
+): 'playing' | 'paused' | null {
   if (state.songId !== songId) return null
   return state.playing ? 'playing' : 'paused'
 }
@@ -100,10 +103,9 @@ export function songPlayback(state: SongPlaybackState, songId: number): 'playing
  * progress store. Everything else (playing, volume, loop points…) is rare, and
  * is what the provider still keeps in state.
  */
-export function differsBesidesClock<T extends { currentTime: number; duration: number; buffered: number }>(
-  a: T,
-  b: T,
-): boolean {
+export function differsBesidesClock<
+  T extends { currentTime: number; duration: number; buffered: number },
+>(a: T, b: T): boolean {
   for (const key of Object.keys(b) as (keyof T)[]) {
     if (key === 'currentTime' || key === 'duration' || key === 'buffered') continue
     if (a[key] !== b[key]) return true
@@ -134,6 +136,8 @@ export function positionJumped(
   now: number,
   threshold = 1.5,
 ): boolean {
-  const expected = last.playing ? last.position + ((now - last.at) / 1000) * last.rate : last.position
+  const expected = last.playing
+    ? last.position + ((now - last.at) / 1000) * last.rate
+    : last.position
   return Math.abs(position - expected) > threshold
 }

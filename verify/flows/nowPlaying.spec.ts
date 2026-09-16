@@ -1,11 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import {
-  libraryReady,
-  playSong,
-  skipIfNoLibrary,
-  songRows,
-} from './helpers.js'
+import { libraryReady, playSong, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
  * Now Playing on a computer, driven from the player bar.
@@ -90,7 +85,10 @@ test.describe('now playing', () => {
   })
 
   test('a phone shows similar songs under the controls, and plays one', async ({ page }, info) => {
-    test.skip(info.project.name !== 'phone', 'the shelf is the phone page’s; the stage has no room for it')
+    test.skip(
+      info.project.name !== 'phone',
+      'the shelf is the phone page’s; the stage has no room for it',
+    )
     await page.goto('/')
     await libraryReady(page)
     await skipIfNoLibrary(page, 3)

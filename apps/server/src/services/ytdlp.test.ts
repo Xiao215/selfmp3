@@ -68,9 +68,18 @@ describe('isVideoEntry', () => {
   it('keeps the songs of a search page and drops its albums, playlists and channels', () => {
     // What `--flat-playlist` lists for music.youtube.com/search?q=yoasobi.
     const song = { ie_key: 'Youtube', url: 'https://music.youtube.com/watch?v=k0g04t7ZeSw' }
-    const album = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT' }
-    const playlist = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n' }
-    const artist = { ie_key: 'YoutubeTab', url: 'https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw' }
+    const album = {
+      ie_key: 'YoutubeTab',
+      url: 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT',
+    }
+    const playlist = {
+      ie_key: 'YoutubeTab',
+      url: 'https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n',
+    }
+    const artist = {
+      ie_key: 'YoutubeTab',
+      url: 'https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw',
+    }
     expect([song, album, playlist, artist].map(isVideoEntry)).toEqual([true, false, false, false])
   })
 

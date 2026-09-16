@@ -25,7 +25,9 @@ test.describe('selecting songs', () => {
     // or so. The library's own count is the one select-all states.
     const drawn = await rows.count()
     const stated = async (control: Locator): Promise<number> => {
-      const name = await control.evaluate(el => el.getAttribute('aria-label') ?? el.textContent ?? '')
+      const name = await control.evaluate(
+        el => el.getAttribute('aria-label') ?? el.textContent ?? '',
+      )
       return Number(/^Select all (\d+) /.exec(name)?.[1])
     }
     const first = await titleOf(rows.nth(0))
@@ -56,12 +58,16 @@ test.describe('selecting songs', () => {
     let total: number
     if (info.project.name === 'phone') {
       await page.getByRole('button', { name: /^More$/ }).click()
-      const selectAll = page.getByRole('menuitem', { name: /^Select all \d+ songs? in your library$/ })
+      const selectAll = page.getByRole('menuitem', {
+        name: /^Select all \d+ songs? in your library$/,
+      })
       total = await stated(selectAll)
       await selectAll.click()
       await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
     } else {
-      const selectAll = page.getByRole('checkbox', { name: /^Select all \d+ songs? in your library$/ })
+      const selectAll = page.getByRole('checkbox', {
+        name: /^Select all \d+ songs? in your library$/,
+      })
       total = await stated(selectAll)
       await selectAll.click()
       await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()

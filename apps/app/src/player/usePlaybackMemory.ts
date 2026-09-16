@@ -19,8 +19,7 @@ const SAVE_EVERY_MS = 5_000
  * オリオン" beside a bar that had just come back to アイドル.
  */
 export type PlaybackMemory =
-  | { readonly settled: false }
-  | { readonly settled: true; readonly restoredSongId: number | null }
+  { readonly settled: false } | { readonly settled: true; readonly restoredSongId: number | null }
 
 let memory: PlaybackMemory = { settled: false }
 const memoryListeners = new Set<() => void>()

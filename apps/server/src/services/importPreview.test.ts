@@ -117,7 +117,7 @@ describe('buildImportPreview with an album or playlist link', () => {
   const albumPage = 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT'
   const playlistPage = 'https://music.youtube.com/playlist?list=PLcKNQQ5neMz2J5RP49n'
 
-  it("takes an album from YouTube Music, named after it, with the album on every song", async () => {
+  it('takes an album from YouTube Music, named after it, with the album on every song', async () => {
     const { deps, probed } = previewDeps({
       list: {
         title: 'THE BOOK',
@@ -147,7 +147,11 @@ describe('buildImportPreview with a search link', () => {
   it("takes the search's songs from YouTube Music, named after it, and never asks yt-dlp", async () => {
     const { deps, probed } = previewDeps({
       search: [
-        { ...track('https://y.test/1', '夜に駆ける'), album: '夜に駆ける', thumbnail: 'https://yt3.test/a' },
+        {
+          ...track('https://y.test/1', '夜に駆ける'),
+          album: '夜に駆ける',
+          thumbnail: 'https://yt3.test/a',
+        },
         track('https://y.test/2', '怪物'),
       ],
       have: [{ artist: 'YOASOBI', title: '怪物' }],

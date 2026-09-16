@@ -42,7 +42,8 @@ const ACCENT = '#7c6ae6'
 const arrowFrom = APP_X + ICON_SIZE / 2 + 22
 const arrowTo = APPLICATIONS_X - ICON_SIZE / 2 - 24
 
-const svg = scale => `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH * scale}" height="${HEIGHT * scale}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+const svg =
+  scale => `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH * scale}" height="${HEIGHT * scale}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
   <rect width="${WIDTH}" height="${HEIGHT}" fill="#f7f5fb"/>
   <g fill="none" stroke="${ACCENT}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M${arrowFrom} ${ICON_Y} H${arrowTo - 4}"/>
@@ -56,6 +57,11 @@ for (const [scale, file] of [
   [1, target],
   [2, target.replace(/\.png$/, '@2x.png')],
 ]) {
-  await writeFile(file, await sharp(Buffer.from(svg(scale))).png().toBuffer())
+  await writeFile(
+    file,
+    await sharp(Buffer.from(svg(scale)))
+      .png()
+      .toBuffer(),
+  )
   console.log(`dmg background ${WIDTH * scale}×${HEIGHT * scale} → ${file}`)
 }

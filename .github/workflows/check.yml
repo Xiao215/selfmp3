@@ -44,6 +44,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Formatting is checked, never written, in CI: a job that reformats the
+      # branch would push past the very drift this is here to catch.
+      - name: Formatting
+        run: npm run format:check
+
       - name: Test
         run: npm run test
 

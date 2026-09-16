@@ -21,7 +21,8 @@ const appSrc = join(__dirname, '..', '..', '..', 'app', 'src')
 
 /** Every `import … from './base'` or `export … from './base'` that is not `type`-only. */
 function valueImportsOf(source: string, base: string): string[] {
-  const statement = /\b(?:import|export)\b((?:(?!\b(?:import|export)\b)[\s\S])*?)\bfrom\s*['"]\.\/([^'"]+)['"]/g
+  const statement =
+    /\b(?:import|export)\b((?:(?!\b(?:import|export)\b)[\s\S])*?)\bfrom\s*['"]\.\/([^'"]+)['"]/g
   return [...source.matchAll(statement)]
     .filter(match => match[2] === base && !/^\s*type\b/.test(match[1] ?? ''))
     .map(match => match[0])
@@ -42,7 +43,9 @@ describe('a .web file and its native twin', () => {
     )
     const offenders = webFiles.flatMap(file => {
       const base = (file.split(/[\\/]/).pop() ?? '').replace(/\.web\.tsx?$/, '')
-      return valueImportsOf(readFileSync(join(appSrc, file), 'utf8'), base).map(found => `${file}: ${found}`)
+      return valueImportsOf(readFileSync(join(appSrc, file), 'utf8'), base).map(
+        found => `${file}: ${found}`,
+      )
     })
 
     expect(webFiles.length).toBeGreaterThan(0)

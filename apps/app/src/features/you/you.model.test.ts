@@ -14,7 +14,12 @@ describe('the You page', () => {
   })
 
   it('says nothing it does not know yet, and "All tagged" once nothing waits', () => {
-    const loading = youRows({ fromCloud: false, plays: undefined, untagged: undefined, tags: undefined })
+    const loading = youRows({
+      fromCloud: false,
+      plays: undefined,
+      untagged: undefined,
+      tags: undefined,
+    })
     expect(loading.map(row => row.hint)).toEqual([null, null, null, null])
     expect(loading.map(row => row.count)).toEqual([null, null, null, null])
 

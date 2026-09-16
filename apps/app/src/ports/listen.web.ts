@@ -41,7 +41,11 @@ export function createListenAudio(): ListenAudio | null {
 
   const sync = (): void => {
     if (!audio.getAttribute('src')) return
-    const state = { status: statusOf(audio), currentTime: audio.currentTime, duration: audio.duration }
+    const state = {
+      status: statusOf(audio),
+      currentTime: audio.currentTime,
+      duration: audio.duration,
+    }
     for (const listener of listeners) listener(state)
   }
   for (const name of EVENTS) audio.addEventListener(name, sync)

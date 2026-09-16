@@ -368,7 +368,9 @@ export function SelectionBar({
             <SheetItem
               icon={<CheckSquare size={15} color={theme.colors.textSecondary} />}
               label={
-                allSelected ? `Deselect all ${total} ${totalWord}` : `Select all ${total} ${totalWord} ${scope}`
+                allSelected
+                  ? `Deselect all ${total} ${totalWord}`
+                  : `Select all ${total} ${totalWord} ${scope}`
               }
               onPress={act(allSelected ? onDeselectAll : onSelectAll)}
             />

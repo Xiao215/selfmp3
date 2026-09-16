@@ -20,7 +20,9 @@ function curveOf(db: readonly number[], onset: readonly number[]): MotionCurveLi
   return {
     rate: 20,
     duration: db.length / 20,
-    loudness: Uint8Array.from(db, d => Math.round(((Math.max(-60, Math.min(0, d)) + 60) / 60) * 255)),
+    loudness: Uint8Array.from(db, d =>
+      Math.round(((Math.max(-60, Math.min(0, d)) + 60) / 60) * 255),
+    ),
     onset: Uint8Array.from(onset, o => Math.round(o * 255)),
   }
 }
@@ -60,7 +62,12 @@ describe('reading the stored curve', () => {
   })
 
   it('is silent for an empty curve', () => {
-    const empty: MotionCurveLike = { rate: 20, duration: 0, loudness: new Uint8Array(), onset: new Uint8Array() }
+    const empty: MotionCurveLike = {
+      rate: 20,
+      duration: 0,
+      loudness: new Uint8Array(),
+      onset: new Uint8Array(),
+    }
     expect(sampleCurve(empty, 0)).toEqual({ level: 0, onset: 0 })
   })
 
@@ -77,7 +84,10 @@ describe('finding hits in the stored curve', () => {
   it('finds each hit in a dense chorus whose onset sits near the top every frame', () => {
     // 4 s at 20 fps: onset 0.86–0.9 throughout, a full-scale hit every half second.
     const onset = Array.from({ length: 80 }, (_, i) => (i % 10 === 0 ? 1 : 0.86 + (i % 3) * 0.02))
-    const hits = curveHits(Uint8Array.from(onset, o => Math.round(o * 255)), 20)
+    const hits = curveHits(
+      Uint8Array.from(onset, o => Math.round(o * 255)),
+      20,
+    )
     const fired = [...hits].flatMap((h, i) => (h >= 0.45 ? [i] : []))
     expect(fired).toEqual([0, 10, 20, 30, 40, 50, 60, 70])
   })
@@ -159,7 +169,10 @@ describe('the live sampler', () => {
   const steady = (byte: number): number[] => Array(128).fill(byte)
 
   it('reads silence as nothing', () => {
-    const sampler = liveSampler(fakeAnalyser(() => steady(0)), () => 0)
+    const sampler = liveSampler(
+      fakeAnalyser(() => steady(0)),
+      () => 0,
+    )
     const bands = new Float32Array(16)
     expect(sampler.sample(0, bands)).toEqual({ level: 0, onset: 0 })
     expect(Array.from(bands).every(v => v === 0)).toBe(true)
@@ -167,8 +180,14 @@ describe('the live sampler', () => {
 
   it('reads a loud passage higher than a quiet one', () => {
     const bands = new Float32Array(16)
-    const quiet = liveSampler(fakeAnalyser(() => steady(120)), () => 0).sample(0, bands).level
-    const loud = liveSampler(fakeAnalyser(() => steady(230)), () => 0).sample(0, bands).level
+    const quiet = liveSampler(
+      fakeAnalyser(() => steady(120)),
+      () => 0,
+    ).sample(0, bands).level
+    const loud = liveSampler(
+      fakeAnalyser(() => steady(230)),
+      () => 0,
+    ).sample(0, bands).level
     expect(loud).toBeGreaterThan(quiet * 1.8)
     expect(loud).toBeLessThanOrEqual(1)
   })
@@ -245,7 +264,10 @@ describe('the live sampler', () => {
   })
 
   it('fills the bands low to high from the usable bins', () => {
-    const sampler = liveSampler(fakeAnalyser(() => Array.from({ length: 128 }, (_, i) => 255 - i * 2)), () => 0)
+    const sampler = liveSampler(
+      fakeAnalyser(() => Array.from({ length: 128 }, (_, i) => 255 - i * 2)),
+      () => 0,
+    )
     const bands = new Float32Array(12)
     sampler.sample(0, bands)
     expect(bands[0]!).toBeGreaterThan(bands[11]!)
@@ -268,9 +290,15 @@ describe('choosing a sampler', () => {
   it('listens where it can, then reads the curve, then keeps the tempo', () => {
     expect(chooseSampler({ canHear: true, analyser, curve, feel, songId: 1 }).source).toBe('live')
     expect(chooseSampler({ canHear: false, analyser, curve, feel, songId: 1 }).source).toBe('curve')
-    expect(chooseSampler({ canHear: true, analyser: null, curve, feel, songId: 1 }).source).toBe('curve')
-    expect(chooseSampler({ canHear: false, analyser: null, curve: null, feel, songId: 1 }).source).toBe('beat')
+    expect(chooseSampler({ canHear: true, analyser: null, curve, feel, songId: 1 }).source).toBe(
+      'curve',
+    )
+    expect(
+      chooseSampler({ canHear: false, analyser: null, curve: null, feel, songId: 1 }).source,
+    ).toBe('beat')
     const empty = curveOf([], [])
-    expect(chooseSampler({ canHear: false, analyser: null, curve: empty, feel, songId: 1 }).source).toBe('beat')
+    expect(
+      chooseSampler({ canHear: false, analyser: null, curve: empty, feel, songId: 1 }).source,
+    ).toBe('beat')
   })
 })

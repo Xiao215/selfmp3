@@ -4,12 +4,12 @@ import { DeepLinks, deepLinkFromArgv } from './deepLinks.js'
 
 describe('deepLinkFromArgv', () => {
   it('finds the URL wherever the OS put it', () => {
-    expect(deepLinkFromArgv(['/Applications/self.mp3.app', 'selfmp3://sign-in#signin-code=A-B'])).toBe(
-      'selfmp3://sign-in#signin-code=A-B',
-    )
     expect(
-      deepLinkFromArgv(['electron', '.', '--inspect', 'selfmp3://now-playing']),
-    ).toBe('selfmp3://now-playing')
+      deepLinkFromArgv(['/Applications/self.mp3.app', 'selfmp3://sign-in#signin-code=A-B']),
+    ).toBe('selfmp3://sign-in#signin-code=A-B')
+    expect(deepLinkFromArgv(['electron', '.', '--inspect', 'selfmp3://now-playing'])).toBe(
+      'selfmp3://now-playing',
+    )
   })
 
   it('answers null for an ordinary launch', () => {

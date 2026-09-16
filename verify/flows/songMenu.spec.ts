@@ -48,7 +48,9 @@ test.describe('the song menu', () => {
     // The similar pair opens under its row, in place.
     await page.getByRole('menuitem', { name: /^Similar songs/ }).click()
     await expect(page.getByRole('menuitem', { name: 'Play similar', exact: true })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: 'Add similar to queue', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('menuitem', { name: 'Add similar to queue', exact: true }),
+    ).toBeVisible()
 
     await page.getByRole('menuitem', { name: 'Song details…', exact: true }).click()
     const details = page.getByRole('dialog').filter({ hasText: 'History' })

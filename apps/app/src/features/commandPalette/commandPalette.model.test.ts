@@ -59,7 +59,9 @@ describe('the command palette', () => {
   })
 
   it('names the destinations the way the sidebar does', () => {
-    expect(paletteCommands(1).find(command => command.id === 'nav-stats')?.label).toBe('Go to Stats')
+    expect(paletteCommands(1).find(command => command.id === 'nav-stats')?.label).toBe(
+      'Go to Stats',
+    )
   })
 
   it('offers what was played lately, the loaded song first', () => {
@@ -74,7 +76,9 @@ describe('the command palette', () => {
       playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
     }
     const keys = (items: readonly RecentItem[]) =>
-      items.map(item => (item.kind === 'song' ? `song-${item.song.id}` : `playlist-${item.playlist.id}`))
+      items.map(item =>
+        item.kind === 'song' ? `song-${item.song.id}` : `playlist-${item.playlist.id}`,
+      )
     expect(keys(recentItems(dated))).toEqual(['song-2', 'playlist-9', 'song-1'])
     expect(keys(recentItems(dated, 3))).toEqual(['song-3', 'song-2', 'playlist-9', 'song-1'])
     expect(keys(recentItems(dated, 1, 2))).toEqual(['song-1', 'song-2'])

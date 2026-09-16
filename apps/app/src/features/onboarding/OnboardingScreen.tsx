@@ -80,8 +80,8 @@ export function OnboardingScreen(): ReactNode {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.wordmark}>self.mp3</Text>
           <Text style={styles.blurb}>
-            Point this at the computer running the server. On a phone that means the Tailscale name, so
-            it keeps working away from home.
+            Point this at the computer running the server. On a phone that means the Tailscale name,
+            so it keeps working away from home.
           </Text>
 
           <Text style={styles.label}>Server address</Text>

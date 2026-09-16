@@ -38,7 +38,9 @@ test.describe('command palette', () => {
 
     // With nothing typed, what is playing leads the list.
     await search.click()
-    await expect(page.getByRole('option', { name: new RegExp(`^${escaped(title)}, `) }).first()).toBeVisible()
+    await expect(
+      page.getByRole('option', { name: new RegExp(`^${escaped(title)}, `) }).first(),
+    ).toBeVisible()
     await box.fill('Settings')
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/settings/)

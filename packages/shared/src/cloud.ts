@@ -25,10 +25,11 @@ export function newUid(random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRa
 }
 
 function fillRandom(bytes: Uint8Array<ArrayBuffer>): void {
-  const source = (globalThis as {
-    crypto?: { getRandomValues?: (array: Uint8Array<ArrayBuffer>) => void }
-  })
-    .crypto
+  const source = (
+    globalThis as {
+      crypto?: { getRandomValues?: (array: Uint8Array<ArrayBuffer>) => void }
+    }
+  ).crypto
   if (source?.getRandomValues) {
     source.getRandomValues(bytes)
     return

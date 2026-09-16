@@ -19,14 +19,14 @@ describe('signingTier', () => {
   })
 
   it('signs with a certificate from this Mac’s keychain when CSC_NAME names one', () => {
-    expect(
-      signingTier({ CSC_NAME: '  Apple Development: me@example.com (2534D99VND)  ' }),
-    ).toEqual({
-      tier: 'development',
-      identity: 'Apple Development: me@example.com (2534D99VND)',
-      notarising: false,
-      canInstallUpdates: false,
-    })
+    expect(signingTier({ CSC_NAME: '  Apple Development: me@example.com (2534D99VND)  ' })).toEqual(
+      {
+        tier: 'development',
+        identity: 'Apple Development: me@example.com (2534D99VND)',
+        notarising: false,
+        canInstallUpdates: false,
+      },
+    )
   })
 
   it('lets a Developer ID certificate win over a keychain name', () => {
@@ -43,7 +43,9 @@ describe('signingTier', () => {
     const api = { APPLE_API_KEY: 'k', APPLE_API_KEY_ID: 'i', APPLE_API_ISSUER: 's' }
     const p12 = { CSC_LINK: 'file:///cert.p12', CSC_KEY_PASSWORD: 'secret' }
     expect(signingTier({ ...p12, ...api }).notarising).toBe(true)
-    expect(signingTier({ ...p12, APPLE_API_KEY: 'k', APPLE_API_KEY_ID: 'i' }).notarising).toBe(false)
+    expect(signingTier({ ...p12, APPLE_API_KEY: 'k', APPLE_API_KEY_ID: 'i' }).notarising).toBe(
+      false,
+    )
     expect(signingTier({ CSC_NAME: 'Apple Development: me', ...api }).notarising).toBe(false)
   })
 

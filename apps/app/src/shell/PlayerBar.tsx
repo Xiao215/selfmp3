@@ -430,7 +430,9 @@ function SleepButton(): ReactNode {
           Icon={Moon}
           value={left}
           label={
-            player.sleepAtSongEnd ? 'Sleep timer: at the end of this song' : `Sleep timer: ${left} left`
+            player.sleepAtSongEnd
+              ? 'Sleep timer: at the end of this song'
+              : `Sleep timer: ${left} left`
           }
           caption="Sleep timer"
           onPress={toggle}

@@ -8,7 +8,12 @@ import {
   startListening,
 } from './listen.model'
 
-const track = { url: 'https://www.youtube.com/watch?v=dGZqpVCJP3k', title: '群青', artist: 'YOASOBI', duration: 248 }
+const track = {
+  url: 'https://www.youtube.com/watch?v=dGZqpVCJP3k',
+  title: '群青',
+  artist: 'YOASOBI',
+  duration: 248,
+}
 
 describe('listening before importing', () => {
   it('plays only what yt-dlp can find on YouTube', () => {
@@ -17,12 +22,19 @@ describe('listening before importing', () => {
   })
 
   it('starts loading, at the preview’s length', () => {
-    expect(startListening(track)).toEqual({ track, status: 'loading', currentTime: 0, duration: 248 })
+    expect(startListening(track)).toEqual({
+      track,
+      status: 'loading',
+      currentTime: 0,
+      duration: 248,
+    })
   })
 
   it('takes the audio’s length once it knows, and keeps the preview’s until then', () => {
     const listening = startListening(track)
-    expect(followAudio(listening, { status: 'playing', currentTime: 3, duration: NaN }).duration).toBe(248)
+    expect(
+      followAudio(listening, { status: 'playing', currentTime: 3, duration: NaN }).duration,
+    ).toBe(248)
     expect(followAudio(listening, { status: 'playing', currentTime: 3, duration: 250.5 })).toEqual({
       track,
       status: 'playing',
@@ -34,7 +46,9 @@ describe('listening before importing', () => {
   it('stops when the track leaves the review', () => {
     const listening = startListening(track)
     expect(listeningLeftReview(listening, [{ url: track.url }])).toBe(false)
-    expect(listeningLeftReview(listening, [{ url: 'https://www.youtube.com/watch?v=other' }])).toBe(true)
+    expect(listeningLeftReview(listening, [{ url: 'https://www.youtube.com/watch?v=other' }])).toBe(
+      true,
+    )
     expect(listeningLeftReview(listening, null)).toBe(true)
     expect(listeningLeftReview(null, null)).toBe(false)
   })
@@ -47,7 +61,9 @@ describe('listening before importing', () => {
 
   it('says why a preview would not play', () => {
     expect(listenDetail({ track, status: 'playing' })).toBe('YOASOBI')
-    expect(listenDetail({ track: { ...track, artist: '' }, status: 'paused' })).toBe('Unknown artist')
+    expect(listenDetail({ track: { ...track, artist: '' }, status: 'paused' })).toBe(
+      'Unknown artist',
+    )
     expect(listenDetail({ track, status: 'error' })).toBe('Couldn’t play this one from YouTube')
   })
 })

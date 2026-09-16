@@ -106,7 +106,11 @@ export function coverFor(songId: number): string | undefined {
  * Settles when the cover is kept or given up on, so a pass over the whole
  * library can hold how many run at once; a row drawing it need not wait.
  */
-export function ensureServerCover(songId: number, rev: string | undefined, url: string): Promise<void> {
+export function ensureServerCover(
+  songId: number,
+  rev: string | undefined,
+  url: string,
+): Promise<void> {
   const files = coverFiles
   if (!files) return Promise.resolve()
   prime()

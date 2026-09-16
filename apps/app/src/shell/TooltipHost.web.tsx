@@ -30,7 +30,8 @@ const TOOLTIP_ID = 'app-tooltip'
  * react-native-web's own `System` stack. The caption lives in `document.body`,
  * outside the app's root, so it inherits the browser's default serif instead.
  */
-const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+const FONT_STACK =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 
 /** "Done (Esc)" → a label and a key cap; "(⇧←)" counts too, a parenthesised aside does not. */
 const SHORTCUT = /^(.*\S)\s+\(([^()\s]{1,5})\)$/
@@ -201,7 +202,8 @@ export function TooltipHost(): ReactNode {
     // A control can name the part its caption belongs over (`tipTarget`): the
     // player bar's cover, rather than the middle of the cover and title together.
     const target = shown.anchor.querySelector<HTMLElement>('[data-tip-target]')
-    const icon = target ?? (shown.anchor.textContent?.trim() ? null : shown.anchor.querySelector('svg'))
+    const icon =
+      target ?? (shown.anchor.textContent?.trim() ? null : shown.anchor.querySelector('svg'))
     const rect = (icon ?? shown.anchor).getBoundingClientRect()
     const viewportWidth = document.documentElement.clientWidth
     const width = layer.offsetWidth

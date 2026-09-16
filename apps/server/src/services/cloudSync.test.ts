@@ -438,9 +438,7 @@ describe('CloudSyncService', () => {
         await run()
 
         const romanized = `lyrics/${sha(JSON.stringify(lines))}.json`
-        expect(bucket.keys('lyrics/')).toEqual(
-          [`lyrics/${sha(JAPANESE)}.lrc`, romanized].sort(),
-        )
+        expect(bucket.keys('lyrics/')).toEqual([`lyrics/${sha(JAPANESE)}.lrc`, romanized].sort())
         expect(bucket.objects.get(romanized)?.contentType).toBe('application/json')
         expect(JSON.parse(bucket.objects.get(romanized)?.body.toString() ?? 'null')).toEqual(lines)
         expect(latest().songs[0]?.lyrics).toMatchObject({
@@ -805,9 +803,7 @@ describe('CloudSyncService', () => {
       sync.onIngested = result => {
         removed.push(...result.removed)
       }
-      writeLog(PHONE, 1, [
-        { type: 'songRemoved', hlc: stamp(1), uid: uidOf(id), deleteFile: true },
-      ])
+      writeLog(PHONE, 1, [{ type: 'songRemoved', hlc: stamp(1), uid: uidOf(id), deleteFile: true }])
 
       await pass()
 

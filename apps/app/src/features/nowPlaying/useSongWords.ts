@@ -57,7 +57,9 @@ export function useSongWords(song: Song): {
     setLooking(true)
     // A library that cannot take the change (a cloud one) still asks again.
     const cleared = song.instrumental
-      ? patchSong.mutateAsync({ id: song.id, patch: { instrumental: false } }).catch(() => undefined)
+      ? patchSong
+          .mutateAsync({ id: song.id, patch: { instrumental: false } })
+          .catch(() => undefined)
       : Promise.resolve(undefined)
     void cleared.then(() => lyrics.refetch()).finally(() => setLooking(false))
   }

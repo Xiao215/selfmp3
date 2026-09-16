@@ -94,7 +94,6 @@ const ConfigSchema = z.object({
   serveWeb: BooleanFromEnv.default(true),
   webDir: z.string().default(path.join(REPO_ROOT, 'apps/app/dist')),
 
-
   /**
    * Optional shared secret. Tailscale already restricts who can reach the
    * server, so this is defence in depth rather than the primary control.

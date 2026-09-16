@@ -69,9 +69,11 @@ describe('youtubeVideoId', () => {
 describe('youtubeMusicSearch', () => {
   it('reads the words searched for on YouTube Music, and nothing from any other link', () => {
     expect(youtubeMusicSearch('https://music.youtube.com/search?q=yoasobi')).toBe('yoasobi')
-    expect(youtubeMusicSearch('https://music.youtube.com/search?q=%E5%A4%9C%E3%81%AB+%E9%A7%86%E3%81%91%E3%82%8B')).toBe(
-      '夜に 駆ける',
-    )
+    expect(
+      youtubeMusicSearch(
+        'https://music.youtube.com/search?q=%E5%A4%9C%E3%81%AB+%E9%A7%86%E3%81%91%E3%82%8B',
+      ),
+    ).toBe('夜に 駆ける')
     expect(youtubeMusicSearch('https://music.youtube.com/search?q=')).toBeNull()
     expect(youtubeMusicSearch('https://www.youtube.com/results?search_query=yoasobi')).toBeNull()
     expect(youtubeMusicSearch('https://music.youtube.com/watch?v=by4SYYWlhEs')).toBeNull()
@@ -84,7 +86,9 @@ describe('youtubeMusicAlbum', () => {
     expect(youtubeMusicAlbum('https://music.youtube.com/browse/MPREb_hqiB0KumHYT')).toBe(
       'MPREb_hqiB0KumHYT',
     )
-    expect(youtubeMusicAlbum('https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw')).toBeNull()
+    expect(
+      youtubeMusicAlbum('https://music.youtube.com/browse/UCISF03gz20_8vWnkSVYlOEw'),
+    ).toBeNull()
     expect(youtubeMusicAlbum('https://music.youtube.com/browse/VLPLcKNQQ5neMz2J5RP49n')).toBeNull()
     expect(youtubeMusicAlbum('https://www.youtube.com/browse/MPREb_hqiB0KumHYT')).toBeNull()
   })
@@ -108,7 +112,9 @@ describe('youtubePlaylistId', () => {
 
   it('leaves Liked Music, mixes and radios, and everything else, to yt-dlp', () => {
     expect(youtubePlaylistId('https://music.youtube.com/playlist?list=LM')).toBeNull()
-    expect(youtubePlaylistId('https://music.youtube.com/playlist?list=RDCLAK5uy_mHAEb33pq')).toBeNull()
+    expect(
+      youtubePlaylistId('https://music.youtube.com/playlist?list=RDCLAK5uy_mHAEb33pq'),
+    ).toBeNull()
     expect(youtubePlaylistId('https://music.youtube.com/watch?v=m9SMT5ipbxk')).toBeNull()
     expect(youtubePlaylistId('https://example.com/playlist?list=PL123')).toBeNull()
   })

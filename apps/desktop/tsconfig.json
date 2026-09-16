@@ -23,8 +23,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [
-    { "path": "../../packages/shared" },
-    { "path": "../../packages/desktop-bridge" }
-  ]
+  "references": [{ "path": "../../packages/shared" }, { "path": "../../packages/desktop-bridge" }]
 }

@@ -17,10 +17,7 @@ import {
  * read from the stylesheet as the dark theme's parity test reads `:root`.
  */
 
-const CSS = readFileSync(
-  new URL('./tokens.reference.css', import.meta.url),
-  'utf8',
-)
+const CSS = readFileSync(new URL('./tokens.reference.css', import.meta.url), 'utf8')
 const LIGHT = (() => {
   const start = CSS.indexOf(":root[data-theme='light'] {")
   return CSS.slice(start, CSS.indexOf('}', start))

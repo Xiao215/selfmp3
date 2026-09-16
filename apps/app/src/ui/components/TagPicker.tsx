@@ -158,7 +158,11 @@ export function TagSearchList({
   return (
     <View>
       <TextInput
-        style={[styles.input, dense && styles.inputDense, focused && { borderColor: accent.accent }]}
+        style={[
+          styles.input,
+          dense && styles.inputDense,
+          focused && { borderColor: accent.accent },
+        ]}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         value={query}

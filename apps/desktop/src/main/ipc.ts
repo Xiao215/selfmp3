@@ -106,14 +106,12 @@ export function registerIpc({
         headers === undefined ? undefined : (headers as Record<string, string>),
       ),
   )
-  ipcMain.handle(
-    CHANNELS.filesWrite,
-    (_event, kind: unknown, name: unknown, text: unknown) =>
-      files.writeText(
-        fileKindSchema.parse(kind),
-        fileNameSchema.parse(name),
-        fileTextSchema.parse(text),
-      ),
+  ipcMain.handle(CHANNELS.filesWrite, (_event, kind: unknown, name: unknown, text: unknown) =>
+    files.writeText(
+      fileKindSchema.parse(kind),
+      fileNameSchema.parse(name),
+      fileTextSchema.parse(text),
+    ),
   )
   ipcMain.handle(CHANNELS.filesUsage, () => files.usage())
   ipcMain.handle(CHANNELS.filesReveal, (_event, kind: unknown, name: unknown) =>

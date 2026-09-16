@@ -26,12 +26,18 @@ describe('signing out of the cloud', () => {
     const { steps, calls } = recorder()
     await signOutOfCloud(steps)
     expect(calls.slice(0, 2)).toEqual(['send', 'end'])
-    expect([...calls.slice(2, 5)].sort()).toEqual(['forget-library', 'forget-saved', 'remove-downloads'])
+    expect([...calls.slice(2, 5)].sort()).toEqual([
+      'forget-library',
+      'forget-saved',
+      'remove-downloads',
+    ])
     expect(calls[5]).toBe('done')
   })
 
   it('signs out even when the waiting changes cannot be sent', async () => {
-    const { steps, calls } = recorder({ sendPendingChanges: () => Promise.reject(new Error('offline')) })
+    const { steps, calls } = recorder({
+      sendPendingChanges: () => Promise.reject(new Error('offline')),
+    })
     await signOutOfCloud(steps)
     expect(calls).toContain('end')
     expect(calls.at(-1)).toBe('done')
@@ -56,7 +62,11 @@ describe('the sign-out warning', () => {
     expect(signOutWarning(0)).toBe(
       'Songs downloaded to this device are removed; your music stays in the bucket.',
     )
-    expect(signOutWarning(1)).toMatch(/1 change made here has not reached it yet and will be lost if it cannot be sent now\.$/)
-    expect(signOutWarning(3)).toMatch(/3 changes made here have not reached it yet and will be lost if they cannot be sent now\.$/)
+    expect(signOutWarning(1)).toMatch(
+      /1 change made here has not reached it yet and will be lost if it cannot be sent now\.$/,
+    )
+    expect(signOutWarning(3)).toMatch(
+      /3 changes made here have not reached it yet and will be lost if they cannot be sent now\.$/,
+    )
   })
 })

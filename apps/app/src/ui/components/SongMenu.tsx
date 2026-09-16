@@ -197,7 +197,9 @@ function Items({
           <SheetItem
             icon={icon(X)}
             label="Remove from this playlist"
-            onPress={then(() => removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }))}
+            onPress={then(() =>
+              removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }),
+            )}
           />
           <View style={styles.divider} />
         </>

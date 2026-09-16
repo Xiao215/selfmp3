@@ -133,9 +133,17 @@ describe('editing a song', () => {
         uid: SONG_A,
         fields: { title: 'On the phone' },
       },
-      { type: 'songEdited', hlc: at(2, 'mac-aaaa'), uid: SONG_A, fields: { artist: 'On the server' } },
+      {
+        type: 'songEdited',
+        hlc: at(2, 'mac-aaaa'),
+        uid: SONG_A,
+        fields: { artist: 'On the server' },
+      },
     ])
-    expect(library.songs.get(SONG_A)).toMatchObject({ title: 'On the phone', artist: 'On the server' })
+    expect(library.songs.get(SONG_A)).toMatchObject({
+      title: 'On the phone',
+      artist: 'On the server',
+    })
   })
 
   it('lets a late change lose to a newer one the snapshot already has', () => {

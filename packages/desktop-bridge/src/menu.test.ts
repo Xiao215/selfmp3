@@ -61,7 +61,8 @@ describe('who owns which key', () => {
 
   it('leaves the page-kept ones out, or the page would stop listening for them', () => {
     const owned = menuOwnedCombinations()
-    for (const combination of pageKeptCombinations().keys()) expect(owned.has(combination)).toBe(false)
+    for (const combination of pageKeptCombinations().keys())
+      expect(owned.has(combination)).toBe(false)
   })
 
   it('hands the page a key for every command it kept', () => {
@@ -105,7 +106,9 @@ describe('who owns which key', () => {
     const kept = pageKeptCombinations()
     for (const item of ALL_MENU_COMMANDS.filter(one => one.accelerator)) {
       const byMenu = menuClickSends(item, true)
-      const byPage = pageCombinations(item.accelerator ?? '').some(combination => kept.has(combination))
+      const byPage = pageCombinations(item.accelerator ?? '').some(combination =>
+        kept.has(combination),
+      )
       expect(byMenu !== byPage).toBe(true)
     }
   })

@@ -39,7 +39,13 @@ function WithPlays(): ReactNode {
   return <YouPage fromCloud={false} plays={stats?.totals.plays} />
 }
 
-function YouPage({ fromCloud, plays }: { fromCloud: boolean; plays: number | undefined }): ReactNode {
+function YouPage({
+  fromCloud,
+  plays,
+}: {
+  fromCloud: boolean
+  plays: number | undefined
+}): ReactNode {
   const { wide } = useLayout()
   const { data: library } = useLibrary()
   // A pass over the whole library; its answer only changes when the library does.
@@ -131,6 +137,12 @@ const styles = StyleSheet.create(theme => ({
   rowDivided: { borderTopWidth: 1, borderTopColor: theme.colors.border },
   label: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 15 },
   hint: { color: theme.colors.textMuted, fontSize: 13, flexShrink: 1 },
-  pill: { minWidth: 24, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, alignItems: 'center' },
+  pill: {
+    minWidth: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
   pillText: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
 }))

@@ -29,7 +29,9 @@ import {
  * tabs switch in place, and the window chosen on one is the window the other
  * shows.
  */
-export function StatsScreen({ initialTab = 'overview' }: { initialTab?: StatsTab } = {}): ReactNode {
+export function StatsScreen({
+  initialTab = 'overview',
+}: { initialTab?: StatsTab } = {}): ReactNode {
   const [tab, setTab] = useState<StatsTab>(initialTab)
   const [period, setPeriod] = useState<StatsPeriod>('month')
   const frame: StatsFrameProps = { tab, onTab: setTab, period, onPeriod: setPeriod }
@@ -123,7 +125,12 @@ function Overview(frame: StatsFrameProps): ReactNode {
               title="When you listen"
               hint={peak ? `busiest around ${formatHour(peak.hour)}` : undefined}
             >
-              <ColumnChart data={hourly} height={140} labelEvery={6} caption="Plays by hour of the day" />
+              <ColumnChart
+                data={hourly}
+                height={140}
+                labelEvery={6}
+                caption="Plays by hour of the day"
+              />
             </Panel>
 
             {recent.length > 0 ? (

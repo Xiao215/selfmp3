@@ -913,10 +913,14 @@ export class CloudSyncService {
    */
   async #adoptLibrary(store: CloudStore): Promise<void> {
     if (this.#adopted) return
-    this.#adopting ??= this.#adoptNow(store).finally(() => {
+    // Held in a local as well as the field: the field is cleared when the
+    // attempt settles, and awaiting a field that a failure has already emptied
+    // would read as "adopted, carry on" — which is the one answer this must
+    // never give by accident.
+    const attempt = (this.#adopting ??= this.#adoptNow(store).finally(() => {
       this.#adopting = null
-    })
-    await this.#adopting
+    }))
+    await attempt
   }
 
   async #adoptNow(store: CloudStore): Promise<void> {

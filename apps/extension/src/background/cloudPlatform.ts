@@ -21,7 +21,7 @@ import type { KeyValueStore } from './store.js'
  */
 
 /** `https://<id>.chromiumapp.org/`, which Chrome hands back to the flow that asked. */
-export function redirectUrl(): string {
+function redirectUrl(): string {
   return chrome.identity.getRedirectURL()
 }
 

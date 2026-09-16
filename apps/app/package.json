@@ -18,6 +18,21 @@
     "export:web": "npm run build:sw && expo export -p web",
     "test": "jest"
   },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-track-player"
+        ]
+      }
+    },
+    "install": {
+      "exclude": [
+        "react-native-reanimated",
+        "react-native-worklets"
+      ]
+    }
+  },
   "dependencies": {
     "@expo/log-box": "^57.0.4",
     "@expo/metro-runtime": "~57.0.15",
@@ -58,7 +73,7 @@
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@testing-library/react-native": "^14.0.1",
-    "@types/jest": "^30.0.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.2.18",
     "@types/react-dom": "~19.2.7",
     "esbuild": "^0.28.2",

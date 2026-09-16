@@ -589,9 +589,9 @@ half (plus the deploy); 6 half. About eight working days.
 
 ### Environment
 
-- `npm install` in the worktree first. Port 4600 may be serving another
-  worktree's build on the dev profile; the verify specs use the fake server on a
-  free port instead.
+- `npm install` in the worktree first. Port 4600 may already be another
+  worktree's server on the dev profile; the verify specs use the fake server on
+  a free port instead.
 - Chromium for Playwright is already in `~/Library/Caches/ms-playwright`.
 
 ### Gates

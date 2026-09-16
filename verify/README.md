@@ -12,24 +12,32 @@ have run against `apps/app` since phase 2.
 
 ## What they need
 
-A **running server with a library in it**, which is the whole reason these
-could not be run when they were written:
+**The app on one port and a server with a library on another**, which is the
+whole reason these could not be run when they were written:
 
 ```
-npm run build        # the server, and the app's web export it serves
-SELFMP3_PROFILE=dev npm start
-npm run verify:flows # in another terminal: the app the Mac serves, on 4600
+npm run dev          # the server on 4600, the app's web dev server on 4601
+npm run verify:flows # in another terminal
 ```
 
-Or against a dev server, which has to be told where its Mac is:
+That is what the flows default to: the app at `http://localhost:4601`, its API
+at `http://localhost:4600`. The two are separate because the server does not
+serve the app — its own page on 4600 is setup and status, and the app is built
+for GitHub Pages and for the desktop shell.
+
+The app has to be *told* where its server is, since the address is not its own
+origin. The flows do it through the `secrets` port, which in a browser is
+`localStorage`, and a fresh Playwright context has none — without it the app
+quite correctly shows its sign-in screen and every flow times out waiting for a
+library. `SELFMP3_WEB_URL` and `SELFMP3_APP_API` override either half, for a
+build served from somewhere else or a server on another port:
 
 ```
-npm run dev          # the server on 4600, the app's dev server on 4601
-SELFMP3_WEB_URL=http://localhost:4601 SELFMP3_APP_API=http://localhost:4600 npm run verify:flows
+SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4610 npm run verify:flows
 ```
 
-`verify/flows/pwa.spec.ts` needs the built app either way, since only a
-production build registers the service worker; it skips on a dev server.
+`verify/flows/pwa.spec.ts` needs a built app, since only a production build
+registers the service worker; it skips on a dev server.
 
 `npm run dev` sets `SELFMP3_PROFILE=dev`, so this is the thirteen-song dev
 library in `~/Music/selfmp3-dev`, never the real one. The flows need at least

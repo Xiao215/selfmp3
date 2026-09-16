@@ -3,6 +3,11 @@
 Correct a song's title, artist, album, year and track number — and find missing cover art —
 from free public databases. No API keys, nothing to configure.
 
+**Server-only, and therefore out of reach today.** The lookups are the server's own HTTP
+calls, rate limiter and cover cache, so the app hides them when its library is the bucket's
+— which every surface's now is. Nothing here has been removed or broken; there is simply
+no screen asking for it. See [SYNC.md](../SYNC.md), "What this gives up".
+
 ## What it does
 
 Two sources are asked, in parallel, for every lookup:

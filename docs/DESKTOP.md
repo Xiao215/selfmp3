@@ -4,6 +4,26 @@
 > ships from them. The spike scripts and the reference captures this plan
 > mentions have since been deleted; the sections about them are history. The
 > run is logged in [universal-progress.md](universal-progress.md).
+>
+> **Two things this plan describes are no longer true, and the text below is
+> kept as the record of what was planned rather than corrected:**
+>
+> - **Phase 2's server-address path is gone** (2026-09-16). Settings ›
+>   Connection has no "Connect to a server", no "Use the cloud instead" and no
+>   confirmation clearing downloads before a switch; `canConnectByAddress` and
+>   both halves of the `serverAddress` port were deleted. Google sign-in is the
+>   only way in on every surface, the desktop included. Importing still reaches
+>   the server, by the addresses in the bucket's snapshot rather than by
+>   anything typed.
+> - **The server no longer serves the app.** Its page on `:4600` is its own
+>   setup and status, hand-written in `apps/server/public/`, and
+>   `SELFMP3_SERVE_WEB` and `SELFMP3_WEB_DIR` are gone. The shell still loads
+>   `apps/app`'s web export through `app://selfmp3/`, unchanged; what changed is
+>   that GitHub Pages is now the only place that serves it over HTTP. The
+>   `servedBy` port went with it — nothing is served by a server any more, so
+>   there was nothing left to ask. Gate commands below that point Playwright at
+>   `4600` for a *page* now want `4601` (`npm run dev`); the ones that point at
+>   `4600` for the *API* are unchanged.
 
 The plan for putting self.mp3 on a computer as an installed app — macOS first,
 with the door left open for Windows and Linux — and for finishing the iPad as a

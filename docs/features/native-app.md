@@ -13,11 +13,19 @@ checked, on which simulator, and how.
 ## Using it
 
 First launch asks you to sign in with Google; the library is then the one in
-your bucket, and the server does not have to be running. The tabs are
-**Library · Playlists · Import · You**, where You holds Stats & report,
-Untagged, Tags and Settings. The things that need the server itself (Stats, the
-tag inbox, looking metadata up, picking tracks while importing) are missing from
-a cloud library and are on the server's own page: its address in a browser.
+your bucket, and the server does not have to be running. There is no address to
+type — a development build keeps the `/onboarding` address screen, because the
+simulator flows cannot sign in to a Google account, and that is the only place
+it survives. The tabs are **Library · Playlists · Import · You**, where You
+holds Stats & report, Untagged, Tags and Settings.
+
+Importing works: the Import screen reaches the server directly when it can, by
+the addresses in the bucket's snapshot, and leaves the request in the bucket when
+it cannot. The other things that need the server itself — Stats, the tag inbox,
+looking metadata up — are hidden from a cloud library, and since every surface is
+now a cloud library, they are not reachable anywhere today. The server's own page
+does not draw them either; it is setup and status. That is a gap, and it is
+recorded as one in [`docs/SYNC.md`](../SYNC.md).
 
 ## Offline
 

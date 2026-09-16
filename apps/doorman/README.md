@@ -117,7 +117,8 @@ the code alone; the attempt stays on the device, so a scheme another app has
 also claimed is half of a pair and no use on its own.
    from, `https://xiao215.github.io`. Browsers may call the doorman only from
    there, and a sign-in only sends you back there — or to this computer
-   (`http://localhost` or `http://127.0.0.1`, for the server's settings page).
+   (`http://localhost` or `http://127.0.0.1`, for the server's own page, where
+   it signs itself in and names its bucket).
 3. Make a seal key, 32 random bytes:
 
    ```sh

@@ -6,8 +6,9 @@ paste again.
 ## Android / Chrome (installed PWA)
 
 The web manifest declares a **Web Share Target**. Once self.mp3 is installed to the home
-screen, it appears in the system share sheet. Share a link (or text containing one) from
-YouTube, YouTube Music or a browser and Chrome opens `/import?url=…&text=…&title=…`.
+screen — from <https://xiao215.github.io/selfmp3>, which is where the app is served — it
+appears in the system share sheet. Share a link (or text containing one) from YouTube,
+YouTube Music or a browser and Chrome opens `/import?url=…&text=…&title=…`.
 
 The Import page reads those parameters, pulls every `http(s)` link out of them (the
 YouTube app puts the link in `text`, after the title), prefills the box and immediately

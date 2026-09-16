@@ -47,6 +47,10 @@ the song's tags under its title with **Add tags** / **Edit tags**.
 The sidebar (and, on a phone, the **You** tab) shows **Untagged** with a count
 whenever any song has no tag. The page lists them newest first.
 
+**Not reachable today.** The inbox is one of the server-only screens, hidden when the
+library is the bucket's, and every surface's now is ([SYNC.md](../SYNC.md), "What this gives
+up"). Putting tags on songs is unaffected — that is an edit, and every device can make one.
+
 **Start tagging** goes through them one at a time:
 
 - the song plays (switch off **Play along** to tag in silence);

@@ -8,16 +8,27 @@ It takes about twenty minutes. You only do it once.
 
 ## What you are building, and why
 
-Your music lives with the server (this guide runs it on a Mac). Your phone talks to the
-server over **Tailscale**, a private network that only your own devices can join. Nothing is
-exposed to the public internet.
+Your music lives with the server (this guide runs it on a Mac). It imports, scans, analyses
+and then **publishes** the library to a storage bucket you own, and that bucket is what
+every device reads. You sign in with Google and the library is there — in a browser tab, in
+the Mac desktop app, on your phone — with no address to type and no need for the server to
+be awake. Setting the bucket up is [SYNC.md](SYNC.md), and it is the part that actually
+gets music onto your phone.
 
-The important thing to understand up front: **a browser tab streams, so it needs the server
-awake.** Songs on the device play with no connection at all, and the apps that keep songs on
-the device are the phone app and the Mac desktop app, not a tab. So this guide gets your
-phone to the server; if you want music in a bag with the lid closed, finish with
-[MOBILE.md](MOBILE.md), which builds the phone app, and [SYNC.md](SYNC.md), which puts the
-library in a bucket both ends read.
+So what is Tailscale for? **Reaching the server itself**, privately, from anywhere:
+
+- Its own page, on `:4600`, where you set it up and see whether it has published.
+- Handing it a link to import, from the Import screen or the browser extension, while it is
+  awake. Only the server runs yt-dlp.
+- Handoff and remote control between devices that can both see it.
+
+Tailscale is a private network that only your own devices can join, so none of that is
+exposed to the public internet and you never open a port on your router.
+
+The other thing to understand up front: **a browser tab streams and keeps no songs.** The
+apps that keep songs on the device are the phone app and the Mac desktop app. If you want
+music in a bag with the lid closed, finish with [MOBILE.md](MOBILE.md), which builds the
+phone app.
 
 Music is small — a four-minute track is roughly 4 MB, so 500 songs is about 2 GB — so
 keeping everything on a phone is realistic rather than a chore.
@@ -59,8 +70,14 @@ You should see something like:
 14:22:01 INFO  listening on http://192.168.1.44:4600
 ```
 
-Open <http://localhost:4600>. To bring in music you already have, copy the files into
-`~/Music/selfmp3` and hit **Rescan library** — everything gets picked up.
+Open <http://localhost:4600>. This is the server's own page: how many songs it has, the
+**Cloud** section where you sign in with Google and name your bucket, **Publish now**, and
+where to go to listen. It is deliberately not a music player — that is the Pages tab, the
+desktop app and the phone app, all reading the bucket.
+
+To bring in music you already have, copy the files into `~/Music/selfmp3`. The folder is
+watched, so they are usually picked up on their own; `npm run cli -- scan` in another
+terminal forces a pass.
 
 Stop it with `Ctrl-C` for now.
 
@@ -97,9 +114,11 @@ You will see something like `xiaos-macbook-pro.tail1a2b.ts.net`.
 
 ## Step 4 — Turn on HTTPS
 
-This step is not optional, and it is worth knowing why: **iOS only allows offline caching
-and Add-to-Home-Screen over HTTPS.** Without a real certificate, the whole offline feature
-silently does not work.
+This step is not optional, and it is worth knowing why: **the app is served over HTTPS, and
+a page served over HTTPS may not call a plain `http://` address.** The app runs from GitHub
+Pages, so a server reachable only as `http://100.x.x.x:4600` is one the Import screen cannot
+talk to — the browser blocks the call before it leaves, with nothing useful in the way of an
+error. A real certificate on the server fixes it for every device at once.
 
 Tailscale issues a genuine Let's Encrypt certificate for free. One command:
 
@@ -113,10 +132,12 @@ Now check:
 tailscale serve status
 ```
 
-You should see your app served at `https://xiaos-macbook-pro.tail1a2b.ts.net/`.
+You should see the server's page at `https://xiaos-macbook-pro.tail1a2b.ts.net/`.
 
 Open that URL on the server to confirm it works. **Use this HTTPS address from now on** —
-not the `http://100.x.x.x` one.
+not the `http://100.x.x.x` one. The server publishes its own addresses with every snapshot
+it writes, so once this is on, your devices find it themselves and there is still nothing to
+type.
 
 > If `tailscale serve` says HTTPS is not enabled, open the Tailscale admin console at
 > <https://login.tailscale.com/admin/dns>, and enable **HTTPS Certificates**.
@@ -159,30 +180,42 @@ is what the offline download is for.
 
 ---
 
-## Step 6 — Install it on your phone
+## Step 6 — Put the library in a bucket, and open it on your phone
+
+The server's page has a **Cloud** section: sign in with Google, give it your bucket's
+endpoint, name and key, and press **Publish now**. It uploads the audio, covers and lyrics
+and writes a snapshot of the library. The whole of that — where the bucket comes from, what
+the doorman is, how edits from different devices combine — is **[SYNC.md](SYNC.md)**, and it
+is worth reading once.
+
+Then, on your phone:
 
 1. Open Safari on your iPhone (it must be Safari — Chrome on iOS cannot install web apps).
-2. Go to `https://xiaos-macbook-pro.tail1a2b.ts.net`.
-3. Tap the **Share** button, then **Add to Home Screen**.
-4. Tap **Add**.
+2. Go to <https://xiao215.github.io/selfmp3>.
+3. Sign in with Google, with the account you signed the server in with.
+4. Tap the **Share** button, then **Add to Home Screen**, then **Add**.
 
 You now have a self.mp3 icon on your home screen. Open it from there, not from Safari —
 launching from the icon is what gives you the full-screen app, background playback and
 lock-screen controls.
 
-**On Android:** open the URL in Chrome and tap **Install app** in the menu.
+**On Android:** open the same address in Chrome and tap **Install app** in the menu.
+
+Note what you did *not* do: type your server's address. There is nowhere to type one. The
+library came from the bucket, and the phone finds the server on its own — from the addresses
+in that snapshot — when it has a link to import.
 
 ---
 
 ## Step 7 — Music with no signal (the important one)
 
-What you have now streams: with the server asleep, the music stops. A browser tab keeps no
-songs — its storage is the browser's to evict, so it is not promised — which is why the app
-that keeps songs is an installed one:
+What you have now streams: with no signal, the music stops. A browser tab keeps no songs —
+its storage is the browser's to evict, so it is not promised — which is why the app that
+keeps songs is an installed one:
 
 - **On your phone**, build the iPhone or Android app from this repository:
   [MOBILE.md](MOBILE.md). It signs in with Google and reads the library from your bucket
-  ([SYNC.md](SYNC.md)), so it works with the server switched off entirely.
+  ([SYNC.md](SYNC.md)), exactly as the tab does, and downloads the audio as well.
 - **On another Mac**, the desktop app does the same in a window:
   [INSTALL.md](INSTALL.md#the-desktop-app).
 
@@ -204,20 +237,26 @@ Tailscale already means only your devices can reach the server. If you want belt
 openssl rand -hex 24
 ```
 
-Then add it to the launchd plist as `SELFMP3_AUTH_TOKEN` and restart the service. Note that
-you will need to append `?token=…` for the app to stream audio, so this is genuinely
-optional and most people should skip it.
+Then add it to the launchd plist as `SELFMP3_AUTH_TOKEN` and restart the service. Playing is
+unaffected — the audio comes from the bucket, not from the server — but everything that does
+talk to the server now needs the token: the browser extension's options page, `selfmp3
+--token`, and any monitor other than `/api/health`, which stays open on purpose. Tailscale
+is already the boundary, so this is genuinely optional and most people should skip it.
 
 ---
 
 ## Troubleshooting
 
-**The phone cannot reach it.**
-Check Tailscale is connected on both devices (the app shows a green dot). Run
-`tailscale status` on the server and confirm your phone appears in the list.
+**The phone shows no songs at all.**
+The library comes from the bucket, so this is the bucket, not Tailscale. Check the server's
+page says it has published, and that the phone is signed in to the same Google account.
+[SYNC.md](SYNC.md) has the rest.
 
-**"Add to Home Screen" does not offer to install.**
-You are on `http://`, not `https://`. Go back to step 4.
+**The Import screen says the server is away.**
+That one *is* the network. Check Tailscale is connected on both devices (the app shows a
+green dot), run `tailscale status` on the server and confirm your phone appears, and make
+sure `tailscale serve` is on — an HTTPS page cannot call a plain `http://` address, so an
+awake server with no certificate looks exactly like an asleep one. Step 4.
 
 **Songs will not download to the phone.**
 A browser tab does not download songs at all, however it was installed — it streams, and it

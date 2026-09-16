@@ -3,45 +3,16 @@
 #   docker compose up -d                         # pulls ghcr.io/xiao215/selfmp3
 #   docker build -t selfmp3 .                    # or build it yourself
 #
-# Three stages:
-#   web      the app's web build: static files, made once on the builder's own
-#            CPU, so an arm64 image is not built under emulation.
+# Two stages:
 #   server   the server and its production dependencies, on Alpine, where
 #            better-sqlite3 is compiled for the runtime's C library.
-#   runtime  those two, plus ffmpeg, yt-dlp and tini, running as an ordinary user.
-
-# --- web --------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS web
-
-WORKDIR /app
-
-# Every workspace's manifest, so `npm ci` finds the lockfile's workspaces.
-COPY package.json package-lock.json ./
-COPY packages/shared/package.json packages/shared/
-COPY packages/replica/package.json packages/replica/
-COPY packages/client/package.json packages/client/
-COPY packages/desktop-bridge/package.json packages/desktop-bridge/
-COPY apps/server/package.json apps/server/
-COPY apps/doorman/package.json apps/doorman/
-COPY apps/app/package.json apps/app/
-COPY apps/extension/package.json apps/extension/
-# No install scripts: the web export needs none of them (the Pages build does
-# the same), and the native modules are the server's and the phone's.
-RUN npm ci --ignore-scripts --no-audit --no-fund
-
-# desktop-bridge too: the app's web shell imports it to talk to the Electron
-# shell, and does nothing with it in a plain browser.
-COPY tsconfig.base.json tsconfig.json ./
-COPY packages/shared packages/shared
-COPY packages/replica packages/replica
-COPY packages/client packages/client
-COPY packages/desktop-bridge packages/desktop-bridge
-COPY apps/app apps/app
-RUN npm run build --workspace @selfmp3/shared \
- && npm run build --workspace @selfmp3/replica \
- && npm run build --workspace @selfmp3/client \
- && npm run build --workspace @selfmp3/desktop-bridge \
- && npm run export:web --workspace @selfmp3/app
+#   runtime  that, plus ffmpeg, yt-dlp and tini, running as an ordinary user.
+#
+# There used to be a third stage that built the app's web export, because the
+# server served it. It serves its own setup page now (apps/server/src/http/admin.ts),
+# and that page is three plain files with no build step — so the whole Expo
+# toolchain, and the megabytes it produced, have left the image. The app is on
+# GitHub Pages, in the desktop app and on your phone.
 
 # --- server -----------------------------------------------------------------
 FROM node:22-alpine AS server
@@ -106,8 +77,8 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# The layout mirrors the repo so config.ts finds the web build and the
-# workspace symlinks in node_modules keep resolving.
+# The layout mirrors the repo so the workspace symlinks in node_modules keep
+# resolving, and so the server's page sits beside its build where it expects.
 COPY --from=server --chown=node:node /app/package.json ./
 COPY --from=server --chown=node:node /app/node_modules ./node_modules
 COPY --from=server --chown=node:node /app/packages/shared/package.json ./packages/shared/
@@ -116,7 +87,8 @@ COPY --from=server --chown=node:node /app/apps/server/package.json ./apps/server
 # sharp lives here rather than in the root node_modules; see the server stage.
 COPY --from=server --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=server --chown=node:node /app/apps/server/dist ./apps/server/dist
-COPY --from=web --chown=node:node /app/apps/app/dist ./apps/app/dist
+# The server's own page, read from beside `dist` at runtime.
+COPY --from=server --chown=node:node /app/apps/server/public ./apps/server/public
 
 # Music and database live outside the image. Owned by the runtime user so a
 # fresh bind mount is writable without any chown on the host.

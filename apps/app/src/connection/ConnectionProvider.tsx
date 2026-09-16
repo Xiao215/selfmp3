@@ -5,7 +5,6 @@ import { ClientStateProvider, type ServerConnection } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
-import { servedByServer } from '../ports/servedBy'
 
 /**
  * Which server this phone talks to.
@@ -57,18 +56,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     let cancelled = false
     void (async () => {
       // Signed in to the cloud beats everything: the library is then the
-      // bucket's, and no server has to be awake or even exist. A stored server
-      // address is the older way in, and still works for anyone using it.
-      const [signedIn, stored] = await Promise.all([
+      // bucket's, and no server has to be awake or even exist. A stored address
+      // is a development build that went through `/onboarding` instead, which is
+      // how the simulator flows get a library without a Google account.
+      const [signedIn, server] = await Promise.all([
         cloudSession.loadSession().catch(() => null),
         loadConnection().catch(() => null),
       ])
       if (cancelled) return
-      // Loaded from a server, with nothing chosen yet: the page's own origin is the
-      // server. Not saved, so the same browser pointed elsewhere asks again.
-      const served = signedIn || stored ? null : await servedByServer().catch(() => null)
-      if (cancelled) return
-      const server = stored ?? served
       answerFromCloud(signedIn !== null)
       // The API client keeps the address in module state, not in this context:
       // the playback service and the download queue both make requests from

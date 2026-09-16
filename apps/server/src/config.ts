@@ -90,10 +90,6 @@ const ConfigSchema = z.object({
   /** Where the database and derived assets (cover art) live. */
   dataDir: z.string().default(DEFAULT_DIRS.dataDir),
 
-  /** Serve the built web app from the API process (what you want in production). */
-  serveWeb: BooleanFromEnv.default(true),
-  webDir: z.string().default(path.join(REPO_ROOT, 'apps/app/dist')),
-
   /**
    * Optional shared secret. Tailscale already restricts who can reach the
    * server, so this is defence in depth rather than the primary control.
@@ -155,8 +151,6 @@ function readEnv(): unknown {
     host: env['SELFMP3_HOST'] ?? undefined,
     libraryDir: env['SELFMP3_LIBRARY_DIR'] ?? undefined,
     dataDir: env['SELFMP3_DATA_DIR'] ?? undefined,
-    serveWeb: env['SELFMP3_SERVE_WEB'] ?? undefined,
-    webDir: env['SELFMP3_WEB_DIR'] ?? undefined,
     authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,
     corsOrigins: env['SELFMP3_CORS_ORIGINS'] ?? undefined,
     storageDriver: env['SELFMP3_STORAGE_DRIVER'] ?? undefined,

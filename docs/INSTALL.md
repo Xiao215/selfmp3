@@ -33,7 +33,11 @@ Two flags, if you want them:
 ./scripts/setup-mac.sh --no-service   # skip the launchd step; I'll run it by hand
 ```
 
-When it finishes, open <http://localhost:4600>.
+When it finishes, open <http://localhost:4600>. That is the server's own page — how many
+songs it has, the Cloud section where you sign in with Google and name your bucket, and a
+**Publish now** button. It is setup and status, not a music player: once the library is
+published you listen in the [GitHub Pages tab](https://xiao215.github.io/selfmp3), the
+desktop app or the phone app, each signed in with the same Google account.
 
 ### Is it working?
 
@@ -69,15 +73,17 @@ for your phone.
 
 Two ways, and they are not alternatives so much as steps.
 
-**A browser tab, over Tailscale.** The quickest: your phone reaches the server privately and
-plays from it, with everything the server can do — importing, Stats, the tag inbox. It
-streams, so the server has to be awake. That is its own walkthrough, because the interesting
-part is Tailscale and HTTPS rather than installation:
-**[docs/SETUP.md](SETUP.md)**. About twenty minutes, once.
+**A browser tab.** The quickest: open <https://xiao215.github.io/selfmp3> and sign in with
+Google. There is no address to type and nothing to install, because the tab reads the
+library from your bucket rather than from your server — so it works with the server asleep.
+It streams and keeps no songs. **Add to Home Screen** in Safari, or **Install app** in
+Chrome, gives it an icon and a full screen.
 
-The short version: install Tailscale on both devices, run `tailscale serve --bg 4600` on the
-server, and open the resulting `https://…ts.net` address. **Add to Home Screen** in Safari,
-or **Install app** in Chrome, gives it an icon and a full screen.
+Your server still has to publish to that bucket before there is anything to open, and the
+bucket is where you set that up: **[docs/SYNC.md](SYNC.md)**. Tailscale is worth doing too —
+not to reach the app, which is on Pages, but so your phone can hand an import straight to
+the server while it is awake, and so handoff and remote control work at home:
+**[docs/SETUP.md](SETUP.md)**.
 
 **The app, for music with no signal.** A browser tab keeps no songs. The iPhone and Android
 app does: it signs in with Google, reads the library from your bucket
@@ -166,7 +172,9 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Then <http://localhost:4600> on that machine.
+Then <http://localhost:4600> on that machine, which is the server's own page: the library
+count, the Cloud section and **Publish now**. Listening happens elsewhere, signed in with
+Google.
 
 `library/` and `data/` next to `docker-compose.yml` are bind-mounted into the container, so
 your music and your database stay ordinary folders on the host. Backing up is still "copy
@@ -230,7 +238,7 @@ Tailscale at the Pi as below, and each device at the Pi's address.
 ### Tailscale in front of it
 
 Same idea as on a Mac: your own devices reach the server, nobody else does, and you get a
-real Let's Encrypt certificate — which iOS requires before it will cache anything offline.
+real Let's Encrypt certificate rather than a warning page.
 
 Install Tailscale on the host, then:
 
@@ -239,9 +247,11 @@ tailscale serve --bg 4600
 tailscale serve status
 ```
 
-Your app is now at `https://<machine>.<tailnet>.ts.net/`. Use that address on your phone
-and follow [step 6 of SETUP.md](SETUP.md#step-6--install-it-on-your-phone) to install it to
-the home screen.
+The server's page is now at `https://<machine>.<tailnet>.ts.net/`, reachable from your
+laptop or phone wherever you are. It is not how you listen — that is Google sign-in, in the
+Pages tab or an installed app — but it is how you check on the box without an SSH session,
+and it is the address the browser extension and the apps' Import screens use to hand it
+links. [SETUP.md](SETUP.md) has the same ground in more detail.
 
 If you would rather run Tailscale in a container next to this one, the usual
 `tailscale/tailscale` sidecar with `network_mode: service:selfmp3` works; nothing in the app

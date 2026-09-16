@@ -29,6 +29,8 @@ apps/server
   repositories/          all SQL lives here, nowhere else
   services/              behaviour: scanning, metadata, lyrics, imports
   routes/                thin — validate, call a service, return
+  public/                the page it serves on :4600: hand-written HTML, CSS and
+                         JS, the server's setup and status and nothing else
 
 apps/app                 one Expo app for iOS, Android and the web (docs/UNIVERSAL.md)
   app/                   expo-router file routes, one per screen
@@ -59,8 +61,8 @@ apps/desktop             the Electron shell around apps/app's web export
 ```
 
 The desktop app is a *shell*, not a fourth client. The page inside it is
-`apps/app`'s web export byte for byte — the same one the server serves and Pages
-serves — and everything a window can do that a tab cannot goes through a port in
+`apps/app`'s web export byte for byte — the same one Pages serves — and
+everything a window can do that a tab cannot goes through a port in
 `src/ports/`, the same mechanism that separates a phone from a browser. See
 [DESKTOP.md](DESKTOP.md).
 
@@ -200,6 +202,29 @@ an automatic pass, or a song asked for by hand — never "whatever you happened 
 Metadata goes to IndexedDB; audio goes to the Cache API on the web, because a cached
 `Response` can be handed straight to an `<audio>` element by the service worker without ever
 passing through JavaScript memory.
+
+### The server is a worker, and its page says so
+
+The bucket is the library. That makes the server one of the things that writes
+to it — it imports, scans, analyses and publishes — rather than the place every
+device points at, and the page it serves on `:4600` follows: the library count,
+the Cloud section, **Publish now**, and where to go to listen. Hand-written HTML,
+CSS and JS in `apps/server/public/`, a few hundred lines, no build step.
+
+It used to serve `apps/app/dist` at every non-`/api` path instead, which meant
+one deployment of the app was special — the one whose origin happened to be the
+server's. That is exactly the thing the bucket removed: a device signs in with
+Google and reads the library, wherever the page came from. Serving the app from
+the server made the old shape look like it still worked, so it went, and
+`SELFMP3_SERVE_WEB` and `SELFMP3_WEB_DIR` went with it.
+
+`/api` is untouched by any of this. The browser extension still talks to a
+server at its address, because only the server runs yt-dlp.
+
+The cost is honest and current: **Stats, the Untagged inbox and metadata lookup
+are server-only**, and the app hides them when its library is the bucket's.
+Every surface is now cloud-only, so nothing draws them today. The routes are
+still there and still tested; what is missing is a surface that asks.
 
 ### The service worker is hand-written
 

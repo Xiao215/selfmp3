@@ -80,6 +80,33 @@ export default tseslint.config(
   },
   {
     /*
+     * The server's own page (apps/server/src/http/admin.ts serves it).
+     *
+     * Plain browser JavaScript with no build step, which is the point of it —
+     * the page you reach for when nothing else works should not be the thing
+     * most likely to be broken. So it is in no tsconfig, and the type-aware
+     * rules cannot run on it; the ordinary ones still do.
+     */
+    files: ['apps/server/public/**/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: {
+        crypto: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        history: 'readonly',
+        location: 'readonly',
+        sessionStorage: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        URLSearchParams: 'readonly',
+        window: 'readonly',
+      },
+    },
+  },
+  {
+    /*
      * Tests and the service worker sit outside the app's tsconfig projects —
      * tests because they should not ship in the build output, sw.ts because it
      * needs the WebWorker lib rather than the DOM one (see tsconfig.sw.json).

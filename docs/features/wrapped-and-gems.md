@@ -4,6 +4,11 @@ Two ways of looking back at your own listening, both built entirely from the `pl
 table that the app has been filling since day one. No new data is collected and no
 migration is needed.
 
+**Both are the server's**, which is where `play_events` lives, so the app hides them when
+its library is the bucket's — and every surface's now is, which means neither is reachable
+today. The plays are still being recorded and still reach the server, so nothing is being
+lost in the meantime ([SYNC.md](../SYNC.md), "What this gives up").
+
 ---
 
 ## Wrapped

@@ -17,22 +17,23 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH
  * the same one the simulator draws.
  */
 /**
- * Where the app under test should look for its Mac.
+ * Where the app is, and where it should look for its Mac.
  *
- * Served by the Mac (`npm run build`, then the server on 4600), the app asks
- * its own origin and there is nothing to configure. A dev server on another
- * port has to be told — it keeps the address through the `secrets` port,
- * which in a browser is `localStorage`. A fresh Playwright context has none, so
- * without this the app quite correctly shows its sign-in screen and every flow
- * times out waiting for a library.
+ * Two addresses, because they are two processes. The server on 4600 serves its
+ * own admin page now, not the app, so the app comes from its web dev server on
+ * 4601 — `npm run dev` starts both — and has to be told where the API is. It
+ * keeps that address through the `secrets` port, which in a browser is
+ * `localStorage`; a fresh Playwright context has none, so without the seed
+ * below the app quite correctly shows its sign-in screen and every flow times
+ * out waiting for a library.
  *
- * Set it when pointing these flows at a dev server:
+ * Both can be pointed elsewhere:
  *
  *   SELFMP3_WEB_URL=http://localhost:8090 \
- *   SELFMP3_APP_API=http://localhost:4600 npm run verify:flows
+ *   SELFMP3_APP_API=http://localhost:4610 npm run verify:flows
  */
-const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4600'
-const appApi = process.env.SELFMP3_APP_API
+const baseURL = process.env.SELFMP3_WEB_URL ?? 'http://localhost:4601'
+const appApi = process.env.SELFMP3_APP_API ?? 'http://localhost:4600'
 
 /**
  * One device per width, the same on every run.

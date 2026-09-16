@@ -4,11 +4,10 @@
 the phone: see [offline-sync.md](offline-sync.md).
 
 The same app the browser draws at 1280, installed. `apps/desktop` is an Electron
-shell around `apps/app`'s web export — the identical build the server serves at
-`http://localhost:4600` and GitHub Pages serves at `/selfmp3/`. Anything that
-looks different in the window and in the tab is a bug, with one named exception:
-the window's title bar is inset, so the sidebar's top is padded for the traffic
-lights.
+shell around `apps/app`'s web export — the identical build GitHub Pages serves
+at `/selfmp3/`. Anything that looks different in the window and in the tab is a
+bug, with one named exception: the window's title bar is inset, so the sidebar's
+top is padded for the traffic lights.
 
 **The plan and the reasoning are [`docs/DESKTOP.md`](../DESKTOP.md)**: why
 Electron, what each phase adds, and what was rejected.
@@ -34,11 +33,14 @@ First launch signs in with Google through your ordinary browser and comes back
 to the app by `selfmp3://` — the same doorman flow every device uses, so the
 library and its files arrive with the sign-in and nothing else is asked for.
 
-Because a computer may sit beside the server, the installed app can also be
-pointed at a server directly: Settings › Server, with the address and token.
-Switching between a server and the cloud clears what has been downloaded and
-says so first — a song's id belongs to whichever side answered, so an index
-kept across a switch would offer the wrong songs (`docs/SYNC.md`, "Identity").
+**That is the only way in.** This was the last surface that could be pointed at
+a server by typing its address, and it no longer can (2026-09-16): Settings ›
+Connection shows who you are signed in as and how to sign out, and there is no
+server switch, no address field and no confirmation about clearing downloads
+before one. The library is the bucket's on a computer for the same reason it is
+on a phone, and importing still reaches the server directly when it can — by the
+addresses in the bucket's own snapshot, never by anything typed
+(`packages/client/src/connection/reach.ts`).
 
 Every connection on a computer counts as Wi-Fi, so the 500 MB ask and the two
 offline settings behave as they do on a phone at home.

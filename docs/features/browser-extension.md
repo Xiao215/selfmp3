@@ -31,8 +31,10 @@ copy or upload one.
 The options page opens the first time you install it, and from the gear in the
 popup after that. It wants:
 
-- **Address** — where you open self.mp3: `http://localhost:4600` on the same
-  computer, or your server's `https://….ts.net` address over Tailscale.
+- **Address** — your **server's** address: `http://localhost:4600` on the same
+  computer, or its `https://….ts.net` address over Tailscale. Not where you
+  listen. The extension is the one part of self.mp3 that still points at a
+  server by address, and it has to be, because only the server runs yt-dlp.
 - **Token** — only if you set `SELFMP3_AUTH_TOKEN` on the server.
 
 It checks both before keeping them: the address has to answer, and the token has
@@ -63,8 +65,8 @@ into, under the last few songs you imported.
 
 **A playlist, an album or an artist.** The popup lists what the link holds, with
 the songs you already have unticked, and offers to create a playlist of the same
-name. Long lists show the first eight and a link to the full review in
-self.mp3 itself.
+name. Long lists show the first eight and a link to the full review on the
+Import screen.
 
 **Right-click, anywhere.** *Import link to self.mp3* takes any link — a YouTube
 one, or anything else yt-dlp can read — with your defaults. *Import with tags and
@@ -83,6 +85,11 @@ the badge is only ever about what you did here.
   which is what runs yt-dlp. Signing in with Google and leaving the request in
   your bucket for the server to pick up later is planned, not built
   ([EXTENSION.md](../EXTENSION.md), Phase 5).
+- **Open the app from the popup.** *Review the full list* and the queue footer
+  open the configured address with `/import` on the end, which was the app when
+  the server served it and is now the server's own page. They need to open the
+  Pages build, or the desktop app, instead (`apps/extension/src/popup/Popup.tsx`,
+  `openApp`).
 - **Undo.** Once a song is in, the pill says *Added* and stops there; cancelling
   is in the popup while the download is still running.
 - **Anything but Chromium.** Firefox needs a little of its own, and Safari would

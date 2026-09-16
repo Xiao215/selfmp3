@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>self.mp3 server</title>
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="masthead">
+        <h1>self.mp3 <span class="muted">server</span></h1>
+        <p class="lede">
+          This page sets the server up and says how it is doing. It is not where you listen — the
+          music is in your bucket, and every app reads it from there.
+        </p>
+      </header>
+
+      <!-- Filled in by admin.js; the markup below is only what it cannot be given. -->
+      <section class="card" id="library-card" aria-labelledby="library-title">
+        <h2 id="library-title">Library</h2>
+        <div id="library-body" class="rows">
+          <p class="muted">Loading…</p>
+        </div>
+      </section>
+
+      <section class="card" id="cloud-card" aria-labelledby="cloud-title">
+        <div class="card-head">
+          <h2 id="cloud-title">Cloud</h2>
+          <span class="tag" id="cloud-state"></span>
+        </div>
+        <div id="cloud-body" class="rows">
+          <p class="muted">Loading…</p>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="listen-title">
+        <h2 id="listen-title">Where to listen</h2>
+        <div class="rows">
+          <div class="row">
+            <div>
+              <p class="row-label">In a browser</p>
+              <p class="row-hint">
+                The app on GitHub Pages, signed in with the same Google account.
+              </p>
+            </div>
+            <a class="button" id="pages-link" href="https://xiao215.github.io/selfmp3/">Open</a>
+          </div>
+          <div class="row">
+            <div>
+              <p class="row-label">On this Mac</p>
+              <p class="row-hint">
+                The desktop app keeps its music on disk and plays it with no connection.
+              </p>
+            </div>
+            <span class="muted">self.mp3 in Applications</span>
+          </div>
+          <div class="row last">
+            <div>
+              <p class="row-label">On a phone</p>
+              <p class="row-hint">The iPhone or Android app, built from this repository.</p>
+            </div>
+            <span class="muted">docs/MOBILE.md</span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <span id="version"></span>
+        <span id="reachable" class="muted"></span>
+      </footer>
+    </main>
+    <script src="/admin.js"></script>
+  </body>
+</html>

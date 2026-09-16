@@ -151,9 +151,12 @@ Deploying it, and what each setting means, is in [apps/doorman/README.md](../app
 
 ### The server publishes the library
 
-*Settings → Cloud* on the server signs in with Google through the doorman, and then asks for the
-bucket if the account has none. (With no doorman set up, a bucket can still be connected
-directly with its key, as the way in.)
+The **Cloud** section of the server's own page, on `:4600`, signs in with Google through the
+doorman and then asks for the bucket if the account has none. (With no doorman set up, a
+bucket can still be connected directly with its key, as the way in.) That page is the
+server's setup and status — the library count, the Cloud section, *Publish now* — and not
+somewhere to listen: the server is a worker that fills the bucket, and the bucket is what
+every device reads.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
@@ -259,11 +262,17 @@ reason, or called off.
 ## What this gives up
 
 - **Handoff and remote control** need a live connection between devices, which a bucket
-  cannot provide. They keep working when the server is reachable over Tailscale, as today.
+  cannot provide. They are `/api/devices` on the server, and a device reading the bucket has
+  nowhere to send its heartbeat, so they are in the same position as Stats below: built and
+  running, with nothing asking.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
-- **Some things still need the server**: looking metadata up, romaji and pinyin, searching inside
-  lyrics, and fetching links. The web app hides those rather than offering what it cannot do.
+- **Some things still need the server**: Stats, the Untagged inbox, looking metadata up,
+  romaji and pinyin, searching inside lyrics, and fetching links. The app hides them rather
+  than offering what it cannot do, and since every surface now reads the bucket, **they are
+  not reachable from any of them today**. Fetching links is the exception and works: the
+  Import screen reaches the server directly, by the addresses in its own snapshot. The rest
+  are routes the server still serves over `/api` with nothing left to ask for them.
 - **Space.** 10 GB free is roughly 2,000–2,500 songs.
 
 ---
@@ -298,13 +307,16 @@ the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` 
 ### 3. The web app
 
 Every push to `main` builds it and publishes it to GitHub Pages
-(`.github/workflows/pages.yml`). Nothing to do but push.
+(`.github/workflows/pages.yml`). Nothing to do but push. `xiao215.github.io/selfmp3` is
+where you listen in a browser — the server does not serve the app.
 
 ### 4. Each device
 
 Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's
 endpoint, name, key ID and key. The key goes to the doorman, sealed; no device keeps it. On
-the server that is *Settings → Cloud*; everywhere else it is the first thing the app asks for.
+the server that is the *Cloud* section of its page on `:4600`; everywhere else it is the
+first thing the app asks for, and the only thing: there is no server address to type on any
+device.
 
 ---
 

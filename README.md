@@ -19,7 +19,7 @@ your server                     a storage bucket you own          your devices
 │ yt-dlp, ffmpeg       │ publish│ lyrics, change log   │  sync  │ Mac desktop app      │
 └──────────────────────┘        └──────────────────────┘        └──────────────────────┘
           ▲                                                               │
-          └────────────── Tailscale: imports, handoff, remote ────────────┘
+          └───────── Tailscale: imports, and the server's own page ───────┘
 ```
 
 The server imports and analyses. The bucket holds a copy of the library that every device
@@ -47,18 +47,30 @@ One server, and one app (`apps/app`, Expo) that runs in a browser, on a phone an
 the desktop app. The screens are the same everywhere; the layout follows the width of the
 window, not the platform.
 
+**Every device gets in the same way — sign in with Google, and the library is your
+bucket's.** There is no server address to type anywhere. The server's own page, on
+`:4600`, is not where you listen: it is where you set the server up and see what it is
+doing.
+
 | | Server | Browser tab | iPhone and Android app | Mac desktop app |
 |---|---|---|---|---|
-| **What it is** | Node, Express and SQLite on a Mac, a Linux box or in Docker | The app, served by the server at `:4600`, or the GitHub Pages build signed in to your bucket | The Expo app, built yourself from this repo | An Electron window around the same web build, a `.dmg` on the releases page |
-| **Holds the library** | Yes: the folder and the database | No | A copy of the bucket's library | A copy of the bucket's, or a view of a server's |
+| **What it is** | Node, Express and SQLite on a Mac, a Linux box or in Docker | The GitHub Pages build at `xiao215.github.io/selfmp3`, signed in to your bucket | The Expo app, built yourself from this repo | An Electron window around the same web build, a `.dmg` on the releases page |
+| **Holds the library** | Yes: the folder and the database | No | A copy of the bucket's library | A copy of the bucket's library |
 | **Music with no signal** | — | Streams, keeps nothing | Downloads, and plays from the files | Downloads, and plays from the files |
-| **Import from a link** | Runs yt-dlp itself | Asks the server | Asks the server, through the bucket | Asks the server |
-| **Stats, Untagged, metadata lookup** | Serves them | When talking to the server | When a server answers | When talking to the server |
+| **Import from a link** | Runs yt-dlp itself | Reaches the server directly when it can, otherwise leaves the request in the bucket | The same | The same |
+| **Stats, Untagged, metadata lookup** | Serves them over `/api` | Hidden — see below | Hidden | Hidden |
 | **Controls outside the app** | — | The browser's media controls | Lock screen, Control Center, Android Auto (partly) | Media keys, Now Playing in Control Center, the menu bar |
 | **Keyboard** | — | Space for play and pause | — | The application menu's shortcuts, and `⌘K` for Search |
 
 On a phone the tabs are **Library · Playlists · Import · You**; You holds Stats & report,
 Untagged, Tags and Settings. On a computer those live in the sidebar.
+
+**Stats, the Untagged inbox and looking metadata up are the server's own.** They need its
+database and the calls only it makes, so the app hides them whenever the library it is
+showing is the bucket's. Every surface now signs in to the bucket, so today none of them
+draws those screens, and the server's page does not draw them either — it serves them over
+`/api` and nothing asks. That is a gap rather than a decision, and it is the next thing to
+close.
 
 ---
 
@@ -168,9 +180,11 @@ library in a Backblaze B2 bucket you own, through a small Cloudflare Worker (the
 that keeps the bucket's key off your devices. Edits made anywhere combine by fixed rules. See
 [docs/SYNC.md](docs/SYNC.md).
 
-**Handoff and remote control.** Devices that can reach the server see what each other is
+**Handoff and remote control.** Devices that answer from the server see what each other is
 playing. Move a song to another device mid-track, drive one from another, or continue where
-you left off. See [devices-and-handoff.md](docs/features/devices-and-handoff.md).
+you left off. The switchboard is `/api/devices` and a bucket cannot be one, so this is not
+reachable while every surface reads the bucket — the honest version is in
+[devices-and-handoff.md](docs/features/devices-and-handoff.md).
 
 **A desktop app, not a tab.** A Dock icon, the media keys, the menu bar, `⌘K` search, songs
 kept as files in `~/Library/Application Support/self.mp3`, and the keychain for its token.
@@ -181,7 +195,9 @@ See [desktop-app.md](docs/features/desktop-app.md).
 **Stats, and Wrapped whenever you want it.** Plays over time, when you listen, top artists
 and tags, streaks, and how much you have never played. A report for any range — week, month,
 year, all time — that you can save as an image. Forgotten gems brings back songs you loved
-and stopped playing. See [wrapped-and-gems.md](docs/features/wrapped-and-gems.md).
+and stopped playing. All of it is the server's own, so it is hidden from a bucket library
+and — see [Where it runs](#where-it-runs) — not reachable from any surface today. See
+[wrapped-and-gems.md](docs/features/wrapped-and-gems.md).
 
 ---
 
@@ -195,7 +211,11 @@ You need Node 22 or newer. On a Mac:
 
 It installs `yt-dlp` and `ffmpeg` with Homebrew if they are missing, installs the npm
 packages, builds, creates the library and data folders, and offers to start the server at
-login. It is safe to run again after every `git pull`. Then open <http://localhost:4600>.
+login. It is safe to run again after every `git pull`. Then open <http://localhost:4600>:
+that is the server's own page — the library count, the Cloud section where you sign in
+with Google and name your bucket, and a **Publish now** button. Once it has published, you
+listen in the [GitHub Pages tab](https://xiao215.github.io/selfmp3), the Mac desktop app or
+the phone app, each signed in with the same Google account.
 
 By hand:
 
@@ -236,8 +256,6 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_AUTH_TOKEN` | none | A bearer token, 8 characters or more, on top of Tailscale |
 | `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman this server signs in to the cloud through. Empty for none |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
-| `SELFMP3_SERVE_WEB` | `true` | Serve the app's web export from the server |
-| `SELFMP3_WEB_DIR` | `apps/app/dist` | Where that export is |
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
 | `SELFMP3_SCAN_ON_BOOT` | `true` | Scan the library folder at startup |
@@ -281,7 +299,7 @@ your real collection. Every root script:
 | `npm run check:app` | `typecheck:app`, `lint:app` and `test:app` |
 | `npm run check` | Typecheck, lint and tests, the app included — what CI runs |
 | `npm run format` / `npm run format:check` | Prettier, writing or checking |
-| `npm run verify:flows` | Playwright flows at computer and phone width, against a running server ([verify/README.md](verify/README.md)) |
+| `npm run verify:flows` | Playwright flows at computer and phone width, against `npm run dev` ([verify/README.md](verify/README.md)) |
 | `npm run verify:desktop` | Playwright against the built desktop app |
 | `npm run clean` | Remove every build output |
 
@@ -308,7 +326,8 @@ packages/client          what every client shares: API client, React Query hooks
                          download queue, practice and auto-mix rules, theme tokens
 packages/replica         a device's own copy of the bucket's library, and its outbox
 packages/desktop-bridge  the contract between the desktop shell and the page
-apps/server              Express 5 and better-sqlite3: routes → services → repositories
+apps/server              Express 5 and better-sqlite3: routes → services → repositories,
+                         plus public/ — the hand-written page it serves on :4600
 apps/app                 Expo / React Native: one app for iOS, Android and the web
 apps/desktop             the Electron shell around apps/app's web export
 apps/doorman             Cloudflare Worker: Google sign-in and bucket access

@@ -262,6 +262,31 @@ export class PlaylistRepository {
     return this.#items.all(playlist.id).map(row => row.song_id)
   }
 
+  /**
+   * A playlist's songs as a snapshot should carry them (docs/SYNC.md): every
+   * one, whether or not this server holds its file.
+   *
+   * `songIds` leaves out a song whose file is gone, which is right for playing
+   * and wrong for publishing. A song missing from this disk may still have its
+   * audio in the bucket — a server that took the library on from the bucket has
+   * a whole library of them — and it is still in the playlist on every other
+   * device. Publishing the player's view would quietly take it out of the
+   * playlist everywhere because of one server's disk. The snapshot narrows to
+   * songs the bucket really has itself (services/cloudSnapshot.ts), which is
+   * the filter that belongs here.
+   */
+  snapshotSongIds(playlist: Playlist): number[] {
+    if (playlist.kind === 'live') {
+      if (!playlist.rules) return []
+      const { sql, params } = compileSmartRules(playlist.rules, { includeMissing: true })
+      return this.#db
+        .prepare<unknown[], { id: number }>(sql)
+        .all(...params)
+        .map(row => row.id)
+    }
+    return this.#everyItem.all(playlist.id).map(row => row.song_id)
+  }
+
   /** Append or insert songs, keeping positions dense and ordered. */
   add(playlistId: number, songIds: readonly number[], position?: number): void {
     const run = this.#db.transaction(() => {

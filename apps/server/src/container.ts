@@ -42,6 +42,7 @@ import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
 import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
+import { CloudAdopt } from './services/cloudAdopt.js'
 import { CloudIngest } from './services/cloudIngest.js'
 import { CloudImportService } from './services/cloudImports.js'
 import { ImportRequestRepository } from './repositories/importRequests.js'
@@ -180,6 +181,21 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
+  // Signing in to a bucket that already holds a library: take it on before
+  // publishing anything over it (services/cloudAdopt.ts).
+  const adopt = new CloudAdopt({
+    db,
+    songs,
+    tags,
+    playlists,
+    features: audioFeatures,
+    cloud: cloudRepo,
+    sync: syncRepo,
+    storage,
+    clock,
+    logger,
+  })
+
   // Before the sync, which uploads each song's romaji beside its words.
   const lyricsCache = new LyricsCache(config, logger)
   const motion = new MotionStore(config, logger)
@@ -198,6 +214,7 @@ export function createContainer(configured: Config): Container {
     logger,
     sync: syncRepo,
     ingest,
+    adopt,
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),

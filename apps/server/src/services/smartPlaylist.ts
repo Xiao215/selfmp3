@@ -192,11 +192,18 @@ function compileRule(rule: SmartRule): CompiledQuery {
  * Build the id query for a rule set.
  *
  * Missing files are excluded — a live playlist should never hand the player a
- * track it cannot stream.
+ * track it cannot stream. `includeMissing` is for the one caller that is not
+ * the player: a snapshot says what the *bucket's* library holds, and a song
+ * this server has no file for may still have its audio up there (the snapshot
+ * narrows to those itself). Publishing the player's view would take a song out
+ * of a playlist on every other device because of this one server's disk.
  */
-export function compileSmartRules(rules: SmartRules): CompiledQuery {
+export function compileSmartRules(
+  rules: SmartRules,
+  options: { includeMissing?: boolean } = {},
+): CompiledQuery {
   const params: unknown[] = []
-  const conditions: string[] = ['s.missing = 0']
+  const conditions: string[] = options.includeMissing ? [] : ['s.missing = 0']
 
   const compiled = rules.rules.map(compileRule)
   if (compiled.length > 0) {
@@ -213,7 +220,8 @@ export function compileSmartRules(rules: SmartRules): CompiledQuery {
       ? 'RANDOM()'
       : `${orderColumn} ${direction} NULLS LAST, s.id ${direction}`
 
-  let sql = `SELECT s.id FROM songs s WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy}`
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : ''
+  let sql = `SELECT s.id FROM songs s ${where}ORDER BY ${orderBy}`
 
   if (rules.limit !== null) {
     sql += ' LIMIT ?'

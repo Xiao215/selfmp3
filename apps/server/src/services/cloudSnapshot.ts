@@ -250,18 +250,46 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
  * must treat "cannot read it" as a reason to stop, never as permission.
  */
 export function snapshotSongCount(body: Buffer): number {
-  const gzipped = body.length > 1 && body[0] === 0x1f && body[1] === 0x8b
-  const text = (gzipped ? gunzipSync(body) : body).toString('utf8')
-  const songs = (JSON.parse(text) as { songs?: unknown }).songs
+  const songs = (JSON.parse(snapshotText(body)) as { songs?: unknown }).songs
   if (!Array.isArray(songs)) throw new Error('a snapshot with no songs array')
   return songs.length
 }
 
-/** What to tell somebody whose server could not check before publishing. */
+/**
+ * A snapshot's bytes as its JSON text, however the bucket handed them over.
+ *
+ * The one decision any reader of a snapshot has to make, so exactly one place
+ * makes it. A second reader written later that assumes gzip is the shape of
+ * the bug above, and `MemoryCloudStore` cannot catch it: the fake returns the
+ * bytes it was given, and the real store returns what fetch already decoded.
+ */
+function snapshotText(body: Buffer): string {
+  const gzipped = body.length > 1 && body[0] === 0x1f && body[1] === 0x8b
+  return (gzipped ? gunzipSync(body) : body).toString('utf8')
+}
+
+/**
+ * The whole of the bucket's newest snapshot, for a server that means to adopt
+ * the library in it rather than only count it.
+ *
+ * Throws on anything that is not a snapshot, for the same reason
+ * `snapshotSongCount` does: a server that cannot read the bucket's library
+ * must stop, never carry on as though the bucket held nothing.
+ */
+export function parseSnapshot(body: Buffer): CloudSnapshot {
+  return CloudSnapshotSchema.parse(JSON.parse(snapshotText(body)))
+}
+
+/**
+ * What to tell somebody whose server could not read the bucket's library —
+ * either to take it on before publishing, or to check its size afterwards.
+ * Both are the same situation from where the user sits: there is a library up
+ * there and this server cannot see it, so it will not write over it.
+ */
 export function publishUncheckableMessage(reason: string): string {
   return (
     `refused to publish: there is a library in the bucket and this server could not read it ` +
-    `to see how big it is (${reason}). Publishing blind would replace it on every device. ` +
+    `(${reason}). Publishing blind would replace it on every device. ` +
     `This usually clears by itself; if it does not, and you are sure this server holds the ` +
     `library you want everywhere, set SELFMP3_PUBLISH_ANYWAY=1.`
   )

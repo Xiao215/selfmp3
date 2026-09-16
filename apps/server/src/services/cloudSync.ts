@@ -27,6 +27,7 @@ import {
   type Change,
   type CloudConnect,
   type CloudLyrics,
+  type CloudSnapshot,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
@@ -56,11 +57,13 @@ import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
 import {
   buildSnapshot,
+  parseSnapshot,
   publishRefusedMessage,
   publishUncheckableMessage,
   publishWouldLoseLibrary,
   snapshotSongCount,
 } from './cloudSnapshot.js'
+import type { CloudAdopt } from './cloudAdopt.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -159,6 +162,12 @@ interface CloudSyncDeps {
   /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
+  /**
+   * What takes on the library already in the bucket before this server
+   * publishes over it (services/cloudAdopt.ts). Absent where adoption is not
+   * what is being tested, which then publishes only what this server holds.
+   */
+  readonly adopt?: CloudAdopt
   /** Links other devices asked to import: how each is going goes in every snapshot. */
   readonly importRequests?: ImportRequestRepository
   /**
@@ -207,6 +216,13 @@ export class CloudSyncService {
   #formatChecked = false
   /** Whether the bookkeeping has been checked against the bucket's own listing. */
   #verified = false
+  /**
+   * Whether the library already in this bucket has been taken on. Once per
+   * bucket, before anything this server writes can replace it; a pass in
+   * flight and a publish arriving from an import share the one attempt.
+   */
+  #adopted = false
+  #adopting: Promise<void> | null = null
 
   #running: Promise<void> | null = null
   #again = false
@@ -305,6 +321,7 @@ export class CloudSyncService {
       // Trust nothing about the bucket: its format, its files, its snapshot.
       this.#formatChecked = false
       this.#verified = false
+      this.#adopted = false
       this.#lastSnapshotHash = null
     }
     return this.#pass()
@@ -596,7 +613,7 @@ export class CloudSyncService {
     const file = this.#deps.cloud.songFile(songId)
     if (!file) throw new Error('the song is no longer in the library')
 
-    await this.#ensureFormat(store)
+    await this.#prepareBucket(store)
     await this.#uploadSongFiles(store, file, this.#deps.cloud.states().get(songId) ?? null)
     await this.#publish(store)
   }
@@ -631,13 +648,10 @@ export class CloudSyncService {
     let failed = 0
 
     try {
-      await this.#ensureFormat(store)
-      if (!this.#verified) {
-        await this.#verify(store)
-        this.#verified = true
-      }
+      await this.#prepareBucket(store)
+      if (generation !== this.#generation || this.#stopped) return
 
-      // Other devices' changes first: a song removed elsewhere is not worth
+      // Other devices' changes next: a song removed elsewhere is not worth
       // uploading, and the snapshot at the end should say they are folded in.
       failed += await this.#readLogs(store, generation)
       if (generation !== this.#generation || this.#stopped) return
@@ -830,6 +844,108 @@ export class CloudSyncService {
       // The next look, or the next pass, will say what is wrong.
       this.#logger.debug('could not look for changes from other devices', {
         message: message(error),
+      })
+    }
+  }
+
+  // --- Taking on the library that is already there -----------------------------
+
+  /**
+   * Everything that has to be true of the bucket before this server writes a
+   * word to it, in the order it has to be true in: the format is one this
+   * build may write; the bookkeeping matches what the bucket really holds; and
+   * the library already in it has been taken on.
+   *
+   * Each step remembers it has run, so this costs one listing per bucket and
+   * nothing thereafter. Adoption comes last because it needs the second step's
+   * answer — which of the files the snapshot names the bucket still has.
+   */
+  async #prepareBucket(store: CloudStore): Promise<void> {
+    await this.#ensureFormat(store)
+    if (!this.#verified) {
+      await this.#verify(store)
+      this.#verified = true
+    }
+    await this.#adoptLibrary(store)
+  }
+
+  /**
+   * Take on the bucket's library, once per bucket, before publishing to it.
+   *
+   * The server used to only write snapshots. A server that holds nothing and
+   * signs in to a bucket that holds fifty-two songs therefore published its
+   * nothing as the whole library, and every device followed it — which is not a
+   * story about a bug so much as about a missing half of the design, because
+   * the guard that now stops it leaves "set this up on a new Mac and get my
+   * library back" with nowhere to go.
+   *
+   * Everything here fails closed. "I could not read the bucket's library" must
+   * never come out the far side as "the bucket has no library": that is the
+   * reading that publishes over it. So a listing that will not answer, a
+   * snapshot that has gone, one that will not parse — each throws, the pass
+   * fails and retries, and nothing is published in the meantime.
+   */
+  async #adoptLibrary(store: CloudStore): Promise<void> {
+    if (this.#adopted) return
+    this.#adopting ??= this.#adoptNow(store).finally(() => {
+      this.#adopting = null
+    })
+    await this.#adopting
+  }
+
+  async #adoptNow(store: CloudStore): Promise<void> {
+    const adopt = this.#deps.adopt
+    // The escape hatch is total: it is how you say "this server's library is
+    // the one I want everywhere", and merging the bucket's into it first would
+    // be the opposite of that.
+    if (!adopt || process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') {
+      this.#adopted = true
+      return
+    }
+
+    // Listing is separate from reading, as it is in the guard: an empty
+    // snapshots folder is a fact — the bucket has no library — and the ordinary
+    // first run. Failing to list is not that fact.
+    let newest: string | null
+    try {
+      newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
+    } catch (error) {
+      throw new CloudError(
+        'other',
+        publishUncheckableMessage(`the bucket would not list: ${message(error)}`),
+      )
+    }
+    if (!newest) {
+      this.#adopted = true
+      return
+    }
+
+    let snapshot: CloudSnapshot
+    try {
+      const body = await store.get(newest)
+      if (!body) throw new Error(`${newest} has gone`)
+      snapshot = parseSnapshot(body)
+    } catch (error) {
+      throw new CloudError(
+        'other',
+        publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`),
+      )
+    }
+
+    const result = await adopt.adopt(snapshot)
+    this.#adopted = true
+    if (result.songs === 0 && result.tags === 0 && result.playlists === 0) return
+
+    this.#logger.info('took on the library already in the bucket', {
+      from: newest,
+      songs: result.songs,
+      tags: result.tags,
+      playlists: result.playlists,
+      ...(result.withoutAudio > 0 ? { withoutAudioInBucket: result.withoutAudio } : {}),
+    })
+    if (result.withoutAudio > 0) {
+      this.#logger.warn('some songs in the bucket’s library have no audio in the bucket', {
+        songs: result.withoutAudio,
       })
     }
   }
@@ -1093,6 +1209,15 @@ export class CloudSyncService {
   /** Write a snapshot, unless it would say exactly what the last one did. */
   async #publishNow(store: CloudStore): Promise<void> {
     const { cloud, songs, tags, playlists, sync, importRequests } = this.#deps
+
+    // Never before the bucket's own library has been taken on. A pass reaches
+    // this having adopted already; an import finishing during the first pass
+    // reaches it through `uploadSong`, and would otherwise publish a library
+    // that is still half this server's — which is the bug this whole path
+    // exists to close, wearing a hat. Failing to adopt throws from here, so
+    // that publish does not happen either.
+    await this.#prepareBucket(store)
+
     const deviceId = this.#deviceId()
     const writtenAt = this.#now()
     // A request whose songs have all finished says so from now on.
@@ -1113,7 +1238,7 @@ export class CloudSyncService {
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
       playlistUids: cloud.playlistUids(),
-      playlistSongIds: playlist => playlists.songIds(playlist),
+      playlistSongIds: playlist => playlists.snapshotSongIds(playlist),
       deviceId,
       writtenAt,
     })
@@ -1234,6 +1359,8 @@ export class CloudSyncService {
     this.#target = target
     this.#formatChecked = false
     this.#verified = false
+    this.#adopted = false
+    this.#adopting = null
     this.#checkedAgainstBucket = false
     this.#lastSnapshotHash = null
     this.#lastError = null

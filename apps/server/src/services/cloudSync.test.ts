@@ -15,7 +15,10 @@ import {
   parseEndpoint,
   type Change,
   type CloudConnect,
+  type CloudPlaylist,
   type CloudSnapshot,
+  type CloudSong,
+  type CloudTag,
   type DoormanClaimResult,
   type DoormanMe,
 } from '@selfmp3/shared'
@@ -24,6 +27,7 @@ import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { CloudError, type CloudStore } from '../bucket/store.js'
 import { MemoryCloudStore } from '../bucket/memoryStore.js'
+import { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { MotionStore } from './motionStore.js'
 import { ImportRepository } from '../repositories/imports.js'
@@ -33,12 +37,14 @@ import { StatsRepository } from '../repositories/stats.js'
 import { SyncRepository } from '../repositories/sync.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
+import { CloudAdopt } from './cloudAdopt.js'
 import { CloudIngest } from './cloudIngest.js'
 import { CloudSyncService, type Doorman } from './cloudSync.js'
 import { SyncClock } from './localEdits.js'
 import { CoverService } from './covers.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
+import { ScannerService } from './scanner.js'
 
 /**
  * Publishing to the bucket, against a real library folder, a database built
@@ -68,6 +74,7 @@ describe('CloudSyncService', () => {
   let cloud: CloudRepository
   let syncRepo: SyncRepository
   let ingest: CloudIngest
+  let adopt: CloudAdopt
   let covers: CoverService
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
@@ -104,6 +111,22 @@ describe('CloudSyncService', () => {
     })
     const storage = new LocalStorageDriver(root)
     covers = new CoverService({ dataDir } as Config, songs, logger)
+    adopt = new CloudAdopt({
+      db,
+      songs,
+      tags,
+      playlists,
+      features: new AudioFeaturesRepository(db),
+      cloud,
+      sync: syncRepo,
+      storage,
+      clock: new SyncClock({
+        deviceId: () => cloud.deviceId('mac'),
+        latest: () => syncRepo.latestStamp(),
+        now: () => clock,
+      }),
+      logger,
+    })
 
     // One bucket per name, so a test can point the server somewhere else.
     buckets = new Map()
@@ -124,6 +147,7 @@ describe('CloudSyncService', () => {
       logger,
       sync: syncRepo,
       ingest,
+      adopt,
       openStore: connection => {
         let store = buckets.get(connection.bucket)
         if (!store) {
@@ -201,6 +225,98 @@ describe('CloudSyncService', () => {
 
   const uidOf = (songId: number): string =>
     (db.prepare('SELECT uid FROM songs WHERE id = ?').get(songId) as { uid: string }).uid
+
+  // --- A bucket somebody else's device filled ---------------------------------
+
+  /** A uid, from anything memorable. */
+  const uid = (seed: string): string => sha(seed).slice(0, 32)
+
+  /** One song as another device published it, with as much or as little on it as wanted. */
+  const theirSong = (name: string, over: Partial<CloudSong> = {}): CloudSong => {
+    const [artist = '', title = name] = name.split(' - ')
+    return {
+      uid: uid(name),
+      title,
+      artist,
+      album: '',
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 210,
+      audio: { key: `audio/${sha(`audio:${name}`)}.m4a`, size: 4096, mime: 'audio/mp4' },
+      cover: null,
+      lyrics: null,
+      instrumental: false,
+      loved: false,
+      playCount: 0,
+      skipCount: 0,
+      lastPlayedAt: null,
+      addedAt: '2025-06-01 12:00:00',
+      sourceUrl: null,
+      tagUids: [],
+      audioFeatures: null,
+      ...over,
+    }
+  }
+
+  /** A whole snapshot, as another device would have left it. */
+  const theirSnapshot = (input: {
+    songs?: readonly CloudSong[]
+    tags?: readonly CloudTag[]
+    playlists?: readonly CloudPlaylist[]
+    device?: string
+    at?: string
+  }): CloudSnapshot =>
+    CloudSnapshotSchema.parse({
+      format: 1,
+      writtenAt: input.at ?? '2026-01-01T00:00:00.000Z',
+      writtenBy: input.device ?? 'iphone-0b7d44a1',
+      upTo: {},
+      songs: input.songs ?? [],
+      tags: input.tags ?? [],
+      playlists: input.playlists ?? [],
+    })
+
+  /**
+   * Put that library in the bucket: the snapshot, gzipped as a real one is, and
+   * the files it names. `withoutAudio` leaves a song's audio out, which is what
+   * a bucket looks like when a file was deleted by hand from under it.
+   */
+  const seedBucket = (
+    snapshot: CloudSnapshot,
+    options: {
+      store?: MemoryCloudStore
+      withoutAudio?: readonly string[]
+      /** False to leave the body as plain JSON, the way fetch hands one over. */
+      gzip?: boolean
+    } = {},
+  ): string => {
+    const store = options.store ?? bucket
+    const key = snapshotKey(new Date(snapshot.writtenAt), snapshot.writtenBy)
+    const json = Buffer.from(JSON.stringify(snapshot))
+    store.objects.set(key, {
+      body: options.gzip === false ? json : gzipSync(json),
+      contentType: 'application/json',
+      contentEncoding: 'gzip',
+    })
+    const put = (fileKey: string, size: number, contentType: string): void => {
+      store.objects.set(fileKey, { body: Buffer.alloc(size, 9), contentType })
+    }
+    for (const song of snapshot.songs) {
+      if (!options.withoutAudio?.includes(song.uid)) {
+        put(song.audio.key, song.audio.size, song.audio.mime)
+      }
+      if (song.cover) put(song.cover.key, song.cover.size, 'image/jpeg')
+      if (song.lyrics) put(song.lyrics.key, song.lyrics.size, 'text/plain')
+    }
+    return key
+  }
+
+  /** What the library here holds, as uids, whatever state each song's file is in. */
+  const uidsHere = (): string[] =>
+    (db.prepare('SELECT uid FROM songs ORDER BY uid').all() as { uid: string }[]).map(
+      row => row.uid,
+    )
 
   describe('connecting', () => {
     it('marks a new bucket as self.mp3’s, then publishes the library', async () => {
@@ -655,14 +771,11 @@ describe('CloudSyncService', () => {
 
     it('keeps its three newest snapshots, and never touches another device’s', async () => {
       const id = addSong('A - One', 'one')
-      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
-      // A real snapshot of an empty library, not `{}`. The guard before
-      // publishing reads the newest snapshot now, and one it cannot make sense
-      // of stops it — so a stand-in here has to be a snapshot, not a placeholder.
-      bucket.objects.set(theirs, {
-        body: Buffer.from(JSON.stringify({ songs: [] })),
-        contentType: 'application/json',
-      })
+      // A real snapshot of an empty library, not `{}`. Before publishing, the
+      // server both reads the newest snapshot to see how big the library is and
+      // takes on what is in it — so a stand-in here has to be a whole snapshot,
+      // not a placeholder.
+      const theirs = seedBucket(theirSnapshot({}))
       await connect()
 
       for (const loved of [true, false, true, false, true]) {
@@ -675,43 +788,42 @@ describe('CloudSyncService', () => {
       expect(keys.filter(key => key !== theirs)).toHaveLength(3)
     })
 
-    /** Another device's snapshot of a library far larger than this server's. */
-    const largerLibraryIn = (store: MemoryCloudStore): string => {
-      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
-      const songsThere = Array.from({ length: 20 }, (_, index) => ({ uid: String(index) }))
-      store.objects.set(theirs, {
-        body: gzipSync(Buffer.from(JSON.stringify({ songs: songsThere }))),
-        contentType: 'application/json',
-        contentEncoding: 'gzip',
-      })
-      return theirs
-    }
-
     /**
-     * The same library, handed back the way the real bucket hands it back.
+     * Another device's snapshot of a library far larger than this server's,
+     * and whose audio the bucket no longer holds.
      *
-     * `MemoryCloudStore` returns the exact bytes it was given, so a snapshot put
-     * gzipped comes back gzipped. The doorman store does not: it reads the body
-     * through Node's fetch, which decompresses by `Content-Encoding` before the
-     * server sees a byte. So in production this guard was always handed plain
-     * JSON, always threw trying to gunzip it, and always took the throw as
-     * "never mind" — which is how a 52-song library was replaced by a 1-song
-     * one on a real bucket. The fake was the only reason the test above passed.
+     * The guard is a backstop rather than the front line now: a bucket whose
+     * library can be taken on *is* taken on, and publishing afterwards loses
+     * nothing, which is what the next block is about. What is left for the
+     * guard is a bucket whose library could not be taken on — here because none
+     * of the audio is in it, so no adopted song has a file to point at and this
+     * server would publish its own one song as the whole library.
      */
-    const largerLibraryServedDecoded = (store: MemoryCloudStore): string => {
-      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
-      const songsThere = Array.from({ length: 20 }, (_, index) => ({ uid: String(index) }))
-      store.objects.set(theirs, {
-        body: Buffer.from(JSON.stringify({ songs: songsThere })),
-        contentType: 'application/json',
-        contentEncoding: 'gzip',
+    const largerLibraryIn = (store: MemoryCloudStore, gzip = true): string => {
+      const songsThere = Array.from({ length: 20 }, (_, index) => theirSong(`They - ${index}`))
+      return seedBucket(theirSnapshot({ songs: songsThere }), {
+        store,
+        gzip,
+        withoutAudio: songsThere.map(song => song.uid),
       })
-      return theirs
     }
 
     it('refuses just the same when the bucket hands the snapshot back decoded', async () => {
+      /*
+       * The same library, handed back the way the real bucket hands it back.
+       *
+       * `MemoryCloudStore` returns the exact bytes it was given, so a snapshot
+       * put gzipped comes back gzipped. The doorman store does not: it reads
+       * the body through Node's fetch, which decompresses by `Content-Encoding`
+       * before the server sees a byte. So in production this guard was always
+       * handed plain JSON, always threw trying to gunzip it, and always took
+       * the throw as "never mind" — which is how a 52-song library was replaced
+       * by a 1-song one on a real bucket. The fake was the only reason the
+       * older test passed. Everything that reads a snapshot goes through the
+       * one decoder now, so adoption inherits the fix rather than repeating it.
+       */
       addSong('A - One', 'one')
-      const theirs = largerLibraryServedDecoded(bucket)
+      const theirs = largerLibraryIn(bucket, false)
       await connect()
 
       expect(snapshotKeys()).toEqual([theirs])
@@ -721,6 +833,7 @@ describe('CloudSyncService', () => {
     it('refuses rather than publishing when it cannot read the newest snapshot', async () => {
       // Not a snapshot at all. "I cannot see the library" must never be taken
       // as "there is no library": zero is the count that lets this server win.
+      // Adoption stops first now, with the same answer for the same reason.
       addSong('A - One', 'one')
       const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
       bucket.objects.set(theirs, {
@@ -733,6 +846,8 @@ describe('CloudSyncService', () => {
 
       expect(snapshotKeys()).toEqual([theirs])
       expect(sync.status().lastError).toContain('could not read it')
+      // And nothing was half-taken-on from a snapshot it could not make sense of.
+      expect(songs.all()).toHaveLength(1)
     })
 
     it('refuses to publish over a larger library, on every pass, and keeps saying why', async () => {
@@ -761,6 +876,243 @@ describe('CloudSyncService', () => {
 
       expect(snapshotKeys(other)).toEqual([theirs])
       expect(sync.status().lastError).toContain('refused to publish')
+    })
+  })
+
+  /**
+   * A server signing in to a bucket that already has a library in it.
+   *
+   * Refusing to publish over it was only half an answer — it stopped the
+   * library being wiped and left "set self.mp3 up on a new Mac and get my
+   * library back" with nowhere to go. So the server reads the newest snapshot
+   * and takes on every song in it that it does not have, before it writes a
+   * word of its own.
+   */
+  describe('taking on the library already in the bucket', () => {
+    const TAG = { uid: 'a'.repeat(32), name: 'train', hue: 40 }
+
+    /** Three songs, a tag, and a manual playlist: enough for every part to matter. */
+    const theirLibrary = (): CloudSnapshot => {
+      const first = theirSong('YOASOBI - Gunjou', {
+        tagUids: [TAG.uid],
+        loved: true,
+        playCount: 12,
+        skipCount: 3,
+        lastPlayedAt: '2026-08-01 10:00:00',
+        sourceUrl: 'https://www.youtube.com/watch?v=abc',
+        year: 2020,
+        trackNo: 4,
+        album: 'THE BOOK',
+        albumArtist: 'YOASOBI',
+        duration: 245.5,
+        cover: { key: `covers/${sha('cover:gunjou')}.jpg`, size: 2048 },
+        lyrics: {
+          key: `lyrics/${sha('words:gunjou')}.lrc`,
+          size: 64,
+          kind: 'synced',
+          romanized: null,
+        },
+        audioFeatures: {
+          bpm: 128,
+          energy: 0.8,
+          loudnessLufs: -7.5,
+          key: 'A minor',
+          camelot: '8A',
+          danceability: 0.6,
+          analyzedAt: '2026-02-03 04:05:06',
+          version: 3,
+        },
+      })
+      const second = theirSong('Aurora Lane - Sunrise', { tagUids: [TAG.uid], instrumental: true })
+      const third = theirSong('Nova - Dusk')
+      return theirSnapshot({
+        songs: [first, second, third],
+        tags: [TAG],
+        playlists: [
+          {
+            uid: 'b'.repeat(32),
+            name: 'Mix',
+            description: 'the good ones',
+            kind: 'manual',
+            rules: null,
+            pinned: true,
+            songUids: [third.uid, first.uid],
+            createdAt: '2025-01-01 00:00:00',
+            updatedAt: '2025-07-04 09:00:00',
+          },
+        ],
+      })
+    }
+
+    /** What the server publishes, with the parts only this device decides stripped off. */
+    const asPublished = (): Pick<CloudSnapshot, 'songs' | 'tags' | 'playlists'> => {
+      const { songs: published, tags: publishedTags, playlists: publishedLists } = latest()
+      const byUid = <T extends { uid: string }>(items: readonly T[]): T[] =>
+        [...items].sort((a, b) => a.uid.localeCompare(b.uid))
+      return {
+        songs: byUid(published),
+        tags: byUid(publishedTags),
+        playlists: byUid(publishedLists),
+      }
+    }
+
+    it('takes on a whole library, and republishes exactly what it was handed', async () => {
+      const theirs = theirLibrary()
+      seedBucket(theirs)
+
+      await connect()
+
+      // Not "the same number of rows": the same library. Every uid, every tag
+      // on every song, every play count, every stamped field, the playlist and
+      // its order — handed back to the bucket as it was found.
+      expect(asPublished()).toEqual({
+        songs: [...theirs.songs].sort((a, b) => a.uid.localeCompare(b.uid)),
+        tags: theirs.tags,
+        playlists: theirs.playlists,
+      })
+      expect(sync.status()).toMatchObject({ state: 'idle', lastError: null })
+    })
+
+    it('does not upload a file the bucket already has', async () => {
+      seedBucket(theirLibrary())
+      await connect()
+      // Every put in this pass is the server's own snapshot and format.json.
+      expect(bucket.puts.filter(key => key.startsWith('audio/'))).toEqual([])
+      expect(bucket.puts.filter(key => key.startsWith('covers/'))).toEqual([])
+      expect(bucket.puts.filter(key => key.startsWith('lyrics/'))).toEqual([])
+    })
+
+    it('keeps the songs it already had, and adds only the rest', async () => {
+      // The overlap is by uid: this server's own song is one of the bucket's.
+      const mine = addSong('Nova - Dusk', 'dusk')
+      const theirs = theirLibrary()
+      db.prepare('UPDATE songs SET uid = ? WHERE id = ?').run(uid('Nova - Dusk'), mine)
+      seedBucket(theirs)
+
+      await connect()
+
+      // Three in the bucket, one of them already here: three, not four.
+      expect(uidsHere()).toEqual(theirs.songs.map(song => song.uid).sort())
+      expect(songs.byId(mine)).toMatchObject({
+        path: 'Nova - Dusk/Nova - Dusk.m4a',
+        missing: false,
+      })
+      expect(latest().songs).toHaveLength(3)
+    })
+
+    it('leaves a song it already has exactly as it was', async () => {
+      const mine = addSong('Nova - Dusk', 'dusk')
+      db.prepare('UPDATE songs SET uid = ?, title = ?, loved = 1 WHERE id = ?').run(
+        uid('Nova - Dusk'),
+        'Dusk (my name for it)',
+        mine,
+      )
+      seedBucket(theirLibrary())
+
+      await connect()
+
+      // The snapshot is not a change with a stamp, so it cannot win an edit.
+      expect(songs.byId(mine)).toMatchObject({ title: 'Dusk (my name for it)', loved: true })
+    })
+
+    it('adopts nothing the second time, and makes no second row for anything', async () => {
+      seedBucket(theirLibrary())
+      await connect()
+      const after = uidsHere()
+      const paths = songs.all().map(song => song.path)
+
+      // Including the way a person asks for it by hand, which starts over.
+      await sync.syncNow({ verify: true })
+      await sync.whenIdle()
+      await pass()
+
+      expect(uidsHere()).toEqual(after)
+      expect(songs.all().map(song => song.path)).toEqual(paths)
+      expect(tags.all()).toHaveLength(1)
+      expect(playlists.all()).toHaveLength(1)
+    })
+
+    it('makes the row for a song the bucket has no audio for, and does not publish it', async () => {
+      const theirs = theirLibrary()
+      const lost = theirs.songs[1]
+      seedBucket(theirs, { withoutAudio: [lost?.uid ?? ''] })
+
+      await connect()
+
+      // The row is worth having: its tags, its plays and its place in a
+      // playlist are all still true, and the audio may come back.
+      expect(uidsHere()).toEqual(theirs.songs.map(song => song.uid).sort())
+      expect(songs.all().find(song => song.title === 'Sunrise')).toMatchObject({ missing: true })
+      // But nothing points a device at a file nobody can download.
+      expect(
+        latest()
+          .songs.map(song => song.uid)
+          .sort(),
+      ).toEqual(
+        theirs.songs
+          .filter(song => song.uid !== lost?.uid)
+          .map(song => song.uid)
+          .sort(),
+      )
+    })
+
+    it('keeps an adopted song through a scan of the library folder', async () => {
+      seedBucket(theirLibrary())
+      await connect()
+      const before = uidsHere()
+
+      const scanner = new ScannerService({
+        config: { dataDir } as Config,
+        storage: new LocalStorageDriver(root),
+        songs,
+        metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
+        lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
+        covers,
+        logger: createLogger('silent'),
+      })
+      await scanner.scan()
+
+      // A scan marks a song whose file is not there `missing`; it never deletes
+      // the row. An adopted song is already missing, so a scan is a no-op on it
+      // — which is what makes it safe to leave one waiting for its audio.
+      expect(uidsHere()).toEqual(before)
+      expect(songs.all().every(song => song.missing)).toBe(true)
+      await pass()
+      expect(latest().songs).toHaveLength(3)
+    })
+
+    it('publishes nothing at all if it could not take the library on first', async () => {
+      // An import finishing is the other way into `#publish`, and it used to go
+      // straight there. A snapshot the server cannot make sense of has to stop
+      // that path too, or a half-adopted library publishes after all — the
+      // original bug, wearing a hat.
+      const id = addSong('A - One', 'one')
+      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
+      bucket.objects.set(theirs, {
+        body: Buffer.from('<html>a login page from a proxy</html>'),
+        contentType: 'application/json',
+      })
+      await connect()
+
+      await expect(sync.uploadSong(id)).rejects.toThrow(/could not read it/)
+      expect(snapshotKeys()).toEqual([theirs])
+    })
+
+    it('publishes this server’s library, unmerged, when told to publish anyway', async () => {
+      process.env['SELFMP3_PUBLISH_ANYWAY'] = '1'
+      try {
+        addSong('A - One', 'one')
+        seedBucket(theirLibrary())
+        await connect()
+
+        // The escape hatch is total: it is how you say "this server's library
+        // is the one I want everywhere", and merging the bucket's in first
+        // would be the opposite of that.
+        expect(songs.all()).toHaveLength(1)
+        expect(latest().songs).toHaveLength(1)
+      } finally {
+        delete process.env['SELFMP3_PUBLISH_ANYWAY']
+      }
     })
   })
 

@@ -22,6 +22,7 @@ interface NewFeatures {
 export class AudioFeaturesRepository {
   readonly #bySong
   readonly #upsert
+  readonly #insertSynced
   readonly #delete
   readonly #deleteAll
   readonly #nextPending
@@ -47,6 +48,15 @@ export class AudioFeaturesRepository {
         danceability  = excluded.danceability,
         analyzed_at   = excluded.analyzed_at,
         version       = excluded.version
+    `)
+
+    this.#insertSynced = db.prepare(`
+      INSERT INTO song_audio_features (
+        song_id, bpm, energy, loudness_lufs, key, camelot, danceability, analyzed_at, version
+      ) VALUES (
+        @songId, @bpm, @energy, @loudnessLufs, @key, @camelot, @danceability, @analyzedAt, @version
+      )
+      ON CONFLICT (song_id) DO NOTHING
     `)
 
     this.#delete = db.prepare('DELETE FROM song_audio_features WHERE song_id = ?')
@@ -75,6 +85,16 @@ export class AudioFeaturesRepository {
 
   upsert(songId: number, features: NewFeatures): void {
     this.#upsert.run({ songId, ...features })
+  }
+
+  /**
+   * Features another device analysed, as they arrived (services/cloudAdopt.ts).
+   * `analyzed_at` is the time on the device that did the work, not now: a
+   * snapshot this server republishes has to say what it was told, and the
+   * version is what decides whether this song is analysed again.
+   */
+  insertSynced(songId: number, features: NewFeatures & { analyzedAt: string }): void {
+    this.#insertSynced.run({ songId, ...features })
   }
 
   delete(songId: number): void {

@@ -30,6 +30,30 @@ const SONG_SELECT = `
   LEFT JOIN song_audio_features f ON f.song_id = s.id
 `
 
+/** A song taken from the bucket's snapshot, with no file on this disk yet. */
+interface AdoptedSong {
+  uid: string
+  path: string
+  title: string
+  artist: string
+  album: string
+  albumArtist: string
+  trackNo: number | null
+  year: number | null
+  duration: number
+  /** The size of the audio in the bucket, so the library can total its bytes. */
+  sizeBytes: number
+  mime: string
+  lyricsKind: string
+  instrumental: boolean
+  loved: boolean
+  playCount: number
+  skipCount: number
+  lastPlayedAt: string | null
+  addedAt: string
+  sourceUrl: string | null
+}
+
 interface NewSong {
   path: string
   title: string
@@ -55,6 +79,7 @@ export class SongRepository {
   readonly #byId
   readonly #byPath
   readonly #insert
+  readonly #insertAdopted
   readonly #updateScanned
   readonly #markMissing
   readonly #clearMissing
@@ -83,6 +108,21 @@ export class SongRepository {
       ) VALUES (
         @path, @title, @artist, @album, @albumArtist, @trackNo, @year,
         @duration, @sizeBytes, @mime, @mtimeMs, @hasArt, @artExt, @lyricsKind, @sourceUrl
+      )
+    `)
+
+    // `mtime_ms` stays 0 and `missing` 1: there is no file here yet, and both
+    // are what the scan and the upload pass read to tell that apart from a
+    // song whose audio this server holds.
+    this.#insertAdopted = db.prepare(`
+      INSERT INTO songs (
+        uid, path, title, artist, album, album_artist, track_no, year, duration,
+        size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
+        play_count, skip_count, loved, source_url, last_played_at, added_at, missing
+      ) VALUES (
+        @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
+        @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
+        @playCount, @skipCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt, 1
       )
     `)
 
@@ -165,6 +205,25 @@ export class SongRepository {
     const info = this.#insert.run({
       ...song,
       hasArt: song.hasArt ? 1 : 0,
+    })
+    return Number(info.lastInsertRowid)
+  }
+
+  /**
+   * A song this server learned about from the bucket rather than from a file
+   * (services/cloudAdopt.ts): everything the library knows about it, and
+   * `missing`, because the audio is not on this disk yet.
+   *
+   * It still needs a `path`, which is `NOT NULL UNIQUE` — that column is where
+   * the file *will* be, and what a later scan of the library folder matches the
+   * arriving file against. `has_art` stays 0: the cover is in the bucket, not
+   * here, and `cloud_songs` is what keeps pointing at it.
+   */
+  insertAdopted(song: AdoptedSong): number {
+    const info = this.#insertAdopted.run({
+      ...song,
+      loved: song.loved ? 1 : 0,
+      instrumental: song.instrumental ? 1 : 0,
     })
     return Number(info.lastInsertRowid)
   }

@@ -79,7 +79,9 @@ symlinks in `node_modules` still point somewhere real.
 - Runs as `node`, not root; `/app/library` and `/app/data` are volumes, chowned in the image
   so a fresh bind mount is writable.
 - `HEALTHCHECK` hits `/api/health` with busybox `wget`. That route is exempt from bearer
-  auth, so the check works with `SELFMP3_AUTH_TOKEN` set.
+  auth, so the check works whatever token the server is using — its own or one set in
+  `SELFMP3_AUTH_TOKEN`. In a container the loopback exemption is no help: the container is
+  its own machine, so a request from the host is a request from the network.
 - `tini` as entrypoint, because `yt-dlp` and `ffmpeg` subprocesses would otherwise leave
   zombies and `SIGTERM` would not reach node.
 

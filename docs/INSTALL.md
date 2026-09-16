@@ -203,8 +203,8 @@ A few things worth knowing:
   opening it to the internet (next section). Drop the `127.0.0.1:` prefix only if something
   else is already terminating TLS in front.
 - **There is a `HEALTHCHECK`** against `/api/health`, so `docker ps` tells you whether the
-  app is actually up rather than merely running. That route stays open even when
-  `SELFMP3_AUTH_TOKEN` is set, so a monitor never needs the secret.
+  app is actually up rather than merely running. That route stays open whatever token the
+  server is using, so a monitor never needs the secret.
 - **The image is multi-stage.** The web app is built once, as static files; the server is
   built with its compilers in a stage of its own. The runtime image is the built server, its
   production dependencies, the web app, `ffmpeg`, `yt-dlp` and `tini`.
@@ -264,9 +264,18 @@ Anything from the table in `README.md` can go in the `environment:` block of
 
 ```yaml
 environment:
-  SELFMP3_AUTH_TOKEN: <openssl rand -hex 24>   # a second lock, on top of Tailscale
+  SELFMP3_AUTH_TOKEN: <openssl rand -hex 24>   # a token of your own, instead of its own
   SELFMP3_LOG_LEVEL: debug
 ```
+
+The token is worth a word in a container. The server always has one — it makes its own on
+the first boot that finds none — but it keeps it in the database, which here is a bind mount
+that a `docker compose down -v` or a fresh `./data` would take with it. Every device signed
+in to your bucket would then be holding last week's key until the next sync reached it.
+Setting `SELFMP3_AUTH_TOKEN` in the compose file pins it to something the container cannot
+lose. The exemption for requests from the server's own machine does not help you here
+either: the container is its own machine, so a request from the host arrives over the
+network like any other.
 
 ---
 
@@ -289,8 +298,9 @@ selfmp3 doctor                   # after `npm link`, or inside the container
 | `selfmp3 doctor` | node, yt-dlp, ffmpeg, the server, the folders |
 | `selfmp3 --version` | print the version |
 
-`--url` points it at a server somewhere else, `--token` supplies the bearer token if you
-set one:
+`--url` points it at a server somewhere else. On the machine the server runs on you need no
+token — the default `http://localhost:4600` is not asked for one — and `--token` supplies it
+when you are reaching a server anywhere else:
 
 ```bash
 selfmp3 --url https://nas.tail1a2b.ts.net --token "$SELFMP3_AUTH_TOKEN" scan

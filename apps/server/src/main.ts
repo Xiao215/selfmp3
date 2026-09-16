@@ -14,8 +14,13 @@ import { createApp } from './app.js'
  */
 
 function main(): void {
-  const config = loadConfig()
-  const container = createContainer(config)
+  const configured = loadConfig()
+  // Whether the token was chosen by hand, which only this line can still tell:
+  // the container settles the rest against the database, so its config is the
+  // one to serve from and its `authToken` is never null.
+  const chosenByHand = configured.authToken !== null
+  const container = createContainer(configured)
+  const config = container.config
   const logger = container.logger
 
   const app = createApp(container)
@@ -28,30 +33,40 @@ function main(): void {
       logger.info(`listening on ${address.url}${address.tailscale ? '  (tailscale)' : ''}`)
     }
 
-    if (config.authToken) {
-      logger.info('bearer token auth is enabled')
-      return
-    }
-
     /*
-     * Say plainly who else can reach this.
+     * Say plainly who else can reach this, and what stands in their way.
      *
      * The API is the whole library — reading it, editing it, deleting from it —
-     * and with no token the only thing between it and anyone else on these
-     * networks is that they have not tried port 4600. That is worth a line in
-     * the log rather than a sentence in a document nobody reads twice.
-     *
-     * It is not made an error, and the bind address is left alone, because
-     * these addresses are load-bearing: a device signed in to the bucket finds
-     * this server through them to import (`packages/client/src/connection/reach.ts`),
-     * and closing them to localhost would quietly take importing away.
+     * and the addresses below are load-bearing: a device signed in to the
+     * bucket finds this server through them to import
+     * (`packages/client/src/connection/reach.ts`), so they cannot simply be
+     * closed to localhost. What guards them is the token, which there always is
+     * now: every one of those devices is handed it with the sync, and a request
+     * from this computer is not asked for one at all (`http/middleware.ts`).
      */
     const open = beyondThisComputer(addresses)
-    if (open.length === 0) return
-    logger.warn(
-      'no token set, so anyone who can reach these addresses has the whole library: ' +
-        `${open.join(', ')} — set SELFMP3_AUTH_TOKEN, or SELFMP3_HOST=127.0.0.1 to answer only this computer`,
+    if (open.length === 0) {
+      logger.info('answering this computer only, which needs no token')
+      return
+    }
+    logger.info(
+      `a token guards these addresses: ${open.join(', ')} — your devices are given it with ` +
+        'the sync, and requests from this computer need none',
     )
+
+    if (chosenByHand) {
+      logger.info('the token is the one in SELFMP3_AUTH_TOKEN')
+      return
+    }
+    /*
+     * The token itself, for the two cases nothing hands it to: this page opened
+     * from another computer, and an extension pointed at a LAN address. It is a
+     * secret in a log, which is worth a moment's thought — but this log is on
+     * the machine whose data directory holds `selfmp3.db`, and anyone who can
+     * read one can read the other. Printing it every boot rather than only the
+     * first is what makes it findable at all without a SQLite client.
+     */
+    logger.info(`its token is ${config.authToken} — set SELFMP3_AUTH_TOKEN to choose your own`)
   })
 
   // Streaming a track over a slow phone connection can legitimately take a

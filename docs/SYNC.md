@@ -256,6 +256,14 @@ probes them all at once and talks to the first that answers, and looks again eve
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no
 "connect to a server" screen — that was removed on purpose.
 
+**This is also how the server is locked.** It listens on every interface, because that is
+what makes those addresses real, and so anyone else on the Wi-Fi can reach the port. The
+token is what separates them from your phone, and the snapshot is what hands your phone the
+token — a channel the doorman already guards with your Google account, so proving who you
+are to Google is what gets you the key. The server makes one for itself on the first boot
+that finds none rather than waiting to be configured
+(`apps/server/src/repositories/auth.ts`), because an optional lock is an open door.
+
 When no address answers the screen is still drawn, and says why in its own words: not
 answering, or never having said where it is. **A feature that is simply not drawn is
 indistinguishable, from where the user sits, from one that does not exist** — which is what

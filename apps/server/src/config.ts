@@ -78,9 +78,11 @@ const ConfigSchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).default(4600),
 
   /**
-   * Bind address. Defaults to all interfaces because the intended deployment
-   * is behind Tailscale, where "all interfaces" still means "only my devices".
-   * Set to 127.0.0.1 to restrict to this machine.
+   * Bind address. Defaults to all interfaces because the addresses those
+   * interfaces give it are how a device signed in to the bucket finds this
+   * server at all (`services/addresses.ts`); what keeps the rest of the network
+   * out is the token, not the bind address. Set to 127.0.0.1 to restrict to
+   * this machine, at the cost of importing from anywhere else.
    */
   host: z.string().default('0.0.0.0'),
 
@@ -91,9 +93,13 @@ const ConfigSchema = z.object({
   dataDir: z.string().default(DEFAULT_DIRS.dataDir),
 
   /**
-   * Optional shared secret. Tailscale already restricts who can reach the
-   * server, so this is defence in depth rather than the primary control.
-   * When set, clients must send `Authorization: Bearer <token>`.
+   * A token of your own, instead of the one the server makes for itself.
+   *
+   * Null here does not mean "no token": it means nothing was chosen, and
+   * `createContainer` fills it in from the database — made on the first boot
+   * that finds none (`repositories/auth.ts`). So this is null only between
+   * `loadConfig` and the container, and `container.config.authToken` is the one
+   * to read. Clients send it as `Authorization: Bearer <token>`.
    */
   authToken: z.string().min(8).nullable().default(null),
 

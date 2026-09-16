@@ -259,7 +259,7 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | Where your audio lives |
 | `SELFMP3_DATA_DIR` | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) | The database and cover art |
 | `SELFMP3_PROFILE` | none | A separate installation: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
-| `SELFMP3_AUTH_TOKEN` | none | A bearer token, 8 characters or more, on top of Tailscale |
+| `SELFMP3_AUTH_TOKEN` | one the server makes for itself | A bearer token of your own, 8 characters or more |
 | `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman this server signs in to the cloud through. Empty for none |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
@@ -278,6 +278,18 @@ Five of the server's settings have no screen yet, so they sit at their defaults 
 database is edited by hand: the YouTube cookie source and cookie file, the tags added to
 every import, the automatic rescan interval, and the fraction of a song that counts as a
 play. The server reads all five; nothing writes them.
+
+**About that token.** The server listens on every interface, because the addresses those
+interfaces give it are how your phone finds it to import (docs/SYNC.md). So it needs a key,
+and one you have to remember to set is one that is usually not set — so it makes its own on
+the first boot that finds none and keeps it in its database. You never type it: it goes into
+the bucket beside those addresses, and every device signed in to your Google account is
+handed it with the sync. Requests from the computer running the server are not asked for it
+at all — its own page at `http://localhost:4600`, the `selfmp3` command and an extension
+pointed at localhost all keep working untouched — because anyone at that keyboard could read
+the database the token is in. Set `SELFMP3_AUTH_TOKEN` to choose your own instead; the
+server prints the one it made in its startup log, for the rare case of opening its page from
+another computer.
 
 ---
 

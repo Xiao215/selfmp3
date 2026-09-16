@@ -35,9 +35,12 @@ over Tailscale. Not where you listen. The extension is the one part of self.mp3
 that still points at a server by address, and it has to be, because only the
 server runs yt-dlp.
 
-A token is asked for only if your server turns out to want one. Most do not —
-`SELFMP3_AUTH_TOKEN` is off unless you set it — so the page tries the address on
-its own first, and the token field appears if the server refuses without one.
+A token is asked for only if your server turns out to want one, so the page tries
+the address on its own first and the token field appears if the server refuses
+without it. Pointed at `http://localhost:4600` it will not: the server does not
+ask its own machine for a token. Over Tailscale or across the Wi-Fi it will, and
+the token is the one in the server's startup log — or in `SELFMP3_AUTH_TOKEN`,
+if you set one of your own.
 
 The address is checked before it is kept: it has to answer, and the token, where
 there is one, has to be right. Everything the extension knows lives in the

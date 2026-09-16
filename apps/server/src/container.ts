@@ -36,6 +36,7 @@ import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { CoverToneService } from './services/coverTones.js'
 import { DeviceRepository } from './repositories/devices.js'
+import { AuthRepository } from './repositories/auth.js'
 import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
@@ -58,6 +59,11 @@ import { removeFolderIfEmpty } from './services/libraryLayout.js'
  * place rather than implied by import side effects.
  */
 export interface Container {
+  /**
+   * The configuration as loaded, with one thing settled that could not be
+   * settled before the database was open: `authToken` is never null here. Read
+   * this rather than what was handed to `createContainer`.
+   */
   readonly config: Config
   readonly logger: Logger
   readonly db: Db
@@ -117,9 +123,24 @@ export interface Container {
   close(): void
 }
 
-export function createContainer(config: Config): Container {
-  const logger = createLogger(config.logLevel)
-  const db = openDatabase(config, logger)
+export function createContainer(configured: Config): Container {
+  const logger = createLogger(configured.logLevel)
+  const db = openDatabase(configured, logger)
+
+  /*
+   * The API's key, before anything that could answer a request exists.
+   *
+   * `loadConfig` cannot settle this: the token is kept in the database, and the
+   * database is opened from the configuration. So the environment's answer is
+   * taken if there is one, and otherwise the stored one — made here on a first
+   * boot — and from this line down `config.authToken` is a string, never null.
+   * Everything below is handed this config rather than the one passed in, so
+   * nothing can end up reading the unsettled copy.
+   */
+  const config: Config = configured.authToken
+    ? configured
+    : Object.freeze({ ...configured, authToken: new AuthRepository(db).token() })
+
   const storage = createStorage(config, logger)
 
   const songs = new SongRepository(db)
@@ -183,7 +204,9 @@ export function createContainer(config: Config): Container {
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
     // The token is the bucket's owner's already: whoever reads the snapshot
-    // is signed in to their own library.
+    // is signed in to their own library. This is how every device gets the
+    // key without anyone ever typing it — the server always has one now
+    // (repositories/auth.ts), so this is never null.
     server: () => ({
       addresses: listenAddresses(config.host, config.port).map(address => address.url),
       token: config.authToken,

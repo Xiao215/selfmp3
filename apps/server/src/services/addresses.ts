@@ -37,8 +37,9 @@ export function listenAddresses(host: string, port: number): ListenAddress[] {
  * What is on this list is what somebody else can reach: another laptop on the
  * café Wi-Fi as much as your phone at home. The server publishes these into the
  * bucket so a signed-in device can find it (`CloudServerSchema`), and publishes
- * its token beside them — so with no token set, the addresses are an open door
- * and the boot log says so.
+ * its token beside them — which is what makes the difference between the two:
+ * your phone is handed the key with the sync, the café is not. The boot log
+ * names these addresses and says so.
  */
 export function beyondThisComputer(addresses: readonly { url: string }[]): string[] {
   return addresses

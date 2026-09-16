@@ -1,30 +1,16 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import type { Request } from 'express'
 
 /**
  * "Show in Finder": open the file manager on the machine running the server,
  * with the song's file selected.
  *
- * This only makes sense for the browser on that same machine. A phone asking
- * would open a Finder window on the server across the room, so requests are
- * checked: they must arrive over loopback *and* ask for a loopback host.
- * The second check matters because `tailscale serve` also connects from
- * loopback — but a request through it asks for the tailnet name, not
- * `localhost`.
+ * This only makes sense for the browser on that same machine — a phone asking
+ * would open a Finder window on the server across the room — so the route
+ * checks `isLocalRequest` (`http/local.ts`) first. That is the same question
+ * the bearer check asks about who is exempt from the token, so it is answered
+ * in one place, with the reasoning kept beside it.
  */
-
-const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
-
-export function isLocalRequest(req: Pick<Request, 'socket' | 'headers'>): boolean {
-  const remote = req.socket.remoteAddress ?? ''
-  const host = (req.headers.host ?? '')
-    .replace(/:\d+$/, '')
-    .replace(/^\[(.*)\]$/, '$1')
-    .toLowerCase()
-  return LOOPBACK_ADDRESSES.has(remote) && LOOPBACK_HOSTS.has(host)
-}
 
 /** The command that selects a file in this platform's file manager, if there is one. */
 export function revealCommand(

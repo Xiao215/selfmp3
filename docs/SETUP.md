@@ -227,21 +227,39 @@ and the plays you make offline reach the server later, dated when they happened.
 
 ---
 
-## Optional: a second lock
+## The token, which you already have
 
-Tailscale already means only your devices can reach the server. If you want belt and braces
-— say your phone gets stolen — add a token:
+The server listens on every interface, and it has to: those addresses are how your phone
+finds it to import. Anyone else on the Wi-Fi can reach the same port, so there is a key, and
+it is not something you have to remember to set — the server makes one on the first boot
+that finds none and keeps it in its database.
+
+**You never type it.** It goes into the bucket beside the addresses, so every device signed
+in to your Google account is handed it with the sync. And requests from the computer running
+the server are not asked for it at all: its page at `http://localhost:4600`, the `selfmp3`
+command and a browser extension pointed at localhost carry on exactly as before. Someone
+sitting at that keyboard can open the database the token lives in, so asking them for it
+would protect nothing. A request that merely arrives *from* loopback is not enough —
+`tailscale serve` connects from loopback too, and those requests came from the network.
+
+Two places it surfaces. The server prints it in its startup log, which is what you read if
+you ever open its page from another computer. And `selfmp3 --token` wants it when you point
+the command at a server that is not this one:
 
 ```bash
-# generate one
+selfmp3 --url https://nas.tail1a2b.ts.net --token "$SELFMP3_AUTH_TOKEN" scan
+```
+
+To choose your own instead — say you would rather it lived in the launchd plist than in the
+database — generate one and set `SELFMP3_AUTH_TOKEN`:
+
+```bash
 openssl rand -hex 24
 ```
 
-Then add it to the launchd plist as `SELFMP3_AUTH_TOKEN` and restart the service. Playing is
-unaffected — the audio comes from the bucket, not from the server — but everything that does
-talk to the server now needs the token: the browser extension's options page, `selfmp3
---token`, and any monitor other than `/api/health`, which stays open on purpose. Tailscale
-is already the boundary, so this is genuinely optional and most people should skip it.
+Then add it to the plist and restart the service. The server uses it and leaves its own
+alone. Playing is unaffected either way: the audio comes from the bucket, not the server.
+`/api/health` stays open with no token at all, so a monitor never needs the secret.
 
 ---
 

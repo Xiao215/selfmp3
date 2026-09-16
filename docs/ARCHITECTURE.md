@@ -252,8 +252,11 @@ Run `npm run check` for typecheck + lint + tests.
 
 ## Things deliberately not done
 
-- **No auth by default.** Tailscale is the security boundary. An optional bearer token
-  exists for defence in depth, off unless configured.
+- **No account, no password, no session.** There is one person here. What guards the API is
+  a single bearer token the server makes for itself and publishes into the bucket, so every
+  device signed in to your Google account is given it and nobody types anything
+  (`apps/server/src/repositories/auth.ts`). Requests from the server's own machine skip it,
+  since whoever is there can read the database it is in (`apps/server/src/http/local.ts`).
 - **No ORM.** Hand-written SQL in typed repositories. At this size an ORM adds a layer of
   indirection over queries that are already short and readable.
 - **No CSS framework.** Styles are Unistyles sheets built from the tokens in

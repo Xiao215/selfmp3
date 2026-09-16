@@ -25,7 +25,7 @@ const state = {
   editing: false,
   /** One line under the Cloud card: what just happened, or what went wrong. */
   notice: null,
-  /** This server has `SELFMP3_AUTH_TOKEN` set and we do not have it. */
+  /** This server asked us for its token, and we do not have it. */
   needsToken: false,
   /** The card's markup as last drawn, so an unchanged poll leaves the DOM alone. */
   drawn: null,
@@ -39,12 +39,16 @@ const state = {
 /**
  * One request to this server.
  *
- * A token is only in play when `SELFMP3_AUTH_TOKEN` is set. A refusal is only
- * read as "the token is wrong" on a read: the cloud routes answer a bucket that
- * refused its key with 401 as well, and prompting for this server's token
- * because Backblaze did not like a key would be nonsense. Every read goes
- * through `/api/cloud`, so a token this page does not have is always caught
- * there first, before there is anything to write.
+ * A token is never in play when this page is opened on the server's own
+ * machine: the server does not ask a request from there for one, which is the
+ * ordinary case and the reason the form below is rarely seen. Opened from
+ * another computer it is asked for, and then this page has to say it.
+ *
+ * A refusal is only read as "the token is wrong" on a read: the cloud routes
+ * answer a bucket that refused its key with 401 as well, and prompting for this
+ * server's token because Backblaze did not like a key would be nonsense. Every
+ * read goes through `/api/cloud`, so a token this page does not have is always
+ * caught there first, before there is anything to write.
  *
  * It is kept in `sessionStorage`, not `localStorage`: a token typed into an
  * admin page should not outlive the tab.
@@ -255,16 +259,16 @@ function renderCloud({ force = false } = {}) {
 }
 
 /**
- * This server was started with a token, and the page has to say it too. Asked
- * for in the card rather than through `prompt`, which is a dialog a browser may
- * refuse to show at all.
+ * This page was opened from somewhere other than the server's own machine, so
+ * it has to say the token. Asked for in the card rather than through `prompt`,
+ * which is a dialog a browser may refuse to show at all.
  */
 function tokenForm() {
   return `
     <p class="lead">
-      This server was started with <span class="code">SELFMP3_AUTH_TOKEN</span> set, so it will
-      not say anything about itself until this page says the token too. It is kept for this tab
-      only.
+      This page is open from another computer, so the server will not say anything about itself
+      until it hears its token. It is in the server's own log at startup, or in
+      <span class="code">SELFMP3_AUTH_TOKEN</span> if you set one. Kept for this tab only.
     </p>
     <form data-form="token">
       <label class="field">
@@ -521,7 +525,7 @@ async function act(action, form) {
       }
       case 'use-token': {
         const typed = form?.elements.token.value.trim()
-        if (!typed) throw new Error('Type the token this server was started with.')
+        if (!typed) throw new Error('Type the token this server answers to.')
         sessionStorage.setItem(TOKEN_KEY, typed)
         state.needsToken = false
         // Emptied before the redraw, or the token still sitting in the field

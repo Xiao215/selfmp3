@@ -1,29 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { isLocalRequest, revealCommand } from './reveal.js'
+import { revealCommand } from './reveal.js'
 
-const request = (remoteAddress: string, host: string) =>
-  ({ socket: { remoteAddress }, headers: { host } }) as unknown as Parameters<
-    typeof isLocalRequest
-  >[0]
-
-describe('isLocalRequest', () => {
-  it('accepts the browser on the same machine', () => {
-    expect(isLocalRequest(request('127.0.0.1', 'localhost:4600'))).toBe(true)
-    expect(isLocalRequest(request('::1', '[::1]:4600'))).toBe(true)
-    expect(isLocalRequest(request('::ffff:127.0.0.1', '127.0.0.1:4601'))).toBe(true)
-  })
-
-  it('refuses a phone on the network', () => {
-    expect(isLocalRequest(request('100.101.102.103', 'mac.tail1234.ts.net'))).toBe(false)
-    expect(isLocalRequest(request('192.168.1.20', '192.168.1.10:4600'))).toBe(false)
-  })
-
-  it('refuses a request proxied from loopback on behalf of a remote name', () => {
-    // `tailscale serve` and the dev proxy both connect from 127.0.0.1.
-    expect(isLocalRequest(request('127.0.0.1', 'mac.tail1234.ts.net'))).toBe(false)
-    expect(isLocalRequest(request('127.0.0.1', '192.168.1.10:4601'))).toBe(false)
-  })
-})
+// Who is allowed to ask for this at all moved to `http/local.test.ts`, with the
+// check itself: the bearer exemption turns on the same question.
 
 describe('revealCommand', () => {
   const file = '/Users/me/music/library/YOASOBI - 夜に駆ける.m4a'

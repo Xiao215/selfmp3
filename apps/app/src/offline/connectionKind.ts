@@ -36,7 +36,7 @@ function networkModule(): NetworkModule | null {
  * impossible to leave stale.
  */
 
-export type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
+type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
 
 export async function connectionKind(): Promise<ConnectionKind> {
   /*
@@ -71,11 +71,6 @@ export async function connectionKind(): Promise<ConnectionKind> {
   } catch {
     return 'unknown'
   }
-}
-
-/** True when downloading a library here is a reasonable thing to do unasked. */
-export function freeToDownload(kind: ConnectionKind): boolean {
-  return kind === 'wifi' || kind === 'unknown'
 }
 
 /** The current connection, refreshed whenever the app comes back to the front. */

@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
 import { answerRange } from '@selfmp3/shared'
-import { fileKindSchema, type FileKind } from '@selfmp3/desktop-bridge'
+import { fileKindSchema } from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
@@ -41,17 +41,13 @@ export function registerAppScheme(): void {
   ])
 }
 
-export interface ProtocolRoots {
+interface ProtocolRoots {
   /** `apps/app/dist`, copied into the bundle's resources by electron-builder. */
   readonly web: string
 }
 
 /** Where downloaded songs and covers are served from. */
-export const MEDIA_PREFIX = '/_media/'
-
-export function mediaPath(kind: FileKind, name: string): string {
-  return `${APP_ORIGIN}${MEDIA_PREFIX}${kind}/${encodeURIComponent(name)}`
-}
+const MEDIA_PREFIX = '/_media/'
 
 export function handleAppScheme(roots: ProtocolRoots): void {
   protocol.handle('app', async request => {
@@ -64,7 +60,7 @@ export function handleAppScheme(roots: ProtocolRoots): void {
     if (resolved !== null && stats !== null) return serveWebFile(resolved, stats)
 
     // A route is index.html. A file the export does not have is a 404, never
-    // index.html in its place — `isRoute` says what that used to hide.
+    // index.html in its place — see `isRoute` for what that would hide.
     if (isRoute(url.pathname, request.headers.get('Sec-Fetch-Mode'))) {
       return serveWebFile(join(roots.web, 'index.html'))
     }
@@ -84,7 +80,9 @@ async function serveWebFile(file: string, known?: Stats): Promise<Response> {
         // The export's filenames carry a content hash, so a long cache is
         // safe; index.html is the one that must not be held, and it is
         // re-read on every launch anyway.
-        'Cache-Control': file.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
+        'Cache-Control': file.endsWith('index.html')
+          ? 'no-cache'
+          : 'public, max-age=31536000, immutable',
       },
     })
   } catch {
@@ -93,7 +91,10 @@ async function serveWebFile(file: string, known?: Stats): Promise<Response> {
 }
 
 function notFound(): Response {
-  return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+  return new Response('not found', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  })
 }
 
 /**
@@ -142,7 +143,9 @@ async function serveMedia(request: Request, pathname: string): Promise<Response>
     return new Response(null, { status: answer.status, headers })
   }
   return new Response(
-    Readable.toWeb(createReadStream(file, { start: answer.start, end: answer.end })) as ReadableStream,
+    Readable.toWeb(
+      createReadStream(file, { start: answer.start, end: answer.end }),
+    ) as ReadableStream,
     { status: answer.status, headers },
   )
 }

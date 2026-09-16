@@ -1,5 +1,5 @@
 import { pageKind } from '../pageKind.js'
-import { findAnchor, siteOf, type Site } from './anchors.js'
+import { findAnchor, siteOf } from './anchors.js'
 import { askPage } from './ask.js'
 import { createPill, PILL_TAG, type PillHandles } from './pill.js'
 
@@ -164,6 +164,3 @@ function start(): void {
 }
 
 start()
-
-/** For the tests, which drive `ensure` against a fixture rather than a page. */
-export const forTests: Site | null = site

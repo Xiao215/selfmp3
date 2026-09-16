@@ -18,7 +18,7 @@ import {
  */
 
 /** What each queue state is called, for the icon's label and screen readers. */
-export const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
+const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
   queued: 'Waiting',
   running: 'Downloading',
   done: 'Done',
@@ -30,7 +30,7 @@ export const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
  * In the library on the server but not yet in the cloud bucket: not a failure,
  * and the cloud sync finishes the job by itself (docs/SYNC.md).
  */
-export function waitingToUpload(job: Pick<ImportJob, 'status' | 'step'>): boolean {
+function waitingToUpload(job: Pick<ImportJob, 'status' | 'step'>): boolean {
   return job.status === 'error' && job.step === 'uploading'
 }
 
@@ -52,7 +52,7 @@ export function jobSubtitle(
 }
 
 /** The one thing a job row offers, if anything. */
-export type JobAction = 'cancel' | 'retry' | 'try-now' | null
+type JobAction = 'cancel' | 'retry' | 'try-now' | null
 
 export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
   if (job.status === 'queued') return 'cancel'
@@ -68,7 +68,7 @@ export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
 }
 
 /** How a job's row is tinted. */
-export type JobTone = 'running' | 'done' | 'error' | 'waiting' | 'cancelled' | 'queued'
+type JobTone = 'running' | 'done' | 'error' | 'waiting' | 'cancelled' | 'queued'
 
 export function jobTone(job: Pick<ImportJob, 'status' | 'step'>): JobTone {
   return waitingToUpload(job) ? 'waiting' : job.status
@@ -253,6 +253,3 @@ export function sharedLinks(params: {
   const urls = extractUrls(candidates.filter((v): v is string => !!v).join('\n'))
   return urls.length > 0 ? urls.join('\n') : null
 }
-
-/** The share-target query keys, so the screen can clear them once read. */
-export const SHARE_PARAMS = ['url', 'text', 'title'] as const

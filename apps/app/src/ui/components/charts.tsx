@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 import { Text, View, type GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Line, Path } from 'react-native-svg'
-import { radius, withAlpha } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
 import {
-  barShare,
   formatNumber,
   labelEvery as defaultLabelEvery,
   niceCeiling,
@@ -168,52 +167,6 @@ export function ColumnChart({
   )
 }
 
-export interface BarDatum {
-  readonly label: string
-  readonly value: number
-}
-
-/** Ranked categories as horizontal bars, labelled at the tip: no axis needed. */
-export function BarList({
-  data,
-  emptyMessage = 'Nothing here yet',
-}: {
-  data: readonly BarDatum[]
-  emptyMessage?: string
-}): ReactNode {
-  const { theme } = useUnistyles()
-  if (data.length === 0) return <Text style={styles.empty}>{emptyMessage}</Text>
-  const max = Math.max(...data.map(datum => datum.value), 1)
-  return (
-    <View style={styles.barList}>
-      {data.map(datum => (
-        <View
-          key={datum.label}
-          style={styles.barRow}
-          accessible
-          accessibilityLabel={`${datum.label}: ${formatNumber(datum.value)}`}
-        >
-          <Text style={styles.barLabel} numberOfLines={1}>
-            {datum.label}
-          </Text>
-          <View style={styles.barTrack}>
-            <View
-              style={[
-                styles.barFill,
-                {
-                  width: `${barShare(datum.value, max)}%`,
-                  backgroundColor: theme.colors.chartSeries,
-                },
-              ]}
-            />
-          </View>
-          <Text style={styles.barValue}>{formatNumber(datum.value)}</Text>
-        </View>
-      ))}
-    </View>
-  )
-}
-
 /** A single headline number: when the story is one value, a tile beats a plot. */
 export function StatTile({
   label,
@@ -262,24 +215,6 @@ const styles = StyleSheet.create(theme => ({
   tooltipDetail: { color: theme.colors.textMuted, fontSize: 11 },
   xAxis: { height: 18, marginTop: 6, marginLeft: 30, position: 'relative' },
   xLabel: { position: 'absolute', transform: [{ translateX: '-50%' }] },
-  barList: { gap: 9 },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  barLabel: { width: 100, color: theme.colors.textSecondary, fontSize: 12 },
-  barTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-    backgroundColor: withAlpha(theme.colors.chartSeries, 0.18),
-  },
-  barFill: { height: 8, borderTopRightRadius: 4, borderBottomRightRadius: 4 },
-  barValue: {
-    minWidth: 34,
-    textAlign: 'right',
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-  },
   tile: {
     paddingVertical: 16,
     paddingHorizontal: 18,

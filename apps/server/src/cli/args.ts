@@ -7,7 +7,6 @@ import { parseArgs } from 'node:util'
  */
 
 export const COMMANDS = ['start', 'scan', 'import', 'backup', 'doctor', 'help'] as const
-export type CommandName = (typeof COMMANDS)[number]
 
 export type Command =
   | { readonly name: 'start' }
@@ -18,7 +17,7 @@ export type Command =
   | { readonly name: 'help' }
   | { readonly name: 'version' }
 
-export interface ParsedCli {
+interface ParsedCli {
   readonly command: Command
   /** Base URL of a running server, e.g. `http://localhost:4600`. */
   readonly url: string | null

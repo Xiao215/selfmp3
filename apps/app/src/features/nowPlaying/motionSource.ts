@@ -21,13 +21,6 @@ import { beatKick, beatPhase, synthLevels, valueNoise, type VisualFeel } from '.
  * vitest runs every sampler.
  */
 
-/** What the visual reads every frame: 0–1 overall level, 0–1 onset, and 0–1 bands low→high. */
-export interface MotionFrame {
-  level: number
-  onset: number
-  bands: readonly number[]
-}
-
 export interface MotionSampler {
   /** `seconds` is the playhead; `into` has `bands.length` slots to fill. */
   sample(seconds: number, into: Float32Array): { level: number; onset: number }
@@ -53,7 +46,7 @@ export interface MotionCurveLike {
   readonly onset: Uint8Array
 }
 
-export type CurveSample = (curve: MotionCurveLike, seconds: number) => { level: number; onset: number }
+type CurveSample = (curve: MotionCurveLike, seconds: number) => { level: number; onset: number }
 
 /**
  * Level 0–1 and onset 0–1 at a time, linearly interpolated between frames; 0
@@ -68,23 +61,24 @@ export const sampleCurve: CurveSample = (curve, seconds) => {
   if (i >= frames) return { level: 0, onset: 0 }
   const j = Math.min(frames - 1, i + 1)
   const f = at - i
-  const lerp = (bytes: Uint8Array): number => ((bytes[i] ?? 0) + ((bytes[j] ?? 0) - (bytes[i] ?? 0)) * f) / 255
+  const lerp = (bytes: Uint8Array): number =>
+    ((bytes[i] ?? 0) + ((bytes[j] ?? 0) - (bytes[i] ?? 0)) * f) / 255
   return { level: lerp(curve.loudness), onset: lerp(curve.onset) }
 }
 
 /* ------------------------------------------------------------------ level */
 
 /** The loudness a quiet passage sits at, in dBFS of short-term RMS: level 0 from here down. */
-export const QUIET_DB = -40
+const QUIET_DB = -40
 /** The loudness a loud master's chorus reaches: level 1 from here up. */
-export const LOUD_DB = -9
+const LOUD_DB = -9
 
 /**
  * A short-term loudness in dBFS as a visual level. Music lives between about
  * -40 and -9 dBFS; a bend keeps the quiet end quiet, so a verse at -30 draws
  * small and a chorus at -10 draws big.
  */
-export function levelFromDb(db: number): number {
+function levelFromDb(db: number): number {
   if (!Number.isFinite(db)) return 0
   const x = (db - QUIET_DB) / (LOUD_DB - QUIET_DB)
   return Math.pow(Math.max(0, Math.min(1, x)), 1.6)
@@ -98,41 +92,41 @@ export function curveLevel(loudness: number): number {
 /* ------------------------------------------------------------------- live */
 
 /** How a live band is shaped from the analyser's reading (0–1 across its range): Spectrum's curve. */
-export function shapeBin(value: number): number {
+function shapeBin(value: number): number {
   // A modern master sits near the top of the analyser's range, and a gentle
   // curve draws every bar at full length; a steep one leaves room for quiet.
   return Math.min(1, Math.pow(Math.max(0, Math.min(1, value)), 2.6) * 1.25)
 }
 
 /** The share of the analyser's bins with any music in them: the top quarter is almost always empty. */
-export const LIVE_USABLE = 0.75
+const LIVE_USABLE = 0.75
 /** The share of the usable bins that carry the hits: the bass, the kick and the snare's body. */
-export const LIVE_LOW = 0.14
+const LIVE_LOW = 0.14
 /**
  * The shaped root mean square of the bins, and the loudness it was measured at
  * (Chromium, songs from the dev library, against ffmpeg's RMS): it moves about
  * 17 dB per factor of e, so a level comes from it through the curve's scale.
  */
-export const LIVE_REF_RMS = 0.376
-export const LIVE_REF_DB = -10
-export const LIVE_DB_PER_E = 17.3
+const LIVE_REF_RMS = 0.376
+const LIVE_REF_DB = -10
+const LIVE_DB_PER_E = 17.3
 /** Seconds the running average of the low bins looks back: an onset is a rise above it. */
-export const FLUX_MEMORY = 0.1
+const FLUX_MEMORY = 0.1
 /** Seconds the onset normaliser's peak takes to fall to a third. */
-export const FLUX_PEAK_DECAY = 1.5
+const FLUX_PEAK_DECAY = 1.5
 /**
  * The smallest rise that can count as a whole onset, in the analyser's range
  * (1 across its 70 dB): below it a quiet passage's small movements stay small
  * instead of being normalised up into hits.
  */
-export const FLUX_FLOOR = 0.03
+const FLUX_FLOOR = 0.03
 /** A playhead jump bigger than this, in seconds, is a seek rather than a slow frame. */
-export const SEEK_JUMP = 0.75
+const SEEK_JUMP = 0.75
 /** Seconds after a seek before a rise can count as a hit: the analyser's own smoothing settling. */
-export const SEEK_SETTLE = 0.3
+const SEEK_SETTLE = 0.3
 
 /** The live sampler's raw numbers from its last frame, for calibrating it against real songs. */
-export interface LiveTrace {
+interface LiveTrace {
   rms: number
   flux: number
 }
@@ -156,7 +150,7 @@ function hasDecibels(analyser: FrequencyAnalyser): analyser is DecibelAnalyser {
 const clock = (): number => (globalThis.performance?.now() ?? Date.now()) / 1000
 
 /** The live level from the shaped root mean square: an estimate of the loudness, on the curve's scale. */
-export function liveLevel(rms: number): number {
+function liveLevel(rms: number): number {
   if (!(rms > 0)) return 0
   return levelFromDb(LIVE_REF_DB + LIVE_DB_PER_E * Math.log(rms / LIVE_REF_RMS))
 }
@@ -272,7 +266,7 @@ export function liveSampler(
 /* ------------------------------------------------------------------ curve */
 
 /** A seed from the song, so two songs' bars do not wobble identically. */
-export function songSeed(songId: number): number {
+function songSeed(songId: number): number {
   const s = Math.sin(songId * 12.9898 + 78.233) * 43758.5453
   return (s - Math.floor(s)) * 100
 }
@@ -284,7 +278,7 @@ export function songSeed(songId: number): number {
  * per band, seeded by the song, so it reads as a spectrum rather than a bar
  * chart of one number.
  */
-export function curveBands(
+function curveBands(
   into: Float32Array,
   level: number,
   onset: number,
@@ -438,6 +432,7 @@ export function chooseSampler({
   songId: number
 }): MotionSampler {
   if (canHear && analyser) return liveSampler(analyser)
-  if (curve && Math.min(curve.loudness.length, curve.onset.length) > 0) return curveSampler(curve, songId)
+  if (curve && Math.min(curve.loudness.length, curve.onset.length) > 0)
+    return curveSampler(curve, songId)
   return beatSampler(feel)
 }

@@ -59,7 +59,7 @@ export const AUDIO_CACHE = 'selfmp3-audio-v1'
 const REFRESH_HEADER = 'x-selfmp3-refresh'
 
 /** Cache keys are the stream URLs themselves, so the SW can match on request. */
-export function audioCacheKey(songId: number): string {
+function audioCacheKey(songId: number): string {
   return streamUrlFor(songId)
 }
 
@@ -69,7 +69,7 @@ function songIdOfKey(url: string): number | null {
   return match?.[1] ? Number(match[1]) : null
 }
 
-export interface SyncProgress {
+interface SyncProgress {
   readonly total: number
   readonly done: number
   readonly bytesDone: number
@@ -128,32 +128,6 @@ export async function cachedSongIds(): Promise<Set<number>> {
   } catch {
     return new Set()
   }
-}
-
-/**
- * The byte size of each cached song, by id (null when the entry has none).
- *
- * Ids get reused after a song is deleted or the library is reset, so "id 7 is
- * cached" does not mean "the current song 7 is cached". Size is compared
- * rather than ETag because an object-storage ETag never matches the
- * manifest's; a different file of exactly the same size is not a real case.
- */
-async function cachedSizes(): Promise<Map<number, number | null>> {
-  const sizes = new Map<number, number | null>()
-  if (!cachesAvailable()) return sizes
-  try {
-    const cache = await caches.open(AUDIO_CACHE)
-    for (const request of await cache.keys()) {
-      const songId = songIdOfKey(request.url)
-      if (songId === null) continue
-      const response = await cache.match(request)
-      const length = Number(response?.headers.get('content-length') ?? Number.NaN)
-      sizes.set(songId, Number.isFinite(length) ? length : null)
-    }
-  } catch {
-    // Treat an unreadable cache as empty; the sync will fill it again.
-  }
-  return sizes
 }
 
 export async function isCached(songId: number): Promise<boolean> {
@@ -272,39 +246,7 @@ export async function clearAudioCache(): Promise<void> {
   await caches.delete(AUDIO_CACHE)
 }
 
-export type ManifestEntry = SyncManifest['entries'][number]
-
-/**
- * The manifest entries this device does not hold yet.
- *
- * Not cached, or cached as a different file than the one the id names now —
- * an entry stored without a length is given the benefit of the doubt. `skip`
- * is the songs the user took off this device by hand, which automatic
- * downloads must not quietly put back.
- */
-export async function missingEntries(
-  manifest: SyncManifest,
-  skip: ReadonlySet<number> = new Set(),
-): Promise<ManifestEntry[]> {
-  const cachedSize = await cachedSizes()
-  return manifest.entries.filter(entry => {
-    if (skip.has(entry.id)) return false
-    if (!cachedSize.has(entry.id)) return true
-    const size = cachedSize.get(entry.id)
-    return size != null && size !== entry.sizeBytes
-  })
-}
-
-/** Drop cached songs that are no longer in the library. Returns how many went. */
-export async function pruneCache(keep: ReadonlySet<number>): Promise<number> {
-  let removed = 0
-  for (const songId of await cachedSongIds()) {
-    if (keep.has(songId)) continue
-    await uncacheSong(songId)
-    removed++
-  }
-  return removed
-}
+type ManifestEntry = SyncManifest['entries'][number]
 
 /**
  * Leave this much of the browser's quota free. Filling it to the last byte
@@ -329,7 +271,7 @@ function isQuotaError(error: unknown): boolean {
 }
 
 /** Why a sync stopped: it finished, it was cancelled, or the device is full. */
-export type SyncStop = 'complete' | 'aborted' | 'storage'
+type SyncStop = 'complete' | 'aborted' | 'storage'
 
 /**
  * Download a list of manifest entries into the cache.
@@ -404,7 +346,7 @@ export async function syncLibrary(
 }
 
 /** How much space the offline library is taking up. */
-export async function storageUsage(): Promise<StorageUsage> {
+async function storageUsage(): Promise<StorageUsage> {
   let audioBytes = 0
   let cachedCount = 0
 
@@ -447,7 +389,7 @@ export async function storageUsage(): Promise<StorageUsage> {
  * Without this, iOS will quietly delete the offline library after a week or so
  * of not opening the app — which is precisely when you need it.
  */
-export async function requestPersistentStorage(): Promise<boolean> {
+async function requestPersistentStorage(): Promise<boolean> {
   if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false
   try {
     if (await navigator.storage.persisted()) return true
@@ -469,7 +411,7 @@ export async function requestPersistentStorage(): Promise<boolean> {
  * a copy was involved. That is why the web app plays offline without a line of
  * code about it, and why the port makes that member optional.
  */
-export function createWebOfflineStore(): OfflineStore {
+function createWebOfflineStore(): OfflineStore {
   return {
     get available(): boolean {
       return offlineStorageAvailable()

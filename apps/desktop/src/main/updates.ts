@@ -60,10 +60,6 @@ function publish(window_: BrowserWindow | null, next: Partial<UpdateStatus>): vo
   window_?.webContents.send(EVENTS.update, status)
 }
 
-export function currentStatus(): UpdateStatus {
-  return status
-}
-
 /**
  * Ask. Safe to call from a menu item and from Settings; the answer is published
  * on the `update` event as well as returned, so both see the same thing.

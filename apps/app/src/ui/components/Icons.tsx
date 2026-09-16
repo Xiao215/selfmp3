@@ -15,7 +15,7 @@ import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
  * badge sits on, for icons that knock a shape out of a filled badge.
  */
 
-export interface IconProps {
+interface IconProps {
   readonly size?: number
   readonly color?: string
   /** For icons that knock a shape out of a filled badge. */
@@ -523,22 +523,6 @@ export const Grip = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
       <Circle cx="15" cy="12" r="1.3" fill={color} stroke="none" />
       <Circle cx="9" cy="18" r="1.3" fill={color} stroke="none" />
       <Circle cx="15" cy="18" r="1.3" fill={color} stroke="none" />
-    </Icon>
-  )
-}
-
-export const WifiOff = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
-  return (
-    <Icon color={color} {...rest}>
-      <Path d="m2 2 20 20" />
-      <Path d="M8.5 16.5a5 5 0 0 1 7 0" />
-      <Path d="M5 12.9a10 10 0 0 1 5.2-2.7" />
-      <Path d="M2 8.8a15 15 0 0 1 4.6-2.8" />
-      <Path d="M22 8.8a15 15 0 0 0-9-3.7" />
-      <Path d="M19 12.9a10 10 0 0 0-2.2-1.6" />
-      <Circle cx="12" cy="20" r="0.6" fill={color} />
     </Icon>
   )
 }

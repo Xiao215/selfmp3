@@ -40,11 +40,7 @@ const tried = new Set<string>()
  */
 const changes = createCoverChanges()
 
-export function onCoversChanged(run: () => void): () => void {
-  return changes.subscribe(() => run())
-}
-
-/** `onCoversChanged`, naming the songs whose covers changed. */
+/** Told which songs' covers changed. */
 export const subscribeCovers = changes.subscribe
 /** Bumped once per announcement: how a reader tells it missed one. */
 export const coversVersion = changes.version

@@ -47,8 +47,5 @@ export const EVENTS = {
   update: 'selfmp3:event.update',
 } as const
 
-export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
-export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
-
 /** The name the preload puts on the window, and nothing else goes on it. */
 export const BRIDGE_GLOBAL = 'selfmp3Desktop'

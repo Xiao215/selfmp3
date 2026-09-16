@@ -58,6 +58,21 @@ export interface SongFileInfo {
   readonly missing: boolean
 }
 
+/** A song taken on from the bucket whose files are still only in the bucket. */
+export interface SongToRestore {
+  readonly id: number
+  /** Where its audio goes when it arrives. */
+  readonly path: string
+  readonly title: string
+  readonly audioKey: string
+  readonly audioSize: number
+  readonly coverKey: string | null
+  /** Whether this server already has a cover for it, from wherever. */
+  readonly hasArt: boolean
+  readonly lyricsKey: string | null
+  readonly lyricsSynced: boolean
+}
+
 /**
  * Signed in through the doorman: a session for your Google account, which the
  * doorman exchanges for access to the bucket that belongs to it. No bucket
@@ -137,6 +152,18 @@ interface CloudSongRow {
   motion_sig: string
 }
 
+interface ToRestoreRow {
+  id: number
+  path: string
+  title: string
+  has_art: number
+  audio_key: string
+  audio_size: number
+  cover_key: string | null
+  lyrics_key: string | null
+  lyrics_kind: string | null
+}
+
 export class CloudRepository {
   readonly #db: Db
   readonly #getSecret
@@ -148,6 +175,7 @@ export class CloudRepository {
   readonly #saveState
   readonly #hasFile
   readonly #recordFile
+  readonly #toRestore
 
   constructor(db: Db) {
     this.#db = db
@@ -189,6 +217,15 @@ export class CloudRepository {
     this.#recordFile = db.prepare(`
       INSERT INTO cloud_files (key, size) VALUES (?, ?)
       ON CONFLICT (key) DO UPDATE SET size = excluded.size
+    `)
+
+    this.#toRestore = db.prepare<[], ToRestoreRow>(`
+      SELECT s.id, s.path, s.title, s.has_art,
+             c.audio_key, c.audio_size, c.cover_key, c.lyrics_key, c.lyrics_kind
+        FROM songs s
+        JOIN cloud_songs c ON c.song_id = s.id
+       WHERE s.missing = 1 AND s.mtime_ms = 0
+       ORDER BY s.id
     `)
   }
 
@@ -377,6 +414,35 @@ export class CloudRepository {
         )
         .run().changes
     })()
+  }
+
+  /**
+   * Songs this server took on from the bucket and has not fetched the files
+   * for yet (services/cloudRestore.ts), oldest row first.
+   *
+   * `mtime_ms = 0` is what separates them from a song whose file this server
+   * did have and has lost — an unplugged drive, a folder moved. Both are
+   * `missing`, and only one of them is this server's to fetch: quietly
+   * re-downloading a library because a drive was unplugged for an afternoon is
+   * not a thing anybody asked for. An adopted row has never been scanned, so
+   * its mtime has never been anything but zero.
+   *
+   * The queue is the query. There is no cursor to keep in step and nothing to
+   * lose in a crash: whatever is still missing is still here to be found next
+   * time, in the same order.
+   */
+  songsToRestore(): SongToRestore[] {
+    return this.#toRestore.all().map(row => ({
+      id: row.id,
+      path: row.path,
+      title: row.title,
+      audioKey: row.audio_key,
+      audioSize: row.audio_size,
+      coverKey: row.cover_key,
+      hasArt: row.has_art === 1,
+      lyricsKey: row.lyrics_key,
+      lyricsSynced: row.lyrics_kind === 'synced',
+    }))
   }
 
   /**

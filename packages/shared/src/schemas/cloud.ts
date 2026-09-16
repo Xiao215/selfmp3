@@ -369,7 +369,25 @@ export const CloudStatusSchema = z.object({
     total: z.number().int().nonnegative(),
     /** Of those, songs whose audio is in the bucket. */
     inCloud: z.number().int().nonnegative(),
+    /**
+     * Songs this server took on from the bucket's library whose files it has
+     * not fetched yet. They are in the library and in every snapshot; what is
+     * not here is their audio. Absent from an older server's answer.
+     */
+    waiting: z.number().int().nonnegative().default(0),
   }),
+  /**
+   * Fetching those files, while it is happening. Null when nothing is waiting —
+   * which is every server that filled its own bucket.
+   */
+  restoring: z
+    .object({
+      done: z.number().int().nonnegative(),
+      total: z.number().int().nonnegative(),
+      current: z.string().nullable(),
+    })
+    .nullable()
+    .default(null),
   /** Everything this server has uploaded that is still in the bucket. */
   bytesInCloud: z.number().int().nonnegative(),
   lastSyncAt: z.string().nullable(),

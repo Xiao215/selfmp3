@@ -63,7 +63,8 @@ import {
   publishWouldLoseLibrary,
   snapshotSongCount,
 } from './cloudSnapshot.js'
-import type { CloudAdopt } from './cloudAdopt.js'
+import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
+import type { CloudRestore } from './cloudRestore.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -168,6 +169,12 @@ interface CloudSyncDeps {
    * what is being tested, which then publishes only what this server holds.
    */
   readonly adopt?: CloudAdopt
+  /**
+   * What fetches the files of songs adopted from the bucket
+   * (services/cloudRestore.ts). Absent where they are not what is being
+   * tested, which then leaves adopted songs waiting for their audio.
+   */
+  readonly restore?: CloudRestore
   /** Links other devices asked to import: how each is going goes in every snapshot. */
   readonly importRequests?: ImportRequestRepository
   /**
@@ -301,6 +308,7 @@ export class CloudSyncService {
     this.#stopped = true
     this.#clearTimers()
     this.#stopSignIn()
+    this.#deps.restore?.stop()
   }
 
   /** Something in the library changed. Cheap to call as often as you like. */
@@ -330,6 +338,13 @@ export class CloudSyncService {
   /** Resolves once no pass is running or waiting to follow one. */
   async whenIdle(): Promise<void> {
     while (this.#running) await this.#running
+  }
+
+  /** Resolves once the pass and the fetching a pass starts are both done. For tests. */
+  async whenSettled(): Promise<void> {
+    await this.whenIdle()
+    await this.#deps.restore?.whenIdle()
+    await this.whenIdle()
   }
 
   /**
@@ -594,7 +609,12 @@ export class CloudSyncService {
       // Signed in but refused: not off, but in need of a fresh sign-in.
       state: store ? this.#state : session && this.#lastError ? 'error' : 'off',
       progress: this.#progress,
-      songs: { total: totals.songs, inCloud: store ? totals.songsInCloud : 0 },
+      songs: {
+        total: totals.songs,
+        inCloud: store ? totals.songsInCloud : 0,
+        waiting: store ? (this.#deps.restore?.waiting() ?? 0) : 0,
+      },
+      restoring: store ? (this.#deps.restore?.progress() ?? null) : null,
       bytesInCloud: store ? totals.bytes : 0,
       lastSyncAt: this.#lastSyncAt,
       lastSnapshotAt: this.#lastSnapshotAt,
@@ -707,6 +727,12 @@ export class CloudSyncService {
       this.#retryIndex = 0
       this.#state = failed > 0 ? 'error' : 'idle'
       if (failed === 0) this.#lastError = null
+
+      // Last, and deliberately not awaited. Fetching the files of a library
+      // just taken on is hours of downloading for a big one, and the pass has
+      // to be over — published, idle, answering — long before it finishes. It
+      // keeps its own place, so a pass interrupting it costs nothing.
+      this.#deps.restore?.start(store, () => generation === this.#generation && !this.#stopped)
     } catch (error) {
       if (generation !== this.#generation) return
       if (error instanceof CloudError && error.kind === 'auth' && this.#session) {
@@ -932,7 +958,7 @@ export class CloudSyncService {
       )
     }
 
-    const result = await adopt.adopt(snapshot)
+    const result: AdoptionResult = await adopt.adopt(snapshot)
     this.#adopted = true
     if (result.songs === 0 && result.tags === 0 && result.playlists === 0) return
 
@@ -1153,14 +1179,16 @@ export class CloudSyncService {
   /**
    * Read the newest snapshot and decide whether publishing would destroy it.
    *
-   * The one place this server reads a snapshot rather than only writing them. It
-   * asks a single question — how many songs does the bucket think there are —
-   * and nothing else, so a snapshot written by a newer build it cannot fully
-   * parse still protects the library.
+   * Asked after adoption has already read that snapshot and taken the library
+   * on, so the counts usually agree by now and this says yes. It stays because
+   * it asks a single question — how many songs does the bucket think there are
+   * — where adoption asks the whole schema: a snapshot from a newer build that
+   * adoption could not fully parse is still counted here, and still protects
+   * the library.
    *
-   * Returns why to refuse, or null to go ahead. A bucket that cannot be read,
-   * or holds no snapshot yet, is not a reason to refuse: a first publish into
-   * an empty bucket is exactly what is supposed to happen.
+   * Returns why to refuse, or null to go ahead. A bucket that holds no snapshot
+   * yet is not a reason to refuse: a first publish into an empty bucket is
+   * exactly what is supposed to happen. A bucket that cannot be read is.
    */
   async #refuseToLoseLibrary(store: CloudStore, songsHere: number): Promise<string | null> {
     if (process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') return null

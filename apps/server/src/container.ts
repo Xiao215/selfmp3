@@ -44,6 +44,7 @@ import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
 import { CloudAdopt } from './services/cloudAdopt.js'
 import { CloudIngest } from './services/cloudIngest.js'
+import { CloudRestore } from './services/cloudRestore.js'
 import { CloudImportService } from './services/cloudImports.js'
 import { ImportRequestRepository } from './repositories/importRequests.js'
 import { buildImportPreview } from './services/importPreview.js'
@@ -196,6 +197,17 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
+  // And then fetches their files from the bucket, in the background. The
+  // scanner is built below, after the sync it feeds, so it is read lazily.
+  const restore = new CloudRestore({
+    cloud: cloudRepo,
+    storage,
+    covers,
+    lyrics,
+    scanner: () => scanner,
+    logger,
+  })
+
   // Before the sync, which uploads each song's romaji beside its words.
   const lyricsCache = new LyricsCache(config, logger)
   const motion = new MotionStore(config, logger)
@@ -215,6 +227,7 @@ export function createContainer(configured: Config): Container {
     sync: syncRepo,
     ingest,
     adopt,
+    restore,
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
@@ -340,6 +353,10 @@ export function createContainer(configured: Config): Container {
     if (change === 'updated') analysis.invalidate(songId)
     else analysis.kick()
   }
+
+  // A song fetched back from the bucket is a song that can be played now, so
+  // every client should hear about it as it lands rather than at the end.
+  restore.onRestored = bump
   scanner.onScanComplete = () => analysis.kick()
 
   // Other devices' changes, applied during a cloud pass. The pass publishes

@@ -212,12 +212,19 @@ const GUARD_MAX_LOSS = 0.5
 /**
  * Should this device refuse to replace the library in the bucket?
  *
- * The server only ever *writes* snapshots — it has never read one — and the newest
- * snapshot is what every other device adopts. So a server that comes up holding
- * less than the bucket knows about will quietly publish its own sparse database
- * as the whole library, and every phone and browser will follow it. That is not
- * hypothetical: it is what a reinstall, a restored backup, a half-finished
- * first scan, or another server signed in to the same account all look like.
+ * The newest snapshot is what every other device adopts, so a server that comes
+ * up holding less than the bucket knows about would publish its own sparse
+ * database as the whole library and every phone and browser would follow it.
+ * That is not hypothetical: it is what a reinstall, a restored backup, a
+ * half-finished first scan, or another server signed in to the same account all
+ * look like.
+ *
+ * This is a backstop rather than the front line now. A server that connects to a
+ * bucket reads its library and takes it on before publishing a word
+ * (services/cloudAdopt.ts), so by the time this is asked the counts usually
+ * agree. What is left for it is the library that could *not* be taken on — a
+ * bucket whose audio has gone from under its own snapshot, chiefly — and the
+ * belt to adoption's braces.
  *
  * Today the audio survives, because nothing deletes from the bucket. Once
  * anything does, this becomes permanent, so the refusal wants to exist first.

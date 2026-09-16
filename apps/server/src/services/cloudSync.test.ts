@@ -39,6 +39,7 @@ import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
 import { CloudAdopt } from './cloudAdopt.js'
 import { CloudIngest } from './cloudIngest.js'
+import { CloudRestore } from './cloudRestore.js'
 import { CloudSyncService, type Doorman } from './cloudSync.js'
 import { SyncClock } from './localEdits.js'
 import { CoverService } from './covers.js'
@@ -75,6 +76,8 @@ describe('CloudSyncService', () => {
   let syncRepo: SyncRepository
   let ingest: CloudIngest
   let adopt: CloudAdopt
+  let restore: CloudRestore
+  let scanner: ScannerService
   let covers: CoverService
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
@@ -127,6 +130,28 @@ describe('CloudSyncService', () => {
       }),
       logger,
     })
+    const lyricsService = new LyricsService(storage, logger, () =>
+      Promise.reject(new Error('offline')),
+    )
+    scanner = new ScannerService({
+      config: { dataDir } as Config,
+      storage,
+      songs,
+      metadata: new MetadataService(storage, logger),
+      lyrics: lyricsService,
+      covers,
+      logger,
+    })
+    restore = new CloudRestore({
+      cloud,
+      storage,
+      covers,
+      lyrics: lyricsService,
+      scanner: () => scanner,
+      logger,
+    })
+
+    bodies = new Map()
 
     // One bucket per name, so a test can point the server somewhere else.
     buckets = new Map()
@@ -148,6 +173,7 @@ describe('CloudSyncService', () => {
       sync: syncRepo,
       ingest,
       adopt,
+      restore,
       openStore: connection => {
         let store = buckets.get(connection.bucket)
         if (!store) {
@@ -168,7 +194,7 @@ describe('CloudSyncService', () => {
   afterEach(async () => {
     for (const service of [sync, ...extras.splice(0)]) {
       service.stop()
-      await service.whenIdle()
+      await service.whenSettled()
     }
     db.close()
     fs.rmSync(root, { recursive: true, force: true })
@@ -231,6 +257,26 @@ describe('CloudSyncService', () => {
   /** A uid, from anything memorable. */
   const uid = (seed: string): string => sha(seed).slice(0, 32)
 
+  /** The bytes behind each key another device's library names. */
+  let bodies: Map<string, Buffer>
+
+  /**
+   * A file in their bucket, named the way the bucket names files: by the
+   * SHA-256 of its bytes. The key has to really be the hash, or nothing that
+   * depends on two devices arriving at the same name for the same bytes — which
+   * is most of this — is being tested at all.
+   */
+  const theirFile = (
+    folder: string,
+    content: string,
+    extension: string,
+  ): { key: string; size: number } => {
+    const body = Buffer.from(content)
+    const key = `${folder}/${sha(body)}${extension}`
+    bodies.set(key, body)
+    return { key, size: body.length }
+  }
+
   /** One song as another device published it, with as much or as little on it as wanted. */
   const theirSong = (name: string, over: Partial<CloudSong> = {}): CloudSong => {
     const [artist = '', title = name] = name.split(' - ')
@@ -243,7 +289,7 @@ describe('CloudSyncService', () => {
       trackNo: null,
       year: null,
       duration: 210,
-      audio: { key: `audio/${sha(`audio:${name}`)}.m4a`, size: 4096, mime: 'audio/mp4' },
+      audio: { ...theirFile('audio', `their audio of ${name}`, '.m4a'), mime: 'audio/mp4' },
       cover: null,
       lyrics: null,
       instrumental: false,
@@ -300,7 +346,10 @@ describe('CloudSyncService', () => {
       contentEncoding: 'gzip',
     })
     const put = (fileKey: string, size: number, contentType: string): void => {
-      store.objects.set(fileKey, { body: Buffer.alloc(size, 9), contentType })
+      store.objects.set(fileKey, {
+        body: bodies.get(fileKey) ?? Buffer.alloc(size, 9),
+        contentType,
+      })
     }
     for (const song of snapshot.songs) {
       if (!options.withoutAudio?.includes(song.uid)) {
@@ -724,7 +773,10 @@ describe('CloudSyncService', () => {
       songs.markMissing(songs.byId(id)?.path ?? '')
       await pass()
       expect(latest().songs).toHaveLength(2)
-      expect(sync.status().songs).toEqual({ total: 1, inCloud: 1 })
+      // And it is not one of the songs waiting to be fetched back: this server
+      // had that file and lost it, which is not the same as never having had
+      // it, and only the second is this server's to go and get.
+      expect(sync.status().songs).toEqual({ total: 1, inCloud: 1, waiting: 0 })
     })
 
     it('lets a song go once it is forgotten for good', async () => {
@@ -905,10 +957,9 @@ describe('CloudSyncService', () => {
         album: 'THE BOOK',
         albumArtist: 'YOASOBI',
         duration: 245.5,
-        cover: { key: `covers/${sha('cover:gunjou')}.jpg`, size: 2048 },
+        cover: theirFile('covers', 'their cover of Gunjou', '.jpg'),
         lyrics: {
-          key: `lyrics/${sha('words:gunjou')}.lrc`,
-          size: 64,
+          ...theirFile('lyrics', '[00:01.00] their words', '.lrc'),
           kind: 'synced',
           romanized: null,
         },
@@ -1113,6 +1164,147 @@ describe('CloudSyncService', () => {
       } finally {
         delete process.env['SELFMP3_PUBLISH_ANYWAY']
       }
+    })
+  })
+
+  /**
+   * And then fetching those songs' files back out of the bucket.
+   *
+   * Adoption gives a new server the library; this gives it the music. It runs
+   * behind the pass rather than inside it, so what is tested here is mostly
+   * about stopping in the middle: a run that is interrupted has to cost
+   * nothing, and a run over a library that is already here has to download
+   * nothing at all.
+   */
+  describe('fetching the files of a library taken on', () => {
+    const WORDS = '[00:01.00] line one\n[00:05.00] line two'
+
+    const withFiles = (): CloudSnapshot => {
+      const song = theirSong('YOASOBI - Gunjou', {
+        cover: theirFile('covers', 'their cover of Gunjou', '.jpg'),
+        lyrics: { ...theirFile('lyrics', WORDS, '.lrc'), kind: 'synced', romanized: null },
+      })
+      return theirSnapshot({ songs: [song, theirSong('Nova - Dusk')] })
+    }
+
+    /** Connect, and let the fetching a pass starts run to the end. */
+    const settle = async (): Promise<void> => {
+      await connect()
+      await sync.whenSettled()
+    }
+
+    const inLibrary = (key: string): boolean => fs.existsSync(path.join(root, key))
+
+    it('brings the audio, the cover and the words down, and the song is no longer missing', async () => {
+      seedBucket(withFiles())
+
+      await settle()
+
+      const song = songs.all().find(one => one.title === 'Gunjou')
+      expect(song).toMatchObject({ missing: false, hasArt: true })
+      expect(inLibrary('YOASOBI - Gunjou/YOASOBI - Gunjou.m4a')).toBe(true)
+      // Timed words come down as a `.lrc` beside the audio, where the server
+      // reads its own lyrics from — no different from a song imported here.
+      expect(
+        fs.readFileSync(path.join(root, 'YOASOBI - Gunjou/YOASOBI - Gunjou.lrc'), 'utf8'),
+      ).toBe(WORDS)
+      expect(sync.status().songs).toMatchObject({ waiting: 0 })
+    })
+
+    it('does not send back what it just fetched', async () => {
+      const theirs = withFiles()
+      seedBucket(theirs)
+      await settle()
+      const before = bucket.puts.length
+
+      // The files are named by the hash of their bytes, so the same bytes
+      // written here make the same keys: the pass finds the bucket already has
+      // every one of them and sends nothing.
+      await pass()
+
+      expect(bucket.puts.slice(before).filter(key => !key.startsWith('snapshots/'))).toEqual([])
+      // And the snapshot still names exactly the files it was handed.
+      expect(
+        latest()
+          .songs.map(song => song.audio.key)
+          .sort(),
+      ).toEqual(theirs.songs.map(song => song.audio.key).sort())
+    })
+
+    it('picks up where it was stopped, and fetches nothing twice', async () => {
+      seedBucket(withFiles())
+      await connect()
+      sync.stop()
+      await sync.whenSettled()
+      const fetchedFirstTime = [...bucket.gets]
+
+      // A restart: the queue is a query, so there is nothing to carry over.
+      const again = new CloudRestore({
+        cloud,
+        storage: new LocalStorageDriver(root),
+        covers,
+        lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
+        scanner: () => scanner,
+        logger: createLogger('silent'),
+      })
+      bucket.gets.length = 0
+      again.start(bucket, () => true)
+      await again.whenIdle()
+
+      // Whatever the first run finished, the second did not fetch again; and
+      // between them every song is here.
+      expect(bucket.gets.filter(key => fetchedFirstTime.includes(key))).toEqual([])
+      expect(songs.all().every(song => !song.missing)).toBe(true)
+      expect(again.waiting()).toBe(0)
+    })
+
+    it('downloads nothing at all the second time over a finished library', async () => {
+      seedBucket(withFiles())
+      await settle()
+
+      bucket.gets.length = 0
+      restore.start(bucket, () => true)
+      await restore.whenIdle()
+
+      expect(bucket.gets).toEqual([])
+    })
+
+    it('leaves a song whose audio the bucket has not, and carries on with the rest', async () => {
+      const theirs = withFiles()
+      const lost = theirs.songs[0]
+      seedBucket(theirs, { withoutAudio: [lost?.uid ?? ''] })
+
+      await settle()
+
+      expect(songs.all().find(song => song.title === 'Gunjou')).toMatchObject({ missing: true })
+      expect(songs.all().find(song => song.title === 'Dusk')).toMatchObject({ missing: false })
+    })
+
+    it('says how it is going while it runs, and stops saying when it is done', async () => {
+      seedBucket(withFiles())
+      await connect()
+
+      // Two songs adopted, neither fetched yet, because the pass does not wait.
+      expect(sync.status().songs.waiting).toBe(2)
+
+      await sync.whenSettled()
+      expect(sync.status()).toMatchObject({ songs: { waiting: 0 }, restoring: null })
+    })
+
+    it('never fetches a song this server had and lost', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      await sync.whenSettled()
+      fs.rmSync(path.join(root, 'A - One/A - One.m4a'))
+      songs.markMissing('A - One/A - One.m4a')
+
+      bucket.gets.length = 0
+      await pass()
+      await sync.whenSettled()
+
+      // An unplugged drive is not an invitation to re-download the library.
+      expect(bucket.gets.filter(key => key.startsWith('audio/'))).toEqual([])
+      expect(songs.byId(id)).toMatchObject({ missing: true })
     })
   })
 

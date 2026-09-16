@@ -80,6 +80,7 @@ function stateLabel(status: CloudStatus): string {
     case 'error':
       return 'needs attention'
     case 'idle':
+      if (status.songs.waiting > 0) return 'downloading'
       return status.songs.inCloud >= status.songs.total ? 'up to date' : 'waiting'
   }
 }
@@ -235,6 +236,8 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
   const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
   const account = status.account
   const progress = status.progress
+  const restoring = status.restoring
+  const waiting = status.songs.waiting
 
   return (
     <>
@@ -271,6 +274,27 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
           </Text>
           {progress && progress.total > 0 ? (
             <Meter fraction={progress.done / progress.total} />
+          ) : null}
+        </View>
+      ) : null}
+
+      {/*
+       * A server that signed in to a bucket that already had a library in it
+       * has the whole library — every song, tag and playlist — and none of the
+       * music yet. That is hours of downloading on a big library, and a screen
+       * that said nothing about it would look like a server doing nothing.
+       */}
+      {waiting > 0 ? (
+        <View style={partStyles.progress} accessibilityLiveRegion="polite">
+          <Text style={partStyles.progressText}>
+            {restoring && restoring.total > 0
+              ? `Fetching ${Math.min(restoring.done + 1, restoring.total)} of ${restoring.total} from the cloud${
+                  restoring.current ? ` — ${restoring.current}` : ''
+                }`
+              : `${waiting} ${waiting === 1 ? 'song' : 'songs'} from the cloud still to download`}
+          </Text>
+          {restoring && restoring.total > 0 ? (
+            <Meter fraction={restoring.done / restoring.total} />
           ) : null}
         </View>
       ) : null}

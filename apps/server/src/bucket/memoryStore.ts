@@ -11,6 +11,8 @@ export class MemoryCloudStore implements CloudStore {
   readonly objects = new Map<string, { body: Buffer } & CloudPutOptions>()
   /** Every key put, in order, including repeats. */
   readonly puts: string[] = []
+  /** Every key read, in order, so a test can prove a file was not fetched twice. */
+  readonly gets: string[] = []
   /** While set, every operation fails with this. */
   failure: CloudError | null = null
 
@@ -30,7 +32,10 @@ export class MemoryCloudStore implements CloudStore {
   }
 
   get(key: string): Promise<Buffer | null> {
-    return this.#answer(() => this.objects.get(key)?.body ?? null)
+    return this.#answer(() => {
+      this.gets.push(key)
+      return this.objects.get(key)?.body ?? null
+    })
   }
 
   put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {

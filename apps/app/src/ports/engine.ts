@@ -89,10 +89,16 @@ function songIdOf(track: Track | undefined | null): number | null {
 
 /** Everything the Now Playing card shows of a song, as one string to compare. */
 function cardKey(meta: TrackMetadata): string {
-  return [meta.title, meta.artist ?? '', meta.album ?? '', meta.artwork ?? '', meta.duration ?? 0].join('\u0000')
+  return [
+    meta.title,
+    meta.artist ?? '',
+    meta.album ?? '',
+    meta.artwork ?? '',
+    meta.duration ?? 0,
+  ].join('\u0000')
 }
 
-export class NativeEngine implements PlaybackEngine {
+class NativeEngine implements PlaybackEngine {
   readonly capabilities = capabilities
 
   #state: EngineState = IDLE
@@ -152,9 +158,9 @@ export class NativeEngine implements PlaybackEngine {
   async load(songId: number, options: LoadOptions = {}): Promise<void> {
     const { autoplay = true, startAt } = options
     // Loads overlap: the app opening restores a song while a tap starts
-    // another. Every step below awaits, and a load that carried on past a newer
-    // one used to reset the player back to its own song, or put its start
-    // position on the song the person had just picked.
+    // another. Every step below awaits, and a load allowed to carry on past a
+    // newer one resets the player back to its own song, or puts its start
+    // position on the song the person just picked.
     const generation = ++this.#loadGeneration
     const overtaken = (): boolean => generation !== this.#loadGeneration
     // Cleared before anything is awaited, so a failure of this load is a

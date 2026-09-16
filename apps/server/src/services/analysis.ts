@@ -360,7 +360,7 @@ export function decode(file: string, duration: number): Promise<Float32Array> {
  * into frames as ffmpeg streams it: memory holds one onset window and the
  * per-frame numbers, not the song. Capped at `MOTION_MAX_SECONDS`.
  */
-export function measureMotion(file: string): Promise<MotionCurveData> {
+function measureMotion(file: string): Promise<MotionCurveData> {
   const args = [
     '-v',
     'error',
@@ -434,7 +434,7 @@ export function measureMotion(file: string): Promise<MotionCurveData> {
  * we want looks like `I:         -14.2 LUFS`. Returns null when the file is
  * silent (ffmpeg reports -70 LUFS as the floor) or the filter is unavailable.
  */
-export function measureLoudness(file: string): Promise<number | null> {
+function measureLoudness(file: string): Promise<number | null> {
   const args = [
     '-v',
     'info',

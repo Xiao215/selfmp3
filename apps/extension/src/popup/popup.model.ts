@@ -43,7 +43,7 @@ export interface PopupInputs {
   readonly importAnyway: boolean
 }
 
-export type PopupView =
+type PopupView =
   | { readonly name: 'checking' }
   | { readonly name: 'connect' }
   | { readonly name: 'away' }
@@ -116,7 +116,7 @@ function stampTime(stamp: string): number {
 }
 
 /** How long a finished import is still news when the popup opens again. */
-export const RECENT_MS = 10 * 60_000
+const RECENT_MS = 10 * 60_000
 
 /**
  * The import job for the link, if the popup should be about it: one started

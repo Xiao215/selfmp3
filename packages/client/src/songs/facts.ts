@@ -38,7 +38,7 @@ export function tempoWords(bpm: number): string {
   return 'very fast'
 }
 
-export interface WaveShape {
+interface WaveShape {
   /** Peak distance from the centre line, in the drawing's own units. */
   readonly amplitude: number
   /** Full periods across the width. */

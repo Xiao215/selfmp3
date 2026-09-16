@@ -26,7 +26,7 @@ import type { z } from 'zod'
 /** The parsed type of a schema, or a fallback when no schema was supplied. */
 type Parsed<S, Fallback> = S extends z.ZodTypeAny ? z.output<S> : Fallback
 
-export interface RouteContext<Params, Query, Body> {
+interface RouteContext<Params, Query, Body> {
   readonly params: Params
   readonly query: Query
   readonly body: Body

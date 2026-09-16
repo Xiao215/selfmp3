@@ -13,7 +13,7 @@ export const DEVICE_ONLINE_MS = 30_000
 export const DEVICE_HEARTBEAT_MS = 10_000
 
 /** A state older than this is not worth offering to resume. */
-export const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 export function isDeviceOnline(
   lastSeenAt: number,

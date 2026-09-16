@@ -3,7 +3,7 @@
  * a value sits, and which value a point on the track means.
  */
 
-export interface SliderRange {
+interface SliderRange {
   readonly min: number
   readonly max: number
   readonly step: number

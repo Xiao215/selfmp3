@@ -11,7 +11,7 @@
  * unescaped exactly once, after it has been cut out.
  */
 
-export interface ListingPage {
+interface ListingPage {
   readonly objects: ReadonlyArray<{ readonly key: string; readonly size: number }>
   readonly truncated: boolean
   readonly nextToken: string | null

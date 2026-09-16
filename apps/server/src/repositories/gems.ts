@@ -14,7 +14,7 @@ import type { Db } from '../db/index.js'
 /** Below this a song was only ever passing through. */
 const MIN_PLAYS = 5
 
-export interface GemRow {
+interface GemRow {
   readonly songId: number
   readonly daysSince: number
   readonly score: number

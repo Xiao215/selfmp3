@@ -21,14 +21,14 @@ const USER_AGENT = `self.mp3/${APP_VERSION} (personal music library; https://git
 const LRCLIB = 'https://lrclib.net/api'
 const REQUEST_TIMEOUT_MS = 8_000
 
-export interface LyricsResult {
+interface LyricsResult {
   readonly source: 'sidecar' | 'embedded' | 'remote'
   readonly kind: LyricsKind
   readonly text: string
 }
 
 /** What a song is looked up by. */
-export interface LyricsLookup {
+interface LyricsLookup {
   readonly artist: string
   readonly title: string
   readonly album: string
@@ -38,7 +38,7 @@ export interface LyricsLookup {
 }
 
 /** Lyrics as found online, before they are written to disk. */
-export interface RemoteLyrics {
+interface RemoteLyrics {
   readonly text: string
   readonly synced: boolean
 }
@@ -48,7 +48,7 @@ export interface RemoteLyrics {
  * "nothing found" so the song can be remembered as instrumental and not looked
  * up again every time it plays.
  */
-export type Instrumental = 'instrumental'
+type Instrumental = 'instrumental'
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 

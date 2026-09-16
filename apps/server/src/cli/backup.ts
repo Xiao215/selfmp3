@@ -10,7 +10,7 @@ import path from 'node:path'
  * nightly run to seconds.
  */
 
-export interface FileStamp {
+interface FileStamp {
   readonly size: number
   readonly mtimeMs: number
 }
@@ -33,7 +33,7 @@ export function isSqliteDatabase(name: string): boolean {
   return name.endsWith('.db') || name.endsWith('.sqlite')
 }
 
-export interface BackupSummary {
+interface BackupSummary {
   files: number
   copied: number
   bytes: number

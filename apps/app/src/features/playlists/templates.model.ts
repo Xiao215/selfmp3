@@ -16,15 +16,9 @@ import { EMPTY_SMART_RULES, type SmartRules, type Tag } from '@selfmp3/shared'
  */
 
 export type TemplateId =
-  | 'mostPlayed'
-  | 'gems'
-  | 'short'
-  | 'long'
-  | 'recentlyAdded'
-  | 'loved'
-  | 'tag'
+  'mostPlayed' | 'gems' | 'short' | 'long' | 'recentlyAdded' | 'loved' | 'tag'
 
-export interface Template {
+interface Template {
   readonly id: TemplateId
   readonly name: string
   /** One line under the name, saying what it picks. */
@@ -34,14 +28,24 @@ export interface Template {
 }
 
 /** Three and a half minutes: the line between short and long songs. */
-export const SHORT_SECONDS = 210
+const SHORT_SECONDS = 210
 
 export const TEMPLATES: readonly Template[] = [
   { id: 'mostPlayed', name: 'Most played', hint: 'Your 25 most played', hasRules: true },
-  { id: 'gems', name: 'Forgotten gems', hint: 'Loved or played a lot, quiet lately', hasRules: false },
+  {
+    id: 'gems',
+    name: 'Forgotten gems',
+    hint: 'Loved or played a lot, quiet lately',
+    hasRules: false,
+  },
   { id: 'short', name: 'Short ones', hint: 'Under 3:30, shortest first', hasRules: true },
   { id: 'long', name: 'Long songs', hint: 'Over 3:30, longest first', hasRules: true },
-  { id: 'recentlyAdded', name: 'Recently added', hint: 'Added in the last 30 days', hasRules: true },
+  {
+    id: 'recentlyAdded',
+    name: 'Recently added',
+    hint: 'Added in the last 30 days',
+    hasRules: true,
+  },
   { id: 'loved', name: 'Loved', hint: 'Every song you love', hasRules: true },
   { id: 'tag', name: 'By tag', hint: 'Everything with one tag', hasRules: true },
 ]
@@ -49,7 +53,7 @@ export const TEMPLATES: readonly Template[] = [
 /** The templates a live playlist can start from: every one with rules. */
 export const LIVE_TEMPLATES: readonly Template[] = TEMPLATES.filter(template => template.hasRules)
 
-export function templateById(id: TemplateId): Template {
+function templateById(id: TemplateId): Template {
   const found = TEMPLATES.find(template => template.id === id)
   if (!found) throw new Error(`no template ${id}`)
   return found
@@ -59,7 +63,10 @@ export function templateById(id: TemplateId): Template {
  * The rules a template stands for, or null where there are none (gems) or
  * where it needs something not yet chosen (a tag, in a library with none).
  */
-export function templateRules(id: TemplateId, tag: Pick<Tag, 'id'> | null = null): SmartRules | null {
+export function templateRules(
+  id: TemplateId,
+  tag: Pick<Tag, 'id'> | null = null,
+): SmartRules | null {
   switch (id) {
     case 'mostPlayed':
       return {

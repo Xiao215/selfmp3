@@ -9,8 +9,8 @@ import { extractUrls } from '@selfmp3/shared'
  * permission to read any page.
  */
 
-export const QUICK_ID = 'selfmp3-import'
-export const REVIEW_ID = 'selfmp3-import-with'
+const QUICK_ID = 'selfmp3-import'
+const REVIEW_ID = 'selfmp3-import-with'
 
 /** The link a menu click was about: the link itself, or one in the selected text. */
 export function linkFrom(info: {
@@ -23,7 +23,7 @@ export function linkFrom(info: {
   return inSelection ?? info.pageUrl ?? null
 }
 
-export interface MenuDeps {
+interface MenuDeps {
   /** Import the link with the defaults, and watch the job it made. */
   readonly quickImport: (url: string) => Promise<void>
   /** Open the popup on a link, as a window of its own. */

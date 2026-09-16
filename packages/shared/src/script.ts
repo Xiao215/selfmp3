@@ -46,7 +46,7 @@ export function detectLyricsLanguage(lines: readonly string[]): LyricsLanguage {
   return sawHan ? 'zh' : 'none'
 }
 
-export type RomanizerChoice = 'pinyin' | 'romaji' | 'none'
+type RomanizerChoice = 'pinyin' | 'romaji' | 'none'
 
 /**
  * Which engine each line goes through, given the song's language.

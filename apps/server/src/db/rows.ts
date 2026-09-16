@@ -110,7 +110,7 @@ function paletteOf(value: string | null): { palette?: CoverSwatch[] } {
 }
 
 /** SQLite's GROUP_CONCAT gives "1,4,7"; empty and null both mean no tags. */
-export function parseIdList(value: string | null | undefined): number[] {
+function parseIdList(value: string | null | undefined): number[] {
   if (!value) return []
   const out: number[] = []
   for (const part of value.split(',')) {
@@ -161,9 +161,9 @@ export function toSong(row: SongRow): Song {
  * Media URLs carry it because song ids are not forever: SQLite hands a
  * deleted row's id to the next insert, and a reset library starts again at 1.
  * Without it, a browser that cached `/api/stream/1` as immutable keeps playing
- * whatever song 1 used to be.
+ * whatever song 1 was before.
  */
-export function songRev(row: Pick<SongRow, 'size_bytes' | 'mtime_ms' | 'art_rev'>): string {
+function songRev(row: Pick<SongRow, 'size_bytes' | 'mtime_ms' | 'art_rev'>): string {
   return `${row.size_bytes.toString(36)}.${Math.floor(row.mtime_ms).toString(36)}.${row.art_rev}`
 }
 

@@ -27,9 +27,9 @@ import * as storage from './storage.js'
  */
 
 /** Keep in step with package.json. */
-export const DOORMAN_VERSION = '1.0.0'
+const DOORMAN_VERSION = '1.0.0'
 
-export interface DoormanDeps {
+interface DoormanDeps {
   /** How Google and the bucket are reached. The Worker's own fetch unless a test says otherwise. */
   readonly fetch?: Fetch
   readonly now?: () => number

@@ -13,7 +13,7 @@ const exec = promisify(execFile)
  * but runs anywhere node does — including inside the Docker image.
  */
 
-export interface DoctorLine {
+interface DoctorLine {
   readonly ok: boolean
   readonly label: string
   readonly detail: string
@@ -29,7 +29,7 @@ async function toolVersion(bin: string, args: readonly string[]): Promise<string
 }
 
 /** Total bytes under a folder, plus how many files. Missing folder counts as empty. */
-export async function folderSize(dir: string): Promise<{ bytes: number; files: number }> {
+async function folderSize(dir: string): Promise<{ bytes: number; files: number }> {
   let bytes = 0
   let files = 0
   try {

@@ -11,7 +11,7 @@
  * CSS, and YouTube Music's `.content-info-wrapper` sits on top of the title.
  */
 
-export type Site = 'www' | 'mobile' | 'music'
+type Site = 'www' | 'mobile' | 'music'
 
 export interface Anchor {
   readonly selector: string
@@ -20,7 +20,7 @@ export interface Anchor {
   readonly what: string
 }
 
-export const ANCHORS: Record<Site, readonly Anchor[]> = {
+const ANCHORS: Record<Site, readonly Anchor[]> = {
   www: [
     {
       selector: 'ytd-watch-metadata #top-level-buttons-computed',
@@ -74,7 +74,7 @@ export function siteOf(host: string): Site | null {
  */
 export type IsVisible = (element: Element) => boolean
 
-export const onScreen: IsVisible = element =>
+const onScreen: IsVisible = element =>
   !element.closest('[hidden]') && element.getBoundingClientRect().width > 0
 
 /** The first anchor of `site` that is present and visible. */

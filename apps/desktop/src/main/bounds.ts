@@ -27,7 +27,7 @@ export interface Bounds {
 }
 
 /** The size the reference captures were taken at, and the floor below them. */
-export const DEFAULT_SIZE = { width: 1280, height: 800 }
+const DEFAULT_SIZE = { width: 1280, height: 800 }
 export const MINIMUM_SIZE = { width: 480, height: 480 }
 
 function file(): string {

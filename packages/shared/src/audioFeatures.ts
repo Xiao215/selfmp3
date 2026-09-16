@@ -17,20 +17,7 @@ import type { AudioFeatures } from './schemas/audioFeatures.js'
  */
 export const ANALYSIS_VERSION = 3
 
-export const PITCH_NAMES = [
-  'C',
-  'C♯',
-  'D',
-  'E♭',
-  'E',
-  'F',
-  'F♯',
-  'G',
-  'A♭',
-  'A',
-  'B♭',
-  'B',
-] as const
+const PITCH_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'] as const
 
 export type KeyMode = 'major' | 'minor'
 
@@ -117,7 +104,7 @@ export interface FeatureWeights {
   readonly key: number
 }
 
-export const DEFAULT_WEIGHTS: FeatureWeights = { bpm: 1, energy: 1, loudness: 0.5, key: 1 }
+const DEFAULT_WEIGHTS: FeatureWeights = { bpm: 1, energy: 1, loudness: 0.5, key: 1 }
 
 /**
  * Weighted distance between two feature sets, roughly 0–4 with default

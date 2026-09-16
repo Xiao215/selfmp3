@@ -8,7 +8,7 @@ import { camelotFromKey, keyName, type KeyMode } from './audioFeatures.js'
  * capo, or singing a song a tone down, can see what key they are actually in.
  */
 
-export interface ParsedKey {
+interface ParsedKey {
   readonly pitchClass: number
   readonly mode: KeyMode
 }

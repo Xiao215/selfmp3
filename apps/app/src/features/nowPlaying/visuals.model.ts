@@ -30,11 +30,11 @@ export const VISUAL_NAMES: Record<VisualKind, string> = {
 }
 
 /** Below this a song is calm: slow bands suit it better than any beat. */
-export const CALM_ENERGY = 0.35
+const CALM_ENERGY = 0.35
 /** At or above this the sound itself is the show. */
-export const BUSY_ENERGY = 0.7
+const BUSY_ENERGY = 0.7
 /** At or above this the beat is steady enough to draw on. */
-export const DANCEABLE = 0.6
+const DANCEABLE = 0.6
 
 /**
  * The visual a song gets when nobody has chosen one.
@@ -51,7 +51,7 @@ export function autoVisual(features: AudioFeatures | null | undefined): VisualKi
   return 'drift'
 }
 
-export function isVisualKind(value: unknown): value is VisualKind {
+function isVisualKind(value: unknown): value is VisualKind {
   return typeof value === 'string' && (VISUAL_KINDS as readonly string[]).includes(value)
 }
 
@@ -155,7 +155,8 @@ const INK_HUE_SPREAD = 35
 
 const hueDistance = (a: number, b: number): number => Math.abs(((a - b + 540) % 360) - 180)
 const wrapHue = (h: number): number => ((h % 360) + 360) % 360
-const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(high, value))
+const clamp = (value: number, low: number, high: number): number =>
+  Math.max(low, Math.min(high, value))
 
 /**
  * A dark ground's hue, kept out of yellow-green. Between about 65° and 125°
@@ -181,10 +182,13 @@ export function groundHue(h: number): number {
  * The key does not pull the hues here: the cover's own colours already say
  * what the song looks like.
  */
-export function paletteColors(palette: readonly CoverSwatch[], leadHue: number): VisualColors {
+function paletteColors(palette: readonly CoverSwatch[], leadHue: number): VisualColors {
   const vivid = palette
     .filter(swatch => swatch.c >= 0.02)
-    .map(swatch => ({ swatch, score: swatch.share * (swatch.c + 0.02) * (0.4 + Math.min(swatch.l, 0.8)) }))
+    .map(swatch => ({
+      swatch,
+      score: swatch.share * (swatch.c + 0.02) * (0.4 + Math.min(swatch.l, 0.8)),
+    }))
     .sort((a, b) => b.score - a.score)
     .map(ranked => ranked.swatch)
   const hues: number[] = []
@@ -198,14 +202,19 @@ export function paletteColors(palette: readonly CoverSwatch[], leadHue: number):
     const near = vivid.find(swatch => hueDistance(swatch.h, h) < 20)
     return clamp((near ? near.c : 0.05) * 2.4, 0.1, 0.16)
   }
-  const at = (lightness: number, chroma: number, h: number): Rgb => hexRgb(oklchToHex(lightness, chroma, h))
+  const at = (lightness: number, chroma: number, h: number): Rgb =>
+    hexRgb(oklchToHex(lightness, chroma, h))
 
   const byDepth = [...palette].sort((a, b) => a.l - b.l)
   const deep = byDepth.find(swatch => swatch.c >= 0.015) ?? byDepth[0]
   const gh = groundHue(deep ? deep.h : 260)
   const gc = clamp((deep ? deep.c : 0.02) * 0.8, 0.015, 0.045)
   return {
-    inks: [at(0.74, chromaFor(second), second), at(0.7, chromaFor(third), third), at(0.86, chromaFor(lead) * 0.8, lead)],
+    inks: [
+      at(0.74, chromaFor(second), second),
+      at(0.7, chromaFor(third), third),
+      at(0.86, chromaFor(lead) * 0.8, lead),
+    ],
     ground: [at(0.19, gc, gh), at(0.1, gc * 0.6, gh)],
   }
 }
@@ -284,7 +293,8 @@ export function synthLevels(count: number, seconds: number, bpm: number, energy:
   for (let i = 0; i < count; i++) {
     const x = count > 1 ? i / (count - 1) : 0
     const tilt = Math.pow(1 - x, 1.3) * 0.8 + 0.06
-    let level = tilt * (0.3 + 0.7 * valueNoise(i * 0.33, seconds * (1 + 2 * energy))) * (0.3 + 0.7 * energy)
+    let level =
+      tilt * (0.3 + 0.7 * valueNoise(i * 0.33, seconds * (1 + 2 * energy))) * (0.3 + 0.7 * energy)
     level += kick * (x < 0.14 ? 0.6 : x < 0.3 ? 0.22 : 0.05) * (0.3 + energy)
     level += hat * (x > 0.6 ? 0.28 : 0) * energy
     levels.push(Math.max(0, Math.min(1, level)))

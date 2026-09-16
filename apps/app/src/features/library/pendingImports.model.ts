@@ -13,7 +13,7 @@ import type { ImportRequestView } from '@selfmp3/replica'
 
 type Request = Pick<ImportRequestView, 'uid' | 'url' | 'state' | 'title' | 'songIds' | 'error' | 'requestedAt'>
 
-export interface PendingImport {
+interface PendingImport {
   readonly uid: string
   readonly title: string
   readonly thumbnail: string | null

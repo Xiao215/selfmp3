@@ -26,7 +26,7 @@ function useSaveRules(playlistId: number): (rules: SmartRules) => void {
   )
 }
 
-export const RULES_PANEL_WIDTH = 340
+const RULES_PANEL_WIDTH = 340
 
 /**
  * A live playlist's rules, being edited, beside its songs: at desktop width

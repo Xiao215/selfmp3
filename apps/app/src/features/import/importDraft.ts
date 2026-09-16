@@ -11,7 +11,7 @@ import type { Review } from '@selfmp3/client'
  * a draft made against one server is not shown for another, since tag and
  * playlist ids are that server's.
  */
-export interface ImportDraft {
+interface ImportDraft {
   /** Whose ids the draft's tags and playlists are: a server's address, or this device's own. */
   readonly source: string
   readonly links: string
@@ -22,7 +22,7 @@ export interface ImportDraft {
   readonly createPlaylist: boolean
 }
 
-export type DraftChanges = Partial<Omit<ImportDraft, 'source'>>
+type DraftChanges = Partial<Omit<ImportDraft, 'source'>>
 
 const EMPTY: Omit<ImportDraft, 'source'> = {
   links: '',
@@ -57,7 +57,11 @@ function subscribe(listener: () => void): () => void {
 export function useImportDraft(
   source: string,
 ): readonly [ImportDraft, (changes: DraftChanges) => void] {
-  const current = useSyncExternalStore(subscribe, () => draft, () => draft)
+  const current = useSyncExternalStore(
+    subscribe,
+    () => draft,
+    () => draft,
+  )
   const shown = current.source === source ? current : draftFor(source)
   return [shown, changes => patchDraft(source, changes)]
 }

@@ -36,7 +36,7 @@ const SnapshotSchema = z.object({
   tags: z.array(TagSchema),
   playlists: z.array(PlaylistSchema),
 })
-export type LibrarySnapshot = z.infer<typeof SnapshotSchema>
+type LibrarySnapshot = z.infer<typeof SnapshotSchema>
 
 const KEY = 'library'
 

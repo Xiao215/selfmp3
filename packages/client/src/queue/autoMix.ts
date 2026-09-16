@@ -21,7 +21,7 @@ import {
 const MIX_WEIGHTS: FeatureWeights = { bpm: 1, energy: 1, loudness: 0.25, key: 1 }
 
 /** Crossfade used when the user has crossfade switched off but auto-mix on. */
-export const AUTO_MIX_DEFAULT_CROSSFADE = 4
+const AUTO_MIX_DEFAULT_CROSSFADE = 4
 
 /**
  * Order `ids` as a path starting nearest to `fromId`.

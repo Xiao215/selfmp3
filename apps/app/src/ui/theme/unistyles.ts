@@ -22,12 +22,12 @@ import { readHue, readTheme, resolveScheme, type ThemeChoice } from '../appearan
  * accent changes, without a reload and without re-rendering the screen.
  */
 
-export interface AppTheme {
+interface AppTheme {
   readonly scheme: ColorScheme
   readonly colors: ThemePalette
 }
 
-export function themeFor(scheme: ColorScheme, hue: number): AppTheme {
+function themeFor(scheme: ColorScheme, hue: number): AppTheme {
   return { scheme, colors: scheme === 'light' ? lightPalette(hue) : darkPalette(hue) }
 }
 

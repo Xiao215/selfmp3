@@ -21,20 +21,20 @@ import type { Device } from '@selfmp3/shared'
  */
 
 /** One row: a device, or several offline ones that share a name. */
-export interface DeviceGroup {
+interface DeviceGroup {
   /** The one seen most recently; its name and "last seen" are the row's. */
   readonly device: Device
   /** Every device the row stands for, to forget them together. */
   readonly ids: readonly string[]
 }
 
-export interface DeviceListView {
+interface DeviceListView {
   readonly recent: readonly DeviceGroup[]
   readonly older: readonly DeviceGroup[]
 }
 
 /** Seen within this long counts as recent. */
-export const RECENT_DEVICE_MS = 24 * 60 * 60 * 1000
+const RECENT_DEVICE_MS = 24 * 60 * 60 * 1000
 /** Rows shown before "Show N older devices", unless more are online. */
 export const RECENT_DEVICE_LIMIT = 5
 

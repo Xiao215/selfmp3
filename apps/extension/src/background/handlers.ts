@@ -32,12 +32,12 @@ export class Refusal extends Error {
 }
 
 /** As much of the watcher as the handlers use (watcher.ts). */
-export interface JobWatcher {
+interface JobWatcher {
   add(jobs: readonly ImportJob[], label: string | null): Promise<void>
   seen(): Promise<void>
 }
 
-export interface HandlerDeps {
+interface HandlerDeps {
   readonly store: KeyValueStore
   readonly fetch: typeof fetch
   /** Absent in the tests that are only about talking to a server. */

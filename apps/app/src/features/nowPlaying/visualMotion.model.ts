@@ -22,7 +22,7 @@ import { driftSpeed, STILL_SECONDS, synthLevels, type VisualFeel } from './visua
  * as silence, so it settles rather than freezing mid-hit. Pure: vitest runs it.
  */
 
-export interface PulseRing {
+interface PulseRing {
   /** Counts up from the first ring, so a phone can keep each ring in the same view. */
   readonly id: number
   /** Seconds since it left the centre. */
@@ -94,11 +94,11 @@ export function resizeBands(state: MotionState, bandCount: number): void {
 }
 
 /** An onset at or above this can send a ring. */
-export const ONSET_THRESHOLD = 0.45
+const ONSET_THRESHOLD = 0.45
 /** After a ring, the onset has to fall to this share of its peak before another can go. */
-export const REARM_SHARE = 0.6
+const REARM_SHARE = 0.6
 /** Below this level nothing is a hit: the hiss of a fade-out does not ring. */
-export const QUIET_LEVEL = 0.04
+const QUIET_LEVEL = 0.04
 /** At most this many rings at once; the phone keeps one view for each. */
 export const MAX_RINGS = 6
 /** The refractory period with no tempo to go by, in seconds. */
@@ -189,7 +189,8 @@ export function stepMotion(
     state.flash = Math.max(state.flash, clamp01((onset - 0.65) / 0.35) * presence)
   } else if (!state.armed) {
     state.peakSinceFire = Math.max(state.peakSinceFire, onset)
-    if (onset < state.peakSinceFire * REARM_SHARE || onset < ONSET_THRESHOLD * REARM_SHARE) state.armed = true
+    if (onset < state.peakSinceFire * REARM_SHARE || onset < ONSET_THRESHOLD * REARM_SHARE)
+      state.armed = true
   }
 
   for (const ring of state.rings) ring.age += dt
@@ -226,7 +227,11 @@ export function auroraBrightness(glow: number, flash: number): number {
  * two rings out and the bars as the tempo stand-in draws them — the same
  * frame every time for a song, so nothing moves when the screen redraws.
  */
-export function stillMotion(state: MotionState, tuning: MotionTuning, source: MotionSourceKind): void {
+export function stillMotion(
+  state: MotionState,
+  tuning: MotionTuning,
+  source: MotionSourceKind,
+): void {
   const { feel } = tuning
   const level = 0.45 + 0.3 * feel.loudness
   state.source = source

@@ -14,7 +14,7 @@ import { X } from '../../ui/components/Icons'
 import { useDeviceContext } from './DevicesProvider'
 
 /** How long the offer stays before it goes by itself. */
-export const RESUME_TOAST_MS = 12_000
+const RESUME_TOAST_MS = 12_000
 
 /**
  * "Continue where you left off on your phone".

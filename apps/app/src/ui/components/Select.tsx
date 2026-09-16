@@ -9,7 +9,7 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
 
-export interface SelectOption<T> {
+interface SelectOption<T> {
   readonly value: T
   readonly label: string
   /** A quieter note beside the label, e.g. how sure a match is. */
@@ -17,7 +17,7 @@ export interface SelectOption<T> {
   readonly disabled?: boolean
 }
 
-export interface SelectGroup<T> {
+interface SelectGroup<T> {
   readonly label: string
   readonly options: readonly SelectOption<T>[]
 }

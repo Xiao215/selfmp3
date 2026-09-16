@@ -11,7 +11,7 @@ import { extrapolatePosition, type PlaybackState } from '@selfmp3/shared'
  * bug that is miserable to reproduce with two real devices.
  */
 
-export interface HandoffTarget {
+interface HandoffTarget {
   readonly queueIds: readonly number[]
   readonly index: number
   /** Seconds into `queueIds[index]`. */

@@ -78,7 +78,7 @@ export interface DoormanSession {
 }
 
 /** Which bucket and folder the upload bookkeeping describes. */
-export interface CloudTarget {
+interface CloudTarget {
   readonly endpoint: string
   readonly bucket: string
   readonly prefix: string
@@ -272,11 +272,10 @@ export class CloudRepository {
   }
 
   /**
-   * The bucket and folder uploads now go to. Pointed somewhere else than
-   * before, everything remembered about the old one is forgotten, so the next
-   * pass uploads the library to where it now belongs instead of assuming it
-   * is already there. A new key, or a new sign-in, for the same bucket keeps
-   * it all.
+   * The bucket and folder uploads go to. Pointed somewhere else, everything
+   * remembered about the previous one is forgotten, so the next pass uploads
+   * the library to where it now belongs instead of assuming it is already
+   * there. A new key, or a new sign-in, for the same bucket keeps it all.
    */
   adoptTarget(target: CloudTarget): void {
     const fingerprint = JSON.stringify([target.endpoint, target.bucket, target.prefix])

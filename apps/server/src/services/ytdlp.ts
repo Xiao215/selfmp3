@@ -15,7 +15,7 @@ import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCooki
  * caller aborts.
  */
 
-export interface RunResult {
+interface RunResult {
   readonly code: number
   readonly stdout: string
   readonly stderr: string
@@ -35,7 +35,7 @@ export interface RunResult {
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 const MAX_STDOUT_BYTES = 64 * 1024 * 1024
 
-export interface RunOptions {
+interface RunOptions {
   readonly timeoutMs?: number
   readonly signal?: AbortSignal
   /**
@@ -166,7 +166,7 @@ export interface ProbedTrack {
 }
 
 /** The subset of yt-dlp's JSON dump this app reads. */
-export interface YtDlpJson {
+interface YtDlpJson {
   _type?: string
   /** Which extractor a flat entry belongs to: `Youtube` for a video, `YoutubeTab` for a page. */
   ie_key?: string

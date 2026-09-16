@@ -27,7 +27,7 @@ export type SignInStage =
   | { readonly kind: 'claiming' }
 
 /** What the doorman says about the attempt: gone (expired, or never kept), still at Google, or finished. */
-export type AttemptState = 'gone' | 'pending' | 'done'
+type AttemptState = 'gone' | 'pending' | 'done'
 
 export const TOOK_TOO_LONG = 'That took too long. Try again.'
 
@@ -43,7 +43,7 @@ export function afterCheck(stage: SignInStage, attempt: AttemptState, now: numbe
   return now - stage.googleDoneAt >= LINK_GRACE_MS ? { kind: 'lost' } : stage
 }
 
-export interface SignInCopy {
+interface SignInCopy {
   /** The headline's first line. */
   readonly lead: string
   /** Its second line, in the accent. */

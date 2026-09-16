@@ -35,7 +35,7 @@ interface Subscriber {
 const KEEPALIVE_MS = 25_000
 
 /** What a client should wait before reconnecting after a drop. */
-export const SSE_RETRY_MS = 3_000
+const SSE_RETRY_MS = 3_000
 
 /**
  * Encode one event as an SSE frame.
@@ -58,7 +58,7 @@ export function encodeSsePreamble(retryMs = SSE_RETRY_MS): string {
   return `retry: ${retryMs}\n: connected\n\n`
 }
 
-export function encodeSseKeepalive(): string {
+function encodeSseKeepalive(): string {
   return ': ping\n\n'
 }
 

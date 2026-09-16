@@ -3,15 +3,15 @@ import type { StageGeometry } from './nowPlaying.model'
 /**
  * The glide between Now Playing's two modes on a computer, as numbers.
  *
- * The move used to animate where things are laid out: the cover's left, top,
- * width, height and corners, and the lyrics column's left and right. In a
- * browser every one of those frames was a React render with new plain numbers,
- * and Unistyles turns each new style into a new class and rewrites its whole
- * stylesheet to add it — hundreds of full-sheet rewrites and full style
- * recalculations in half a second, with every lyric line re-wrapping at each
- * new width. So nothing laid out moves now. Each piece is laid out once, where
- * its mode puts it, and moved there with a transform and an opacity, which a
- * browser and a phone's native driver can both run without asking React.
+ * Nothing laid out moves. Each piece is laid out once, where its mode puts
+ * it, and moved there with a transform and an opacity, which a browser and a
+ * phone's native driver can both run without asking React.
+ *
+ * Animating the layout instead — the cover's left, top, width, height and
+ * corners, the lyrics column's left and right — is a React render per frame
+ * with new plain numbers, and Unistyles turns each new style into a new class
+ * and rewrites its whole stylesheet to add it: hundreds of full-sheet rewrites
+ * in half a second, with every lyric line re-wrapping at each new width.
  *
  * `m` is how far through the move: 0 is the stage, 1 is Focus.
  */
@@ -68,7 +68,7 @@ export function coverPose(g: StageGeometry, m: number): MovePose {
   }
 }
 
-export interface WordsFrame {
+interface WordsFrame {
   readonly left: number
   readonly right: number
   readonly top: number
@@ -101,7 +101,7 @@ export function laidOutRadius(pose: MovePose): number | undefined {
 }
 
 /** A pose as CSS, for a browser's own animation. */
-export type MoveKeyframe = {
+type MoveKeyframe = {
   offset: number
   transform?: string
   opacity?: number

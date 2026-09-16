@@ -19,7 +19,7 @@ export function artworkLoadable(src: string): boolean {
   return LOADABLE.test(src)
 }
 
-export interface ArtworkInliner {
+interface ArtworkInliner {
   /** A loadable address as it is; anything else as `data:`, or null if it cannot be read. */
   readonly load: (src: string) => Promise<string | null>
   /** What `load` would give without waiting, if it already has it. */

@@ -12,7 +12,7 @@ import type { MotionCurveLike } from './motionSource'
  * analyser, so a synthetic curve can prove the curve path in Chromium.
  */
 
-export interface VisualDebugFrame {
+interface VisualDebugFrame {
   /** The playhead, seconds. */
   t: number
   source: string

@@ -17,7 +17,7 @@ import type { Logger } from '../logger.js'
  * this service only wires the engines and keeps the lines aligned.
  */
 
-export interface Romanizers {
+interface Romanizers {
   readonly pinyin: (text: string) => string
   readonly romaji: (text: string) => Promise<string>
 }

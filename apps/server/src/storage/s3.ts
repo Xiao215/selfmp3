@@ -30,7 +30,7 @@ export interface S3Module {
   ListObjectsV2Command: new (input: Record<string, unknown>) => unknown
 }
 
-export interface PresignerModule {
+interface PresignerModule {
   getSignedUrl: (
     client: unknown,
     command: unknown,

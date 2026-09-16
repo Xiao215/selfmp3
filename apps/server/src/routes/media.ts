@@ -12,7 +12,7 @@ const ParamsWithId = z.object({ id: IdSchema })
 /** The sizes covers are kept at; a request is answered with the smallest that is not smaller. */
 const ART_SIZES = [160, 320, 640, 1024] as const
 
-export function snapArtSize(wanted: number): number {
+function snapArtSize(wanted: number): number {
   return ART_SIZES.find(size => size >= wanted) ?? 1024
 }
 
@@ -88,38 +88,38 @@ export function mediaRoutes(container: Container): Router {
         if (!cover) throw HttpError.notFound('no cover art')
 
         const stat = fs.statSync(cover.path)
-      const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
+        const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
 
-      const caching = {
-        'Content-Type': cover.contentType,
-        ETag: etag,
-        'Cache-Control': 'private, max-age=604800',
-      }
+        const caching = {
+          'Content-Type': cover.contentType,
+          ETag: etag,
+          'Cache-Control': 'private, max-age=604800',
+        }
 
-      if (req.headers['if-none-match'] === etag) {
-        res.set(caching).status(304).end()
+        if (req.headers['if-none-match'] === etag) {
+          res.set(caching).status(304).end()
+          return undefined
+        }
+
+        // Awaited deliberately: sendFile is asynchronous, so returning straight
+        // away would let the route wrapper see `headersSent === false` and send
+        // a 204 on top of the image.
+        //
+        // `dotfiles: 'allow'` because the path is the server's own, never the
+        // request's, and `send` otherwise answers 404 for any path with a
+        // dot-segment in it — so a data directory under `~/.local/share` (the
+        // Linux default) or any other hidden folder served no covers at all.
+        //
+        // The caching headers go through `headers`, which Express sets only once
+        // the file is really being sent. Set up front, a send that failed went out
+        // with a week's max-age, and the app's cache went on serving itself that
+        // failure in place of the cover long after the server had it.
+        await new Promise<void>((resolve, reject) => {
+          res.sendFile(cover.path, { dotfiles: 'allow', headers: caching }, error =>
+            error ? reject(error) : resolve(),
+          )
+        })
         return undefined
-      }
-
-      // Awaited deliberately: sendFile is asynchronous, so returning straight
-      // away would let the route wrapper see `headersSent === false` and send
-      // a 204 on top of the image.
-      //
-      // `dotfiles: 'allow'` because the path is the server's own, never the
-      // request's, and `send` otherwise answers 404 for any path with a
-      // dot-segment in it — so a data directory under `~/.local/share` (the
-      // Linux default) or any other hidden folder served no covers at all.
-      //
-      // The caching headers go through `headers`, which Express sets only once
-      // the file is really being sent. Set up front, a send that failed went out
-      // with a week's max-age, and the app's cache went on serving itself that
-      // failure in place of the cover long after the server had it.
-      await new Promise<void>((resolve, reject) => {
-        res.sendFile(cover.path, { dotfiles: 'allow', headers: caching }, error =>
-          error ? reject(error) : resolve(),
-        )
-      })
-      return undefined
       },
     ),
   )

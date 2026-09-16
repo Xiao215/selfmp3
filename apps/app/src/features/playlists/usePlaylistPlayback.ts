@@ -4,7 +4,7 @@ import type { Library } from '@selfmp3/shared'
 import { clientApi, queryKeys } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 
-export interface PlaylistPlayback {
+interface PlaylistPlayback {
   /** From the top, in order: the playlist's Play. */
   play: (playlistId: number, songIds: readonly number[]) => void
   /** From a row, keeping whatever shuffle mode is on. */

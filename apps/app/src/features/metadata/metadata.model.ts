@@ -27,7 +27,7 @@ export const SOURCE_LABELS: Record<MetadataCandidate['source'], string> = {
   musicbrainz: 'MusicBrainz',
 }
 
-export interface Diff {
+interface Diff {
   readonly field: Field
   readonly current: string
   readonly proposed: string

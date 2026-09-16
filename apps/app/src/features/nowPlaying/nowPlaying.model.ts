@@ -28,7 +28,7 @@ export const MANUAL_SCROLL_MS = 4_000
 /** Focus hides its chrome after this long without the mouse or a key. */
 export const IDLE_MS = 3_000
 /** How close to the end "Next" slides in. */
-export const UP_NEXT_LEAD = 15
+const UP_NEXT_LEAD = 15
 
 /**
  * What a song has to read, in one of three states.
@@ -195,7 +195,7 @@ export function autoMixLine({
 }
 
 /** How tall the similar-songs shelf is on a phone: heading, cards and the gap under them. */
-export const SIMILAR_SHELF_HEIGHT = 132
+const SIMILAR_SHELF_HEIGHT = 132
 
 /** The smallest the cover gets on a phone, shelf or not. */
 export const PHONE_ART_MIN = 180

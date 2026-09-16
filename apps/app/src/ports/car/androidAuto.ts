@@ -34,7 +34,7 @@ import { resolveMediaId, searchBrowseTree, type BrowseTree } from './browseTree'
  * alternatives (a patched fork, or a small native MediaLibraryService).
  */
 
-export interface AndroidAutoHandlers {
+interface AndroidAutoHandlers {
   readonly onPlay: (songIds: readonly number[], startIndex: number) => void
 }
 

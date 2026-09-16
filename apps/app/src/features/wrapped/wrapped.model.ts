@@ -16,7 +16,7 @@ import { formatHour, playsLabel } from '../stats/stats.model'
 
 export const WRAPPED_RANGES: readonly WrappedRange[] = ['week', 'month', 'quarter', 'year', 'all']
 
-export const RANGE_SHORT: Record<WrappedRange, string> = {
+const RANGE_SHORT: Record<WrappedRange, string> = {
   week: 'Week',
   month: 'Month',
   quarter: '3 months',

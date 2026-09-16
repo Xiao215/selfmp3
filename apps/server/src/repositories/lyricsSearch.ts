@@ -64,7 +64,7 @@ export function highlightMatch(
   return { before: line, match: '', after: '' }
 }
 
-export interface LyricsSearchRow {
+interface LyricsSearchRow {
   song_id: number
   line: string
 }

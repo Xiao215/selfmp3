@@ -64,7 +64,7 @@ export interface BucketDeps {
 
 const SIGNING_KEYS_KEPT = 64
 
-export interface BucketObject {
+interface BucketObject {
   /** Relative to the account's folder: `audio/4f1c….m4a`. */
   readonly key: string
   readonly size: number
@@ -118,7 +118,7 @@ interface SendOptions {
 /** Bytes in hand, or a stream of them that is only ever handed on, never read here. */
 type Upload = Uint8Array | { readonly stream: ReadableStream; readonly length: number }
 
-export interface WriteOptions {
+interface WriteOptions {
   readonly contentType: string
   readonly contentEncoding?: string | null
 }

@@ -16,7 +16,7 @@ export type PaletteCommandId =
   | 'shuffle-all'
   | 'rescan-library'
 
-export interface PaletteCommand {
+interface PaletteCommand {
   readonly id: PaletteCommandId
   readonly label: string
   readonly hint?: string
@@ -62,7 +62,7 @@ export function paletteCommands(
           },
         ]),
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
-    // The sidebar's foot used to hold this; a bucket has no folder to scan.
+    // Not offered on a bucket library: there is no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
   ]
   if (pathname === null) return commands
@@ -79,7 +79,7 @@ export type RecentItem =
   | { readonly kind: 'playlist'; readonly playlist: Playlists[number] }
 
 /** How many recent things the empty palette offers: a glance, not a history page. */
-export const RECENT_LIMIT = 5
+const RECENT_LIMIT = 5
 
 /**
  * What was played lately, newest first: the song loaded now, then songs and
@@ -105,7 +105,8 @@ export function recentItems(
     }
   }
   for (const playlist of library.playlists) {
-    if (playlist.lastPlayedAt) dated.push({ at: playlist.lastPlayedAt, item: { kind: 'playlist', playlist } })
+    if (playlist.lastPlayedAt)
+      dated.push({ at: playlist.lastPlayedAt, item: { kind: 'playlist', playlist } })
   }
   // ISO timestamps sort as text; the newest is the largest.
   dated.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
@@ -139,7 +140,7 @@ export function untaggedCount(songs: Songs): number {
 }
 
 /** Where the palette was opened, and what is loaded: what the empty palette leaves out and leads with. */
-export interface PaletteContext {
+interface PaletteContext {
   readonly pathname?: string | null
   readonly currentSongId?: number | null
 }

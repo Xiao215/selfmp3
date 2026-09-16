@@ -17,7 +17,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, ChevronRight, Metronome, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
 
-export type PracticeGroup = 'loop' | 'speed' | 'key'
+type PracticeGroup = 'loop' | 'speed' | 'key'
 type Group = PracticeGroup
 
 /** Which groups start open. The loop is the reason people open this panel. */

@@ -123,7 +123,7 @@ export function detectCsv(text: string): { delimiter: string } | null {
   return null
 }
 
-export function parseCsv(text: string, delimiter: string): MigrateParseResult {
+function parseCsv(text: string, delimiter: string): MigrateParseResult {
   const rows = parseDelimited(text, delimiter)
   const header = (rows[0] ?? []).map(cell => cell.trim().toLowerCase())
   const titleAt = columnIndex(header, TITLE_COLUMNS)
@@ -248,7 +248,7 @@ function isCountedList(lines: readonly string[]): boolean {
   return true
 }
 
-export function parseLines(text: string): MigrateParseResult {
+function parseLines(text: string): MigrateParseResult {
   const lines = text
     .split(/\r?\n|\r/)
     .map(line => line.trim())

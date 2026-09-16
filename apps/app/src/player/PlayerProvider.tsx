@@ -44,7 +44,13 @@ import {
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import { prefs } from '../ports/prefs'
-import { coverFor, coversNow, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
+import {
+  coverFor,
+  coversNow,
+  coversVersion,
+  KEPT_COVER_SIZE,
+  subscribeCovers,
+} from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
@@ -202,8 +208,9 @@ const PlayerContext = createContext<PlayerApi | null>(null)
  *
  * Made once per provider and never replaced, so this context itself never
  * changes; each hook below subscribes to the one store it reads. `stalled`
- * used to be in `PlayerApi`, and every waiting/playing pair from the network
- * re-rendered every screen and row that asked for the player.
+ * lives here rather than in `PlayerApi` because every waiting/playing pair
+ * from the network would otherwise re-render every screen and row that asks
+ * for the player.
  */
 interface PlayerStores {
   readonly progress: ProgressStore
@@ -805,11 +812,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [queue, songsById])
 
   /*
-   * The fade into the next song, and gapless, told to the engine. The server's
-   * settings hold both; nothing passed them on before this, so a browser
-   * played gapless with no crossfade whatever the setting said. Auto-mix picks
-   * each fade from the two songs, bounded by the setting. A phone's engine
-   * ignores both: it is gapless within its own queue and cannot fade.
+   * The fade into the next song, and gapless, told to the engine. Both come
+   * from the server's settings, and a browser plays whatever is passed on
+   * here. Auto-mix picks each fade from the two songs, bounded by the setting.
+   * A phone's engine ignores both: it is gapless within its own queue and
+   * cannot fade.
    */
   const crossfadeSeconds = serverSettings?.crossfadeSeconds ?? 0
   const gapless = serverSettings?.gapless ?? true
@@ -956,7 +963,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const nowPlayingArt = useMemo(
     () =>
       currentSong
-        ? nowPlayingArtwork(currentSong, artSources(keptCovers.get(currentSong.id), connection, fromCloud))
+        ? nowPlayingArtwork(
+            currentSong,
+            artSources(keptCovers.get(currentSong.id), connection, fromCloud),
+          )
         : null,
     [currentSong, keptCovers, connection, fromCloud],
   )
@@ -1046,9 +1056,9 @@ const NO_PLAYBACK = createValueStore<SongPlaybackState>({ songId: null, playing:
 /**
  * `playing` or `paused` when this song is the loaded one, and null otherwise.
  *
- * What a song row asks instead of `usePlayer()`. The answer is a primitive per
- * row, so a new song re-renders the row it left and the row it reached, and a
- * pause re-renders one — where every row used to hear every change.
+ * What a song row asks instead of `usePlayer()`, which every row would hear
+ * every change through. The answer is a primitive per row, so a new song
+ * re-renders the row it left and the row it reached, and a pause re-renders one.
  */
 export function useSongPlayback(songId: number): 'playing' | 'paused' | null {
   const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK

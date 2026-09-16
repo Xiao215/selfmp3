@@ -77,7 +77,7 @@ function acronym(text: string): string {
  * into words for its initials, was most of what a keystroke cost — work whose
  * answer never changes while the library does not.
  */
-export class FuzzyText {
+class FuzzyText {
   readonly text: string
   readonly lower: string
   #initials: string | undefined

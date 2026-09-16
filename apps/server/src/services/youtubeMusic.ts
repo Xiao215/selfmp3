@@ -45,7 +45,7 @@ const AUDIO_TRACK = 'MUSIC_VIDEO_TYPE_ATV'
 const OTHER_VERSION =
   /\b(?:version|ver\.|remix|live|instrumental|inst\.|acoustic|karaoke|off vocal|cover|sped up|slowed)\b/i
 
-export interface YouTubeMusicLookup {
+interface YouTubeMusicLookup {
   /** The video the song was downloaded from, when it was. */
   readonly videoId: string | null
   readonly artist: string

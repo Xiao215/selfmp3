@@ -1,11 +1,6 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import {
-  isSquareCoverUrl,
-  sanitizeFilename,
-  type ImportJob,
-  type Settings,
-} from '@selfmp3/shared'
+import { isSquareCoverUrl, sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { KeepAwakeService } from './keepAwake.js'
 import type { Logger } from '../logger.js'
@@ -39,7 +34,7 @@ const MAX_ATTEMPTS = 3
 const RETRY_DELAY_MS = 5_000
 
 /** The part of the cloud sync an import needs: see services/cloudSync.ts. */
-export interface ImportUploader {
+interface ImportUploader {
   readonly connected: boolean
   /** Put the song in the bucket and publish a snapshot that has it. */
   uploadSong(songId: number): Promise<void>

@@ -8,7 +8,7 @@ import type { PageRequest, PillState } from '../bridge.js'
  * would only put 60 KB of schema into every YouTube page for nothing.
  */
 
-export type PageReply =
+type PageReply =
   | { readonly ok: true; readonly value: PillState }
   | { readonly ok: false; readonly message: string }
 

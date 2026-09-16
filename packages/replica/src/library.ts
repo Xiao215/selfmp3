@@ -120,7 +120,7 @@ interface Replica {
   mustCheck: boolean
 }
 
-export interface RecordOptions {
+interface RecordOptions {
   /**
    * Leave the view as it is until something reads it. For plays and skips:
    * the outbox sends a phone's waiting plays one at a time, and rebuilding the
@@ -507,8 +507,8 @@ export function createCloudLibrary(
    * The library, from this device's copy.
    *
    * A look at the bucket that is due happens behind the answer rather than in
-   * front of it: opening the app used to wait on two listings and every log
-   * file before showing a library that was already here. What the look finds
+   * front of it, so opening the app does not wait on two listings and every
+   * log file to show a library that is already here. What the look finds
    * reaches the app through `onCloudLibraryChanged`. Only a look asked for by
    * name — or the very first, with nothing here yet (open) — is waited for.
    */
@@ -657,10 +657,10 @@ export function createCloudLibrary(
   function listenForConnection(): void {
     if (listening) return
     listening = true
-    // In React Native `window` IS the global object, so the old guard here —
-    // `typeof window === 'undefined'` — was false on a phone and execution
-    // carried straight on into `window.addEventListener`, which is not there.
-    // Asking the platform instead cannot be wrong in that way.
+    // Asked of the platform, not of `window`: in React Native `window` IS the
+    // global object, so `typeof window === 'undefined'` is false on a phone
+    // and execution carries on into `window.addEventListener`, which is not
+    // there.
     platform.onWake(() => {
       if (pendingCloudChanges() > 0) scheduleFlush(0)
     })

@@ -47,7 +47,7 @@ export interface Caffeinator {
   once(event: 'error' | 'exit', listener: (error: Error) => void): void
 }
 
-export interface KeepAwakeOptions {
+interface KeepAwakeOptions {
   platform?: NodeJS.Platform
   /** Overridden in tests; nothing else should need to. */
   spawnCaffeinate?: () => Caffeinator

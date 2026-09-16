@@ -71,12 +71,12 @@ export function useNowPlaying(
    * The position, only when the card's own clock would be wrong.
    *
    * Chromium runs the card's clock from the last position and rate it was
-   * given, so a tick that agrees with that clock tells it nothing. It used to
-   * be told on every tick — four times a second, each one a validation and,
-   * in the installed app, a round trip through the OS. Now: when play, pause,
-   * the rate or the song change (this effect running again), when the length
-   * becomes known, and when the position jumps further than the time that
-   * passed explains — a seek, a loop going back to A.
+   * given, so a tick that agrees with that clock tells it nothing — and every
+   * tick is a validation and, in the installed app, a round trip through the
+   * OS. Told instead when play, pause, the rate or the song change (this
+   * effect running again), when the length becomes known, and when the
+   * position jumps further than the time that passed explains — a seek, a loop
+   * going back to A.
    */
   const songId = current?.id ?? null
   const songDuration = current?.duration ?? 0
@@ -93,7 +93,11 @@ export function useNowPlaying(
     report()
     return progress.subscribe(() => {
       const { position, duration } = progress.get()
-      if (last === null || duration !== lastDuration || positionJumped(last, position, Date.now())) {
+      if (
+        last === null ||
+        duration !== lastDuration ||
+        positionJumped(last, position, Date.now())
+      ) {
         report()
       }
     })

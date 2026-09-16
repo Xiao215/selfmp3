@@ -74,7 +74,7 @@ p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
 
 let styleHash: Promise<string> | null = null
 
-export interface PageOptions {
+interface PageOptions {
   readonly status: number
   readonly title: string
   readonly lines: readonly string[]
@@ -137,6 +137,6 @@ const ESCAPES: Readonly<Record<string, string>> = {
 }
 
 /** Safe in text and in a quoted attribute. */
-export function escapeHtml(text: string): string {
+function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, char => ESCAPES[char] ?? char)
 }

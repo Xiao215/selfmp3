@@ -61,7 +61,7 @@ export function parseRange(
  * 304; the shell adds the CORS pair its custom scheme needs. What neither has
  * to get right twice is which bytes and which `Content-Range`.
  */
-export interface RangeAnswer {
+interface RangeAnswer {
   readonly status: 200 | 206 | 416
   /** Inclusive byte offsets, as HTTP defines them. Absent for a 416. */
   readonly start: number

@@ -22,7 +22,7 @@ import type { StampRow } from '../repositories/sync.js'
  * missing on this server since is still in it — the bucket has its audio, which
  * is the point of having one — until the song is forgotten for good.
  */
-export interface SnapshotInput {
+interface SnapshotInput {
   readonly songs: readonly Song[]
   readonly songUids: ReadonlyMap<number, string>
   readonly states: ReadonlyMap<number, CloudSongState>

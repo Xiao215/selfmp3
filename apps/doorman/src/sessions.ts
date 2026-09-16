@@ -23,14 +23,14 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * KV itself, which may take as long to tell other places about the delete.
  */
 
-export const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60
+const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60
 const CACHE_MS = 60_000
 const CACHE_LIMIT = 500
 
 /** base64url of 32 random bytes. Anything else is not worth a KV read. */
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 
-export const SessionSchema = z.object({
+const SessionSchema = z.object({
   /** The Google account's id: stable, unlike its email address. */
   sub: z.string().min(1),
   email: z.string(),

@@ -9,7 +9,7 @@ import { toAudioFeatures, type AudioFeaturesRow } from '../db/rows.js'
  * so the queue is the table itself and survives a restart for free.
  */
 
-export interface NewFeatures {
+interface NewFeatures {
   bpm: number | null
   energy: number | null
   loudnessLufs: number | null

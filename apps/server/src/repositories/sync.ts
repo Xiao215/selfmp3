@@ -1,6 +1,6 @@
 import type { Db } from '../db/index.js'
 
-export type StampKind = 'song' | 'songTag' | 'tag' | 'playlist' | 'playlistSong'
+type StampKind = 'song' | 'songTag' | 'tag' | 'playlist' | 'playlistSong'
 
 export interface StampRow {
   readonly kind: StampKind

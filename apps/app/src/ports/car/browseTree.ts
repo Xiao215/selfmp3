@@ -18,7 +18,7 @@ export const ROOT_ID = 'root'
 /** Separator between a node id and a song id in a playable item's id. */
 const LEAF_SEPARATOR = '|'
 
-export interface BrowseItem {
+interface BrowseItem {
   /** Unique, and parseable back into a node (and song, for playable items). */
   readonly id: string
   readonly title: string
@@ -29,7 +29,7 @@ export interface BrowseItem {
   readonly artSongId: number | null
 }
 
-export interface BrowseNode {
+interface BrowseNode {
   readonly id: string
   readonly title: string
   readonly items: readonly BrowseItem[]
@@ -51,7 +51,7 @@ export interface BrowseInput {
   readonly playlistSongIds: Readonly<Record<number, readonly number[]>>
 }
 
-export interface BrowseOptions {
+interface BrowseOptions {
   /**
    * Head units cap how many rows a list may have — CarPlay's limit is
    * typically a couple of hundred and the API to ask for it is asynchronous.
@@ -241,7 +241,7 @@ export function nodeById(tree: BrowseTree, id: string): BrowseNode | null {
  * queue it belongs to and the position to start at, which is what makes
  * picking track 7 of an album play the rest of the album after it.
  */
-export type BrowseSelection =
+type BrowseSelection =
   | { readonly kind: 'browse'; readonly node: BrowseNode }
   | { readonly kind: 'play'; readonly songIds: readonly number[]; readonly startIndex: number }
 

@@ -14,7 +14,7 @@ import { useSyncExternalStore } from 'react'
  */
 
 /** A group the panel can be asked to open on. */
-export type PracticeSection = 'loop' | 'speed' | 'key'
+type PracticeSection = 'loop' | 'speed' | 'key'
 
 let open = false
 let section: PracticeSection | null = null

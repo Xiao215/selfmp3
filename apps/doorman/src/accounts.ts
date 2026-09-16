@@ -47,7 +47,7 @@ interface Remembered<Value> {
   readonly until: number
 }
 
-export interface AccountCache {
+interface AccountCache {
   /** `bucket:<sub>` as KV had it: the sealed string, or null. */
   readonly sealed: Map<string, Remembered<string | null>>
   /** Opened buckets, by account and the sealed string they came from. */

@@ -43,7 +43,7 @@ import { downloadQueue, type DownloadQueue, type DownloadState } from './downloa
  */
 
 /** This device's two settings, kept on this device. */
-export interface DownloadPrefs {
+interface DownloadPrefs {
   /** "Download automatically on Wi-Fi". */
   readonly autoOnWifi: boolean
   /** "Play songs that aren't downloaded". */
@@ -70,8 +70,8 @@ interface DownloadsContextValue {
    * The queue as of its last change of shape: what is kept, what is queued,
    * which song is in flight, paused, the error. Its `bytesWritten` and
    * `totalBytes` are as of that change too, and do not follow a transfer
-   * chunk by chunk — every screen reads this, and a download used to render
-   * all of them for every chunk. A bar that moves reads `useDownloadProgress()`.
+   * chunk by chunk: every screen reads this, so following each chunk here
+   * renders all of them. A bar that moves reads `useDownloadProgress()`.
    */
   readonly state: DownloadState
   readonly queue: DownloadQueue
@@ -215,8 +215,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   )
   /*
    * Each song's size, from the manifest when there is one and the library when
-   * not — looked up once per answer. It used to be rebuilt from the whole
-   * manifest, or filtered from the whole library, on every question, and a
+   * not. Built once per change rather than walked again per question — a
    * finished download asks one.
    */
   const sizeById = useMemo(

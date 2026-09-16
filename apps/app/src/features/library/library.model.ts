@@ -38,9 +38,9 @@ import { useLibraryFilter } from './libraryFilter'
 export type { LibraryFilter, TagFilterState }
 
 /** What the screen shows when the list is empty, which is three different things. */
-export type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
+type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
 
-export interface LibraryModel {
+interface LibraryModel {
   filter: LibraryFilter
   /** Every song the server knows, unfiltered. */
   songs: readonly Song[]

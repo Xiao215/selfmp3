@@ -8,7 +8,7 @@
  */
 
 /** Moving on by this many lines or fewer is the song playing; more is a seek. */
-export const LYRIC_GLIDE_LINES = 1
+const LYRIC_GLIDE_LINES = 1
 
 /**
  * Whether the words glide to `to` or jump there. The song moving on to the next

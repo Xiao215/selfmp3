@@ -1,8 +1,8 @@
 /**
  * What the player does when a song stops with an error.
  *
- * A song that failed used to sit there: no word on screen, nothing tried again,
- * and the queue behind it never reached. The rule is small and ordered:
+ * A failed song must not just sit there — no word on screen, nothing tried
+ * again, the queue behind it never reached. The rule is small and ordered:
  *
  *   1. Try it once more, from where it stopped. A connection that dropped for a
  *      moment is the usual cause, and asking for the song again also picks up
@@ -13,7 +13,7 @@
  *      is the queue running away with nobody listening.
  */
 
-export type PlaybackRecovery = 'retry' | 'skip' | 'stop'
+type PlaybackRecovery = 'retry' | 'skip' | 'stop'
 
 /** Songs skipped for failing, one after another, before the player gives up. */
 export const MAX_SKIPS_IN_A_ROW = 3

@@ -16,7 +16,7 @@ import { finePointer } from '../ports/pointer'
  * and a browser window dragged narrow all get the layout that fits the room
  * they actually have.
  */
-export interface Layout {
+interface Layout {
   /** At or above the 820-point breakpoint: sidebar, player bar, popovers. */
   wide: boolean
   /** Below it: tab bar, mini player, full-screen now playing, sheets. */

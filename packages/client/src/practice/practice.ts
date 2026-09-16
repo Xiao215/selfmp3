@@ -14,7 +14,7 @@
 export const PRACTICE_SPEEDS = [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2] as const
 
 /** One beat at the song's tempo, or half a second when the tempo is unknown. */
-export const DEFAULT_COUNT_IN_MS = 500
+const DEFAULT_COUNT_IN_MS = 500
 
 export function countInMs(bpm: number | null | undefined): number {
   if (bpm === null || bpm === undefined || !(bpm > 0)) return DEFAULT_COUNT_IN_MS

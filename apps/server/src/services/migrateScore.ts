@@ -92,11 +92,11 @@ const BONUSES: readonly { pattern: RegExp; weight: number }[] = [
 /** "The Weeknd" should not match every video with "the" in the title. */
 const STOPWORDS = new Set(['the', 'a', 'an', 'and', 'of', 'los', 'las', 'le', 'la', 'les'])
 
-export function isTopicChannel(channel: string): boolean {
+function isTopicChannel(channel: string): boolean {
   return /\s-\s*topic$/i.test(channel.trim())
 }
 
-export function isVevoChannel(channel: string): boolean {
+function isVevoChannel(channel: string): boolean {
   return /vevo$/i.test(channel.trim())
 }
 

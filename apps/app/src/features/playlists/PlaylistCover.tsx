@@ -78,8 +78,8 @@ const NO_SONGS: readonly Song[] = []
 
 /**
  * The library by song id, built once per library and shared by every tile.
- * Each tile used to build its own, of the whole library, whenever any cover
- * arrived: a grid of forty playlists was forty copies of it per cover.
+ * Per-tile, a grid of forty playlists would build forty copies of the whole
+ * library every time any cover arrived.
  */
 const byIdCache = new WeakMap<readonly Song[], ReadonlyMap<number, Song>>()
 
@@ -104,7 +104,9 @@ function Tile({ song, uri, half }: { song: Song; uri: string | null; half: boole
       style={half ? styles.half : styles.whole}
       onLayout={event => setSide(Math.floor(event.nativeEvent.layout.width))}
     >
-      {side > 0 ? <Cover uri={uri} title={song.album || song.title} size={side} radius={0} /> : null}
+      {side > 0 ? (
+        <Cover uri={uri} title={song.album || song.title} size={side} radius={0} />
+      ) : null}
     </View>
   )
 }

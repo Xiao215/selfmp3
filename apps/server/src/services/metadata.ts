@@ -13,7 +13,7 @@ import type { Logger } from '../logger.js'
  * a fallback of last resort.
  */
 
-export interface ExtractedMetadata {
+interface ExtractedMetadata {
   title: string
   artist: string
   album: string

@@ -28,7 +28,7 @@ const BatchSchema = z.object({
 })
 const BatchesSchema = z.array(BatchSchema)
 
-export interface WatcherDeps {
+interface WatcherDeps {
   readonly store: KeyValueStore
   /** The server's queue, as the handlers read it. */
   readonly queue: () => Promise<ImportQueue>
@@ -38,7 +38,7 @@ export interface WatcherDeps {
   readonly now?: () => Date
 }
 
-export interface Watcher {
+interface Watcher {
   /** Remember what an import started, so the badge and the notice are about it. */
   add(jobs: readonly ImportJob[], label: string | null): Promise<void>
   /** Read the queue once: update the badge, announce anything that finished. */

@@ -13,7 +13,7 @@ import type { QueueState } from '@selfmp3/shared'
 
 export const SESSION_KEY = 'player.session'
 
-export interface SavedSession {
+interface SavedSession {
   readonly queueIds: readonly number[]
   readonly index: number
   /** Seconds into the song at `index`. */
@@ -21,7 +21,7 @@ export interface SavedSession {
   readonly savedAt: number
 }
 
-export interface LaunchPlayback {
+interface LaunchPlayback {
   readonly queueIds: readonly number[]
   readonly index: number
   readonly position: number

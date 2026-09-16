@@ -1,18 +1,18 @@
 /**
  * The listening outbox: plays and skips that have not reached the server yet.
  *
- * Every client reports a play the moment it counts. With the server asleep that
- * request fails, and before this existed the failure was swallowed — so every
- * song heard on a train was missing from play counts, stats, Wrapped and
- * forgotten gems, which is exactly the listening this app exists for.
+ * Every client reports a play the moment it counts, and with the server asleep
+ * that request fails. Swallowing the failure would lose every song heard on a
+ * train from play counts, stats, Wrapped and forgotten gems — exactly the
+ * listening this app exists for — so each event is written to the device first
+ * and sent from there.
  *
- * Now each event is written to the device first and sent from there. This file
- * is the platform-free half: the event shape, how one failed send is judged,
- * and the flush loop. Where the queue is kept (IndexedDB on the web, a file on
- * the phone) is each client's business.
+ * This file is the platform-free half: the event shape, how one failed send is
+ * judged, and the flush loop. Where the queue is kept (IndexedDB on the web, a
+ * file on the phone) is each client's business.
  */
 
-export interface OutboxPlay {
+interface OutboxPlay {
   readonly kind: 'play'
   /** Doubles as the server-side `clientId`, which is what makes a resend safe. */
   readonly id: string
@@ -23,7 +23,7 @@ export interface OutboxPlay {
   readonly playedAt: string
 }
 
-export interface OutboxSkip {
+interface OutboxSkip {
   readonly kind: 'skip'
   readonly id: string
   readonly songId: number
@@ -58,7 +58,7 @@ export function outcomeForStatus(status: number): SendOutcome {
   return 'drop'
 }
 
-export interface FlushResult {
+interface FlushResult {
   /** Events still waiting, oldest first. */
   readonly remaining: OutboxEvent[]
   readonly sent: number
@@ -100,7 +100,7 @@ export async function flushOutbox(
 /** Past this many waiting events the oldest go: a bound, not a real limit. */
 export const OUTBOX_MAX_EVENTS = 5000
 /** A play older than this is not going to be missed from anyone's stats. */
-export const OUTBOX_MAX_AGE_DAYS = 400
+const OUTBOX_MAX_AGE_DAYS = 400
 
 /**
  * Keep the queue bounded.

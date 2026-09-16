@@ -125,7 +125,7 @@ function wantsRomanized(text: string): boolean {
   return detectLyricsLanguage(lines) !== 'none'
 }
 
-export interface CloudSyncDeps {
+interface CloudSyncDeps {
   readonly cloud: CloudRepository
   readonly songs: SongRepository
   readonly tags: TagRepository

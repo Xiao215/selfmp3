@@ -1,12 +1,11 @@
 /**
  * Which covers changed, gathered onto one frame.
  *
- * Shared by offline/covers.ts and its web twin. Both used to say only "covers
- * changed", so every screen showing art copied every known cover into a new
- * map and rendered — the whole library list for one playlist tile's picture.
- * Saying which songs lets a screen render only for the covers it drew.
+ * Shared by offline/covers.ts and its web twin. Saying which songs changed,
+ * rather than only that covers did, lets a screen render for the covers it
+ * drew; otherwise one playlist tile's picture renders the whole library list.
  */
-export interface CoverChanges {
+interface CoverChanges {
   /** A song's cover arrived or moved; heard with any others on the next frame. */
   readonly changed: (songId: number) => void
   /** Bumped once per frame that carried a change, so a reader can tell it missed one. */
@@ -18,7 +17,7 @@ export interface CoverChanges {
  * One screen's interest in covers, shaped for `useSyncExternalStore`: the
  * songs it has drawn, and a number that moves only when one of theirs changes.
  */
-export interface CoverWatch {
+interface CoverWatch {
   /** Note a song this screen draws. Cheap enough to call from a render. */
   readonly ask: (songId: number) => void
   readonly subscribe: (onChange: () => void) => () => void
@@ -66,7 +65,7 @@ export function createCoverChanges(frameMs = 16): CoverChanges {
   return {
     changed: songId => {
       pending.add(songId)
-      // Thirteen covers arriving from disk at launch used to be thirteen
+      // Thirteen covers arriving from disk at launch are otherwise thirteen
       // renders of every list, back to back.
       if (scheduled) return
       scheduled = true

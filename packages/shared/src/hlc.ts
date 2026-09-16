@@ -24,7 +24,7 @@ export const HLC_PATTERN = /^[0-9a-z]{9}\.[0-9a-z]{4}\.[a-z0-9][a-z0-9-]{2,62}$/
 
 const DEVICE_PATTERN = /^[a-z0-9][a-z0-9-]{2,62}$/
 
-export interface HlcParts {
+interface HlcParts {
   readonly ms: number
   readonly counter: number
   readonly device: string

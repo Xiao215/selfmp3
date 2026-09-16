@@ -39,7 +39,7 @@ export interface CloudStore {
  * `auth` — the key is wrong or not allowed; `network` — the bucket could not
  * be reached; `missing` — no such bucket; `other` — anything else.
  */
-export type CloudErrorKind = 'auth' | 'network' | 'missing' | 'other'
+type CloudErrorKind = 'auth' | 'network' | 'missing' | 'other'
 
 export class CloudError extends Error {
   readonly kind: CloudErrorKind

@@ -33,7 +33,7 @@ const BROWSER_LABELS: Record<Settings['ytCookieBrowser'], string> = {
   chromium: 'Chromium',
 }
 
-export function browserLabel(browser: Settings['ytCookieBrowser']): string {
+function browserLabel(browser: Settings['ytCookieBrowser']): string {
   return BROWSER_LABELS[browser]
 }
 

@@ -125,7 +125,7 @@ function namesChannel(piece: string, channel: string): boolean {
   return a === b || b.includes(a) || a.includes(b)
 }
 
-export interface TidiedTitle {
+interface TidiedTitle {
   readonly title: string
   /** The artist the title names, when it names one; otherwise keep the channel's. */
   readonly artist: string | null

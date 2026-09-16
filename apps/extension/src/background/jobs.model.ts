@@ -44,7 +44,7 @@ export function badgeText(going: number, failed: boolean): string {
   return failed ? '!' : ''
 }
 
-export interface FinishedBatch {
+interface FinishedBatch {
   readonly batch: Batch
   readonly added: readonly ImportJob[]
   readonly failed: readonly ImportJob[]

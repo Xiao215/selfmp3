@@ -368,7 +368,7 @@ export function reordered(current: readonly string[], order: readonly string[]):
 }
 
 /** The tag a uid means now: itself, or the tag it was folded into. */
-export function resolveTag(library: Pick<SyncLibrary, 'aliases'>, uid: string): string {
+function resolveTag(library: Pick<SyncLibrary, 'aliases'>, uid: string): string {
   let current = uid
   for (let hops = 0; hops < 4; hops++) {
     const target = library.aliases.get(current)
@@ -448,7 +448,7 @@ export function logFile(
   return { format: LOG_FORMAT, device, seq, writtenAt: writtenAt.toISOString(), changes }
 }
 
-export type ReadLog =
+type ReadLog =
   | { readonly ok: true; readonly file: LogFile; readonly skipped: number }
   | { readonly ok: false; readonly reason: 'unreadable' | 'newer' }
 

@@ -16,7 +16,7 @@ import type { StorageDriver } from '../storage/index.js'
  */
 
 /** A song's own folder, with the file inside named the same. */
-export function songKey(name: string, extension: string): string {
+function songKey(name: string, extension: string): string {
   return `${name}/${name}${extension}`
 }
 

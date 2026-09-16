@@ -16,7 +16,7 @@ import type { Song, SyncManifest } from '@selfmp3/shared'
  * effectful half lives in `downloads.ts`.
  */
 
-export const DownloadEntrySchema = z.object({
+const DownloadEntrySchema = z.object({
   songId: z.number().int().positive(),
   /** File name inside the downloads directory, not a full path. */
   fileName: z.string().min(1),
@@ -27,7 +27,7 @@ export const DownloadEntrySchema = z.object({
 })
 export type DownloadEntry = z.infer<typeof DownloadEntrySchema>
 
-export const DownloadIndexSchema = z.object({
+const DownloadIndexSchema = z.object({
   /** Bumped if the on-disk shape ever changes. */
   version: z.literal(1).default(1),
   entries: z.record(z.string(), DownloadEntrySchema).default({}),
@@ -97,7 +97,6 @@ export function downloadedCount(index: DownloadIndex): number {
 export function totalBytes(index: DownloadIndex): number {
   return Object.values(index.entries).reduce((sum, entry) => sum + entry.sizeBytes, 0)
 }
-
 
 /**
  * Of `songIds`, the ones not on disk yet — in the order asked for, so

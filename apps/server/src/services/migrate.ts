@@ -44,7 +44,7 @@ interface SearchEntry {
 }
 
 /** Search YouTube through yt-dlp without downloading anything. */
-export const ytDlpSearcher: Searcher = async (query, signal) => {
+const ytDlpSearcher: Searcher = async (query, signal) => {
   const result = await run(
     'yt-dlp',
     [

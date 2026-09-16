@@ -39,7 +39,7 @@ export interface MenuCommand {
   readonly pageKeeps?: boolean
 }
 
-export interface MenuSection {
+interface MenuSection {
   readonly title: string
   readonly items: readonly MenuCommand[]
 }
@@ -177,7 +177,8 @@ export function pageKeptCombinations(): ReadonlyMap<string, Command> {
   const kept = new Map<string, Command>()
   for (const item of ALL_MENU_COMMANDS) {
     if (!item.accelerator || !item.pageKeeps) continue
-    for (const combination of pageCombinations(item.accelerator)) kept.set(combination, item.command)
+    for (const combination of pageCombinations(item.accelerator))
+      kept.set(combination, item.command)
   }
   return kept
 }

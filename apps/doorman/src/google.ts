@@ -22,8 +22,8 @@ import type { Identity } from './sessions.js'
  * nonce), that it has not expired, and that Google has verified the address.
  */
 
-export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com'])
 
 /**
@@ -68,7 +68,7 @@ export function authUrl(link: SignInLink): string {
 
 const TokenResponseSchema = z.object({ id_token: z.string().min(1) })
 
-export interface CodeExchange {
+interface CodeExchange {
   readonly fetch: Fetch
   readonly clientId: string
   readonly clientSecret: string
@@ -129,7 +129,7 @@ const ClaimsSchema = z.object({
   picture: z.string().optional(),
 })
 
-export interface IdTokenCheck {
+interface IdTokenCheck {
   readonly clientId: string
   readonly nonce: string
   readonly now: number

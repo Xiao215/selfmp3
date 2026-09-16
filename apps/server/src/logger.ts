@@ -6,8 +6,7 @@
  * output in about forty lines and adds nothing to the install.
  */
 
-export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const
-export type LogLevel = (typeof LOG_LEVELS)[number]
+type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent'
 
 const LEVEL_RANK: Record<LogLevel, number> = {
   debug: 10,

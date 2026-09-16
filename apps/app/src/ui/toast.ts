@@ -8,7 +8,7 @@
  * appeared.
  */
 
-export type ToastTone = 'info' | 'good' | 'warn' | 'error'
+type ToastTone = 'info' | 'good' | 'warn' | 'error'
 
 export interface Toast {
   readonly id: number

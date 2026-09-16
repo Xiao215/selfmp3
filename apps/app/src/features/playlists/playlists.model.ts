@@ -54,7 +54,7 @@ export function playlistSubtitle(playlist: Pick<Playlist, 'songCount' | 'totalDu
   return `${songs} · ${formatLongDuration(playlist.totalDuration)}`
 }
 
-export interface PlaylistsModel {
+interface PlaylistsModel {
   playlists: readonly Playlist[]
   /** Pinned ones, for the sidebar and the phone's row along the top. */
   pinned: readonly Playlist[]
@@ -117,7 +117,9 @@ export function sortPlaylists(
     case 'name':
       return list.sort(byName)
     case 'added':
-      return list.sort((a, b) => stamp(b.createdAt).localeCompare(stamp(a.createdAt)) || byName(a, b))
+      return list.sort(
+        (a, b) => stamp(b.createdAt).localeCompare(stamp(a.createdAt)) || byName(a, b),
+      )
     case 'recent': {
       const recency = (playlist: Playlist): string => {
         const played = stamp(playlist.lastPlayedAt)

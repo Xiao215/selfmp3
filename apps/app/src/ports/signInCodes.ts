@@ -44,7 +44,7 @@ export function signInLink(url: string): SignInLink | null {
   return last === 'sign-in' || last === 'settings' ? { target: last, code: code.data } : null
 }
 
-export interface SignInInbox {
+interface SignInInbox {
   /** A link arrived. Anything that is not a sign-in return is left alone; says whether it was one. */
   arrive(url: string): boolean
   /** Codes for `target`: any that arrived before, then each as it comes. */
@@ -79,7 +79,7 @@ export function createSignInInbox(): SignInInbox {
 
     listen(target, listener) {
       listeners[target].add(listener)
-      for (let index = 0; index < waiting.length; ) {
+      for (let index = 0; index < waiting.length;) {
         const link = waiting[index]
         if (link?.target === target) {
           waiting.splice(index, 1)

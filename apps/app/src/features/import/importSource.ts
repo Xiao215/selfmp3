@@ -21,7 +21,7 @@ import { apiFor } from '../../api/client'
  * from it too, rather than from this device's copy, and what is queued names
  * the server's ids.
  */
-export interface ImportSource {
+interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
   readonly library: Library | undefined
   readonly tools: ToolStatus | undefined

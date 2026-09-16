@@ -68,7 +68,7 @@ export function shouldAutoDownload(situation: SyncSituation): boolean {
   )
 }
 
-export type SyncHeader =
+type SyncHeader =
   | { readonly kind: 'none' }
   | {
       readonly kind: 'downloading'

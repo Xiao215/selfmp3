@@ -1,7 +1,7 @@
 import os from 'node:os'
 
 /** One address this server listens on, and whether Tailscale handed it out. */
-export interface ListenAddress {
+interface ListenAddress {
   readonly url: string
   readonly tailscale: boolean
 }
@@ -15,7 +15,8 @@ export interface ListenAddress {
  * what only the server can do: read a link and play a song before importing it.
  */
 export function listenAddresses(host: string, port: number): ListenAddress[] {
-  if (host !== '0.0.0.0' && host !== '::') return [{ url: `http://${host}:${port}`, tailscale: false }]
+  if (host !== '0.0.0.0' && host !== '::')
+    return [{ url: `http://${host}:${port}`, tailscale: false }]
 
   const addresses: ListenAddress[] = [{ url: `http://localhost:${port}`, tailscale: false }]
   for (const found of Object.values(os.networkInterfaces())) {

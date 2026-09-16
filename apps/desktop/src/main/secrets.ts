@@ -24,9 +24,9 @@ import { app, safeStorage } from 'electron'
  * is base64 and nothing more. The tag is there because the two cannot be told
  * apart by looking, and opening a plain value as a sealed one throws.
  */
-export type SealedSecrets = Record<string, string>
+type SealedSecrets = Record<string, string>
 
-export const SEALED = 'k:'
+const SEALED = 'k:'
 export const PLAIN = 'p:'
 
 export function parseSecrets(text: string): SealedSecrets {
@@ -58,9 +58,9 @@ function file(): string {
 
 /**
  * The document as last read or written. This process is the only writer, so
- * after the first read the file has nothing to add — and every `get` used to
- * be a synchronous read and parse on the main process, which is the one that
- * also draws the window.
+ * after the first read the file has nothing to add — and an uncached `get` is
+ * a synchronous read and parse on the main process, the one that also draws
+ * the window.
  */
 let cached: SealedSecrets | null = null
 

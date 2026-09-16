@@ -31,7 +31,7 @@ export interface PersonalityInput {
 }
 
 /** Fewer plays than this and no pattern is worth claiming. */
-export const PERSONALITY_MIN_PLAYS = 10
+const PERSONALITY_MIN_PLAYS = 10
 
 /** Share of plays needed to call a time of day yours. */
 const TIME_SHARE = 0.35

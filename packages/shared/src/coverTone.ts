@@ -16,7 +16,7 @@ import type { CoverSwatch, CoverTone } from './schemas/song.js'
  * silhouette or a white border is not what a cover is "about".
  */
 
-export interface Oklch {
+interface Oklch {
   readonly l: number
   readonly c: number
   readonly h: number
@@ -151,9 +151,9 @@ export function pickCoverPalette(pixels: ArrayLike<number>): CoverSwatch[] {
       let distance = Infinity
       centres.forEach((centre, c) => {
         const d =
-          ((point[0] - (centre[0] ?? 0)) ** 2) +
-          ((point[1] - (centre[1] ?? 0)) ** 2) +
-          ((point[2] - (centre[2] ?? 0)) ** 2)
+          (point[0] - (centre[0] ?? 0)) ** 2 +
+          (point[1] - (centre[1] ?? 0)) ** 2 +
+          (point[2] - (centre[2] ?? 0)) ** 2
         if (d < distance) {
           distance = d
           nearest = c
@@ -185,7 +185,7 @@ export function pickCoverPalette(pixels: ArrayLike<number>): CoverSwatch[] {
       return {
         l: round3(Math.max(0, Math.min(1, l))),
         c: round3(Math.hypot(a, b)),
-        h: round3((((Math.atan2(b, a) * 180) / Math.PI) + 360) % 360),
+        h: round3(((Math.atan2(b, a) * 180) / Math.PI + 360) % 360),
         share: round3((counts[c] ?? 0) / points.length),
       }
     })

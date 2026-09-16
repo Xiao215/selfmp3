@@ -30,7 +30,7 @@ const SONG_SELECT = `
   LEFT JOIN song_audio_features f ON f.song_id = s.id
 `
 
-export interface NewSong {
+interface NewSong {
   path: string
   title: string
   artist: string

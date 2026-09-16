@@ -33,8 +33,8 @@ test.describe('the shell', () => {
         // Not `typeof process`: Metro's web bundle defines a `process` shim of
         // its own for `process.env.NODE_ENV`, so the question is whether it is
         // *Node's*, which is what `versions.electron` would mean.
-        nodeProcess: (window as { process?: { versions?: { electron?: string } } }).process?.versions
-          ?.electron,
+        nodeProcess: (window as { process?: { versions?: { electron?: string } } }).process
+          ?.versions?.electron,
         secureContext: window.isSecureContext,
       }))
 
@@ -56,7 +56,9 @@ test.describe('the shell', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const info = await page.evaluate(
-        () => (window as unknown as { selfmp3Desktop: { info: Record<string, unknown> } }).selfmp3Desktop.info,
+        () =>
+          (window as unknown as { selfmp3Desktop: { info: Record<string, unknown> } })
+            .selfmp3Desktop.info,
       )
 
       expect(info['platform']).toBe(process.platform)
@@ -145,9 +147,17 @@ test.describe('the shell', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       const round = await page.evaluate(async () => {
-        const desktop = (window as unknown as {
-          selfmp3Desktop: { secrets: { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void>; remove(k: string): Promise<void> } }
-        }).selfmp3Desktop
+        const desktop = (
+          window as unknown as {
+            selfmp3Desktop: {
+              secrets: {
+                get(k: string): Promise<string | null>
+                set(k: string, v: string): Promise<void>
+                remove(k: string): Promise<void>
+              }
+            }
+          }
+        ).selfmp3Desktop
         await desktop.secrets.set('smoke.token', 'a-token')
         const read = await desktop.secrets.get('smoke.token')
         await desktop.secrets.remove('smoke.token')
@@ -167,9 +177,11 @@ test.describe('the shell', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       const refused = await page.evaluate(async () => {
-        const desktop = (window as unknown as {
-          selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
-        }).selfmp3Desktop
+        const desktop = (
+          window as unknown as {
+            selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
+          }
+        ).selfmp3Desktop
         try {
           await desktop.secrets.set('../../etc/passwd', 'no')
           return false
@@ -216,7 +228,10 @@ test.describe('files on disk', () => {
           response.writeHead(401).end()
           return
         }
-        response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': String(cover.length) })
+        response.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': String(cover.length),
+        })
         response.end(cover)
         return
       }
@@ -310,7 +325,10 @@ test.describe('files on disk', () => {
           stat,
           progressed:
             settled &&
-            seen.every((bytes, index) => bytes > 0 && bytes <= done.bytes && (index === 0 || bytes > seen[index - 1])),
+            seen.every(
+              (bytes, index) =>
+                bytes > 0 && bytes <= done.bytes && (index === 0 || bytes > seen[index - 1]),
+            ),
           wholeStatus: whole.status,
           wholeLength: wholeBytes.length,
           rangedStatus: ranged.status,
@@ -347,31 +365,53 @@ test.describe('files on disk', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
-      const result = await page.evaluate(async urls => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+      const result = await page.evaluate(
+        async urls => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
 
-        // Cancel part-way through: what is on disk is then a .part, and `stat`
-        // — which is what the index trusts — says nothing.
-        const started = desktop.files.download({ id: 't2', kind: 'songs', name: '2.m4a', url: urls.slow })
-        await new Promise(resolve => setTimeout(resolve, 200))
-        await desktop.files.cancel('t2')
-        const first = await started
-        const afterCancel = await desktop.files.stat('songs', '2.m4a')
+          // Cancel part-way through: what is on disk is then a .part, and `stat`
+          // — which is what the index trusts — says nothing.
+          const started = desktop.files.download({
+            id: 't2',
+            kind: 'songs',
+            name: '2.m4a',
+            url: urls.slow,
+          })
+          await new Promise(resolve => setTimeout(resolve, 200))
+          await desktop.files.cancel('t2')
+          const first = await started
+          const afterCancel = await desktop.files.stat('songs', '2.m4a')
 
-        // Again, and this pass has no reason to be slow: it should continue
-        // rather than start over, and end whole.
-        const second = await desktop.files.download({ id: 't3', kind: 'songs', name: '2.m4a', url: urls.fast })
-        const afterResume = await desktop.files.stat('songs', '2.m4a')
+          // Again, and this pass has no reason to be slow: it should continue
+          // rather than start over, and end whole.
+          const second = await desktop.files.download({
+            id: 't3',
+            kind: 'songs',
+            name: '2.m4a',
+            url: urls.fast,
+          })
+          const afterResume = await desktop.files.stat('songs', '2.m4a')
 
-        const bytes = new Uint8Array(await (await fetch(desktop.mediaUrl('songs', '2.m4a'))).arrayBuffer())
-        const digest = await crypto.subtle.digest('SHA-256', bytes)
-        const sha = Array.from(new Uint8Array(digest))
-          .map(one => one.toString(16).padStart(2, '0'))
-          .join('')
+          const bytes = new Uint8Array(
+            await (await fetch(desktop.mediaUrl('songs', '2.m4a'))).arrayBuffer(),
+          )
+          const digest = await crypto.subtle.digest('SHA-256', bytes)
+          const sha = Array.from(new Uint8Array(digest))
+            .map(one => one.toString(16).padStart(2, '0'))
+            .join('')
 
-        await desktop.files.clear('songs')
-        return { first, afterCancel, second, afterResume, sha, afterClear: await desktop.files.list('songs') }
-      }, { slow: `${origin}/slow/1`, fast: `${origin}/api/stream/1` })
+          await desktop.files.clear('songs')
+          return {
+            first,
+            afterCancel,
+            second,
+            afterResume,
+            sha,
+            afterClear: await desktop.files.list('songs'),
+          }
+        },
+        { slow: `${origin}/slow/1`, fast: `${origin}/api/stream/1` },
+      )
 
       expect(result.first.state).toBe('cancelled')
       // Nothing under the real name until it is whole: the rename is last.
@@ -458,12 +498,12 @@ test.describe('files on disk', () => {
   })
 
   /*
-   * Regression. `verify:desktop` and `dev:desktop` both used to name
-   * `node_modules/electron/dist/electron`, which is the *Linux* binary, so both
-   * died with ENOENT on a Mac before a single test ran. The electron package
-   * writes the per-platform relative path into `path.txt` when it installs —
-   * `electron` on Linux, `Electron.app/Contents/MacOS/Electron` on macOS — and
-   * that is what the launcher must end up with.
+   * Regression. Naming `node_modules/electron/dist/electron` gets the *Linux*
+   * binary, and dies with ENOENT on a Mac before a single test runs. The
+   * electron package writes the per-platform relative path into `path.txt`
+   * when it installs — `electron` on Linux,
+   * `Electron.app/Contents/MacOS/Electron` on macOS — and that is what the
+   * launcher must end up with.
    */
   test('launches the Electron binary this platform actually has', () => {
     const pathFile = join(desktopRoot, '..', '..', 'node_modules', 'electron', 'path.txt')
@@ -482,7 +522,7 @@ test.describe('files on disk', () => {
    * from then on. The app then showed no downloads at all, on a machine whose
    * disk was full of them.
    */
-  test('lists the app\'s own files past whatever else is in the directory', async () => {
+  test("lists the app's own files past whatever else is in the directory", async () => {
     const userDataDir = freshUserData()
     const songs = join(userDataDir, 'songs')
     mkdirSync(songs, { recursive: true })
@@ -541,8 +581,8 @@ test.describe('files on disk', () => {
       const wrote = await page.evaluate(async text => {
         const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
 
-        // What it used to do, kept here so the reason for the channel stays
-        // written down: a blob URL never leaves the renderer.
+        // The approach the channel exists to avoid: a blob URL never leaves
+        // the renderer.
         const blob = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
         let viaBlob = 'wrote it'
         try {
@@ -573,7 +613,10 @@ test.describe('files on disk', () => {
       const afterRelaunch = await page.evaluate(async () => {
         const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
         const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
-        return { text: await back.text(), stat: await desktop.files.stat('songs', 'downloads.json') }
+        return {
+          text: await back.text(),
+          stat: await desktop.files.stat('songs', 'downloads.json'),
+        }
       })
 
       expect(afterRelaunch.text).toBe(index)
@@ -664,22 +707,25 @@ test.describe('an application, not a page', () => {
       })
 
       // Clicked in the real application menu, by label, from the main process.
-      const clicked = await app.evaluate(({ Menu }, labels) => {
-        const menu = Menu.getApplicationMenu()
-        return labels.map(([section, item]) => {
-          const found = menu
-            ?.items.find(one => one.label === section)
-            ?.submenu?.items.find(one => one.label === item)
-          if (!found) return 'missing'
-          // Electron types `MenuItem.click` as the bare `Function`, which is
-          // not callable under the repo's lint rules without saying what it is.
-          ;(found.click as unknown as () => void)()
-          return found.accelerator ?? 'none'
-        })
-      }, [
-        ['Playback', 'Play / Pause'],
-        ['View', 'Now Playing'],
-      ] as [string, string][])
+      const clicked = await app.evaluate(
+        ({ Menu }, labels) => {
+          const menu = Menu.getApplicationMenu()
+          return labels.map(([section, item]) => {
+            const found = menu?.items
+              .find(one => one.label === section)
+              ?.submenu?.items.find(one => one.label === item)
+            if (!found) return 'missing'
+            // Electron types `MenuItem.click` as the bare `Function`, which is
+            // not callable under the repo's lint rules without saying what it is.
+            ;(found.click as unknown as () => void)()
+            return found.accelerator ?? 'none'
+          })
+        },
+        [
+          ['Playback', 'Play / Pause'],
+          ['View', 'Now Playing'],
+        ] as [string, string][],
+      )
 
       expect(clicked).toEqual(['Space', 'CmdOrCtrl+3'])
       await expect
@@ -801,10 +847,13 @@ test.describe('an application, not a page', () => {
       )
 
       const tell = async (playing: boolean): Promise<boolean> => {
-        await page.evaluate(async state => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
-          await desktop.setPlaybackState(state)
-        }, { playing, title: playing ? 'A song' : null, artist: playing ? 'Someone' : null })
+        await page.evaluate(
+          async state => {
+            const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+            await desktop.setPlaybackState(state)
+          },
+          { playing, title: playing ? 'A song' : null, artist: playing ? 'Someone' : null },
+        )
         /*
          * Electron has no API that lists blockers, so this asks about the
          * handful of ids one could have. They are handed out from zero and
@@ -921,9 +970,11 @@ test.describe('connects and plays', () => {
        * the way the app would, and load again to pick it up.
        */
       await page.evaluate(async baseUrl => {
-        const desktop = (window as unknown as {
-          selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
-        }).selfmp3Desktop
+        const desktop = (
+          window as unknown as {
+            selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
+          }
+        ).selfmp3Desktop
         await desktop.secrets.set('selfmp3.baseUrl', baseUrl)
       }, String(appApi))
       await page.reload()
@@ -934,7 +985,9 @@ test.describe('connects and plays', () => {
       // Nothing is playing yet, so there is no bar to show.
       await expect(page.getByTestId('player-bar')).toHaveCount(0)
 
-      const label = await row.getByRole('button', { name: /^More actions for / }).getAttribute('aria-label')
+      const label = await row
+        .getByRole('button', { name: /^More actions for / })
+        .getAttribute('aria-label')
       const title = (label ?? '').replace(/^More actions for /, '')
       expect(title).not.toBe('')
 
@@ -957,7 +1010,9 @@ test.describe('connects and plays', () => {
 interface DesktopForTest {
   info: Record<string, unknown>
   mediaUrl(kind: string, name: string): string
-  onProgress(listener: (progress: { id: string; bytesWritten: number; totalBytes: number }) => void): () => void
+  onProgress(
+    listener: (progress: { id: string; bytesWritten: number; totalBytes: number }) => void,
+  ): () => void
   onCommand(listener: (command: string) => void): () => void
   setPlaybackState(state: {
     playing: boolean
@@ -968,9 +1023,19 @@ interface DesktopForTest {
     check(): Promise<{ state: string; canInstall: boolean; version: string | null }>
   }
   files: {
-    download(request: { id: string; kind: string; name: string; url: string }): Promise<{ state: string; bytes: number }>
+    download(request: {
+      id: string
+      kind: string
+      name: string
+      url: string
+    }): Promise<{ state: string; bytes: number }>
     cancel(id: string): Promise<void>
-    fetchTo(kind: string, name: string, url: string, headers?: Record<string, string>): Promise<void>
+    fetchTo(
+      kind: string,
+      name: string,
+      url: string,
+      headers?: Record<string, string>,
+    ): Promise<void>
     stat(kind: string, name: string): Promise<{ name: string; bytes: number } | null>
     list(kind: string): Promise<{ name: string; bytes: number }[]>
     write(kind: string, name: string, text: string): Promise<void>

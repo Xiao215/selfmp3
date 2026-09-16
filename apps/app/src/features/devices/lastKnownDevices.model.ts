@@ -12,7 +12,7 @@ import type { Device } from '@selfmp3/shared'
 /** Where the list is kept, in this device's small preferences. */
 export const LAST_KNOWN_DEVICES_KEY = 'devices.lastKnown'
 
-export interface KnownDevice {
+interface KnownDevice {
   readonly id: string
   readonly name: string
   readonly kind: Device['kind']

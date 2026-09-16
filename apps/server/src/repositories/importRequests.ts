@@ -1,7 +1,7 @@
 import type { CloudImport } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
-export type ImportRequestState = CloudImport['state']
+type ImportRequestState = CloudImport['state']
 
 export interface ImportRequest {
   readonly uid: string

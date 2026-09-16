@@ -14,7 +14,7 @@ export const REQUEST_TIMEOUT_MS = 15_000
  * another network, a Mac asleep — can hang for a minute, and the popup would sit
  * on "Reading the link" all that time.
  */
-export function timedFetch(fetchImpl: typeof fetch, ms: number): ClientFetch {
+function timedFetch(fetchImpl: typeof fetch, ms: number): ClientFetch {
   return async (url, init) => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), ms)

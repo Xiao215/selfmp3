@@ -6,7 +6,7 @@ import type { DeviceKind } from '@selfmp3/shared'
  * Deliberately coarse, a label for a popover and not analytics. The one
  * subtlety is iPadOS, which claims to be a Mac and is told apart by touch.
  */
-export interface DeviceDescription {
+interface DeviceDescription {
   readonly name: string
   readonly kind: DeviceKind
 }

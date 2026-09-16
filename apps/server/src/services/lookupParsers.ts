@@ -125,7 +125,7 @@ function joinCredit(credit: z.infer<typeof ArtistCreditSchema> | undefined): str
     .trim()
 }
 
-export interface MusicBrainzMatch {
+interface MusicBrainzMatch {
   readonly candidate: MetadataCandidate
   /** Release MBIDs, best first, for the Cover Art Archive lookup. */
   readonly releaseIds: string[]

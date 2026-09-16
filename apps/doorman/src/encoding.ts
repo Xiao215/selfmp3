@@ -56,7 +56,7 @@ export function fromBase64Url(text: string): Uint8Array | null {
   return bytes && toBase64Url(bytes) === text ? bytes : null
 }
 
-export function toHex(bytes: ArrayBuffer | Uint8Array): string {
+function toHex(bytes: ArrayBuffer | Uint8Array): string {
   let out = ''
   for (const byte of new Uint8Array(bytes)) out += byte.toString(16).padStart(2, '0')
   return out

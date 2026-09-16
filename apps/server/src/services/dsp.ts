@@ -25,7 +25,7 @@ const CHROMA_HOP = 2048
 const MIN_BPM = 60
 const MAX_BPM = 200
 
-export interface PcmFeatures {
+interface PcmFeatures {
   bpm: number | null
   /** 0–1, how strongly the beat lag stood out in the autocorrelation. */
   beatStrength: number
@@ -144,7 +144,7 @@ function forEachSpectrum(
 
 // --- onsets and tempo --------------------------------------------------------
 
-export interface OnsetEnvelope {
+interface OnsetEnvelope {
   readonly values: Float64Array
   /** Frames per second. */
   readonly frameRate: number
@@ -286,7 +286,7 @@ export function estimateTempo(envelope: OnsetEnvelope): { bpm: number | null; st
  * Onset positions, in frames: local maxima that clear a moving threshold.
  * Used for beat regularity and for how "busy" a track is.
  */
-export function pickOnsets(envelope: OnsetEnvelope): number[] {
+function pickOnsets(envelope: OnsetEnvelope): number[] {
   const { values, frameRate } = envelope
   const n = values.length
   if (n === 0) return []
@@ -328,7 +328,7 @@ export function pickOnsets(envelope: OnsetEnvelope): number[] {
  * fraction of gaps that are, blended with how strong the pulse was to begin
  * with. Four-on-the-floor scores near 1, rubato piano near 0.
  */
-export function beatRegularity(
+function beatRegularity(
   onsets: readonly number[],
   frameRate: number,
   bpm: number,
@@ -449,7 +449,7 @@ function correlation(a: readonly number[], b: readonly number[]): number {
   return den > 0 ? num / den : 0
 }
 
-export interface KeyEstimate {
+interface KeyEstimate {
   pitchClass: number
   mode: KeyMode
   /** Correlation with the winning profile, -1..1. */

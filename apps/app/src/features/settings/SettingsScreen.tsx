@@ -41,6 +41,7 @@ import {
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../replica'
+import { forgetCovers } from '../../offline/covers'
 import { clearCachedLibrary } from '../../offline/libraryCache'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { clearCachedLyrics } from '../../offline/lyricsCache'
@@ -1616,6 +1617,9 @@ function Confirmations({
             clearCachedPlaylists()
             clearCachedLyrics()
             clearCachedMotion()
+            // Covers are found by song id, and another account's library hands
+            // the same ids to other songs: a kept cover would be the wrong picture.
+            await forgetCovers()
           },
           done: () => {
             signedOutOfCloud()

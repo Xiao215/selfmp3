@@ -196,13 +196,23 @@ export async function ensureCover(songId: number): Promise<string | null> {
   return uri
 }
 
-/** After signing out: another account's ids mean other songs. */
-export function forgetCovers(): void {
+/**
+ * After signing out: another account's ids mean other songs.
+ *
+ * `primed` stays set. The folder is empty once this settles, so there is
+ * nothing for a second read to find — and resetting it let the next render
+ * re-read the folder *while* the clear was still running, and put back every
+ * name about to be deleted.
+ */
+export async function forgetCovers(): Promise<void> {
   known.clear()
   fetching.clear()
   failed.clear()
   served.clear()
   tried.clear()
-  primed = false
-  void coverFiles?.forget().catch(() => undefined)
+  try {
+    await coverFiles?.forget()
+  } catch {
+    // Nothing to clear.
+  }
 }

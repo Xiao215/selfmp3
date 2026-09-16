@@ -208,7 +208,7 @@ export async function ensureCover(songId: number): Promise<string | null> {
 }
 
 /** After signing out: another account's ids mean other songs. */
-export function forgetCovers(): void {
+export async function forgetCovers(): Promise<void> {
   known.clear()
   fetching.clear()
   failed.clear()

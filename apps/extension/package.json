@@ -6,9 +6,10 @@
   "description": "The browser extension: import the song you are on into your self.mp3 library.",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "zip": "node scripts/zip.mjs",
     "typecheck": "tsc --build",
     "verify": "playwright test -c verify/playwright.config.ts",
-    "clean": "rm -rf dist dist-types tsconfig.tsbuildinfo"
+    "clean": "rm -rf dist dist-types release tsconfig.tsbuildinfo"
   },
   "devDependencies": {
     "@selfmp3/client": "*",

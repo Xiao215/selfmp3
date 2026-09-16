@@ -20,6 +20,7 @@
     "build": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/replica && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/desktop-bridge && npm run build --workspace @selfmp3/server && npm run export:web --workspace @selfmp3/app",
     "build:desktop": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/replica && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/desktop-bridge && npm run export:web --workspace @selfmp3/app && npm run dist --workspace @selfmp3/desktop",
     "build:extension": "npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/replica && npm run build --workspace @selfmp3/client && npm run build --workspace @selfmp3/extension",
+    "zip:extension": "npm run zip --workspace @selfmp3/extension",
     "start": "npm run start --workspace @selfmp3/server",
     "cli": "node apps/server/dist/cli.js",
     "typecheck": "tsc --build --force",

@@ -1,0 +1,85 @@
+# The browser extension: built, zipped, and — on a tag — attached to a release.
+#
+# Never on a push. A zip is a deliberate act, so this runs on
+# `workflow_dispatch` and on `extension-v*` tags, the way the desktop app's
+# workflow does. There is nothing to sign: Chrome signs an extension when it is
+# uploaded to the store, and an unpacked folder needs no signature at all.
+name: Extension
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['extension-v*']
+
+permissions: {}
+
+concurrency:
+  group: extension-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # No install scripts: esbuild and the packages it bundles need none, and
+      # the server's native modules are not built here.
+      - run: npm ci --ignore-scripts
+
+      - name: Build the packages and the extension
+        run: npm run build:extension
+
+      - name: Zip it
+        run: npm run zip:extension
+
+      - name: What was built
+        run: ls -lh apps/extension/release/*.zip
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: selfmp3-extension
+          path: apps/extension/release/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    # Only a tag becomes a release; a dispatch run leaves its artifact and stops.
+    if: startsWith(github.ref, 'refs/tags/extension-v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: selfmp3-extension
+          path: release
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## self.mp3 for the browser
+
+            Unzip it, open **chrome://extensions**, turn on **Developer mode**
+            and choose **Load unpacked** — or load `apps/extension/dist` from a
+            checkout, which is the same thing without the download.
+
+            It imports through your own self.mp3 server: give it the address you
+            open self.mp3 at, and its token if you set one.
+
+            See [docs/features/browser-extension.md](../blob/main/docs/features/browser-extension.md).

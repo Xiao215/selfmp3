@@ -48,6 +48,8 @@ npm-debug.log*
 test-results/
 playwright-report/
 
+# The extension's zip, built from apps/extension/dist on demand.
+apps/extension/release/
 # The packaged desktop app: a few hundred MB of Electron, never committed.
 # Nor a signing certificate or an API key, which the list above already covers.
 apps/desktop/release/

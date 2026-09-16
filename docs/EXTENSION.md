@@ -1,9 +1,16 @@
 # The browser extension
 
-> **Status:** 2026-09-15. Phase 0 (the spike), Phase 1 (groundwork), Phase 2
-> (the workspace, and A through the server), Phase 3 (C, F1 and B2) and Phase 4
-> (B1, the pill, branch `extension/phase-4`) are done. Phases 5 and 6 — the
-> bucket, then packaging — are still the plan below. Written for an agent with this
+> **Status:** 2026-09-15. Phases 0 to 4 and Phase 6 are done (branches
+> `extension/phase-1` … `extension/phase-4`, then `extension/phase-6`): the
+> extension imports through your server from the popup, the page and a
+> right-click, and `npm run zip:extension` packages it.
+>
+> **Phase 5 — the bucket — is the one left**, and it is the one that needs
+> something only Xiao can do: the doorman redeployed with the extension's
+> origin. Until then, importing needs the server awake.
+>
+> It has never been loaded in Xiao's own Chrome: everything below was proven in
+> Playwright's Chromium against a fake server. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -488,6 +495,21 @@ optional `extension.yml` that builds the zip on an `extension-v*` tag, modelled 
 `desktop.yml`.
 
 **Gate:** `npm run build && npm run build:extension`, zip produced.
+
+**Done, 2026-09-15**, out of order: Phase 5 waits on the doorman, and packaging
+does not. `npm run zip:extension` writes
+`apps/extension/release/selfmp3-extension-<version>.zip` (1.2 MB) with the `zip`
+command rather than a new dependency;
+[browser-extension.md](features/browser-extension.md) says how to load and
+connect it, what each part does, and what it cannot do yet; `extension.yml`
+builds and zips on demand or on an `extension-v*` tag and drafts a release, with
+nothing to sign, because Chrome signs at upload and an unpacked folder needs no
+signature.
+
+This branch also merged `main`, so it carries the rewritten README and the
+licence. The README's extension paragraph was out of date the moment Phase 3
+landed — it still said the pill and the badge were to come — and now describes
+what is there, pointing at the feature doc rather than this plan.
 
 ### Later — not in this plan
 

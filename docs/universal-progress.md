@@ -4697,3 +4697,45 @@ One failure worth recording: the redraw spec expected "In library" on a video
 the spec before it had just imported. The pill was right — a finished job reads
 as "added" — and the expectation was wrong; the test now uses a video nothing
 has been done to.
+
+## Phase 6 — packaged and written down — branch `extension/phase-6`
+
+Taken before Phase 5, because Phase 5 waits on a doorman deploy and packaging
+does not.
+
+### What changed
+
+- **`scripts/zip.mjs`** → `apps/extension/release/selfmp3-extension-<version>.zip`
+  (1.2 MB), by way of the `zip` command rather than a packaging dependency:
+  every machine this runs on has it, and the extension ships as plain files
+  anyway. `npm run zip:extension` at the root; the folder is ignored by git.
+- **[browser-extension.md](features/browser-extension.md)**: how to load it
+  unpacked, how to connect it, what the pill, the popup, the right-click items
+  and the badge each do — and, in as many words, what it cannot do yet
+  (importing while the server sleeps, undo, anything but Chromium, reading a
+  page's contents), the permissions table, and the two rules the code keeps
+  about what a page may know.
+- **`.github/workflows/extension.yml`**, modelled on `desktop.yml`: builds and
+  zips on `workflow_dispatch` or an `extension-v*` tag, uploads the artifact,
+  and drafts a release on a tag. Nothing is signed — Chrome signs an extension
+  when it is uploaded, and an unpacked folder needs no signature — so unlike the
+  desktop workflow this one has no secrets and no tiers.
+- **`main` merged into the branch**, cleanly, bringing the rewritten README and
+  the licence. The README's extension paragraph had been wrong since Phase 3
+  landed ("the pill on the page, the queue badge … are still to come"); it now
+  says what the extension does and links the feature doc, leaving EXTENSION.md
+  as the plan it was built to.
+
+### The gates
+
+`npm run build:extension`, `npm run zip:extension` (first run: the zip appeared,
+1.2 MB), a link check over the README and the new feature doc (`links ok`),
+`npm run typecheck`, `npm run lint`, `npx vitest run apps/extension` (11 files,
+61 tests) and `npm run verify:extension` (13 specs).
+
+### What is left
+
+Phase 5, the bucket fallback, which cannot be finished here: the deployed
+doorman refuses the extension's origin until Xiao redeploys it. And the whole
+thing has still never run in Chrome 152 — Playwright's Chromium is what every
+spec has proven it against.

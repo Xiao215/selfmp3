@@ -117,11 +117,13 @@ or Apple Music come in as a link, a CSV export or a plain list of songs; each tr
 matched to a YouTube upload and shown to you with alternatives first
 ([playlist-migration.md](docs/features/playlist-migration.md)).
 
-**From the browser, in progress.** A Chrome extension that imports the song you are looking
-at, without leaving the page: its popup shows the title, your tags and a playlist to put it
-in, and sends it to your server. The popup works; the pill on the page, the queue badge and
-importing through the bucket are still to come. It is loaded unpacked from `apps/extension`
-rather than installed from a store. The plan, and how far it has got, is in
+**From the browser.** A Chrome extension that imports the song you are looking at without
+leaving the page: a **self.mp3** button in the YouTube page itself, a popup with the title,
+your tags and a playlist to put it in, a whole playlist ticked through, and a right-click
+item for any link anywhere. The toolbar counts what it is importing and says what landed.
+It goes through your server, so importing while the server is asleep is still to come. It is
+loaded unpacked from `apps/extension` rather than installed from a store. See
+[browser-extension.md](docs/features/browser-extension.md); the plan it was built to is
 [docs/EXTENSION.md](docs/EXTENSION.md).
 
 ### Listening
@@ -349,6 +351,7 @@ Feature pages, each with what it does, how it works and where the code is:
 | [audio-intelligence.md](docs/features/audio-intelligence.md) | Tempo, key, energy and loudness; similar songs; auto-mix |
 | [design-system.md](docs/features/design-system.md) | Dropdowns, popovers, hover captions, tokens and focus |
 | [desktop-app.md](docs/features/desktop-app.md) | The Mac app: why it exists and how the shell is built |
+| [browser-extension.md](docs/features/browser-extension.md) | The Chrome extension: the pill, the popup, and what it asks Chrome for |
 | [devices-and-handoff.md](docs/features/devices-and-handoff.md) | Presence, handoff, remote control, continue where you left off |
 | [install-and-ops.md](docs/features/install-and-ops.md) | The setup script, `doctor`, the CLI and the Docker image |
 | [lyrics-plus.md](docs/features/lyrics-plus.md) | Romanization, search by lyric, songs with no words |

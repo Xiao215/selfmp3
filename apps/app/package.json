@@ -26,7 +26,6 @@
     "@selfmp3/replica": "*",
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/shared": "*",
-    "@shopify/flash-list": "^2.0.2",
     "@tanstack/react-query": "^5.62.11",
     "expo": "~57.0.21",
     "expo-constants": "~57.0.17",

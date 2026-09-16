@@ -84,7 +84,16 @@ const VIDEO_MARKERS = new Set([
 const BRACKETS = /\s*[([{【［（｛]([^)\]}】］）｝]*)[)\]}】］）｝]\s*/g
 const JAPANESE_QUOTE = /^(.*?)\s*[「『]([^」』]+)[」』](.*)$/
 const DASH = /\s+[-–—]\s+/
-const BAR = /\s+[|｜]\s+/
+/*
+ * "Title | Artist", and its fullwidth twin.
+ *
+ * The ASCII bar needs a space either side: `AC|DC` is a band, not two pieces.
+ * The fullwidth one does not, because in Japanese and Chinese titles it is
+ * written tight — "…Tides｜Genshin Impact" — and requiring spaces meant the
+ * channel name stayed glued to the title on exactly the titles this library is
+ * full of.
+ */
+const BAR = /\s*｜\s*|\s+\|\s+/
 
 function words(text: string): string[] {
   return text
@@ -118,11 +127,24 @@ function bare(name: string): string {
  * Whether a piece of a title is the channel's name: "YOASOBI" on "Ayase /
  * YOASOBI", "Adele" on "AdeleVEVO", "Official髭男dism" on itself.
  */
+/**
+ * Whether a piece of a title is just the artist's name, as the channel gives it.
+ *
+ * The channel may say more than the piece does — "Ayase / YOASOBI" for a title
+ * that says "YOASOBI" — so a piece contained in the channel counts.
+ *
+ * The other way round does not, and used to. A piece that merely *contains* the
+ * channel's name was read as being it, so "Jade Moon Upon a Sea of Clouds -
+ * Disc 1: Glazed Moon Over the Tides｜Genshin Impact" made the entire disc name
+ * the artist and threw the real title away — three discs arriving as three
+ * songs called the same thing. A sentence with the artist's name somewhere in
+ * it is not the artist's name.
+ */
 function namesChannel(piece: string, channel: string): boolean {
   const a = bare(piece)
   const b = bare(channel.replace(/vevo$/i, ''))
   if (a.length < 2 || b.length < 2) return false
-  return a === b || b.includes(a) || a.includes(b)
+  return a === b || b.includes(a)
 }
 
 interface TidiedTitle {

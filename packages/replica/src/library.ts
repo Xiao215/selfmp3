@@ -1,5 +1,6 @@
 import {
   CloudSnapshotSchema,
+  migrateCloudSnapshot,
   DoormanListSchema,
   HlcClock,
   LOG_FOLDER,
@@ -361,7 +362,9 @@ export function createCloudLibrary(
   ): Promise<CloudSnapshot | 'gone'> {
     const response = await session_.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
-    return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))
+    // Through the migration first: the newest snapshot in a bucket was not
+    // necessarily written by this build (schemas/cloud.ts).
+    return CloudSnapshotSchema.parse(migrateCloudSnapshot(JSON.parse(await readText(response))))
   }
 
   /** A log file, or `gone` when it went after the listing; one that cannot be read counts as empty. */

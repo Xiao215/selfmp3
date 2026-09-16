@@ -105,6 +105,42 @@ describe('tidyVideoTitle', () => {
     })
   })
 
+  it('does not take a sentence for an artist because the channel is named in it', () => {
+    // Found by importing a real OST: the whole disc name became the artist and
+    // the title was thrown away, so three discs arrived as three songs with
+    // the same name — which then broke every flow that finds a row by title.
+    expect(
+      tidy(
+        'Jade Moon Upon a Sea of Clouds - Disc 1: Glazed Moon Over the Tides｜Genshin Impact',
+        'Genshin Impact',
+      ),
+    ).toEqual({
+      title: 'Jade Moon Upon a Sea of Clouds - Disc 1: Glazed Moon Over the Tides',
+      artist: null,
+    })
+    expect(
+      tidy(
+        'Jade Moon Upon a Sea of Clouds - Disc 3: Battles of Liyue｜Genshin Impact',
+        'Genshin Impact',
+      ),
+    ).toEqual({
+      title: 'Jade Moon Upon a Sea of Clouds - Disc 3: Battles of Liyue',
+      artist: null,
+    })
+  })
+
+  it('reads the fullwidth bar, which is written without spaces', () => {
+    // 「…」｜Artist is how a Japanese or Chinese title is usually written, and
+    // requiring spaces around it left the channel glued to the song's name.
+    expect(tidy('夜に駆ける｜YOASOBI', 'YOASOBI')).toEqual({ title: '夜に駆ける', artist: null })
+    // The ASCII bar still needs its spaces: AC|DC is a band, not two pieces.
+    expect(tidy('Thunderstruck', 'AC|DC')).toEqual({ title: 'Thunderstruck', artist: null })
+  })
+
+  it('still takes the artist from a channel that says more than the title does', () => {
+    expect(tidy('YOASOBI - 群青', 'Ayase / YOASOBI')).toEqual({ title: '群青', artist: 'YOASOBI' })
+  })
+
   it('never leaves nothing', () => {
     expect(tidy('(Official Video)', 'Someone')).toEqual({ title: '(Official Video)', artist: null })
     expect(tidy('  ', 'Someone')).toEqual({ title: '', artist: null })

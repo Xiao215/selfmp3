@@ -14,9 +14,14 @@ on:
 
 permissions: {}
 
+# The usual pairing, with one deviation. The group is the workflow and the ref
+# rather than a hard-coded name, and cancelling is for pull requests only:
+# every commit that lands on main is verified rather than superseded, and the
+# run Pages starts by calling this one no longer cancels the run the same push
+# started. A hard-coded group did exactly that, on every push to main.
 concurrency:
-  group: check-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:

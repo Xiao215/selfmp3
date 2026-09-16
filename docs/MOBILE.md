@@ -12,9 +12,17 @@ already does in a tab; the shared zod schemas and pure helpers in
 
 An iOS dev client has been built and run on simulators since this was written;
 [docs/universal-progress.md](universal-progress.md) is the record of what has
-been checked, on what, and how. No Android binary has been built yet, and
-nothing has run on a physical phone. The "What was and was not verified"
-section at the end is the original record, kept for the risks it lists.
+been checked, on what, and how.
+
+**No Android binary has ever been built, and nothing has ever run on a physical
+Android device.** Not once, not partly. Every Android claim in this file is
+either something read out of the generated project and the packages on disk, or
+something reasoned about — never something seen working. `expo prebuild
+--platform android` has been run and its output inspected (see [Android, from
+nothing to a running app](#android-from-nothing-to-a-running-app)), but no
+Gradle task has ever been executed against it, because the machine this was
+prepared on has no Android SDK. Treat the first `expo run:android` as the real
+test, and expect it to find things this file could not.
 
 ---
 
@@ -29,7 +37,7 @@ section at the end is the original record, kept for the risks it lists.
 | **Offline** | Downloads to the app's document directory, resumable, with a persisted index, storage usage, and per-playlist or whole-library sync. A downloaded file is played from disk; anything else streams. |
 | **Opens offline** | The last `/api/library` response is cached to disk, so the app opens with a full library on a plane. |
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
-| **Android Auto** | See [Android Auto](#android-auto), which is the one place where the honest answer is "partly". |
+| **Android Auto** | See [Android Auto](#android-auto). The honest answer is "less than was hoped, and never tested in a car". |
 
 The tabs along the bottom are **Library · Playlists · Import · You**; You holds
 Stats & report, Untagged, Tags and Settings. Settings holds the Google account,
@@ -56,7 +64,24 @@ the download controls and the storage numbers.
 
 **Android**
 
-- Android Studio, with the Android SDK and a JDK 17.
+Nothing here is installed on the machine this was prepared on, which is why the
+next section spells the whole thing out rather than saying "install Android
+Studio". The versions are not a guess: they are what the generated project
+actually asks for, read out of `node_modules/react-native/gradle/libs.versions.toml`
+(which Expo adopts wholesale as its version catalog) and out of `android/` after
+a prebuild.
+
+| | |
+|---|---|
+| JDK | 17 or newer. AGP 8.12 will not run on 11; Temurin 21 is fine. |
+| Gradle | 9.3.1 — no action needed, the wrapper downloads it. |
+| Android Gradle Plugin | 8.12.0, pulled from Maven by the wrapper. |
+| SDK Platform | **36** (compileSdk and targetSdk are both 36; minSdk is 24). |
+| Build-Tools | **36.0.0**. |
+| NDK | **27.1.12297006** — not optional. screens, gesture-handler, nitro-modules and unistyles all compile C++. |
+| CMake | 3.22.1, the version the NDK ships with. |
+| Emulator | only if you have no phone; a physical device over USB is faster. |
+
 - `ANDROID_HOME` set, and `adb` on your `PATH`.
 - For Android Auto testing, the **Desktop Head Unit** (see below).
 
@@ -88,6 +113,127 @@ On first launch the app asks you to sign in with Google, and the library is the
 one in your bucket. There is no server address to type: the phone never talks
 to the server directly. Development builds keep an address screen
 (`selfmp3://onboarding`) for the simulator tests, which cannot sign in.
+
+### Android, from nothing to a running app
+
+The short version above assumes a working Android toolchain. Nobody here has
+one, so this is the whole path, in order. Steps 1–3 are one-time.
+
+**1. A JDK.** `java -version` must print 17 or newer.
+
+```bash
+brew install --cask temurin@21     # skip if you already have 17+
+```
+
+**2. The SDK.** Android Studio is the easy route — install it, open it once, and
+let the setup wizard run. Then **Settings → Languages & Frameworks → Android SDK**:
+
+- **SDK Platforms** tab → tick **Android 16 (API 36)**.
+- **SDK Tools** tab → tick **Show Package Details**, then:
+  - **Android SDK Build-Tools** → `36.0.0`
+  - **NDK (Side by side)** → `27.1.12297006` (the exact version; a different
+    one makes every C++ module rebuild and can fail outright)
+  - **CMake** → `3.22.1`
+  - **Android SDK Command-line Tools (latest)**
+  - **Android SDK Platform-Tools** (this is what gives you `adb`)
+  - **Android Auto Desktop Head Unit Emulator**, if you want the car without a car
+
+That is roughly 6 GB. If you would rather not install the IDE, the same set can
+be had from the standalone command-line tools with `sdkmanager "platforms;android-36"
+"build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1" "platform-tools"`.
+
+**3. The environment.** Add to `~/.zshrc` and open a new shell:
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+```
+
+Check it: `adb version` and `sdkmanager --list_installed` should both answer.
+
+**4. A device.** Either enable **Developer options → USB debugging** on the
+phone and plug it in, or create an emulator (Android Studio → Device Manager →
+a Pixel with the API 36 image). `adb devices` must list exactly one device; with
+two, `expo run:android` picks one and you will wonder which.
+
+**5. Build it.** From the repository root:
+
+```bash
+npm install
+npm run build --workspace @selfmp3/shared
+npm run build --workspace @selfmp3/replica
+npm run build --workspace @selfmp3/client
+
+cd apps/app
+npx expo-doctor                          # see "What expo-doctor says" below
+npx expo prebuild --platform android --clean
+npx expo run:android
+```
+
+The first Gradle run downloads Gradle 9.3.1, AGP, media3, the AndroidX world and
+then compiles the C++ in four architectures. Budget 15–30 minutes and several GB
+of `~/.gradle`. Later builds are minutes.
+
+**If it fails**, the useful output is not the tail of the log:
+
+```bash
+cd apps/app/android
+./gradlew :app:assembleDebug --stacktrace
+```
+
+Two failures are worth recognising on sight:
+
+- Anything naming `com.doublesymmetry.trackplayer`, `media3`, codegen or
+  `TrackPlayerSpec` is the known react-native-track-player risk. The fallback is
+  Expo SDK 54 / React Native 0.81 with track-player 4.1.2, described under
+  [Why the track-player alpha](#why-the-track-player-alpha) — a `package.json`
+  change and a `prebuild --clean`, not a rewrite.
+- `aapt2 ... resource ... not found` means a config plugin produced a project
+  that references something it did not generate. Do not hand-edit `android/`;
+  fix `app.config.js` or `plugins/` and prebuild again. (This has happened once
+  already — see the splash screen note below.)
+
+**Release build**, for sideloading onto your own phone:
+
+```bash
+cd apps/app
+npx expo run:android --variant release
+```
+
+Expo signs it with the generated debug keystore, which is fine for a phone you
+own and useless for the Play Store.
+
+### What expo-doctor says
+
+Run in `apps/app`. As of this writing, 20 of its 21 checks pass and the one that
+fails is this:
+
+```
+🔧 Patch version mismatches
+expo ~57.0.23 / 57.0.21, expo-constants, expo-file-system, expo-linking,
+expo-router, expo-secure-store, expo-splash-screen, expo-system-ui
+```
+
+Every one of those is a patch behind, and the declared ranges in
+`apps/app/package.json` already allow the newer patch — it is `package-lock.json`
+that is holding them back. Nothing forces the issue, but the first thing to do
+on a machine that can actually build is `npx expo install --check` and accept
+them: patch releases during an SDK's life are mostly build and prebuild fixes,
+which is exactly the class of problem a first build hits.
+
+Two complaints were silenced deliberately, both recorded in
+`apps/app/package.json` under `expo`:
+
+- **`reactNativeDirectoryCheck.exclude: ["react-native-track-player"]`.** The
+  check reads React Native Directory's metadata, which describes the stable 4.x
+  line and says "unsupported on New Architecture". That is true of 4.1.2 and not
+  of the `5.0.0-alpha0` installed here, which is a TurboModule with a codegen
+  spec. The warning was noise standing in front of real signal.
+- **`install.exclude: ["react-native-reanimated", "react-native-worklets"]`.**
+  Pinned by root `overrides` to `4.5.5` / `0.10.4` where Expo expects `4.5.1` /
+  `0.10.1`. Both are inside the declared `~` ranges, both satisfy
+  `expo-modules-core`'s peer range, and the pins are what stop npm installing a
+  second nested copy. `expo install --fix` would fight the override forever.
 
 ### Building for real
 
@@ -133,34 +279,57 @@ lists it, and drives it with the standard transport controls, metadata and
 artwork from the current queue. Playback started on the phone continues in the
 car; the steering wheel controls work.
 
-**What does not.** There is **no JavaScript API to publish a browse tree**.
-`setBrowseTree` does appear inside the 5.0.0-alpha0 tarball, but only in
-`lib/src/` — a stale build artifact that is not reachable through the package's
-`exports`, is not in the TurboModule spec (`src/NativeTrackPlayer.ts`), and is
-absent from every nightly since. Calling it would be calling a method that does
-not exist. The stable 4.1.2 release is worse: it has no browse API *and* its
-service is a plain `HeadlessJsTaskService` with no `MediaBrowserService` intent
-filter at all, so Android Auto would not list the app.
+**What does not — and this is worse than an earlier reading of the package
+suggested.** The browse tree is missing on *both* sides, not just in JavaScript.
 
-**What the app does instead.** `src/ports/car/androidAuto.ts` wires up the two entry
-points RNTP *does* expose, resolving both against the same tested browse tree
-the browse tree serves:
+- **No JavaScript API.** `setBrowseTree` appears in the `5.0.0-alpha0` tarball
+  only under `lib/src/` — a stale build artifact from the 4.x line. The package
+  `main` is `lib/module/index.js` and its `exports` map admits nothing else, so
+  `lib/src/` is unreachable; it is not in the TurboModule spec
+  (`src/NativeTrackPlayer.ts`) either.
+- **No native implementation.** This is the part that was not checked before.
+  `android/src/.../service/MusicService.kt` builds a `MediaLibrarySession` but
+  overrides only `onGetSession`. There is **no** `onGetLibraryRoot`, no
+  `onGetChildren`, no `onGetItem`, no `onSearch`. `grep -rn setBrowseTree
+  node_modules/react-native-track-player/android` finds nothing. So patching the
+  JS spec would call a native method that was never written — option 2 below is
+  dead, not merely fiddly.
+- **The events the app listens for are never sent.** `MusicEvents.kt` declares
+  `BUTTON_PLAY_FROM_ID = "remote-play-id"` and
+  `BUTTON_PLAY_FROM_SEARCH = "remote-play-search"`, and nothing in
+  `android/src/` ever emits either constant — the only lines that mention them
+  are their own declarations. `Event.RemotePlayId` and `Event.RemotePlaySearch`
+  therefore cannot fire on Android in this version, which makes
+  `src/ports/car/androidAuto.ts` inert on the device even though it compiles,
+  type-checks and reads correctly. **Voice search does not work.** An earlier
+  version of this section said it did; that was wrong.
 
-- `Event.RemotePlayId` — the car asks for a media id.
-- `Event.RemotePlaySearch` — voice search ("play Kind of Blue"). The parsed
-  `album` / `artist` / `playlist` fields are preferred over the raw query when
-  the Assistant provides them.
+The stable 4.1.2 release is still worse in a different way: no browse API *and*
+a plain `HeadlessJsTaskService` with no `MediaBrowserService` intent filter, so
+Android Auto would not list the app at all.
 
-So voice control works and the tree is ready; only the browsable menu in the
-car's own UI is missing. The alternatives, in increasing order of effort:
+**What is actually left.** Media3's default `MediaLibrarySession.Callback`
+answers `onGetLibraryRoot` with `RESULT_ERROR_NOT_SUPPORTED`. The manifest
+filters are real, so the app should still appear as a media session and be
+drivable with transport controls, metadata and artwork from whatever is already
+playing — but whether Android Auto lists an app whose browse root errors is
+exactly the kind of thing that needs a head unit to settle, and nobody has run
+one. Treat "Android Auto works, minus the menu" as a hypothesis.
 
-1. Wait for RNTP to land the API — the media3 groundwork is already there.
-2. `patch-package` the alpha to expose `setBrowseTree` through the TurboModule
-   spec, then call it from `src/ports/car/androidAuto.ts` with `browseTree.ts`'s
-   nodes mapped to `MediaItem`s (the `MediaItem` interface already ships in the
-   package, unused).
-3. Write a small native `MediaLibraryService` in the app's own Android source
-   and have it read the same tree. Most control, most work.
+`src/ports/car/androidAuto.ts` and `browseTree.ts` are worth keeping regardless:
+the tree is pure, unit-tested (17 tests in the root vitest run), and it is the
+input any of the routes below would need. The alternatives, in increasing order
+of effort:
+
+1. Wait for RNTP to land the API. The media3 groundwork is there — a
+   `MediaLibrarySession` already exists — but the callbacks are not, so this is
+   a larger ask of upstream than it looked.
+2. ~~`patch-package` the alpha to expose `setBrowseTree` through the TurboModule
+   spec.~~ Ruled out: there is no native side to expose.
+3. Write the `MediaLibrarySession.Callback` overrides — `onGetLibraryRoot`,
+   `onGetChildren`, `onGetItem`, and `onSetMediaItems` for voice — in the app's
+   own Android source, reading the same tree. This is now the only route that
+   ends in a browsable menu, and it would bring voice search with it.
 
 **Testing with the Desktop Head Unit.** No car required:
 
@@ -293,8 +462,17 @@ bundled versions exactly (`expo/bundledNativeModules.json`):
   npm picks 4.6.0 / 0.12.2, and worklets 0.12 falls outside
   `expo-modules-core@57`'s declared peer range — `npm ls` reports it as
   invalid, and it is the kind of mismatch that surfaces as a native crash
-  rather than an error message.
+  rather than an error message. `expo-modules-core@57` declares
+  `^0.7.4 || ^0.8.0 || ^0.9.0 || ^0.10.0` for worklets, so the pin is still
+  doing real work; both are excluded from `expo install --fix` in
+  `apps/app/package.json` so that it cannot undo them.
 
+The `overrides` hold, checked rather than assumed: after a clean install there
+is exactly one directory on disk for each of `react`, `react-dom`,
+`react-native`, `react-native-reanimated` and `react-native-worklets`.
+
+Since that was written, the *declared* Expo packages have also drifted a patch
+behind what SDK 57 now expects — see [What expo-doctor says](#what-expo-doctor-says).
 Run `npx expo-doctor` in `apps/app` on your Mac to check this against Expo's
 current view of the world.
 
@@ -315,6 +493,117 @@ Native 0.81, where the legacy architecture can still be enabled and 4.1.2 works
 — that is a `package.json` change and a `prebuild --clean`, not a rewrite, and
 nothing in `src/` depends on which of the two is installed except the Android
 Auto events.
+
+**Its Android Gradle setup, read against what Expo SDK 57 generates.** Coherent,
+as far as static reading goes:
+
+- The app project resolves AGP from React Native's version catalog: **8.12.0**,
+  Gradle 9.3.1, compileSdk/targetSdk 36, minSdk 24, Kotlin 2.1.20.
+  `node_modules/react-native/gradle/libs.versions.toml` is the source, and
+  `expoAutolinking.useExpoVersionCatalog()` in `settings.gradle` is what adopts it.
+- track-player's own `android/build.gradle` names `com.android.tools.build:gradle:8.7.2`
+  in its `buildscript` block, but that is the ordinary
+  create-react-native-library shape: the plugin classes come from the root
+  project's classpath, so 8.12.0 is what actually applies. Its `compileSdkVersion`,
+  `minSdkVersion` and `targetSdkVersion` all read `rootProject.ext`, which the
+  `expo-root-project` plugin fills in — so it compiles at 36, not at the 35 in its
+  own `gradle.properties` fallbacks.
+- It applies `com.facebook.react` and sets `codegenJavaPackageName` to
+  `com.doublesymmetry.trackplayer`, matching `codegenConfig` in its
+  `package.json`; `MusicModule.kt` imports the generated
+  `com.doublesymmetry.trackplayer.NativeTrackPlayerSpec`, and `TrackPlayerPackage`
+  extends `BaseReactPackage` and reports `isTurboModule = true`. That is a
+  New-Architecture module, not a bridge one.
+- Autolinking finds it. `npx expo-modules-autolinking react-native-config
+  --platform android` lists `react-native-track-player` with
+  `packageImportPath: import com.doublesymmetry.trackplayer.TrackPlayerPackage;`,
+  alongside the eleven other native modules.
+- Its manifest carries `package="com.doublesymmetry.trackplayer"`, which AGP 8
+  deprecated in favour of the `namespace` DSL. It sets `namespace` too, and
+  `react-native-safe-area-context` — bundled with the SDK and certainly buildable
+  — ships exactly the same pair, so this is a warning rather than the hard error
+  it first looks like.
+
+What no amount of reading settles is whether its Kotlin compiles against React
+Native 0.86's headers and media3 1.8.0. That is still the single largest risk.
+
+---
+
+## The Android readiness pass
+
+A pass was made over the Android side on a Mac with a JDK but no Android SDK at
+all: no Android Studio, no `~/Library/Android/sdk`, no `adb`. So `expo prebuild
+--platform android --clean` could be run and its output read, and Gradle could
+not be run at all. This is what it found, worst first.
+
+**Fixed, and the fix verified by regenerating the project**
+
+- **The Android build could not have succeeded.** `app.config.js` configured
+  `expo-splash-screen` with a `backgroundColor` and an `imageWidth` but no
+  `image`. The plugin writes
+  `<item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>`
+  into `values/styles.xml` unconditionally, and renders that drawable only when
+  an image is given — so the generated project referenced a resource that was
+  not in it, and `aapt2 link` would have failed at `:app:processDebugResources`
+  before compiling a line of Kotlin. iOS shows a blank splash instead of
+  failing, which is why an iOS-only build never caught it. The fix is
+  `image: './assets/adaptive-icon.png'` (the mark with its background dropped,
+  which is what a splash over `#14121a` wants); after a fresh prebuild,
+  `splashscreen_logo.png` is present at all five densities. The bug is still in
+  the newest SDK 57 patch of the plugin, so updating Expo will not remove the
+  need for the `image` key.
+- `@types/jest` was `^30` against a jest `29.7` runtime — a major-version skew
+  expo-doctor flagged, which had also dragged a whole second jest 30 dependency
+  subtree into `package-lock.json`. Pinned to `^29.5.14`.
+- `npm run check:app` was failing on the branch for an unrelated reason
+  (`QueueViaBucket.test.tsx` reading `.props.value` where the rest of the suite
+  uses `.props['value']`, which `noPropertyAccessFromIndexSignature` rejects).
+  Fixed, because an already-red gate hides the next real problem.
+
+**Checked and found sound** — `expo prebuild --platform android --clean` runs
+clean; `android:usesCleartextTraffic="true"` is in the *main* manifest, so the
+config plugin applies to release builds as intended; the launcher icon and the
+adaptive icon are generated at every density with `iconBackground` `#14121a`;
+`INTERNET` and `WAKE_LOCK` are declared and `FOREGROUND_SERVICE`,
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK` and the `MediaLibraryService` /
+`MediaBrowserService` intent filters arrive by manifest merge from
+react-native-track-player, exactly as claimed; all twelve native modules
+autolink; and there is exactly one copy on disk of `react`, `react-dom`,
+`react-native`, `react-native-reanimated` and `react-native-worklets`, at
+19.2.3 / 19.2.3 / 0.86.3 / 4.5.5 / 0.10.4.
+
+**Left alone, ranked by how likely each is to break the first build**
+
+1. **react-native-track-player 5.0.0-alpha0 compiling at all.** Unchanged as the
+   top risk, and nothing static can settle it. See
+   [Why the track-player alpha](#why-the-track-player-alpha) for what *was*
+   settled and for the SDK 54 fallback.
+2. **Eight Expo packages a patch behind what SDK 57 now expects.** Within their
+   declared ranges; only the lockfile holds them back. Run `npx expo install
+   --check` first on a machine that can build.
+3. **react-native-unistyles 3.3.0 against react-native-nitro-modules 0.37.1.**
+   Unistyles was built with nitrogen 0.36.1 and its generated C++ is coupled to
+   the nitro runtime. Its README only promises a *minimum* (≥ 0.35.2), which
+   0.37.1 clears, but nitro version skew shows up as a C++ compile error rather
+   than a resolution failure. If `:react-native-unistyles:buildCMakeDebug` fails,
+   try `react-native-nitro-modules@0.36.1`.
+4. **`POST_NOTIFICATIONS` is neither declared nor requested.** targetSdk is 36,
+   and from API 33 the media notification needs that permission granted at
+   runtime. Nothing in `src/` calls `PermissionsAndroid`. Declaring it without
+   requesting it would achieve nothing, and what the right request point is
+   depends on how the notification actually behaves on a device — so this is
+   written down rather than guessed at. Expect the lock-screen and notification
+   controls to need work here.
+5. **Node 26.** Everything above was run on Node 26.8.2, which is newer than
+   anything Expo SDK 57 was tested against. Nothing misbehaved, but if something
+   inexplicable happens in Metro or prebuild, Node 22 is the version to fall
+   back to.
+
+**Still completely unknown**, because it needs the SDK, a device, or both: every
+Gradle task; the C++ builds for screens, gesture-handler, nitro-modules and
+unistyles; whether the app launches; audio, gapless, audio focus, lock-screen
+controls; downloads and their pause/resume; and everything in
+[Android Auto](#android-auto).
 
 ---
 
@@ -364,8 +653,10 @@ Xcode, no Android SDK.
   a paused download survives the app being backgrounded.
 - Play/skip reporting reaching the server, and the play-count threshold feeling
   right in practice.
-- Android Auto: that the app appears in the launcher, and that `RemotePlayId` /
-  `RemotePlaySearch` fire as expected from the Assistant.
+- Android Auto: that the app appears in the launcher. (`RemotePlayId` /
+  `RemotePlaySearch` no longer belong on this list — reading the package
+  established that the installed version never emits them. See
+  [Android Auto](#android-auto).)
 - Whether Expo's `NSAllowsArbitraryLoads` and the cleartext manifest flag are
   enough for a `*.ts.net` host in practice, or whether Tailscale's own HTTPS
   certificates would be less trouble.
@@ -373,4 +664,8 @@ Xcode, no Android SDK.
 The sensible first hour on a Mac: `npm install`, `npm run build --workspace
 @selfmp3/shared`, `cd apps/app && npx expo-doctor`, then `npx expo run:ios`.
 If the track-player pod fails, that is the known risk, and the SDK 54 fallback
-is the answer.
+is the answer. For Android, start instead at
+[Android, from nothing to a running app](#android-from-nothing-to-a-running-app),
+which assumes nothing is installed, and read
+[The Android readiness pass](#the-android-readiness-pass) before you begin — it
+ranks what is most likely to go wrong.

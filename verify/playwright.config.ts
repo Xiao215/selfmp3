@@ -37,8 +37,8 @@ const appApi = process.env.SELFMP3_APP_API
 /**
  * One device per width, the same on every run.
  *
- * A fresh browser context has no device id, so every flow used to register
- * with the server under test as a brand-new device: a few days of runs left
+ * A fresh browser context has no device id, so every flow otherwise registers
+ * with the server under test as a brand-new device — a few days of runs is
  * thousands of rows called "Windows PC · Chrome" (Playwright's desktop Chrome
  * says it runs on Windows). With a fixed id per project a run is two devices,
  * and `flows/teardown.ts` forgets those two when it ends.

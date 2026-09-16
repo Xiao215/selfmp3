@@ -2,8 +2,8 @@
  * The You page, without the screen: which rows it lists and what each says.
  *
  * You is the phone's fourth tab. It gathers the pages a computer keeps in its
- * sidebar and a phone had nowhere to put: Stats, Untagged and Tags, with
- * Settings, which used to have the tab to itself.
+ * sidebar and a phone has nowhere else to put: Stats, Untagged and Tags,
+ * with Settings.
  */
 
 export type YouRowId = 'stats' | 'inbox' | 'tags' | 'settings'

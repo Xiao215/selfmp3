@@ -235,10 +235,10 @@ export function PlaylistDetailScreen(): ReactNode {
    * A move.
    *
    * The pointer's travel goes into `dragY`, which the lifted cell reads
-   * (`LiftedCell`), so following the pointer is no render at all; it used to
-   * be state, and every pointer event redrew every row. State changes when
-   * the move starts, when it crosses into another row (the drop line moves),
-   * and when it ends.
+   * (`LiftedCell`), so following the pointer is no render at all — as state it
+   * would redraw every row per pointer event. State changes when the move
+   * starts, when it crosses into another row (the drop line moves), and when
+   * it ends.
    */
   const dragStart = useCallback(
     (index: number) => {

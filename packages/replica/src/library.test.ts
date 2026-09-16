@@ -482,9 +482,9 @@ const SNAPSHOT: CloudSnapshot = {
 
 describe('looking at the bucket', () => {
   /*
-   * Most looks find nothing new. Each one used to write the snapshot and every
-   * log back to the device and replay the whole library, to arrive exactly
-   * where it already was.
+   * Most looks find nothing new, and must not write the snapshot and every log
+   * back to the device and replay the whole library to arrive exactly where it
+   * already was.
    */
   it('neither rewrites nor replays the library when nothing has changed', async () => {
     const made = build()
@@ -592,7 +592,7 @@ describe('keeping the library on the device', () => {
   })
 
   /*
-   * A phone's waiting plays are sent one after another, and each one used to
+   * A phone's waiting plays are sent one after another, and must not each
    * replay and rewrite the whole library.
    */
   it('records plays without rebuilding the library, and shows them all at the next read', async () => {

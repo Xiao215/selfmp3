@@ -33,8 +33,8 @@ import { writeCachedPlaylist } from './playlistCache'
 
 /**
  * Songs worked on at once. Each is a cover check — a shell call on a computer,
- * a file check on a phone — and perhaps a fetch; thousands of them in the same
- * instant was what a first pass used to be.
+ * a file check on a phone — and perhaps a fetch, so they are not all started
+ * at once.
  */
 const AT_ONCE = 4
 

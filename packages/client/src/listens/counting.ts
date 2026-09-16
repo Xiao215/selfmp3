@@ -17,10 +17,10 @@
 /**
  * How long a song has to be heard before it counts as a play: a minute.
  *
- * It used to be a fraction of the song, capped at four minutes. Half of an
- * hour-long mix is more than anyone has, and a minute is what "I listened to
- * it" means whatever the length. A shorter song counts once all of it has been
- * heard, and any song that plays to its end counts (the callers pass that).
+ * A flat minute rather than a fraction of the song: half of an hour-long mix
+ * is more than anyone has, and a minute is what "I listened to it" means
+ * whatever the length. A shorter song counts once all of it has been heard,
+ * and any song that plays to its end counts (the callers pass that).
  */
 export const PLAY_COUNT_SECONDS = 60
 

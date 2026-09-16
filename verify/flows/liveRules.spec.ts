@@ -65,9 +65,9 @@ test.describe('live playlist rules', () => {
         .poll(async () => (await playlist(page.request, id))?.rules?.rules[0]?.value)
         .toBe(86400)
 
-      // Only closing is checked here. The old app does not reload the song list
-      // after saving rules, but the new one does.
-      // A panel at desktop width says Done; a phone's sheet says Show songs.
+      // Only closing is checked here; the app reloads the song list after
+      // saving rules. A panel at desktop width says Done; a phone's sheet says
+      // Show songs.
       await page.getByRole('button', { name: /^(Done|Show songs)$/ }).click()
       await expect(page.getByRole('button', { name: 'Edit rules' })).toBeVisible()
     } finally {

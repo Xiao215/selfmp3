@@ -13,8 +13,7 @@ const KEY_PREFIX = 'lyrics-'
  * pass asks after every downloaded song on every library change, and an
  * IndexedDB record has to be read and validated to be sure of — once a song is
  * known to be kept, asking again is a set lookup. Only what is known to be
- * there: a record that is missing or no longer valid is read again, and so
- * fetched again, as before.
+ * there: a record that is missing or stale is read, and fetched, again.
  */
 const kept = new Set<number>()
 

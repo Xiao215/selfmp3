@@ -25,9 +25,8 @@ export interface StatsFrameProps {
  * The page both Stats tabs are drawn in: the title, the tabs, the one range,
  * and whatever the tab puts in the header's corner (Report's share).
  *
- * Overview and Report used to be two pages, each with a range control of its
- * own and a link across to the other. One header keeps the window chosen as
- * the tabs change, and makes the link across unnecessary.
+ * One header rather than a range control per tab, so the window chosen
+ * survives changing tabs.
  */
 export function StatsFrame({
   tab,

@@ -120,7 +120,7 @@ describe('extrapolatePosition', () => {
     const heard = NOW + 120_000
     expect(extrapolatePosition(playing, heard + 4_000, undefined, heard)).toBeCloseTo(34)
 
-    // And one whose clock is behind it, which used to freeze the scrubber.
+    // And one whose clock is behind it, which must not freeze the scrubber.
     const behind = NOW - 120_000
     expect(extrapolatePosition(playing, behind + 4_000, undefined, behind)).toBeCloseTo(34)
   })

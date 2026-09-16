@@ -19,9 +19,8 @@ const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
  *
  * "End of this song" first, since it is the one that fits how people fall
  * asleep to music — at a natural stop, not mid-verse — then the minutes, then
- * Off, ticked while no timer runs. Off used to be a red "Cancel timer" that
- * only appeared once a timer was set, so there was nowhere to see that none
- * was.
+ * Off, ticked while no timer runs. Off is always listed: a control that
+ * appeared only once a timer was set would leave nowhere to see that none is.
  */
 export function SleepMenu({
   open,

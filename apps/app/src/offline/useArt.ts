@@ -20,14 +20,12 @@ import {
  * header the doorman wants, so the file has to be on this device first
  * (offline/covers.ts).
  *
- * Written once and shared, because getting it wrong in one place is invisible
- * — a cover that never loads looks exactly like a song that never had one,
- * which is how the library list kept its letter tiles for an hour.
+ * Written once and shared, because getting it wrong in one place is invisible:
+ * a cover that never loads looks exactly like a song that never had one.
  *
- * A screen renders again only when a cover it has asked for changes. It used
- * to keep a copy of every cover on the device and replace it whenever any
- * arrived, so one playlist tile's picture rendered the library, the player bar
- * and every open sheet — each copying thousands of entries to do it.
+ * A screen renders again only when a cover it has asked for changes — not
+ * whenever any cover arrives, which would render the library, the player bar
+ * and every open sheet for one playlist tile's picture.
  */
 export function useArt(): (song: Song) => string | null {
   const { connection, fromCloud } = useConnection()

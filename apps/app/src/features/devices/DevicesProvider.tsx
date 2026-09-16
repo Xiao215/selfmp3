@@ -131,11 +131,11 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   /*
    * Announce a material change immediately.
    *
-   * Whenever the player changes, which no longer happens on every tick, and
-   * `playbackStateChanged` — not a hand-maintained list of six fields — still
-   * decides whether anything worth announcing happened. It used to run after
-   * every render with no dependencies, copying the whole queue four times a
-   * second to find out nothing had.
+   * Whenever the player changes, with `playbackStateChanged` — not a
+   * hand-maintained list of six fields — deciding whether anything worth
+   * announcing happened. Depending on the player rather than running after
+   * every render keeps it from copying the whole queue four times a second to
+   * find out nothing had.
    */
   useEffect(() => {
     if (!server) return

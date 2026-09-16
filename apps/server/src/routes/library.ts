@@ -14,12 +14,12 @@ import { route } from '../http/route.js'
  * The library answer's `generatedAt`: when this server first answered with
  * the library's current version.
  *
- * It used to be the time of each request, so every refetch — a window regaining
- * focus, a play being counted — looked like a new library to anything that
- * keys on it, and the phone's keep-alongside pass (useKeepAlongside) ran over
- * every song and playlist again for nothing. The version moves on every edit
- * that changes what the library holds; a restart starts the version again, and
- * the first answer after it gets a new time, so two different libraries never
+ * Not the time of each request: every refetch — a window regaining focus, a
+ * play being counted — would look like a new library to anything that keys on
+ * it, and the phone's keep-alongside pass (useKeepAlongside) would walk every
+ * song and playlist again for nothing. The version moves on every edit that
+ * changes what the library holds; a restart starts the version again, and the
+ * first answer after it gets a new time, so two different libraries never
  * share a stamp.
  */
 export function answeredAt(

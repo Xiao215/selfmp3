@@ -27,9 +27,8 @@ interface LyricsProps {
  * The sung line is measured when it is scrolled to, not remembered from when
  * it last laid out. A romanized line under each one makes their heights
  * differ, and on the web a line that moves without changing size — a ♪ break
- * below lines whose font arrived late — reports no new layout at all:
- * scrolling to where it used to be left the sung line off the screen after a
- * seek, until the song reached the next line.
+ * below lines whose font arrived late — reports no new layout at all, so a
+ * remembered position puts the sung line off the screen after a seek.
  *
  * In Focus the type is larger and lines further from the sung one blur a
  * little.

@@ -37,10 +37,10 @@ import { recentIds } from './recentCopies'
  * lose every etag, so `staleIds` compares the saved index against the manifest
  * instead.
  *
- * It also no longer needs the stream URL to load. Which songs are cached is
- * read off the key's path, and a song's size or deletion wants the full URL,
- * `rev` and all — which the provider configures *after* it loads, since asking
- * for it too early throws and would show nothing kept after a reload.
+ * It does not need the stream URL to load. Which songs are cached is read off
+ * the key's path; a song's size or deletion wants the full URL, `rev` and all,
+ * which the provider configures *after* it loads — asking for it too early
+ * throws, and would show nothing kept after a reload.
  */
 
 const INDEX_KEY = 'selfmp3.downloads'

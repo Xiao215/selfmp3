@@ -43,7 +43,7 @@ function pathFor(kind: FileKind, name: string): string {
 /**
  * The same, for a write, which needs the directory to exist. Only writes make
  * it: a stat, a delete or a reveal of a file in a folder that is not there has
- * its answer already, and every cover check used to be a `mkdir` first.
+ * its answer already, and would otherwise `mkdir` on every cover check.
  */
 async function writablePathFor(kind: FileKind, name: string): Promise<string> {
   await mkdir(directoryFor(kind), { recursive: true })
@@ -217,9 +217,9 @@ export async function statOne(kind: FileKind, name: string): Promise<FileStat> {
 }
 
 /**
- * Stats at once, but not all at once: a songs folder of thousands used to be
- * thousands of stats one after another on every usage check, and thousands
- * together would be as many open requests on the libuv pool.
+ * Stats at once, but not all at once: a songs folder of thousands is
+ * thousands of stats per usage check, and all of them together would be as
+ * many open requests on the libuv pool.
  */
 const STAT_BATCH = 32
 
@@ -236,9 +236,9 @@ export async function list(kind: FileKind): Promise<{ name: string; bytes: numbe
      * someone's computer and other things write to it: `.DS_Store` appears the
      * first time "Reveal in Finder" opens it, and `fileNameSchema` — which the
      * preload parses the whole array against — refuses a leading dot. One such
-     * file used to make every `files.list` call throw, permanently, so the app
-     * lost its downloads the moment a person looked at where they were kept.
-     * A name the app could never have written is not the page's file, and
+     * file would make every `files.list` call throw, permanently, losing the
+     * app its downloads the moment a person looked at where they were kept. A
+     * name the app could never have written is not the page's file, and
      * dropping it here is what makes the listing describe the app's own files.
      */
     if (!fileNameSchema.safeParse(entry.name).success) continue

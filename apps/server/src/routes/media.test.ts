@@ -84,9 +84,9 @@ describe('GET /api/art/:id', () => {
   })
 
   /*
-   * The week-long cache header used to be set before the file was sent, so a
-   * failure carried it too: the desktop app's cache kept a 404 for every cover
-   * and went on serving itself that after the server could answer.
+   * Setting the week-long cache header before the file is sent means a failure
+   * carries it too: the desktop app's cache keeps a 404 for every cover and
+   * goes on serving itself that after the server can answer.
    */
   it('does not let a cover that failed to send be cached', async () => {
     // Found by name, but a directory: the send itself fails.

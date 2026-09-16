@@ -52,18 +52,15 @@ const INITIAL_STATE: DownloadQueueState = {
  * same whether the underlying storage is the phone's `expo-file-system` or the
  * browser's Cache API — the two differ only in where the bytes go.
  *
- * Two behaviours here are bug fixes an earlier, phone-only version got wrong,
- * and both are pinned by tests:
+ * Two subtleties, both pinned by tests:
  *
- *   - Cancelling a *paused* download used to set the flag that says "the next
- *     rejection is only this cancel". A paused transfer never rejects, so the
- *     flag stayed set, and the next genuine failure — any song, any time later
- *     — was swallowed without a word. The flag is now set only for a transfer
- *     actually in flight.
- *   - Finding the source of a song (a server, or the cloud) happened outside the
- *     `try`, so "no server, and not signed in" escaped the loop and stalled the
- *     queue with nothing on screen. Starting a transfer is now inside it, and
- *     that failure is reported like any other.
+ *   - The flag that says "the next rejection is only this cancel" is set only
+ *     for a transfer actually in flight. Set it when cancelling a *paused*
+ *     download and it stays set — a paused transfer never rejects — and the
+ *     next genuine failure, any song, any time later, is swallowed.
+ *   - Finding the source of a song (a server, or the cloud) happens inside the
+ *     `try`. Outside it, "no server, and not signed in" escapes the loop and
+ *     stalls the queue with nothing on screen.
  */
 export class DownloadQueue {
   #state: DownloadQueueState = INITIAL_STATE

@@ -19,7 +19,7 @@ describe('fileNameSchema', () => {
    * The reason `files.list` filters rather than returning the directory: the
    * preload parses the whole listing against this schema, and macOS drops a
    * `.DS_Store` beside the songs the first time "Reveal in Finder" opens them.
-   * One of those used to make every listing throw, for good.
+   * One of those makes every listing throw, for good.
    */
   it('refuses what something other than the app left in the directory', () => {
     for (const name of ['.DS_Store', '._1.m4a', '.hidden']) {

@@ -584,7 +584,7 @@ function StageUpNext({
   repeatOne: boolean
   right: number
   bottom: number
-  /** With the bar put away, down into its room, as the page used to grow into it. */
+  /** With the player bar put away, the page grown down into its room. */
   lowered: boolean
 }): ReactNode {
   const { theme } = useUnistyles()

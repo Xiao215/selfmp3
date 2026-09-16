@@ -538,7 +538,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
   },
-  /* The Select fills the space the old sort button had. */
   sortSlot: {
     flex: 1,
     minWidth: 0,

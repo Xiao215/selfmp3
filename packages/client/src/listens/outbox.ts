@@ -15,11 +15,11 @@ import type { OutboxStore } from '../platform.js'
 /**
  * Plays and skips, held on this device until the server has them.
  *
- * A play used to be sent the moment it counted and dropped if the server did
- * not answer, which on a phone is most of the time the app is actually used and
- * on a laptop is any time the server is asleep. Now it is written down first and
- * sent from there; the server recognises a resent play by its id, so sending
- * twice is harmless.
+ * Written down first and sent from there, rather than sent the moment it
+ * counts and dropped if the server does not answer — which on a phone is most
+ * of the time the app is actually used, and on a laptop any time the server is
+ * asleep. The server recognises a resent play by its id, so sending twice is
+ * harmless.
  *
  * Every client needs the same rules over different storage — IndexedDB in
  * the browser and a JSON file on the phone — so what is here is everything

@@ -2,9 +2,9 @@
  * At most one delivery per interval.
  *
  * A transfer reports progress for every chunk it reads — hundreds a second on
- * a fast connection — and each report used to reach every listener, which in
- * the app meant rendering every screen that knows about downloads. A bar that
- * moves four times a second looks exactly as smooth to a person.
+ * a fast connection — and every report reaching every listener means rendering
+ * every screen that knows about downloads. A bar that moves four times a
+ * second looks exactly as smooth to a person.
  *
  * Leading only, with no timer to deliver a late one: this package compiles
  * against ES2023 alone, where `setTimeout` does not exist, on purpose (see

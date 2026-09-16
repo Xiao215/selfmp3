@@ -11,33 +11,22 @@ function keyOf(song: Song): string {
 /**
  * A list of songs, wherever one is shown.
  *
- * A component rather than a bare list at each call site because
- * `docs/UNIVERSAL.md` names one — "FlashList v2 behind a `SongList`
- * component" — so that the choice of list can change in one file and no screen
- * knows. It also keeps the table semantics in one place: the library is a
- * `role=table` of `role=row`s, and a row with no table around it announces
- * nothing useful.
+ * One component rather than a bare list at each call site, as
+ * `docs/UNIVERSAL.md` asks, so the choice of list can change in one file and
+ * no screen knows. It also keeps the table semantics in one place: the library
+ * is a `role=table` of `role=row`s, and a row with no table around it
+ * announces nothing useful.
  *
- * **It is a `FlatList`, and the plan's fallback is why.** FlashList v2 was
- * tried here first, as the Stack table asks. It draws correctly and scrolls
- * well, and on the phone it breaks recycled rows in a way that matters: after
- * a data change — filtering by a tag and clearing it is enough — the cells keep
- * their positions and testIDs but stop exposing any accessible content at all.
- * `maestro hierarchy` shows each row present, correctly placed, and empty. In
- * practice that means a long press no longer opens a song's menu, and a person
- * using VoiceOver is read an empty row where a song is plainly drawn. The smoke
- * flow passes with `FlatList` and fails with FlashList at exactly that step.
+ * **Do not swap this for FlashList v2 without re-testing accessibility.** It
+ * draws and scrolls well, but on the phone its recycled cells stop exposing
+ * any accessible content after a data change — filtering by a tag and clearing
+ * it is enough. The rows are present and correctly placed, and empty: no long
+ * press opens a song's menu, and VoiceOver reads an empty row where a song is
+ * plainly drawn. The smoke flow fails at exactly that step.
  *
- * The plan allowed for this the other way round — "if it falls short on web,
- * `SongList.web.tsx` uses `FlatList`" — and the shape of the answer is the
- * same: keep the component, keep the semantics, use the list that works.
- * Revisiting is a one-file change and wants a FlashList release that fixes
- * recycled-cell accessibility on the New Architecture.
- *
- * `renderSong` goes to the list as it is. Wrapped in an arrow here, it was a
- * new `renderItem` on every render of the screen, and the list redrew every
- * cell it had for it; a screen that keeps `renderSong` stable now gets a list
- * that stays still.
+ * `renderSong` goes to the list as it is, so a screen that keeps it stable
+ * gets a list that stays still; wrapping it here would hand the list a new
+ * `renderItem` every render and redraw every cell.
  */
 export function SongList({
   songs,

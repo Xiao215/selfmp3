@@ -6,15 +6,14 @@
  * becoming `undefined is not an object` inside a component. It costs a
  * millisecond per request and has repeatedly been worth it.
  *
- * What used to differ between platforms was only how each carried the server:
- * the phone through a `ServerConnection` passed to every call, the browser by
- * simply reading its own page origin. That difference is now `ApiTransport`,
- * supplied once at startup, so every mutation (love, tag, playlist membership,
- * settings) is available on every platform without a line being written twice.
+ * The platforms differ only in how each carries the server — the phone a
+ * `ServerConnection` passed to every call, the browser its own page origin —
+ * and that difference is `ApiTransport`, supplied once at startup. So every
+ * mutation (love, tag, playlist membership, settings) is available everywhere
+ * without a line written twice.
  *
- * The endpoints are deliberately a verbatim list, unified once rather than
- * rewritten: a rewrite here would have been 74 chances to change a route
- * string nobody would notice until a screen broke.
+ * The endpoints are deliberately a verbatim list: rewriting them would be 74
+ * chances to change a route string nobody notices until a screen breaks.
  */
 import {
   AnalysisStatusSchema,

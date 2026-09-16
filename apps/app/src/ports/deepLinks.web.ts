@@ -7,10 +7,9 @@ export type { DeepLinkRoute }
  * `selfmp3://` links, sorted into the two things they can be: somewhere to go,
  * and a sign-in coming back.
  *
- * One queue per kind, rather than one queue read by whoever asks first: the
- * sign-in poller used to `shift()` the only queue there was, so a
- * `selfmp3://now-playing` arriving while Settings was waiting for a sign-in was
- * taken by the poller and thrown away.
+ * One queue per kind, rather than one queue read by whoever asks first: a
+ * single queue lets the sign-in poller `shift()` a `selfmp3://now-playing`
+ * that arrived while Settings was waiting, and throw it away.
  *
  * Both queues keep what arrived before anything was listening. A cold launch
  * from a link — which is every sign-in return, and most of the others — puts

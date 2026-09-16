@@ -77,8 +77,8 @@ describe('sanitizeFilename', () => {
 
   it('refuses to produce a dotfile', () => {
     expect(sanitizeFilename('...hidden')).toBe('hidden')
-    // A space in front used to carry the dot past the guard, and the trim
-    // afterwards turned what was left back into a dotfile.
+    // A space in front carries the dot past a guard that runs before the
+    // trim, and the trim turns what is left back into a dotfile.
     expect(sanitizeFilename(' .hidden')).toBe('hidden')
     expect(sanitizeFilename('\t. hidden')).toBe('hidden')
   })

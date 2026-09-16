@@ -45,9 +45,9 @@ export function unreachable(page: Page): Locator {
  * Wait for the library query to have settled, whichever way it went.
  *
  * Three outcomes, and telling them apart is the point: songs, an empty
- * library, or no server. The third one used to land here as a thirty-second
- * timeout on "the table never appeared", which reads like a broken app and is
- * actually a server nobody started.
+ * library, or no server. Without the third, that case lands here as a
+ * thirty-second timeout on "the table never appeared", which reads like a
+ * broken app and is actually a server nobody started.
  */
 export async function libraryReady(page: Page): Promise<void> {
   await expect(
@@ -128,10 +128,9 @@ export async function playSong(page: Page, row: Locator): Promise<void> {
  */
 export async function positionSeconds(page: Page): Promise<number> {
   const seek = page.getByLabel('Seek').first()
-  // The old web app's scrubber is a range input; the new app's is a custom
-  // control that announces itself as a slider. Both say where the song has got
-  // to — one in `value`, one in `aria-valuenow` — and neither is more true than
-  // the other, so this reads whichever is there.
+  // The scrubber is a custom control announcing itself as a slider, so the
+  // position is in `aria-valuenow`; a plain range input carries it in `value`.
+  // Neither is more true than the other, so this reads whichever is there.
   const value = await seek.getAttribute('aria-valuenow')
   if (value !== null) return Number(value)
   return Number(await seek.inputValue())
@@ -166,17 +165,14 @@ export function transport(page: Page, name: 'Play' | 'Pause'): Locator {
 /**
  * The row at the top of the list — by where it is drawn, not by DOM order.
  *
- * These are not the same thing once the list recycles. `apps/app` draws songs
- * with FlashList, which keeps its rows in a stable DOM order and moves them by
- * position, so after reversing the sort the first element in the document was
- * still the song that used to be at the top while the screen quite correctly
- * showed a different one. A flow reading `.first()` concluded the sort had done
- * nothing, which was the opposite of the truth.
+ * These are not the same thing once the list recycles. A virtualised list
+ * keeps its rows in a stable DOM order and moves them by position, so after
+ * reversing the sort the first element in the document can still be the song
+ * that was at the top while the screen quite correctly shows a different one —
+ * and a flow reading `.first()` concludes the sort did nothing.
  *
- * On the old web app the list is a real table and the two orders agree, so this
- * returns exactly what `.first()` did. Anywhere "the first song" means the one
- * a person sees at the top, this is the one to use — phase 4's comparisons
- * included.
+ * Where the two orders agree this returns exactly what `.first()` would.
+ * Anywhere "the first song" means the one a person sees at the top, use this.
  */
 export async function topRow(page: Page): Promise<Locator> {
   const rows = songRows(page)

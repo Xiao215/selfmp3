@@ -58,7 +58,7 @@ const SIDEBAR_WIDTH = 244
  * new each render, so the handlers are given the row's song rather than being
  * closures over it (one function serves every row), and whether this is the
  * loaded song is asked of the player by the row itself (`useSongPlayback`)
- * rather than handed down, which used to redraw every row on every song change.
+ * rather than handed down, which would redraw every row on every song change.
  */
 export const SongRow = memo(function SongRow({
   testID,
@@ -428,8 +428,8 @@ const DENSE_ROW_HEIGHT = 7 * 2 + 40
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
- * enlarged in the system's settings can wrap past the cover, and a list that
- * believed the old number would place every row in the wrong spot.
+ * enlarged in the system's settings can wrap past the cover, and a list told
+ * the wrong number places every row in the wrong spot.
  */
 export function useSongRowHeight(): number | null {
   const { wide, dense } = useLayout()

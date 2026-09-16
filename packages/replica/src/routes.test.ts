@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { parseQuery } from './routes.js'
 
 /**
- * `URLSearchParams` used to do this, and React Native's `URL` does not carry
- * one — so this is hand-written, and the cases below are the ones a hand-written
- * parser gets wrong. They are checked against what `URLSearchParams` answers,
- * because matching it exactly is the whole requirement.
+ * Hand-written, because React Native's `URL` carries no `URLSearchParams`.
+ * The cases below are the ones a hand-written parser gets wrong, checked
+ * against what `URLSearchParams` answers — matching it exactly is the whole
+ * requirement.
  */
 describe('parseQuery', () => {
   const cases = [

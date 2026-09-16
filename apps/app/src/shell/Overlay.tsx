@@ -6,20 +6,18 @@ import { StyleSheet } from 'react-native-unistyles'
 /**
  * One place, at the root of the app, where sheets and popovers are drawn.
  *
- * Sheets used to be `Modal`s, one per sheet. A `Modal` on iOS is its own
- * `UIWindow`, and presenting a second one after a first has been dismissed
- * takes the app's entire view tree out of the accessibility hierarchy: the
- * list, the tab bar and the mini player stay on screen and become invisible to
- * VoiceOver and to anything driving the app. The sort sheet followed by a
- * song's menu is exactly that sequence, which is how the smoke flow found it —
- * the menu was plainly on screen and could not be seen at all.
+ * **Not `Modal`s.** A `Modal` on iOS is its own `UIWindow`, and presenting a
+ * second one after a first has been dismissed takes the app's entire view tree
+ * out of the accessibility hierarchy: the list, the tab bar and the mini
+ * player stay on screen and become invisible to VoiceOver and to anything
+ * driving the app. The sort sheet followed by a song's menu is exactly that
+ * sequence.
  *
- * So there are no windows now. An overlay is an absolutely positioned view at
- * the top of the shell, above the tab bar and the mini player because it is
- * the shell's last child rather than because it is a different window. One
- * tree, which VoiceOver and Maestro can both read, and which is also what the
- * web needs — `docs/UNIVERSAL.md` calls for "a root-level host on web", and
- * this is that host on every platform.
+ * So an overlay is an absolutely positioned view at the top of the shell,
+ * above the tab bar and the mini player because it is the shell's last child
+ * rather than because it is a different window. One tree, which VoiceOver and
+ * Maestro can both read, and which is also the "root-level host on web"
+ * `docs/UNIVERSAL.md` calls for.
  *
  * `pointerEvents="box-none"` on the host so an empty overlay is not a sheet of
  * glass over the app.

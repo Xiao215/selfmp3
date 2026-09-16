@@ -29,18 +29,20 @@ copy or upload one.
 ## Connecting it
 
 The options page opens the first time you install it, and from the gear in the
-popup after that. It wants:
+popup after that. It wants one thing: your **server's** address —
+`http://localhost:4600` on the same computer, or its `https://….ts.net` address
+over Tailscale. Not where you listen. The extension is the one part of self.mp3
+that still points at a server by address, and it has to be, because only the
+server runs yt-dlp.
 
-- **Address** — your **server's** address: `http://localhost:4600` on the same
-  computer, or its `https://….ts.net` address over Tailscale. Not where you
-  listen. The extension is the one part of self.mp3 that still points at a
-  server by address, and it has to be, because only the server runs yt-dlp.
-- **Token** — only if you set `SELFMP3_AUTH_TOKEN` on the server.
+A token is asked for only if your server turns out to want one. Most do not —
+`SELFMP3_AUTH_TOKEN` is off unless you set it — so the page tries the address on
+its own first, and the token field appears if the server refuses without one.
 
-It checks both before keeping them: the address has to answer, and the token has
-to be right. Everything the extension knows lives in the extension's own
-storage, which no web page can read — not even the script it runs inside
-YouTube.
+The address is checked before it is kept: it has to answer, and the token, where
+there is one, has to be right. Everything the extension knows lives in the
+extension's own storage, which no web page can read — not even the script it runs
+inside YouTube.
 
 ## What it does
 

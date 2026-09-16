@@ -64,6 +64,9 @@ test('connect the extension first', async () => {
   const page = await extension.context.newPage()
   await page.goto(extensionPage('options.html'))
   await page.getByLabel('Address').fill(server.url)
+  // The address alone first: this fake server has a token, so it refuses once
+  // and the field to answer with appears (popup.spec.ts covers that properly).
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.getByLabel('Token').fill(TOKEN)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await expect(page.getByText(`Connected to ${server.url}`)).toBeVisible()

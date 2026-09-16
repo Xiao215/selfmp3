@@ -48,10 +48,21 @@ test('before a server is connected, the popup asks for one', async () => {
   await page.close()
 })
 
-test('the options page refuses a wrong token, and keeps the right one', async () => {
+/**
+ * The address is all that is asked for until the server refuses without a
+ * token. Almost no server has one, so the field is not put in front of someone
+ * who will never need it — it arrives when the server has said it does.
+ */
+test('the options page asks for a token only once the server wants one', async () => {
   const page = await extension.context.newPage()
   await page.goto(extensionPage('options.html'))
+  await expect(page.getByLabel('Token')).toBeHidden()
+
   await page.getByLabel('Address').fill(server.url)
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveText('That server needs its token.')
+  await expect(page.getByLabel('Token')).toBeVisible()
+
   await page.getByLabel('Token').fill('wrong')
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await expect(page.getByRole('alert')).toHaveText('The server refused that token.')

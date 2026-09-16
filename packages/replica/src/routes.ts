@@ -453,6 +453,19 @@ export function createCloudRoutes(
       '/api/cloud/server',
       async ({ session }) => ({ server: (await loadCloudLibrary(session)).server }),
     ],
+    /*
+     * The uid behind each of this device's song ids — the other half of the
+     * server's table of the same name. A screen that asks the server directly
+     * gets answers in the server's numbers, and lines them up with these.
+     */
+    [
+      'GET',
+      '/api/cloud/uids',
+      async ({ session }) => {
+        const view = await loadCloudLibrary(session)
+        return { songs: [...view.uids.songs].map(([id, uid]) => ({ id, uid })) }
+      },
+    ],
 
     [
       'POST',

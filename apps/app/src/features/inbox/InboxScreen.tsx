@@ -18,7 +18,6 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { useEscape } from '../../shell/useEscape'
 import { useHotkeys } from '../../shell/useHotkeys'
 import { useLayout } from '../../shell/useLayout'
@@ -53,6 +52,12 @@ import {
  * The list says how many there are; "Start tagging" goes through them one at a
  * time: the song plays, its tags are tapped (or picked with the number keys),
  * and it moves on.
+ *
+ * Nothing here asks a server. Which songs have no tag is a pass over the
+ * library, and putting a tag on one is an edit every library takes — a cloud
+ * library records it and uploads it like any other. It was hidden from a cloud
+ * library along with the pages that genuinely do need the server, which was
+ * simply wrong.
  */
 export function InboxScreen(): ReactNode {
   const accent = useAccent()
@@ -61,7 +66,6 @@ export function InboxScreen(): ReactNode {
   const player = usePlayer()
   const artFor = useArt()
   const { wide } = useLayout()
-  const { fromCloud } = useConnection()
   const { data: library, isLoading } = useLibrary()
   const pull = usePullToRefresh()
   const { state: downloads } = useDownloads()
@@ -118,7 +122,7 @@ export function InboxScreen(): ReactNode {
             </Text>
             {subtitle ? <Text style={styles.sub}>{subtitle}</Text> : null}
           </View>
-          {untagged.length > 0 && !fromCloud ? (
+          {untagged.length > 0 ? (
             <Button
               label="Start tagging"
               variant="primary"
@@ -127,12 +131,6 @@ export function InboxScreen(): ReactNode {
             />
           ) : null}
         </View>
-
-        {fromCloud ? (
-          <Text style={styles.hint}>
-            Tagging from the inbox needs a connection to your server for now.
-          </Text>
-        ) : null}
 
         {untagged.length > 0 ? (
           <Text style={[styles.hint, styles.lead]}>

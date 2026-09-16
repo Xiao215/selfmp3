@@ -3,12 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatLongDuration, formatRelative, STATS_RANGE_LABELS } from '@selfmp3/shared'
-import { radius, useHistory, useLibrary, useStats } from '@selfmp3/client'
+import { radius, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { ColumnChart, StatTile } from '../../ui/components/charts'
 import { ReportTab } from '../wrapped/ReportTab'
 import { SongLine } from './SongLine'
 import { StatsFrame, type StatsFrameProps } from './StatsFrame'
+import { useHistoryFor, useStatsFor, useStatsSongs } from './statsSource'
 import {
   bestStreakHint,
   dailyColumns,
@@ -28,14 +29,19 @@ import {
  * `/stats` opens Overview and `/stats/report` opens Report; after that the
  * tabs switch in place, and the window chosen on one is the window the other
  * shows.
+ *
+ * `via` is a server reached directly from a cloud library (StatsViaServer): the
+ * numbers are then its, and the songs they name are lined up with this
+ * device's (statsSource.ts).
  */
 export function StatsScreen({
   initialTab = 'overview',
-}: { initialTab?: StatsTab } = {}): ReactNode {
+  via,
+}: { initialTab?: StatsTab; via?: ServerConnection } = {}): ReactNode {
   const [tab, setTab] = useState<StatsTab>(initialTab)
   const [period, setPeriod] = useState<StatsPeriod>('month')
   const frame: StatsFrameProps = { tab, onTab: setTab, period, onPeriod: setPeriod }
-  return tab === 'overview' ? <Overview {...frame} /> : <ReportTab {...frame} />
+  return tab === 'overview' ? <Overview {...frame} via={via} /> : <ReportTab {...frame} via={via} />
 }
 
 /**
@@ -45,17 +51,13 @@ export function StatsScreen({
  * the plays happened, and what was played last. What was played most is the
  * Report's to tell, so it is not said twice.
  */
-function Overview(frame: StatsFrameProps): ReactNode {
+function Overview({ via, ...frame }: StatsFrameProps & { via?: ServerConnection }): ReactNode {
   const { wide } = useLayout()
   const range = statsRangeFor(frame.period)
-  const { data: stats, isLoading } = useStats(range)
-  const { data: history } = useHistory()
-  const { data: library } = useLibrary()
+  const { data: stats, isLoading } = useStatsFor(via, range)
+  const { data: history } = useHistoryFor(via)
+  const songFor = useStatsSongs(via)
 
-  const songById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
   const daily = useMemo(() => dailyColumns(stats?.daily ?? []), [stats])
   const hourly = useMemo(() => hourlyColumns(stats?.hourly ?? []), [stats])
   const recent = useMemo(() => recentSongs(history?.events ?? []), [history])
@@ -139,7 +141,7 @@ function Overview(frame: StatsFrameProps): ReactNode {
                   {recent.slice(0, 24).map(event => (
                     <View key={event.songId} style={wide ? styles.columnCell : undefined}>
                       <SongLine
-                        song={songById.get(event.songId)}
+                        song={songFor(event.songId)}
                         title={event.title}
                         artist={event.artist}
                         trailing={formatRelative(event.playedAt)}

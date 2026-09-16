@@ -46,6 +46,7 @@ import {
   WrappedSchema,
   ForgottenGemsSchema,
   SyncManifestSchema,
+  CloudUidsSchema,
   TagSchema,
   BulkDeleteResultSchema,
   CloudStatusSchema,
@@ -486,6 +487,13 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** Where the server behind a cloud library listens, from its last snapshot. */
     cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
+
+    /**
+     * The uid behind each song id in whichever library answers this — this
+     * device's copy, or a server asked directly. Two of these line the two
+     * libraries' numbers up (connection/serverIds.ts).
+     */
+    cloudUids: () => request('GET', '/api/cloud/uids', CloudUidsSchema),
 
     /** The code Google's sign-in ended with, which claims the session. */
     cloudSignInCode: (code: string) =>

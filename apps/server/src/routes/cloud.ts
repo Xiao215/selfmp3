@@ -4,6 +4,7 @@ import {
   CloudSignInCodeSchema,
   CloudSignInSchema,
   type CloudStatus,
+  type CloudUids,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { CloudError } from '../bucket/store.js'
@@ -82,6 +83,22 @@ export function cloudRoutes(container: Container): Router {
     route({ body: CloudConnectSchema }, ({ body }): Promise<CloudStatus> =>
       explain(() => container.cloudSync.connectStorage(body)),
     ),
+  )
+
+  /**
+   * The uid behind each of this server's song ids.
+   *
+   * A device signed in to the bucket numbers the same songs its own way, so an
+   * answer from here — the stats, a metadata lookup — names songs under ids
+   * that mean nothing to it. This is how it lines the two up: the uid is the
+   * name both libraries know a song by. Rows for songs this server has not
+   * uploaded are harmless; the device simply has no song under that uid.
+   */
+  router.get(
+    '/cloud/uids',
+    route({}, (): CloudUids => ({
+      songs: container.cloudRepo.songFiles().map(song => ({ id: song.id, uid: song.uid })),
+    })),
   )
 
   /**

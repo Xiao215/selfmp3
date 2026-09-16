@@ -3,13 +3,15 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { HIT_TARGET, radius, useLibrary, useStats } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
+import { HIT_TARGET, radius, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { BarChart, ChevronRight, Inbox, Settings, Tag } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { isUntagged } from '../inbox/inbox.model'
+import { useStatsFor } from '../stats/statsSource'
+import { useServerDirect } from '../../connection/useServerDirect'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { youRows, type YouRow, type YouRowId } from './you.model'
 
 const ICONS: Record<YouRowId, typeof Tag> = {
@@ -29,23 +31,27 @@ const ICONS: Record<YouRowId, typeof Tag> = {
  */
 export function YouScreen(): ReactNode {
   const { fromCloud } = useConnection()
-  // Stats asks the server; a cloud library has none to ask, so it does not.
-  return fromCloud ? <YouPage fromCloud plays={undefined} /> : <WithPlays />
+  return fromCloud ? <CloudPlays /> : <WithPlays via={undefined} />
+}
+
+/**
+ * Stats' row carries the plays in its opening window, and the plays are the
+ * server's. A cloud library therefore has a number for the row only while its
+ * server is within reach; without one the row says nothing, and the page it
+ * opens explains why.
+ */
+function CloudPlays(): ReactNode {
+  const reach = useServerDirect()
+  return <WithPlays via={reach.state === 'reachable' ? reach.connection : undefined} />
 }
 
 /** The plays for Stats' row, from the window Stats opens on — the same cached answer. */
-function WithPlays(): ReactNode {
-  const { data: stats } = useStats('30d')
-  return <YouPage fromCloud={false} plays={stats?.totals.plays} />
+function WithPlays({ via }: { via: ServerConnection | undefined }): ReactNode {
+  const { data: stats } = useStatsFor(via, '30d')
+  return <YouPage plays={stats?.totals.plays} />
 }
 
-function YouPage({
-  fromCloud,
-  plays,
-}: {
-  fromCloud: boolean
-  plays: number | undefined
-}): ReactNode {
+function YouPage({ plays }: { plays: number | undefined }): ReactNode {
   const { wide } = useLayout()
   const { data: library } = useLibrary()
   // A pass over the whole library; its answer only changes when the library does.
@@ -53,7 +59,7 @@ function YouPage({
     () => (library ? library.songs.filter(isUntagged).length : undefined),
     [library],
   )
-  const rows = youRows({ fromCloud, plays, untagged, tags: library?.tags.length })
+  const rows = youRows({ plays, untagged, tags: library?.tags.length })
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

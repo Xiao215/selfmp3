@@ -4,10 +4,13 @@ Two ways of looking back at your own listening, both built entirely from the `pl
 table that the app has been filling since day one. No new data is collected and no
 migration is needed.
 
-**Both are the server's**, which is where `play_events` lives, so the app hides them when
-its library is the bucket's — and every surface's now is, which means neither is reachable
-today. The plays are still being recorded and still reach the server, so nothing is being
-lost in the meantime ([SYNC.md](../SYNC.md), "What this gives up").
+That table lives on the server, and only there — a bucket snapshot says a song has been
+played 41 times, never *when*, so there is no history in the cloud to work a streak or a
+chart out of. A device signed in to the cloud therefore reaches its server by the addresses
+in the last snapshot and asks it directly; the songs its answers name are lined up with
+this device's by the uid both know them by, so a cover still draws and a line still plays.
+With no server in reach the page is still drawn, tabs and all, and says why it is empty.
+See docs/SYNC.md, "Reaching the server for what only it can do".
 
 ---
 

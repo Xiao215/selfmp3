@@ -4,7 +4,6 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
 import { radius, space } from '@selfmp3/client'
 import { shownAddress } from '../../ports/pageAddress'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -18,11 +17,11 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 const BARS = [14, 24, 32, 20, 0, 18, 28, 12] as const
 const ACCENT_BAR = 2
 
-/** Where else to go, quietly, under the buttons. `server`: a cloud library has no Stats. */
-const PLACES: readonly { href: Href; label: string; server?: boolean }[] = [
+/** Where else to go, quietly, under the buttons. */
+const PLACES: readonly { href: Href; label: string }[] = [
   { href: '/playlists', label: 'Playlists' },
   { href: '/import', label: 'Import' },
-  { href: '/stats', label: 'Stats', server: true },
+  { href: '/stats', label: 'Stats' },
   { href: '/settings', label: 'Settings' },
 ]
 
@@ -47,7 +46,6 @@ export function NotFoundScreen(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
-  const { fromCloud } = useConnection()
   const canGoBack = router.canGoBack()
 
   return (
@@ -106,7 +104,7 @@ export function NotFoundScreen(): ReactNode {
 
         {wide ? (
           <View style={styles.places}>
-            {PLACES.filter(place => !fromCloud || !place.server).map(place => (
+            {PLACES.map(place => (
               <Pressable
                 key={place.label}
                 onPress={() => router.replace(place.href)}

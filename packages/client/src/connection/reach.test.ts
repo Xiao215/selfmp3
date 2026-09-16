@@ -62,8 +62,14 @@ describe('reachServer', () => {
 
 describe('awayCopy', () => {
   it('tells a server that is off apart from one that never said where it is', () => {
-    expect(awayCopy(true).title).toBe('Your server isn’t answering')
-    expect(awayCopy(false).title).toBe('Your server hasn’t said where it is')
-    expect(awayCopy(false).body).toContain('sync once')
+    expect(awayCopy(true, 'import').title).toBe('Your server isn’t answering')
+    expect(awayCopy(false, 'import').title).toBe('Your server hasn’t said where it is')
+    expect(awayCopy(false, 'import').body).toContain('sync once')
+  })
+
+  it('leads with what this screen came for, so the card is not the same card everywhere', () => {
+    expect(awayCopy(true, 'import').body).toContain('Importing goes through your server')
+    expect(awayCopy(true, 'stats').body).toContain('Stats come from your server')
+    expect(awayCopy(true, 'metadata').body).toContain('Looking a song up goes through your server')
   })
 })

@@ -4,7 +4,8 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, type MetadataCandidate, type Song } from '@selfmp3/shared'
-import { oklchToHexAlpha, radius, useApplyMetadata, useMetadataLookup } from '@selfmp3/client'
+import { oklchToHexAlpha, radius, type ServerConnection } from '@selfmp3/client'
+import { useMetadataSource } from './metadataSource'
 import {
   applyInput,
   applyLabel,
@@ -18,17 +19,17 @@ import {
   shown,
   SOURCE_LABELS,
   type Field,
-} from '../../features/metadata/metadata.model'
+} from './metadata.model'
 import { useArt } from '../../offline/useArt'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
-import { Button } from './Button'
-import { Checkbox } from './Checkbox'
-import { Cover } from './Cover'
-import { IconButton } from './IconButton'
-import { Check, X } from './Icons'
+import { useAccent } from '../../ui/accent'
+import { Button } from '../../ui/components/Button'
+import { Checkbox } from '../../ui/components/Checkbox'
+import { Cover } from '../../ui/components/Cover'
+import { IconButton } from '../../ui/components/IconButton'
+import { Check, X } from '../../ui/components/Icons'
 
 /** The sources' badges, as an OKLCH pair: ground, ink. */
 const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
@@ -43,16 +44,29 @@ const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
  * applied.
  *
  * Centred at desktop width; the whole screen on a phone.
+ *
+ * `via` is a server reached directly from a cloud library (FixMetadata), and
+ * `askFor` the song's id in that server's numbering. Without them the library
+ * this device already talks to answers, and `askFor` is the song's own id.
  */
-export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
+export function MetadataDialog({
+  song,
+  askFor,
+  via,
+  onClose,
+}: {
+  song: Song
+  askFor: number
+  via?: ServerConnection
+  onClose: () => void
+}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const artFor = useArt()
   const { wide } = useLayout()
   // Full screen on a phone, so the head clears the status bar and the foot the home bar.
   const insets = useSafeAreaInsets()
-  const lookup = useMetadataLookup(song.id)
-  const apply = useApplyMetadata()
+  const { lookup, apply } = useMetadataSource(via, askFor)
   useEscape(true, onClose, { layer: true })
 
   const candidates = lookup.data?.candidates ?? []
@@ -75,7 +89,7 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
   const count = appliedCount(diffs, ticked)
   const submit = (): void => {
     const input = applyInput(diffs, ticked)
-    if (input) apply.mutate({ id: song.id, input }, { onSuccess: onClose })
+    if (input) apply.mutate(input, { onSuccess: onClose })
   }
 
   const current = (
@@ -288,7 +302,13 @@ export function MetadataDialog({ song, onClose }: { song: Song; onClose: () => v
         >
           {apply.isError ? (
             <Text style={[styles.hint, styles.footError, { color: theme.colors.warning }]}>
-              {apply.error.message}
+              {apply.error?.message ?? 'Couldn’t apply the changes.'}
+            </Text>
+          ) : via ? (
+            // Written into the server's library, which this device sees with
+            // the next sync rather than the moment the dialog closes.
+            <Text style={[styles.hint, styles.footError]}>
+              Applied on your server; here with its next sync.
             </Text>
           ) : null}
           <Button label="Cancel" onPress={onClose} />

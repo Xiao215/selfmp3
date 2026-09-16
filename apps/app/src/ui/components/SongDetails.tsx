@@ -16,7 +16,6 @@ import {
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../accent'
@@ -25,7 +24,7 @@ import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
 import { IconButton } from './IconButton'
 import { Sparkles, X } from './Icons'
-import { MetadataDialog } from './MetadataDialog'
+import { FixMetadata } from '../../features/metadata/FixMetadata'
 
 /**
  * Everything the app knows about one song, in plain words.
@@ -38,14 +37,14 @@ import { MetadataDialog } from './MetadataDialog'
  *
  * "Fix metadata…" opens from here rather than from the song menu: it is the
  * place where a wrong title or album is noticed. The lookup runs on the
- * server, against iTunes and MusicBrainz, so a cloud library has no button.
- * The fix takes the dialog's place, and closing it comes back to the details.
+ * server, against iTunes and MusicBrainz; a cloud library reaches its server to
+ * do it, and says so when it cannot (FixMetadata). The fix takes the dialog's
+ * place, and closing it comes back to the details.
  */
 export function SongDetails({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const artFor = useArt()
-  const { fromCloud } = useConnection()
   const [fixing, setFixing] = useState(false)
   useEscape(!fixing, onClose, { layer: true })
 
@@ -79,22 +78,20 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
         </View>
         <ScrollView>
           <SongDetailsBody song={song} />
-          {fromCloud ? null : (
-            <View style={styles.fix}>
-              <Button
-                label="Fix metadata…"
-                icon={<Sparkles size={15} color={theme.colors.textSecondary} />}
-                onPress={() => setFixing(true)}
-              />
-            </View>
-          )}
+          <View style={styles.fix}>
+            <Button
+              label="Fix metadata…"
+              icon={<Sparkles size={15} color={theme.colors.textSecondary} />}
+              onPress={() => setFixing(true)}
+            />
+          </View>
         </ScrollView>
       </View>
     </View>,
     !fixing,
   )
 
-  return fixing ? <MetadataDialog song={song} onClose={() => setFixing(false)} /> : null
+  return fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null
 }
 
 /**

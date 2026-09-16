@@ -182,3 +182,19 @@ open re-registers itself within ten seconds.
 
 **No new settings or environment variables.** The feature is always on and costs
 one table and one open connection per device.
+
+**A cloud library does not take part — on purpose.** Import, Stats and the
+metadata lookup all reach the server by the addresses in its last snapshot when
+a device is signed in to the cloud, and presence could in principle do the same.
+It is deliberately left out, because it is a different shape of thing: those
+screens ask a question and are done, while presence is a heartbeat every ten
+seconds and a stream held open for as long as the app runs — so the server would
+have to be found at launch rather than on a screen, and found again every time a
+phone changes network. And a handoff carries song ids, which the reached server
+numbers its own way: every command would need translating out and back
+(`useServerSongIds`), including between two cloud devices, which number the same
+songs differently again. Worth doing, and its own piece of work.
+
+What does already work from a cloud library is **Settings › Devices**: the list
+comes through the reached server, because a list is only a question. With no
+server in reach it shows the last list it was given, each row marked offline.

@@ -18,6 +18,11 @@ Files:
 | Tagging what is playing | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/features/nowPlaying/NowPlayingStage.tsx`, `apps/app/src/ui/components/TagPicker.tsx` |
 | Untagged inbox and quick tagging | `apps/app/src/features/inbox/InboxScreen.tsx` |
 
+Everything here works on every kind of library, a cloud one included: which songs have no
+tag is a pass over the library this device already holds, and putting a tag on one is an
+ordinary edit, recorded and uploaded like any other. It was hidden from a cloud library for
+a while alongside the pages that genuinely do need the server, which was simply a mistake.
+
 ## Hiding a tag
 
 A tag filters one of two ways: **only songs with it**, or **none of them**. Combined, that is

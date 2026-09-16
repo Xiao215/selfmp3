@@ -29,6 +29,8 @@ export {
 } from './connection/connection.js'
 // Which of a server's addresses answers, for a device that learned them from the bucket.
 export * from './connection/reach.js'
+// Two libraries' numbers for the same songs, lined up by the uid both know.
+export * from './connection/serverIds.js'
 // Importing without a screen: review, choices, the queue's words.
 export * from './import/model.js'
 

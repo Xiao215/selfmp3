@@ -214,18 +214,25 @@ export function useSettings(): UseQueryResult<Settings, Error> {
   })
 }
 
-export function useStats(range: StatsRange): UseQueryResult<Stats, Error> {
+/**
+ * `enabled` is here for the same reason as the import queue's: a cloud library
+ * whose server is within reach asks that server directly instead (the Stats
+ * page's `statsSource.ts`), and this one would only fetch a 501 to throw away.
+ */
+export function useStats(range: StatsRange, enabled = true): UseQueryResult<Stats, Error> {
   return useQuery({
     queryKey: queryKeys.stats(range),
     queryFn: () => clientApi().stats(range),
+    enabled,
     staleTime: 60_000,
   })
 }
 
-export function useWrapped(range: WrappedRange): UseQueryResult<Wrapped, Error> {
+export function useWrapped(range: WrappedRange, enabled = true): UseQueryResult<Wrapped, Error> {
   return useQuery({
     queryKey: queryKeys.wrapped(range),
     queryFn: () => clientApi().wrapped(range),
+    enabled,
     staleTime: 60_000,
   })
 }
@@ -248,10 +255,11 @@ export function useGems(limit = 12): UseQueryResult<ForgottenGems, Error> {
   })
 }
 
-export function useHistory() {
+export function useHistory(enabled = true) {
   return useQuery({
     queryKey: queryKeys.history,
     queryFn: () => clientApi().history(200),
+    enabled,
     staleTime: 60_000,
   })
 }
@@ -630,11 +638,17 @@ export function useMigrateJob(id: string | null): UseQueryResult<MigrateMatchJob
 }
 // --- metadata polish --------------------------------------------------------
 
-/** Candidates for one song. Cached client-side too; the server caches for a day. */
-export function useMetadataLookup(songId: number) {
+/**
+ * Candidates for one song. Cached client-side too; the server caches for a day.
+ *
+ * `enabled` for the same reason as `useStats`': a cloud library within reach of
+ * its server asks that server directly instead (`metadataSource.ts`).
+ */
+export function useMetadataLookup(songId: number, enabled = true) {
   return useQuery({
     queryKey: queryKeys.metadataLookup(songId),
     queryFn: () => clientApi().lookupMetadata(songId),
+    enabled,
     staleTime: 10 * 60_000,
     retry: false,
   })

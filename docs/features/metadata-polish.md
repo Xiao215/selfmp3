@@ -56,6 +56,20 @@ re-run: it only ever looks at songs that still lack art.
 
 Schemas live in `packages/shared/src/schemas/metadata.ts`.
 
+## Where it works
+
+Everywhere. The lookup runs on the server — it is what holds the day-long cache, obeys
+MusicBrainz's one-request-a-second rule, and downloads the artwork — so a device signed in
+to the cloud reaches its server by the addresses in the last snapshot and asks it there
+(docs/SYNC.md, "Reaching the server for what only it can do"). The two libraries number
+songs differently, so the song is named to the server by *its* id, translated through the
+uid both know it by.
+
+With no server in reach the button is still on the details panel, and opening it says the
+server is not answering. A correction applied from a cloud library lands in the server's
+database and reaches the device with the server's next snapshot, not the moment the dialog
+closes — the dialog says so.
+
 ## Where the code is
 
 - `apps/server/src/services/lookup.ts` — providers, HTTP, cache (`MetadataLookupService`)
@@ -64,8 +78,9 @@ Schemas live in `packages/shared/src/schemas/metadata.ts`.
 - `apps/server/src/services/rateLimiter.ts` — the 1 req/s gate for MusicBrainz
 - `apps/server/src/services/fixCovers.ts` — the background pass
 - `apps/server/src/routes/metadata.ts` — the routes above
-- `apps/app/src/ui/components/MetadataDialog.tsx`, `apps/app/src/features/metadata/metadata.model.ts`,
-  and `FixCoversPanel` in `apps/app/src/features/settings/SettingsScreen.tsx` — the UI
+- `apps/app/src/features/metadata/` — the UI: `FixMetadata.tsx` (which library answers),
+  `MetadataDialog.tsx`, `metadataSource.ts`, `metadata.model.ts`; and `FixCoversPanel` in
+  `apps/app/src/features/settings/SettingsScreen.tsx`
 
 Tests cover scoring, the rate limiter, the parsers (against fixture JSON in
 `services/fixtures/`) and the service's failure modes with a fake `fetch`. A live iTunes

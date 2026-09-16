@@ -151,12 +151,9 @@ Deploying it, and what each setting means, is in [apps/doorman/README.md](../app
 
 ### The server publishes the library
 
-The **Cloud** section of the server's own page, on `:4600`, signs in with Google through the
-doorman and then asks for the bucket if the account has none. (With no doorman set up, a
-bucket can still be connected directly with its key, as the way in.) That page is the
-server's setup and status — the library count, the Cloud section, *Publish now* — and not
-somewhere to listen: the server is a worker that fills the bucket, and the bucket is what
-every device reads.
+*Settings → Cloud* on the server signs in with Google through the doorman, and then asks for the
+bucket if the account has none. (With no doorman set up, a bucket can still be connected
+directly with its key, as the way in.)
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
@@ -245,6 +242,47 @@ already, and downloads it as any other import. Every snapshot says how each requ
 last week went: waiting for a device that can fetch, downloading, added, failed with the
 reason, or called off.
 
+### Reaching the server for what only it can do
+
+Some things are the server's and cannot be anyone else's. It runs yt-dlp, so importing is
+its. It keeps `play_events`, so the stats are its — a snapshot says a song has been played
+41 times, never *when*, so there is no history in the bucket to work a streak or a chart
+out of. It asks iTunes and MusicBrainz and downloads the cover you pick, so metadata polish
+is its.
+
+A device signed in to the cloud reaches it directly. Every snapshot carries the addresses
+the server listens on and the token (`CloudServerSchema`); a screen that needs the server
+probes them all at once and talks to the first that answers, and looks again every twenty
+seconds so a server switched on is found without a tap. Nothing is typed, and there is no
+"connect to a server" screen — that was removed on purpose.
+
+When no address answers the screen is still drawn, and says why in its own words: not
+answering, or never having said where it is. **A feature that is simply not drawn is
+indistinguishable, from where the user sits, from one that does not exist** — which is what
+Stats, the metadata lookup and the untagged inbox all looked like for months.
+
+| Screen | Needs the server for | When it is away |
+|---|---|---|
+| Import | reading a link, playing a song before it is added, downloading it | says so, keeps looking |
+| Stats (Overview and Report) | every play ever recorded | says so, keeps looking |
+| Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
+| Settings › Devices | the device list | shows the last list it was given, marked offline |
+| Untagged | *nothing* — it is a pass over the library, and tagging is an ordinary edit | always works |
+
+**Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers
+them its database's way, and a device numbers them as uids arrive
+(`snapshotToLibrary`). So an answer from the reached server is about songs under ids that
+mean nothing on the device: a play in the stats is song 812 there and song 47 here.
+`GET /api/cloud/uids` is one library's list of `{ id, uid }` pairs, and **both sides
+answer it** — the server from its `songs` table, a device from its snapshot. Two of them
+make the translation, both ways (`packages/client/src/connection/serverIds.ts`). Without
+it the stats would light up whichever song happened to hold that number here, and a
+metadata correction would land on the wrong song.
+
+A song only one side has simply has no translation, which is the honest answer: the cover
+is left off the line and it does not play, and the metadata dialog says the server does not
+have this song yet.
+
 ---
 
 ## Still to come
@@ -262,17 +300,18 @@ reason, or called off.
 ## What this gives up
 
 - **Handoff and remote control** need a live connection between devices, which a bucket
-  cannot provide. They are `/api/devices` on the server, and a device reading the bucket has
-  nowhere to send its heartbeat, so they are in the same position as Stats below: built and
-  running, with nothing asking.
+  cannot provide. They keep working when the server is reachable over Tailscale, as today.
+  A cloud library does *not* take part, even where it could reach the server: presence is a
+  heartbeat every ten seconds and a stream held open for as long as the app runs — not a
+  question asked by one screen — and a handoff carries song ids, which would have to be
+  translated on the way out and back, including between two cloud devices that number the
+  same songs differently again. Worth doing; its own piece of work. The device *list* in
+  Settings already comes through the reached server, because that part is only a question.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
-- **Some things still need the server**: Stats, the Untagged inbox, looking metadata up,
-  romaji and pinyin, searching inside lyrics, and fetching links. The app hides them rather
-  than offering what it cannot do, and since every surface now reads the bucket, **they are
-  not reachable from any of them today**. Fetching links is the exception and works: the
-  Import screen reaches the server directly, by the addresses in its own snapshot. The rest
-  are routes the server still serves over `/api` with nothing left to ask for them.
+- **Some things still need the server**: looking metadata up, the stats, searching inside
+  lyrics, and fetching links. The screens that need it reach for it and say so when it is
+  away, rather than hiding — see "Reaching the server for what only it can do" above.
 - **Space.** 10 GB free is roughly 2,000–2,500 songs.
 
 ---
@@ -307,16 +346,13 @@ the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` 
 ### 3. The web app
 
 Every push to `main` builds it and publishes it to GitHub Pages
-(`.github/workflows/pages.yml`). Nothing to do but push. `xiao215.github.io/selfmp3` is
-where you listen in a browser — the server does not serve the app.
+(`.github/workflows/pages.yml`). Nothing to do but push.
 
 ### 4. Each device
 
 Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's
 endpoint, name, key ID and key. The key goes to the doorman, sealed; no device keeps it. On
-the server that is the *Cloud* section of its page on `:4600`; everywhere else it is the
-first thing the app asks for, and the only thing: there is no server address to type on any
-device.
+the server that is *Settings → Cloud*; everywhere else it is the first thing the app asks for.
 
 ---
 
@@ -338,6 +374,10 @@ device.
 | The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
-| Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `useServerDirect.ts`, `importSource.ts`; `packages/client/src/connection/reach.ts`; `apps/server/src/services/addresses.ts` |
+| Finding the server from a cloud library, and what each screen says when it is away | `packages/client/src/connection/reach.ts`; `apps/app/src/connection/useServerDirect.ts`, `ServerAway.tsx`; `apps/server/src/services/addresses.ts` |
+| Importing through the reached server | `apps/app/src/features/import/ImportViaServer.tsx`, `importSource.ts` |
+| Stats and the Report through the reached server | `apps/app/src/features/stats/StatsViaServer.tsx`, `statsSource.ts` |
+| Fixing metadata through the reached server | `apps/app/src/features/metadata/FixMetadata.tsx`, `metadataSource.ts` |
+| Lining the two libraries' song ids up by uid | `packages/client/src/connection/serverIds.ts`, `apps/app/src/connection/useServerSongIds.ts`; `GET /api/cloud/uids` in `apps/server/src/routes/cloud.ts` and `packages/replica/src/routes.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `packages/replica/src/edits.test.ts`, `apps/doorman/src/*.test.ts` |

@@ -79,6 +79,18 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
    * to a server stays stored after moving to the bucket, and asking whether one
    * exists had this device heartbeat every ten seconds, and hold a stream
    * open, to a server that was not there.
+   *
+   * Deliberately *not* the reached server a cloud library's Import, Stats and
+   * metadata screens use. Those ask a question and are done; presence is a
+   * heartbeat every ten seconds and a stream held open for as long as the app
+   * runs, which would mean probing for the server at launch rather than on a
+   * screen, and reconnecting every time a phone moves between networks. And a
+   * handoff carries song ids: the reached server's mean nothing here, so each
+   * command would have to be translated on the way out and back
+   * (`useServerSongIds`) — including between two cloud devices, which number
+   * the same songs differently again. It is worth doing and it is its own
+   * piece of work. Settings › Devices already shows the list through the
+   * reached server, which is the part that is only a question.
    */
   const server = fromCloud ? null : connection
   const client = useQueryClient()

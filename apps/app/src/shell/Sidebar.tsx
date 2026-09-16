@@ -80,13 +80,13 @@ const DESTINATIONS: {
   href: '/' | '/import' | '/stats' | '/settings'
   label: string
   Icon: typeof Music
-  /** Needs the server's own tools: a cloud library has none. */
-  server?: boolean
 }[] = [
   { href: '/', label: 'Library', Icon: Music },
-  // A cloud library imports too, through the server when it can be reached.
+  // Import and Stats both need the server itself. A cloud library reaches it by
+  // the addresses in its last sync and says so when it cannot, which is the
+  // page's business — leaving the row out instead said the feature did not exist.
   { href: '/import', label: 'Import', Icon: Download },
-  { href: '/stats', label: 'Stats', Icon: BarChart, server: true },
+  { href: '/stats', label: 'Stats', Icon: BarChart },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -102,7 +102,6 @@ export function Sidebar(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const accent = useAccent()
-  const { fromCloud } = useConnection()
 
   return (
     <View
@@ -128,7 +127,7 @@ export function Sidebar(): ReactNode {
       <SearchRow />
 
       <View accessibilityRole="tablist" style={styles.nav}>
-        {DESTINATIONS.filter(destination => !fromCloud || !destination.server).map(destination => {
+        {DESTINATIONS.map(destination => {
           const active =
             destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href)
           return (
@@ -366,7 +365,6 @@ function Tags(): ReactNode {
   const tags = library?.tags ?? []
   // A pass over the whole library; its answer only changes when the library does.
   const untaggedCount = useMemo(() => (library?.songs ?? []).filter(isUntagged).length, [library])
-  const { fromCloud } = useConnection()
   const trimmed = name.trim()
   const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
   const exact = suggestions.find(match => match.exact)
@@ -467,7 +465,7 @@ function Tags(): ReactNode {
       ) : null}
 
       <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
-        {untaggedCount > 0 && !fromCloud ? (
+        {untaggedCount > 0 ? (
           <Pressable
             onPress={() => router.navigate('/inbox')}
             accessibilityRole="link"

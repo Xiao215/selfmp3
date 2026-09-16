@@ -37,7 +37,10 @@ const COMMAND_PAGE: Partial<Record<PaletteCommandId, (pathname: string) => boole
 }
 
 /**
- * `fromCloud`: a cloud library has no server to count plays on or tag from; its imports wait for one.
+ * `fromCloud`: only for the things a cloud library genuinely cannot do — there
+ * is no library folder to rescan. Stats and the tag inbox are offered: the
+ * inbox needs no server at all, and the Stats page reaches for one and says so
+ * when there is none.
  * `pathname`: the page the palette was opened on, whose own "Go to" is left out.
  */
 export function paletteCommands(
@@ -50,17 +53,9 @@ export function paletteCommands(
     { id: 'nav-library', label: 'Go to Library' },
     { id: 'nav-playlists', label: 'Go to Playlists' },
     { id: 'nav-import', label: 'Import music' },
-    ...(fromCloud ? [] : [{ id: 'nav-stats' as const, label: 'Go to Stats' }]),
+    { id: 'nav-stats', label: 'Go to Stats' },
     { id: 'nav-settings', label: 'Settings' },
-    ...(fromCloud
-      ? []
-      : [
-          {
-            id: 'nav-inbox' as const,
-            label: 'Tag untagged songs',
-            hint: `${untaggedCount} untagged`,
-          },
-        ]),
+    { id: 'nav-inbox', label: 'Tag untagged songs', hint: `${untaggedCount} untagged` },
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
     // Not offered on a bucket library: there is no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),

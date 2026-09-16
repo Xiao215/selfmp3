@@ -9,7 +9,7 @@ import {
   type Reach,
   type ServerConnection,
 } from '@selfmp3/client'
-import { library as cloudLibrary } from '../../replica'
+import { library as cloudLibrary } from '../replica'
 
 /**
  * `/api/health` at one address, within the deadline. It needs no token, and
@@ -32,6 +32,10 @@ async function probe(connection: ServerConnection): Promise<boolean> {
  * Whether the server behind this cloud library can be reached from here, and how
  * (@selfmp3/client reach.ts). Looks again every little while for as long as the
  * screen that asks is open, so a server switched on is found without a tap.
+ *
+ * Shared by every screen that needs the server itself — Import, Stats, a
+ * metadata lookup — rather than living with any one of them: they all ask the
+ * same question, and two of these would probe the same addresses twice.
  */
 export function useServerDirect(): Reach & { readonly lookAgain: () => void } {
   const queryClient = useQueryClient()

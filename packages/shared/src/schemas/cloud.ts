@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
-import { SongSortFieldSchema, SortDirectionSchema } from './common.js'
+import { IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import { PlaylistKindSchema } from './playlist.js'
@@ -214,6 +214,23 @@ export const CloudImportSchema = z.object({
   updatedAt: z.string(),
 })
 export type CloudImport = z.infer<typeof CloudImportSchema>
+
+/**
+ * The uid behind each song id in one library — its half of the translation
+ * between two of them.
+ *
+ * Every device numbers the bucket's songs its own way: the server has its
+ * database's ids, and a device reading the snapshot hands out ids of its own as
+ * uids arrive. So an answer from the server — a play in the stats, a song to
+ * look metadata up for — names a song this device has never heard of under that
+ * number. The uid is the one name both know it by, and this is the table that
+ * turns one side's numbers into the other's. Both answer it: the server from
+ * its database, a cloud library from its snapshot.
+ */
+export const CloudUidsSchema = z.object({
+  songs: z.array(z.object({ id: IdSchema, uid: UidSchema })),
+})
+export type CloudUids = z.infer<typeof CloudUidsSchema>
 
 /**
  * Where the server that writes the snapshots can be reached directly, for what

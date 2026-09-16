@@ -37,11 +37,14 @@ describe('the command palette', () => {
     expect(results.recent).toEqual([])
     expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
     expect(paletteCommands(13, false, 2)[5]?.hint).toBe('2 untagged')
-    // A cloud library has no server to count plays on or tag from; its imports wait for one.
-    expect(paletteCommands(13, true).map(command => command.id)).toContain('nav-import')
-    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-stats')
-    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('nav-inbox')
-    expect(paletteCommands(13, true).map(command => command.id)).not.toContain('rescan-library')
+    // A cloud library keeps every command but the one it truly cannot run:
+    // there is no library folder to rescan. Import and Stats reach for the
+    // server themselves, and the inbox needs none.
+    const cloud = paletteCommands(13, true).map(command => command.id)
+    expect(cloud).toContain('nav-import')
+    expect(cloud).toContain('nav-stats')
+    expect(cloud).toContain('nav-inbox')
+    expect(cloud).not.toContain('rescan-library')
   })
 
   it('leaves out the page it was opened on, until something is typed', () => {

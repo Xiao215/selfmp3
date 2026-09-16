@@ -4,12 +4,17 @@ import type { ServerConnection } from './connection.js'
 /**
  * Finding the server from a device signed in to the cloud, without the screen.
  *
- * Importing is the one thing only the server can do — it runs yt-dlp — and the
- * one thing you want to see before it happens: the songs a link holds, to
- * choose from and to listen to first. Both need the server itself, so a cloud
- * library's Import screen talks to it directly when this device can reach it,
- * and says so plainly when it cannot. The server's addresses come with every
- * snapshot it writes (`CloudServerSchema`), so nothing has to be typed.
+ * A few things only the server can do. It runs yt-dlp, so importing is its —
+ * and so is seeing what a link holds before it is added. It keeps every play
+ * ever recorded, so the stats are its. It asks iTunes and MusicBrainz, so
+ * metadata lookup is its. The bucket holds none of that: a snapshot is the
+ * library as it stands, not the history behind it or the tools beside it.
+ *
+ * So the screens that need it talk to it directly when this device can reach
+ * it, and say so plainly when it cannot — rather than not being drawn at all,
+ * which is what a device has no way of telling apart from a missing feature.
+ * The server's addresses come with every snapshot it writes
+ * (`CloudServerSchema`), so nothing has to be typed.
  */
 
 /** How long one address gets to answer. A server that is on answers in a few ms. */
@@ -64,19 +69,34 @@ export function reachServer(
   })
 }
 
-/** What the screen says when there is no server to import through. */
-export function awayCopy(said: boolean): { title: string; body: string } {
+/**
+ * What a screen needs the server for, in the words of its own away card: the
+ * end of "… goes through your server", and what is lost while it is off.
+ */
+export const SERVER_NEEDS = {
+  import:
+    'Importing goes through your server: it reads the link, plays a song before it is added, and downloads it.',
+  stats:
+    'Stats come from your server: it keeps every play any of your devices has ever recorded, and the bucket carries only the library as it stands.',
+  metadata:
+    'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
+} as const
+
+export type ServerNeed = keyof typeof SERVER_NEEDS
+
+/** What the screen says when there is no server behind what it came to show. */
+export function awayCopy(said: boolean, need: ServerNeed): { title: string; body: string } {
   return said
     ? {
         title: 'Your server isn’t answering',
         body:
-          'Importing goes through your server: it reads the link, plays a song before it is added, and downloads it. ' +
+          `${SERVER_NEEDS[need]} ` +
           'It answers on the same Wi‑Fi, or over Tailscale. Turn it on, or come back within reach — this screen keeps looking.',
       }
     : {
         title: 'Your server hasn’t said where it is',
         body:
-          'Importing goes through your server, and a device finds it by the addresses in its last sync. ' +
+          `${SERVER_NEEDS[need]} A device finds it by the addresses in its last sync. ` +
           'Start the current self.mp3 server and let it sync once — this screen keeps looking.',
       }
 }

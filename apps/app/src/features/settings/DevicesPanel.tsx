@@ -17,11 +17,10 @@ import {
   parseKnownDevices,
   serializeKnownDevices,
 } from '../devices/lastKnownDevices.model'
-import { useServerDirect } from '../import/useServerDirect'
+import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
 import { Lead, Panel, partStyles, Row } from './SettingsParts'
 import { splitDevices } from './settings.model'
-import {} from '../metadata/metadata.model'
 
 /** Whether the device list came from a server just now, is being looked for, or cannot be had. */
 type DevicesReach = 'reachable' | 'looking' | 'away'

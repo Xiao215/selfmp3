@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -10,7 +10,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { radius, withAlpha, useLibrary, useWrapped } from '@selfmp3/client'
+import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { canShareCard, shareWrappedCard } from '../../ports/shareCard'
@@ -23,6 +23,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play, Sparkles } from '../../ui/components/Icons'
 import { SongLine } from '../stats/SongLine'
 import { StatsFrame, type StatsFrameProps } from '../stats/StatsFrame'
+import { useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { longDate, periodOfWrapped, playsLabel, wrappedRangeFor } from '../stats/stats.model'
 import {
   DISCOVERED_SHOWN,
@@ -54,7 +55,10 @@ const CHAPTER_MIN = 330
  * The window is the Stats page's (StatsFrame), and so is the header: sharing
  * the report as an image is an icon in its corner.
  */
-export function ReportTab(frame: StatsFrameProps): ReactNode {
+export function ReportTab({
+  via,
+  ...frame
+}: StatsFrameProps & { via?: ServerConnection }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const backTo = useBackTo()
@@ -62,16 +66,13 @@ export function ReportTab(frame: StatsFrameProps): ReactNode {
   const artFor = useArt()
   const { wide } = useLayout()
   const range = wrappedRangeFor(frame.period)
-  const { data: wrapped, isLoading } = useWrapped(range)
-  const { data: library } = useLibrary()
+  const { data: wrapped, isLoading } = useWrappedFor(via, range)
+  // The report names songs the way whichever library answered numbers them;
+  // this is the same song as this device knows it (statsSource.ts).
+  const songFor = useStatsSongs(via)
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState<string | null>(null)
   const [gridWidth, setGridWidth] = useState(0)
-
-  const songById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
 
   const share = async (): Promise<void> => {
     if (!wrapped) return
@@ -79,7 +80,7 @@ export function ReportTab(frame: StatsFrameProps): ReactNode {
     setShareError(null)
     // The number one's cover, as the page shows it behind the figure and in its card.
     const top = wrapped.topSongs[0]
-    const topSongInLibrary = top ? songById.get(top.songId) : undefined
+    const topSongInLibrary = top ? songFor(top.songId) : undefined
     try {
       await shareWrappedCard(
         wrapped,
@@ -105,7 +106,10 @@ export function ReportTab(frame: StatsFrameProps): ReactNode {
 
   /** Play a list of top entries, the ones still in the library. */
   const playTop = (ids: readonly number[]): void => {
-    const present = ids.filter(id => songById.has(id))
+    const present = ids.flatMap(id => {
+      const song = songFor(id)
+      return song ? [song.id] : []
+    })
     if (present.length > 0) player.playFrom(present, 0)
   }
 
@@ -169,7 +173,7 @@ export function ReportTab(frame: StatsFrameProps): ReactNode {
   }
 
   const topSong = wrapped.topSongs[0]
-  const topInLibrary: Song | undefined = topSong ? songById.get(topSong.songId) : undefined
+  const topInLibrary: Song | undefined = topSong ? songFor(topSong.songId) : undefined
   const heroArt = topInLibrary ? artFor(topInLibrary) : null
   const columns = wide ? Math.max(1, Math.floor((gridWidth + GAP) / (CHAPTER_MIN + GAP))) : 1
   const chapterWidth = gridWidth > 0 && columns > 1 ? (gridWidth - GAP) / 2 : undefined
@@ -277,7 +281,7 @@ export function ReportTab(frame: StatsFrameProps): ReactNode {
           {wrapped.topSongs.map((entry, index) => (
             <SongLine
               key={entry.songId}
-              song={songById.get(entry.songId)}
+              song={songFor(entry.songId)}
               title={entry.title}
               artist={entry.artist}
               rank={index + 1}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { publishRefusedMessage, publishWouldLoseLibrary } from './cloudSnapshot.js'
+import { gzipSync } from 'node:zlib'
+import {
+  publishRefusedMessage,
+  publishWouldLoseLibrary,
+  snapshotSongCount,
+} from './cloudSnapshot.js'
 
 /**
  * The server only ever writes snapshots, and the newest one in the bucket is what
@@ -41,5 +46,49 @@ describe('refusing to publish over a library', () => {
     expect(said).toContain('400')
     expect(said).toContain('13')
     expect(said).toContain('SELFMP3_PUBLISH_ANYWAY')
+  })
+})
+
+/**
+ * Reading the bucket's newest snapshot, which is the half that was missing.
+ *
+ * The rule above was right and unit-tested from the day it was written; the
+ * guard that used it published over a real library anyway, because it could
+ * never read the snapshot it was comparing against. It decompressed every body
+ * it was handed, Node's fetch had already decompressed that body by its
+ * `Content-Encoding`, the throw landed in a catch that meant "never mind", and
+ * a 52-song library was replaced by a 1-song one with nothing said.
+ */
+describe('reading a snapshot back', () => {
+  const snapshot = (count: number): Buffer =>
+    Buffer.from(
+      JSON.stringify({ songs: Array.from({ length: count }, (_, i) => ({ uid: `s${i}` })) }),
+    )
+
+  it('reads one that arrives gzipped, as the bucket stores it', () => {
+    expect(snapshotSongCount(gzipSync(snapshot(52)))).toBe(52)
+  })
+
+  it('reads one that arrives already decoded, as fetch hands it over', () => {
+    expect(snapshotSongCount(snapshot(52))).toBe(52)
+  })
+
+  it('reads an empty library as empty rather than as unreadable', () => {
+    expect(snapshotSongCount(snapshot(0))).toBe(0)
+    expect(snapshotSongCount(gzipSync(snapshot(0)))).toBe(0)
+  })
+
+  it('throws on anything that is not a snapshot, so a caller cannot read it as zero', () => {
+    // Zero would be the dangerous answer: it is exactly the count that lets a
+    // fresh server publish over everything.
+    expect(() => snapshotSongCount(Buffer.from('<html>not your bucket</html>'))).toThrow()
+    expect(() => snapshotSongCount(Buffer.from('{"songs":"lots"}'))).toThrow()
+    expect(() => snapshotSongCount(Buffer.from(''))).toThrow()
+  })
+
+  it('still refuses once the count it reads is compared', () => {
+    // The end-to-end shape of what happened: 52 in the bucket, 1 here.
+    const inBucket = snapshotSongCount(gzipSync(snapshot(52)))
+    expect(publishWouldLoseLibrary(inBucket, 1)).toBe(true)
   })
 })

@@ -656,7 +656,13 @@ describe('CloudSyncService', () => {
     it('keeps its three newest snapshots, and never touches another device’s', async () => {
       const id = addSong('A - One', 'one')
       const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
-      bucket.objects.set(theirs, { body: Buffer.from('{}'), contentType: 'application/json' })
+      // A real snapshot of an empty library, not `{}`. The guard before
+      // publishing reads the newest snapshot now, and one it cannot make sense
+      // of stops it — so a stand-in here has to be a snapshot, not a placeholder.
+      bucket.objects.set(theirs, {
+        body: Buffer.from(JSON.stringify({ songs: [] })),
+        contentType: 'application/json',
+      })
       await connect()
 
       for (const loved of [true, false, true, false, true]) {
@@ -680,6 +686,54 @@ describe('CloudSyncService', () => {
       })
       return theirs
     }
+
+    /**
+     * The same library, handed back the way the real bucket hands it back.
+     *
+     * `MemoryCloudStore` returns the exact bytes it was given, so a snapshot put
+     * gzipped comes back gzipped. The doorman store does not: it reads the body
+     * through Node's fetch, which decompresses by `Content-Encoding` before the
+     * server sees a byte. So in production this guard was always handed plain
+     * JSON, always threw trying to gunzip it, and always took the throw as
+     * "never mind" — which is how a 52-song library was replaced by a 1-song
+     * one on a real bucket. The fake was the only reason the test above passed.
+     */
+    const largerLibraryServedDecoded = (store: MemoryCloudStore): string => {
+      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
+      const songsThere = Array.from({ length: 20 }, (_, index) => ({ uid: String(index) }))
+      store.objects.set(theirs, {
+        body: Buffer.from(JSON.stringify({ songs: songsThere })),
+        contentType: 'application/json',
+        contentEncoding: 'gzip',
+      })
+      return theirs
+    }
+
+    it('refuses just the same when the bucket hands the snapshot back decoded', async () => {
+      addSong('A - One', 'one')
+      const theirs = largerLibraryServedDecoded(bucket)
+      await connect()
+
+      expect(snapshotKeys()).toEqual([theirs])
+      expect(sync.status().lastError).toContain('refused to publish')
+    })
+
+    it('refuses rather than publishing when it cannot read the newest snapshot', async () => {
+      // Not a snapshot at all. "I cannot see the library" must never be taken
+      // as "there is no library": zero is the count that lets this server win.
+      addSong('A - One', 'one')
+      const theirs = snapshotKey(new Date('2026-01-01T00:00:00Z'), 'iphone-0b7d44a1')
+      bucket.objects.set(theirs, {
+        body: Buffer.from('<html>a login page from a proxy</html>'),
+        contentType: 'application/json',
+        contentEncoding: 'gzip',
+      })
+
+      await connect()
+
+      expect(snapshotKeys()).toEqual([theirs])
+      expect(sync.status().lastError).toContain('could not read it')
+    })
 
     it('refuses to publish over a larger library, on every pass, and keeps saying why', async () => {
       addSong('A - One', 'one')

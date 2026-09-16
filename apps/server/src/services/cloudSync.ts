@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { gunzipSync, gzipSync } from 'node:zlib'
+import { gzipSync } from 'node:zlib'
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
@@ -54,7 +54,13 @@ import type { CoverService } from './covers.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
-import { buildSnapshot, publishRefusedMessage, publishWouldLoseLibrary } from './cloudSnapshot.js'
+import {
+  buildSnapshot,
+  publishRefusedMessage,
+  publishUncheckableMessage,
+  publishWouldLoseLibrary,
+  snapshotSongCount,
+} from './cloudSnapshot.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -1042,28 +1048,34 @@ export class CloudSyncService {
    */
   async #refuseToLoseLibrary(store: CloudStore, songsHere: number): Promise<string | null> {
     if (process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') return null
+
+    // Listing is separate from reading on purpose. An empty snapshots folder is
+    // a fact — the bucket has no library — and the ordinary first run. Failing
+    // to list is not that fact, and must not be mistaken for it.
+    let newest: string | null
     try {
-      const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
-      const newest = newestSnapshotKey(keys)
-      if (!newest) return null
-
-      const body = await store.get(newest)
-      if (!body) return null
-      const parsed: unknown = JSON.parse(gunzipSync(body).toString('utf8'))
-      const songs = (parsed as { songs?: unknown }).songs
-      if (!Array.isArray(songs)) return null
-
-      return publishWouldLoseLibrary(songs.length, songsHere)
-        ? publishRefusedMessage(songs.length, songsHere)
-        : null
+      newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
     } catch (error) {
-      // Could not read it. Publishing is still the right default — refusing
-      // here would mean an unreadable bucket stops a healthy server syncing.
-      this.#logger.debug('could not check the bucket before publishing', {
-        message: message(error),
-      })
-      return null
+      return publishUncheckableMessage(`the bucket would not list: ${message(error)}`)
     }
+    if (!newest) return null
+
+    // From here every failure means "there is a library and I cannot see it",
+    // which is the one situation this guard exists for. It used to swallow all
+    // of these and publish, which is how it sat here for its whole life looking
+    // like protection while protecting nothing.
+    let inBucket: number
+    try {
+      const body = await store.get(newest)
+      if (!body) return publishUncheckableMessage('its newest snapshot has gone')
+      inBucket = snapshotSongCount(body)
+    } catch (error) {
+      return publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`)
+    }
+
+    return publishWouldLoseLibrary(inBucket, songsHere)
+      ? publishRefusedMessage(inBucket, songsHere)
+      : null
   }
 
   /** The addresses as the snapshot would carry them now, or null with none to carry. */

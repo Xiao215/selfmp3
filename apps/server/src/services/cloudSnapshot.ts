@@ -1,3 +1,4 @@
+import { gunzipSync } from 'node:zlib'
 import {
   CLOUD_FORMAT,
   CloudSnapshotSchema,
@@ -230,6 +231,40 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
   if (inBucket < GUARD_MIN_SONGS) return false
   if (onThisDevice >= inBucket) return false
   return onThisDevice < inBucket * GUARD_MAX_LOSS
+}
+
+/**
+ * How many songs the bucket's newest snapshot says the library has.
+ *
+ * Snapshots are stored gzipped, and whether they arrive that way is not ours to
+ * decide: Node's fetch decompresses a response by its `Content-Encoding` before
+ * we ever see the bytes, so what comes back may be gzip or may already be JSON.
+ * Deciding by the two magic bytes rather than by what we wrote is the only
+ * reading that holds either way.
+ *
+ * Getting this wrong is what made the guard around it useless for its whole
+ * life: it decompressed unconditionally, threw on already-decoded JSON, and the
+ * caller took the throw as "could not check" and published over the library.
+ *
+ * Throws when the bytes are not a snapshot. That is deliberate — the caller
+ * must treat "cannot read it" as a reason to stop, never as permission.
+ */
+export function snapshotSongCount(body: Buffer): number {
+  const gzipped = body.length > 1 && body[0] === 0x1f && body[1] === 0x8b
+  const text = (gzipped ? gunzipSync(body) : body).toString('utf8')
+  const songs = (JSON.parse(text) as { songs?: unknown }).songs
+  if (!Array.isArray(songs)) throw new Error('a snapshot with no songs array')
+  return songs.length
+}
+
+/** What to tell somebody whose server could not check before publishing. */
+export function publishUncheckableMessage(reason: string): string {
+  return (
+    `refused to publish: there is a library in the bucket and this server could not read it ` +
+    `to see how big it is (${reason}). Publishing blind would replace it on every device. ` +
+    `This usually clears by itself; if it does not, and you are sure this server holds the ` +
+    `library you want everywhere, set SELFMP3_PUBLISH_ANYWAY=1.`
+  )
 }
 
 /** What to tell somebody whose server just declined to publish. */

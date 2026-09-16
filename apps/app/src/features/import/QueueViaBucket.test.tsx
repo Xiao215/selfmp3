@@ -91,7 +91,7 @@ describe('QueueViaBucket', () => {
     await submit()
 
     expect(screen.getByTestId('queue-added')).toBeTruthy()
-    expect(screen.getByTestId('queue-url').props.value).toBe('')
+    expect(screen.getByTestId('queue-url').props['value']).toBe('')
 
     await submit()
     expect(mockRequest).toHaveBeenCalledTimes(1)

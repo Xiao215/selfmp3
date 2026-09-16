@@ -309,9 +309,14 @@ have this song yet.
   Settings already comes through the reached server, because that part is only a question.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
-- **Some things still need the server**: looking metadata up, the stats, searching inside
-  lyrics, and fetching links. The screens that need it reach for it and say so when it is
-  away, rather than hiding — see "Reaching the server for what only it can do" above.
+- **Some things still need the server**: looking metadata up, the stats, and searching inside
+  lyrics. The screens that need it reach for it and say so when it is away, rather than
+  hiding — see "Reaching the server for what only it can do" above.
+- **Importing does not**, though only the server can fetch a link. Near it, the whole import
+  screen works: what a link holds, a song played before it is added, the download. Away from
+  it, the link goes into the bucket with its tags and its playlist, and the server takes it
+  the next time it is awake — rule 6, and the reason a device never has to be anywhere in
+  particular to add a song. What is lost while away is the looking, not the importing.
 - **Space.** 10 GB free is roughly 2,000–2,500 songs.
 
 ---

@@ -6,16 +6,23 @@ import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportScreen } from './ImportScreen'
+import { QueueViaBucket } from './QueueViaBucket'
 
 /**
- * Importing into a cloud library: through the server, when it can be reached.
+ * Importing into a cloud library.
  *
- * The bucket has no yt-dlp, so a link can only be read, listened to and
- * downloaded by the server — and that is the whole import screen, the same one
- * the server shows for itself, pointed at the server directly (@selfmp3/client reach.ts).
- * What it downloads goes up to the bucket as every import does, and this
- * device sees it with the next sync. When no address of the server's answers,
- * there is nothing to import with, and this says so instead.
+ * The bucket has no yt-dlp, so only the server can read a link, play it before
+ * it is added, or download it. When this device can reach it — the addresses
+ * come with every snapshot, so nothing is typed (`reach.ts`) — that is the
+ * whole import screen, pointed straight at it.
+ *
+ * When it cannot, there is still an import. The link goes into the bucket and
+ * the server takes it when it is next awake, which is the rule the whole design
+ * runs on (SYNC.md, rule 6). This screen used to stop here and say to come back
+ * when the server was in reach, which quietly made "you are near your server" a
+ * requirement for adding music — and a device is hardly ever near its server.
+ * So the away card now says what is lost, which is the *looking* rather than
+ * the importing, and the form beneath it adds the song anyway.
  */
 export function ImportViaServer(): ReactNode {
   const { wide } = useLayout()
@@ -31,6 +38,7 @@ export function ImportViaServer(): ReactNode {
           Import
         </Text>
         <ServerAway reach={reach} need="import" testID="import-server" />
+        {reach.state === 'away' ? <QueueViaBucket /> : null}
       </ScrollView>
     </SafeAreaView>
   )

@@ -42,7 +42,7 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
-import type { ImportRequestList } from '@selfmp3/replica'
+import type { CloudImportRequest, ImportRequestList, ImportRequestView } from '@selfmp3/replica'
 
 /**
  * Server state, handled by TanStack Query.
@@ -801,6 +801,31 @@ export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
       query.state.data?.imports.some(item => item.state === 'waiting' || item.state === 'working')
         ? 30_000
         : false,
+  })
+}
+
+/**
+ * Ask the server for a link through the bucket, rather than waiting to be near it.
+ *
+ * The one import path that assumes nothing about where this device is. The
+ * server drains these whenever it is next awake (`cloudImports.process()` on
+ * the server), so a link added from a train is downloaded at home that evening
+ * and arrives here with the sync after it.
+ *
+ * Invalidates the list, not the library: nothing has been imported yet — a row
+ * has been added to the queue that `useCloudImports` draws.
+ */
+export function useRequestCloudImport(): UseMutationResult<
+  ImportRequestView,
+  Error,
+  CloudImportRequest
+> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CloudImportRequest) => clientApi().requestCloudImport(input),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.cloudImports })
+    },
   })
 }
 

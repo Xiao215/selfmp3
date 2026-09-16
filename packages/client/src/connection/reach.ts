@@ -70,33 +70,44 @@ export function reachServer(
 }
 
 /**
- * What a screen needs the server for, in the words of its own away card: the
- * end of "… goes through your server", and what is lost while it is off.
+ * What a screen needs the server for, and what can be done while it is away.
+ *
+ * `needs` is the end of "… goes through your server", and what is lost while it
+ * is off. `meanwhile` is what the screen can still offer — importing has one,
+ * because a link can be left in the bucket for the server to take when it wakes
+ * (SYNC.md, rule 6), and a screen with a way forward should not be telling
+ * anyone to come back later. Stats and metadata have none: the history and the
+ * lookups exist only where the server is, so waiting really is the answer.
  */
 export const SERVER_NEEDS = {
-  import:
-    'Importing goes through your server: it reads the link, plays a song before it is added, and downloads it.',
-  stats:
-    'Stats come from your server: it keeps every play any of your devices has ever recorded, and the bucket carries only the library as it stands.',
-  metadata:
-    'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
+  import: {
+    needs:
+      'Importing goes through your server: it reads the link, plays a song before it is added, and downloads it.',
+    meanwhile:
+      'You can still add a link below — your server downloads it the next time it is awake, and it arrives here with the sync after that.',
+  },
+  stats: {
+    needs:
+      'Stats come from your server: it keeps every play any of your devices has ever recorded, and the bucket carries only the library as it stands.',
+    meanwhile: null,
+  },
+  metadata: {
+    needs:
+      'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
+    meanwhile: null,
+  },
 } as const
 
 export type ServerNeed = keyof typeof SERVER_NEEDS
 
 /** What the screen says when there is no server behind what it came to show. */
 export function awayCopy(said: boolean, need: ServerNeed): { title: string; body: string } {
-  return said
-    ? {
-        title: 'Your server isn’t answering',
-        body:
-          `${SERVER_NEEDS[need]} ` +
-          'It answers on the same Wi‑Fi, or over Tailscale. Turn it on, or come back within reach — this screen keeps looking.',
-      }
-    : {
-        title: 'Your server hasn’t said where it is',
-        body:
-          `${SERVER_NEEDS[need]} A device finds it by the addresses in its last sync. ` +
-          'Start the current self.mp3 server and let it sync once — this screen keeps looking.',
-      }
+  const { needs, meanwhile } = SERVER_NEEDS[need]
+  const waiting = said
+    ? 'It answers on the same Wi‑Fi, or over Tailscale. Turn it on, or come back within reach — this screen keeps looking.'
+    : 'A device finds it by the addresses in its last sync. Start the current self.mp3 server and let it sync once — this screen keeps looking.'
+  return {
+    title: said ? 'Your server isn’t answering' : 'Your server hasn’t said where it is',
+    body: `${needs} ${meanwhile ?? waiting}`,
+  }
 }

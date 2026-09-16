@@ -64,7 +64,10 @@ describe('awayCopy', () => {
   it('tells a server that is off apart from one that never said where it is', () => {
     expect(awayCopy(true, 'import').title).toBe('Your server isn’t answering')
     expect(awayCopy(false, 'import').title).toBe('Your server hasn’t said where it is')
-    expect(awayCopy(false, 'import').body).toContain('sync once')
+    // Import is the exception: there is something to do here, so it says that
+    // rather than telling anyone to go and start their server.
+    expect(awayCopy(false, 'import').body).toContain('add a link below')
+    expect(awayCopy(false, 'stats').body).toContain('sync once')
   })
 
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {

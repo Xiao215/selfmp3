@@ -71,6 +71,16 @@ song bytes stream through it without it holding them.
    `packages/client/src/downloads/recentCopies.ts` and
    `apps/app/src/ports/recentCopies.web.ts`, which hold the songs an installed app kept
    because they were played.
+
+   How a tab does it: the page asks for a song and a cover at addresses of the app's own,
+   `api/stream/<id>` and `api/art/<id>` under the base the build was made for
+   (`apps/app/src/ports/bucketMedia.web.ts`), and the service worker answers them
+   (`apps/app/sw/sw.ts`) — looking the song's bucket key and the doorman session out of
+   IndexedDB and fetching the file with the bearer header no `<audio>` element or `<img>`
+   could have sent. The player's range goes through to the bucket as it is. A phone has
+   nowhere to put that header, so its twin of that port is null and a cloud song is
+   downloaded before it plays; the installed desktop app registers no worker and uses files
+   for the same reason.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The server is special only because it can

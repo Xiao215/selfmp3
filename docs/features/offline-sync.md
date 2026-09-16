@@ -17,6 +17,7 @@ Files:
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
 | Download, prune, storage guard | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
+| Which address a song plays and draws from | `apps/app/src/api/mediaAddress.model.ts`, `apps/app/src/ports/bucketMedia.ts` (+ `.web.ts`), `apps/app/sw/sw.ts` |
 | Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
 | Late plays on the server | `apps/server/src/routes/songs.ts`, `repositories/stats.ts` |
 | Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts` |
@@ -82,6 +83,12 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   (in the ⋯ menu) says what will happen to it.
 - **A browser tab streams** and keeps nothing — it has no Offline music settings at all; the
   installed desktop app downloads the way a phone does (see [desktop-app.md](desktop-app.md)).
+  With the library in the cloud a tab streams from the bucket itself: it asks for
+  `api/stream/<id>` and `api/art/<id>` under the app's own base, and the service worker
+  fetches the file with the doorman's bearer header — which an `<audio>` element and an
+  `<img>` are never given the chance to send — passing the player's range straight through.
+  That is also where a cloud library's covers come from in a tab; before it was wired up,
+  every row drew its letter tile and nothing played at all.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for

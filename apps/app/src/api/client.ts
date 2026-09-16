@@ -59,6 +59,18 @@ export function answerFromCloud(on: boolean): void {
 }
 
 /**
+ * Whether this device answers from the bucket, read outside React.
+ *
+ * `useConnection().fromCloud` is the same fact for anything that renders. The
+ * download queue configures itself from outside the component tree and has no
+ * context to read, and the answer has to be the live one: which library this
+ * device holds can change without the stored server address changing at all.
+ */
+export function answeringFromCloud(): boolean {
+  return current.fromCloud
+}
+
+/**
  * Say which server to talk to, or null when there is none.
  *
  * Not named `useServer`: it is a plain setter, and the `use` prefix would make

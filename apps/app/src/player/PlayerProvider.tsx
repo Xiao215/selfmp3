@@ -43,6 +43,13 @@ import {
   useServerSettings,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
+import {
+  artAddress,
+  serverRoutes,
+  streamAddress,
+  type MediaSources,
+} from '../api/mediaAddress.model'
+import { bucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import {
   coverFor,
@@ -381,15 +388,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // Past songs that cannot play here, so a lookahead never preloads one.
       nextTrackId: () => peekPlayable(queueRef.current, mayPlay),
 
-      streamUrl: songId => {
-        // The local file wins whenever there is one: that is what the download
-        // queue is for, and it is the only thing that plays with no signal.
-        const local = downloadQueue.localUri(songId)
-        if (local) return local
-        const server = connectionRef.current
-        if (!server) return ''
-        return mediaUrlFor(server).stream(songId, songsRef.current.get(songId)?.rev)
-      },
+      streamUrl: songId =>
+        streamAddress(songId, songsRef.current.get(songId)?.rev, {
+          // The local file wins whenever there is one: that is what the
+          // download queue is for, and it is the only thing that plays with no
+          // signal.
+          local: downloadQueue.localUri(songId),
+          ...mediaSources(connectionRef.current, fromCloudRef.current),
+        }),
 
       trackMetadata: songId => {
         const song = songsRef.current.get(songId)
@@ -995,19 +1001,30 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
  * know which is which — which is exactly what foundation 2 forbids — this asks
  * for the method and does nothing when it is not there.
  */
-/** Where the Now Playing card may take a cover from; the server's only for a server library. */
+/**
+ * The addresses this device has for a library's media: the bucket's, through
+ * whatever this platform has that can attach the doorman's header, and the
+ * connected server's. Which of the two answers is the address model's rule.
+ */
+function mediaSources(
+  connection: Parameters<typeof mediaUrlFor>[0] | null,
+  fromCloud: boolean,
+): Omit<MediaSources, 'local'> {
+  return {
+    bucket: bucketMedia,
+    server: connection ? serverRoutes(mediaUrlFor(connection), KEPT_COVER_SIZE) : null,
+    fromCloud,
+  }
+}
+
+/** Where the Now Playing card may take a cover from: a copy here, or this library's address. */
 function artSources(
   kept: string | undefined,
   connection: Parameters<typeof mediaUrlFor>[0] | null,
   fromCloud: boolean,
 ): ArtSources {
-  return {
-    kept,
-    serverArt:
-      !fromCloud && connection
-        ? (songId, rev) => mediaUrlFor(connection).art(songId, rev, KEPT_COVER_SIZE)
-        : null,
-  }
+  const sources = mediaSources(connection, fromCloud)
+  return { kept, remoteArt: (songId, rev) => artAddress(songId, rev, sources) }
 }
 
 /** The phone's engine re-tells the lock screen; the browser's has a media session for that. */

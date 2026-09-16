@@ -8,7 +8,9 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 
-import { mediaUrlFor } from '../api/client'
+import { answeringFromCloud, mediaUrlFor } from '../api/client'
+import { serverRoutes, streamAddress } from '../api/mediaAddress.model'
+import { bucketMedia } from './bucketMedia'
 import { desktop } from './desktop/bridge'
 import { downloadStorage as desktopStorage } from './desktop/downloadStorage.desktop'
 import {
@@ -61,12 +63,33 @@ const cacheStorage: DownloadStorage = {
   resumable: false,
 
   configure(connection: ServerConnection | null, songs: readonly Song[]) {
-    if (!connection) return
-    const media = mediaUrlFor(connection)
+    const server = connection ? serverRoutes(mediaUrlFor(connection)) : null
     const revs = new Map(songs.map(song => [song.id, song.rev]))
-    // The same URL the player asks for, which is what lets the service worker
-    // answer it from the cache without the player knowing a copy exists.
-    configureAudioCache({ streamUrl: songId => media.stream(songId, revs.get(songId)) })
+    /*
+     * The same address the player asks for, which is what lets the service
+     * worker answer it from the cache without the player knowing a copy
+     * exists — and, for a cloud library, what makes downloading possible at
+     * all. There is no server to build an address from there, and this used to
+     * give up on one: `configureAudioCache` was never called, and every
+     * download threw "configureAudioCache() has not been called" from inside
+     * the cache. The worker fetches the bucket's file and the response is kept
+     * under its own address, so playing it afterwards needs no network.
+     *
+     * `local` is null on purpose. A browser's copy *is* the thing this address
+     * reaches; `localUri` returns null here for the same reason.
+     */
+    configureAudioCache({
+      streamUrl: songId =>
+        streamAddress(songId, revs.get(songId), {
+          local: null,
+          bucket: bucketMedia,
+          server,
+          // Read when a song is fetched rather than captured here: whether this
+          // device answers from the bucket can change without the connection
+          // this was configured with changing at all.
+          fromCloud: answeringFromCloud(),
+        }),
+    })
   },
 
   async readIndex() {

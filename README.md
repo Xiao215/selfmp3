@@ -286,7 +286,7 @@ your real collection. Every root script:
 | `npm run dev:api` | The server with reload, on the `dev` profile |
 | `npm run dev:web` | Builds the packages, then the app's web dev server on `:4601` |
 | `npm run dev:desktop` | The desktop app against a dev build |
-| `npm run build` | The packages, the server and the app's web export |
+| `npm run build` | The packages and the server — what `npm start` runs |
 | `npm run build:desktop` | The same web export, packaged as a `.dmg` in `apps/desktop/release/` |
 | `npm start` | Run the built server |
 | `npm run cli -- <command>` | The `selfmp3` CLI: `start`, `scan`, `import`, `backup`, `doctor` |

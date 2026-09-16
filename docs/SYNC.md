@@ -225,6 +225,13 @@ are told apart by whether the row was ever scanned. And it does not verify what 
 the hash in its key: the bucket names files by their SHA-256 and B2 checks the transfer, so this
 would only catch a bucket lying to itself.
 
+**What a scan does to an adopted song: nothing.** A scan marks a song whose file is not there
+missing rather than deleting it — that rule was already there, so that an unplugged drive does not
+cost you a play history — and an adopted song is missing already. A file that lands at its path,
+from the fetching above or dropped in by hand, is matched to it by path and becomes that song, with
+its tags and counts intact. *Settings → Forget missing songs* leaves them alone too: they are a
+library being restored, not a library that is gone.
+
 ### Every device reads the bucket
 
 The app's web export builds for GitHub Pages (under `/selfmp3/`, which the Pages workflow

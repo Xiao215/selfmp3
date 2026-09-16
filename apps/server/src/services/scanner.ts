@@ -224,9 +224,13 @@ export class ScannerService {
    * Deliberately a separate, explicit action rather than something a scan does
    * on its own — losing a play history to a temporarily unmounted drive would
    * be unforgivable.
+   *
+   * Songs taken on from the bucket and still waiting for their audio are
+   * missing too, and are not that. They are the library being restored, not a
+   * library that is gone, so `missingAndForgettable` leaves them out.
    */
   async purgeMissing(): Promise<number> {
-    const rows = this.#songs.all().filter(song => song.missing)
+    const rows = this.#songs.missingAndForgettable()
     for (const song of rows) {
       await this.#covers.delete(song.id)
       await this.#motion?.delete(song.id)

@@ -1107,20 +1107,15 @@ describe('CloudSyncService', () => {
       )
     })
 
-    it('keeps an adopted song through a scan of the library folder', async () => {
-      seedBucket(theirLibrary())
-      await connect()
+    it('keeps an adopted song through a scan, and through forgetting missing songs', async () => {
+      // Adopted directly, so the songs are still waiting for their files when
+      // the scan runs — which is the state being tested, and not one a test
+      // that also let the fetching run could be sure of.
+      const theirs = theirLibrary()
+      for (const song of theirs.songs) cloud.recordFile(song.audio.key, song.audio.size)
+      await adopt.adopt(theirs)
       const before = uidsHere()
 
-      const scanner = new ScannerService({
-        config: { dataDir } as Config,
-        storage: new LocalStorageDriver(root),
-        songs,
-        metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
-        lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
-        covers,
-        logger: createLogger('silent'),
-      })
       await scanner.scan()
 
       // A scan marks a song whose file is not there `missing`; it never deletes
@@ -1128,8 +1123,13 @@ describe('CloudSyncService', () => {
       // — which is what makes it safe to leave one waiting for its audio.
       expect(uidsHere()).toEqual(before)
       expect(songs.all().every(song => song.missing)).toBe(true)
-      await pass()
-      expect(latest().songs).toHaveLength(3)
+
+      // Nor does "forget missing songs" take them. They are missing because
+      // their audio has not been fetched yet, which is a library being
+      // restored and not a library that is gone. Forgetting it would throw
+      // away the songs, their tags and their play history all at once.
+      expect(await scanner.purgeMissing()).toBe(0)
+      expect(uidsHere()).toEqual(before)
     })
 
     it('publishes nothing at all if it could not take the library on first', async () => {

@@ -451,6 +451,37 @@ export class SongRepository {
       )
   }
 
+  /**
+   * Missing songs it is safe to forget for good: the ones whose file this
+   * server really has lost.
+   *
+   * Not every missing song is one of those any more. A server that took the
+   * bucket's library on has a row per song with no file here yet
+   * (services/cloudAdopt.ts) and is in the middle of fetching them; forgetting
+   * those would throw away the library somebody is restoring, and take its
+   * tags and play history with it. They are told apart by `mtime_ms`: a row
+   * that has never been scanned has never had anything but zero there.
+   *
+   * The `cloud_songs` reference is the one place this file looks outside the
+   * songs table, and it is deliberate. An optional dependency wired in from
+   * outside would be a guard somebody could forget to connect, and this one
+   * deletes libraries when it is not there.
+   */
+  missingAndForgettable(): Song[] {
+    return this.#db
+      .prepare<[], SongRow>(
+        `${SONG_SELECT}
+          WHERE s.missing = 1
+            AND NOT (
+              s.mtime_ms = 0
+              AND EXISTS (SELECT 1 FROM cloud_songs c WHERE c.song_id = s.id)
+            )
+          ORDER BY s.id`,
+      )
+      .all()
+      .map(toSong)
+  }
+
   /** Paths of every song currently in the database, for scan reconciliation. */
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#db

@@ -32,9 +32,18 @@ export function createMediaUrl(transport: ApiTransport) {
         ...(size === undefined ? {} : { size: String(size) }),
         ...media(),
       }),
-    /** The live event stream; `deviceId` lets commands be addressed to this tab. */
+    /**
+     * The live event stream; `deviceId` lets commands be addressed to this tab.
+     *
+     * The token rides in the query string here for the same reason it does for
+     * a stream or a cover: `EventSource` cannot be given a header, and neither
+     * can the phone's reader, which is handed a URL and nothing else. Without
+     * it a server with a token accepts the connection and answers 401 — over
+     * and over, because the stream reconnects — which is how presence looked
+     * on every device that carries one.
+     */
     events: (deviceId: string) =>
-      transport.url(`/api/events?deviceId=${encodeURIComponent(deviceId)}`),
+      withParams(transport.url('/api/events'), undefined, { deviceId, ...media() }),
     /**
      * A track on the import review screen, before it is imported.
      *

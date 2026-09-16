@@ -60,6 +60,8 @@ export * from './devices/handoff.js'
 export * from './devices/userAgent.js'
 // The Devices list in Settings: folded, recent first, the rest behind a button.
 export * from './devices/deviceList.js'
+// Song ids across the devices wire, for a device that numbers songs its own way.
+export * from './devices/translate.js'
 
 export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
 

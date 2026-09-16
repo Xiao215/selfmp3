@@ -4,6 +4,8 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { relativeTime, shortDeviceName, space, type } from '@selfmp3/client'
 
+import { ServerAway } from '../../connection/ServerAway'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Popover } from '../../ui/components/Popover'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
@@ -22,6 +24,17 @@ import { useDeviceContext } from './DevicesProvider'
  * device's queue and position over and stops it there; **Play there** pushes
  * this one's over and stops here. Both are `handoffTarget` in
  * `packages/client`, which is why they behave the same on every device.
+ *
+ * An action that cannot work is drawn and disabled rather than left out, and
+ * the row says why — a device playing something this library has no number
+ * for, or a song here that is not in the bucket for any other device to find.
+ * A missing button is indistinguishable from a feature that does not exist;
+ * a greyed one with a reason beside it is an answer.
+ *
+ * With no server in reach there is nothing to list at all, and the same card
+ * every other screen shows says so (`ServerAway`). A bucket cannot hold a
+ * connection between two devices open: this is the one thing here that really
+ * does need the server awake.
  */
 export function DevicesSheet({
   open,
@@ -38,7 +51,10 @@ export function DevicesSheet({
 }): ReactNode {
   const { theme } = useUnistyles()
   const devices = useDeviceContext()
+  const player = usePlayer()
   const { wide } = useLayout()
+  // Something is loaded here, but no other device could be told which song.
+  const unshareable = player.current !== null && !devices.canPlayOn
 
   const list = (
     <>
@@ -50,38 +66,59 @@ export function DevicesSheet({
         <Text style={styles.selfNote}>this device</Text>
       </View>
 
-      {devices.others.length === 0 ? (
+      {devices.reach && devices.reach.state !== 'reachable' ? (
+        <View style={styles.away}>
+          <ServerAway reach={devices.reach} need="devices" testID="devices-server" />
+        </View>
+      ) : devices.others.length === 0 ? (
         <Text style={styles.empty}>
           {devices.connected
             ? 'Nothing else is signed in right now.'
             : 'Looking for your other devices…'}
         </Text>
       ) : (
-        devices.others.map(device => (
-          <View key={device.id} testID={`device-${device.id}`}>
-            <SheetItem
-              icon={<Remote size={16} color={theme.colors.textSecondary} />}
-              label={shortDeviceName(device.name)}
-              detail={
-                device.state.playing
-                  ? 'Playing now'
-                  : `Last seen ${relativeTime(device.lastSeenAt)}`
-              }
-              onPress={() => {
-                devices.playHere(device)
-                onClose()
-              }}
-            />
-            <SheetItem
-              label="Play there instead"
-              onPress={() => {
-                devices.playOn(device)
-                onClose()
-              }}
-            />
-          </View>
-        ))
+        devices.others.map(device => {
+          // Blank after translation: it is playing a song this library has no
+          // number for, so there is nothing here that could be taken over.
+          const named = device.state.songId !== null
+          return (
+            <View key={device.id} testID={`device-${device.id}`}>
+              <SheetItem
+                icon={<Remote size={16} color={theme.colors.textSecondary} />}
+                label={shortDeviceName(device.name)}
+                detail={
+                  !named
+                    ? device.state.playing
+                      ? 'Playing something not in your bucket'
+                      : `Nothing loaded · ${relativeTime(device.lastSeenAt)}`
+                    : device.state.playing
+                      ? 'Playing now'
+                      : `Last seen ${relativeTime(device.lastSeenAt)}`
+                }
+                disabled={!named}
+                onPress={() => {
+                  devices.playHere(device)
+                  onClose()
+                }}
+              />
+              <SheetItem
+                label="Play there instead"
+                disabled={!devices.canPlayOn}
+                onPress={() => {
+                  devices.playOn(device)
+                  onClose()
+                }}
+              />
+            </View>
+          )
+        })
       )}
+
+      {unshareable && devices.others.length > 0 ? (
+        <Text style={styles.empty}>
+          This song isn’t in your bucket yet, so no other device can find it.
+        </Text>
+      ) : null}
     </>
   )
 
@@ -125,6 +162,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
+  away: { paddingHorizontal: space.md, paddingBottom: space.sm },
   empty: {
     color: theme.colors.textMuted,
     fontSize: type.small,

@@ -275,6 +275,7 @@ Stats, the metadata lookup and the untagged inbox all looked like for months.
 | Stats (Overview and Report) | every play ever recorded | says so, keeps looking |
 | Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
+| Devices, handoff, remote control | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
 | Untagged | *nothing* — it is a pass over the library, and tagging is an ordinary edit | always works |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers
@@ -290,6 +291,41 @@ metadata correction would land on the wrong song.
 A song only one side has simply has no translation, which is the honest answer: the cover
 is left off the line and it does not play, and the metadata dialog says the server does not
 have this song yet.
+
+### Presence from a cloud library
+
+Every other screen asks the server a question and is done. Presence is not a question: it is
+a heartbeat every ten seconds and a stream held open for as long as the app runs. Two things
+had to be decided for a cloud library to take part in it.
+
+**How hard to look, and for how long.** Looking is the expensive half — a connection opened
+to every address the server named at once, each held until it times out, for a server that
+with a cloud library is usually away. Holding is the cheap half: one idle socket and a small
+POST six times a minute. So they get different answers. A device looks only while it is in
+use — in the foreground, or playing, in which case it is awake anyway — and once a minute
+rather than three times, and not at all while the stream is up, because a stream that is
+open is a better liveness signal than a probe and a free one. A stream that is already open
+is never dropped for the app being in the background: the whole point of "play on my phone"
+is a phone nobody is looking at. (On a phone the OS suspends a backgrounded app that is not
+playing regardless, which stops the beats without anyone deciding to; this only declines to
+go hunting again until the app is back.) `apps/app/src/features/devices/usePresenceServer.ts`
+is that decision, written down.
+
+**Whose numbers travel.** A handoff carries song ids, and a cloud device numbers songs its
+own way — the same song is 47 on a phone, 812 on the server and 3 on a laptop that synced in
+a different order. **The wire speaks the server's numbering.** A cloud device translates into
+it on the way out and back on the way in, through the same uid table the stats use; a device
+talking to its own server translates nothing, because its ids already are the server's. Two
+cloud devices therefore agree without either knowing the other exists: both pass through the
+same third numbering.
+
+A song that cannot be translated is never guessed at. A state whose song the other side has
+never been given is blanked — the device is still there, still playing, it just cannot say
+what — and a command that cannot be expressed is refused rather than sent, because a handoff
+that lands on the *wrong* song is silent and there is no version of that better than doing
+nothing. The sheet draws those rows disabled with the reason beside them.
+`packages/client/src/devices/translate.ts`, and its test walks a handoff between three
+libraries that deliberately number different songs the same.
 
 ---
 
@@ -307,14 +343,13 @@ have this song yet.
 
 ## What this gives up
 
-- **Handoff and remote control** need a live connection between devices, which a bucket
-  cannot provide. They keep working when the server is reachable over Tailscale, as today.
-  A cloud library does *not* take part, even where it could reach the server: presence is a
-  heartbeat every ten seconds and a stream held open for as long as the app runs — not a
-  question asked by one screen — and a handoff carries song ids, which would have to be
-  translated on the way out and back, including between two cloud devices that number the
-  same songs differently again. Worth doing; its own piece of work. The device *list* in
-  Settings already comes through the reached server, because that part is only a question.
+- **Handoff and remote control still need the server awake.** A bucket cannot hold a
+  connection open between two devices, so this is the one thing a cloud library cannot do
+  from the bucket alone. What it *can* do is find the server the way every other screen
+  does and hold presence against it — see "Presence from a cloud library" below — so a
+  phone and a laptop that both read the bucket hand playback to each other whenever the
+  server is within reach. When it is not, the devices sheet says so rather than listing
+  nothing forever.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
 - **Some things still need the server**: looking metadata up, the stats, and searching inside
@@ -392,5 +427,6 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | Stats and the Report through the reached server | `apps/app/src/features/stats/StatsViaServer.tsx`, `statsSource.ts` |
 | Fixing metadata through the reached server | `apps/app/src/features/metadata/FixMetadata.tsx`, `metadataSource.ts` |
 | Lining the two libraries' song ids up by uid | `packages/client/src/connection/serverIds.ts`, `apps/app/src/connection/useServerSongIds.ts`; `GET /api/cloud/uids` in `apps/server/src/routes/cloud.ts` and `packages/replica/src/routes.ts` |
+| Presence, handoff and remote control from a cloud library | `apps/app/src/features/devices/usePresenceServer.ts`, `DevicesProvider.tsx`, `DevicesSheet.tsx`; `packages/client/src/devices/translate.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `packages/replica/src/edits.test.ts`, `apps/doorman/src/*.test.ts` |

@@ -142,11 +142,13 @@ apps/server/src/routes/devices.ts        /api/devices, /command, /events
 packages/client/src/devices/handoff.ts   state → playable queue/index/position
 packages/client/src/devices/deviceList.ts   the list as the sheet shows it
 packages/client/src/devices/userAgent.ts    a name guessed from the user agent
+packages/client/src/devices/translate.ts    song ids across the wire, and what is refused
 
 apps/app/src/ports/device.ts             this device's id and name (+ .web.ts)
 apps/app/src/ports/events.ts             the event stream, parsed through the schema
                                          (.web.ts: EventSource; native: an SSE reader)
 apps/app/src/features/devices/DevicesProvider.tsx  heartbeats in, events out, commands executed locally
+apps/app/src/features/devices/usePresenceServer.ts which server presence talks to, and how hard it looks
 apps/app/src/features/devices/DevicesSheet.tsx     the list and its actions
 apps/app/src/features/devices/ResumeToast.tsx      "continue from your phone"
 apps/app/src/features/settings/SettingsScreen.tsx  the Settings panel
@@ -156,6 +158,70 @@ The provider sits *inside* `PlayerProvider`, not around it. That is what keeps
 the player itself free of any of this: presence reads it through `usePlayer()`,
 commands call back into it, and the player never learns that other devices
 exist.
+
+---
+
+## When the library is the bucket's
+
+The server is the switchboard, and it is the only thing that can be: plain
+storage cannot hold a connection open between two devices. So a device signed
+in to the cloud (docs/SYNC.md) still needs the server awake for this one
+feature — but it no longer sits it out. It finds the server by the addresses in
+the last snapshot, the same way Import and Stats do
+(`packages/client/src/connection/reach.ts`), and heartbeats and streams against
+whichever address answers. Nothing is typed, and nothing is configured.
+
+**When it is away** the devices sheet draws the same card every other screen
+draws (`ServerAway`, `SERVER_NEEDS.devices`) and keeps looking. An empty list
+that never fills is indistinguishable from a feature that does not exist.
+
+**How hard it looks** is `usePresenceServer`, and the reasoning is written out
+there. In short: looking is the expensive half and holding is the cheap half,
+so a device looks only while it is in use — foreground, or playing — once a
+minute rather than the twenty seconds a watched screen gets, and not at all
+while the stream is up. A stream already open is never dropped for the app
+being in the background, because being findable while nobody is looking is the
+entire point.
+
+### Whose numbers travel
+
+A heartbeat and a `playSong` both carry song ids, and a cloud library hands out
+ids of its own as uids arrive from the bucket. The same song is 47 on a phone,
+812 on the server and 3 on a laptop that synced in a different order.
+
+**The wire speaks the server's numbering.** A cloud device translates into it
+on the way out and back on the way in
+(`packages/client/src/devices/translate.ts`, through the uid table both sides
+answer at `/api/cloud/uids`); a device talking to its own server translates
+nothing, because its ids already are the server's. Two cloud devices therefore
+agree without either knowing the other exists — both pass through the same
+third numbering.
+
+**A song that cannot be translated is never guessed at.** This is the rule the
+module exists for: a handoff that lands on the wrong song works, plays, and is
+wrong, and nobody would ever find out why.
+
+| Case | What happens |
+|---|---|
+| The song is not in both libraries | The state is blanked: the device is still listed, still marked playing, and the row says it is playing something not in your bucket. The handoff is offered but disabled. |
+| A queue entry is not in both | Dropped from the queue that travels. The index moves with it, so a queue holding the same song twice still resumes on the copy it was on. |
+| A `playSong` whose song cannot be translated | Refused: nothing is sent, and "play there" does not pause this device either. |
+| The two lists have not arrived yet | The same as untranslatable, so nothing goes out until they have. A beat sent in the meantime says "here, playing something I cannot name". |
+| `queueIndex` and `songId` disagree | `songId` wins, always — in `handoffTarget` and in the command executor alike. A song the queue does not contain plays alone rather than at whatever sits at that position. |
+
+`translate.test.ts` walks a handoff between three libraries that deliberately
+number *different* songs the same, and asserts the uid that comes out the far
+end is the uid that went in.
+
+### One thing to set up, for a browser
+
+A phone or the desktop app sends no `Origin`, so nothing stands between them
+and the server. The published web app is a browser page on another origin, so
+the server has to be told to accept it: `SELFMP3_CORS_ORIGINS` must list the
+address the app is served from (`https://<you>.github.io`). Without it presence
+fails the same way Stats and the Settings device list already do from a browser
+— this adds no new setting, it just adds one more thing that wants the one that
+is already there.
 
 ---
 
@@ -181,7 +247,9 @@ Forgetting one by hand in Settings is immediate — but a device that is still
 open re-registers itself within ten seconds.
 
 **No new settings or environment variables.** The feature is always on and costs
-one table and one open connection per device.
+one table and one open connection per device. A browser reading the bucket is
+the one exception, and it is not a new setting: see `SELFMP3_CORS_ORIGINS`
+above.
 
 **A cloud library does not take part — on purpose.** Import, Stats and the
 metadata lookup all reach the server by the addresses in its last snapshot when

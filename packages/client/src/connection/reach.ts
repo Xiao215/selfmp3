@@ -23,6 +23,23 @@ export const PROBE_TIMEOUT_MS = 3_000
 /** How often the screen looks again, whether the server was found or not. */
 export const LOOK_AGAIN_MS = 20_000
 
+/**
+ * How often presence looks again, which is a great deal less often.
+ *
+ * A screen is being watched: someone has it open, waiting for their stats or
+ * their import to appear, and twenty seconds is about as long as that is
+ * bearable. Presence is not watched by anyone — it runs for as long as the app
+ * does — and a look costs a parallel connection to every address the server
+ * named, each held open until it gives up. Doing that three times a minute all
+ * day, on a phone, for a server that is away (which for a cloud library is the
+ * ordinary case) is not a cost anybody agreed to. Once a minute finds a server
+ * switched on soon enough for a handoff nobody has asked for yet.
+ *
+ * While the event stream is up it looks not at all: the stream *is* the
+ * liveness signal, and its closing is what starts the looking again.
+ */
+export const PRESENCE_LOOK_AGAIN_MS = 60_000
+
 export type Reach =
   | { readonly state: 'looking' }
   | { readonly state: 'reachable'; readonly connection: ServerConnection }
@@ -94,6 +111,11 @@ export const SERVER_NEEDS = {
   metadata: {
     needs:
       'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
+    meanwhile: null,
+  },
+  devices: {
+    needs:
+      'Your devices find each other through your server: it is the switchboard that carries a handoff from one to the other, and a storage bucket cannot hold a connection open between them.',
     meanwhile: null,
   },
 } as const

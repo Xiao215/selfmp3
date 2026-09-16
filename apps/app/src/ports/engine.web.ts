@@ -31,8 +31,6 @@ import type {
  * subscribes to changes instead.
  */
 
-export type RepeatMode = 'off' | 'all' | 'one'
-
 export interface EngineState {
   readonly playing: boolean
   readonly currentTime: number
@@ -84,7 +82,7 @@ const LOOP_TICK_MS = 30
 /** A loop shorter than this is a click, not a phrase. */
 const MIN_LOOP_SECONDS = 0.5
 
-export class AudioEngine implements PlaybackEngine {
+class AudioEngine implements PlaybackEngine {
   /**
    * What a browser can do, which is most of it.
    *
@@ -530,12 +528,12 @@ export class AudioEngine implements PlaybackEngine {
   /*
    * The outgoing song running out mid-crossfade is not a pause.
    *
-   * During a fade the listeners are on the element that is *ending*: it reaches
-   * its own end, fires `pause`, and this used to report the player as paused
-   * while the next song was already audible. Nothing put it right afterwards
-   * either — the incoming element started playing before it was attached, so
-   * its `play` event had already been and gone. The bar showed a play button
-   * over a song that was playing, and pressing it paused the music.
+   * During a fade the listeners are on the element that is *ending*: it
+   * reaches its own end and fires `pause` while the next song is already
+   * audible. Reporting that as a pause is not put right afterwards either —
+   * the incoming element starts playing before it is attached, so its `play`
+   * event has already been and gone, leaving a play button over a song that is
+   * playing.
    */
   readonly #onPause = (): void => {
     if (this.#fadeTimer !== null && !this.#secondary.paused) return
@@ -741,31 +739,26 @@ function once(target: EventTarget, event: string, timeoutMs: number): Promise<vo
   })
 }
 
-/*
- * The point of the move: does the engine that has been playing music for a
- * year actually satisfy the interface written for it?
- *
- * A type error here means the port is wrong, not the engine. That is the whole
- * value of asserting it — an interface derived from a file can still drift from
- * it by a return type or an optional argument, and the drift would otherwise
- * surface when the shared PlayerProvider is written against it, which is much
- * later and much more expensive.
- */
 /**
- * The engine this platform uses — see the note on `engine.ts`. Also the
- * conformance proof the port was derived under, now paid for only when an
- * engine is actually wanted rather than at import time: the old
- * `const _conforms = new AudioEngine()` built two `<audio>` elements in every
- * bundle that so much as mentioned this file.
+ * Does this engine satisfy the interface written for it? A type error here
+ * means the port is wrong, not the engine.
+ *
+ * Asserted as a type rather than an instance: constructing one builds two
+ * `<audio>` elements and attaches their listeners, and at module scope that
+ * happens in every bundle that so much as mentions this file.
+ */
+const _conforms: PlaybackEngine = null as unknown as AudioEngine
+void _conforms
+
+/** The port's `EngineState` is this engine's, which is the other half of it. */
+const _stateConforms: PortEngineState = null as unknown as AudioEngine['state']
+void _stateConforms
+
+/**
+ * The engine this platform uses. Call sites import this and never a class, so
+ * that swapping one for the other is a resolution detail rather than a change
+ * anybody has to make.
  */
 export function createEngine(): PlaybackEngine {
   return new AudioEngine()
 }
-
-const _conforms: PlaybackEngine = null as unknown as AudioEngine
-void _conforms
-void _conforms
-
-/** The port's `EngineState` is this engine's, which is the other half of it. */
-const _stateConforms: PortEngineState = new AudioEngine().state
-void _stateConforms

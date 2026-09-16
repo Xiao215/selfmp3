@@ -271,8 +271,13 @@ For the `s3` driver, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
 (and optionally `SELFMP3_S3_SIGNED_URL_TTL`, in seconds). That is the server's own storage;
 the bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
 
-Day-to-day behaviour — crossfade, the watched folder, YouTube cookies, romanization — lives
-in the app's Settings rather than in the environment, so every device agrees on it.
+Day-to-day behaviour — crossfade, the watched folder, romanization — lives in the app's
+Settings rather than in the environment, so every device agrees on it.
+
+Five of the server's settings have no screen yet, so they sit at their defaults unless the
+database is edited by hand: the YouTube cookie source and cookie file, the tags added to
+every import, the automatic rescan interval, and the fraction of a song that counts as a
+play. The server reads all five; nothing writes them.
 
 ---
 

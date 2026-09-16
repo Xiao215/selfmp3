@@ -150,7 +150,7 @@ Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog 
 above it.
 
 **Motion.** Transitions are 100–220ms (`motion` in `tokens.ts`) and ease out. With Reduce
-Motion on (`shell/useReducedMotion.ts`) the one-shot movements are instant. Looping
+Motion on (`ui/useReducedMotion.ts`) the one-shot movements are instant. Looping
 indicators — the spinner, the equalizer — are left alone, because they are saying that
 something is still happening.
 

@@ -12,7 +12,7 @@ import {
 } from '@selfmp3/client'
 
 import { api, mediaUrlFor } from '../api/client'
-import { cloudPlatform, session as cloudSession } from '../replica'
+import { sourceFor } from './songSource'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
 import { writeCachedLyrics } from '../offline/lyricsCache'
 import { writeCachedMotion } from '../offline/motionCache'
@@ -42,26 +42,6 @@ function indexFile(): File {
 }
 
 let connection: ServerConnection | null = null
-
-/**
- * Where a song's bytes come from.
- *
- * The bucket, through the doorman, when this device is signed in — with a
- * header, since that is all the doorman reads, and `song.path` is already the
- * key there. Otherwise a server, where the token has to ride in the query string:
- * the same URL is handed to the OS audio player, which cannot attach headers.
- */
-async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<string, string> }> {
-  const signedIn = await cloudSession.loadSession().catch(() => null)
-  if (signedIn) {
-    return {
-      url: `${cloudPlatform.doormanUrl}/v1/files/${song.path}`,
-      headers: { Authorization: `Bearer ${signedIn.token}` },
-    }
-  }
-  if (!connection) throw new Error('no server, and not signed in to the cloud')
-  return { url: mediaUrlFor(connection).stream(song.id) }
-}
 
 /** A song's words onto this device, or nothing when it has none. Throws when the server could not be asked. */
 async function keepLyrics(song: Song): Promise<void> {
@@ -112,7 +92,7 @@ function transferFor(
       await keepLyrics(song)
       // Beside the words, but never in the way of the file.
       void keepMotion(song)
-      const from = await sourceFor(song)
+      const from = await sourceFor(song, connection)
       // Called off while the source was being worked out.
       if (cancelled) throw new Error('cancelled')
 

@@ -5,7 +5,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { canHearMusic } from '../../ports/liveAudio'
 import { chooseSampler, type MotionCurveLike, type MotionSampler } from './motionSource'
 import { debugCurve } from './visualDebug'
-import { useReducedMotion } from './useReducedMotion'
+import { useReducedMotion } from '../../ui/useReducedMotion'
 import { visualFeel } from './visuals.model'
 
 /**

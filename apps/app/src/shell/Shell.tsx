@@ -19,18 +19,13 @@ import { Sidebar } from './Sidebar'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout } from './useLayout'
-import { useReducedMotion } from './useReducedMotion'
+import { useReducedMotion } from '../ui/useReducedMotion'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { ContentWidthContext } from './contentWidth'
 import { setPaletteOpen, usePaletteOpen } from './palette'
-import {
-  practiceOpen,
-  setPracticeOpen,
-  usePracticeOpen,
-  usePracticeSection,
-} from './practicePanel'
+import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
 
 /**
  * The frame around every screen, and the only thing that knows the width.

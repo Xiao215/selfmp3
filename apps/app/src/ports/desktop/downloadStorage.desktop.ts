@@ -9,8 +9,7 @@ import {
   type TransferProgress,
 } from '@selfmp3/client'
 
-import { mediaUrlFor } from '../../api/client'
-import { cloudPlatform, session as cloudSession } from '../../replica'
+import { sourceFor } from '../songSource'
 import { desktop } from './bridge'
 
 /**
@@ -38,26 +37,6 @@ let connection: ServerConnection | null = null
 /** A transfer id the shell can be told to cancel. */
 let nextId = 0
 
-/**
- * Where a song's bytes come from: the phone's rule, unchanged.
- *
- * The bucket through the doorman when this device is signed in, with a bearer
- * header — the doorman reads nothing else, and `song.path` is already the key.
- * Otherwise a server, where the token rides in the query string because the same
- * URL is handed to the player.
- */
-async function sourceFor(song: Song): Promise<{ url: string; headers?: Record<string, string> }> {
-  const signedIn = await cloudSession.loadSession().catch(() => null)
-  if (signedIn) {
-    return {
-      url: `${cloudPlatform.doormanUrl}/v1/files/${song.path}`,
-      headers: { Authorization: `Bearer ${signedIn.token}` },
-    }
-  }
-  if (!connection) throw new Error('no server, and not signed in to the cloud')
-  return { url: mediaUrlFor(connection).stream(song.id) }
-}
-
 function transferFor(
   song: Song,
   onProgress: (progress: TransferProgress) => void,
@@ -72,7 +51,7 @@ function transferFor(
   return {
     async run() {
       if (cancelled) throw new Error('cancelled')
-      const from = await sourceFor(song)
+      const from = await sourceFor(song, connection)
       if (cancelled) throw new Error('cancelled')
 
       const stop = bridge.onProgress(progress => {

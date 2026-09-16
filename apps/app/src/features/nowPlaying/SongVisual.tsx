@@ -2,16 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, StyleSheet, View } from 'react-native'
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
-import { hueFromString, type Song } from '@selfmp3/shared'
+import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource'
-import { useReducedMotion } from './useReducedMotion'
+import { useReducedMotion } from '../../ui/useReducedMotion'
+import { useVisualLook } from './useVisualLook'
 import {
   AURORA_INKS,
   auroraBrightness,
   createMotionState,
   MAX_RINGS,
-  motionTuning,
   PlayheadClock,
   ringFade,
   ringReach,
@@ -20,7 +20,7 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { driftReach, rgbCss, visualColors, visualFeel, type VisualColors, type VisualKind } from './visuals.model'
+import { driftReach, rgbCss, type VisualColors, type VisualKind } from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
@@ -50,26 +50,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   const player = usePlayer()
   const reduced = useReducedMotion()
   const [size, setSize] = useState<Size | null>(null)
-  const colors = useMemo(
-    () =>
-      visualColors(
-        song.coverTone?.hue ?? hueFromString(song.album || song.title),
-        song.audioFeatures?.camelot,
-        song.coverTone?.palette,
-      ),
-    [
-      song.coverTone?.hue,
-      song.coverTone?.palette,
-      song.album,
-      song.title,
-      song.audioFeatures?.camelot,
-    ],
-  )
-  const bpmKnown = song.audioFeatures?.bpm != null
-  const tuning = useMemo(
-    () => motionTuning(visualFeel(song.audioFeatures), bpmKnown),
-    [song.audioFeatures, bpmKnown],
-  )
+  const { colors, tuning } = useVisualLook(song)
   const [channels] = useState(makeChannels)
   const [clock] = useState(() => new PlayheadClock())
   const [middle, edge] = colors.ground
@@ -185,18 +166,27 @@ function makeChannels(): Channels {
       y: value(),
       scale: value(1),
     })),
-    rings: Array.from({ length: MAX_RINGS }, () => ({ scale: value(0.02), opacity: value(), width: value(2) })),
+    rings: Array.from({ length: MAX_RINGS }, () => ({
+      scale: value(0.02),
+      opacity: value(),
+      width: value(2),
+    })),
     ringIds: Array.from({ length: MAX_RINGS }, () => -1),
     dot: value(1),
     halo: value(),
     bars: Array.from({ length: BARS }, () => value(0.03)),
-    orbits: Array.from({ length: DRIFT_RINGS }, () => ({ turn: value(), scale: value(1), opacity: value(0.5) })),
+    orbits: Array.from({ length: DRIFT_RINGS }, () => ({
+      turn: value(),
+      scale: value(1),
+      opacity: value(0.5),
+    })),
     settled: false,
   }
 }
 
 function isSettled(m: MotionState): boolean {
-  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.burst > 0.002 || m.rings.length > 0) return false
+  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.burst > 0.002 || m.rings.length > 0)
+    return false
   for (const band of m.bands) if (band > 0.002) return false
   return true
 }
@@ -369,7 +359,12 @@ function Spectrum({ size, colors, channels }: StyleProps): ReactNode {
 }
 
 /* Specks orbiting the centre: faster the louder it is, thrown outward on a hit. */
-function Drift({ size, colors, channels, tuning }: StyleProps & { tuning: MotionTuning }): ReactNode {
+function Drift({
+  size,
+  colors,
+  channels,
+  tuning,
+}: StyleProps & { tuning: MotionTuning }): ReactNode {
   const base = Math.min(size.width, size.height)
   const reach = driftReach(tuning.feel.energy)
   const turns = useMemo(
@@ -391,7 +386,10 @@ function Drift({ size, colors, channels, tuning }: StyleProps & { tuning: Motion
             key={ring}
             style={[
               styles.fill,
-              { opacity: orbit.opacity, transform: [{ rotate: turns[ring]! }, { scale: orbit.scale }] },
+              {
+                opacity: orbit.opacity,
+                transform: [{ rotate: turns[ring]! }, { scale: orbit.scale }],
+              },
             ]}
           >
             {Array.from({ length: SPECKS_PER_RING }, (_, index) => {

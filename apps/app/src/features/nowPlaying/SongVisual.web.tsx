@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { Rgb } from '@selfmp3/client'
-import { hueFromString, type Song } from '@selfmp3/shared'
+import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource'
-import { useReducedMotion } from './useReducedMotion'
+import { useReducedMotion } from '../../ui/useReducedMotion'
+import { useVisualLook } from './useVisualLook'
 import { recordVisualFrame } from './visualDebug'
 import {
   AURORA_INKS,
   auroraBrightness,
   createMotionState,
-  motionTuning,
   resizeBands,
   ringFade,
   ringReach,
@@ -19,14 +19,7 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import {
-  driftReach,
-  rgbCss,
-  visualColors,
-  visualFeel,
-  type VisualColors,
-  type VisualKind,
-} from './visuals.model'
+import { driftReach, rgbCss, type VisualColors, type VisualKind } from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
@@ -52,26 +45,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   const player = usePlayer()
   const reduced = useReducedMotion()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const colors = useMemo(
-    () =>
-      visualColors(
-        song.coverTone?.hue ?? hueFromString(song.album || song.title),
-        song.audioFeatures?.camelot,
-        song.coverTone?.palette,
-      ),
-    [
-      song.coverTone?.hue,
-      song.coverTone?.palette,
-      song.album,
-      song.title,
-      song.audioFeatures?.camelot,
-    ],
-  )
-  const bpmKnown = song.audioFeatures?.bpm != null
-  const tuning = useMemo(
-    () => motionTuning(visualFeel(song.audioFeatures), bpmKnown),
-    [song.audioFeatures, bpmKnown],
-  )
+  const { colors, tuning } = useVisualLook(song)
 
   const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id })
   useEffect(() => {
@@ -154,7 +128,14 @@ function spectrumBars(width: number): number {
 
 type Ctx = CanvasRenderingContext2D
 
-type Drawing = (ctx: Ctx, w: number, h: number, c: VisualColors, tu: MotionTuning, m: MotionState) => void
+type Drawing = (
+  ctx: Ctx,
+  w: number,
+  h: number,
+  c: VisualColors,
+  tu: MotionTuning,
+  m: MotionState,
+) => void
 
 function draw(
   kind: VisualKind,

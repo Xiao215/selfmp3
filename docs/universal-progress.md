@@ -4650,3 +4650,50 @@ anything.
 The badge and the notice are checked from inside the worker: the spec reads
 `chrome.action.getBadgeText`, and wraps `chrome.notifications.create` before the
 import so it can read back what was announced.
+
+## Phase 4 — the pill on YouTube — branch `extension/phase-4`
+
+B1: a pill in the page itself, on youtube.com, m.youtube.com and YouTube Music,
+so importing the song you are listening to is one press without opening
+anything.
+
+### What changed
+
+- **`src/content/`**: `anchors.ts` (where it goes, first *visible* match wins),
+  `pill.ts` (one element, closed shadow root, inline layout so YouTube's CSS
+  cannot stretch it) and `youtube.ts` (when to look again).
+- **The page's kind comes from the address**, so only a watch page gets a pill,
+  and the video id is read from the address at click time — for about a second
+  after an in-page navigation the row still belongs to the last video.
+- **When to look again**: the Navigation API's `currententrychange` (all three
+  sites, Back included), `yt-navigate-finish` on www as a second chance, and a
+  `MutationObserver` debounced to 200 ms — which is what puts the pill back when
+  YouTube redraws its button row a second after each navigation. At most five
+  repairs per address, because below ~600 px YouTube Music has no player bar and
+  an uncapped observer looped four times a second.
+- **A second, much narrower channel** (`servePage` in `bridge.ts`,
+  `background/pill.ts`). The popup's bridge still refuses content scripts: they
+  run inside youtube.com and are treated as that. All a page can do is hand over
+  a link and be told what to draw.
+
+### Two decisions worth the words
+
+- **No zod in the content script.** It is injected into every YouTube page, and
+  the worker is the side that validates what arrives from a page anyway. The
+  bundle is 196 KB; with the schema library it would have been about 60 KB more
+  for nothing.
+- **Undo is not built.** The pill's label offered "Added · Undo" while nothing
+  was wired to it — noticed on reading the green run rather than from a failure.
+  It now says "Added" and stops being pressable once the song is yours.
+
+### The gates
+
+`npm run build:extension`, `npm run typecheck`, `npm run lint`,
+`npx vitest run apps/extension` (11 files, 60 tests, the anchor fixtures under
+jsdom), `npm run verify:extension` (13 specs), `npm run test` (185 files, 1774
+passed, 1 skipped) and `npm run check:app`.
+
+One failure worth recording: the redraw spec expected "In library" on a video
+the spec before it had just imported. The pill was right — a finished job reads
+as "added" — and the expectation was wrong; the test now uses a video nothing
+has been done to.

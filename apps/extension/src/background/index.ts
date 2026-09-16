@@ -1,6 +1,7 @@
 import type { Handlers } from '../bridge.js'
-import { serve } from '../bridge.js'
+import { serve, servePage } from '../bridge.js'
 import { createHandlers, explain, storedServer } from './handlers.js'
+import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
 import { ALARM, ALARM_MINUTES, createWatcher } from './watcher.js'
@@ -52,6 +53,8 @@ const handlers: Handlers = createHandlers({
 })
 
 serve(handlers, explain)
+// The pill's channel, which learns nothing about the library but this one song.
+servePage(createPageHandler(handlers), explain)
 
 /** A right-click import: the defaults, no questions, and the badge to follow it. */
 async function quickImport(url: string): Promise<void> {

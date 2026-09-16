@@ -1,8 +1,9 @@
 # The browser extension
 
 > **Status:** 2026-09-15. Phase 0 (the spike), Phase 1 (groundwork), Phase 2
-> (the workspace, and A through the server) and Phase 3 (C, F1 and B2, branch
-> `extension/phase-3`) are done. Phases 4 to 6 are still the plan below. Written for an agent with this
+> (the workspace, and A through the server), Phase 3 (C, F1 and B2) and Phase 4
+> (B1, the pill, branch `extension/phase-4`) are done. Phases 5 and 6 — the
+> bucket, then packaging — are still the plan below. Written for an agent with this
 > file open and nobody watching, the way [DESKTOP.md](DESKTOP.md) was: every
 > phase ends in something that works, every gate is a command whose exit code
 > decides, and the last section is the runbook.
@@ -450,6 +451,25 @@ Content script, anchors, the pill's states, Undo.
 **Gate:** as Phase 2, plus anchor tests in jsdom against minimal saved page
 skeletons, and the pill spec on a fixture page served under a YouTube host via
 Playwright `context.route`.
+
+**Done, 2026-09-15.** Thirteen specs across two files; the pill ones serve their
+own watch page at a youtube.com address, so the real content script runs in a
+real page without depending on YouTube's markup of the day. Four things to know:
+
+- **A content script may ask far less than a page of the extension may.** The
+  bridge still refuses them; they get their own channel — hand over a link, be
+  told what the pill should draw — and are never told the server's address or
+  its token, never offered the tags or the playlists, and cannot choose what an
+  import is tagged with. An import from the pill takes your defaults, as the
+  right-click item does.
+- **No zod in the content script.** The worker checks what arrives from a page,
+  which is the side with something to protect, so the script carries a plain
+  typed wrapper instead — 196 KB rather than the schema library on top.
+- **The shadow root stays closed**, so the pill reports its state on the host
+  element. That is what keeps YouTube's own scripts out and still lets a spec
+  read it.
+- **Undo is not built.** The pill says "Added" and stops being pressable once
+  the song is yours, rather than offering an undo that does nothing.
 
 ### Phase 5 — I3, the bucket
 

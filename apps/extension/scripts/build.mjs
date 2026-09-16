@@ -56,6 +56,24 @@ await build({
   logLevel: 'info',
 })
 
+/*
+ * The content script is its own build, as a classic script: a declared content
+ * script is not a module, so `import` at its top level would be a syntax error
+ * in the page. It carries no zod — what it sends is checked by the worker,
+ * which is the side that has anything to protect — so it stays small enough to
+ * put into every YouTube page.
+ */
+await build({
+  entryPoints: [join(root, 'src', 'content', 'youtube.ts')],
+  outfile: join(out, 'content.js'),
+  bundle: true,
+  platform: 'browser',
+  format: 'iife',
+  target: 'chrome120',
+  sourcemap: true,
+  logLevel: 'info',
+})
+
 await build({
   entryPoints: {
     popup: join(root, 'src', 'popup', 'popup.css'),

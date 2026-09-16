@@ -23,5 +23,21 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "permissions": ["activeTab", "contextMenus", "notifications", "alarms"]
+  "permissions": ["activeTab", "contextMenus", "notifications", "alarms"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://m.youtube.com/*",
+    "https://music.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://music.youtube.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }

@@ -97,6 +97,31 @@ export type Handlers = {
   ) => Promise<z.input<(typeof REPLIES)[T]>>
 }
 
+/**
+ * The other channel: what a content script may ask, which is far less than a
+ * page of the extension may.
+ *
+ * A content script runs inside youtube.com, so it is treated as that: it can
+ * say "this link, please" and be told what the pill should show. It is never
+ * told the server's address or its token, never offered the tags or the
+ * playlists, and cannot change what an import is tagged with.
+ */
+export const PageRequestSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('pillState'), url: z.string().max(2000) }),
+  z.object({ type: z.literal('pillImport'), url: z.string().max(2000) }),
+])
+export type PageRequest = z.output<typeof PageRequestSchema>
+
+export const PillStateSchema = z.object({
+  state: z.enum(['idle', 'have', 'importing', 'added', 'failed']),
+  /** 0 to 100 while downloading, null otherwise. */
+  progress: z.number().min(0).max(100).nullable(),
+  /** The job, while it can still be cancelled. */
+  jobId: z.string().nullable(),
+  message: z.string().nullable(),
+})
+export type PillState = z.infer<typeof PillStateSchema>
+
 export const EnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: z.unknown() }),
   z.object({ ok: z.literal(false), message: z.string(), status: z.number().int() }),
@@ -163,6 +188,34 @@ export function serve(
         (error: unknown) => sendResponse({ ok: false, ...explain(error) }),
       )
       // Kept open for the answer, which comes after this returns.
+      return true
+    },
+  )
+}
+
+/**
+ * The worker's side of the content script's channel: the same envelope, a much
+ * smaller question, and a reply that says only what the pill draws.
+ */
+export function servePage(
+  handle: (request: PageRequest) => Promise<PillState>,
+  explain: (error: unknown) => { message: string; status: number },
+): void {
+  chrome.runtime.onMessage.addListener(
+    (
+      message: unknown,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (reply: Envelope) => void,
+    ) => {
+      // From a tab, which is what a content script is. The extension's own
+      // pages go to `serve` above.
+      if (sender.id !== chrome.runtime.id || !sender.tab) return false
+      const parsed = PageRequestSchema.safeParse(message)
+      if (!parsed.success) return false
+      handle(parsed.data).then(
+        value => sendResponse({ ok: true, value }),
+        (error: unknown) => sendResponse({ ok: false, ...explain(error) }),
+      )
       return true
     },
   )

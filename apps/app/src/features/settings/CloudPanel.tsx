@@ -71,8 +71,7 @@ export function CloudPanel({ anchor }: { anchor: (node: View | null) => void }):
 }
 
 function stateLabel(status: CloudStatus): string {
-  if (status.signingIn)
-    return status.signInNeedsCode ? 'finishing sign-in' : 'waiting for Google'
+  if (status.signingIn) return status.signInNeedsCode ? 'finishing sign-in' : 'waiting for Google'
   switch (status.state) {
     case 'off':
       return status.account ? 'no bucket yet' : 'off'
@@ -262,8 +261,8 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       </Row>
 
       {syncing ? (
-        <View style={styles.progress} accessibilityLiveRegion="polite">
-          <Text style={styles.progressText}>
+        <View style={partStyles.progress} accessibilityLiveRegion="polite">
+          <Text style={partStyles.progressText}>
             {progress && progress.total > 0
               ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}${
                   progress.current ? ` — ${progress.current}` : ''
@@ -303,7 +302,9 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
 
       <ConfirmDialog
         open={confirming}
-        title={account ? `Sign this server out of ${account.email}?` : `Stop publishing to ${folder}?`}
+        title={
+          account ? `Sign this server out of ${account.email}?` : `Stop publishing to ${folder}?`
+        }
         body={
           account
             ? 'Your music stays in the bucket.'
@@ -524,9 +525,7 @@ function BucketForm({
   )
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create(() => ({
   field: { minWidth: 280 },
   where: { marginBottom: 6 },
-  progress: { marginVertical: 14, gap: 8 },
-  progressText: { color: theme.colors.textSecondary, fontSize: 13 },
 }))

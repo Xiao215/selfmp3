@@ -5,6 +5,9 @@ import type { Health, ScanResult } from '@selfmp3/shared'
  * the reader is looking at, and the short phrases the rows are made of.
  */
 
+/** Which destructive action is waiting to be confirmed, if any. */
+export type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sign-out' | null
+
 export type SectionId =
   | 'playback'
   | 'offline'
@@ -127,7 +130,11 @@ export function accentName(hue: number, presets: readonly { hue: number; name: s
  */
 export function healthLine(
   health: Health | undefined,
-  asking: { readonly loading?: boolean; readonly error?: boolean; readonly fromCloud?: boolean } = {},
+  asking: {
+    readonly loading?: boolean
+    readonly error?: boolean
+    readonly fromCloud?: boolean
+  } = {},
 ): string {
   if (health) {
     const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
@@ -150,7 +157,9 @@ export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * keeps that order on both sides.
  */
 export function splitDevices<
-  T extends { readonly device: { readonly id: string; readonly online: boolean; readonly lastSeenAt: number } },
+  T extends {
+    readonly device: { readonly id: string; readonly online: boolean; readonly lastSeenAt: number }
+  },
 >(
   rows: readonly T[],
   thisDeviceId: string | null,

@@ -1,9 +1,10 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { oklchToHex, oklchToHexAlpha, radius } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
+import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 
 /**
@@ -187,7 +188,31 @@ export function Kbd({ children }: { children: string }): ReactNode {
   return <Text style={styles.kbd}>{children}</Text>
 }
 
+/** Rows that are there when asked for: shut until "Details" is pressed. */
+export function Details({ children }: { children: ReactNode }): ReactNode {
+  const { theme } = useUnistyles()
+  const [open, setOpen] = useState(false)
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(value => !value)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [styles.detailsRow, pressed && styles.detailsRowPressed]}
+      >
+        <Chevron size={14} color={theme.colors.textMuted} />
+        <Text style={styles.detailsRowText}>Details</Text>
+      </Pressable>
+      {open ? children : null}
+    </>
+  )
+}
+
 export const partStyles = StyleSheet.create(theme => ({
+  progress: { marginVertical: 14, gap: 8 },
+  progressText: { color: theme.colors.textSecondary, fontSize: 13 },
+  valueText: { color: theme.colors.textPrimary, fontSize: 13 },
   input: {
     minWidth: 220,
     paddingVertical: 7,
@@ -204,6 +229,17 @@ export const partStyles = StyleSheet.create(theme => ({
 }))
 
 const styles = StyleSheet.create(theme => ({
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 8,
+    paddingRight: 8,
+    borderRadius: radius.sm,
+  },
+  detailsRowPressed: { opacity: 0.7 },
+  detailsRowText: { color: theme.colors.textMuted, fontSize: 13 },
   panel: {
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,

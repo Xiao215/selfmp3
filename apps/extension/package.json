@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@selfmp3/client": "*",
+    "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",
     "@tanstack/react-query": "^5.62.11",
     "@types/chrome": "^0.3.0",

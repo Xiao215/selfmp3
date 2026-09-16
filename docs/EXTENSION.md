@@ -489,6 +489,28 @@ deploy.
 **Gate:** as Phase 2, plus connection tests with a fake probe (answers → direct;
 no answer in time → bucket; bucket session missing → "Connect in options").
 
+**Done, 2026-09-16**, once the doorman was redeployed with the extension's
+origin. Seventeen specs; the connection resolver's three answers are unit tests
+with three fake probes (`background/connection.test.ts`). Five things differ
+from the plan:
+
+- **`reachServer` was not moved to `packages/client`** — Phase 1 had already put
+  it there as `connection/reach.ts`, and `candidates()` with it, so this phase
+  changed no shared package at all.
+- **Sign-in is split across the bridge**, because the worker owns the session
+  and the page owns the window: `signIn` writes the attempt down and hands back
+  the doorman's address, the options page runs `launchWebAuthFlow`, and
+  `claimSignIn` spends the code back in the worker. The platform's `openSignIn`
+  writes the URL down rather than opening anything.
+- **No host permission for the doorman.** As with the server, the doorman's CORS
+  answer is enough — it names the extension's origin and allows `Authorization`.
+  `identity` is the only permission added, and it shows no install warning.
+- **A typed-in address still wins**, and now falls back to the bucket rather than
+  to a wall: "away" is only what is left when there is no account behind it.
+- **The badge still counts the server's jobs only.** A request in the bucket
+  moves when the server writes its next snapshot, minutes away; the popup reads
+  the requests while it is open rather than the watcher polling for them.
+
 ### Phase 6 — Packaging and docs
 
 `scripts/zip.mjs`, `docs/features/browser-extension.md` (install unpacked,
@@ -612,9 +634,10 @@ Model and its test → implementation → spec → gate → progress entry → c
 ### What an overnight run cannot do
 
 Deploy the doorman, sign in with Google, load the extension into Xiao's own
-Chrome, or check the pill on live YouTube. Phase 5 stops at a green gate with
-the fake doorman, and says so.
+Chrome, or check the pill on live YouTube. Phase 5 stopped at a green gate with
+no doorman at all, and says so.
 
 ## What to do first
 
-Phase 0.
+Nothing: every phase is built. What is left is the by-hand list under
+*Verification*, which needs Xiao's own Chrome and a real Google account.

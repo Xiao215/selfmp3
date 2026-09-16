@@ -24,7 +24,7 @@ const root = join(here, '..')
 const repoRoot = join(root, '..', '..')
 const out = join(root, 'dist')
 
-for (const pkg of ['shared', 'client']) {
+for (const pkg of ['shared', 'replica', 'client']) {
   if (!existsSync(join(repoRoot, 'packages', pkg, 'dist', 'index.js'))) {
     console.error(
       `\nNo build of packages/${pkg}.\n` +

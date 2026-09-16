@@ -1,3 +1,4 @@
+import type { ImportRequestView } from '@selfmp3/replica'
 import type { ImportJob, ImportPreview } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { pageKind } from '../pageKind.js'
@@ -10,6 +11,7 @@ import {
   pageTitle,
   popupView,
   progressLine,
+  requestForLink,
   sinceLine,
   type PopupInputs,
 } from './popup.model.js'
@@ -54,6 +56,18 @@ const hit = {
   playCount: 41,
 }
 
+const request = (patch: Partial<ImportRequestView> = {}): ImportRequestView => ({
+  uid: 'r1',
+  url: 'https://music.youtube.com/watch?v=ZRtdQ81jPUQ',
+  state: 'waiting',
+  title: null,
+  songIds: [],
+  error: null,
+  requestedAt: '2026-09-16 12:00:00',
+  requestedBy: 'extension',
+  ...patch,
+})
+
 const base: PopupInputs = {
   connection: 'ready',
   link: IDOL,
@@ -62,16 +76,76 @@ const base: PopupInputs = {
   hit: null,
   preview: { status: 'done', value: single },
   job: null,
+  request: null,
   importAnyway: false,
 }
 const view = (patch: Partial<PopupInputs>) => popupView({ ...base, ...patch })
 
 describe('connectionOf', () => {
-  it('needs a server, and one that answers', () => {
-    expect(connectionOf({ server: null, reachable: null, songCount: null })).toBe('none')
-    const server = { baseUrl: 'http://localhost:4600', hasToken: false }
-    expect(connectionOf({ server, reachable: false, songCount: null })).toBe('away')
-    expect(connectionOf({ server, reachable: true, songCount: 36 })).toBe('ready')
+  it('reads each way in: none, the server itself, the bucket, or a server that is asleep', () => {
+    const server = { baseUrl: 'http://localhost:4600', typed: true }
+    const status = { server: null, account: null, songCount: null }
+    expect(connectionOf({ ...status, mode: 'none' })).toBe('none')
+    expect(connectionOf({ ...status, mode: 'away', server })).toBe('away')
+    expect(connectionOf({ ...status, mode: 'server', server, songCount: 36 })).toBe('ready')
+    expect(connectionOf({ ...status, mode: 'bucket', account: 'x@y.z' })).toBe('bucket')
+  })
+})
+
+/**
+ * Through the bucket the popup offers everything it still can and nothing it
+ * cannot: no preview, no list to tick through, and the tags and playlist of
+ * this device's own copy of the library.
+ */
+describe('popupView, through the bucket', () => {
+  const viaBucket = (patch: Partial<PopupInputs> = {}) =>
+    view({ connection: 'bucket', preview: { status: 'idle' }, ...patch })
+
+  it('offers the link, with nothing read from it', () => {
+    expect(viaBucket()).toEqual({ name: 'request', link: IDOL, list: false })
+  })
+
+  it('offers a playlist as one request, since the server skips what you have', () => {
+    const list = 'https://www.youtube.com/playlist?list=PL1234567890abcdefgh'
+    expect(viaBucket({ link: list, page: pageKind(list) })).toMatchObject({
+      name: 'request',
+      list: true,
+    })
+  })
+
+  it('still says when a song is already yours, from this device’s own library', () => {
+    expect(viaBucket({ hit }).name).toBe('have')
+    expect(viaBucket({ hit, importAnyway: true }).name).toBe('request')
+    expect(viaBucket({ hit: 'loading' }).name).toBe('looking')
+  })
+
+  it('follows the link already left, and says what the server made of it', () => {
+    expect(viaBucket({ request: request() })).toEqual({ name: 'waiting', request: request() })
+    expect(viaBucket({ request: request({ state: 'working' }) }).name).toBe('waiting')
+    expect(viaBucket({ request: request({ state: 'done', songIds: [7] }) }).name).toBe('requested')
+    expect(
+      viaBucket({ request: request({ state: 'failed', error: 'Video unavailable' }) }),
+    ).toEqual({ name: 'failed', message: 'Video unavailable', jobId: null })
+    // Called off: back to the link, to leave again or not.
+    expect(viaBucket({ request: request({ state: 'cancelled' }) }).name).toBe('request')
+  })
+
+  it('offers the paste box on a page with no link to leave', () => {
+    expect(
+      viaBucket({ link: 'https://example.com/', page: pageKind('https://example.com/') }).name,
+    ).toBe('paste')
+  })
+})
+
+describe('requestForLink', () => {
+  it('matches by video, and prefers one still waiting', () => {
+    const done = request({ uid: 'r0', state: 'done' })
+    const waiting = request({ uid: 'r1', url: 'https://youtu.be/ZRtdQ81jPUQ' })
+    expect(requestForLink([done, waiting], IDOL)?.uid).toBe('r1')
+    expect(requestForLink([done], IDOL)?.uid).toBe('r0')
+    expect(requestForLink([request({ state: 'cancelled' })], IDOL)).toBeNull()
+    expect(requestForLink([done], null)).toBeNull()
+    expect(requestForLink([done], 'https://example.com/')).toBeNull()
   })
 })
 

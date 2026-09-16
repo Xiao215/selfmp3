@@ -1,7 +1,8 @@
+import type { ImportRequestView } from '@selfmp3/replica'
 import type { ImportJob } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import type { Handlers } from '../bridge.js'
-import { createPageHandler, stateOfJob } from './pill.js'
+import { createPageHandler, stateOfJob, stateOfRequest } from './pill.js'
 
 const IDOL = 'https://www.youtube.com/watch?v=ZRtdQ81jPUQ'
 
@@ -35,12 +36,29 @@ const item = {
   alreadyHave: false,
 }
 
+const request = (patch: Partial<ImportRequestView> = {}): ImportRequestView => ({
+  uid: 'r1',
+  url: 'https://music.youtube.com/watch?v=ZRtdQ81jPUQ',
+  state: 'waiting',
+  title: null,
+  songIds: [],
+  error: null,
+  requestedAt: '2026-09-16 12:00:00',
+  requestedBy: 'extension',
+  ...patch,
+})
+
+const status = (mode: 'server' | 'bucket') => () =>
+  Promise.resolve({ mode, server: null, account: null, songCount: null })
+
 function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
   handlers: Handlers
   enqueued: unknown[]
 } {
   const enqueued: unknown[] = []
   const handlers = {
+    status: status('server'),
+    requests: () => Promise.resolve({ imports: [] }),
     queue: () => Promise.resolve({ jobs: [], active: 0, queued: 0 }),
     songFor: () => Promise.resolve(null),
     preview: () => Promise.resolve({ kind: 'single', playlistTitle: null, items: [item] }),
@@ -72,6 +90,26 @@ describe('stateOfJob', () => {
       message: 'Video unavailable',
     })
     expect(stateOfJob(job({ status: 'cancelled' })).state).toBe('idle')
+  })
+})
+
+describe('stateOfRequest', () => {
+  it('turns a link left in the bucket into what the pill draws', () => {
+    expect(stateOfRequest(request())).toEqual({
+      state: 'waiting',
+      progress: null,
+      jobId: null,
+      message: null,
+    })
+    // Working is still waiting from here: the server says how it went in its
+    // next snapshot, and there is no percentage to follow in between.
+    expect(stateOfRequest(request({ state: 'working' })).state).toBe('waiting')
+    expect(stateOfRequest(request({ state: 'done', songIds: [7] })).state).toBe('added')
+    expect(stateOfRequest(request({ state: 'failed', error: 'Video unavailable' }))).toMatchObject({
+      state: 'failed',
+      message: 'Video unavailable',
+    })
+    expect(stateOfRequest(request({ state: 'cancelled' })).state).toBe('idle')
   })
 })
 
@@ -141,6 +179,37 @@ describe('what a page may ask', () => {
     expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
       state: 'have',
     })
+    expect(enqueued).toHaveLength(0)
+  })
+
+  it('finds the link already left in the bucket, whichever form it was left under', async () => {
+    const { handlers } = fakeHandlers({
+      status: status('bucket'),
+      requests: () => Promise.resolve({ imports: [request()] }),
+    })
+    expect(await createPageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
+      state: 'waiting',
+    })
+  })
+
+  /*
+   * Through the bucket nothing reads the link first, because only the server
+   * can: the link goes in as it is, and the popup says so in its own words.
+   */
+  it('leaves the link in the bucket when the server is away, without a preview', async () => {
+    const left: unknown[] = []
+    const { handlers, enqueued } = fakeHandlers({
+      status: status('bucket'),
+      preview: () => Promise.reject(new Error('the server should never be asked')),
+      requestImport: (input: unknown) => {
+        left.push(input)
+        return Promise.resolve(request())
+      },
+    })
+    expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
+      state: 'waiting',
+    })
+    expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [], playlistId: null }])
     expect(enqueued).toHaveLength(0)
   })
 })

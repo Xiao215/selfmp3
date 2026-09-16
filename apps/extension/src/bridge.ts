@@ -1,4 +1,6 @@
+import { ImportRequestListSchema, ImportRequestViewSchema } from '@selfmp3/replica'
 import {
+  IdSchema,
   ImportEnqueueResultSchema,
   ImportEnqueueSchema,
   ImportPreviewSchema,
@@ -26,6 +28,10 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
     token: z.string().max(500).nullable(),
   }),
   z.object({ type: z.literal('disconnect') }),
+  /** Begin a Google sign-in: the worker writes the attempt down and hands back the URL to open. */
+  z.object({ type: z.literal('signIn') }),
+  z.object({ type: z.literal('claimSignIn'), code: z.string().trim().min(1).max(200) }),
+  z.object({ type: z.literal('signOut') }),
   z.object({ type: z.literal('preview'), url: z.string().trim().min(1).max(20_000) }),
   z.object({ type: z.literal('choices') }),
   z.object({ type: z.literal('songFor'), url: z.string().max(2000) }),
@@ -38,17 +44,34 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('queue') }),
   z.object({ type: z.literal('cancel'), id: z.string().min(1).max(100) }),
   z.object({ type: z.literal('retry'), id: z.string().min(1).max(100) }),
+  /** Leave the link in the bucket for the server to take when it next wakes (I3). */
+  z.object({
+    type: z.literal('requestImport'),
+    url: z.string().trim().min(1).max(20_000),
+    tagIds: z.array(IdSchema).max(50).default([]),
+    playlistId: IdSchema.nullable().default(null),
+  }),
+  z.object({ type: z.literal('requests') }),
+  z.object({ type: z.literal('cancelRequest'), uid: z.string().min(1).max(100) }),
 ])
 export type BridgeRequest = z.output<typeof BridgeRequestSchema>
 export type RequestType = BridgeRequest['type']
 
-/** Where the extension imports to, and whether it answered just now. */
+/**
+ * Where the extension imports to right now (I3).
+ *
+ * `server` is the one answering — a typed-in address, or one the bucket's
+ * snapshot named — and it is null in bucket mode, where there is no server to
+ * name. `away` is the one case with a server and no way through: an address
+ * that was typed in, asleep, with no account to fall back to.
+ */
 export const StatusSchema = z.object({
-  /** Null until a server is connected. The token itself never leaves the worker. */
-  server: z.object({ baseUrl: z.string(), hasToken: z.boolean() }).nullable(),
-  /** Null when there is no server to ask. */
-  reachable: z.boolean().nullable(),
-  /** Only when the server said, which it does to a request carrying the token. */
+  mode: z.enum(['none', 'server', 'away', 'bucket']),
+  /** The server this is about, if any. The token itself never leaves the worker. */
+  server: z.object({ baseUrl: z.string(), typed: z.boolean() }).nullable(),
+  /** The Google account signed in to the bucket, by the address it signed in with. */
+  account: z.string().nullable(),
+  /** How many songs the library holds, from whichever side answered. */
   songCount: z.number().int().nonnegative().nullable(),
 })
 export type Status = z.infer<typeof StatusSchema>
@@ -79,6 +102,9 @@ export const REPLIES = {
   status: StatusSchema,
   connect: StatusSchema,
   disconnect: StatusSchema,
+  signIn: z.object({ url: z.string() }),
+  claimSignIn: StatusSchema,
+  signOut: StatusSchema,
   preview: ImportPreviewSchema,
   choices: ChoicesSchema,
   songFor: SongHitSchema.nullable(),
@@ -86,6 +112,9 @@ export const REPLIES = {
   queue: ImportQueueSchema,
   cancel: OkSchema,
   retry: OkSchema,
+  requestImport: ImportRequestViewSchema,
+  requests: ImportRequestListSchema,
+  cancelRequest: OkSchema,
 } satisfies Record<RequestType, z.ZodTypeAny>
 
 export type Reply<T extends RequestType> = z.output<(typeof REPLIES)[T]>
@@ -113,7 +142,8 @@ export const PageRequestSchema = z.discriminatedUnion('type', [
 export type PageRequest = z.output<typeof PageRequestSchema>
 
 export const PillStateSchema = z.object({
-  state: z.enum(['idle', 'have', 'importing', 'added', 'failed']),
+  /** `waiting`: left in the bucket, for the server to take when it wakes (I3). */
+  state: z.enum(['idle', 'have', 'importing', 'waiting', 'added', 'failed']),
   /** 0 to 100 while downloading, null otherwise. */
   progress: z.number().min(0).max(100).nullable(),
   /** The job, while it can still be cancelled. */

@@ -51,6 +51,11 @@ body {
   background: var(--warning);
 }
 
+/* Via the bucket: working, but not the server — so neither green nor amber. */
+.conn.bucket .dot {
+  background: var(--accent);
+}
+
 .icon {
   display: grid;
   place-items: center;

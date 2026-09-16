@@ -139,7 +139,8 @@ matched to a YouTube upload and shown to you with alternatives first
 leaving the page: a **self.mp3** button in the YouTube page itself, a popup with the title,
 your tags and a playlist to put it in, a whole playlist ticked through, and a right-click
 item for any link anywhere. The toolbar counts what it is importing and says what landed.
-It goes through your server, so importing while the server is asleep is still to come. It is
+Sign in with Google and it finds your server by itself — and when the server is asleep it
+leaves the link in your bucket for the server to fetch when it wakes. It is
 loaded unpacked from `apps/extension` rather than installed from a store. See
 [browser-extension.md](docs/features/browser-extension.md); the plan it was built to is
 [docs/EXTENSION.md](docs/EXTENSION.md).

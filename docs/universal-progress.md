@@ -4739,3 +4739,70 @@ Phase 5, the bucket fallback, which cannot be finished here: the deployed
 doorman refuses the extension's origin until Xiao redeploys it. And the whole
 thing has still never run in Chrome 152 — Playwright's Chromium is what every
 spec has proven it against.
+
+## Phase 5 — the bucket — branch `extension/phase-5`
+
+I3, the last phase: the extension asks the server directly when it answers, and
+otherwise leaves the link in the bucket for the server to take the next time it
+is awake (SYNC.md, rule 6). Unblocked on 2026-09-16, when the doorman was
+redeployed with the extension's origin in `APP_ORIGINS`.
+
+### What changed
+
+- **`background/connection.ts`** decides which way in wins, and takes a probe
+  rather than making requests, so the three answers are a unit test with three
+  fake probes: a typed-in address first (someone meant it), then every address
+  from the bucket's snapshot at once (`reachServer`), then the bucket. The
+  answer is held for a minute, because a popup asks five questions the moment it
+  opens and each would otherwise probe every address the server ever wrote down.
+- **`background/cloud.ts` and `cloudPlatform.ts`**: the replica, in the worker,
+  built once — two of them would hand out the same log sequence number twice.
+  The worker is the only context that holds it, so "once" is once for the whole
+  extension. `store.ts` grew the transactional `update` the outbox needs.
+- **Sign-in is split between the page and the worker.** The worker writes the
+  attempt down and hands back the doorman's address; the options page runs
+  `chrome.identity.launchWebAuthFlow` and sends the code back. The worker holds
+  the session, and a worker Chrome stopped while Google was slow would have lost
+  the code — a tab lives as long as its tab.
+- **The popup has a bucket half**: the link with nothing read from it ("Your
+  server will read the details when it fetches this."), the tags and playlists
+  of this device's own copy of the library, *Waiting for your server*, and *Don't
+  bother* to call it off. No preview, no track list to tick through, no "also
+  create playlist" — `importRequested` has no name field — because reading a
+  link is the server's alone.
+- **The pill and the right-click item** take the same road: with the server away
+  the link goes in as it is, the pill says *Waiting for your server*, and the
+  notice says the server downloads it the next time it is awake.
+- **The outbox is flushed straight after every write**, and again when the
+  worker starts with something in it. The replica's own timer is 1.5 s away and
+  Chrome stops an idle worker well inside that.
+
+### Two decisions worth the words
+
+- **`requestImport` asks for a session, not for bucket mode.** A server that
+  woke up between the popup drawing and the button being pressed should not turn
+  a press into a refusal; what was already offered is what happens.
+- **The badge still counts only the server's jobs.** A request in the bucket
+  changes when the server writes its next snapshot, which is minutes away: a
+  badge polling for it every two seconds would be counting nothing. The popup
+  reads the requests while it is open instead.
+
+### The gates
+
+`npm run build:extension`, `npm run verify:extension` (17 specs),
+`npm run typecheck`, `npm run lint`, `npm run format:check`,
+`npm run check:exports`, `npm test` (193 files, 1838 passed, 1 skipped) and
+`npm run check:app`.
+
+The bucket specs need no doorman: the extension is given a session and an empty
+copy of the library in IndexedDB — the state any device is in on a plane — and
+every request to the doorman is refused at the network. That proves the whole
+fallback except the sign-in itself, which is driven as far as Chrome: the spec
+replaces `launchWebAuthFlow`, reads the address the page asked Chrome to open,
+and checks it is the doorman's `/v1/auth/start` with an attempt and
+`https://<id>.chromiumapp.org/` to come back to.
+
+### What is left
+
+Google sign-in with a real account, and the whole extension in Chrome 152 —
+both by hand, and both on the by-hand list in EXTENSION.md.

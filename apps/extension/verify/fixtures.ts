@@ -169,5 +169,11 @@ export function memoryStore(): KeyValueStore {
       values.delete(key)
       return Promise.resolve()
     },
+    // One JavaScript context, so the three steps need nothing around them.
+    update: (key, change) => {
+      const next = change(values.get(key) ?? null)
+      values.set(key, next)
+      return Promise.resolve(next)
+    },
   }
 }

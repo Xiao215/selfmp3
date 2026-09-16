@@ -1,4 +1,5 @@
 import { jobSubtitle } from '@selfmp3/client/core'
+import type { ImportRequestView } from '@selfmp3/replica'
 import {
   youtubeVideoId,
   type ImportJob,
@@ -17,11 +18,26 @@ import { importable, type PageKind } from '../pageKind.js'
  * ("The popup, state by state") lists them.
  */
 
-export type Connection = 'checking' | 'none' | 'away' | 'ready'
+/**
+ * Which of the two ways in is live (I3).
+ *
+ * `ready` is the server itself, and only it can read a link. `bucket` is the
+ * link left for the server to take when it wakes: everything the popup can
+ * still offer, and nothing it cannot.
+ */
+export type Connection = 'checking' | 'none' | 'away' | 'ready' | 'bucket'
 
 export function connectionOf(status: Status): Connection {
-  if (!status.server) return 'none'
-  return status.reachable ? 'ready' : 'away'
+  switch (status.mode) {
+    case 'server':
+      return 'ready'
+    case 'bucket':
+      return 'bucket'
+    case 'away':
+      return 'away'
+    default:
+      return 'none'
+  }
 }
 
 export type PreviewState =
@@ -40,6 +56,8 @@ export interface PopupInputs {
   readonly hit: SongHit | null | 'loading'
   readonly preview: PreviewState
   readonly job: ImportJob | null
+  /** The link already left in the bucket, in bucket mode. */
+  readonly request: ImportRequestView | null
   readonly importAnyway: boolean
 }
 
@@ -62,6 +80,16 @@ type PopupView =
   | { readonly name: 'song'; readonly item: ImportPreviewItem }
   /** A playlist, an album or an artist: the whole list, to tick through (C). */
   | { readonly name: 'list'; readonly preview: ImportPreview }
+  /**
+   * Through the bucket: the link, with nothing read from it. A list is the same
+   * form with different words — the server takes the whole thing and skips what
+   * the library already has.
+   */
+  | { readonly name: 'request'; readonly link: string; readonly list: boolean }
+  /** Left in the bucket, not taken yet. */
+  | { readonly name: 'waiting'; readonly request: ImportRequestView }
+  /** The server took it and it landed. */
+  | { readonly name: 'requested'; readonly request: ImportRequestView }
 
 /** Whether to ask the server about the link: a YouTube song or list, or anything pasted. */
 export function shouldLookUp(page: PageKind, typed: boolean): boolean {
@@ -72,6 +100,7 @@ export function popupView(input: PopupInputs): PopupView {
   if (input.connection === 'checking') return { name: 'checking' }
   if (input.connection === 'none') return { name: 'connect' }
   if (input.connection === 'away') return { name: 'away' }
+  if (input.connection === 'bucket') return bucketView(input)
 
   const { job } = input
   if (job) {
@@ -108,6 +137,57 @@ export function popupView(input: PopupInputs): PopupView {
     }
   }
   return { name: 'song', item }
+}
+
+/**
+ * The same popup with the server away: no preview, no ticking through a list,
+ * and nothing editable — because only the server can read a link at all
+ * (docs/EXTENSION.md, "The two paths do not offer the same things").
+ *
+ * What is lost is the looking, not the importing. A link left here is fetched
+ * the next time the server is awake (SYNC.md, rule 6), which is why this is a
+ * state of its own rather than the "your server isn't answering" wall.
+ */
+function bucketView(input: PopupInputs): PopupView {
+  const { request } = input
+  if (request) {
+    if (request.state === 'waiting' || request.state === 'working')
+      return { name: 'waiting', request }
+    if (request.state === 'done') return { name: 'requested', request }
+    if (request.state === 'failed') {
+      return {
+        name: 'failed',
+        message: request.error ?? 'Your server could not fetch that link.',
+        jobId: null,
+      }
+    }
+    // Called off: back to the link, to leave again or not.
+  }
+
+  if (!input.link || !shouldLookUp(input.page, input.typed)) return { name: 'paste' }
+  if (input.hit === 'loading') return { name: 'looking' }
+  if (input.hit && !input.importAnyway) {
+    const { title, artist } = input.hit
+    return { name: 'have', title, artist, hit: input.hit, cover: null }
+  }
+  return { name: 'request', link: input.link, list: input.page.kind !== 'song' }
+}
+
+/** The request already left for this link, matched by video as the queue is. */
+export function requestForLink(
+  requests: readonly ImportRequestView[],
+  link: string | null,
+): ImportRequestView | null {
+  if (!link) return null
+  const videoId = youtubeVideoId(link)
+  const matches = requests.filter(request =>
+    videoId ? youtubeVideoId(request.url) === videoId : request.url === link,
+  )
+  return (
+    matches.find(request => request.state === 'waiting' || request.state === 'working') ??
+    matches.find(request => request.state !== 'cancelled') ??
+    null
+  )
 }
 
 /** A server's `2026-09-14 08:30:00` is UTC without saying so; an ISO time says so. */

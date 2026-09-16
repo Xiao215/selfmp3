@@ -11,6 +11,7 @@ import {
   jobForLink,
   pageTitle,
   popupView,
+  requestForLink,
   shouldLookUp,
   sinceLine,
   type Connection,
@@ -19,6 +20,7 @@ import {
 import {
   Added,
   Away,
+  BucketFooter,
   Checking,
   Connect,
   Failed,
@@ -29,12 +31,17 @@ import {
   Looking,
   Paste,
   QueueFooter,
+  RequestForm,
+  Requested,
   SongForm,
+  Waiting,
 } from './views.js'
 
 /** How often the queue is read while something for this popup is importing. */
 const BUSY_POLL_MS = 1_000
 const IDLE_POLL_MS = 5_000
+/** A request in the bucket changes when the server next syncs, which is not soon. */
+const BUCKET_POLL_MS = 15_000
 
 const openOptions = (): void => {
   void chrome.runtime.openOptionsPage()
@@ -64,13 +71,15 @@ export function Popup(): ReactNode {
         ? 'away'
         : connectionOf(status.data)
   const ready = connection === 'ready'
+  /** Through the bucket: everything still offered, and nothing that needs the server (I3). */
+  const viaBucket = connection === 'bucket'
   const server = status.data?.server ?? null
 
   const link = typed ?? page.data?.url ?? null
   const kind = pageKind(link)
   const lookUp = link !== null && shouldLookUp(kind, typed !== null)
 
-  const hitWanted = ready && lookUp && kind.kind === 'song'
+  const hitWanted = (ready || viaBucket) && lookUp && kind.kind === 'song'
   const hit = useQuery({
     queryKey: ['songFor', link],
     queryFn: () => ask({ type: 'songFor', url: link ?? '' }),
@@ -95,6 +104,19 @@ export function Popup(): ReactNode {
         ? { status: 'error', message: preview.error.message }
         : { status: 'done', value: preview.data }
 
+  /*
+   * The links left in the bucket. Read while the popup is open rather than
+   * followed by the watcher: the server answers a request by writing it into
+   * its next snapshot, which is minutes away, not seconds.
+   */
+  const requests = useQuery({
+    queryKey: ['requests'],
+    queryFn: () => ask({ type: 'requests' }),
+    enabled: viaBucket,
+    refetchInterval: BUCKET_POLL_MS,
+  })
+  const request = requestForLink(requests.data?.imports ?? [], link)
+
   const queue = useQuery({
     queryKey: ['queue'],
     queryFn: () => ask({ type: 'queue' }),
@@ -118,13 +140,14 @@ export function Popup(): ReactNode {
     hit: hitValue,
     preview: previewState,
     job,
+    request,
     importAnyway,
   })
 
   const choices = useQuery({
     queryKey: ['choices'],
     queryFn: () => ask({ type: 'choices' }),
-    enabled: view.name === 'song' || view.name === 'list',
+    enabled: view.name === 'song' || view.name === 'list' || view.name === 'request',
   })
 
   const enqueue = useMutation({
@@ -141,6 +164,20 @@ export function Popup(): ReactNode {
       }))
       void queryClient.invalidateQueries({ queryKey: ['queue'] })
     },
+  })
+
+  const leave = useMutation({
+    mutationFn: (input: { tagIds: number[]; playlistId: number | null }) =>
+      ask({ type: 'requestImport', url: link ?? '', ...input }),
+    onSuccess: () => {
+      setImportAnyway(false)
+      void queryClient.invalidateQueries({ queryKey: ['requests'] })
+    },
+  })
+
+  const callOff = useMutation({
+    mutationFn: (uid: string) => ask({ type: 'cancelRequest', uid }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['requests'] }),
   })
 
   const jobAction = useMutation({
@@ -232,6 +269,30 @@ export function Popup(): ReactNode {
             onImportAnyway={() => setImportAnyway(true)}
           />
         )
+      case 'request':
+        return (
+          <RequestForm
+            key={view.link}
+            link={view.link}
+            list={view.list}
+            title={tabTitle}
+            choices={choices.data}
+            pending={leave.isPending}
+            error={leave.error?.message ?? null}
+            onRequest={input => leave.mutate(input)}
+          />
+        )
+      case 'waiting':
+        return (
+          <Waiting
+            request={view.request}
+            title={tabTitle}
+            cancelling={callOff.isPending}
+            onCancel={() => callOff.mutate(view.request.uid)}
+          />
+        )
+      case 'requested':
+        return <Requested request={view.request} onOpen={() => openApp('/import')} />
       case 'list':
         return (
           <ListReview
@@ -252,6 +313,16 @@ export function Popup(): ReactNode {
       <Header baseUrl={server?.baseUrl ?? null} connection={connection} onOptions={openOptions} />
       <main className="body">{body}</main>
       {ready && <QueueFooter queue={queue.data} onOpen={() => openApp('/import')} />}
+      {viaBucket && (
+        <BucketFooter
+          waiting={
+            (requests.data?.imports ?? []).filter(
+              each => each.state === 'waiting' || each.state === 'working',
+            ).length
+          }
+          onOpen={() => openApp('/import')}
+        />
+      )}
     </div>
   )
 }

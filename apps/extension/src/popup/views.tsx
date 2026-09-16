@@ -11,6 +11,7 @@ import {
   toggleChosen,
   type Review,
 } from '@selfmp3/client/core'
+import type { ImportRequestView } from '@selfmp3/replica'
 import {
   extractUrls,
   formatDuration,
@@ -50,11 +51,19 @@ export function Header({
       <span className="logo">
         self<i>.</i>mp3
       </span>
-      {baseUrl && (
-        <span className={connection === 'ready' ? 'conn' : 'conn away'}>
+      {/* Which way in is live, in the header rather than in every state (I3). */}
+      {connection === 'bucket' ? (
+        <span className="conn bucket">
           <span className="dot" aria-hidden="true" />
-          {hostOf(baseUrl)}
+          Via your bucket
         </span>
+      ) : (
+        baseUrl && (
+          <span className={connection === 'ready' ? 'conn' : 'conn away'}>
+            <span className="dot" aria-hidden="true" />
+            {hostOf(baseUrl)}
+          </span>
+        )
       )}
       <button type="button" className="icon" aria-label="Options" onClick={onOptions}>
         <Gear />
@@ -102,7 +111,10 @@ export function Connect({ onOptions }: { onOptions: () => void }): ReactNode {
   return (
     <div className="empty">
       <h1>Connect to your library</h1>
-      <p>The extension imports through your self.mp3 server. Tell it where that is.</p>
+      <p>
+        Sign in with Google, and links can wait in your bucket while your server is off. Or point
+        the extension straight at your server’s address.
+      </p>
       <button type="button" className="primary" onClick={onOptions}>
         Open options
       </button>
@@ -121,8 +133,8 @@ export function Away({
     <div className="empty">
       <h1>Your server isn’t answering</h1>
       <p>
-        Importing goes through your self.mp3 server. Turn it on, or check its address in the
-        options.
+        Importing goes through your self.mp3 server. Turn it on, check its address in the options —
+        or sign in with Google there, and links can wait in your bucket instead.
       </p>
       <div className="actions">
         <button type="button" className="primary" onClick={onRetry}>
@@ -601,6 +613,141 @@ export function ListReview({
         {pending ? 'Importing…' : importButtonLabel(chosen)}
       </button>
     </>
+  )
+}
+
+/**
+ * The link, with nothing read from it (I3).
+ *
+ * There is no title to correct and no track list to tick through, because
+ * reading a link is the server's alone — it is what runs yt-dlp. The tags and
+ * the playlist still work, because those are this device's own copy of the
+ * library and go into the bucket beside the link.
+ */
+export function RequestForm({
+  link,
+  list,
+  title,
+  choices,
+  pending,
+  error,
+  onRequest,
+}: {
+  link: string
+  /** A playlist, an album or an artist rather than one song. */
+  list: boolean
+  /** The tab's own title, which is all anyone here knows about the link. */
+  title: string | null
+  choices: Choices | undefined
+  pending: boolean
+  error: string | null
+  onRequest: (input: { tagIds: number[]; playlistId: number | null }) => void
+}): ReactNode {
+  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
+  const [playlistId, setPlaylistId] = useState<number | null>(null)
+
+  return (
+    <>
+      <SongCard cover={null} title={title ?? link} artist="" detail={hostOf(link)} />
+      <p className="note">
+        {list
+          ? 'Your server takes the whole list when it wakes, and skips what you already have.'
+          : 'Your server will read the details when it fetches this.'}
+      </p>
+      <TagChips
+        choices={choices}
+        picked={picked}
+        onToggle={id => setPicked(toggleId(picked, id))}
+      />
+      <PlaylistSelect choices={choices} value={playlistId} onChange={setPlaylistId} />
+      {error && (
+        <p className="banner bad" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        className="primary"
+        disabled={pending}
+        onClick={() => onRequest({ tagIds: [...tagIdsFor(choices, picked)], playlistId })}
+      >
+        {pending ? 'Adding…' : 'Add when the server wakes'}
+      </button>
+    </>
+  )
+}
+
+/** Left in the bucket and not taken yet: the sentence from the mock, and a way out of it. */
+export function Waiting({
+  request,
+  title,
+  cancelling,
+  onCancel,
+}: {
+  request: ImportRequestView
+  title: string | null
+  cancelling: boolean
+  onCancel: () => void
+}): ReactNode {
+  return (
+    <>
+      <SongCard cover={null} title={request.title ?? title ?? request.url} artist="" />
+      <p className="banner good" aria-live="polite">
+        {request.state === 'working'
+          ? 'Your server is fetching it now.'
+          : 'Waiting for your server. It downloads it the next time it is awake, and it arrives after the sync that follows.'}
+      </p>
+      <button type="button" className="secondary" disabled={cancelling} onClick={onCancel}>
+        Don’t bother
+      </button>
+    </>
+  )
+}
+
+/** The server took it while nobody was looking, and it landed. */
+export function Requested({
+  request,
+  onOpen,
+}: {
+  request: ImportRequestView
+  onOpen: () => void
+}): ReactNode {
+  return (
+    <>
+      <SongCard cover={null} title={request.title ?? request.url} artist="" />
+      <p className="banner good">
+        {request.songIds.length > 1
+          ? `${request.songIds.length} songs added to your library`
+          : 'Added to your library'}
+      </p>
+      <button type="button" className="secondary" onClick={onOpen}>
+        Open in self.mp3
+      </button>
+    </>
+  )
+}
+
+/** The footer in bucket mode: what is still waiting for the server, rather than a queue. */
+export function BucketFooter({
+  waiting,
+  onOpen,
+}: {
+  waiting: number
+  onOpen: () => void
+}): ReactNode {
+  return (
+    <footer className="foot">
+      <span>
+        {waiting === 0
+          ? 'Nothing waiting'
+          : waiting === 1
+            ? '1 link waiting for your server'
+            : `${waiting} links waiting for your server`}
+      </span>
+      <button type="button" className="link" onClick={onOpen}>
+        Queue
+      </button>
+    </footer>
   )
 }
 

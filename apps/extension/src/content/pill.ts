@@ -49,6 +49,10 @@ export function pillLabel(state: PillState): { text: string; className: string; 
         className: '',
         busy: true,
       }
+    // Left in the bucket: the server has not taken it yet, and there is no
+    // percentage to show because nothing is downloading anywhere.
+    case 'waiting':
+      return { text: 'Waiting for your server', className: 'have', busy: true }
     // Undo is not built yet, so the pill does not offer it: once the song is
     // in, there is nothing here left to press.
     case 'added':

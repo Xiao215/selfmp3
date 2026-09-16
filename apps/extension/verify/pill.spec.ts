@@ -69,7 +69,7 @@ test('connect the extension first', async () => {
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.getByLabel('Token').fill(TOKEN)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
-  await expect(page.getByText(`Connected to ${server.url}`)).toBeVisible()
+  await expect(page.getByText(`Pointed at ${server.url}`)).toBeVisible()
   await page.close()
 })
 

@@ -55,8 +55,9 @@ describe('connecting', () => {
       token: ' secret ',
     })
     expect(status).toEqual({
-      server: { baseUrl: 'http://localhost:4600', hasToken: true },
-      reachable: true,
+      mode: 'server',
+      server: { baseUrl: 'http://localhost:4600', typed: true },
+      account: null,
       songCount: 2,
     })
     expect(await store.read('server')).toEqual({
@@ -84,15 +85,27 @@ describe('connecting', () => {
     expect(await store.read('server')).toBeNull()
   })
 
-  it('says a stored server is away when it does not answer', async () => {
+  it('says a stored server is away when it does not answer, and there is no bucket behind it', async () => {
     const store = memoryStore()
     await store.write('server', { baseUrl: 'https://asleep.example', token: null })
     const handlers = createHandlers({ store, fetch: fakeServer(null).fetch })
     expect(await handlers.status({ type: 'status' })).toEqual({
-      server: { baseUrl: 'https://asleep.example', hasToken: false },
-      reachable: false,
+      mode: 'away',
+      server: { baseUrl: 'https://asleep.example', typed: true },
+      account: null,
       songCount: null,
     })
+  })
+
+  it('has nowhere to import to with neither an address nor an account', async () => {
+    const handlers = createHandlers({ store: memoryStore(), fetch: fakeServer(null).fetch })
+    expect(await handlers.status({ type: 'status' })).toEqual({
+      mode: 'none',
+      server: null,
+      account: null,
+      songCount: null,
+    })
+    await expect(handlers.signIn({ type: 'signIn' })).rejects.toBeInstanceOf(Refusal)
   })
 })
 

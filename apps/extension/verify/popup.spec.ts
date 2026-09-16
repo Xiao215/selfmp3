@@ -69,7 +69,7 @@ test('the options page asks for a token only once the server wants one', async (
 
   await page.getByLabel('Token').fill(TOKEN)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
-  await expect(page.getByText(`Connected to ${server.url} · 2 songs`)).toBeVisible()
+  await expect(page.getByText(`Pointed at ${server.url} · 2 songs`)).toBeVisible()
   await page.close()
 })
 

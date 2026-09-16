@@ -1,6 +1,5 @@
-import { library, cloudPlatform, session as cloudSession } from '../replica'
 import { coverFiles } from '../ports/coverFiles'
-import { createCoverChanges } from './coverChanges'
+import { createCoverStore, type CoverPlatform } from './coverStore'
 
 /**
  * Cover art from the bucket, for the platforms Metro calls web: the installed
@@ -13,206 +12,70 @@ import { createCoverChanges } from './coverChanges'
  *
  * In the installed app it is: `coverFiles` puts it in the shell's covers folder
  * and `app://selfmp3/_media/covers/…` serves it back. In a tab there is no such
- * place, so `coverFiles` is null and every export here becomes the nothing a
- * browser has always done — a cloud library's rows keep their letter tiles, and
- * a server's covers are drawn from the server's own address, which needs no file.
+ * place, so `coverFiles` is null, `canKeep` is false, and every export here
+ * becomes the nothing a browser has always done — a cloud library's rows keep
+ * their letter tiles, and a server's covers are drawn from the server's own
+ * address, which needs no file.
+ *
+ * What to do about a cover is offline/coverStore.ts, shared with the phone.
  */
 
-/** The size a server's cover is kept at. The phone's reasoning, and its number. */
-export const KEPT_COVER_SIZE = 640
+const platform: CoverPlatform = {
+  canKeep: () => coverFiles !== null,
 
-/** Cloud covers by song id, so a list that re-renders does not re-ask. */
-const known = new Map<number, string | null>()
-/** In-flight fetches, so ten rows appearing at once make one request. */
-const fetching = new Map<number, Promise<string | null>>()
-/** When a cover's fetch last failed, so it is asked for again after a while. */
-const failed = new Map<number, number>()
-const RETRY_FAILED_MS = 30_000
-/** What this device holds of a server's covers, and the revision each was drawn at. */
-const served = new Map<number, { rev: string; uri: string }>()
-/** Addresses tried this launch: a server that is away is asked once per song. */
-const tried = new Set<string>()
-
-/**
- * Who hears a cover arrive, told which songs' covers, a frame's worth at a
- * time: covers arriving from disk at launch would otherwise be one render of
- * every list each (offline/coverChanges.ts).
- */
-const changes = createCoverChanges()
-
-/** Told which songs' covers changed. */
-export const subscribeCovers = changes.subscribe
-/** Bumped once per announcement: how a reader tells it missed one. */
-export const coversVersion = changes.version
-
-/** `4f1c….jpg` from `covers/4f1c….jpg`: the hash is already the name. */
-function nameFromKey(key: string): string {
-  return key.slice(key.lastIndexOf('/') + 1)
-}
-
-/** A server's cover, named so that priming can read the song and revision back. */
-function servedName(songId: number, rev: string): string {
-  return `${songId}-${rev.replace(/[^a-zA-Z0-9.-]/g, '_')}.jpg`
-}
-
-/**
- * Read what earlier launches kept, once. Without this the first render drew the
- * server's address and swapped in the kept file a moment later: a flicker on every
- * cover, every launch. The list is asynchronous here — a shell call rather than
- * a directory read — so the swap is announced instead of awaited.
- */
-let primed = false
-function prime(): void {
-  if (primed || !coverFiles) return
-  primed = true
-  void (async () => {
-    try {
-      for (const name of await coverFiles.list()) {
-        const match = /^(\d+)-(.*)\.jpg$/.exec(name)
-        if (!match) continue
-        const songId = Number(match[1])
-        served.set(songId, { rev: match[2] ?? '', uri: coverFiles.uriFor(name) })
-        changes.changed(songId)
+  // The listing is a shell call rather than a directory read, so what it finds
+  // arrives after this returns and the store announces it instead of the first
+  // read simply having it.
+  prime: found => {
+    const files = coverFiles
+    if (!files) return
+    void (async () => {
+      try {
+        for (const name of await files.list()) {
+          const match = /^(\d+)-(.*)\.jpg$/.exec(name)
+          if (!match) continue
+          found(Number(match[1]), match[2] ?? '', files.uriFor(name))
+        }
+      } catch {
+        // Nothing kept, or nothing readable: the server is asked as before.
       }
-    } catch {
-      // Nothing kept, or nothing readable: the server is asked as before.
-    }
-  })()
-}
+    })()
+  },
 
-/** What this device holds right now, as something a screen can keep in state. */
-export function coversNow(): ReadonlyMap<number, string> {
-  prime()
-  const found = new Map<number, string>()
-  for (const [songId, uri] of known) if (uri) found.set(songId, uri)
-  for (const [songId, { uri }] of served) found.set(songId, uri)
-  return found
-}
+  // The name is the hash of the contents, so a file already there is the right
+  // file and nothing goes stale.
+  haveCloud: async name => {
+    const files = coverFiles
+    if (!files) return null
+    return (await files.has(name)) ? files.uriFor(name) : null
+  },
 
-/**
- * One song's entry in `coversNow()`, without copying the rest: a kept server
- * cover before a cloud one, as the map is built.
- */
-export function coverFor(songId: number): string | undefined {
-  prime()
-  return served.get(songId)?.uri ?? (known.get(songId) || undefined)
-}
+  keepCloud: async (name, url, headers) => {
+    const files = coverFiles
+    if (!files) return null
+    await files.keep(name, url, headers)
+    return files.uriFor(name)
+  },
 
-/**
- * Keep a server's cover on this device, from the address the server serves it at.
- * Safe to call for every visible row: a cover already kept, or an address
- * already tried, costs a map lookup.
- *
- * Settles when the cover is kept or given up on, so a pass over the whole
- * library can hold how many run at once; a row drawing it need not wait.
- */
-export function ensureServerCover(
-  songId: number,
-  rev: string | undefined,
-  url: string,
-): Promise<void> {
-  const files = coverFiles
-  if (!files) return Promise.resolve()
-  prime()
-  const revision = rev ?? ''
-  const have = served.get(songId)
-  if (have && have.rev === revision) return Promise.resolve()
-  if (tried.has(url)) return Promise.resolve()
-  tried.add(url)
-  return (async () => {
-    // Off the current frame first. This is called while a row renders, and a
-    // cover found on disk would otherwise set state in every list in the
-    // middle of that render.
-    await new Promise(resolve => setTimeout(resolve, 0))
-    const name = servedName(songId, revision)
-    try {
-      if (!(await files.has(name))) await files.keep(name, url)
-      served.set(songId, { rev: revision, uri: files.uriFor(name) })
-      changes.changed(songId)
-    } catch {
-      // The server is away. The address is drawn for now, and asked for again
-      // next launch; there is a letter tile behind it either way.
-    }
-  })()
-}
+  keepServed: async (name, url) => {
+    const files = coverFiles
+    if (!files) return null
+    if (!(await files.has(name))) await files.keep(name, url)
+    return files.uriFor(name)
+  },
 
-/**
- * Make sure a song's cover is on this device, and say where.
- *
- * Safe to call for every visible row on every render: a resolved cover is
- * answered from memory, and a request already in flight is joined rather than
- * repeated.
- */
-export async function ensureCover(songId: number): Promise<string | null> {
-  const files = coverFiles
-  if (!files) return null
-  if (known.has(songId)) return known.get(songId) ?? null
-  const already = fetching.get(songId)
-  if (already) return already
-  // A fetch that failed is tried again after a while, not never: the bucket
-  // had a bad minute once and two covers stayed letter tiles all session.
-  const failedAt = failed.get(songId)
-  if (failedAt !== undefined && Date.now() - failedAt < RETRY_FAILED_MS) return null
-
-  const work = (async (): Promise<string | null> => {
-    try {
-      const key = await library.cloudCoverKey(songId)
-      if (!key) return null
-      const name = nameFromKey(key)
-      // The name is the hash of the contents, so a file already there is the
-      // right file and nothing goes stale.
-      if (await files.has(name)) return files.uriFor(name)
-
-      const signedIn = await cloudSession.loadSession()
-      if (!signedIn) return null
-
-      await files.keep(name, `${cloudPlatform.doormanUrl}/v1/files/${key}`, {
-        Authorization: `Bearer ${signedIn.token}`,
-      })
-      return files.uriFor(name)
-    } catch (error) {
-      // A missing cover is survivable — the letter tile is behind it — but it
-      // should not be silent: swallowing this is what made an expo-file-system
-      // mistake look like "the bucket has no artwork" for an hour.
-      console.warn(
-        `self.mp3: could not fetch a cover for song ${songId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      )
-      return null
-    }
-  })()
-
-  fetching.set(songId, work)
-  const uri = await work
-  fetching.delete(songId)
-  if (uri) {
-    known.set(songId, uri)
-    failed.delete(songId)
-    changes.changed(songId)
-  } else {
-    failed.set(songId, Date.now())
-  }
-  return uri
-}
-
-/**
- * After signing out: another account's ids mean other songs.
- *
- * `primed` stays set. The folder is empty once this settles, so there is
- * nothing for a second read to find — and resetting it let the next render
- * re-read the folder *while* the clear was still running, and put back every
- * name about to be deleted.
- */
-export async function forgetCovers(): Promise<void> {
-  known.clear()
-  fetching.clear()
-  failed.clear()
-  served.clear()
-  tried.clear()
-  try {
+  forgetFiles: async () => {
     await coverFiles?.forget()
-  } catch {
-    // Nothing to clear.
-  }
+  },
 }
+
+const store = createCoverStore(platform)
+
+export const subscribeCovers = store.subscribeCovers
+export const coversVersion = store.coversVersion
+export const coversNow = store.coversNow
+export const coverFor = store.coverFor
+export const ensureServerCover = store.ensureServerCover
+export const ensureCover = store.ensureCover
+export const forgetCovers = store.forgetCovers
+export { KEPT_COVER_SIZE } from './coverStore'

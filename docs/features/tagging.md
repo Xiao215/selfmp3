@@ -21,13 +21,13 @@ Files:
 ## Hiding a tag
 
 A tag filters one of two ways: **only songs with it**, or **none of them**. Combined, that is
-"chill, but not instrumental".
+"chill, but not live".
 
 - In the sidebar, click a tag as before to show only it. The **−** that appears on hover hides
   it instead; ⌥-click does the same.
-- Under the title, a hidden tag's chip reads **NOT instrumental**. Clicking a chip flips it
+- Under the title, a hidden tag's chip reads **NOT live**. Clicking a chip flips it
   between the two; × takes it off.
-- The title follows: "chill · not instrumental", or "Library · not instrumental".
+- The title follows: "chill · not live", or "Library · not live".
 
 ## Editing a tag
 
@@ -57,5 +57,6 @@ whenever any song has no tag. The page lists them newest first.
 - when a song ends by itself and the next one starts, the card follows.
 
 The list is fixed when you start, so a song you tag does not vanish from under you, and one you
-skip stays in Untagged for next time. The keys are taken in the capture phase, ahead of the
-app-wide shortcuts — → is "skip five seconds" everywhere else.
+skip stays in Untagged for next time. The keys are taken in the capture phase, ahead of
+anything else listening — in the desktop app the ⌘-arrows are the menu's, and Space is play
+and pause wherever you are.

@@ -45,18 +45,21 @@ bounded — 5,000 events or 400 days — and in practice never trimmed.
 
 ## Automatic downloads
 
-On by default, per device. Whenever the server is reachable and something changes — a song
-imported, the app opened, the connection switching to Wi-Fi — the device works out what it is
-missing and fetches it, one song at a time.
+On the devices that keep songs — the phone app and the desktop app — on by default, per
+device. A browser tab streams and downloads nothing, so none of this applies there. Whenever
+the library is reachable and something changes — a song imported, the app opened, the
+connection switching to Wi-Fi — the device works out what it is missing and fetches it, one
+song at a time.
 
-- **Only on Wi-Fi** (on by default). Chrome on Android reports the connection type. Safari
-  never does, so on an iPhone the app cannot tell Wi-Fi from mobile data — and rather than
-  guess, it shows "12 to download · Download" and waits for a tap. Desktop browsers report
-  nothing either; a machine with a mouse is assumed to be on Wi-Fi or a cable.
+- **Only on Wi-Fi** (on by default). A phone reports its connection type
+  (`connectionKind.ts`). A computer reports nothing, and is taken to be on Wi-Fi or a cable
+  rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data,
+  or for any sync over 500 MB (`LARGE_SYNC_BYTES`), it shows "12 to download · Download" and
+  waits for a tap rather than spending the allowance for you.
 - **Keep offline: every song, or songs in playlists.** The second resolves live playlists on
   the server (`GET /api/library/manifest?scope=playlists`), so a live playlist like "loved,
   played in the last 30 days" keeps the phone current by itself.
-- **Storage.** Before each song the browser's quota is checked, and downloading stops at 90%
+- **Storage.** Before each song the space available is checked, and downloading stops at 90%
   of it — filling it completely gets the whole origin's storage evicted on some browsers,
   downloads and all. The status then says how many songs did not fit.
 - **Songs removed by hand stay removed.** "Remove download" remembers the song, so the next
@@ -77,8 +80,8 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   fills as the bytes arrive while one downloads, for a single song asked for by hand as well
   as during an automatic pass. A song that is not on the device carries no mark; Song details
   (in the ⋯ menu) says what will happen to it.
-- **A browser tab streams** and keeps nothing; the installed desktop app downloads the way a
-  phone does (see [desktop-app.md](desktop-app.md)).
+- **A browser tab streams** and keeps nothing — it has no Offline music settings at all; the
+  installed desktop app downloads the way a phone does (see [desktop-app.md](desktop-app.md)).
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for

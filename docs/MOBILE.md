@@ -4,16 +4,17 @@
 guide is about running it on a phone: the player and sync client for the library
 in your bucket, with Android Auto.
 
-It exists because a PWA cannot do three things that matter in practice —
-reliable background audio on iOS, and real offline files rather than a Cache API
-quota the OS may evict. Everything else it does, the web app already
-did; the shared zod schemas and pure helpers in `packages/shared` are used
-verbatim, not copied.
+It exists because a browser cannot do the two things that matter most in
+practice — dependable background audio on iOS, and real files on the device
+rather than a cache the OS may evict. Everything else it does, the same app
+already does in a tab; the shared zod schemas and pure helpers in
+`packages/shared` are used verbatim, not copied.
 
-**Read the "What was and was not verified" section at the end before you plan an
-afternoon around this.** The app was written, type-checked and linted on Linux.
-No iOS or Android binary has ever been produced from it, because that cannot be
-done without a Mac and an Android SDK.
+An iOS dev client has been built and run on simulators since this was written;
+[docs/universal-progress.md](universal-progress.md) is the record of what has
+been checked, on what, and how. No Android binary has been built yet, and
+nothing has run on a physical phone. The "What was and was not verified"
+section at the end is the original record, kept for the risks it lists.
 
 ---
 
@@ -30,8 +31,9 @@ done without a Mac and an Android SDK.
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
 | **Android Auto** | See [Android Auto](#android-auto), which is the one place where the honest answer is "partly". |
 
-Settings holds the Google account, the download controls and the storage
-numbers.
+The tabs along the bottom are **Library · Playlists · Import · You**; You holds
+Stats & report, Untagged, Tags and Settings. Settings holds the Google account,
+the download controls and the storage numbers.
 
 ---
 
@@ -140,7 +142,7 @@ not exist. The stable 4.1.2 release is worse: it has no browse API *and* its
 service is a plain `HeadlessJsTaskService` with no `MediaBrowserService` intent
 filter at all, so Android Auto would not list the app.
 
-**What the app does instead.** `src/car/androidAuto.ts` wires up the two entry
+**What the app does instead.** `src/ports/car/androidAuto.ts` wires up the two entry
 points RNTP *does* expose, resolving both against the same tested browse tree
 the browse tree serves:
 
@@ -154,7 +156,7 @@ car's own UI is missing. The alternatives, in increasing order of effort:
 
 1. Wait for RNTP to land the API — the media3 groundwork is already there.
 2. `patch-package` the alpha to expose `setBrowseTree` through the TurboModule
-   spec, then call it from `src/car/androidAuto.ts` with `browseTree.ts`'s
+   spec, then call it from `src/ports/car/androidAuto.ts` with `browseTree.ts`'s
    nodes mapped to `MediaItem`s (the `MediaItem` interface already ships in the
    package, unused).
 3. Write a small native `MediaLibraryService` in the app's own Android source
@@ -247,7 +249,7 @@ fixes a real failure:
 - `react` and `react-dom` pinned to `19.2.3` — the version Expo SDK 57 ships
   with. This is what keeps npm from installing a second copy of React nested
   under `apps/app`, which Metro would happily bundle alongside the root one,
-  producing the "invalid hook call" that eats an evening. The web app's
+  producing the "invalid hook call" that eats an evening. The app's own
   `^19.0.0` is satisfied either way; it just gets a slightly older patch.
 - `react-native-reanimated` / `react-native-worklets` pinned exactly — see
   "Version alignment" below.

@@ -9,8 +9,11 @@ what the pieces are and why they are shaped that way.
 Idempotent by construction — it can be the "I just pulled" command as well as the "I just
 cloned" one. Checks Node ≥ 22, installs `yt-dlp` and `ffmpeg` through Homebrew when they are
 missing (and gives the brew.sh link rather than failing when Homebrew itself is absent),
-runs `npm install` and `npm run build`, creates `library/` and `data/`, then hands the
-launchd step to the existing `scripts/install-service.sh` rather than duplicating the plist.
+runs `npm install` and `npm run build`, creates the library and data folders the server will
+use (`~/Music/selfmp3` and `~/Library/Application Support/selfmp3` unless the environment
+says otherwise — `scripts/_dirs.sh` works them out the same way the server does), then hands
+the launchd step to the existing `scripts/install-service.sh` rather than duplicating the
+plist.
 
 `--yes` answers every prompt, `--no-service` skips launchd. A closed stdin counts as "no",
 so piping it somewhere never hangs waiting for an answer.
@@ -62,10 +65,13 @@ launchd.
 
 ## Docker
 
-Multi-stage. The build stage is `node:22-alpine` plus `python3 make g++`, because
-better-sqlite3 compiles from source when no prebuilt binary matches (musl on arm64, for
-one); it installs, builds, then `npm prune --omit=dev --omit=optional`. The runtime stage is
-a clean `node:22-alpine` with `ffmpeg`, `yt-dlp` and `tini`, and copies only the pruned
+Multi-stage, and the two builds are separate. The app's web export is built on the *build*
+platform (`node:22-bookworm-slim`), so a Pi's image is not cross-compiled through emulation
+for a step that only produces static files. The server stage is `node:22-alpine` plus
+`python3 make g++`, because better-sqlite3 and sharp compile from source when no prebuilt
+binary matches (musl on arm64, for one); it installs, builds, then installs again with
+`--omit=dev` and checks both native modules load. The runtime stage is a clean
+`node:22-alpine` with `ffmpeg`, `yt-dlp` and `tini`, and copies only those production
 `node_modules` plus the three `dist/` folders and their `package.json` files. The layout
 mirrors the repo so `config.ts`'s `REPO_ROOT` still resolves to `/app` and the workspace
 symlinks in `node_modules` still point somewhere real.

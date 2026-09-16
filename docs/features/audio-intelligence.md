@@ -1,8 +1,9 @@
 # Audio intelligence
 
-Every song is analysed once, locally, and the results power three things: smart-playlist
-rules over tempo, key, energy and loudness; a "similar songs" list; and an auto-mix mode
-that orders the queue into a smooth path and picks a crossfade per transition.
+Every song is analysed once, locally, and the results power four things: live playlist rules
+over tempo, key, energy and loudness; a "similar songs" list; an auto-mix mode that orders
+the queue into a smooth path and picks a crossfade per transition; and the visuals a song
+with no lyrics is given ([now-playing.md](now-playing.md#songs-with-no-words)).
 
 Nothing leaves the machine. The only tool involved is `ffmpeg`, which is already required
 for importing.

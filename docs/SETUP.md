@@ -1,7 +1,6 @@
 # Setting up self.mp3 on your server and your phone
 
-This gets you to: **your whole library on your phone, playing anywhere, even with your
-MacBook closed in a bag.**
+This gets you to: **your library on your phone, reachable from anywhere, privately.**
 
 It takes about twenty minutes. You only do it once.
 
@@ -10,15 +9,18 @@ It takes about twenty minutes. You only do it once.
 ## What you are building, and why
 
 Your music lives with the server (this guide runs it on a Mac). Your phone talks to the
-server over **Tailscale**, a private network that only your own devices can join.
+server over **Tailscale**, a private network that only your own devices can join. Nothing is
+exposed to the public internet.
 
-The important thing to understand up front: **when your server is asleep, streaming stops —
-but downloaded songs keep playing.** That is why the last step of this guide is downloading
-your library to your phone, and it is the step that actually makes this work day to day.
-Music is small (a four-minute track is roughly 4 MB, so 500 songs is about 2 GB), so
-keeping everything on your phone is realistic rather than a chore.
+The important thing to understand up front: **a browser tab streams, so it needs the server
+awake.** Songs on the device play with no connection at all, and the apps that keep songs on
+the device are the phone app and the Mac desktop app, not a tab. So this guide gets your
+phone to the server; if you want music in a bag with the lid closed, finish with
+[MOBILE.md](MOBILE.md), which builds the phone app, and [SYNC.md](SYNC.md), which puts the
+library in a bucket both ends read.
 
-Your server only needs to be awake when you are importing new music or pulling down a sync.
+Music is small — a four-minute track is roughly 4 MB, so 500 songs is about 2 GB — so
+keeping everything on a phone is realistic rather than a chore.
 
 ---
 
@@ -172,22 +174,23 @@ lock-screen controls.
 
 ---
 
-## Step 7 — Download your library (the important one)
+## Step 7 — Music with no signal (the important one)
 
-In the app on your phone:
+What you have now streams: with the server asleep, the music stops. A browser tab keeps no
+songs — its storage is the browser's to evict, so it is not promised — which is why the app
+that keeps songs is an installed one:
 
-1. Go to **Settings**.
-2. Under **Offline music**, tap **Download everything**.
-3. Leave it running on wifi. It downloads one song at a time and shows progress.
+- **On your phone**, build the iPhone or Android app from this repository:
+  [MOBILE.md](MOBILE.md). It signs in with Google and reads the library from your bucket
+  ([SYNC.md](SYNC.md)), so it works with the server switched off entirely.
+- **On another Mac**, the desktop app does the same in a window:
+  [INSTALL.md](INSTALL.md#the-desktop-app).
 
-When it finishes, those songs play with no connection at all — server asleep, aeroplane mode,
-underground, anywhere.
-
-After importing new music later, tap **Download what's missing** to top it up.
-
-> iOS can clear a web app's storage if it goes unused for a long stretch. Installing to the
-> home screen (step 6) tells iOS to treat the storage as persistent, which is why that step
-> matters more than it looks.
+In either, **Settings → Offline music** has **Download everything**, and
+**Download what's missing** to top it up after importing. They download on Wi-Fi by
+themselves, one song at a time, and ask first on mobile data or past 500 MB. When a song is
+on the device it plays with no connection at all — aeroplane mode, underground, anywhere —
+and the plays you make offline reach the server later, dated when they happened.
 
 ---
 
@@ -217,7 +220,8 @@ Check Tailscale is connected on both devices (the app shows a green dot). Run
 You are on `http://`, not `https://`. Go back to step 4.
 
 **Songs will not download to the phone.**
-Same cause — offline caching requires HTTPS. Confirm the address bar shows a padlock.
+A browser tab does not download songs at all, however it was installed — it streams, and it
+has no Offline music settings. Downloading is the phone app's, and the desktop app's: step 7.
 
 **Imports fail with a yt-dlp error.**
 Run `brew upgrade yt-dlp`. YouTube changes things frequently and yt-dlp updates often.

@@ -9,7 +9,7 @@ touches this next — most likely you, six months from now.
 
 ```
 packages/shared          the API contract (zod schemas + pure helpers)
-  └── imported by the server, the app and the cloud client
+  └── imported by the server, the app and every client package
 
 packages/replica         a device's copy of the library in the bucket: session,
                          replica, outbox, the routes that answer from it
@@ -161,9 +161,12 @@ would not prove the query is even valid.
 
 ### The player is three pieces, deliberately
 
-- `engine.ts` — imperative, framework-free, owns two `<audio>` elements.
-- `queue.ts` — pure functions, no side effects, fully tested.
-- `PlayerProvider.tsx` — the React glue, plus server sync and Media Session.
+- `apps/app/src/ports/engine.web.ts` — imperative, framework-free, owns two `<audio>`
+  elements. On a phone, `engine.ts` beside it wraps react-native-track-player instead.
+- `packages/shared/src/queue.ts` — pure functions, no side effects, fully tested, and the
+  same rules on every platform.
+- `apps/app/src/player/PlayerProvider.tsx` — the React glue, plus server sync and Media
+  Session.
 
 Two elements rather than one is what makes gapless and crossfade possible at all: by the
 time `ended` fires on a single element, the gap has already happened. The next track is
@@ -184,15 +187,19 @@ the phone can mirror the entire payload into IndexedDB for offline use. Paginati
 add complexity to buy nothing at this scale. If a library ever got to six figures this
 would be the first thing to revisit.
 
-### Offline is explicit
+### Only an installed app keeps songs
 
-Nothing is cached by casual listening. Songs enter the offline cache only through a
-deliberate sync, and what is cached is always visible and countable in Settings.
+A browser tab streams and keeps nothing; the phone app and the desktop app download, and
+what they hold is always visible and countable in Settings (`ports/install.web.ts` decides
+which this is, from the presence of the desktop bridge).
 
-The alternative — caching whatever you happen to play — quietly fills a phone and leaves
-the user unable to answer "why is this app using 12 GB?". Metadata goes to IndexedDB; audio
-goes to the Cache API, because a cached `Response` can be handed straight to an `<audio>`
-element by the service worker without ever passing through JavaScript memory.
+A tab that quietly copied a library it was only streaming would fill a disk nobody asked it
+to fill, and its storage is the browser's to evict anyway, so nothing there is worth
+promising. In an app that does keep songs, the rule is still that it happened on purpose —
+an automatic pass, or a song asked for by hand — never "whatever you happened to play".
+Metadata goes to IndexedDB; audio goes to the Cache API on the web, because a cached
+`Response` can be handed straight to an `<audio>` element by the service worker without ever
+passing through JavaScript memory.
 
 ### The service worker is hand-written
 
@@ -224,8 +231,10 @@ Run `npm run check` for typecheck + lint + tests.
   exists for defence in depth, off unless configured.
 - **No ORM.** Hand-written SQL in typed repositories. At this size an ORM adds a layer of
   indirection over queries that are already short and readable.
-- **No CSS framework.** ~2000 lines of plain CSS with custom properties. A framework would
-  be larger than the styles it replaced.
+- **No CSS framework.** Styles are Unistyles sheets built from the tokens in
+  `packages/client/src/theme/tokens.ts` — one set of values for the browser, the phone and
+  the desktop app. A framework would be larger than the styles it replaced, and would not
+  cross to React Native.
 - **No chart library.** Three chart forms, hand-drawn as SVG. A charting library would
   outweigh the rest of the app on a page that has to load over a phone connection.
 - **No state management library.** TanStack Query for server state, React state for UI
@@ -248,7 +257,7 @@ add the config branch. Nothing else changes.
 **A schema change:** append a migration to the array in `db/migrate.ts`. Never edit an
 existing entry, never renumber — the array index *is* the version.
 
-**A dropdown, a menu, or anything that floats:** use `components/Select.tsx` and
-`components/Menu.tsx` rather than a native `<select>` or a hand-rolled popover, and take
+**A dropdown, a menu, or anything that floats:** use `apps/app/src/ui/components/Select.tsx`
+and `Popover.tsx` rather than a native `<select>` or a hand-rolled popover, and take
 z-index, radii, durations and the focus ring from the tokens. See
 [docs/features/design-system.md](features/design-system.md).

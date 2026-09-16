@@ -63,12 +63,14 @@ song bytes stream through it without it holding them.
    overwriting it — which matters, because plain storage cannot tell you it happened.
 4. **Done means uploaded.** An import, or an edit, counts once it is in the bucket where other
    devices can see it. Before that it is "on this device, uploading".
-5. **A device keeps what it will want, not everything there is.** An installed app downloads
-   ahead — the point of it is music with no signal. A browser tab streams from the bucket a
-   range at a time and keeps only the songs you listened to, because a library of a thousand
-   songs is not something a tab should quietly copy. Either way, a song already on the device
-   plays from the device: see `packages/client/src/downloads/recentCopies.ts` and
-   `apps/app/src/ports/recentCopies.web.ts`.
+5. **A device keeps what it will want, not everything there is.** An installed app — the
+   phone app, the desktop app — downloads ahead, because the point of it is music with no
+   signal. A browser tab streams from the bucket a range at a time and keeps nothing, because
+   a library of a thousand songs is not something a tab should quietly copy and a tab's
+   storage is the browser's to evict. A song already on the device plays from the device: see
+   `packages/client/src/downloads/recentCopies.ts` and
+   `apps/app/src/ports/recentCopies.web.ts`, which hold the songs an installed app kept
+   because they were played.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The server is special only because it can
@@ -174,15 +176,16 @@ something, and on demand. An import is not done until its song is in a snapshot.
 
 ### Every device reads the bucket
 
-The web app builds for GitHub Pages (`VITE_CLOUD=1`, under `/selfmp3/`), with no server behind
+The app's web export builds for GitHub Pages (under `/selfmp3/`, which the Pages workflow
+passes as `EXPO_PUBLIC_BASE`), with no server behind
 it. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
 player and the bucket: a song already on the device is served from there, ranges and all, and
 one that is not is streamed from the bucket through the doorman, which passes `Range` straight
-to B2 and its `206` straight back. Nothing is kept on the way past. A song you listen to all
-the way through is then kept, up to a budget, oldest let go first; downloading one by hand
-keeps it for good. Automatic downloads exist here too, but they start off — they are worth
-turning on for a phone with the app on its home screen, and little else.
+to B2 and its `206` straight back. Nothing is kept on the way past, and a tab keeps nothing
+afterwards either. In an installed app — the desktop app, the phone — a song listened to all
+the way through is kept, up to a budget, oldest let go first, unless that device is
+downloading everything anyway; a song downloaded by hand is kept for good.
 
 ### Editing from anywhere
 
@@ -286,6 +289,9 @@ Follow [apps/doorman/README.md](../apps/doorman/README.md): a free Cloudflare ac
 namespace, a Google OAuth client, three secrets, and `npx wrangler deploy`. It ends with an
 address like `https://selfmp3-doorman.<your-subdomain>.workers.dev`.
 
+The doorman is deployed **by hand**. No workflow deploys it, so a change to `apps/doorman`
+reaches your devices only when you run `npx wrangler deploy` yourself.
+
 Then tell the apps about it: set `DEFAULT_DOORMAN_URL` in `packages/shared/src/cloud.ts`, or
 the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` for the server.
 
@@ -322,4 +328,4 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | Signing in, and out, on a device | `apps/app/src/features/signIn/SignInScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Importing from a device — through the server, reached by the addresses in its snapshot | `apps/app/src/features/import/ImportViaServer.tsx`, `useServerDirect.ts`, `importSource.ts`; `packages/client/src/connection/reach.ts`; `apps/server/src/services/addresses.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
-| Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `apps/web/src/lib/cloud/edits.test.ts`, `apps/doorman/src/*.test.ts` |
+| Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `packages/replica/src/edits.test.ts`, `apps/doorman/src/*.test.ts` |

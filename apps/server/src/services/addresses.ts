@@ -30,3 +30,18 @@ export function listenAddresses(host: string, port: number): ListenAddress[] {
   }
   return addresses
 }
+
+/**
+ * Of those, the ones that are not this computer talking to itself.
+ *
+ * What is on this list is what somebody else can reach: another laptop on the
+ * café Wi-Fi as much as your phone at home. The server publishes these into the
+ * bucket so a signed-in device can find it (`CloudServerSchema`), and publishes
+ * its token beside them — so with no token set, the addresses are an open door
+ * and the boot log says so.
+ */
+export function beyondThisComputer(addresses: readonly { url: string }[]): string[] {
+  return addresses
+    .map(address => address.url)
+    .filter(url => !/^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|\/|$)/.test(url))
+}

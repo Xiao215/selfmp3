@@ -31,12 +31,13 @@ export const PUBLIC_DIR = path.join(
 /**
  * Every path the page answers on: all of them except the API's.
  *
- * Exported because this is the one thing here that could go quietly wrong. Get
- * the negative lookahead subtly off and the page starts answering `/api/...`
- * with HTML, which reads to every client as a server that has lost its mind
- * rather than as a routing mistake.
+ * This is the one line here that could go quietly wrong — get the negative
+ * lookahead subtly off and the page starts answering `/api/...` with HTML,
+ * which reads to a client as a server that has lost its mind rather than as a
+ * routing mistake. `admin.test.ts` asks the seam over HTTP rather than reading
+ * this, which is the only way to prove express agrees.
  */
-export const NOT_THE_API = /^(?!\/api\/).*/
+const NOT_THE_API = /^(?!\/api\/).*/
 
 export function mountAdminPage(app: Express): void {
   app.use(

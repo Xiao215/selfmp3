@@ -1,6 +1,9 @@
 # verify — the flows the gates run
 
-`npx playwright test verify/flows --project=desktop --project=phone`
+`npm run verify:flows`, which is
+`playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone`.
+The config has to be named: without `-c` Playwright reads the root one and none
+of the setup below applies.
 
 This is the fourth of phase 1's four gate commands, and it is the one that
 checks the thing the other three cannot: that the app still *behaves* the same

@@ -1,6 +1,6 @@
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
-import { listenAddresses } from './services/addresses.js'
+import { beyondThisComputer, listenAddresses } from './services/addresses.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
 
@@ -23,10 +23,35 @@ function main(): void {
 
   const server = app.listen(config.port, config.host, () => {
     logger.info(`${APP_NAME} ${APP_VERSION}`)
-    for (const address of listenAddresses(config.host, config.port)) {
+    const addresses = listenAddresses(config.host, config.port)
+    for (const address of addresses) {
       logger.info(`listening on ${address.url}${address.tailscale ? '  (tailscale)' : ''}`)
     }
-    if (config.authToken) logger.info('bearer token auth is enabled')
+
+    if (config.authToken) {
+      logger.info('bearer token auth is enabled')
+      return
+    }
+
+    /*
+     * Say plainly who else can reach this.
+     *
+     * The API is the whole library — reading it, editing it, deleting from it —
+     * and with no token the only thing between it and anyone else on these
+     * networks is that they have not tried port 4600. That is worth a line in
+     * the log rather than a sentence in a document nobody reads twice.
+     *
+     * It is not made an error, and the bind address is left alone, because
+     * these addresses are load-bearing: a device signed in to the bucket finds
+     * this server through them to import (`packages/client/src/connection/reach.ts`),
+     * and closing them to localhost would quietly take importing away.
+     */
+    const open = beyondThisComputer(addresses)
+    if (open.length === 0) return
+    logger.warn(
+      'no token set, so anyone who can reach these addresses has the whole library: ' +
+        `${open.join(', ')} — set SELFMP3_AUTH_TOKEN, or SELFMP3_HOST=127.0.0.1 to answer only this computer`,
+    )
   })
 
   // Streaming a track over a slow phone connection can legitimately take a

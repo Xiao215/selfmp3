@@ -9,12 +9,12 @@
  */
 
 /** A menu item as far as this page cares: what it does, and its key. */
-export interface MenuKey {
+interface MenuKey {
   readonly command: string
   readonly accelerator?: string
 }
 
-export interface ShortcutRow {
+interface ShortcutRow {
   /** Each one drawn as its own key cap. */
   readonly keys: readonly string[]
   readonly label: string

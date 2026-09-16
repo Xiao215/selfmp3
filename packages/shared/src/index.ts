@@ -64,8 +64,6 @@ export const AUDIO_EXTENSIONS = [
   '.webm',
 ] as const
 
-export type AudioExtension = (typeof AUDIO_EXTENSIONS)[number]
-
 /** Sidecar lyric files, checked in this order next to each audio file. */
 export const LYRIC_EXTENSIONS = ['.lrc', '.txt'] as const
 

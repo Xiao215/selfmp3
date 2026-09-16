@@ -6,8 +6,6 @@ import { parseArgs } from 'node:util'
  * meant to work from a bare checkout with no extra dependencies.
  */
 
-export const COMMANDS = ['start', 'scan', 'import', 'backup', 'doctor', 'help'] as const
-
 export type Command =
   | { readonly name: 'start' }
   | { readonly name: 'scan' }

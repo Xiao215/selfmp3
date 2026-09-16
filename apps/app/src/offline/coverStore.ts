@@ -61,7 +61,7 @@ export interface CoverPlatform {
   readonly forgetFiles: () => Promise<void>
 }
 
-export interface CoverStore {
+interface CoverStore {
   /** Told which songs' covers changed. */
   readonly subscribeCovers: ReturnType<typeof createCoverChanges>['subscribe']
   /** Bumped once per announcement: how a reader tells it missed one. */

@@ -68,7 +68,7 @@ export function sectionsFor(
 }
 
 /** How far below the top of the page a section counts as the one being read. */
-export const READING_LINE = 96
+const READING_LINE = 96
 
 /**
  * Where to scroll so a section chosen from the index lands at the top of what

@@ -54,6 +54,11 @@ jobs:
       - name: Formatting
         run: npm run format:check
 
+      # Twin-aware, because `x.ts` and `x.web.ts` declare the same names and
+      # each makes the other look read. See the script.
+      - name: Unused exports
+        run: npm run check:exports
+
       - name: Test
         run: npm run test
 

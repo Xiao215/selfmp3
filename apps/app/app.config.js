@@ -58,6 +58,17 @@ const config = {
       'expo-splash-screen',
       {
         backgroundColor: '#14121a',
+        // Not optional on Android, whatever the plugin's own types suggest.
+        // The plugin writes `windowSplashScreenAnimatedIcon` into styles.xml
+        // unconditionally but only renders `drawable/splashscreen_logo` when
+        // an image is given, so leaving this out generates an Android project
+        // whose theme points at a resource that does not exist — `aapt2 link`
+        // fails before a line of Kotlin is compiled. iOS just shows a blank
+        // splash, which is why this survived an iOS-only build.
+        //
+        // adaptive-icon.png rather than icon.png: the splash sits on the
+        // colour below, so it wants the mark with its background dropped.
+        image: './assets/adaptive-icon.png',
         imageWidth: 160,
       },
     ],

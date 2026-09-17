@@ -3,26 +3,26 @@ import type { ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { GestureResponderEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
   downloadedFrom,
-  excludeTag,
-  includeTag,
   oklchToHexAlpha,
   radius,
+  railTags,
   space,
-  tagFilterState,
   tagFiltered,
+  tagSelected,
+  toggleTag,
   type,
-  type TagFilterState,
   useAddToPlaylist,
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
 import { useLibraryTagFilter } from '../features/library/libraryFilter'
+import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
+import { openTagSearch } from '../features/library/tagSearch.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
@@ -43,7 +43,6 @@ import {
   Inbox,
   ListMusic,
   Live,
-  Minus,
   More,
   Music,
   Plus,
@@ -362,7 +361,17 @@ function Tags(): ReactNode {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
 
-  const tags = library?.tags ?? []
+  const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
+  const recentIds = useRecentTagIds()
+  /*
+   * Four tags, not two hundred.
+   *
+   * A rail that lists every tag is a scroll nobody reaches the bottom of, and
+   * the ones that matter are somewhere in the middle of it. These four are the
+   * ones this device reached for last — no pinning, nothing to maintain —
+   * and the rest are one press away in the library's own tag search.
+   */
+  const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
   // A pass over the whole library; its answer only changes when the library does.
   const untaggedCount = useMemo(() => (library?.songs ?? []).filter(isUntagged).length, [library])
   const trimmed = name.trim()
@@ -373,16 +382,13 @@ function Tags(): ReactNode {
   const toLibrary = (): void => {
     if (pathname !== '/') router.navigate('/')
   }
-  const include = (tagId: number): void => {
-    setFilter(current => includeTag(current, tagId))
-    toLibrary()
-  }
-  const exclude = (tagId: number): void => {
-    setFilter(current => excludeTag(current, tagId))
+  const choose = (tagId: number): void => {
+    if (!tagSelected(filter, tagId)) noteTagUsed(tagId)
+    setFilter(current => toggleTag(current, tagId))
     toLibrary()
   }
   const showOnly = (tagId: number): void => {
-    if (tagFilterState(filter, tagId) !== 'include') include(tagId)
+    if (!tagSelected(filter, tagId)) choose(tagId)
   }
 
   const submit = async (): Promise<void> => {
@@ -483,15 +489,42 @@ function Tags(): ReactNode {
             <Text style={styles.inboxCount}>{untaggedCount}</Text>
           </Pressable>
         ) : null}
-        {tags.map(tag => (
+        {rail.map(tag => (
           <TagRow
             key={tag.id}
             tag={tag}
-            state={tagFilterState(filter, tag.id)}
-            onInclude={() => include(tag.id)}
-            onExclude={() => exclude(tag.id)}
+            chosen={tagSelected(filter, tag.id)}
+            onChoose={() => choose(tag.id)}
           />
         ))}
+        {/*
+          Every tag chosen is shown even when it is not one of the four, or a
+          tag turned on from the library's own search would be filtering a list
+          while the rail said nothing was on.
+        */}
+        {tags
+          .filter(tag => tagSelected(filter, tag.id) && !rail.some(shown => shown.id === tag.id))
+          .map(tag => (
+            <TagRow key={tag.id} tag={tag} chosen onChoose={() => choose(tag.id)} />
+          ))}
+        {tags.length > rail.length ? (
+          <Pressable
+            onPress={() => {
+              toLibrary()
+              openTagSearch()
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Search all ${tags.length} tags`}
+            style={({ pressed }) => [
+              styles.allTags,
+              pressed && { backgroundColor: theme.colors.surface2 },
+            ]}
+            testID="sidebar-all-tags"
+          >
+            <Search size={12} color={theme.colors.textMuted} />
+            <Text style={styles.hint}>All {tags.length} tags…</Text>
+          </Pressable>
+        ) : null}
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
@@ -514,75 +547,50 @@ function Tags(): ReactNode {
 }
 
 /**
- * One tag in the sidebar. A click shows only it (⌥-click hides it instead);
- * the two controls the pointer reveals hide it and edit it. Hiding stays
- * visible while it is on, so a hidden tag always shows how to stop hiding it.
+ * One tag in the sidebar: a click puts it in the filter, a second click takes
+ * it out, and the ⋯ the pointer reveals edits it. There is no third state —
+ * every tag you turn on adds its songs to the list, so "hide these" has
+ * nowhere to fit and nothing to mean.
  */
 function TagRow({
   tag,
-  state,
-  onInclude,
-  onExclude,
+  chosen,
+  onChoose,
 }: {
   tag: Tag
-  state: TagFilterState
-  onInclude: () => void
-  onExclude: () => void
+  chosen: boolean
+  onChoose: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const moreRef = useRef<View>(null)
   const revealed = !HOVERS || hovered || editing
-  const excluded = state === 'exclude'
-  const included = state === 'include'
 
   return (
     <View
       style={[
         styles.tagRow,
-        (hovered || excluded) && { backgroundColor: theme.colors.surface2 },
-        included && { backgroundColor: oklchToHexAlpha(0.35, 0.09, tag.hue, 0.32) },
+        hovered && { backgroundColor: theme.colors.surface2 },
+        chosen && { backgroundColor: oklchToHexAlpha(0.35, 0.09, tag.hue, 0.32) },
       ]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
       <Pressable
         style={styles.tagMain}
-        onPress={(event: GestureResponderEvent) => {
-          const alt = (event.nativeEvent as unknown as { altKey?: boolean }).altKey === true
-          if (alt) onExclude()
-          else onInclude()
-        }}
+        onPress={onChoose}
         accessibilityRole="button"
         accessibilityLabel={tag.name}
-        accessibilityState={{ selected: included }}
+        accessibilityState={{ selected: chosen }}
       >
-        <View
-          style={[
-            styles.dot,
-            excluded
-              ? { borderWidth: 1.5, borderColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) }
-              : { backgroundColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) },
-          ]}
-        />
-        <Text style={[styles.tagName, included && styles.tagNameIncluded]} numberOfLines={1}>
-          {excluded ? <Text style={styles.not}>not </Text> : null}
+        <View style={[styles.dot, { backgroundColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) }]} />
+        <Text style={[styles.tagName, chosen && styles.tagNameIncluded]} numberOfLines={1}>
           {tag.name}
         </Text>
         <Text style={styles.count}>{tag.songCount}</Text>
       </Pressable>
 
-      <Pressable
-        style={[styles.tagAction, { opacity: revealed || excluded ? 1 : 0 }]}
-        onPress={onExclude}
-        accessibilityRole="button"
-        accessibilityLabel={excluded ? `Stop hiding ${tag.name}` : `Hide songs tagged ${tag.name}`}
-        {...tip(excluded ? 'Stop hiding' : 'Hide these songs')}
-        accessibilityState={{ selected: excluded }}
-      >
-        <Minus size={13} color={excluded ? theme.colors.danger : theme.colors.textMuted} />
-      </Pressable>
       <View ref={moreRef} collapsable={false}>
         <Pressable
           style={[styles.tagAction, styles.tagActionLast, { opacity: revealed ? 1 : 0 }]}
@@ -599,12 +607,10 @@ function TagRow({
       <TagEditor
         tag={editing ? tag : null}
         anchorRef={moreRef}
-        filter={state}
-        onInclude={onInclude}
-        onExclude={onExclude}
+        chosen={chosen}
+        onChoose={onChoose}
         onDeleted={() => {
-          if (included) onInclude()
-          if (excluded) onExclude()
+          if (chosen) onChoose()
         }}
         onClose={() => setEditing(false)}
       />
@@ -831,6 +837,14 @@ const styles = StyleSheet.create(theme => ({
   inboxCount: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
+  allTags: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.sm },
   tagMain: {
     flex: 1,

@@ -29,7 +29,7 @@ import { PlaylistCover } from './PlaylistCover'
 import {
   isLive,
   isPlaylistSort,
-  LIVE_NAME,
+  FOLLOWS_LABEL,
   PLAYLIST_SORTS,
   playlistSubtitle,
   usePlaylistsModel,
@@ -210,11 +210,9 @@ export function PlaylistsScreen(): ReactNode {
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyTitle}>Nothing of your own yet</Text>
                 <Text style={styles.emptyHint}>
-                  Make a <Text style={styles.emptyStrong}>playlist</Text> and pick the songs, let a{' '}
-                  <Text style={styles.emptyStrong}>smart playlist</Text> pick them from a template
-                  like Most played, or make a{' '}
-                  <Text style={styles.emptyStrong}>{LIVE_NAME.toLowerCase()} playlist</Text> that
-                  follows rules and keeps itself up to date.
+                  Make a <Text style={styles.emptyStrong}>playlist</Text> and pick the songs
+                  yourself, or fill one <Text style={styles.emptyStrong}>from tags</Text> — it keeps
+                  itself filled as you tag more.
                 </Text>
                 <View style={styles.emptyAction}>
                   <Button
@@ -313,7 +311,7 @@ function PlaylistTile({
           {live ? (
             <View style={[styles.badge, styles.badgeRow]}>
               <Live size={11} color={theme.colors.textPrimary} />
-              <Text style={styles.badgeText}>{LIVE_NAME}</Text>
+              <Text style={styles.badgeText}>{FOLLOWS_LABEL}</Text>
             </View>
           ) : null}
           {playlist.pinned ? (

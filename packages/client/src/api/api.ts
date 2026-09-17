@@ -364,6 +364,10 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     deletePlaylist: (id: number) => request('DELETE', `/api/playlists/${id}`, OkSchema),
 
+    /** Keep the songs it has, and stop adding more. */
+    stopFollowing: (id: number) =>
+      request('POST', `/api/playlists/${id}/stop-following`, PlaylistSchema),
+
     playlistSongs: (id: number) =>
       request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 

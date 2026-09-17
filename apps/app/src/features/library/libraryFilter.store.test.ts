@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearTagFilter, DEFAULT_FILTER, includeTag } from '@selfmp3/client'
+import { clearTagFilter, DEFAULT_FILTER, toggleTag } from '@selfmp3/client'
 
 import { createLibraryFilterStore } from './libraryFilter.store'
 
@@ -19,7 +19,7 @@ describe('the library filter store', () => {
     const store = createLibraryFilterStore()
     let heard = 0
     const stop = store.subscribe(() => heard++)
-    store.set(current => includeTag(current, 7))
+    store.set(current => toggleTag(current, 7))
     expect(heard).toBe(1)
     // Clearing twice: the second returns the filter it was given.
     store.set(clearTagFilter)
@@ -30,12 +30,11 @@ describe('the library filter store', () => {
     expect(heard).toBe(2)
   })
 
-  it('keeps the tag lists the same arrays while only the query changes', () => {
+  it('keeps the tag list the same array while only the query changes', () => {
     const store = createLibraryFilterStore()
-    store.set(current => includeTag(current, 7))
-    const { includedTagIds, excludedTagIds } = store.get()
+    store.set(current => toggleTag(current, 7))
+    const { tagIds } = store.get()
     store.set(current => ({ ...current, query: 'typing' }))
-    expect(store.get().includedTagIds).toBe(includedTagIds)
-    expect(store.get().excludedTagIds).toBe(excludedTagIds)
+    expect(store.get().tagIds).toBe(tagIds)
   })
 })

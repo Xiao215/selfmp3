@@ -20,13 +20,15 @@ import {
 export interface LibraryFilter {
   readonly query: string
   /**
-   * A song must carry every one of these: "chinese" and "chill" means both,
-   * not either. Kept in the order they were chosen, which is the order the
-   * heading names them in.
+   * A song carrying *any* of these is shown: "chill" and "chinese" means both
+   * kinds of song, not only the songs that are both. Each tag you add makes
+   * the list longer, which is what lets a run of taps be a mood rather than a
+   * search that can be narrowed down to nothing.
+   *
+   * Kept in the order they were chosen, which is the order the heading names
+   * them in.
    */
-  readonly includedTagIds: readonly number[]
-  /** A song carrying any of these is hidden: "chill, but not instrumental". */
-  readonly excludedTagIds: readonly number[]
+  readonly tagIds: readonly number[]
   readonly sort: SongSortField
   readonly descending: boolean
   readonly downloadedOnly: boolean
@@ -35,81 +37,70 @@ export interface LibraryFilter {
 /** The app's opening view: newest first. */
 export const DEFAULT_FILTER: LibraryFilter = {
   query: '',
-  includedTagIds: [],
-  excludedTagIds: [],
+  tagIds: [],
   sort: 'addedAt',
   descending: true,
   downloadedOnly: false,
 }
 
-/** How one tag is filtering the library right now. */
-export type TagFilterState = 'off' | 'include' | 'exclude'
-
 /**
  * The part of a filter the tags decide. The sidebar reads only this, so it
  * need not hear about every letter typed into the search.
  */
-export type TagFilter = Pick<LibraryFilter, 'includedTagIds' | 'excludedTagIds'>
+export type TagFilter = Pick<LibraryFilter, 'tagIds'>
 
-export function tagFilterState(filter: TagFilter, tagId: number): TagFilterState {
-  if (filter.includedTagIds.includes(tagId)) return 'include'
-  if (filter.excludedTagIds.includes(tagId)) return 'exclude'
-  return 'off'
+export function tagSelected(filter: TagFilter, tagId: number): boolean {
+  return filter.tagIds.includes(tagId)
 }
 
-/** Whether any tag is filtering, either way. */
+/** Whether any tag is narrowing the library. */
 export function tagFiltered(filter: TagFilter): boolean {
-  return filter.includedTagIds.length > 0 || filter.excludedTagIds.length > 0
+  return filter.tagIds.length > 0
 }
-
-const toggled = (ids: readonly number[], id: number): number[] =>
-  ids.includes(id) ? ids.filter(other => other !== id) : [...ids, id]
 
 /**
- * Toggle "only songs with this tag". A tag cannot be both shown and hidden, so
- * including one that was excluded stops excluding it — the app's rule.
+ * Turn a tag on or off. There is no third state: a tag is one of the things
+ * you want to hear, or it is not.
  */
-export function includeTag(filter: LibraryFilter, tagId: number): LibraryFilter {
+export function toggleTag(filter: LibraryFilter, tagId: number): LibraryFilter {
   return {
     ...filter,
-    includedTagIds: toggled(filter.includedTagIds, tagId),
-    excludedTagIds: filter.excludedTagIds.filter(id => id !== tagId),
-  }
-}
-
-/** Toggle "hide songs with this tag", the other side of the same rule. */
-export function excludeTag(filter: LibraryFilter, tagId: number): LibraryFilter {
-  return {
-    ...filter,
-    excludedTagIds: toggled(filter.excludedTagIds, tagId),
-    includedTagIds: filter.includedTagIds.filter(id => id !== tagId),
+    tagIds: filter.tagIds.includes(tagId)
+      ? filter.tagIds.filter(id => id !== tagId)
+      : [...filter.tagIds, tagId],
   }
 }
 
 export function clearTagFilter(filter: LibraryFilter): LibraryFilter {
-  return tagFiltered(filter) ? { ...filter, includedTagIds: [], excludedTagIds: [] } : filter
+  return tagFiltered(filter) ? { ...filter, tagIds: [] } : filter
 }
 
 /**
- * The title a filtered library carries: "chill · not instrumental", or with
- * only exclusions, "Library · not instrumental". A tag that no longer exists
- * is left out rather than named as nothing.
+ * The title a tagged library carries: "chill · 中文", or "Library" with no
+ * tags on. It is also the name a playlist saved from these tags is given, so
+ * it has to read as a name and not as a description of a query.
+ *
+ * A tag that no longer exists is left out rather than named as nothing.
  */
 export function filterHeading(
-  filter: LibraryFilter,
+  filter: TagFilter,
   tags: readonly Pick<Tag, 'id' | 'name'>[],
 ): string {
-  if (!tagFiltered(filter)) return 'Library'
-  const nameOf = (id: number): string | undefined => tags.find(tag => tag.id === id)?.name
-  const parts = [
-    ...(filter.includedTagIds.length === 0 ? ['Library'] : []),
-    ...filter.includedTagIds.map(nameOf),
-    ...filter.excludedTagIds.map(id => {
-      const name = nameOf(id)
-      return name === undefined ? undefined : `not ${name}`
-    }),
-  ].filter((part): part is string => part !== undefined)
-  return parts.length > 0 ? parts.join(' · ') : 'Library'
+  const names = filter.tagIds
+    .map(id => tags.find(tag => tag.id === id)?.name)
+    .filter((name): name is string => name !== undefined)
+  return names.length > 0 ? names.join(' · ') : 'Library'
+}
+
+/**
+ * How many of the chosen tags this song carries — 0 when none, and the whole
+ * count when it carries every one. What orders a tagged library: the songs
+ * that are most of what you asked for come first.
+ */
+export function tagMatchCount(song: Pick<Song, 'tagIds'>, tagIds: readonly number[]): number {
+  let matched = 0
+  for (const id of tagIds) if (song.tagIds.includes(id)) matched += 1
+  return matched
 }
 
 /** Sort options offered in the UI — the app's list, in the app's order. */
@@ -156,11 +147,7 @@ export function filterSongs(
   let result = songs.filter(song => !song.missing)
 
   if (tagFiltered(filter)) {
-    result = result.filter(
-      song =>
-        filter.includedTagIds.every(id => song.tagIds.includes(id)) &&
-        !filter.excludedTagIds.some(id => song.tagIds.includes(id)),
-    )
+    result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)
   }
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
 
@@ -172,7 +159,45 @@ export function filterSongs(
 
   // The shared comparison, so the phone and the desktop put the same library in
   // the same order. A separate local copy once drifted from this in four places.
-  return sortSongs(result, filter.sort, filter.descending)
+  const sorted = sortSongs(result, filter.sort, filter.descending)
+  return filter.tagIds.length > 1 ? byTagMatches(sorted, filter.tagIds) : sorted
+}
+
+/**
+ * The songs carrying the most of the chosen tags first, and within each group
+ * the order they already had.
+ *
+ * This is what makes "any of these tags" usable as the only rule. Two tags
+ * give you everything either one covers — so a second tap can never empty the
+ * screen — but the songs that are both play first, which is what you meant by
+ * tapping two. One tag has nothing to rank, hence the caller's check.
+ *
+ * Bucketed rather than sorted by count: a sort would have to be stable to keep
+ * the order inside each group, and grouping says so outright.
+ */
+function byTagMatches(songs: readonly Song[], tagIds: readonly number[]): Song[] {
+  // buckets[n] holds the songs carrying n of the tags; 0 is never filled,
+  // because a song matching none of them is not in the list at all.
+  const buckets: Song[][] = Array.from({ length: tagIds.length + 1 }, () => [])
+  for (const song of songs) buckets[tagMatchCount(song, tagIds)]?.push(song)
+  const ordered: Song[] = []
+  for (let matches = tagIds.length; matches > 0; matches -= 1) {
+    ordered.push(...(buckets[matches] ?? []))
+  }
+  return ordered
+}
+
+/**
+ * How many of `songs` carry every one of the chosen tags — the "62 have all
+ * three, and come first" line under a tagged library.
+ *
+ * Worth saying out loud only because the union is the surprising half of the
+ * rule: someone who taps "chill" and "中文" expecting an intersection needs to
+ * see that the intersection is still there, at the top.
+ */
+export function bothTagsCount(songs: readonly Song[], tagIds: readonly number[]): number {
+  if (tagIds.length < 2) return 0
+  return songs.filter(song => tagMatchCount(song, tagIds) === tagIds.length).length
 }
 
 /** Tags that are actually used, so the filter row is not full of dead chips. */

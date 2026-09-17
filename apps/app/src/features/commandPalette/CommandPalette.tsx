@@ -8,7 +8,7 @@ import { formatDuration } from '@selfmp3/shared'
 import {
   clearTagFilter,
   clientApi,
-  includeTag,
+  toggleTag,
   oklchToHexAlpha,
   queryKeys,
   radius,
@@ -38,6 +38,7 @@ import {
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
 import { useSetLibraryFilter } from '../library/libraryFilter'
+import { noteTagUsed } from '../library/recentTags.store'
 import {
   lyricsQueryFor,
   paletteResults,
@@ -164,7 +165,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     ...found.tags.map(tag => ({
       key: `tag-${tag.id}`,
       run: () => {
-        setFilter(current => includeTag(clearTagFilter(current), tag.id))
+        // Only this tag: a palette hit is "show me this", not one more chip on
+        // whatever was already chosen.
+        noteTagUsed(tag.id)
+        setFilter(current => toggleTag(clearTagFilter(current), tag.id))
         router.navigate('/')
       },
     })),

@@ -65,12 +65,11 @@ import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { copyName, isLive, LIVE_NAME, newPlaylist } from '../playlists/playlists.model'
+import { copyName, FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { PlaylistSongRow } from './PlaylistSongRow'
-import { RulesPanel, RulesSheet } from './RulesEditor'
-import { RulesSummary } from './RulesSummary'
+import { FollowsRow } from './FollowsRow'
 import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
 
 /**
@@ -90,15 +89,15 @@ import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
  * edits them in a panel beside the songs (a sheet on a phone), so the songs
  * the rules pick stay what the page shows.
  *
- * Arriving with `?rules=1` opens the rules (a live playlist just made), and
- * with `?rename=1` the name (a playlist just made from a selection).
+ * Arriving with `?rename=1` puts the cursor in the name — where a playlist
+ * just saved from a tag pick sends you when you press Rename on the message.
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
-  const params = useLocalSearchParams<{ id: string; rules?: string; rename?: string }>()
+  const params = useLocalSearchParams<{ id: string; rename?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
   const navigation = useNavigation()
@@ -124,7 +123,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const [describing, setDescribing] = useState(false)
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [editingRules, setEditingRules] = useState(params.rules === '1')
   const [adding, setAdding] = useState(false)
   // The row being moved and the row it would land on. Not how far it has
   // travelled: that is `dragY`, which moves the row without a render.
@@ -409,7 +407,7 @@ export function PlaylistDetailScreen(): ReactNode {
         {live ? <Live size={13} color={accent.accent} /> : null}
         <Text style={[styles.eyebrowText, live && { color: accent.accent }]}>
           {live
-            ? `${LIVE_NAME} playlist · updates itself`
+            ? `Playlist · ${FOLLOWS_LABEL}`
             : playlist?.pinned
               ? 'Playlist · pinned'
               : 'Playlist'}
@@ -591,14 +589,7 @@ export function PlaylistDetailScreen(): ReactNode {
         )
       ) : null}
 
-      {live && playlist ? (
-        <RulesSummary
-          rules={playlist.rules}
-          tags={tags}
-          editing={editingRules}
-          onEdit={() => setEditingRules(true)}
-        />
-      ) : null}
+      {live && playlist ? <FollowsRow playlist={playlist} tags={tags} /> : null}
     </View>
   )
 
@@ -689,20 +680,7 @@ export function PlaylistDetailScreen(): ReactNode {
             />
           ) : null}
         </View>
-
-        {wide && live && playlist && editingRules ? (
-          <RulesPanel playlist={playlist} tags={tags} onDone={() => setEditingRules(false)} />
-        ) : null}
       </View>
-
-      {!wide && live && playlist ? (
-        <RulesSheet
-          open={editingRules}
-          playlist={playlist}
-          tags={tags}
-          onDone={() => setEditingRules(false)}
-        />
-      ) : null}
 
       <Popover
         open={headMenuOpen}
@@ -727,19 +705,12 @@ export function PlaylistDetailScreen(): ReactNode {
         />
         <View style={styles.divider} />
         {live ? (
-          <>
-            <SheetItem
-              icon={menuIcon(Live)}
-              label="Edit rules"
-              onPress={menuAction(() => setEditingRules(true))}
-            />
-            <SheetItem
-              icon={menuIcon(Copy)}
-              label="Save a copy as playlist"
-              disabled={nothing}
-              onPress={menuAction(() => void makeCopy('manual'))}
-            />
-          </>
+          <SheetItem
+            icon={menuIcon(Copy)}
+            label="Save a copy as playlist"
+            disabled={nothing}
+            onPress={menuAction(() => void makeCopy('manual'))}
+          />
         ) : null}
         <SheetItem
           icon={menuIcon(Pin)}

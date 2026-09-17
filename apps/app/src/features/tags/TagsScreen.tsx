@@ -1,59 +1,69 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
 import {
-  excludeTag,
   HIT_TARGET,
-  includeTag,
-  oklchToHexAlpha,
   radius,
-  tagFilterState,
-  type TagFilterState,
+  tagSelected,
+  toggleTag,
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
+import { useDownloads } from '../../offline/DownloadsProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { Button } from '../../ui/components/Button'
-import { IconButton } from '../../ui/components/IconButton'
-import { More, Plus } from '../../ui/components/Icons'
+import { ListenTagsList } from '../../ui/components/ListenTags'
+import { Play, Plus, Shuffle } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { TagEditor } from '../../ui/components/TagEditor'
-import { useLibraryTagFilter } from '../library/libraryFilter'
-import { existingTag, onlyTag, songCount } from './tags.model'
+import { useLibraryModel } from '../library/library.model'
+import { useLibraryFilter } from '../library/libraryFilter'
+import { noteTagUsed } from '../library/recentTags.store'
+import { useSaveTagsAsPlaylist } from '../library/saveTags'
+import { existingTag } from './tags.model'
 
 /**
- * Your tags, as a page: reached from You on a phone (tags.model.ts).
+ * Tags, as a page: reached from You on a phone.
  *
- * Tapping a tag shows its songs in the Library; the ⋯ beside it opens the
- * same editor the sidebar's does — filter either way, rename, recolour,
- * delete. It draws at any width, but only a phone links to it: a computer's
- * sidebar lists the tags already.
+ * On a phone this is the front door to the whole library, so it is not a list
+ * of tags to administer — it is what you are going to listen to. Tap tags, and
+ * the bar along the foot says what you have built and starts it. A thumb is at
+ * the bottom of a phone, which is why the bar is there and not in the header.
+ *
+ * Tag housekeeping is still here, because a phone has nowhere else for it: a
+ * long press on a chip opens the same editor the sidebar's ⋯ does.
  */
 export function TagsScreen(): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
-  const router = useRouter()
   const { wide } = useLayout()
   const { data: library } = useLibrary()
-  // The tag half only: a letter typed into the library search changes nothing here.
-  const [filter, setFilter] = useLibraryTagFilter()
+  const { state: downloads } = useDownloads()
+  const model = useLibraryModel(downloads.index)
+  const [, setFilter] = useLibraryFilter()
+  const player = usePlayer()
   const createTag = useCreateTag()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
+  const [editing, setEditing] = useState<Tag | null>(null)
+  const editorAnchor = useRef<View>(null)
 
   const tags = library?.tags ?? []
+  const saved = useSaveTagsAsPlaylist()
+  const alreadySaved = saved.savedName !== null && saved.savedName === model.heading
 
-  // A tag filters the library, so choosing one goes there to show it.
-  const toLibrary = (): void => router.navigate('/')
-  const show = (tagId: number): void => {
-    setFilter(current => onlyTag(current, tagId))
-    toLibrary()
-  }
+  const choose = useCallback(
+    (tagId: number) => {
+      setFilter(current => {
+        if (!tagSelected(current, tagId)) noteTagUsed(tagId)
+        return toggleTag(current, tagId)
+      })
+    },
+    [setFilter],
+  )
 
   const submit = async (): Promise<void> => {
     const trimmed = name.trim()
@@ -63,229 +73,149 @@ export function TagsScreen(): ReactNode {
     }
     // Choosing the tag that exists beats silently making a twin of it.
     const existing = existingTag(tags, trimmed)
-    if (existing) {
-      show(existing.id)
-    } else {
-      const made = await createTag.mutateAsync(trimmed).catch(() => null)
-      if (!made) return
-    }
+    if (existing) choose(existing.id)
+    else if (!(await createTag.mutateAsync(trimmed).catch(() => null))) return
     setName('')
     setAdding(false)
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        keyboardShouldPersistTaps="handled"
-        testID="tags-screen"
-      >
+    <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
+      <View style={[styles.head, wide ? styles.headWide : styles.headNarrow]}>
         <BackToYou />
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
-          Tags
-        </Text>
+        <View style={styles.headRow}>
+          <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+            Tags
+          </Text>
+          <View style={styles.spacer} />
+          <Pressable
+            onPress={() => setAdding(open => !open)}
+            accessibilityRole="button"
+            accessibilityLabel="New tag"
+            style={({ pressed }) => [styles.newTag, pressed && { opacity: 0.7 }]}
+          >
+            <Plus size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.newTagLabel}>New tag</Text>
+          </Pressable>
+        </View>
 
-        {!library ? (
-          <Text style={styles.hint}>Tags load with your library.</Text>
-        ) : (
-          <>
-            <View style={styles.card} accessibilityRole="list" accessibilityLabel="Tags">
-              {tags.map((tag, index) => (
-                <TagRow
-                  key={tag.id}
-                  tag={tag}
-                  first={index === 0}
-                  state={tagFilterState(filter, tag.id)}
-                  onShow={() => show(tag.id)}
-                  onInclude={() => {
-                    setFilter(current => includeTag(current, tag.id))
-                    toLibrary()
-                  }}
-                  onExclude={() => {
-                    setFilter(current => excludeTag(current, tag.id))
-                    toLibrary()
-                  }}
-                  onDeleted={() => {
-                    const state = tagFilterState(filter, tag.id)
-                    if (state === 'include') setFilter(current => includeTag(current, tag.id))
-                    if (state === 'exclude') setFilter(current => excludeTag(current, tag.id))
-                  }}
-                />
-              ))}
-
-              {adding ? (
-                <View style={[styles.newForm, tags.length > 0 && styles.rowDivided]}>
-                  <TextInput
-                    style={styles.input}
-                    value={name}
-                    onChangeText={text => {
-                      setName(text)
-                      createTag.reset()
-                    }}
-                    onSubmitEditing={() => void submit()}
-                    placeholder="tag name"
-                    placeholderTextColor={theme.colors.textMuted}
-                    autoFocus
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    maxLength={40}
-                    accessibilityLabel="New tag name"
-                  />
-                  <Button
-                    label={existingTag(tags, name) ? 'Show it' : 'Add'}
-                    variant="primary"
-                    disabled={!name.trim() || createTag.isPending}
-                    onPress={() => void submit()}
-                  />
-                  <Button
-                    label="Cancel"
-                    onPress={() => {
-                      setName('')
-                      setAdding(false)
-                    }}
-                  />
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => setAdding(true)}
-                  accessibilityRole="button"
-                  testID="tags-new"
-                  style={({ pressed }) => [
-                    styles.row,
-                    tags.length > 0 && styles.rowDivided,
-                    pressed && { backgroundColor: theme.colors.surface2 },
-                  ]}
-                >
-                  <Plus size={16} color={accent.accent} />
-                  <Text style={[styles.newLabel, { color: accent.accent }]}>New tag</Text>
-                </Pressable>
-              )}
-            </View>
-
-            {createTag.error ? <Text style={styles.error}>{createTag.error.message}</Text> : null}
-
-            <Text style={[styles.hint, styles.foot]}>
-              {tags.length === 0
-                ? 'No tags yet. Tags are how you find things later — try “chill”.'
-                : 'Tap a tag to see its songs in Library.'}
-            </Text>
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  )
-}
-
-/**
- * One tag: its colour, its name and how many songs carry it. A tag that is
- * filtering the library right now is tinted, or marked "not", as the sidebar
- * marks it, so coming back here shows what the Library is doing.
- */
-function TagRow({
-  tag,
-  first,
-  state,
-  onShow,
-  onInclude,
-  onExclude,
-  onDeleted,
-}: {
-  tag: Tag
-  first: boolean
-  state: TagFilterState
-  onShow: () => void
-  onInclude: () => void
-  onExclude: () => void
-  onDeleted: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const [editing, setEditing] = useState(false)
-  const moreRef = useRef<View>(null)
-  const included = state === 'include'
-  const excluded = state === 'exclude'
-
-  return (
-    <View
-      style={[
-        styles.tagRow,
-        !first && styles.rowDivided,
-        included && { backgroundColor: oklchToHexAlpha(0.35, 0.09, tag.hue, 0.32) },
-      ]}
-    >
-      <Pressable
-        onPress={onShow}
-        accessibilityRole="button"
-        accessibilityLabel={`${tag.name}, ${songCount(tag.songCount)}`}
-        accessibilityState={{ selected: included }}
-        style={({ pressed }) => [styles.row, styles.tagMain, pressed && { opacity: 0.7 }]}
-      >
-        <View
-          style={[
-            styles.dot,
-            excluded
-              ? { borderWidth: 1.5, borderColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) }
-              : { backgroundColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) },
-          ]}
-        />
-        <Text style={[styles.tagName, included && styles.tagNameOn]} numberOfLines={1}>
-          {excluded ? <Text style={styles.not}>not </Text> : null}
-          {tag.name}
-        </Text>
-        <Text style={styles.count}>{tag.songCount.toLocaleString()}</Text>
-      </Pressable>
-      <View ref={moreRef} collapsable={false}>
-        <IconButton onPress={() => setEditing(open => !open)} label={`Edit tag ${tag.name}`}>
-          <More size={16} color={theme.colors.textMuted} />
-        </IconButton>
+        {adding ? (
+          <View style={styles.newForm}>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={text => {
+                setName(text)
+                createTag.reset()
+              }}
+              onSubmitEditing={() => void submit()}
+              placeholder="tag name"
+              placeholderTextColor={theme.colors.textMuted}
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="New tag name"
+            />
+            <Button label="Add" variant="primary" onPress={() => void submit()} />
+          </View>
+        ) : null}
+        {createTag.isError ? (
+          <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
+        ) : null}
       </View>
 
+      {!library ? (
+        <Text style={styles.hint}>Tags load with your library.</Text>
+      ) : (
+        <ListenTagsList
+          selected={model.filter.tagIds}
+          onToggle={choose}
+          onEditTag={tag => setEditing(tag)}
+          style={styles.list}
+        />
+      )}
+
+      {/*
+        The foot: what these tags come to, and the two things worth doing with
+        it. Nothing here when no tag is on — there is no list yet to play.
+      */}
+      {model.tagFiltered ? (
+        <View style={styles.bar} testID="tags-play-bar">
+          <View style={styles.barText}>
+            <Text style={styles.barTitle} numberOfLines={1}>
+              {model.heading}
+            </Text>
+            <Text style={styles.barSub} numberOfLines={1}>
+              {model.subtitle}
+            </Text>
+          </View>
+          {alreadySaved ? (
+            <Text style={styles.savedMark} testID="tags-saved">
+              ✓ Saved
+            </Text>
+          ) : (
+            <Button
+              label={saved.saving ? '…' : 'Save'}
+              accessibilityLabel="Save these tags as a playlist"
+              disabled={saved.saving || model.visible.length === 0}
+              onPress={() =>
+                saved.save({
+                  name: model.heading,
+                  tagIds: model.filter.tagIds,
+                  sort: model.filter.sort,
+                  descending: model.filter.descending,
+                })
+              }
+              testID="tags-save"
+            />
+          )}
+          <Button
+            accessibilityLabel="Shuffle these tags"
+            icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
+            disabled={model.visible.length === 0}
+            onPress={() => player.playShuffled(model.songIds)}
+          />
+          <Button
+            variant="primary"
+            accessibilityLabel="Play these tags"
+            icon={<Play size={15} color={theme.colors.onAccent} />}
+            disabled={model.visible.length === 0}
+            onPress={() => player.playFrom(model.songIds, 0)}
+            testID="tags-play"
+          />
+        </View>
+      ) : null}
+
+      <View ref={editorAnchor} collapsable={false} style={styles.editorAnchor} />
       <TagEditor
-        tag={editing ? tag : null}
-        anchorRef={moreRef}
-        filter={state}
-        onInclude={onInclude}
-        onExclude={onExclude}
-        onDeleted={onDeleted}
-        onClose={() => setEditing(false)}
+        tag={editing}
+        anchorRef={editorAnchor}
+        chosen={editing ? model.filter.tagIds.includes(editing.id) : false}
+        onChoose={() => editing && choose(editing.id)}
+        onDeleted={() => {
+          if (editing && model.filter.tagIds.includes(editing.id)) choose(editing.id)
+        }}
+        onClose={() => setEditing(null)}
       />
-    </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32, maxWidth: 640 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700', marginBottom: 16 },
+  head: { gap: 10 },
+  headWide: { paddingTop: 28, paddingHorizontal: 32 },
+  headNarrow: { paddingTop: 18, paddingHorizontal: 16 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  spacer: { flex: 1 },
+  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
   headingNarrow: { fontSize: 22 },
-  hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18 },
-  foot: { marginTop: 12, paddingHorizontal: 4 },
-  error: { color: theme.colors.danger, fontSize: 12, marginTop: 8 },
-  card: {
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
-  },
-  rowDivided: { borderTopWidth: 1, borderTopColor: theme.colors.border },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minHeight: HIT_TARGET + 4,
-    paddingHorizontal: 14,
-  },
-  tagRow: { flexDirection: 'row', alignItems: 'center', paddingRight: 4 },
-  tagMain: { flex: 1, minWidth: 0 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  tagName: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 15 },
-  tagNameOn: { fontWeight: '600' },
-  not: { color: theme.colors.danger },
-  count: { color: theme.colors.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] },
-  newLabel: { fontSize: 15, fontWeight: '600' },
-  newForm: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 },
+  newTag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6 },
+  newTagLabel: { color: theme.colors.textSecondary, fontSize: 13 },
+  hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18, padding: 16 },
+  error: { color: theme.colors.danger, fontSize: 12 },
+  list: { flex: 1, maxHeight: undefined, paddingTop: 10 },
+  newForm: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
     flex: 1,
     minWidth: 0,
@@ -293,9 +223,29 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     color: theme.colors.textPrimary,
     fontSize: 15,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    margin: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: radius.md,
+  },
+  barText: { flex: 1, minWidth: 0 },
+  barTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  barSub: { color: theme.colors.textMuted, fontSize: 12 },
+  savedMark: { color: theme.colors.good, fontSize: 12, fontWeight: '600' },
+  // The editor is anchored to the page rather than to a chip: a chip moves as
+  // the search filters under it, and a popover pinned to one that has gone
+  // draws in the wrong place.
+  editorAnchor: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

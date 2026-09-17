@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyReason, noMatchesTitle, songTagLookup, unreachableCopy } from './library.model'
+import { emptyReason, matchNote, noMatchesTitle, songTagLookup, unreachableCopy } from './library.model'
 
 describe('saying the library cannot be reached', () => {
   it('names the address it tried, without the scheme', () => {
@@ -80,5 +80,22 @@ describe('why the library list is empty', () => {
     expect(emptyReason({ isError: false, total: 0, shown: 0 })).toBe('no-library')
     // Thirteen songs and none shown is the filter's doing.
     expect(emptyReason({ isError: false, total: 13, shown: 0 })).toBe('no-matches')
+  })
+})
+
+describe('matchNote', () => {
+  it('says nothing for none or one tag', () => {
+    expect(matchNote(0, 0, 10)).toBeNull()
+    expect(matchNote(1, 0, 10)).toBeNull()
+  })
+
+  it('names both tags for two, and counts them beyond that', () => {
+    expect(matchNote(2, 62, 176)).toBe('62 have both tags, and come first')
+    expect(matchNote(3, 24, 210)).toBe('24 have all 3 tags, and come first')
+  })
+
+  it('says nothing when no song carries every tag, or when every song does', () => {
+    expect(matchNote(2, 0, 176)).toBeNull()
+    expect(matchNote(2, 176, 176)).toBeNull()
   })
 })

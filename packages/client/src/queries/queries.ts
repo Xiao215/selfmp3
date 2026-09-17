@@ -498,6 +498,26 @@ export const useDeletePlaylist = () =>
   useLibraryMutation((id: number) => clientApi().deletePlaylist(id), 'Couldn’t delete the playlist')
 
 /**
+ * Stop a playlist following its tags.
+ *
+ * The songs move from being an answer to a question into being the playlist's
+ * own, so the list has to be refetched as well as the library: the ids are the
+ * same ones, but they now come from a different place and can be reordered and
+ * removed.
+ */
+export function useStopFollowing() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => clientApi().stopFollowing(id),
+    meta: { failure: 'Couldn’t stop following those tags' },
+    onSuccess: (playlist, id) => {
+      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(id) })
+    },
+  })
+}
+
+/**
  * Love / unlove, applied optimistically.
  *
  * A heart that waits for a round trip before filling in feels broken, so the

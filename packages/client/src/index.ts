@@ -53,6 +53,7 @@ export * from './queue/autoMix.js'
 
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'
+export * from './library/recentTags.js'
 
 /** Presence and handoff: pure rules, shared by every client. */
 export * from './devices/handoff.js'

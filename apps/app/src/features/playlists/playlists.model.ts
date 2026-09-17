@@ -23,7 +23,16 @@ import { useLibrary } from '@selfmp3/client'
  */
 
 /** What the self-updating kind is called wherever a person reads it. */
-export const LIVE_NAME = 'Live'
+/**
+ * What a playlist that follows tags is called, wherever it has to be named in
+ * passing: under its title, on its row in a list.
+ *
+ * A verb, not a category. "Live" and "auto" name a *kind* of playlist, which
+ * then has to be explained somewhere and learned; "follows tags" says what
+ * happens, and it is the same word as the switch that turns it on and the row
+ * that shows it — one thing to learn instead of three.
+ */
+export const FOLLOWS_LABEL = 'follows tags'
 
 export type PlaylistSort = 'recent' | 'name' | 'added'
 

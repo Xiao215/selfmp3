@@ -43,17 +43,15 @@ export function useLibraryFilter(): FilterState {
 }
 
 /**
- * Only the tag half, which is all the sidebar shows. The arrays are carried
- * over untouched when the query changes, so typing leaves both snapshots equal
- * and the sidebar is not rendered for it.
+ * Only the tag half, which is all the sidebar shows. The array is carried over
+ * untouched when the query changes, so typing leaves both snapshots equal and
+ * the sidebar is not rendered for it.
  */
 export function useLibraryTagFilter(): readonly [TagFilter, SetFilter] {
   const store = useStore()
-  const included = (): readonly number[] => store.get().includedTagIds
-  const excluded = (): readonly number[] => store.get().excludedTagIds
-  const includedTagIds = useSyncExternalStore(store.subscribe, included, included)
-  const excludedTagIds = useSyncExternalStore(store.subscribe, excluded, excluded)
-  const tags = useMemo(() => ({ includedTagIds, excludedTagIds }), [includedTagIds, excludedTagIds])
+  const chosen = (): readonly number[] => store.get().tagIds
+  const tagIds = useSyncExternalStore(store.subscribe, chosen, chosen)
+  const tags = useMemo(() => ({ tagIds }), [tagIds])
   return [tags, store.set]
 }
 

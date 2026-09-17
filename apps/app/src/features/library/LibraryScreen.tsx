@@ -12,7 +12,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Search, Shuffle, X } from '../../ui/components/Icons'
+import { Downloaded, Play, Plus, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
@@ -23,12 +23,17 @@ import { CantReach } from './CantReach'
 import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { ListenTags } from '../../ui/components/ListenTags'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, useLibraryModel } from './library.model'
+import { noteTagUsed } from './recentTags.store'
+import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
+import { useSaveTagsAsPlaylist } from './saveTags'
 import { usePullToRefresh } from './usePullToRefresh'
+import { tip } from '../../ui/tip'
 
 /**
  * The library, at every width.
@@ -59,7 +64,7 @@ export function LibraryScreen(): ReactNode {
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
   const pull = usePullToRefresh()
-  const { filter, songs, visible, songIds, heading, includeTag, songTags } = model
+  const { filter, songs, visible, songIds, songTags } = model
 
   const [searchFocused, setSearchFocused] = useState(false)
   const [menuSong, setMenuSong] = useState<Song | null>(null)
@@ -67,6 +72,12 @@ export function LibraryScreen(): ReactNode {
   const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
   const tagAnchorRef = useRef<View | null>(null)
+  // The + in the head that chooses which tags to listen to — a different job
+  // from the one above, which puts tags on a song. Open/closed lives in a
+  // store, because the sidebar's "All 214 tags…" opens this same panel.
+  const chooserAnchorRef = useRef<View | null>(null)
+  const choosingTags = useTagSearchOpen()
+  useEffect(() => closeTagSearch, [])
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
 
@@ -87,6 +98,37 @@ export function LibraryScreen(): ReactNode {
 
   const artFor = useArt()
   const rowHeight = useSongRowHeight()
+
+  /*
+   * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
+   * row, the chooser, the sidebar. One function, because every one of them
+   * also has to leave the tag in the rail's recent list — a tag chosen from a
+   * song row is as much a sign of interest as one chosen from the sidebar.
+   * Only turning one *on* counts: dismissing a tag should not promote it.
+   */
+  const chooseTag = useCallback(
+    (tagId: number) => {
+      if (!model.filter.tagIds.includes(tagId)) noteTagUsed(tagId)
+      model.toggleTag(tagId)
+    },
+    [model],
+  )
+
+  const saved = useSaveTagsAsPlaylist()
+  // A second press would make a second copy of the same playlist, so once these
+  // tags are kept the button says so instead of offering again. Changing a tag
+  // changes the heading, which offers it again without anything to reset.
+  const alreadySaved = saved.savedName !== null && saved.savedName === model.heading
+  const saveTheseTags = useCallback(
+    () =>
+      saved.save({
+        name: model.heading,
+        tagIds: model.filter.tagIds,
+        sort: model.filter.sort,
+        descending: model.filter.descending,
+      }),
+    [saved, model.heading, model.filter.tagIds, model.filter.sort, model.filter.descending],
+  )
 
   /*
    * A row's handlers, one of each for the whole list.
@@ -155,7 +197,7 @@ export function LibraryScreen(): ReactNode {
           onToggleSelect={onRowToggleSelect}
           index={index}
           tags={songTags(item)}
-          onToggleTag={includeTag}
+          onToggleTag={chooseTag}
           onEditTags={onRowEditTags}
         />
       )
@@ -167,7 +209,7 @@ export function LibraryScreen(): ReactNode {
       unreachable,
       selection,
       songTags,
-      includeTag,
+      chooseTag,
       menuSongId,
       onRowPress,
       onRowMore,
@@ -197,25 +239,14 @@ export function LibraryScreen(): ReactNode {
         {model.tagFiltered ? (
           <View style={styles.inside}>
             <Text style={styles.filteredBy}>You’re looking inside</Text>
-            {model.includedTags.map(tag => (
+            {model.chosenTags.map(tag => (
               <Chip
                 key={tag.id}
                 compact
                 label={tag.name}
                 hue={tag.hue}
                 selected
-                onPress={() => model.includeTag(tag.id)}
-              />
-            ))}
-            {model.excludedTags.map(tag => (
-              <Chip
-                key={tag.id}
-                compact
-                label={tag.name}
-                hue={tag.hue}
-                selected={false}
-                excluded
-                onPress={() => model.excludeTag(tag.id)}
+                onPress={() => chooseTag(tag.id)}
               />
             ))}
           </View>
@@ -242,12 +273,59 @@ export function LibraryScreen(): ReactNode {
         before the row wraps.
       */}
       <View style={[styles.head, headWide && styles.headWide]}>
+        {/*
+          The tags you picked are the title. There is no text heading repeating
+          them: the chips say what this list is, each carries the × that takes
+          it off, and the + beside them adds another.
+        */}
         <View style={headWide ? styles.titlesWide : undefined}>
-          <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
-            {heading}
-          </Text>
-          {/* How many, and how long, only for a view narrowed to a tag. */}
-          {model.tagFiltered ? <Text style={styles.sub}>{model.subtitle}</Text> : null}
+          <View style={styles.titleTags} accessibilityRole="header">
+            {model.tagFiltered ? (
+              model.chosenTags.map(tag => (
+                <Chip
+                  key={tag.id}
+                  label={tag.name}
+                  hue={tag.hue}
+                  selected
+                  onPress={() => chooseTag(tag.id)}
+                  onRemove={() => chooseTag(tag.id)}
+                />
+              ))
+            ) : (
+              <Text style={styles.heading} numberOfLines={1}>
+                Library
+              </Text>
+            )}
+            {/*
+              The way in, at both states: a dashed + once there are chips to
+              add to, and the words before there are — nobody hunts for a bare
+              plus sign beside a title that does not look like a list of tags.
+            */}
+            <View ref={chooserAnchorRef} collapsable={false}>
+              <Pressable
+                onPress={openTagSearch}
+                accessibilityRole="button"
+                accessibilityLabel={model.tagFiltered ? 'Add a tag' : 'Pick tags'}
+                {...tip(model.tagFiltered ? 'Add a tag' : undefined)}
+                style={({ pressed }) => [styles.addTag, pressed && styles.addTagPressed]}
+                testID="library-add-tag"
+              >
+                <Plus size={14} color={theme.colors.textMuted} />
+                {model.tagFiltered ? null : <Text style={styles.addTagLabel}>Pick tags</Text>}
+              </Pressable>
+            </View>
+          </View>
+          {/* How many, how long, and — with two tags or more — what leads. */}
+          {model.tagFiltered ? (
+            <View style={styles.subRow}>
+              <Text style={styles.sub}>{model.subtitle}</Text>
+              {model.matchNote ? (
+                <Text style={styles.sub} testID="library-match-note">
+                  · {model.matchNote}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
@@ -314,15 +392,50 @@ export function LibraryScreen(): ReactNode {
               <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
             </Pressable>
 
-            {/* Shuffle alone: a click on any row already plays the list from there. */}
+            {/*
+              With no tags on, Shuffle alone — a click on any row already plays
+              the list from there, and "play 1,204 songs alphabetically" is not
+              a thing anybody wants a button for.
+
+              With tags on this list is an idea rather than a library, so it is
+              worth a Play, and worth keeping: Save makes a playlist that
+              follows these tags, and then says it did rather than offering
+              again.
+            */}
             <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
+              {model.tagFiltered ? (
+                alreadySaved ? (
+                  <Text style={styles.savedMark} testID="library-saved">
+                    ✓ Saved
+                  </Text>
+                ) : (
+                  <Button
+                    label={saved.saving ? 'Saving…' : 'Save as playlist'}
+                    accessibilityLabel="Save these tags as a playlist"
+                    disabled={saved.saving || visible.length === 0}
+                    onPress={saveTheseTags}
+                    testID="library-save-tags"
+                  />
+                )
+              ) : null}
               <Button
-                label={shuffleIconOnly ? undefined : 'Shuffle'}
+                label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
                 accessibilityLabel="Shuffle"
                 icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                 disabled={visible.length === 0}
                 onPress={() => player.playShuffled(songIds)}
               />
+              {model.tagFiltered ? (
+                <Button
+                  label="Play"
+                  variant="primary"
+                  accessibilityLabel="Play these tags"
+                  icon={<Play size={14} color={accent.onAccent} />}
+                  disabled={visible.length === 0}
+                  onPress={() => player.playFrom(songIds, 0)}
+                  testID="library-play-tags"
+                />
+              ) : null}
             </View>
           </View>
           ) : null}
@@ -360,34 +473,15 @@ export function LibraryScreen(): ReactNode {
         </View>
       ) : null}
 
+      {/*
+        No second "Filtered by" row: the chips in the head are the filter, and
+        drawing them twice made the same list look like two different states.
+        Only the way out of all of them at once is left.
+      */}
       {model.tagFiltered ? (
         <View style={styles.activeFilters}>
-          <Text style={styles.filteredBy}>Filtered by</Text>
-          {model.includedTags.map(tag => (
-            <Chip
-              key={tag.id}
-              compact
-              label={tag.name}
-              hue={tag.hue}
-              selected
-              onPress={() => model.excludeTag(tag.id)}
-              onRemove={() => model.includeTag(tag.id)}
-            />
-          ))}
-          {model.excludedTags.map(tag => (
-            <Chip
-              key={tag.id}
-              compact
-              label={tag.name}
-              hue={tag.hue}
-              selected={false}
-              excluded
-              onPress={() => model.includeTag(tag.id)}
-              onRemove={() => model.excludeTag(tag.id)}
-            />
-          ))}
           <Pressable onPress={model.clearTags} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.clear, { color: accent.accent }]}>clear</Text>
+            <Text style={[styles.clear, { color: accent.accent }]}>clear tags</Text>
           </Pressable>
         </View>
       ) : null}
@@ -406,7 +500,7 @@ export function LibraryScreen(): ReactNode {
         ) : (
           <SongList
             songs={visible}
-            label={`${heading} songs`}
+            label={`${model.heading} songs`}
             renderSong={renderSong}
             rowHeight={rowHeight}
             onRefresh={pull.onRefresh}
@@ -434,6 +528,15 @@ export function LibraryScreen(): ReactNode {
           />
         ) : null}
       </View>
+
+      <ListenTags
+        open={choosingTags}
+        onClose={closeTagSearch}
+        anchorRef={chooserAnchorRef}
+        selected={filter.tagIds}
+        onToggle={chooseTag}
+        summary={model.tagFiltered ? model.subtitle : undefined}
+      />
 
       <TagPicker
         song={taggingSong}
@@ -465,6 +568,24 @@ const HEAD_ROW_WIDTH = 600
 const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
+  titleTags: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs },
+  addTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minWidth: 28,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.borderStrong,
+  },
+  addTagPressed: { backgroundColor: theme.colors.surface2 },
+  addTagLabel: { color: theme.colors.textMuted, fontSize: type.small },
+  subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  savedMark: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   screen: {
     flex: 1,
     backgroundColor: theme.colors.surface0,

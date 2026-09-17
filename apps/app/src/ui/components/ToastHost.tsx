@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Text } from 'react-native'
+import { Animated, Easing, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { motion, oklchToHex } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
+import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
@@ -59,6 +60,7 @@ function ToastItem({
   onGone: (id: number) => void
 }): ReactNode {
   const { theme } = useUnistyles()
+  const accent = useAccent()
   const { finePointer } = useLayout()
   // From 0, and the animated value from the first render: swapping a plain
   // number for an Animated value after mount leaves react-native-web drawing
@@ -114,6 +116,22 @@ function ToastItem({
       >
         {toast.text}
       </Text>
+      {toast.actions.map(action => (
+        <Pressable
+          key={action.label}
+          onPress={() => {
+            // The message has been answered; leaving it up invites a second press.
+            dismissToast(toast.id)
+            action.onPress()
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+        >
+          <Text style={[styles.actionLabel, { color: accent.accent }]}>{action.label}</Text>
+        </Pressable>
+      ))}
       <IconButton
         onPress={() => dismissToast(toast.id)}
         label="Dismiss"
@@ -144,4 +162,7 @@ const styles = StyleSheet.create(theme => ({
     elevation: 6,
   },
   text: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  action: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  actionPressed: { backgroundColor: theme.colors.surface3 },
+  actionLabel: { fontSize: 13, fontWeight: '600' },
 }))

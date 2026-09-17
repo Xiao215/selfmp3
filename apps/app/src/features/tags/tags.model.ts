@@ -1,21 +1,10 @@
-import type { LibraryFilter } from '@selfmp3/client'
-
 /**
  * The Tags page, without the screen.
  *
- * A computer filters by tag from its sidebar. A phone had no way to at all:
- * this page lists the tags, and tapping one shows its songs in the Library,
- * where the "Filtered by" row says so and clears it.
+ * A computer picks tags from its sidebar. A phone picks them here, and the
+ * page keeps the same filter the library reads, so what is chosen here is
+ * playing there.
  */
-
-/**
- * The library showing one tag's songs. Every other tag filter goes, and so
- * does a search, which would otherwise hide some of the songs just asked
- * for; the sort and "on this device" are the library's own settings and stay.
- */
-export function onlyTag(filter: LibraryFilter, tagId: number): LibraryFilter {
-  return { ...filter, query: '', includedTagIds: [tagId], excludedTagIds: [] }
-}
 
 /** The tag this name already is, whatever the case, so "＋ New tag" does not make a twin. */
 export function existingTag<T extends { name: string }>(

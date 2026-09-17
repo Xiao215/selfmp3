@@ -9,21 +9,20 @@ import {
   oklchToHexAlpha,
   radius,
   space,
-  type TagFilterState,
   useDeleteTag,
   useRenameTag,
   useSetTagHue,
 } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
-import { Check, Minus, Plus, Trash } from './Icons'
+import { Check, Plus, Trash } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 
 /**
  * Everything you can do to a tag itself.
  *
- * Filter by it either way, rename it, recolour it, delete it. Tags are the
+ * Put it in the filter, rename it, recolour it, delete it. Tags are the
  * library's only way of being browsed, so their names and colours are how you
  * find things. It opens from the ⋯ beside a tag: in the sidebar on a
  * computer, and on the Tags page (You › Tags) on a phone, which is the only
@@ -42,19 +41,17 @@ const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as cons
 export function TagEditor({
   tag,
   anchorRef,
-  filter,
-  onInclude,
-  onExclude,
+  chosen,
+  onChoose,
   onDeleted,
   onClose,
 }: {
   /** The tag being edited, or null when closed. */
   tag: Tag | null
   anchorRef: RefObject<RNView | null>
-  /** How this tag is filtering the library right now. */
-  filter: TagFilterState
-  onInclude: () => void
-  onExclude: () => void
+  /** Whether this tag is in the library's filter right now. */
+  chosen: boolean
+  onChoose: () => void
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
@@ -70,9 +67,8 @@ export function TagEditor({
         <Editor
           key={tag.id}
           tag={tag}
-          filter={filter}
-          onInclude={onInclude}
-          onExclude={onExclude}
+          chosen={chosen}
+          onChoose={onChoose}
           onDeleted={onDeleted}
           onClose={onClose}
         />
@@ -83,16 +79,14 @@ export function TagEditor({
 
 function Editor({
   tag,
-  filter,
-  onInclude,
-  onExclude,
+  chosen,
+  onChoose,
   onDeleted,
   onClose,
 }: {
   tag: Tag
-  filter: TagFilterState
-  onInclude: () => void
-  onExclude: () => void
+  chosen: boolean
+  onChoose: () => void
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
@@ -131,41 +125,25 @@ function Editor({
         <Pressable
           style={[
             styles.filter,
-            filter === 'include' && {
+            chosen && {
               backgroundColor: oklchToHexAlpha(0.45, 0.12, accent.hue, 0.35),
               borderColor: oklchToHexAlpha(0.42, 0.1, accent.hue, 1),
             },
           ]}
           accessibilityRole="button"
-          accessibilityState={{ selected: filter === 'include' }}
+          accessibilityState={{ selected: chosen }}
           onPress={() => {
-            onInclude()
+            onChoose()
             onClose()
           }}
         >
-          <Plus
-            size={14}
-            color={filter === 'include' ? theme.colors.textPrimary : theme.colors.textSecondary}
-          />
-          <Text style={[styles.filterText, filter === 'include' && styles.filterTextOn]}>
-            Show only these
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.filter, filter === 'exclude' && styles.filterExcludeOn]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: filter === 'exclude' }}
-          onPress={() => {
-            onExclude()
-            onClose()
-          }}
-        >
-          <Minus
-            size={14}
-            color={filter === 'exclude' ? theme.colors.textPrimary : theme.colors.textSecondary}
-          />
-          <Text style={[styles.filterText, filter === 'exclude' && styles.filterTextOn]}>
-            Hide these
+          {chosen ? (
+            <Check size={14} color={theme.colors.textPrimary} />
+          ) : (
+            <Plus size={14} color={theme.colors.textSecondary} />
+          )}
+          <Text style={[styles.filterText, chosen && styles.filterTextOn]}>
+            {chosen ? 'Listening to this' : 'Listen to this'}
           </Text>
         </Pressable>
       </View>
@@ -290,10 +268,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.border,
-  },
-  filterExcludeOn: {
-    backgroundColor: oklchToHexAlpha(0.4, 0.12, 22, 0.3),
-    borderColor: oklchToHexAlpha(0.5, 0.14, 22, 0.6),
   },
   filterText: { color: theme.colors.textSecondary, fontSize: 12 },
   filterTextOn: { color: theme.colors.textPrimary },

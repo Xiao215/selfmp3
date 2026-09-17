@@ -75,6 +75,29 @@ export function playlistRoutes(container: Container): Router {
     }),
   )
 
+  /**
+   * Stop following tags, and keep the songs.
+   *
+   * Its own route rather than a field on PATCH, because it is not an edit to a
+   * value — it resolves the rules, writes the answer down as the playlist's
+   * songs, and changes the kind, and all three have to happen together. A PATCH
+   * that could silently empty a playlist depending on the order fields were
+   * applied in is the wrong shape for that.
+   *
+   * Doing it to a playlist that is not following anything is not an error: the
+   * caller wanted a playlist that does not follow tags, and there it is.
+   */
+  router.post(
+    '/playlists/:id/stop-following',
+    route({ params: ParamsWithId }, ({ params }) => {
+      const playlist = requirePlaylist(params.id)
+      container.playlists.stopFollowing(playlist)
+      container.edits.playlist(params.id, ['rules', 'order'])
+      container.bumpLibraryVersion()
+      return container.playlists.byId(params.id) ?? playlist
+    }),
+  )
+
   router.delete(
     '/playlists/:id',
     route({ params: ParamsWithId }, ({ params }) => {

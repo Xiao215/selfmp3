@@ -1,20 +1,18 @@
 import { useCallback, useMemo } from 'react'
 import { formatLongDuration, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
 import {
+  bothTagsCount,
   clearTagFilter,
-  excludeTag,
   filterHeading,
   filterSongs,
-  includeTag,
   isDownloaded,
   SORT_OPTIONS,
-  tagFilterState,
   tagFiltered,
+  toggleTag,
   usedTags,
   useLibrary,
   type DownloadIndex,
   type LibraryFilter,
-  type TagFilterState,
 } from '@selfmp3/client'
 
 import { useLibraryFilter } from './libraryFilter'
@@ -35,7 +33,7 @@ import { useLibraryFilter } from './libraryFilter'
  * screen has one; handing it over costs a line and keeps this file runnable.
  */
 
-export type { LibraryFilter, TagFilterState }
+export type { LibraryFilter }
 
 /** What the screen shows when the list is empty, which is three different things. */
 type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
@@ -52,16 +50,19 @@ interface LibraryModel {
   tags: readonly Tag[]
   /** A song's tags, the same array for the same song until the tags change, so a row's memo holds. */
   songTags: (song: Song) => readonly Tag[]
-  /** The title: "chill · not instrumental", or "Library". */
+  /** The title: "chill · 中文", or "Library". Also the name a saved playlist takes. */
   heading: string
-  /** A tag is filtering, either way. */
+  /** At least one tag is chosen. */
   tagFiltered: boolean
-  /** The tags being shown only, and being hidden, in the order chosen. */
-  includedTags: readonly Tag[]
-  excludedTags: readonly Tag[]
-  tagFilter: (tagId: number) => TagFilterState
+  /** The chosen tags, in the order they were chosen — the head's chips. */
+  chosenTags: readonly Tag[]
   /** "13 songs · 48 min", or "Loading…" before the first answer. */
   subtitle: string
+  /**
+   * "62 have both tags, and come first" — only with two or more tags on, and
+   * only when the songs carrying all of them are some but not all of the list.
+   */
+  matchNote: string | null
   sortLabel: string
   sortOptions: typeof SORT_OPTIONS
   loading: boolean
@@ -72,10 +73,8 @@ interface LibraryModel {
   clearQuery: () => void
   setSort: (field: SongSortField) => void
   toggleDirection: () => void
-  /** Toggle "only songs with this tag"; stops hiding it if it was hidden. */
-  includeTag: (tagId: number) => void
-  /** Toggle "hide songs with this tag"; stops showing only it if it was. */
-  excludeTag: (tagId: number) => void
+  /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
+  toggleTag: (tagId: number) => void
   clearTags: () => void
   toggleDownloadedOnly: () => void
   /** Ask the server for the library again, after it did not answer. */
@@ -101,19 +100,12 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   )
 
   const songTags = useMemo(() => songTagLookup(allTags), [allTags])
-  const includedTags = useMemo(
-    () => tagsFor(allTags, filter.includedTagIds),
-    [allTags, filter.includedTagIds],
-  )
-  const excludedTags = useMemo(
-    () => tagsFor(allTags, filter.excludedTagIds),
-    [allTags, filter.excludedTagIds],
-  )
-  const tagFilter = useCallback((tagId: number) => tagFilterState(filter, tagId), [filter])
+  const chosenTags = useMemo(() => tagsFor(allTags, filter.tagIds), [allTags, filter.tagIds])
+  const allMatched = useMemo(() => bothTagsCount(visible, filter.tagIds), [visible, filter.tagIds])
 
   /*
    * The actions, made once. They were arrows in the object below, new on
-   * every render, and a row is handed `includeTag` for its chips: every row
+   * every render, and a row is handed `toggleTag` for its chips: every row
    * of the library redrew whenever the screen did, whatever had changed.
    * `setFilter` is a state setter, so none of these ever needs remaking.
    */
@@ -130,12 +122,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     () => setFilter(current => ({ ...current, descending: !current.descending })),
     [setFilter],
   )
-  const includeTagId = useCallback(
-    (tagId: number) => setFilter(current => includeTag(current, tagId)),
-    [setFilter],
-  )
-  const excludeTagId = useCallback(
-    (tagId: number) => setFilter(current => excludeTag(current, tagId)),
+  const toggleTagId = useCallback(
+    (tagId: number) => setFilter(current => toggleTag(current, tagId)),
     [setFilter],
   )
   const clearTags = useCallback(() => setFilter(clearTagFilter), [setFilter])
@@ -156,12 +144,11 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       songTags,
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
-      includedTags,
-      excludedTags,
-      tagFilter,
+      chosenTags,
       subtitle: isPending
         ? 'Loading…'
         : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`,
+      matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,
       loading: isPending,
@@ -171,8 +158,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       clearQuery,
       setSort,
       toggleDirection,
-      includeTag: includeTagId,
-      excludeTag: excludeTagId,
+      toggleTag: toggleTagId,
       clearTags,
       toggleDownloadedOnly,
       retry,
@@ -186,9 +172,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       tags,
       songTags,
       allTags,
-      includedTags,
-      excludedTags,
-      tagFilter,
+      chosenTags,
+      allMatched,
       isPending,
       isError,
       seconds,
@@ -196,8 +181,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       clearQuery,
       setSort,
       toggleDirection,
-      includeTagId,
-      excludeTagId,
+      toggleTagId,
       clearTags,
       toggleDownloadedOnly,
     ],
@@ -273,6 +257,24 @@ export function unreachableCopy({
     title,
     body: `${host ? `self.mp3 tried ${host}. ` : ''}Check that the server is on and this device is on the same network.`,
   }
+}
+
+/**
+ * The line under a tagged library that explains the union: "62 have both tags,
+ * and come first".
+ *
+ * Several tags mean *any* of them, which is the one rule here anybody could
+ * get wrong — tapping "chill" and "中文" looks like a request for the songs
+ * that are both. They are still there, and they are at the top; this says so
+ * rather than leaving a longer-than-expected list unexplained.
+ *
+ * Nothing is said when every song carries every tag (there is no distinction
+ * to draw) or when none does (there is nothing at the top to point at).
+ */
+export function matchNote(tagCount: number, allMatched: number, shown: number): string | null {
+  if (tagCount < 2 || allMatched === 0 || allMatched === shown) return null
+  const what = tagCount === 2 ? 'both tags' : `all ${tagCount} tags`
+  return `${allMatched} have ${what}, and come first`
 }
 
 /**

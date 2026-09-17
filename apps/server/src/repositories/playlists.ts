@@ -237,6 +237,34 @@ export class PlaylistRepository {
     return this.byId(id)
   }
 
+  /**
+   * Stop a playlist following its tags, keeping every song it has right now.
+   *
+   * The songs a live playlist shows are the answer to its rules, worked out on
+   * every read and stored nowhere — so switching it off without writing them
+   * down first would empty it. This resolves them once, writes them as the
+   * playlist's own items in the order they were in, and only then changes the
+   * kind. One transaction: a crash half-way through would otherwise leave a
+   * playlist that is neither.
+   *
+   * `snapshotSongIds` rather than `songIds`, so a song whose file is missing
+   * from this disk stays in the list. It is still in the library, still in the
+   * bucket, and dropping it here would be a silent deletion nobody asked for.
+   */
+  stopFollowing(playlist: Playlist): void {
+    if (playlist.kind !== 'live') return
+    const keep = this.snapshotSongIds(playlist)
+    this.#db.transaction(() => {
+      this.#clearItems.run(playlist.id)
+      keep.forEach((songId, index) => this.#insertItem.run(playlist.id, songId, index))
+      this.#db
+        .prepare(
+          "UPDATE playlists SET kind = 'manual', rules = NULL, updated_at = datetime('now') WHERE id = ?",
+        )
+        .run(playlist.id)
+    })()
+  }
+
   delete(id: number): void {
     this.#delete.run(id)
   }

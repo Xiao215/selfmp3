@@ -10,12 +10,25 @@
 
 type ToastTone = 'info' | 'good' | 'warn' | 'error'
 
+/**
+ * A word in the message you can press.
+ *
+ * Kept to one or two, and each one word: a toast is read in passing, and by
+ * the third choice it has become a dialogue that happens to be the wrong shape.
+ * Pressing one dismisses the message — the action is the answer to it.
+ */
+interface ToastAction {
+  readonly label: string
+  readonly onPress: () => void
+}
+
 export interface Toast {
   readonly id: number
   readonly tone: ToastTone
   readonly text: string
   /** Zero keeps it until dismissed: for anything that went wrong. */
   readonly autoDismissMs: number
+  readonly actions: readonly ToastAction[]
 }
 
 let toasts: readonly Toast[] = []
@@ -26,10 +39,25 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
-export function showToast(text: string, tone: ToastTone = 'info', autoDismissMs?: number): void {
+export function showToast(
+  text: string,
+  tone: ToastTone = 'info',
+  options: { autoDismissMs?: number; actions?: readonly ToastAction[] } = {},
+): void {
+  const actions = options.actions ?? []
   toasts = [
     ...toasts,
-    { id: nextId++, tone, text, autoDismissMs: autoDismissMs ?? (tone === 'error' ? 0 : 5000) },
+    {
+      id: nextId++,
+      tone,
+      text,
+      // A message you can act on is given longer: five seconds is enough to
+      // read "Saved", and not enough to decide you would rather it was called
+      // something else.
+      autoDismissMs:
+        options.autoDismissMs ?? (tone === 'error' ? 0 : actions.length > 0 ? 9000 : 5000),
+      actions,
+    },
   ]
   emit()
 }

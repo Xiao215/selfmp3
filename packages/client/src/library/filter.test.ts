@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_FILTER,
+  bothTagsCount,
   clearTagFilter,
-  excludeTag,
   filterHeading,
   filterSongs,
-  includeTag,
   searchSongs,
-  tagFilterState,
   tagFiltered,
+  tagMatchCount,
+  tagSelected,
+  toggleTag,
   topSongs,
   type LibraryFilter,
 } from './filter.js'
@@ -53,49 +54,63 @@ describe('tag filtering', () => {
     expect(tagFiltered(byTitle)).toBe(false)
   })
 
-  it('combines included tags with AND, not OR', () => {
-    const both = includeTag(includeTag(byTitle, CHILL), CHINESE)
-    expect(titles(both)).toEqual(['b'])
+  it('shows songs carrying any of the chosen tags, not only songs carrying all', () => {
+    const both = toggleTag(toggleTag(byTitle, CHILL), CHINESE)
+    // b is the only song with both; a and c are chill, d is chinese. All four
+    // are here — a second tag adds music, it does not take any away.
+    expect(titles(both).toSorted()).toEqual(['a', 'b', 'c', 'd'])
   })
 
-  it('hides any song carrying an excluded tag', () => {
-    const chillNotInstrumental = excludeTag(includeTag(byTitle, CHILL), INSTRUMENTAL)
-    expect(titles(chillNotInstrumental)).toEqual(['a', 'b'])
+  it('puts the songs carrying the most of the chosen tags first', () => {
+    const both = toggleTag(toggleTag(byTitle, CHILL), CHINESE)
+    // b carries both, so it leads; the one-tag songs keep their title order.
+    expect(titles(both)).toEqual(['b', 'a', 'c', 'd'])
   })
 
-  it('can exclude with nothing included', () => {
-    expect(titles(excludeTag(byTitle, CHILL))).toEqual(['d', 'e'])
+  it('ranks by matches however the list is sorted, and reverses with it', () => {
+    const both = toggleTag(toggleTag(byTitle, CHILL), CHINESE)
+    expect(titles({ ...both, descending: true })).toEqual(['b', 'd', 'c', 'a'])
+  })
+
+  it('leaves a single tag in the chosen order: there is nothing to rank', () => {
+    expect(titles(toggleTag(byTitle, CHILL))).toEqual(['a', 'b', 'c'])
+  })
+
+  it('can never empty the list by adding a tag', () => {
+    const chill = toggleTag(byTitle, CHILL)
+    const andInstrumental = toggleTag(chill, INSTRUMENTAL)
+    expect(titles(andInstrumental).length).toBeGreaterThanOrEqual(titles(chill).length)
   })
 
   it('toggles a tag off again', () => {
-    expect(includeTag(includeTag(byTitle, CHILL), CHILL).includedTagIds).toEqual([])
-    expect(excludeTag(excludeTag(byTitle, CHILL), CHILL).excludedTagIds).toEqual([])
+    expect(toggleTag(toggleTag(byTitle, CHILL), CHILL).tagIds).toEqual([])
+    expect(tagSelected(toggleTag(byTitle, CHILL), CHILL)).toBe(true)
+    expect(tagSelected(byTitle, CHILL)).toBe(false)
   })
 
-  it('never shows and hides the same tag: each side takes it from the other', () => {
-    const hidden = excludeTag(byTitle, CHILL)
-    const shown = includeTag(hidden, CHILL)
-    expect(tagFilterState(shown, CHILL)).toBe('include')
-    expect(shown.excludedTagIds).toEqual([])
-    const hiddenAgain = excludeTag(shown, CHILL)
-    expect(tagFilterState(hiddenAgain, CHILL)).toBe('exclude')
-    expect(hiddenAgain.includedTagIds).toEqual([])
+  it('counts how many of the chosen tags a song carries', () => {
+    const ids = [CHILL, CHINESE]
+    expect(tagMatchCount(SONGS[1]!, ids)).toBe(2)
+    expect(tagMatchCount(SONGS[0]!, ids)).toBe(1)
+    expect(tagMatchCount(SONGS[4]!, ids)).toBe(0)
   })
 
-  it('clears both sides at once, and is a no-op when there is nothing to clear', () => {
-    const busy = excludeTag(includeTag(byTitle, CHILL), INSTRUMENTAL)
+  it('says how many songs carry every chosen tag, and nothing for one tag', () => {
+    expect(bothTagsCount(SONGS, [CHILL, CHINESE])).toBe(1)
+    expect(bothTagsCount(SONGS, [CHILL])).toBe(0)
+    expect(bothTagsCount(SONGS, [])).toBe(0)
+  })
+
+  it('clears the tags, and is a no-op when there is nothing to clear', () => {
+    const busy = toggleTag(toggleTag(byTitle, CHILL), INSTRUMENTAL)
     expect(tagFiltered(clearTagFilter(busy))).toBe(false)
     expect(clearTagFilter(byTitle)).toBe(byTitle)
   })
 
   it('names the filter in the order the tags were chosen', () => {
     expect(filterHeading(byTitle, TAGS)).toBe('Library')
-    const filter = excludeTag(includeTag(includeTag(byTitle, CHINESE), CHILL), INSTRUMENTAL)
-    expect(filterHeading(filter, TAGS)).toBe('chinese · chill · not instrumental')
-  })
-
-  it('says "Library" first when only exclusions are on', () => {
-    expect(filterHeading(excludeTag(byTitle, INSTRUMENTAL), TAGS)).toBe('Library · not instrumental')
+    const filter = toggleTag(toggleTag(byTitle, CHINESE), CHILL)
+    expect(filterHeading(filter, TAGS)).toBe('chinese · chill')
   })
 
   it('searches with prepared text in the order the plain ranking gives', () => {
@@ -119,7 +134,7 @@ describe('tag filtering', () => {
   })
 
   it('leaves out a tag that no longer exists', () => {
-    expect(filterHeading(includeTag(byTitle, 99), TAGS)).toBe('Library')
-    expect(filterHeading(includeTag(includeTag(byTitle, 99), CHILL), TAGS)).toBe('chill')
+    expect(filterHeading(toggleTag(byTitle, 99), TAGS)).toBe('Library')
+    expect(filterHeading(toggleTag(toggleTag(byTitle, 99), CHILL), TAGS)).toBe('chill')
   })
 })

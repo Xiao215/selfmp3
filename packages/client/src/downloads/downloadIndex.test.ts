@@ -7,11 +7,12 @@ import {
   EMPTY_INDEX,
   entryFor,
   fileNameFor,
+  downloadedFrom,
   isDownloaded,
   parseIndex,
   pendingIds,
   removeEntry,
-  staleIds,
+  staleDownloads,
   totalBytes,
   type DownloadEntry,
   type DownloadIndex,
@@ -122,24 +123,69 @@ describe('pendingIds', () => {
   })
 })
 
-describe('staleIds', () => {
-  it('flags a file whose etag changed on the server', () => {
+describe('downloadedFrom', () => {
+  it('counts only the songs asked about', () => {
+    const index = withEntries(entry(1), entry(2), entry(9))
+    expect(downloadedFrom(index, [1, 2])).toBe(2)
+  })
+
+  it('ignores entries for songs the library no longer has', () => {
+    // The sidebar's "45 songs · 66 saved offline": the index outlives a library.
+    const index = withEntries(entry(1), entry(2), entry(9))
+    expect(downloadedCount(index)).toBe(3)
+    expect(downloadedFrom(index, [1])).toBe(1)
+  })
+
+  it('counts a song asked about twice once', () => {
+    expect(downloadedFrom(withEntries(entry(1)), [1, 1])).toBe(1)
+  })
+
+  it('is nothing when the library is empty', () => {
+    expect(downloadedFrom(withEntries(entry(1)), [])).toBe(0)
+  })
+})
+
+describe('staleDownloads', () => {
+  it('calls a file whose audio was replaced changed, not gone', () => {
     const index = withEntries(entry(1), entry(2))
     const current = manifest([
       { id: 1, sizeBytes: 1000, etag: 'etag-1' },
       { id: 2, sizeBytes: 1000, etag: 'different' },
     ])
-    expect(staleIds(index, current)).toEqual([2])
+    expect(staleDownloads(index, current)).toMatchObject({
+      gone: [],
+      changed: [2],
+      all: [2],
+      bytes: 1000,
+    })
   })
 
-  it('flags a download whose song has left the library', () => {
+  it('calls a download whose song has left the library gone, not changed', () => {
     const index = withEntries(entry(1), entry(5))
-    expect(staleIds(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }]))).toEqual([5])
+    expect(
+      staleDownloads(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }])),
+    ).toMatchObject({ gone: [5], changed: [], all: [5] })
   })
 
-  it('is empty when everything matches', () => {
+  it('keeps both apart and offers them together in id order', () => {
+    const index = withEntries(entry(1), entry(4), entry(9))
+    const current = manifest([
+      { id: 1, sizeBytes: 1000, etag: 'etag-1' },
+      { id: 4, sizeBytes: 1000, etag: 'different' },
+    ])
+    expect(staleDownloads(index, current)).toMatchObject({
+      gone: [9],
+      changed: [4],
+      all: [4, 9],
+      bytes: 2000,
+    })
+  })
+
+  it('counts nothing when everything matches', () => {
     const index = withEntries(entry(1))
-    expect(staleIds(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }]))).toEqual([])
+    expect(
+      staleDownloads(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }])),
+    ).toMatchObject({ gone: [], changed: [], all: [], bytes: 0 })
   })
 })
 

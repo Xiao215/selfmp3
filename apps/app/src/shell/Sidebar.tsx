@@ -8,7 +8,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
-  downloadedCount,
+  downloadedFrom,
   excludeTag,
   includeTag,
   oklchToHexAlpha,
@@ -624,8 +624,14 @@ function Foot(): ReactNode {
   const library = useLibrary()
   const { state } = useDownloads()
   const { fromCloud } = useConnection()
-  const saved = downloadedCount(state.index)
-  const songs = library.data?.songs.length ?? 0
+  /*
+   * Of this library, what is here — not how many files the device is keeping.
+   * The index holds an entry for every song ever downloaded, a replaced
+   * library's included, so counting entries can say more are saved than exist.
+   */
+  const songIds = library.data?.songs.map(song => song.id) ?? []
+  const saved = downloadedFrom(state.index, songIds)
+  const songs = songIds.length
 
   // A failed refetch keeps the cached library, so an error wins over the data.
   const [dot, label] = library.isError

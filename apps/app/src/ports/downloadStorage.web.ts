@@ -36,8 +36,8 @@ import { recentIds } from './recentCopies'
  * would offer to play something that is gone. What is known about each — above
  * all the etag recorded when it was fetched — is the saved index's, because
  * the cache does not have it. Rebuilding the whole index from the cache would
- * lose every etag, so `staleIds` compares the saved index against the manifest
- * instead.
+ * lose every etag, so `staleDownloads` compares the saved index against the
+ * manifest instead.
  *
  * It does not need the stream URL to load. Which songs are cached is read off
  * the key's path; a song's size or deletion wants the full URL, `rev` and all,

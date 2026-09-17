@@ -135,9 +135,27 @@ tailscale serve status
 You should see the server's page at `https://xiaos-macbook-pro.tail1a2b.ts.net/`.
 
 Open that URL on the server to confirm it works. **Use this HTTPS address from now on** —
-not the `http://100.x.x.x` one. The server publishes its own addresses with every snapshot
-it writes, so once this is on, your devices find it themselves and there is still nothing to
-type.
+not the `http://100.x.x.x` one.
+
+One more line, and then there is nothing to type on any device again. The server publishes
+its addresses with every snapshot it writes, and that is how your phone and the Pages tab
+find it — but it can only publish what it can see, which is the plain `http://100.x.x.x:4600`
+it listens on. It has no way of knowing that Tailscale put an HTTPS address in front of it.
+So tell it:
+
+```bash
+echo 'SELFMP3_PUBLIC_URL=https://xiaos-macbook-pro.tail1a2b.ts.net' >> .env
+```
+
+Your own address, of course — the one `tailscale serve status` just printed, with no
+trailing slash. Restart the server and its log says `published as reachable at …`. From
+then on the HTTPS address rides along with every snapshot, the local ones stay beside it,
+and each device races the lot: at home the Wi-Fi address wins, and anywhere else the HTTPS
+one does. Nothing to type, nothing to switch by hand.
+
+> This address is your tailnet's, so it works on your own devices and no one else's. To let
+> a friend's browser reach the server too, see [Letting someone else
+> in](INSTALL.md#letting-someone-else-in).
 
 > If `tailscale serve` says HTTPS is not enabled, open the Tailscale admin console at
 > <https://login.tailscale.com/admin/dns>, and enable **HTTPS Certificates**.

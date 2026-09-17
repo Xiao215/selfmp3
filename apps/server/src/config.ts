@@ -86,6 +86,30 @@ const ConfigSchema = z.object({
    */
   host: z.string().default('0.0.0.0'),
 
+  /**
+   * One more address this server can be reached at, which it cannot work out
+   * for itself: a tunnel's hostname, or anything else in front of it.
+   *
+   * Every address the server publishes into the bucket is one it found on a
+   * network interface, which means every one is local and every one is
+   * `http://`. A device finds the server by trying them (`reach.ts`), so away
+   * from the house there is nothing to try — and a page served over HTTPS may
+   * not call an `http://` address at all, so even on the same Wi-Fi the
+   * published site can never reach a LAN address. Both of those are why this
+   * exists, and why it wants to be an `https://` URL.
+   *
+   * It is published beside the local ones rather than instead of them: the
+   * addresses are raced, so a device at home still takes the fast local route
+   * and only a device elsewhere pays for the tunnel.
+   */
+  publicUrl: z
+    .string()
+    .trim()
+    .url()
+    .transform(value => value.replace(/\/+$/, ''))
+    .nullable()
+    .default(null),
+
   /** Where the audio files live. */
   libraryDir: z.string().default(DEFAULT_DIRS.libraryDir),
 
@@ -155,6 +179,7 @@ function readEnv(): unknown {
   return {
     port: env['SELFMP3_PORT'] ?? undefined,
     host: env['SELFMP3_HOST'] ?? undefined,
+    publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
     libraryDir: env['SELFMP3_LIBRARY_DIR'] ?? undefined,
     dataDir: env['SELFMP3_DATA_DIR'] ?? undefined,
     authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,

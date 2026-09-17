@@ -160,6 +160,83 @@ The `.dmg` lands in `apps/desktop/release/`.
 
 ---
 
+## Letting someone else in
+
+Your server is at home behind a router, and the app is a web page on the internet. Two
+separate things have to be true before somebody else's browser can import into your
+library, and it is worth keeping them apart, because each fails in its own way.
+
+### 1. An address their browser can call
+
+The server publishes the addresses it finds on this machine with every snapshot it writes,
+and every one of them is a `http://192.168.…` or `http://100.…` — useless from anywhere
+else, and refused outright by the Pages app even at home, because a page served over HTTPS
+may not call `http://`. So it needs one address it cannot work out for itself, and
+`SELFMP3_PUBLIC_URL` is where you put it:
+
+```bash
+SELFMP3_PUBLIC_URL=https://music.example.com
+```
+
+Set it and the server publishes that address beside the local ones. Every device races the
+whole list at once, so at home the Wi-Fi address still answers first and the public one is
+only paid for when nothing nearer replies. The boot log prints `published as reachable at
+…`, and warns if what you gave it is not `https://` — a plain `http://` address is one the
+app is not allowed to call at all, which looks exactly like the server being switched off.
+
+Two ways to get such an address, neither of which asks you to open a port on your router:
+
+**Tailscale Funnel**, if you already followed [SETUP.md](SETUP.md) and have `tailscale
+serve` running. `serve` is your tailnet only; `funnel` is the same HTTPS address opened to
+the public internet:
+
+```bash
+tailscale funnel --bg 4600
+tailscale funnel status
+```
+
+**A Cloudflare tunnel**, if you would rather use a name of your own. `cloudflared tunnel
+--url http://localhost:4600` gives you a throwaway `trycloudflare.com` address in one
+command, which changes every run — fine for an afternoon, no good in a published snapshot.
+A *named* tunnel (`cloudflared tunnel create selfmp3`, then route it at a hostname on a
+domain you own) keeps the same address forever, which is the one to put in
+`SELFMP3_PUBLIC_URL`.
+
+Either way the token still stands between the address and your library. A request arriving
+through a tunnel carries the tunnel's hostname and a forwarding header, so it is not the
+"came from this computer" case that skips the check (`apps/server/src/http/local.ts`) — it
+needs the token like any other request from the network, and devices are handed that with
+the sync. Setting a public address also lets the published app's own origin call the API,
+which it otherwise could not; nothing else is let in.
+
+The server does not have to be awake for any of this. A device that cannot reach it says
+so and keeps looking, and a link left on the Import screen is picked up the next time the
+server is on ([SYNC.md](SYNC.md), rule 6) — so "tell me when you want to import and I will
+switch it on" works.
+
+### 2. An account that can see your library
+
+This is the part an address does not solve. **Your library is your bucket, not your
+server.** Signing in with Google gets somebody into the app; what they then see is whatever
+bucket is attached to their own account, which for a friend is none. So a friend who signs
+in does not see a smaller version of your library — they see an empty app, and your server
+never enters into it.
+
+For them to use your library they have to be *on* your bucket:
+
+1. Add their address to the doorman's `ALLOWED_EMAILS` (`apps/doorman/README.md`), or the
+   door does not open at all.
+2. Give them the bucket's keys, which they connect in the app's Settings the same way you
+   did.
+
+Be clear-eyed about what step 2 hands over: the same bucket, with no read-only version of
+it, so they can delete songs, and the snapshot they read carries your server's token. It is
+the arrangement for somebody you would give a key to the house — a partner, a sibling —
+rather than for lending a friend your music for an evening. Sharing that is genuinely
+one-way does not exist here yet.
+
+---
+
 ## With Docker
 
 For a machine that is always on — a Raspberry Pi, a Synology, a small VPS. The image

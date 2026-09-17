@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
@@ -116,6 +116,32 @@ export function isAuthenticated(req: Request, config: Config): boolean {
   )
 }
 
+/** The published web app's own origin, which is all of `DEFAULT_APP_URL` we need. */
+export const APP_SITE_ORIGIN = new URL(DEFAULT_APP_URL).origin
+
+/**
+ * Every origin this server answers to, beyond the page it serves itself.
+ *
+ * Three are always here and none of them is a website: the desktop app's
+ * `app://selfmp3`, the extension's, and whatever `SELFMP3_CORS_ORIGINS` names
+ * by hand. The published site is the fourth, and only when `SELFMP3_PUBLIC_URL`
+ * is set — a public address exists so that a device away from the house can
+ * reach this server, and the app on that device is the one served from
+ * `DEFAULT_APP_URL`. Allowing it is therefore not a second decision: it is what
+ * the first one was for, and leaving it out would publish an address that every
+ * browser then refuses to call.
+ *
+ * Being on this list is permission to *ask*, not to be answered: a request that
+ * arrives over the public address is not from this machine (`local.ts` wants a
+ * loopback host, and a tunnel forwards the real one), so it still needs the
+ * token like any other.
+ */
+export function allowedOrigins(config: Config): Set<string> {
+  const origins = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
+  if (config.publicUrl) origins.add(APP_SITE_ORIGIN)
+  return origins
+}
+
 /**
  * Refuse a write that another website asked for.
  *
@@ -139,7 +165,7 @@ export function isAuthenticated(req: Request, config: Config): boolean {
  * extension, whose origin carries an id only its own committed key produces.
  */
 export function sameOriginWrites(config: Config): RequestHandler {
-  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
+  const allowed = allowedOrigins(config)
 
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next()
@@ -162,7 +188,7 @@ export function sameOriginWrites(config: Config): RequestHandler {
 
 /** CORS, for the origins listed in config, the desktop app's own and the extension's. */
 export function cors(config: Config): RequestHandler {
-  const allowed = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
+  const allowed = allowedOrigins(config)
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.headers.origin

@@ -257,6 +257,7 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 |---|---|---|
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. `127.0.0.1` keeps it to this machine |
+| `SELFMP3_PUBLIC_URL` | none | One more address to publish, for a device that cannot reach a local one: the HTTPS address of a tunnel in front of this server ([INSTALL.md](docs/INSTALL.md#letting-someone-else-in)) |
 | `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | Where your audio lives |
 | `SELFMP3_DATA_DIR` | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) | The database and cover art |
 | `SELFMP3_PROFILE` | none | A separate installation: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |

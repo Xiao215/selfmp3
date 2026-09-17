@@ -31,7 +31,7 @@ import { LyricsCache } from './services/lyricsCache.js'
 import { MotionStore } from './services/motionStore.js'
 import { RomanizationService } from './services/romanization.js'
 import { romanizedLines } from './services/romanizedLines.js'
-import { listenAddresses } from './services/addresses.js'
+import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { CoverToneService } from './services/coverTones.js'
@@ -238,7 +238,9 @@ export function createContainer(configured: Config): Container {
     // key without anyone ever typing it — the server always has one now
     // (repositories/auth.ts), so this is never null.
     server: () => ({
-      addresses: listenAddresses(config.host, config.port).map(address => address.url),
+      addresses: publishedAddresses(config.host, config.port, config.publicUrl).map(
+        address => address.url,
+      ),
       token: config.authToken,
     }),
   })

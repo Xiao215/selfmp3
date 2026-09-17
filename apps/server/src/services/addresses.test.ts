@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { beyondThisComputer, listenAddresses } from './addresses.js'
+import {
+  beyondThisComputer,
+  listenAddresses,
+  publishedAddresses,
+  withPublicAddress,
+} from './addresses.js'
 
 /**
  * Which of a server's addresses are somebody else's way in.
@@ -40,5 +45,57 @@ describe('beyondThisComputer', () => {
       { url: 'http://100.87.3.9:4600' },
     ])
     expect(open).toEqual(['http://10.0.0.228:4600', 'http://100.87.3.9:4600'])
+  })
+})
+
+/**
+ * And which of them a device somewhere else is given.
+ *
+ * Everything this computer can see about itself is a local `http://` address,
+ * which is no use to a phone on mobile data and is refused outright by the
+ * published app, served over HTTPS. The public address is the only line out,
+ * so a snapshot published without it strands every device that is not at home.
+ */
+describe('publishedAddresses', () => {
+  it('adds the public address to the ones found here', () => {
+    const published = publishedAddresses('127.0.0.1', 4600, 'https://music.example.com')
+    expect(published.map(address => address.url)).toEqual([
+      'http://127.0.0.1:4600',
+      'https://music.example.com',
+    ])
+  })
+
+  it('keeps the local addresses first, so home stays fast', () => {
+    // Every address is raced at once, so the tunnel is only paid for when
+    // nothing nearer answers — but the order says which was meant to win.
+    const published = publishedAddresses('192.168.1.20', 4600, 'https://music.example.com')
+    expect(published[0]?.url).toBe('http://192.168.1.20:4600')
+  })
+
+  it('leaves the list alone when there is no public address', () => {
+    expect(publishedAddresses('127.0.0.1', 4600, null)).toEqual(listenAddresses('127.0.0.1', 4600))
+  })
+
+  it('does not name the same address twice', () => {
+    const published = publishedAddresses('127.0.0.1', 4600, 'http://127.0.0.1:4600')
+    expect(published).toHaveLength(1)
+  })
+
+  it('keeps the public address when there are more than a snapshot carries', () => {
+    // A host with a veth per container can find sixteen of its own, and the
+    // public one is the only address that cannot be found again by looking —
+    // so it is a local address that gives way, not this one.
+    const many = [...Array(20)].map((_, index) => ({
+      url: `http://10.0.0.${index}:4600`,
+      tailscale: false,
+    }))
+    const published = withPublicAddress(many, 'https://music.example.com')
+    expect(published).toHaveLength(16)
+    expect(published.at(-1)?.url).toBe('https://music.example.com')
+  })
+
+  it("counts as somebody else's way in, token and all", () => {
+    const published = publishedAddresses('127.0.0.1', 4600, 'https://music.example.com')
+    expect(beyondThisComputer(published)).toEqual(['https://music.example.com'])
   })
 })

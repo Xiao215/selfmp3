@@ -3,7 +3,7 @@ import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { HttpError } from './errors.js'
-import { sameOriginWrites } from './middleware.js'
+import { APP_SITE_ORIGIN, sameOriginWrites } from './middleware.js'
 
 /**
  * The guard that keeps another website from writing to your library.
@@ -14,19 +14,21 @@ import { sameOriginWrites } from './middleware.js'
  * from a page that merely knows the address.
  */
 
-const config = (corsOrigins: string[]): Config => ({ corsOrigins }) as unknown as Config
+const config = (corsOrigins: string[], publicUrl: string | null = null): Config =>
+  ({ corsOrigins, publicUrl }) as unknown as Config
 
 function run(
   method: string,
   headers: Record<string, string>,
   corsOrigins: string[] = [],
+  publicUrl: string | null = null,
 ): HttpError | null {
   const req = { method, headers, protocol: 'http' } as unknown as Request
   let passed: unknown
   const next = ((error?: unknown) => {
     passed = error
   }) as NextFunction
-  sameOriginWrites(config(corsOrigins))(req, {} as Response, next)
+  sameOriginWrites(config(corsOrigins, publicUrl))(req, {} as Response, next)
   return passed instanceof HttpError ? passed : null
 }
 
@@ -96,6 +98,37 @@ describe('sameOriginWrites', () => {
       origin: 'http://127.0.0.1:4600.evil.example',
       host: '127.0.0.1:4600',
     })
+    expect(error?.status).toBe(403)
+  })
+  /*
+   * A public address exists so that a device away from the house can reach this
+   * server, and the app on such a device is the published site. Publishing the
+   * address and then refusing the only page that would call it is no setting at
+   * all, so the two go together — and neither one waves the token through.
+   */
+  it('lets the published site through once a public address is set', () => {
+    expect(
+      run(
+        'POST',
+        { origin: APP_SITE_ORIGIN, host: 'music.example.com' },
+        [],
+        'https://music.example.com',
+      ),
+    ).toBeNull()
+  })
+
+  it('does not let it through on a server with no public address', () => {
+    const error = run('POST', { origin: APP_SITE_ORIGIN, host: '127.0.0.1:4600' })
+    expect(error?.status).toBe(403)
+  })
+
+  it('still refuses another site when a public address is set', () => {
+    const error = run(
+      'POST',
+      { origin: 'https://evil.example', host: 'music.example.com' },
+      [],
+      'https://music.example.com',
+    )
     expect(error?.status).toBe(403)
   })
 })

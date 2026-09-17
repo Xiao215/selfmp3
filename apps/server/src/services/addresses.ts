@@ -31,6 +31,50 @@ export function listenAddresses(host: string, port: number): ListenAddress[] {
   return addresses
 }
 
+/** As many as a snapshot will carry (`CloudServerSchema`). */
+const PUBLISHED_LIMIT = 16
+
+/**
+ * Every address to publish into the bucket: the ones found on this computer,
+ * and the one in front of it.
+ *
+ * `listenAddresses` can only report what this machine can see, and everything
+ * it sees is a local `http://` address. Two things that leaves out, and
+ * `SELFMP3_PUBLIC_URL` is both of their answers: a device somewhere else on the
+ * internet, which has no local address to try, and the published web app, which
+ * is served over HTTPS and so is not allowed to call an `http://` address at
+ * all — not even one on the same Wi-Fi.
+ *
+ * The public address goes last, and the local ones stay: a device is racing all
+ * of these at once (`packages/client/src/connection/reach.ts`), so at home the
+ * Wi-Fi address still answers first and the tunnel is only paid for when
+ * nothing else replies.
+ */
+export function publishedAddresses(
+  host: string,
+  port: number,
+  publicUrl: string | null,
+): ListenAddress[] {
+  return withPublicAddress(listenAddresses(host, port), publicUrl)
+}
+
+/** The list above, with the public address added — separate so it can be tested. */
+export function withPublicAddress(
+  found: readonly ListenAddress[],
+  publicUrl: string | null,
+): ListenAddress[] {
+  const addresses = [...found]
+  if (publicUrl && !addresses.some(address => address.url === publicUrl)) {
+    // A snapshot carries at most sixteen (`CloudServerSchema`), and a host with
+    // a great many interfaces — a Docker box with a `veth` per container — can
+    // find that many on its own. The public address is the one that cannot be
+    // rediscovered by looking, so it is the one that stays.
+    while (addresses.length >= PUBLISHED_LIMIT) addresses.pop()
+    addresses.push({ url: publicUrl, tailscale: false })
+  }
+  return addresses.slice(0, PUBLISHED_LIMIT)
+}
+
 /**
  * Of those, the ones that are not this computer talking to itself.
  *

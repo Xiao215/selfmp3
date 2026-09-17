@@ -1,6 +1,6 @@
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
-import { beyondThisComputer, listenAddresses } from './services/addresses.js'
+import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
 
@@ -28,10 +28,14 @@ function main(): void {
 
   const server = app.listen(config.port, config.host, () => {
     logger.info(`${APP_NAME} ${APP_VERSION}`)
-    const addresses = listenAddresses(config.host, config.port)
-    for (const address of addresses) {
+    for (const address of listenAddresses(config.host, config.port)) {
       logger.info(`listening on ${address.url}${address.tailscale ? '  (tailscale)' : ''}`)
     }
+    // The public address is not one of those: nothing here listens on it, and
+    // whatever does forwards to one of the lines above. It is published all the
+    // same, so it belongs in the same part of the log.
+    const addresses = publishedAddresses(config.host, config.port, config.publicUrl)
+    if (config.publicUrl) sayWhatThePublicAddressIs(config.publicUrl, logger)
 
     /*
      * Say plainly who else can reach this, and what stands in their way.
@@ -145,6 +149,27 @@ function main(): void {
     logger.error('uncaught exception', { message: error.message, stack: error.stack })
     shutdown('uncaughtException')
   })
+}
+
+/**
+ * What the public address is for, and the one way to get it wrong.
+ *
+ * An `http://` address here is the mistake worth catching at boot rather than
+ * in a browser console days later: the published app is served over HTTPS, and
+ * a browser refuses outright to let an HTTPS page call `http://` — so a plain
+ * tunnel address is published, tried, and blocked, and the app simply says the
+ * server is away. The address a tunnel hands you is already `https://`; typing
+ * the port-forward you set up by hand is how you end up with the other kind.
+ */
+function sayWhatThePublicAddressIs(publicUrl: string, logger: Container['logger']): void {
+  logger.info(`published as reachable at ${publicUrl} (SELFMP3_PUBLIC_URL)`)
+  if (!publicUrl.startsWith('https://')) {
+    logger.warn(
+      `${publicUrl} is not https, so the published app cannot call it at all — ` +
+        'a browser blocks an http request from an https page. Put a tunnel in front of ' +
+        'this server and publish the https address it gives you.',
+    )
+  }
 }
 
 /** The work that reads or writes the library folder. */

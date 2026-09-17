@@ -101,7 +101,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('message', event => {
   const data: unknown = event.data
   if (typeof data === 'object' && data !== null && 'type' in data) {
-    if ((data as { type: string }).type === 'SKIP_WAITING') void self.skipWaiting()
+    const { type } = data as { type: string }
+    if (type === 'SKIP_WAITING') void self.skipWaiting()
+    // A page loaded around this worker, by a hard reload, asking to be answered
+    // for after all (src/ports/serviceWorker.web.ts).
+    if (type === 'CLAIM') void self.clients.claim()
   }
 })
 

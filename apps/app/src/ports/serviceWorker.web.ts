@@ -1,5 +1,6 @@
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
+import { CLAIM_GRACE_MS, shouldReloadForControl } from './serviceWorkerControl.model'
 
 /**
  * The service worker and the web manifest: its registration, and the
@@ -36,9 +37,60 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
 
   if (__DEV__ || !('serviceWorker' in navigator)) return
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')
-  navigator.serviceWorker.register(script, { scope: appPath('') }).catch((error: unknown) => {
-    console.warn('service worker registration failed', error)
+  navigator.serviceWorker
+    .register(script, { scope: appPath('') })
+    .then(() => navigator.serviceWorker.ready)
+    .then(takeControlBack)
+    .catch((error: unknown) => {
+      console.warn('service worker registration failed', error)
+    })
+}
+
+const RELOADED_AT_KEY = 'selfmp3.sw.reloadedForControl'
+
+/**
+ * A page loaded around its worker — a hard reload — gets it back
+ * (serviceWorkerControl.model.ts has the why).
+ *
+ * Asking nicely first: a worker may claim a page it is not controlling, and
+ * where the browser allows that, the songs and covers start arriving with no
+ * reload at all. It is also what a first install looks like for a moment, the
+ * worker active and its `clients.claim()` not landed yet, which is the other
+ * reason to wait before deciding. Only a page still on its own after that is
+ * reloaded, and only once.
+ */
+async function takeControlBack(registration: ServiceWorkerRegistration): Promise<void> {
+  if (navigator.serviceWorker.controller) return
+  registration.active?.postMessage({ type: 'CLAIM' })
+  await new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, CLAIM_GRACE_MS)
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      { once: true },
+    )
   })
+
+  let lastReloadAt: number | null = null
+  try {
+    const stored = sessionStorage.getItem(RELOADED_AT_KEY)
+    lastReloadAt = stored === null ? null : Number(stored)
+  } catch {
+    // No session storage: nowhere to write down that it was tried, so not tried.
+    return
+  }
+  const now = Date.now()
+  const controlled = navigator.serviceWorker.controller !== null
+  if (!shouldReloadForControl({ controlled, lastReloadAt, now })) return
+  try {
+    sessionStorage.setItem(RELOADED_AT_KEY, String(now))
+  } catch {
+    return
+  }
+  window.location.reload()
 }
 
 function addHeadLink(rel: string, href: string): void {

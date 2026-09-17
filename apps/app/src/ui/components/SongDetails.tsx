@@ -19,6 +19,7 @@ import { useArt } from '../../offline/useArt'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../accent'
+import { useSongColor } from '../useSongColor'
 import { Button } from './Button'
 import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
@@ -100,7 +101,11 @@ export function SongDetails({ song, onClose }: { song: Song; onClose: () => void
  */
 export function SongDetailsBody({ song }: { song: Song }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
+  const artFor = useArt()
+  // The energy wave and the source link are drawn in the song's own colour —
+  // the one its cover gives the page around them — rather than this device's
+  // accent, which read as a stray blue against the wash of the cover.
+  const songColor = useSongColor(song, artFor(song))
   const { state: downloads, queue, installed } = useDownloads()
   const progress = useDownloadProgress()
   const features = song.audioFeatures
@@ -128,7 +133,12 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
             {features.energy != null ? (
               <Fact label="Energy">
                 <View style={styles.inline}>
-                  <EnergyWave energy={features.energy} width={44} height={18} />
+                  <EnergyWave
+                    energy={features.energy}
+                    width={44}
+                    height={18}
+                    color={songColor.color}
+                  />
                   <Text style={styles.strong}>{Math.round(features.energy * 100)} of 100</Text>
                 </View>
                 <Text style={styles.note}>
@@ -225,7 +235,7 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
               accessibilityRole="link"
               onPress={() => void Linking.openURL(song.sourceUrl ?? '')}
             >
-              <Text style={[styles.strong, { color: accent.accent }]}>
+              <Text style={[styles.strong, { color: songColor.color }]}>
                 {sourceName(song.sourceUrl)}
               </Text>
             </Pressable>

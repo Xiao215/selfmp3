@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
-import type { Song, Tag } from '@selfmp3/shared'
+import { TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   isDownloaded,
   oklchToHexAlpha,
@@ -459,7 +459,7 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
               accessibilityLabel="Create a tag and add it to this song"
               autoCapitalize="none"
               autoCorrect={false}
-              maxLength={40}
+              maxLength={TAG_NAME_MAX}
             />
           </View>
         </View>

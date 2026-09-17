@@ -166,23 +166,31 @@ export function playBlock({
   network,
   streamUndownloaded,
   fromCloud,
+  bucketStreams,
   dataAllowed,
 }: {
+  /** A file here already: a download, or a copy kept because it was played. */
   downloaded: boolean
   installed: boolean
   network: NetworkKind
   /** "Play songs that aren't downloaded". */
   streamUndownloaded: boolean
-  /**
-   * A library read from the cloud. An installed app plays its songs from files,
-   * so one not downloaded waits; a browser streams it from the bucket through
-   * the service worker.
-   */
+  /** A library read from the cloud. */
   fromCloud: boolean
+  /**
+   * Whether this platform can play a bucket song without having it first.
+   *
+   * The doorman reads a bearer header and nothing else, so the question is
+   * only ever whether the thing that plays can be given one. A browser's
+   * service worker attaches it, and so does a phone's player, which takes
+   * headers with each track. The desktop shell's `<audio>` element has neither,
+   * so there a cloud song still has to arrive before it plays.
+   */
+  bucketStreams: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
-  if (fromCloud && installed) return 'cloud'
+  if (fromCloud && installed && !bucketStreams) return 'cloud'
   if (network === 'none') return 'offline'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'

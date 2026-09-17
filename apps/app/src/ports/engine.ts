@@ -121,6 +121,7 @@ class NativeEngine implements PlaybackEngine {
   onTrackEnd: (() => void) | null = null
   nextTrackId: (() => number | null) | null = null
   streamUrl: ((songId: number) => string) | null = null
+  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null = null
   trackMetadata: ((songId: number) => TrackMetadata | null) | null = null
   onProgress: ((currentTime: number, duration: number) => void) | null = null
 
@@ -330,6 +331,7 @@ class NativeEngine implements PlaybackEngine {
       onTrackEnd: this.onTrackEnd,
       nextTrackId: this.nextTrackId,
       streamUrl: this.streamUrl,
+      streamHeaders: this.streamHeaders,
       trackMetadata: this.trackMetadata,
       onProgress: this.onProgress,
     }
@@ -432,10 +434,15 @@ class NativeEngine implements PlaybackEngine {
     if (!url) return null
     const meta = this.trackMetadata?.(songId) ?? null
     if (meta) this.#cardShown.set(songId, cardKey(meta))
+    // The player sends these with every request it makes for the track, ranges
+    // included — which is what lets a bucket song stream from behind the
+    // doorman instead of having to be on the disk first.
+    const headers = this.streamHeaders?.(songId) ?? null
     return {
       songId,
       id: String(songId),
       url,
+      ...(headers ? { headers: { ...headers } } : {}),
       title: meta?.title ?? 'Unknown',
       ...(meta?.artist ? { artist: meta.artist } : {}),
       ...(meta?.album ? { album: meta.album } : {}),

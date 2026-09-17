@@ -48,3 +48,11 @@ export const bucketMedia: MediaRoutes | null = answered
       art: (songId, rev) => withRev(`api/art/${songId}`, rev),
     }
   : null
+
+/**
+ * Nothing to be told: the service worker looks a song's key and the session up
+ * for itself, out of IndexedDB. Here so both twins answer to the same name.
+ */
+export function configureBucketMedia(
+  _setup: { pathOf: (songId: number) => string | null; bearer: string | null } | null,
+): void {}

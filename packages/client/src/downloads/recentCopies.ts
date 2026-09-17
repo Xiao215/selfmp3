@@ -30,6 +30,21 @@ export function budgetFor(quota: number | null): number {
   return Math.min(RECENT_BUDGET_BYTES, Math.floor(quota * RECENT_SHARE))
 }
 
+/**
+ * The budget on a device that keeps files, which states free space, not a quota.
+ *
+ * The same quarter, of what would be free if this cache were empty — so the
+ * budget does not shrink as the cache fills, which would have every new copy
+ * evicting one only because the last copy was kept. A phone with 40 GB free
+ * gets the full ceiling; one with 2 GB free keeps about twenty songs, and one
+ * that is nearly full keeps the song that is playing and little else, which is
+ * what somebody who has run out of room would choose.
+ */
+export function budgetForDisk(freeBytes: number | null, heldBytes: number): number {
+  if (freeBytes === null || !Number.isFinite(freeBytes) || freeBytes < 0) return RECENT_BUDGET_BYTES
+  return Math.min(RECENT_BUDGET_BYTES, Math.floor((freeBytes + heldBytes) * RECENT_SHARE))
+}
+
 export interface RecentCopy {
   readonly songId: number
   /** When it was last played, as epoch milliseconds. */
@@ -74,5 +89,47 @@ export function parseKept(raw: string | null): Map<number, number> {
 }
 
 export function serialiseKept(kept: ReadonlyMap<number, number>): string {
+  return JSON.stringify(Object.fromEntries(kept))
+}
+
+/**
+ * A copy kept as a file, which has to remember more than when it was played.
+ *
+ * A browser's copies are found by song id in a cache it can ask the size of. A
+ * file is found by its name, and a song's name on disk comes from its path in
+ * the bucket (`fileNameFor`) — which is only known while the song is still in
+ * the library. Written down here, a copy can be sized, played and deleted
+ * after its song has gone, rather than being left on the disk with nothing
+ * that remembers it is there.
+ */
+export interface KeptFile {
+  readonly playedAt: number
+  readonly fileName: string
+  readonly bytes: number
+}
+
+/** The file-backed kept list as stored. Anything malformed is dropped, as above. */
+export function parseKeptFiles(raw: string | null): Map<number, KeptFile> {
+  const kept = new Map<number, KeptFile>()
+  if (!raw) return kept
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return kept
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const songId = Number(id)
+      if (!Number.isInteger(songId) || typeof value !== 'object' || value === null) continue
+      const { playedAt, fileName, bytes } = value as Record<string, unknown>
+      if (typeof playedAt !== 'number' || typeof bytes !== 'number') continue
+      // A name is joined to a folder and deleted: nothing with a separator in it.
+      if (typeof fileName !== 'string' || !/^[\w.-]+$/.test(fileName)) continue
+      kept.set(songId, { playedAt, fileName, bytes })
+    }
+  } catch {
+    // Half-written or foreign: start again.
+  }
+  return kept
+}
+
+export function serialiseKeptFiles(kept: ReadonlyMap<number, KeptFile>): string {
   return JSON.stringify(Object.fromEntries(kept))
 }

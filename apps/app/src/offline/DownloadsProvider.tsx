@@ -25,7 +25,14 @@ import {
   useManifest,
 } from '@selfmp3/client'
 import { installedApp } from '../ports/install'
-import { clearRecent, forgetRecent, keepRecentlyPlayed } from '../ports/recentCopies'
+import { bucketMedia } from '../ports/bucketMedia'
+import {
+  clearRecent,
+  forgetRecent,
+  keepRecentlyPlayed,
+  promoteRecent,
+  recentUri,
+} from '../ports/recentCopies'
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
@@ -281,7 +288,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     (ids: readonly number[]) => {
       changeExcluded(ids, false)
       // Asked for by hand, so it stays: no longer a copy the budget may let go.
-      forgetRecent(ids)
+      promoteRecent(ids)
       downloadQueue.enqueue(ids)
     },
     [changeExcluded],
@@ -313,10 +320,30 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   }, [setPrefs])
 
   // The player's commands are made once; they read the latest rules through this.
-  const rules = useRef({ index: state.index, network, prefs, fromCloud, dataAllowed, excluded })
+  const songsById = useMemo(
+    () => new Map((library.data?.songs ?? []).map(song => [song.id, song])),
+    [library.data],
+  )
+  const rules = useRef({
+    index: state.index,
+    network,
+    prefs,
+    fromCloud,
+    dataAllowed,
+    excluded,
+    songsById,
+  })
   useEffect(() => {
-    rules.current = { index: state.index, network, prefs, fromCloud, dataAllowed, excluded }
-  }, [state.index, network, prefs, fromCloud, dataAllowed, excluded])
+    rules.current = {
+      index: state.index,
+      network,
+      prefs,
+      fromCloud,
+      dataAllowed,
+      excluded,
+      songsById,
+    }
+  }, [state.index, network, prefs, fromCloud, dataAllowed, excluded, songsById])
 
   const keepPlayed = useCallback((songId: number) => {
     const now = rules.current
@@ -328,17 +355,25 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     // A browser streams and keeps nothing, played or not.
     if (!installedApp) return
     if (installedApp && now.prefs.autoOnWifi) return
-    void keepRecentlyPlayed(songId)
+    // A copy is a second fetch of a song already streaming, so it answers to
+    // the rule every other download does: not over mobile data nobody agreed to.
+    if (now.network === 'cellular' && !now.dataAllowed) return
+    const song = now.songsById.get(songId)
+    if (song) void keepRecentlyPlayed(song)
   }, [])
 
   const blockFor = useCallback((songId: number): PlayBlock | null => {
     const now = rules.current
     return playBlock({
-      downloaded: isDownloaded(now.index, songId),
+      // A copy kept because it was played is a file here like any other, and
+      // plays with no signal; it is only left out of what is *listed* as here.
+      // Asked second: it goes to the disk, and a download is the common answer.
+      downloaded: isDownloaded(now.index, songId) || recentUri(songId) !== null,
       installed: installedApp,
       network: now.network,
       streamUndownloaded: now.prefs.streamUndownloaded,
       fromCloud: now.fromCloud,
+      bucketStreams: bucketMedia !== null,
       dataAllowed: now.dataAllowed,
     })
   }, [])

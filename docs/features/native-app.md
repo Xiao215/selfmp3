@@ -33,6 +33,17 @@ A phone downloads what it keeps: automatically on Wi-Fi if that is on, asking
 first on mobile data and over 500 MB, or by hand from a song or playlist. A
 downloaded song plays from disk; anything else streams from the bucket, or from
 the server when the app is pointed at one. A song removed by hand stays removed.
+
+Streaming from the bucket is the doorman's address with the session's bearer
+sent as a header on the track (`src/ports/bucketMedia.ts`), and it answers to
+the same two settings any stream does: "Play songs that aren't downloaded", and
+the ask before using mobile data. With automatic downloads off — a phone short
+of room — a song that counts as a play is also kept as a file, so the songs
+actually listened to are not fetched from the bucket every day. Those copies are
+a cache and not downloads (`src/ports/recentCopies.ts`): they live in the
+system's cache folder, never show as "on this device", take at most a quarter of
+the free space up to 2 GB, and the least recently played go first. Asking for
+one by hand turns the copy into a download without fetching it again.
 The last library response is saved too, so the app opens and browses with no
 connection.
 

@@ -12,6 +12,7 @@ import {
 } from '@selfmp3/client'
 
 import { api, mediaUrlFor } from '../api/client'
+import { adoptRecent } from './recentCopies'
 import { sourceFor } from './songSource'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
 import { writeCachedLyrics } from '../offline/lyricsCache'
@@ -92,6 +93,11 @@ function transferFor(
       await keepLyrics(song)
       // Beside the words, but never in the way of the file.
       void keepMotion(song)
+      // Played lately, so a copy of it may be here already, kept as a cache
+      // (recentCopies.ts). Asking for the song turns that copy into this
+      // download: the same bytes, moved rather than fetched a second time.
+      const adopted = await adoptRecent(song, destination).catch(() => null)
+      if (adopted !== null) return adopted
       const from = await sourceFor(song, connection)
       // Called off while the source was being worked out.
       if (cancelled) throw new Error('cancelled')

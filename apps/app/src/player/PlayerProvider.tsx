@@ -47,10 +47,13 @@ import {
   artAddress,
   serverRoutes,
   streamAddress,
+  streamHeaders,
   type MediaSources,
 } from '../api/mediaAddress.model'
-import { bucketMedia } from '../ports/bucketMedia'
+import { bucketMedia, configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
+import { recentUri } from '../ports/recentCopies'
+import { session as cloudSession } from '../replica'
 import {
   coverFor,
   coversNow,
@@ -289,6 +292,36 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     autoMixRef.current = autoMix
   }, [autoMix])
 
+  /*
+   * What a phone needs to stream a bucket song: each song's key there, and the
+   * doorman session to ask with (ports/bucketMedia.ts; nothing, in a browser,
+   * whose service worker looks both up for itself). The library is read through
+   * the ref, so a song imported a moment ago has an address without this
+   * running again; the session is read when the library becomes the bucket's,
+   * which is the moment sign-in finishes.
+   */
+  useEffect(() => {
+    if (!fromCloud) {
+      configureBucketMedia(null)
+      return
+    }
+    let cancelled = false
+    void cloudSession
+      .loadSession()
+      .catch(() => null)
+      .then(signedIn => {
+        if (cancelled) return
+        configureBucketMedia({
+          pathOf: songId => songsRef.current.get(songId)?.path ?? null,
+          bearer: signedIn?.token ?? null,
+        })
+      })
+    return () => {
+      cancelled = true
+      configureBucketMedia(null)
+    }
+  }, [fromCloud])
+
   /** With auto-mix on, anything that brings new songs into Up next re-smooths it. */
   const mixed = useCallback(
     (state: QueueState): QueueState =>
@@ -383,19 +416,28 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [engine],
   )
 
+  // Everywhere a song's bytes might come from, on this device, right now.
+  const sourcesFor = useCallback(
+    (songId: number): MediaSources => ({
+      // A file here wins whenever there is one — a download first, then a copy
+      // kept because it was played. It is the only thing that plays with no
+      // signal, and it is the same song either way.
+      local: downloadQueue.localUri(songId) ?? recentUri(songId),
+      ...mediaSources(connectionRef.current, fromCloudRef.current),
+    }),
+    [downloadQueue],
+  )
+
   useEffect(() => {
     return engine.connect({
       // Past songs that cannot play here, so a lookahead never preloads one.
       nextTrackId: () => peekPlayable(queueRef.current, mayPlay),
 
       streamUrl: songId =>
-        streamAddress(songId, songsRef.current.get(songId)?.rev, {
-          // The local file wins whenever there is one: that is what the
-          // download queue is for, and it is the only thing that plays with no
-          // signal.
-          local: downloadQueue.localUri(songId),
-          ...mediaSources(connectionRef.current, fromCloudRef.current),
-        }),
+        streamAddress(songId, songsRef.current.get(songId)?.rev, sourcesFor(songId)),
+      // Decided by the same rule over the same sources, so an address and what
+      // has to be sent with it can never come from two different places.
+      streamHeaders: songId => streamHeaders(sourcesFor(songId)),
 
       trackMetadata: songId => {
         const song = songsRef.current.get(songId)
@@ -472,7 +514,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         }
       },
     })
-  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay])
+  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor])
 
   // --- commands ------------------------------------------------------------
 

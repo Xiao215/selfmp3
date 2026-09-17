@@ -9,9 +9,10 @@ import { cloudPlatform, session as cloudSession } from '../replica'
  *
  * The bucket, through the doorman, when this device is signed in — with a
  * header, since that is all the doorman reads, and `song.path` is already the
- * key there. Otherwise a server, where the token has to ride in the query
- * string: the same URL is handed to the OS audio player, which cannot attach
- * headers.
+ * key there. Otherwise a server, where the token rides in the query string:
+ * the same address is what a browser's `<audio>` element is given, and that
+ * can send no header of anyone's choosing. (A phone's player can, which is how
+ * it streams a bucket song without fetching it first: ports/bucketMedia.ts.)
  *
  * Policy, not storage, which is why it is here and not in either
  * `downloadStorage`: the phone and the desktop shell keep their bytes in very
@@ -19,7 +20,7 @@ import { cloudPlatform, session as cloudSession } from '../replica'
  * because each storage keeps its own.
  */
 export async function sourceFor(
-  song: Song,
+  song: Pick<Song, 'id' | 'path'>,
   connection: ServerConnection | null,
 ): Promise<{ url: string; headers?: Record<string, string> }> {
   const signedIn = await cloudSession.loadSession().catch(() => null)

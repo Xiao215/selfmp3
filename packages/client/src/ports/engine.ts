@@ -111,6 +111,8 @@ export interface EngineWiring {
   nextTrackId: (() => number | null) | null
   /** Where to fetch a song. Null falls back to the engine's own default. */
   streamUrl: ((songId: number) => string) | null
+  /** What has to ride with the request for it; see `PlaybackEngine.streamHeaders`. */
+  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null
   /** What to show where the platform draws the now-playing card. */
   trackMetadata: ((songId: number) => TrackMetadata | null) | null
   /** Every progress tick, for counting a play. */
@@ -182,6 +184,16 @@ export interface PlaybackEngine {
   nextTrackId: (() => number | null) | null
   /** Where to fetch a song. Null falls back to the engine's own default. */
   streamUrl: ((songId: number) => string) | null
+  /**
+   * The headers a song's request has to carry, or null when it needs none.
+   *
+   * For the one address that is no use bare: a bucket song, behind a doorman
+   * that reads a bearer header and nothing else. Only an engine that can send
+   * headers reads this — a phone's player takes them with each track. A
+   * browser's `<audio>` element cannot, which is why its bucket addresses are
+   * the app's own and a service worker signs for them; that engine never asks.
+   */
+  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null
   /**
    * What to show for a song where the platform draws the now-playing card.
    * Null, or a null answer, means the engine shows what it can work out.

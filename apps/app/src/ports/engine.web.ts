@@ -151,6 +151,12 @@ class AudioEngine implements PlaybackEngine {
   /** Where a song's audio lives; the provider knows each song's `rev`. */
   streamUrl: ((songId: number) => string) | null = null
   /**
+   * Accepted and unused: an `<audio>` element sends no headers of anyone's
+   * choosing. A bucket song's address here is the app's own, and the service
+   * worker attaches the doorman's bearer on the way out (ports/bucketMedia.web.ts).
+   */
+  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null = null
+  /**
    * Accepted and unused: a browser draws its own now-playing UI, so there is
    * no card for the operating system to fill in. It is here because the port
    * declares it for the platforms that do — and because `navigator.mediaSession`
@@ -166,6 +172,7 @@ class AudioEngine implements PlaybackEngine {
       onTrackEnd: this.onTrackEnd,
       nextTrackId: this.nextTrackId,
       streamUrl: this.streamUrl,
+      streamHeaders: this.streamHeaders,
       trackMetadata: this.trackMetadata,
       onProgress: this.onProgress,
     }

@@ -544,10 +544,12 @@ Exit: `npm run check:app`; the phone flows pass in the browser at 1194 and at
 
 ### Later — not in this plan, written down so they are not re-derived
 
-- **Streaming from the bucket on the desktop.** In cloud mode the desktop,
-  like the phone, plays only what it has downloaded (`playBlock('cloud')`),
-  because the player cannot send the doorman's header. The browser gets
-  streaming from its service worker. The desktop's equivalent is a range
+- **Streaming from the bucket on the desktop.** In cloud mode the desktop
+  plays only what it has downloaded (`playBlock('cloud')`), because an
+  `<audio>` element cannot send the doorman's header. The browser gets
+  streaming from its service worker, and the phone from its player, which
+  takes headers with each track (`apps/app/src/ports/bucketMedia.ts`) — the
+  desktop is the one platform left without. The desktop's equivalent is a range
   proxy in the main process at `app://selfmp3/_stream/<key>` that adds the
   header — the service worker's `cloud` branch in Node. Worth doing; not
   needed for "download by default".

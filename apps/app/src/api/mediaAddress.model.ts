@@ -26,8 +26,16 @@ import type { MediaUrl } from '@selfmp3/client'
 
 /** One place's addresses for a song. `rev` defeats a cache when a file is replaced. */
 export interface MediaRoutes {
+  /** `''` when this place has no address for the song, which an engine refuses on. */
   readonly stream: (songId: number, rev?: string) => string
-  readonly art: (songId: number, rev?: string) => string
+  /** Null where covers do not come by address — a phone keeps a bucket's as files. */
+  readonly art: (songId: number, rev?: string) => string | null
+  /**
+   * What a request to `stream` has to carry, where an address alone is not
+   * enough. Only the phone's bucket routes have any: the doorman wants a
+   * bearer, and the phone's player can send one (ports/bucketMedia.ts).
+   */
+  readonly headers?: () => Readonly<Record<string, string>> | null
 }
 
 /**
@@ -75,6 +83,17 @@ export function streamAddress(
 ): string {
   if (sources.local) return sources.local
   return remote(sources)?.stream(songId, rev) ?? ''
+}
+
+/**
+ * The headers that go with `streamAddress`, decided by the same rule so the two
+ * cannot disagree: a file on this device is read, not requested, and takes
+ * none — sending the doorman's bearer along with a `file://` address would be
+ * harmless, and sending it to a server that happened to answer would not.
+ */
+export function streamHeaders(sources: MediaSources): Readonly<Record<string, string>> | null {
+  if (sources.local) return null
+  return remote(sources)?.headers?.() ?? null
 }
 
 /** Where to draw a song's cover from, or null when nothing here can serve it. */

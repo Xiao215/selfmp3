@@ -1,3 +1,4 @@
+import type { Song } from '@selfmp3/shared'
 import { budgetFor, parseKept, serialiseKept, toEvict, type RecentCopy } from '@selfmp3/client'
 import {
   cachedBytes,
@@ -32,6 +33,23 @@ export function recentIds(): ReadonlySet<number> {
   return new Set(load().keys())
 }
 
+/**
+ * Never an address of its own: a kept copy is in the audio cache, and the
+ * service worker answers the song's ordinary address from it. A phone, which
+ * keeps files, has one to give (the twin).
+ */
+export function recentUri(_songId: number): string | null {
+  return null
+}
+
+/**
+ * Asked for by hand: the copy stays where it is and stops being the budget's.
+ * It is already in the cache downloads use, so it simply becomes one.
+ */
+export function promoteRecent(songIds: readonly number[]): void {
+  forgetRecent(songIds)
+}
+
 /** Asked for by hand, or removed: no longer this budget's to count. */
 export function forgetRecent(songIds: readonly number[]): void {
   const kept = load()
@@ -51,7 +69,7 @@ export function clearRecent(): void {
  * before the track is. A song already kept by hand is somebody's download and
  * not touched; one of ours played again becomes the newest.
  */
-export async function keepRecentlyPlayed(songId: number): Promise<void> {
+export async function keepRecentlyPlayed({ id: songId }: Pick<Song, 'id' | 'path'>): Promise<void> {
   if (!offlineStorageAvailable()) return
   try {
     const kept = load()

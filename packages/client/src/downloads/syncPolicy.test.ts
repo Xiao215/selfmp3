@@ -117,6 +117,7 @@ describe('playing a song that is not downloaded', () => {
     network: 'wifi' as const,
     streamUndownloaded: true,
     fromCloud: false,
+    bucketStreams: false,
     dataAllowed: false,
   }
 
@@ -134,6 +135,32 @@ describe('playing a song that is not downloaded', () => {
     expect(playBlock({ ...song, streamUndownloaded: false })).toBe('streaming-off')
     expect(playBlock({ ...song, network: 'cellular' })).toBe('data')
     expect(playBlock({ ...song, network: 'cellular', dataAllowed: true })).toBeNull()
+  })
+
+  /*
+   * A phone's player takes headers with each track, so it can be handed the
+   * doorman's bearer and stream a bucket song like any other. What is left in
+   * its way is only what stands in the way of any stream: no signal, the
+   * setting, and mobile data nobody agreed to.
+   */
+  describe('an installed app that can stream from the bucket', () => {
+    const cloud = { ...song, fromCloud: true, bucketStreams: true }
+
+    it('plays a cloud song it has not downloaded, on Wi-Fi', () => {
+      expect(playBlock(cloud)).toBeNull()
+    })
+
+    it('still answers to the same rules as any other stream', () => {
+      expect(playBlock({ ...cloud, network: 'none' })).toBe('offline')
+      expect(playBlock({ ...cloud, streamUndownloaded: false })).toBe('streaming-off')
+      expect(playBlock({ ...cloud, network: 'cellular' })).toBe('data')
+      expect(playBlock({ ...cloud, network: 'cellular', dataAllowed: true })).toBeNull()
+    })
+
+    it('leaves one that cannot waiting for the file, as before', () => {
+      // The desktop shell: an `<audio>` element, and no worker to sign for it.
+      expect(playBlock({ ...cloud, bucketStreams: false })).toBe('cloud')
+    })
   })
 
   it('streams a cloud library in a browser, through the service worker', () => {

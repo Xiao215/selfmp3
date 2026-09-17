@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { artAddress, serverRoutes, streamAddress, type MediaRoutes } from './mediaAddress.model'
+import {
+  artAddress,
+  serverRoutes,
+  streamAddress,
+  streamHeaders,
+  type MediaRoutes,
+} from './mediaAddress.model'
 
 /** A browser's, as ports/bucketMedia.web.ts builds them: the app's own base path. */
 const bucket: MediaRoutes = {
@@ -91,5 +97,44 @@ describe('where a cover is drawn from', () => {
     expect(artAddress(12, 'r1', { bucket, server: plain, fromCloud: false })).toBe(
       'http://mac:4600/api/art/12',
     )
+  })
+})
+
+/**
+ * A phone's bucket routes, as ports/bucketMedia.ts builds them: the doorman's
+ * own address, which is no use without the bearer that goes with it.
+ */
+describe('what a song’s request has to carry', () => {
+  const bearer = { Authorization: 'Bearer s3ss10n' }
+  const phoneBucket: MediaRoutes = {
+    stream: () => 'https://doorman.example/v1/files/audio/abc.m4a',
+    art: () => null,
+    headers: () => bearer,
+  }
+
+  it('is the doorman’s bearer for a cloud library’s song', () => {
+    expect(
+      streamHeaders({ local: null, bucket: phoneBucket, server: null, fromCloud: true }),
+    ).toEqual(bearer)
+  })
+
+  it('is nothing for a file already here', () => {
+    const local = 'file:///songs/abc.m4a'
+    expect(streamHeaders({ local, bucket: phoneBucket, server, fromCloud: true })).toBeNull()
+  })
+
+  it('never reaches a server, which is a different place with a different key', () => {
+    // The doorman's session in a request to a server that merely answers is a
+    // credential handed to the wrong party.
+    expect(streamHeaders({ local: null, bucket: phoneBucket, server, fromCloud: false })).toBeNull()
+  })
+
+  it('is nothing for routes that need none, a browser’s and a server’s', () => {
+    expect(streamHeaders({ local: null, bucket, server: null, fromCloud: true })).toBeNull()
+    expect(streamHeaders({ local: null, bucket: null, server, fromCloud: false })).toBeNull()
+  })
+
+  it('leaves a phone’s covers to the files it keeps', () => {
+    expect(artAddress(12, 'r1', { bucket: phoneBucket, server: null, fromCloud: true })).toBeNull()
   })
 })

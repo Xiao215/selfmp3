@@ -77,8 +77,11 @@ test.describe('a playlist that follows tags', () => {
     await page.getByTestId('library-add-tag').click()
     const picker = page.getByTestId('listen-tags')
     await picker.getByTestId('listen-tags-search').fill(tag.name)
-    await picker.getByRole('button', { name: tag.name, exact: true }).first().click()
-    await page.keyboard.press('Escape')
+    await picker
+      .getByRole('button', { name: new RegExp(`^${tag.name}(,|$)`) })
+      .first()
+      .click()
+    await picker.getByTestId('listen-tags-done').click()
     await page.getByTestId('library-save-tags').click()
 
     // The message says what happened, and the button stops offering.
@@ -136,14 +139,17 @@ test.describe('a playlist that follows tags', () => {
       await page.getByTestId('follows-add-tag').click()
       const panel = page.getByTestId('listen-tags')
       await panel.getByTestId('listen-tags-search').fill(second.name)
-      await panel.getByRole('button', { name: second.name, exact: true }).first().click()
+      await panel
+        .getByRole('button', { name: new RegExp(`^${second.name}(,|$)`) })
+        .first()
+        .click()
 
       await expect.poll(async () => (await playlist(page.request, id))?.rules?.rules.length).toBe(2)
       const widened = await songIdsOf(page.request, id)
       // Any of the tags, so the list can only have grown.
       expect(widened.length).toBeGreaterThanOrEqual(before.length)
 
-      await page.keyboard.press('Escape')
+      await page.getByTestId('listen-tags-done').click()
       await page.getByTestId('stop-following').click()
 
       await expect.poll(async () => (await playlist(page.request, id))?.kind).toBe('manual')

@@ -72,10 +72,9 @@ export function LibraryScreen(): ReactNode {
   const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
   const tagAnchorRef = useRef<View | null>(null)
-  // The + in the head that chooses which tags to listen to — a different job
-  // from the one above, which puts tags on a song. Open/closed lives in a
-  // store, because the sidebar's "All 214 tags…" opens this same panel.
-  const chooserAnchorRef = useRef<View | null>(null)
+  // Which tags to listen to — a different job from the picker above, which
+  // puts tags on a song. Open/closed lives in a store, because the sidebar's
+  // "All 13 tags…" opens this same panel.
   const choosingTags = useTagSearchOpen()
   useEffect(() => closeTagSearch, [])
   // The dashed + in a row's tag column opens the same picker the menu does.
@@ -301,19 +300,22 @@ export function LibraryScreen(): ReactNode {
               add to, and the words before there are — nobody hunts for a bare
               plus sign beside a title that does not look like a list of tags.
             */}
-            <View ref={chooserAnchorRef} collapsable={false}>
-              <Pressable
-                onPress={openTagSearch}
-                accessibilityRole="button"
-                accessibilityLabel={model.tagFiltered ? 'Add a tag' : 'Pick tags'}
-                {...tip(model.tagFiltered ? 'Add a tag' : undefined)}
-                style={({ pressed }) => [styles.addTag, pressed && styles.addTagPressed]}
-                testID="library-add-tag"
-              >
-                <Plus size={14} color={theme.colors.textMuted} />
-                {model.tagFiltered ? null : <Text style={styles.addTagLabel}>Pick tags</Text>}
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={choosingTags ? closeTagSearch : openTagSearch}
+              accessibilityRole="button"
+              accessibilityLabel={model.tagFiltered ? 'Add a tag' : 'Pick tags'}
+              accessibilityState={{ expanded: choosingTags }}
+              {...tip(model.tagFiltered ? 'Add a tag' : undefined)}
+              style={({ pressed }) => [
+                styles.addTag,
+                choosingTags && { borderStyle: 'solid', borderColor: accent.accentDim },
+                pressed && styles.addTagPressed,
+              ]}
+              testID="library-add-tag"
+            >
+              <Plus size={14} color={choosingTags ? accent.accent : theme.colors.textMuted} />
+              {model.tagFiltered ? null : <Text style={styles.addTagLabel}>Pick tags</Text>}
+            </Pressable>
           </View>
           {/* How many, how long, and — with two tags or more — what leads. */}
           {model.tagFiltered ? (
@@ -474,6 +476,20 @@ export function LibraryScreen(): ReactNode {
       ) : null}
 
       {/*
+        The picker, in the page rather than over it: the head grows, the songs
+        move down, and nothing is drawn across the sidebar.
+      */}
+      <View style={styles.chooser}>
+        <ListenTags
+          open={choosingTags}
+          onClose={closeTagSearch}
+          selected={filter.tagIds}
+          onToggle={chooseTag}
+          summary={model.tagFiltered ? model.subtitle : undefined}
+        />
+      </View>
+
+      {/*
         No second "Filtered by" row: the chips in the head are the filter, and
         drawing them twice made the same list look like two different states.
         Only the way out of all of them at once is left.
@@ -529,15 +545,6 @@ export function LibraryScreen(): ReactNode {
         )}
       </View>
 
-      <ListenTags
-        open={choosingTags}
-        onClose={closeTagSearch}
-        anchorRef={chooserAnchorRef}
-        selected={filter.tagIds}
-        onToggle={chooseTag}
-        summary={model.tagFiltered ? model.subtitle : undefined}
-      />
-
       <TagPicker
         song={taggingSong}
         onClose={() => setTaggingSong(null)}
@@ -585,6 +592,7 @@ const styles = StyleSheet.create(theme => ({
   addTagPressed: { backgroundColor: theme.colors.surface2 },
   addTagLabel: { color: theme.colors.textMuted, fontSize: type.small },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  chooser: { paddingHorizontal: space.lg },
   savedMark: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   screen: {
     flex: 1,

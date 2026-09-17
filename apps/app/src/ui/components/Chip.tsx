@@ -2,16 +2,19 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
-import { oklchToHexAlpha, tagColors, type } from '@selfmp3/client'
+import { tagColors, type } from '@selfmp3/client'
 
 /**
  * A tag: a pill in the tag's own hue, brighter when it is the filter. With no
  * hue it is a plain chip in the app's accent — the sort field, the
  * "downloaded only" switch.
  *
- * Three faces for a tag: off, showing only it (`selected`), and hiding it
- * (`excluded`), which draws the pill quiet with an outline in the tag's hue
- * and a red "not" in front of the name.
+ * Two faces for a tag: off, and chosen. There is no third — every tag you turn
+ * on adds its songs to the list, so "hide these" has nothing left to mean.
+ *
+ * `count` puts the tag's song count on the pill, dimmed, for the places where
+ * a tag is being weighed up rather than read back: the picker offers it,
+ * the chips in a heading do not.
  *
  * A finger's target on a phone: 8 by 12 points of padding around 12-point
  * text. `compact` is the ordinary chip, 5 by 10, for the "Filtered by" row.
@@ -21,9 +24,9 @@ export function Chip({
   testID,
   label,
   selected,
-  excluded = false,
   hue,
   icon,
+  count,
   compact = false,
   onPress,
   onLongPress,
@@ -32,9 +35,9 @@ export function Chip({
   testID?: string
   label: string
   selected: boolean
-  excluded?: boolean
   hue?: number
   icon?: ReactNode
+  count?: number
   compact?: boolean
   onPress: () => void
   onLongPress?: () => void
@@ -43,54 +46,48 @@ export function Chip({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const palette = tagColors(hue ?? accent.hue)
-  const background = excluded
-    ? theme.colors.surface2
-    : hue === undefined && !selected
+  const background =
+    hue === undefined && !selected
       ? theme.colors.surface2
       : selected
         ? palette.activeBackground
         : palette.background
-  const text = excluded
-    ? theme.colors.textSecondary
-    : hue === undefined && !selected
+  const text =
+    hue === undefined && !selected
       ? theme.colors.textSecondary
       : selected
         ? palette.activeText
         : palette.text
 
   const padding = compact ? styles.labelCompact : styles.labelStrip
-  // The web draws the excluded outline as an inset shadow, which takes no
-  // room; a border does, so the padding gives the point back.
-  const edge = excluded
-    ? { borderWidth: 1, borderColor: oklchToHexAlpha(0.5, 0.1, hue ?? accent.hue, 0.55) }
-    : null
 
   const name = (
     <Text style={[styles.label, { color: text }]} numberOfLines={1}>
-      {excluded ? <Text style={styles.not}>NOT </Text> : null}
       {label}
     </Text>
   )
 
   return (
-    <View testID={testID} style={[styles.chip, { backgroundColor: background }, edge]}>
+    <View testID={testID} style={[styles.chip, { backgroundColor: background }]}>
       <Pressable
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={450}
         accessibilityRole="button"
-        accessibilityLabel={excluded ? `not ${label}` : label}
-        accessibilityState={{ selected: selected || excluded }}
+        accessibilityLabel={
+          count === undefined ? label : `${label}, ${count} ${count === 1 ? 'song' : 'songs'}`
+        }
+        accessibilityState={{ selected }}
         style={({ pressed }) => [
           styles.press,
           padding,
-          excluded && styles.inset,
           onRemove !== undefined && styles.beforeRemove,
           pressed && styles.pressed,
         ]}
       >
         {icon}
         {name}
+        {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
       </Pressable>
       {onRemove ? (
         <Pressable
@@ -107,7 +104,7 @@ export function Chip({
   )
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create(() => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -120,20 +117,14 @@ const styles = StyleSheet.create(theme => ({
   },
   labelStrip: { paddingHorizontal: 12, paddingVertical: 8 },
   labelCompact: { paddingHorizontal: 10, paddingVertical: 5 },
-  inset: { margin: -1 },
   beforeRemove: { paddingRight: 2 },
   pressed: {
     opacity: 0.7,
   },
+  count: { fontSize: type.tiny, fontWeight: '500', opacity: 0.6, fontVariant: ['tabular-nums'] },
   label: {
     fontSize: type.small,
     fontWeight: '500',
-  },
-  not: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.24,
-    color: theme.colors.danger,
   },
   remove: { paddingLeft: 2, paddingRight: 8 },
   removeGlyph: { fontSize: 14, opacity: 0.6 },

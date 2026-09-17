@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import type { View as RNView } from 'react-native'
@@ -68,7 +68,6 @@ function NewPlaylistDialog({
   const [choosing, setChoosing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const addRef = useRef<RNView>(null)
 
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
@@ -163,9 +162,9 @@ function NewPlaylistDialog({
                   onRemove={() => toggleTag(tag.id)}
                 />
               ))}
-              <View ref={addRef} collapsable={false}>
+              <View collapsable={false}>
                 <Pressable
-                  onPress={() => setChoosing(true)}
+                  onPress={() => setChoosing(open => !open)}
                   accessibilityRole="button"
                   accessibilityLabel="Pick tags"
                   style={({ pressed }) => [
@@ -179,6 +178,14 @@ function NewPlaylistDialog({
                 </Pressable>
               </View>
             </View>
+            {choosing ? (
+              <ListenTags
+                open
+                onClose={() => setChoosing(false)}
+                selected={tagIds}
+                onToggle={toggleTag}
+              />
+            ) : null}
             <Text style={styles.hint}>
               {tagIds.length === 0
                 ? 'Songs carrying any of the tags you pick go in, and new ones join as you tag them.'
@@ -205,14 +212,6 @@ function NewPlaylistDialog({
           />
         </View>
       </View>
-
-      <ListenTags
-        open={choosing}
-        onClose={() => setChoosing(false)}
-        anchorRef={addRef}
-        selected={tagIds}
-        onToggle={toggleTag}
-      />
     </Sheet>
   )
 }

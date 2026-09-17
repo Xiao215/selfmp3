@@ -40,11 +40,16 @@ async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: Li
  * picker is also the path a person takes at two hundred tags.
  */
 async function pickTag(page: Page, name: string): Promise<void> {
-  await page.getByTestId('library-add-tag').click()
   const panel = page.getByTestId('listen-tags')
+  if ((await panel.count()) === 0) await page.getByTestId('library-add-tag').click()
   await panel.getByTestId('listen-tags-search').fill(name)
-  await panel.getByRole('button', { name, exact: true }).first().click()
-  await page.keyboard.press('Escape')
+  // A chip in the picker carries its song count in its name — "chill, 20 songs" —
+  // so this matches the start of it rather than the whole.
+  await panel
+    .getByRole('button', { name: new RegExp(`^${name}(,|$)`) })
+    .first()
+    .click()
+  await panel.getByTestId('listen-tags-done').click()
   await expect(panel).toHaveCount(0)
 }
 
@@ -81,7 +86,6 @@ test.describe('choosing tags', () => {
     const both = present.filter(
       s => s.tagIds.includes(first.id) && s.tagIds.includes(second.id),
     ).length
-    const total = await songRows(page).count()
 
     await pickTag(page, first.name)
     await expect(songRows(page)).toHaveCount(count(first.id))
@@ -96,8 +100,14 @@ test.describe('choosing tags', () => {
       `${both} have both tags, and come first`,
     )
 
+    // Clearing puts the whole library back. Not asserted as a row count: the
+    // list is virtualised, so what is rendered is whatever fits, and the panel
+    // opening and closing changes that. What is checked is that the view is no
+    // longer a tag pick at all.
     await page.getByRole('button', { name: 'clear tags', exact: true }).click()
-    await expect(songRows(page)).toHaveCount(total)
+    await expect(page.getByTestId('library-play-tags')).toHaveCount(0)
+    await expect(page.getByTestId('library-match-note')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: /^Library/ })).toBeVisible()
   })
 
   test('the head offers Play only once a tag is on', async ({ page }, info) => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -38,7 +38,6 @@ export function FollowsRow({
   const update = useUpdatePlaylist()
   const stop = useStopFollowing()
   const [choosing, setChoosing] = useState(false)
-  const addRef = useRef<View>(null)
 
   const tagIds = followedTagIds(playlist.rules)
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
@@ -82,9 +81,9 @@ export function FollowsRow({
           onRemove={chosen.length > 1 ? () => toggle(tag.id) : undefined}
         />
       ))}
-      <View ref={addRef} collapsable={false}>
+      <View collapsable={false}>
         <Pressable
-          onPress={() => setChoosing(true)}
+          onPress={() => setChoosing(open => !open)}
           accessibilityRole="button"
           accessibilityLabel="Add a tag to follow"
           style={({ pressed }) => [
@@ -121,14 +120,17 @@ export function FollowsRow({
         </Text>
       </Pressable>
 
-      <ListenTags
-        open={choosing}
-        onClose={() => setChoosing(false)}
-        anchorRef={addRef}
-        selected={tagIds}
-        onToggle={toggle}
-        summary={`${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`}
-      />
+      {choosing ? (
+        <View style={styles.panel}>
+          <ListenTags
+            open
+            onClose={() => setChoosing(false)}
+            selected={tagIds}
+            onToggle={toggle}
+            summary={`${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`}
+          />
+        </View>
+      ) : null}
       {alsoRules ? (
         <Text style={styles.warn} testID="follows-extra-rules">
           It also follows conditions this page can’t show. Changing a tag here drops them.
@@ -171,4 +173,5 @@ const styles = StyleSheet.create(theme => ({
   stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm },
   stopLabel: { color: theme.colors.textSecondary, fontSize: 11.5 },
   warn: { width: '100%', color: theme.colors.warning, fontSize: 11.5 },
+  panel: { width: '100%' },
 }))

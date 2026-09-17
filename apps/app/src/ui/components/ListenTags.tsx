@@ -1,16 +1,13 @@
 import { useMemo, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
-import { ScrollView, Text, TextInput, View } from 'react-native'
+import type { ReactNode } from 'react'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, type Tag } from '@selfmp3/shared'
-import { chooserTagGroups, HIT_TARGET, radius, space, useLibrary } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { chooserTagGroups, HIT_TARGET, radius, space, type, useLibrary } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
-import { usePanelDense } from './panel'
-import { Popover } from './Popover'
-import { Sheet } from './Sheet'
+import { Search, X } from './Icons'
 
 /**
  * Choosing tags to listen to.
@@ -22,59 +19,56 @@ import { Sheet } from './Sheet'
  * than a checklist, because what you are assembling is read back as chips
  * everywhere else.
  *
- * Two faces, and they never overlap. With nothing typed it offers the dozen
- * tags used most and the few made lately — which is the whole of what anyone
- * wants at two hundred tags. With something typed it shows the matches and
- * nothing else: once you are searching, a wall of tags you did not search for
- * is in the way.
+ * **A panel in the page, not a window over it.** It was a popover hanging off a
+ * small ＋, which put a dark box across the sidebar, gave the chips a column
+ * narrower than the one they were being added to, and — when the router had
+ * more than one library mounted — drew twice. In the flow it is part of the
+ * thing it edits: the head grows, the songs move down, nothing overlaps, and
+ * the chips have the whole width to breathe in. It is the same at every width,
+ * which also means it can sit inside a dialogue without being a second layer
+ * over the first.
  *
- * It stays open while you tap, so picking four tags is four taps rather than
- * four round trips, and the foot counts as you go.
+ * Two faces, and they never overlap. With nothing typed it offers the tags used
+ * most and the few made lately, each a labelled lane. With something typed it
+ * shows the matches and nothing else: once you are searching, a wall of tags
+ * you did not search for is in the way.
  */
 export function ListenTags({
   open,
   onClose,
-  anchorRef,
   selected,
   onToggle,
   summary,
 }: {
   open: boolean
   onClose: () => void
-  /** The control that opened it, for a window attached to it at desktop width. */
-  anchorRef?: RefObject<View | null>
   selected: readonly number[]
   onToggle: (tagId: number) => void
-  /** What the choice comes to — "176 songs · 10 hr 52 min" — shown at the foot. */
+  /** What the choice comes to — "176 songs · 10 hr 52 min" — shown by the Done row. */
   summary?: string
 }): ReactNode {
-  const { wide } = useLayout()
-  const body = open ? (
-    <ListenTagsList selected={selected} onToggle={onToggle} summary={summary} />
-  ) : null
-  if (wide && anchorRef) {
-    return (
-      <Popover open={open} onClose={onClose} anchorRef={anchorRef} width={360} testID="listen-tags">
-        {body}
-      </Popover>
-    )
-  }
+  if (!open) return null
   return (
-    <Sheet open={open} onClose={onClose} title="Tags" titleTone="label" testID="listen-tags">
-      {body}
-    </Sheet>
+    <ListenTagsList
+      selected={selected}
+      onToggle={onToggle}
+      summary={summary}
+      onDone={onClose}
+      autoFocus
+    />
   )
 }
 
 /**
- * The panel's contents on their own, for a screen that *is* the picker rather
- * than one that opens it: the phone's Tags page. Same two faces, same rules —
- * it would be a poor joke to teach the search twice.
+ * The panel itself, for a caller that draws it in its own flow: the library
+ * head, and the phone's Tags page, which *is* the picker rather than a page
+ * that opens one.
  */
 export function ListenTagsList({
   selected,
   onToggle,
   onEditTag,
+  onDone,
   summary,
   autoFocus = false,
   style,
@@ -82,14 +76,15 @@ export function ListenTagsList({
   selected: readonly number[]
   onToggle: (tagId: number) => void
   /** A long press on a chip, where tags can be renamed and deleted. */
-  onEditTag?: (tag: Tag, anchor: View | null) => void
+  onEditTag?: (tag: Tag) => void
+  /** Shown as a Done button when the panel is something that closes. */
+  onDone?: () => void
   summary?: string
   autoFocus?: boolean
   style?: StyleProp<ViewStyle>
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const dense = usePanelDense()
   const [focused, setFocused] = useState(false)
   const [query, setQuery] = useState('')
   const { data: library } = useLibrary()
@@ -105,123 +100,139 @@ export function ListenTagsList({
   const chip = (tag: Tag): ReactNode => (
     <Chip
       key={tag.id}
-      compact={dense}
+      compact
       label={tag.name}
       hue={tag.hue}
+      count={tag.songCount}
       selected={selected.includes(tag.id)}
       onPress={() => onToggle(tag.id)}
-      onLongPress={onEditTag ? () => onEditTag(tag, null) : undefined}
+      onLongPress={onEditTag ? () => onEditTag(tag) : undefined}
     />
   )
 
+  /** A labelled lane: the heading on the left, the chips flowing beside it. */
+  const lane = (label: string, list: readonly Tag[]): ReactNode =>
+    list.length === 0 ? null : (
+      <View style={styles.lane}>
+        <Text style={styles.laneLabel}>{label}</Text>
+        <View style={styles.cloud}>{list.map(chip)}</View>
+      </View>
+    )
+
   return (
-    <View style={[styles.panel, style]}>
-      <TextInput
-        style={[
-          styles.input,
-          dense && styles.inputDense,
-          focused && { borderColor: accent.accent },
-        ]}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        value={query}
-        onChangeText={setQuery}
-        placeholder={`Search ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
-        placeholderTextColor={theme.colors.textMuted}
-        autoCapitalize="none"
-        autoCorrect={false}
-        accessibilityLabel="Search tags"
-        autoFocus={autoFocus}
-        testID="listen-tags-search"
-      />
+    <View style={[styles.panel, style]} testID="listen-tags">
+      <View style={styles.searchRow}>
+        <View style={[styles.searchBox, focused && { borderColor: accent.accent }]}>
+          <Search size={14} color={focused ? accent.accent : theme.colors.textMuted} />
+          <TextInput
+            style={styles.search}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={`Search ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
+            placeholderTextColor={theme.colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus={autoFocus}
+            accessibilityLabel="Search tags"
+            testID="listen-tags-search"
+          />
+          {trimmed ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Clear tag search"
+            >
+              <X size={13} color={theme.colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+        {summary ? <Text style={styles.summary}>{summary}</Text> : null}
+        {onDone ? (
+          <Pressable
+            onPress={onDone}
+            accessibilityRole="button"
+            accessibilityLabel="Done choosing tags"
+            style={({ pressed }) => [styles.done, pressed && { opacity: 0.7 }]}
+            testID="listen-tags-done"
+          >
+            <Text style={[styles.doneLabel, { color: accent.accent }]}>Done</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
         {trimmed ? (
-          <View style={styles.group}>
-            <Text style={styles.groupTitle}>
-              {matches.length} of {tags.length}
-            </Text>
-            {matches.length === 0 ? (
-              <Text style={styles.hint}>No tag matches “{trimmed}”.</Text>
-            ) : (
-              <View style={styles.cloud}>{matches.map(chip)}</View>
-            )}
-          </View>
+          matches.length === 0 ? (
+            <Text style={styles.hint}>No tag matches “{trimmed}”.</Text>
+          ) : (
+            lane(`${matches.length} of ${tags.length}`, matches)
+          )
+        ) : tags.length === 0 ? (
+          <Text style={styles.hint}>
+            No tags yet. Tags are how you find things later — put one on a song and it turns up
+            here.
+          </Text>
         ) : (
           <>
-            {mostUsed.length > 0 ? (
-              <View style={styles.group}>
-                <Text style={styles.groupTitle}>You use these most</Text>
-                <View style={styles.cloud}>{mostUsed.map(chip)}</View>
-              </View>
-            ) : (
-              <Text style={styles.hint}>
-                No tags yet. Tags are how you find things later — put one on a song and it turns up
-                here.
-              </Text>
-            )}
-            {lately.length > 0 ? (
-              <View style={styles.group}>
-                <Text style={styles.groupTitle}>Lately</Text>
-                <View style={styles.cloud}>{lately.map(chip)}</View>
-              </View>
-            ) : null}
+            {lane('Most used', mostUsed)}
+            {lane('Lately', lately)}
           </>
         )}
       </ScrollView>
-
-      {summary ? (
-        <View style={styles.foot}>
-          <Text style={styles.summary}>{summary}</Text>
-        </View>
-      ) : null}
     </View>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  panel: { maxHeight: 420 },
-  input: {
-    minHeight: HIT_TARGET,
-    marginHorizontal: space.md,
-    marginBottom: space.xs,
-    paddingHorizontal: 10,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
+  panel: {
+    gap: space.sm,
+    padding: space.sm,
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    borderRadius: radius.md,
+  },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  searchBox: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 34,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.surface0,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: radius.sm,
+  },
+  search: {
+    flex: 1,
+    minWidth: 0,
+    color: theme.colors.textPrimary,
+    fontSize: type.body,
     // As in TagPicker: the accent border is the focus, and the browser's own
     // ring on top of it drew a second white outline.
     _web: { outlineStyle: 'none' },
   },
-  inputDense: {
-    minHeight: 36,
-    marginTop: space.sm,
-    marginHorizontal: space.sm,
-    marginBottom: space.sm,
-  },
-  body: { flexShrink: 1 },
-  group: { paddingHorizontal: space.md, paddingBottom: space.sm, gap: space.xs },
-  groupTitle: {
+  summary: { color: theme.colors.textMuted, fontSize: type.small },
+  done: { minHeight: HIT_TARGET - 10, justifyContent: 'center', paddingHorizontal: space.sm },
+  doneLabel: { fontSize: type.small, fontWeight: '700' },
+  body: { flexShrink: 1, maxHeight: 210 },
+  // The label sits beside its chips rather than over them: a heading on its own
+  // line costs a row of height per group, and there are only ever two groups.
+  lane: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, paddingBottom: space.xs },
+  laneLabel: {
+    width: 74,
+    paddingTop: 5,
     color: theme.colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 1,
+    fontSize: type.label,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  cloud: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    paddingHorizontal: space.md,
-    paddingBottom: space.sm,
-  },
-  foot: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-  },
-  summary: { color: theme.colors.textMuted, fontSize: 12 },
+  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs },
 }))

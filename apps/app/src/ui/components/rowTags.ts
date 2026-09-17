@@ -20,11 +20,11 @@ import type { Tag } from '@selfmp3/shared'
  */
 
 /** The slot, as `SongRow`'s styles set it out. */
-export const TAG_SLOT_WIDTH = 180
-export const TAG_SLOT_PADDING_LEFT = 20
-export const TAG_GAP = 5
+const TAG_SLOT_WIDTH = 180
+const TAG_SLOT_PADDING_LEFT = 20
+const TAG_GAP = 5
 /** The dashed ⊕, which keeps its place in the slot whether or not it is lit. */
-export const TAG_ADD_WIDTH = 22
+const TAG_ADD_WIDTH = 22
 /** No single chip may take the slot: a long name ends in an ellipsis instead. */
 export const TAG_CHIP_MAX_WIDTH = 96
 
@@ -63,7 +63,7 @@ function isFullWidth(ch: string): boolean {
 }
 
 /** "+3", at the width it will draw at. */
-export function countPillWidth(hidden: number): number {
+function countPillWidth(hidden: number): number {
   return estimateChipWidth(`+${hidden}`)
 }
 

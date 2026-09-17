@@ -515,7 +515,6 @@ function RowTags({
   onToggleTag?: (tagId: number) => void
   onShowAll: (anchor: View | null) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const widthOf = useChipWidth()
   const moreRef = useRef<View>(null)
   const { shown, hidden } = fitTags(tags, widthOf, chipBudget({ hasAddButton }))
@@ -539,9 +538,7 @@ function RowTags({
             )}
             style={[styles.rowTag, styles.rowTagMore]}
           >
-            <Text style={[styles.rowTagText, { color: theme.colors.textSecondary }]}>
-              +{hidden}
-            </Text>
+            <Text style={[styles.rowTagText, styles.rowTagMoreText]}>+{hidden}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -753,6 +750,7 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: TAG_CHIP_MAX_WIDTH,
   },
   rowTagMore: { backgroundColor: theme.colors.surface3 },
+  rowTagMoreText: { color: theme.colors.textSecondary },
   rowTagText: { fontSize: 11 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {

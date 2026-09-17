@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useAccent } from '../accent'
+import { StyleSheet } from 'react-native-unistyles'
 
 /**
  * On or off.
@@ -24,8 +23,6 @@ export function Toggle({
   disabled?: boolean
   testID?: string
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const [position] = useState(() => new Animated.Value(value ? 1 : 0))
 
   useEffect(() => {
@@ -45,17 +42,12 @@ export function Toggle({
       aria-checked={value}
       accessibilityState={{ checked: value, disabled }}
       accessibilityLabel={label}
-      style={[
-        styles.track,
-        value && { backgroundColor: accent.accent, borderColor: 'transparent' },
-        disabled && styles.disabled,
-      ]}
+      style={[styles.track, value && styles.trackOn, disabled && styles.disabled]}
     >
       <Animated.View
         style={[
-          styles.knob,
+          value ? styles.knobOn : styles.knobOff,
           {
-            backgroundColor: value ? accent.onAccent : theme.colors.textSecondary,
             transform: [
               { translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, 18] }) },
             ],
@@ -66,6 +58,16 @@ export function Toggle({
   )
 }
 
+/** The knob's shape, shared by its two states. */
+const KNOB = {
+  position: 'absolute',
+  top: 2,
+  left: 2,
+  width: 18,
+  height: 18,
+  borderRadius: 9,
+} as const
+
 const styles = StyleSheet.create(theme => ({
   track: {
     width: 42,
@@ -75,6 +77,16 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surface3,
   },
-  knob: { position: 'absolute', top: 2, left: 2, width: 18, height: 18, borderRadius: 9 },
+  // Both halves of the switch come from the palette, so the accent picker
+  // recolours it without re-rendering whatever screen it is sitting on.
+  trackOn: { backgroundColor: theme.colors.accent, borderColor: 'transparent' },
+  /*
+   * The knob is given one whole style rather than a shape with a colour laid
+   * over it. `Animated.View` flattens its style array into the single object
+   * it animates, so two of Unistyles' styles arrive merged into one — which
+   * is the case it warns about, because it can no longer tell them apart.
+   */
+  knobOn: { ...KNOB, backgroundColor: theme.colors.onAccent },
+  knobOff: { ...KNOB, backgroundColor: theme.colors.textSecondary },
   disabled: { opacity: 0.45 },
 }))

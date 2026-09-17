@@ -1,4 +1,5 @@
 import type { Settings } from '@selfmp3/shared'
+import { isRateLimited } from './ytThrottle.js'
 
 /**
  * YouTube login cookies for yt-dlp.
@@ -82,6 +83,27 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
     if (/netscape|invalid cookies?|not a valid|does not look like/.test(lower)) {
       return `That file isn’t in Netscape cookies.txt format. Export it with a “Get cookies.txt” browser extension.`
     }
+  }
+
+  /*
+   * Rate limiting first, because it lies about itself.
+   *
+   * "Sign in to confirm you're not a bot" matches every sign-in pattern below
+   * and is not a sign-in problem: YouTube is refusing the whole network for
+   * rate, and the advice underneath would send someone to re-export cookies
+   * that were never wrong. Worse, doing that under a block risks the account
+   * along with the address.
+   */
+  if (isRateLimited(message)) {
+    const raise =
+      settings.ytCookieSource === 'none'
+        ? ' Setting up YouTube cookies in Settings → Importing raises the limit a long way.'
+        : ''
+    return (
+      'YouTube is rate-limiting this network, which it reports as a bot check — ' +
+      'your cookies are not the problem. Downloads pause by themselves and pick ' +
+      `up once it lifts.${raise}`
+    )
   }
 
   if (

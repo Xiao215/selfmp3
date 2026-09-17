@@ -405,6 +405,25 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET cover_tone_rev = NULL WHERE cover_tone_rev IS NOT NULL;
     `,
   },
+  {
+    // 22. How much this server is still willing to ask YouTube for, kept
+    // across restarts. One row: the bucket refills by elapsed time, so the
+    // moment it was last touched is all it needs to come back correct after a
+    // restart or a sleeping laptop. `updated_at` starts at 0 so a fresh
+    // install wakes with a full bucket rather than an empty one.
+    name: 'remember how fast we may ask YouTube for things',
+    sql: `
+      CREATE TABLE yt_throttle (
+        id           INTEGER PRIMARY KEY CHECK (id = 1),
+        tokens       REAL    NOT NULL DEFAULT 0,
+        ratchet      REAL    NOT NULL DEFAULT 1,
+        updated_at   INTEGER NOT NULL DEFAULT 0,
+        paused_until INTEGER NOT NULL DEFAULT 0,
+        limited_at   INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO yt_throttle (id) VALUES (1);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -35,7 +35,6 @@ import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { isUntagged } from '../features/inbox/inbox.model'
 import { useConnection } from '../connection/ConnectionProvider'
-import { useAccent } from '../ui/accent'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
   BarChart,
@@ -98,10 +97,8 @@ const HOVERS = Platform.OS === 'web'
 export function Sidebar(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
   const insets = useSafeAreaInsets()
-  const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
-  const accent = useAccent()
 
   return (
     <View
@@ -133,7 +130,7 @@ export function Sidebar(): ReactNode {
           return (
             <Pressable
               key={destination.href}
-              style={[styles.item, active && { backgroundColor: accent.accentPill }]}
+              style={[styles.item, active && styles.itemOn]}
               onPress={() => {
                 if (!active) router.navigate(destination.href)
               }}
@@ -142,11 +139,8 @@ export function Sidebar(): ReactNode {
               accessibilityState={{ selected: active }}
               testID={`nav-${destination.label.toLowerCase()}`}
             >
-              <destination.Icon size={18} color={active ? accent.accent : theme.colors.textMuted} />
-              <Text
-                style={[styles.label, active && { color: accent.accent, fontWeight: '600' }]}
-                numberOfLines={1}
-              >
+              <destination.Icon size={18} tone={active ? 'accent' : 'textMuted'} />
+              <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
                 {destination.label}
               </Text>
             </Pressable>
@@ -213,8 +207,6 @@ function SearchRow(): ReactNode {
 }
 
 function Playlists(): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
@@ -233,7 +225,7 @@ function Playlists(): ReactNode {
         the same page, and the header above it did nothing when clicked. The ＋
         sits beside the row rather than inside it, so it is its own button.
       */}
-      <View style={[styles.playlistsHead, onPage && { backgroundColor: accent.accentPill }]}>
+      <View style={[styles.playlistsHead, onPage && styles.itemOn]}>
         <Pressable
           onPress={() => {
             if (pathname !== '/playlists') router.navigate('/playlists')
@@ -244,16 +236,12 @@ function Playlists(): ReactNode {
           testID="nav-playlists"
           style={({ pressed }) => [
             styles.playlistsHeadMain,
-            pressed && !onPage && { backgroundColor: theme.colors.surface2 },
+            pressed && !onPage && styles.rowPressed,
           ]}
         >
-          <ListMusic size={18} color={onPage ? accent.accent : theme.colors.textMuted} />
+          <ListMusic size={18} tone={onPage ? 'accent' : 'textMuted'} />
           <Text
-            style={[
-              styles.label,
-              styles.playlistsHeadLabel,
-              onPage && { color: accent.accent, fontWeight: '600' },
-            ]}
+            style={[styles.label, styles.playlistsHeadLabel, onPage && styles.labelOn]}
             numberOfLines={1}
           >
             Playlists
@@ -268,7 +256,7 @@ function Playlists(): ReactNode {
             accessibilityLabel="New playlist"
             {...tip('New playlist')}
           >
-            <Plus size={14} color={onPage ? accent.accent : theme.colors.textMuted} />
+            <Plus size={14} tone={onPage ? 'accent' : 'textMuted'} />
           </Pressable>
         </View>
       </View>
@@ -305,8 +293,6 @@ function PinnedPlaylist({
   active: boolean
   onOpen: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const ref = useRef<View>(null)
   const live = isLive(playlist)
   const dragging = useSongDragActive()
@@ -331,21 +317,18 @@ function PinnedPlaylist({
         accessibilityState={{ selected: active }}
         style={({ pressed }) => [
           styles.playlistRow,
-          active && { backgroundColor: accent.accentPill },
-          pressed && !active && { backgroundColor: theme.colors.surface2 },
-          over && [styles.dropping, { borderColor: accent.accent }],
+          active && styles.itemOn,
+          pressed && !active && styles.rowPressed,
+          over && styles.dropping,
         ]}
       >
         <PlaylistCover playlist={playlist} size={22} />
-        <Text
-          style={[styles.playlistName, active && { color: accent.accent, fontWeight: '600' }]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
-        {live ? <Live size={13} color={theme.colors.textMuted} /> : null}
+        {live ? <Live size={13} tone="textMuted" /> : null}
       </Pressable>
-      {over ? <Text style={[styles.dropHint, { color: accent.accent }]}>Drop to add</Text> : null}
+      {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </View>
   )
 }
@@ -767,7 +750,17 @@ const styles = StyleSheet.create(theme => ({
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
   pinHint: { paddingHorizontal: 10, paddingVertical: 4 },
-  dropping: { borderStyle: 'dashed', backgroundColor: theme.colors.surface2 },
+  dropping: {
+    borderStyle: 'dashed',
+    backgroundColor: theme.colors.surface2,
+    borderColor: theme.colors.accent,
+  },
+  // Where you are, in the accent, and the press behind it. All from the
+  // palette, so the accent picker recolours the whole rail without
+  // re-rendering any of it.
+  itemOn: { backgroundColor: theme.colors.accentPill },
+  labelOn: { color: theme.colors.accent, fontWeight: '600' },
+  rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
   dim: { opacity: 0.35 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */

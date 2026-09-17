@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type Device } from '@selfmp3/shared'
 import { clientApi, deviceListView, queryKeys, relativeTime, useDevices } from '@selfmp3/client'
@@ -130,7 +130,6 @@ function DevicesList({
   devices: readonly Device[]
   onForget: (ids: readonly string[]) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const { deviceId, name, rename } = useDeviceContext()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
   const [showOlder, setShowOlder] = useState(false)
@@ -185,9 +184,7 @@ function DevicesList({
             key={device.id}
             style={[styles.device, position === rows.length - 1 && styles.deviceLast]}
           >
-            <View
-              style={[styles.dot, live && device.online && { backgroundColor: theme.colors.good }]}
-            />
+            <View style={[styles.dot, live && device.online && styles.dotOnline]} />
             <View style={styles.deviceName}>
               <Text style={styles.deviceText} numberOfLines={1}>
                 {device.name}
@@ -211,7 +208,7 @@ function DevicesList({
                 }
                 size={28}
               >
-                <Trash size={14} color={theme.colors.textMuted} />
+                <Trash size={14} tone="textMuted" />
               </IconButton>
             ) : null}
           </View>
@@ -258,6 +255,7 @@ const styles = StyleSheet.create(theme => ({
   devicesMore: { paddingTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   devicesNote: { paddingTop: 10 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
+  dotOnline: { backgroundColor: theme.colors.good },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   deviceText: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
   deviceTag: {

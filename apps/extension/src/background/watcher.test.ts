@@ -1,4 +1,4 @@
-import type { ImportJob, ImportQueue } from '@selfmp3/shared'
+import { IDLE_PACING, type ImportJob, type ImportQueue } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { memoryStore } from '../../verify/fixtures.js'
 import { createWatcher } from './watcher.js'
@@ -27,6 +27,7 @@ const queueOf = (jobs: ImportJob[]): ImportQueue => ({
   jobs,
   active: jobs.filter(each => each.status === 'running').length,
   queued: jobs.filter(each => each.status === 'queued').length,
+  pacing: IDLE_PACING,
 })
 
 function watcherWith(first: ImportQueue) {

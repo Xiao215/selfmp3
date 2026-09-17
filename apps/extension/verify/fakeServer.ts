@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { EXTENSION_ORIGIN, type ImportEnqueue, type ImportJob } from '@selfmp3/shared'
+import { EXTENSION_ORIGIN, IDLE_PACING, type ImportEnqueue, type ImportJob } from '@selfmp3/shared'
 import { fixtureLibrary, previewFor } from './fixtures.js'
 
 export const TOKEN = 'fake-token'
@@ -136,6 +136,7 @@ export async function startFakeServer(): Promise<FakeServer> {
           jobs,
           active: jobs.filter(job => job.status === 'running').length,
           queued: jobs.filter(job => job.status === 'queued').length,
+          pacing: IDLE_PACING,
         })
       }
     }

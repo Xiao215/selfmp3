@@ -1,9 +1,8 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { oklchToHex, oklchToHexAlpha, radius } from '@selfmp3/client'
-import { useAccent } from '../../ui/accent'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 
@@ -128,7 +127,6 @@ export function Stats({
 }
 
 export function Meter({ fraction, label }: { fraction: number; label?: string }): ReactNode {
-  const accent = useAccent()
   return (
     <View
       style={styles.meter}
@@ -138,12 +136,7 @@ export function Meter({ fraction, label }: { fraction: number; label?: string })
       aria-valuemax={100}
       aria-valuenow={Math.round(fraction * 100)}
     >
-      <View
-        style={[
-          styles.meterFill,
-          { width: `${Math.max(0, Math.min(1, fraction)) * 100}%`, backgroundColor: accent.accent },
-        ]}
-      />
+      <View style={[styles.meterFill, { width: `${Math.max(0, Math.min(1, fraction)) * 100}%` }]} />
     </View>
   )
 }
@@ -155,7 +148,6 @@ export function Notice({
   tone: 'warn' | 'error' | 'good'
   children: ReactNode
 }): ReactNode {
-  const { theme } = useUnistyles()
   const hue = tone === 'warn' ? 78 : tone === 'error' ? 22 : 155
   return (
     <View
@@ -170,8 +162,8 @@ export function Notice({
       <Text
         style={[
           styles.noticeText,
-          tone === 'error' && { color: theme.colors.danger },
-          tone === 'good' && { color: theme.colors.good },
+          tone === 'error' && styles.noticeError,
+          tone === 'good' && styles.noticeGood,
         ]}
       >
         {children}
@@ -190,7 +182,6 @@ export function Kbd({ children }: { children: string }): ReactNode {
 
 /** Rows that are there when asked for: shut until "Details" is pressed. */
 export function Details({ children }: { children: ReactNode }): ReactNode {
-  const { theme } = useUnistyles()
   const [open, setOpen] = useState(false)
   const Chevron = open ? ChevronDown : ChevronRight
   return (
@@ -201,7 +192,7 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
         accessibilityState={{ expanded: open }}
         style={({ pressed }) => [styles.detailsRow, pressed && styles.detailsRowPressed]}
       >
-        <Chevron size={14} color={theme.colors.textMuted} />
+        <Chevron size={14} tone="textMuted" />
         <Text style={styles.detailsRowText}>Details</Text>
       </Pressable>
       {open ? children : null}
@@ -290,7 +281,12 @@ const styles = StyleSheet.create(theme => ({
   statValue: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: '700' },
   statLabel: { color: theme.colors.textMuted, fontSize: 12 },
   meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
-  meterFill: { height: '100%', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
+  meterFill: {
+    height: '100%',
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+    backgroundColor: theme.colors.accent,
+  },
   notice: {
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -299,6 +295,8 @@ const styles = StyleSheet.create(theme => ({
     marginVertical: 8,
   },
   noticeText: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
+  noticeError: { color: theme.colors.danger },
+  noticeGood: { color: theme.colors.good },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   kbd: {
     color: theme.colors.textPrimary,

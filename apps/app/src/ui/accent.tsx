@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { buildAccent, currentColorScheme, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
 
@@ -23,6 +23,9 @@ export type { ThemeChoice }
  * `prefs` port — a file on a phone, `localStorage` in a browser. Not the
  * keychain: a hue is nobody's secret.
  */
+
+/** How long the hue has to sit still before it is written down, in ms. */
+const SETTLE_MS = 200
 
 /** The presets the picker offers, and their hues. */
 export const ACCENT_PRESETS: readonly { hue: number; name: string }[] = [
@@ -53,18 +56,49 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   // one colour and then repaints to another a frame later.
   const [hue, setHueState] = useState<number>(() => readHue())
 
+  // Every themed stylesheet follows the accent, without a reload. The only
+  // half of a hue change that has to keep up with a finger on the picker.
   useEffect(() => {
-    // Every themed stylesheet follows the accent, without a reload.
     applyAccentHue(hue)
-    // And the browser tab's 音符.
-    setAppIconHue(hue)
-    // Nothing to write for a default nobody has chosen yet.
-    if (hue === DEFAULT_ACCENT_HUE && prefs.get(ACCENT_KEY) === null) return
-    prefs.set(ACCENT_KEY, JSON.stringify({ hue }))
   }, [hue])
 
+  // The half that can wait, held until the hue stops moving. Redrawing the
+  // tab's 音符 hands the browser an SVG to decode, and writing the preference
+  // is a synchronous write — a file, on a phone. A drag asks for a new hue on
+  // every frame; only the one it comes to rest on is worth either, so each
+  // change cancels the save the one before it scheduled.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppIconHue(hue)
+      // Nothing to write for a default nobody has chosen yet.
+      if (hue === DEFAULT_ACCENT_HUE && prefs.get(ACCENT_KEY) === null) return
+      prefs.set(ACCENT_KEY, JSON.stringify({ hue }))
+    }, SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [hue])
+
+  /*
+   * A pointer reports itself more often than the screen is drawn, and every
+   * move that reaches React is a render of each of the fifty-odd screens and
+   * controls the accent reaches. Only the last hue in a frame is a colour
+   * anybody sees, so the ones before it are dropped rather than rendered.
+   */
+  const frame = useRef<number | null>(null)
+  const latest = useRef(hue)
+  useEffect(
+    () => () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current)
+    },
+    [],
+  )
+
   const setHue = useCallback((next: number) => {
-    setHueState(Math.round(Math.min(359, Math.max(0, next))))
+    latest.current = Math.round(Math.min(359, Math.max(0, next)))
+    if (frame.current !== null) return
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null
+      setHueState(latest.current)
+    })
   }, [])
 
   const [theme, setThemeState] = useState<ThemeChoice>(readTheme)

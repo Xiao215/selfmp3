@@ -1,7 +1,7 @@
 import { memo, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
@@ -22,7 +22,6 @@ import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
@@ -138,8 +137,6 @@ export const SongRow = memo(function SongRow({
    */
   unavailable?: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
   const playing = playingOverride ?? playback === 'playing'
@@ -166,7 +163,7 @@ export const SongRow = memo(function SongRow({
 
   const tint = [
     // Selected: a translucent accent that reads as picked on the dark UI.
-    selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
+    selected && styles.selected,
     (song.missing || unavailable) && styles.missing,
   ]
 
@@ -226,9 +223,9 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 {/* The web calls this "On this device", and draws exactly this. */}
                 {downloaded ? (
-                  <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
+                  <Downloaded size={13} tone="accent" />
                 ) : notDownloadedMark ? (
-                  <NotDownloaded size={13} color={theme.colors.textMuted} />
+                  <NotDownloaded size={13} tone="textMuted" />
                 ) : null}
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {song.artist || 'Unknown artist'}
@@ -253,7 +250,7 @@ export const SongRow = memo(function SongRow({
                 {...tip('More')}
                 style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
               >
-                <More size={16} color={theme.colors.textMuted} />
+                <More size={16} tone="textMuted" />
               </Pressable>
             </View>
           ) : null}
@@ -298,7 +295,7 @@ export const SongRow = memo(function SongRow({
             {...tip('Play')}
             style={styles.indexPlay}
           >
-            <Play size={16} color={theme.colors.textPrimary} />
+            <Play size={16} tone="textPrimary" />
           </Pressable>
         ) : (
           <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
@@ -324,9 +321,9 @@ export const SongRow = memo(function SongRow({
           </View>
           <View style={styles.subtitleRow}>
             {downloaded ? (
-              <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
+              <Downloaded size={13} tone="accent" />
             ) : notDownloadedMark ? (
-              <NotDownloaded size={13} color={theme.colors.textMuted} />
+              <NotDownloaded size={13} tone="textMuted" />
             ) : null}
             <Text style={styles.artist} numberOfLines={1}>
               {song.artist || 'Unknown artist'}
@@ -381,7 +378,7 @@ export const SongRow = memo(function SongRow({
             {...tip('Edit tags')}
             style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
           >
-            <Plus size={13} color={theme.colors.textMuted} />
+            <Plus size={13} tone="textMuted" />
           </Pressable>
         ) : null}
       </View>
@@ -409,7 +406,7 @@ export const SongRow = memo(function SongRow({
                 pressed && styles.controlPressed,
               ]}
             >
-              <More size={16} color={theme.colors.textMuted} />
+              <More size={16} tone="textMuted" />
             </Pressable>
           </View>
         ) : null}
@@ -480,7 +477,6 @@ function Love({
   size: number
   visible: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
     <Pressable
       onPress={onPress}
@@ -494,11 +490,7 @@ function Love({
         pressed && styles.controlPressed,
       ]}
     >
-      <Heart
-        size={16}
-        filled={song.loved}
-        color={song.loved ? theme.colors.danger : theme.colors.textMuted}
-      />
+      <Heart size={16} filled={song.loved} tone={song.loved ? 'danger' : 'textMuted'} />
     </Pressable>
   )
 }
@@ -649,6 +641,9 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
   },
+  // The palette's own selected-row colour, so picking a row is recoloured by
+  // the accent picker without re-rendering a list of them.
+  selected: { backgroundColor: theme.colors.accentSelected },
   missing: {
     opacity: 0.55,
   },

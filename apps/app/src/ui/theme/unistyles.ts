@@ -56,7 +56,22 @@ applyColorScheme(resolveScheme(choice, Appearance.getColorScheme()), hue)
 
 const listeners = new Set<(scheme: ColorScheme) => void>()
 
+/**
+ * The hue each theme was last built at, so neither is rebuilt for a hue it
+ * already wears — and so the one that is not showing can be left behind.
+ */
+const builtAt: Record<ColorScheme, number> = { dark: hue, light: hue }
+
+function recolour(scheme: ColorScheme, accentHue: number): void {
+  if (builtAt[scheme] === accentHue) return
+  builtAt[scheme] = accentHue
+  UnistylesRuntime.updateTheme(scheme, () => themeFor(scheme, accentHue))
+}
+
 function show(scheme: ColorScheme, accentHue: number): void {
+  // The theme about to be shown may have been left behind by a drag on the
+  // accent picker, which only recolours what is on screen.
+  recolour(scheme, accentHue)
   UnistylesRuntime.setTheme(scheme)
   applyColorScheme(scheme, accentHue)
   for (const listener of listeners) listener(scheme)
@@ -84,10 +99,18 @@ export function applyThemeChoice(next: ThemeChoice, accentHue: number): void {
   show(resolveScheme(next, Appearance.getColorScheme()), accentHue)
 }
 
-/** Recolour both themes for a new accent hue. */
+/**
+ * Recolour for a new accent hue — the theme on screen, and only that one.
+ *
+ * This runs on every step of a drag on the accent picker, and each step costs
+ * a palette and a restyle of every stylesheet that reads it. Doing that twice,
+ * for a scheme nobody is looking at, is half the work of a drag spent on a
+ * colour nobody can see; `show` catches the other theme up before it is put on
+ * screen, which is the only moment it matters.
+ */
 export function applyAccentHue(accentHue: number): void {
   currentHue = accentHue
-  UnistylesRuntime.updateTheme('dark', () => themeFor('dark', accentHue))
-  UnistylesRuntime.updateTheme('light', () => themeFor('light', accentHue))
-  applyColorScheme(currentColorScheme(), accentHue)
+  const scheme = currentColorScheme()
+  recolour(scheme, accentHue)
+  applyColorScheme(scheme, accentHue)
 }

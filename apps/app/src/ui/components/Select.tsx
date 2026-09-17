@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
@@ -56,8 +55,6 @@ export function Select<T extends string | number>({
   testID?: string
   size?: 'normal' | 'small' | 'inline'
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const { dense } = useLayout()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
@@ -73,7 +70,7 @@ export function Select<T extends string | number>({
       disabled={option.disabled}
       icon={
         <View style={styles.checkSlot}>
-          {option.value === value ? <Check size={14} color={accent.accent} /> : null}
+          {option.value === value ? <Check size={14} tone="accent" /> : null}
         </View>
       }
       active={option.value === value}
@@ -95,7 +92,7 @@ export function Select<T extends string | number>({
           size === 'inline' && styles.controlInline,
           pressed && styles.controlPressed,
           // Open, the control keeps an accent edge.
-          open && { borderColor: accent.accent },
+          open && styles.fieldOpen,
         ]}
         onPress={() => setOpen(true)}
         testID={testID}
@@ -118,7 +115,7 @@ export function Select<T extends string | number>({
           {current?.label ?? label}
         </Text>
         <View style={open && styles.chevronOpen}>
-          <ChevronDown size={size === 'normal' ? 15 : 12} color={theme.colors.textMuted} />
+          <ChevronDown size={size === 'normal' ? 15 : 12} tone="textMuted" />
         </View>
       </Pressable>
 
@@ -157,6 +154,9 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
+  // Open, edged in the accent — from the palette, so the picker recolours it
+  // without re-rendering the control.
+  fieldOpen: { borderColor: theme.colors.accent },
   /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,

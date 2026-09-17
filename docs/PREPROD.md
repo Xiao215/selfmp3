@@ -16,6 +16,8 @@ followed by either.
 - [Stage 4 · The browser extension](#stage-4--the-browser-extension)
 - [Stage 5 · The phone](#stage-5--the-phone)
 - [Stage 6 · Across devices](#stage-6--across-devices)
+- [User journeys](#user-journeys) — the way people actually use it, end to end
+- [Testing as a device away from home](#testing-as-a-device-away-from-home)
 - [What automation cannot see](#what-automation-cannot-see)
 - [Writing it up](#writing-it-up)
 
@@ -238,13 +240,159 @@ lock screen worth the name and no car.
 The product is the sync, so the last stage is two devices and a stopwatch.
 
 - [ ] Like a song on the desktop → `applied changes from other devices changes=1` in the
-      server log within a minute → the heart is filled on the web after its next look.
-      Unlike it again.
+      server log → the heart is filled on the web after its next look. Unlike it again.
+      **The server reads device logs every three minutes**, so allow up to that, not
+      seconds: measured 30 s one time and 100 s the next, depending on where in the
+      cycle the edit fell. An edit that has not landed after five minutes is a bug.
 - [ ] Import on the web → the song is on the desktop, downloaded, without touching it.
 - [ ] Edit a title on one device while the server is **off**; start the server; the edit
       lands and nothing else moves.
 - [ ] After all of it, the song count is what it was at the start, plus what you
       deliberately imported.
+
+---
+
+## User journeys
+
+The stages above check features. These check *evenings* — the handful of things somebody
+actually sits down to do, each one crossing several features and at least one network hop.
+A build can pass every row of every table and still fail one of these, because the seams
+are between the rows. Run them after the stages, on the web and again on the desktop, as
+[a device away from home](#testing-as-a-device-away-from-home).
+
+Each is written as what the person is trying to do, the steps, and the one thing that
+proves it worked.
+
+### 1. "Put something on" — the evening listen
+
+The commonest thing anyone does, and it never touches the server.
+
+1. Open the app cold. 2. Type three letters into the library search. 3. Play a result.
+4. Scrub to the middle. 5. Skip to the next song, then back. 6. Like it. 7. Open Now
+Playing; look at the words or the visual. 8. Pause and walk away.
+
+**Proves it:** time advances within two seconds of step 3; step 4 lands where you
+clicked; Previous past three seconds restarts rather than going back; the like is still
+there after a reload. *On the desktop with Wi-Fi off, all of it still works.*
+
+### 2. "I found a song" — import
+
+1. Copy a link from YouTube Music. 2. Import → paste → Fetch details. 3. Fix the title if
+it is ugly; add a tag. 4. Import. 5. Go back to the library and play it.
+
+**Proves it:** the queue row goes *waiting → downloading → N added* without a refresh; the
+song is at the top of Recently added here, **and on your other device, downloaded,
+within a minute**; Song details shows a tempo and a key, which means analysis ran.
+Then paste the same song's link in another form (`youtu.be/…`): *1 already in your
+library*, unticked, *Import 0 tracks*.
+
+Use something short you do not mind having, or remove it after — journey 6.
+
+### 3. "I'm in the mood for…" — tags into a playlist
+
+1. Library → Pick tags → tap one tag, then a second. 2. Play. 3. Save as playlist.
+4. Rename it from the toast — or Undo.
+
+**Proves it:** the second tag makes the list *longer*, and says how many songs have both
+("1 have both tags, and come first"); Save asks nothing; the playlist count goes up by one
+and back down on Undo; a saved one shows *follows tags* in the grid, and tagging another
+song with that tag later puts it in the playlist without anyone adding it.
+
+### 4. "Tidy up" — organise a few songs
+
+1. Tick three songs. 2. Tag them from the selection bar. 3. Add them to a playlist.
+4. Open one song's details → Fix metadata → Find matches → pick one, or cancel.
+
+**Proves it:** the bar sits in its own lane and never covers a ticked row; the row shows
+the new tag as a chip, or as `+N` when there is no room; Find matches returns suggestions
+(that is the server asking iTunes and MusicBrainz — if it spins forever the server is not
+reachable and the screen should have said so).
+
+### 5. "I'm not at home" — the server is asleep
+
+The design's central promise: adding music must not depend on being near the server.
+
+1. Stop the server. 2. Open Import. 3. Paste a link into *Add it anyway* → *Add when the
+server wakes*. 4. Start the server.
+
+**Proves it:** step 2 says *Your server isn't answering* and offers the form, rather than
+spinning; step 3 answers *Waiting for your server*; within about ten seconds of step 4 the
+server log says `[import] importing …` and the song arrives everywhere.
+
+**And the unkind version:** stop the server *while* the Import screen is open, then press
+Fetch details. It must say the server stopped answering and look for it again — not
+"Failed to fetch". (It said exactly that until 2026-09-17.)
+
+### 6. "That was a mistake" — removing a song
+
+Only ever on a song this run imported.
+
+1. ⋯ on the row → Remove from library… → *Delete the file too*.
+
+**Proves it:** gone here at once; the server's row count drops and the file leaves
+`~/Music/selfmp3` within the three-minute log cycle; it does not come back after the next
+sync. A song that reappears has been resurrected by another device's snapshot.
+
+### 7. "New computer" — a second device joins
+
+1. Install the desktop app on a Mac that has never run it (or launch with a fresh
+`--user-data-dir`). 2. Sign in with Google.
+
+**Proves it:** no library is visible before sign-in; after it, the whole library draws
+and downloads begin unasked on Wi-Fi; the sidebar count and Settings → Offline music
+agree when they finish.
+
+### 8. "How much did I listen?" — stats
+
+1. Play two songs past the halfway mark on one device. 2. Open Stats on another.
+
+**Proves it:** Plays and *Time listening* moved. Stats are the server's — this is the
+quickest end-to-end check that plays recorded offline are delivered.
+
+---
+
+## Testing as a device away from home
+
+On the server's own Mac every app finds `http://localhost:4600` first, because addresses
+are raced and the nearest wins. That is correct, and it means a preprod run from that Mac
+**never touches the public address** unless it is made to. Two ways, no product changes:
+
+**The desktop app** takes Chromium's flags. Launch the built binary with a debugging port
+and with the server's public name pinned to Tailscale's public ingress (find the address
+with DNS-over-HTTPS — plain `dig @1.1.1.1` fails on networks that block outside DNS):
+
+```bash
+H=<machine>.<tailnet>.ts.net
+IP=$(curl -s -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$H&type=A" | python3 -c "import json,sys; print(json.load(sys.stdin)['Answer'][0]['data'])")
+apps/desktop/release/mac-arm64/self.mp3.app/Contents/MacOS/self.mp3 \
+  --remote-debugging-port=9333 --host-resolver-rules="MAP $H $IP"
+```
+
+Then attach Playwright with `chromium.connectOverCDP('http://127.0.0.1:9333')`, which can
+drive the real app — real sign-in, real downloads — by role and test id instead of by
+screenshot.
+
+**Both apps** need local addresses taken away, or they will still win. Install this before
+the app probes (`context.addInitScript` over CDP; pasted into the console on the web,
+followed by a client-side navigation):
+
+```js
+const local = u => /^http:\/\/(localhost|127\.|10\.|192\.|100\.|\[::1\])/.test(String(u?.url ?? u))
+const realFetch = window.fetch
+window.__blocked = []; window.__server = []
+window.fetch = function (input, init) {
+  const url = String(input?.url ?? input)
+  if (local(url)) { window.__blocked.push(url); return Promise.reject(new TypeError('Failed to fetch')) }
+  if (/ts\.net/.test(url)) window.__server.push((init?.method ?? 'GET') + ' ' + new URL(url).pathname)
+  return realFetch.apply(this, arguments)
+}
+```
+
+(`EventSource` wants the same treatment, for the presence stream.) Afterwards
+`window.__blocked` should list the three local addresses and `window.__server` every call
+that went out through the public one — `GET /api/health` first, then the library, the
+import queue, the heartbeat and `SSE /api/events`. **If `__server` is empty, the run did
+not test the public address, whatever else passed.**
 
 ---
 
@@ -259,6 +407,15 @@ which, or you will file bugs against the harness.
   hand, and "the page is busy" means throttled. **Playback and timings are checked by a
   person, in a window they can see.** What automation *can* prove about playback is the
   plumbing: a range request to `api/stream/<id>` returns `206 audio/mp4`.
+- **A hidden tab stops looking for the server.** React Query pauses `refetchInterval` while
+  the page is not visible, so the twenty-second look-out never fires in an automated tab:
+  stop the server and the Import form is still there minutes later. Reload to get a fresh
+  look, and check the "unkind version" of journey 5 by pressing a button instead of waiting.
+- **Several screens are mounted at once.** The router keeps earlier screens in the DOM,
+  hidden, so `[data-testid^="song-row-"]` matches seventy rows of which the first is
+  invisible, and a wait on it times out against an app that is working. Filter every
+  locator with `:visible`.
+- **A row's Play and ⋯ buttons appear on hover.** Hover the row first.
 - **Typing may not land.** React Native Web inputs ignored synthetic keystrokes in a
   hidden tab; setting the value through the element's native setter and dispatching
   `input` works. If a search "does nothing", suspect this first.

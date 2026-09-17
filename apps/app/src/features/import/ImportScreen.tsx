@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatDuration, type ImportJob, type ImportPreviewItem } from '@selfmp3/shared'
 import {
+  ApiError,
   chooseAll,
   chosenItems,
   enqueueRequest,
@@ -79,7 +80,18 @@ const NO_PLAYLIST = 0
  * `via` is a server reached directly from a cloud library (ImportViaServer): every
  * request here goes to it, and its tags and playlists are the ones offered.
  */
-export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
+export function ImportScreen({
+  via,
+  onUnreachable,
+}: {
+  via?: ServerConnection
+  /**
+   * The server this screen was pointed at stopped answering part-way. Whoever
+   * found it (ImportViaServer) looks again, and shows the away screen — with
+   * its "add it anyway" — when nothing is there.
+   */
+  onUnreachable?: () => void
+} = {}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
@@ -98,6 +110,22 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
   const setPlaylistId = (next: number): void => patchDraft({ playlistId: next })
   const setCreatePlaylist = (next: boolean): void => patchDraft({ createPlaylist: next })
   const [error, setError] = useState<string | null>(null)
+  /*
+   * A request that never reached the server is not an import that failed. The
+   * browser's words for it are "Failed to fetch", which tell a person nothing
+   * and used to be all this screen said — while the way forward, leaving the
+   * link for the server to take when it wakes, sat on a screen it never showed
+   * because the look-out only looks every twenty seconds, and not at all in a
+   * tab that is in the background.
+   */
+  const failed = (err: Error): void => {
+    if (viaServer && err instanceof ApiError && err.isOffline) {
+      setError('Your server stopped answering. Looking for it again…')
+      onUnreachable?.()
+      return
+    }
+    setError(err.message)
+  }
   /** Whether the folded "13 added today" row is open. */
   const [showFinished, setShowFinished] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
@@ -121,7 +149,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
       })
       setError(null)
     },
-    onError: (err: Error) => setError(err.message),
+    onError: failed,
   })
 
   const enqueue = useMutation({
@@ -143,7 +171,7 @@ export function ImportScreen({ via }: { via?: ServerConnection } = {}): ReactNod
       })
       if (result.playlistId !== null) void source.invalidateLibrary()
     },
-    onError: (err: Error) => setError(err.message),
+    onError: failed,
   })
 
   const fetchLinks = (input: string): void => {

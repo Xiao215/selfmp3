@@ -27,7 +27,9 @@ import { QueueViaBucket } from './QueueViaBucket'
 export function ImportViaServer(): ReactNode {
   const { wide } = useLayout()
   const reach = useServerDirect()
-  if (reach.state === 'reachable') return <ImportScreen via={reach.connection} />
+  if (reach.state === 'reachable') {
+    return <ImportScreen via={reach.connection} onUnreachable={reach.lookAgain} />
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

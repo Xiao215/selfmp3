@@ -17,6 +17,7 @@ import {
   describeEnergy,
   describeTempo,
 } from '@selfmp3/client'
+import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidth } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
@@ -363,9 +364,14 @@ export const SongRow = memo(function SongRow({
 
       <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
         {/* Below the album column's width the chips go; the button stays. */}
-        {albumColumn && tags
-          ? tags.map(tag => <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />)
-          : null}
+        {albumColumn && tags ? (
+          <RowTags
+            tags={tags}
+            hasAddButton={onEditTags !== undefined}
+            onToggleTag={onToggleTag}
+            onShowAll={anchor => onEditTags?.(anchor, song)}
+          />
+        ) : null}
         {onEditTags ? (
           <Pressable
             ref={tagAddRef}
@@ -497,12 +503,72 @@ function Love({
   )
 }
 
-/** A small tag chip, in the tag's own hue. */
+/**
+ * A song's tags, as many as the slot holds, and a count for the rest.
+ *
+ * The slot is a fixed width, so what used to happen to a fourth tag — or to
+ * one long name — was that it was cut in half against the album column. Chips
+ * are laid in until the next will not fit and the remainder becomes a "+2"
+ * that opens the tag window, where all of them are. See `rowTags.ts` for how
+ * the fitting is worked out.
+ */
+function RowTags({
+  tags,
+  hasAddButton,
+  onToggleTag,
+  onShowAll,
+}: {
+  tags: readonly Tag[]
+  hasAddButton: boolean
+  onToggleTag?: (tagId: number) => void
+  onShowAll: (anchor: View | null) => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const widthOf = useChipWidth()
+  const moreRef = useRef<View>(null)
+  const { shown, hidden } = fitTags(tags, widthOf, chipBudget({ hasAddButton }))
+
+  return (
+    <>
+      {shown.map(tag => (
+        <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />
+      ))}
+      {hidden > 0 ? (
+        <View ref={moreRef} collapsable={false}>
+          <Pressable
+            onPress={() => onShowAll(moreRef.current)}
+            accessibilityRole="button"
+            accessibilityLabel={`${hidden} more ${hidden === 1 ? 'tag' : 'tags'}`}
+            {...tip(
+              tags
+                .slice(shown.length)
+                .map(tag => tag.name)
+                .join(', '),
+            )}
+            style={[styles.rowTag, styles.rowTagMore]}
+          >
+            <Text style={[styles.rowTagText, { color: theme.colors.textSecondary }]}>
+              +{hidden}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * A small tag chip, in the tag's own hue.
+ *
+ * It reports the width it drew at, once: a name is the same width on every
+ * row, so one measurement is what tells every other row whether this tag fits.
+ */
 function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
   const palette = tagColors(tag.hue)
   return (
     <Pressable
       onPress={onPress}
+      onLayout={event => rememberChipWidth(tag.name, event.nativeEvent.layout.width)}
       accessibilityRole="button"
       accessibilityLabel={tag.name}
       style={[styles.rowTag, { backgroundColor: palette.background }]}
@@ -684,7 +750,14 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
-  rowTag: { borderRadius: 20, paddingVertical: 4, paddingHorizontal: space.sm },
+  rowTag: {
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: space.sm,
+    // No one name may take the slot: past this it ends in an ellipsis.
+    maxWidth: TAG_CHIP_MAX_WIDTH,
+  },
+  rowTagMore: { backgroundColor: theme.colors.surface3 },
   rowTagText: { fontSize: 11 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {

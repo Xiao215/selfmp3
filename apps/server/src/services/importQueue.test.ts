@@ -31,14 +31,31 @@ import { YtThrottleService } from './ytThrottle.js'
  * is faked here so that cannot happen quietly again.
  */
 
-/** Waits until `done` holds: the worker runs a real child process, so not at once. */
-async function until(done: () => boolean): Promise<void> {
-  for (let i = 0; i < 400 && !done(); i++) await new Promise(resolve => setTimeout(resolve, 10))
+/**
+ * Waits until `done` holds: the worker runs a real child process, so not at once.
+ *
+ * Bounded by the clock rather than by a count of turns. Counting turns reads as
+ * ten milliseconds each and is not: `setTimeout` promises a floor, not a delay,
+ * and with the rest of the suite on the other cores each turn stretches. Four
+ * hundred of them were budgeted at four seconds against vitest's five, which
+ * left these timing out on a busy machine — as "test timed out", the one
+ * message that says nothing about what was being waited for.
+ *
+ * The budget is deliberately far longer than the work: these tests spawn real
+ * child processes, and the whole of them takes 0.3s to 1.9s on a quiet machine
+ * but stretches several times over with the rest of the suite on the other
+ * cores. It is here to end a wait that is never going to finish, and to say so,
+ * rather than to police how long a loaded machine may take.
+ */
+async function until(done: () => boolean, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!done() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10))
+  if (!done()) throw new Error(`until: still false after ${timeoutMs}ms`)
   // A turn more, for the bookkeeping that follows whatever `done` was watching.
   await new Promise(resolve => setTimeout(resolve, 20))
 }
 
-describe('ImportQueueService, when a download fails', () => {
+describe('ImportQueueService, when a download fails', { timeout: 30_000 }, () => {
   let imports: ImportRepository
   let throttle: YtThrottleService
   let queue: ImportQueueService

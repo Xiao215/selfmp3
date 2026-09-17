@@ -6,3 +6,7 @@ data
 package-lock.json
 .claude/
 .wrangler/
+
+# Built by `npm run build:sw`, and minified. Ignored by apps/app/.gitignore,
+# which Prettier does not read: it consults the root .gitignore only.
+apps/app/public/sw.js

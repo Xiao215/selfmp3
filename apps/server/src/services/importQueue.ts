@@ -14,6 +14,7 @@ import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 import type { YtDlpService } from './ytdlp.js'
+import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
 /**
@@ -21,17 +22,20 @@ import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
  *
  * Jobs live in SQLite; this class is the loop that drains them. It runs a
  * bounded number of downloads at once (more parallelism does not make a home
- * connection faster and does make YouTube throttle), retries transient
- * failures with a backoff, and can be cancelled mid-download.
+ * connection faster and does make YouTube throttle) and can be cancelled
+ * mid-download.
+ *
+ * A job that fails stays failed: there is a Retry button, and a person who can
+ * see why it failed makes a better decision about trying again than a loop
+ * that cannot read the reason. The one exception is not a failure at all —
+ * YouTube refusing the whole address for rate says nothing about the song, so
+ * that pauses the queue and puts the job back in it (services/ytThrottle.ts).
  *
  * The loop is deliberately pull-based rather than event-driven: after every
  * completed job it asks the database for the next one, so a job added by
  * another device — or one left over from before a restart — is picked up
  * without any coordination.
  */
-
-const MAX_ATTEMPTS = 3
-const RETRY_DELAY_MS = 5_000
 
 /** The part of the cloud sync an import needs: see services/cloudSync.ts. */
 interface ImportUploader {
@@ -55,17 +59,18 @@ class UploadError extends Error {
 }
 
 export class ImportQueueService {
-  readonly #config: Config
-  readonly #storage: StorageDriver
+  readonly #config: Pick<Config, 'dataDir'>
+  readonly #storage: Pick<StorageDriver, 'write' | 'exists'>
   readonly #imports: ImportRepository
-  readonly #songs: SongRepository
-  readonly #tags: TagRepository
-  readonly #playlists: PlaylistRepository
-  readonly #settings: SettingsRepository
-  readonly #scanner: ScannerService
-  readonly #lyrics: LyricsService
-  readonly #covers: CoverService
-  readonly #ytdlp: YtDlpService
+  readonly #songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+  readonly #tags: Pick<TagRepository, 'exists' | 'addToSong'>
+  readonly #playlists: Pick<PlaylistRepository, 'byId' | 'add'>
+  readonly #settings: Pick<SettingsRepository, 'get'>
+  readonly #scanner: Pick<ScannerService, 'ingest'>
+  readonly #lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
+  readonly #covers: Pick<CoverService, 'saveFromUrl'>
+  readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
+  readonly #throttle: Pick<YtThrottleService, 'waitMs'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
   readonly #logger: Logger
@@ -74,24 +79,32 @@ export class ImportQueueService {
   readonly #inFlight = new Map<string, AbortController>()
   /** Library folders handed to imports that have not written their file yet. */
   readonly #claimedFolders = new Set<string>()
-  /** Jobs waiting out the delay before a retry: id → when they may run again. */
-  readonly #retryAt = new Map<string, number>()
+  /** The wake-up set while the budget says wait; at most one at a time. */
+  #paceTimer: NodeJS.Timeout | null = null
   #activeCount = 0
   #draining = false
   #stopped = false
 
+  /**
+   * Each dependency is narrowed to the methods this worker actually calls,
+   * the way `cloud` already was. It documents the worker's reach — everything
+   * it can do to the rest of the server is on this list — and it lets a test
+   * stand in for the parts that would otherwise reach the network or the disk
+   * without casting its way around the types.
+   */
   constructor(deps: {
-    config: Config
-    storage: StorageDriver
+    config: Pick<Config, 'dataDir'>
+    storage: Pick<StorageDriver, 'write' | 'exists'>
     imports: ImportRepository
-    songs: SongRepository
-    tags: TagRepository
-    playlists: PlaylistRepository
-    settings: SettingsRepository
-    scanner: ScannerService
-    lyrics: LyricsService
-    covers: CoverService
-    ytdlp: YtDlpService
+    songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+    tags: Pick<TagRepository, 'exists' | 'addToSong'>
+    playlists: Pick<PlaylistRepository, 'byId' | 'add'>
+    settings: Pick<SettingsRepository, 'get'>
+    scanner: Pick<ScannerService, 'ingest'>
+    lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
+    covers: Pick<CoverService, 'saveFromUrl'>
+    ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
+    throttle: Pick<YtThrottleService, 'waitMs'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
     logger: Logger
@@ -107,6 +120,7 @@ export class ImportQueueService {
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
     this.#ytdlp = deps.ytdlp
+    this.#throttle = deps.throttle
     this.#cloud = deps.cloud
     this.#keepAwake = deps.keepAwake
     this.#logger = deps.logger.child('import')
@@ -122,6 +136,8 @@ export class ImportQueueService {
 
   stop(): void {
     this.#stopped = true
+    if (this.#paceTimer) clearTimeout(this.#paceTimer)
+    this.#paceTimer = null
     for (const controller of this.#inFlight.values()) controller.abort()
     this.#inFlight.clear()
   }
@@ -141,13 +157,11 @@ export class ImportQueueService {
     // The database says whether it is too late; only then is the work stopped.
     if (!this.#imports.cancel(jobId)) return false
     this.#inFlight.get(jobId)?.abort()
-    this.#retryAt.delete(jobId)
     this.kick()
     return true
   }
 
   retry(jobId: string): boolean {
-    this.#retryAt.delete(jobId)
     const retried = this.#imports.retry(jobId)
     if (retried) this.kick()
     return retried
@@ -165,12 +179,27 @@ export class ImportQueueService {
     this.#draining = true
 
     try {
+      // The budget is a property of the queue, not of any one job: when there
+      // is nothing to spend, nothing is claimed and the jobs stay queued. A
+      // claimed job holding a slot open while it sleeps would look like work.
+      const pacing = this.#throttle.waitMs()
+      if (pacing > 0) {
+        // One timer however many times this is asked: everything that kicks
+        // the queue during a pause would otherwise start a chain of its own.
+        // Capped, so a pause lifted by hand is noticed within the minute.
+        this.#paceTimer ??= setTimeout(
+          () => {
+            this.#paceTimer = null
+            this.kick()
+          },
+          Math.min(pacing, 60_000),
+        )
+        return
+      }
+
       const limit = this.#settings.get().importConcurrency
-      const now = Date.now()
-      for (const [id, at] of this.#retryAt) if (at <= now) this.#retryAt.delete(id)
-      const waiting = [...this.#retryAt.keys()]
       while (this.#activeCount < limit && !this.#stopped) {
-        const job = this.#imports.claimNext(waiting)
+        const job = this.#imports.claimNext()
         if (!job) break
 
         this.#activeCount++
@@ -224,18 +253,22 @@ export class ImportQueueService {
 
       const message = error instanceof Error ? error.message : String(error)
       const current = this.#imports.byId(job.id)
-      const attempts = current?.attempts ?? job.attempts
       const uploading = error instanceof UploadError
 
-      if (attempts < MAX_ATTEMPTS && (uploading || isRetryable(message))) {
-        this.#logger.warn('import failed, will retry', { message, attempt: attempts })
-        this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: message })
-        // Held back until then. The slot this job frees is refilled at once,
-        // and it was the first in line: without the wait, it took the slot
-        // straight back, and all its attempts were spent inside a second.
-        const delay = RETRY_DELAY_MS * attempts
-        this.#retryAt.set(job.id, Date.now() + delay)
-        setTimeout(() => this.kick(), delay)
+      /*
+       * Not a failed download: YouTube refused the address for rate.
+       *
+       * Nothing is wrong with this song, so failing it would be a lie — and on
+       * a hundred song import it would be a hundred lies, each needing its own
+       * click. The budget is cut, the queue stops for a while, and the job goes
+       * back in the queue it never really left.
+       */
+      if (error instanceof RateLimitedError) {
+        // The budget was already cut where the refusal was met (ytdlp.ts);
+        // all that is left to do here is not blame the song.
+        this.#logger.warn('rate limited; job put back in the queue', { title: job.title })
+        this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
+        this.#cloud.kick()
         return
       }
 
@@ -282,7 +315,7 @@ export class ImportQueueService {
      */
     if (!title.trim() || !artist.trim()) {
       this.#imports.update(job.id, { step: 'resolving' })
-      const probed = await this.#ytdlp.probe(job.url, signal)
+      const probed = await this.#ytdlp.probe(job.url, signal, 'patient')
       if (probed.kind === 'playlist') {
         // `--no-playlist` means nothing to an album or playlist address: every
         // song in it would be downloaded, each over the last, into one file.
@@ -475,30 +508,6 @@ export class ImportQueueService {
     }
     throw new Error('could not find a free name for this song in the library')
   }
-}
-
-/**
- * Distinguish "try again in a moment" from "this will never work".
- *
- * Retrying a private or deleted video just wastes time and makes the failure
- * take three times as long to surface.
- */
-function isRetryable(message: string): boolean {
-  const permanent = [
-    'private video',
-    'video unavailable',
-    'members-only',
-    'age-restricted',
-    'sign in to confirm',
-    'removed by the uploader',
-    'not installed',
-    'upgrade yt-dlp',
-    'no title',
-    'copyright',
-    'is a playlist',
-  ]
-  const lower = message.toLowerCase()
-  return !permanent.some(phrase => lower.includes(phrase))
 }
 
 /**

@@ -85,19 +85,19 @@ import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
  *
  * A playlist you made adds Add songs, which searches the library without
  * leaving; its rows move by their grip at desktop width and by holding them on
- * a phone. A live playlist reads its rules back as a sentence instead, and
- * edits them in a panel beside the songs (a sheet on a phone), so the songs
- * the rules pick stay what the page shows.
+ * a phone. One that follows tags shows them instead, as a row of chips above
+ * the songs, so what it is picking stays what the page shows.
  *
  * Arriving with `?rename=1` puts the cursor in the name — where a playlist
- * just saved from a tag pick sends you when you press Rename on the message.
+ * just saved from a tag pick sends you when you press Rename on the message —
+ * and with `?add=1` the song picker (an empty playlist's tile in the grid).
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
-  const params = useLocalSearchParams<{ id: string; rename?: string }>()
+  const params = useLocalSearchParams<{ id: string; rename?: string; add?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
   const navigation = useNavigation()
@@ -123,37 +123,14 @@ export function PlaylistDetailScreen(): ReactNode {
   const [describing, setDescribing] = useState(false)
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [adding, setAdding] = useState(false)
+  // With `?add=1` the song picker is already open: an empty playlist's tile in
+  // the grid offers Add songs, and it lands here ready to pick.
+  const [adding, setAdding] = useState(params.add === '1')
   // The row being moved and the row it would land on. Not how far it has
   // travelled: that is `dragY`, which moves the row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
   const [rowHeight, setRowHeight] = useState(0)
-  /*
-   * Where the list is scrolled, and how tall the head above the songs is: at
-   * desktop width the selection bar floats just under the head and follows it
-   * up as it scrolls away, then stays at the top. An animated value fed by the
-   * list's scroll, so following it draws nothing.
-   */
-  const [scrollY] = useState(() => new Animated.Value(0))
-  const [headHeight, setHeadHeight] = useState(0)
-  const barTop = useMemo(
-    () =>
-      scrollY.interpolate({
-        inputRange: [0, Math.max(1, headHeight)],
-        outputRange: [headHeight, 0],
-        extrapolate: 'clamp',
-      }),
-    [scrollY, headHeight],
-  )
-  const onListScroll = useMemo(
-    () =>
-      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: false,
-      }),
-    [scrollY],
-  )
-
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
   const live = playlist !== null && isLive(playlist)
   const manual = playlist?.kind === 'manual'
@@ -521,7 +498,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // now — a live playlist with no rules is the whole library — and this is its
   // header rather than the top of a ScrollView drawing every row at once.
   const header = (
-    <View onLayout={event => setHeadHeight(Math.round(event.nativeEvent.layout.height))}>
+    <View>
       {wide ? null : (
         <Pressable
           // Back when the Playlists page is behind; after a playlist made from a
@@ -639,8 +616,23 @@ export function PlaylistDetailScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.split}>
-        {/* The songs, and the selection bar floating over them: no row moves when it comes. */}
+        {/* The selection bar takes a lane above the songs, so it covers none of them. */}
         <View style={styles.listArea}>
+          {selection.active && playlist ? (
+            <SelectionBar
+              songs={selectedSongs}
+              total={songs.length}
+              scope="in this playlist"
+              allSelected={selection.allSelected}
+              onSelectAll={selection.selectAll}
+              onDeselectAll={selection.deselectAll}
+              onDone={selection.clear}
+              // A live playlist has no membership to edit, so removing from it
+              // would be a lie.
+              playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+            />
+          ) : null}
+
           <LiftContext.Provider value={lift}>
             <SongList
               songs={songs}
@@ -658,27 +650,10 @@ export function PlaylistDetailScreen(): ReactNode {
               // A name or a description being typed in the head stays open through a scroll.
               keyboardDismissMode="none"
               CellRendererComponent={LiftedCell}
-              onScroll={wide ? onListScroll : undefined}
               onRefresh={pull.onRefresh}
               refreshing={pull.refreshing}
             />
           </LiftContext.Provider>
-
-          {selection.active && playlist ? (
-            <SelectionBar
-              songs={selectedSongs}
-              total={songs.length}
-              scope="in this playlist"
-              allSelected={selection.allSelected}
-              onSelectAll={selection.selectAll}
-              onDeselectAll={selection.deselectAll}
-              onDone={selection.clear}
-              // A live playlist has no membership to edit, so removing from it
-              // would be a lie.
-              playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
-              top={barTop}
-            />
-          ) : null}
         </View>
       </View>
 

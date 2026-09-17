@@ -2,9 +2,8 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { tip } from '../tip'
-import { HIT_TARGET, radius, oklchToHexAlpha } from '@selfmp3/client'
+import { HIT_TARGET, radius } from '@selfmp3/client'
 
 /**
  * The same three weights: 44px with a finger, and a shorter desktop height
@@ -43,16 +42,14 @@ export function Button({
   /** What a screen reader says when there is no label, or a fuller one: a square icon button. */
   accessibilityLabel?: string
 }): ReactNode {
-  const accent = useAccent()
   const { dense } = useLayout()
-  const { theme } = useUnistyles()
   const inactive = disabled || busy
   const ink =
     variant === 'primary'
-      ? theme.colors.onAccent
+      ? styles.inkOnAccent
       : variant === 'danger'
-        ? theme.colors.danger
-        : theme.colors.textPrimary
+        ? styles.inkDanger
+        : styles.inkPlain
 
   return (
     <Pressable
@@ -69,29 +66,47 @@ export function Button({
         dense && styles.buttonDense,
         label === undefined && (dense ? styles.squareDense : styles.square),
         grow && styles.grow,
-        variant === 'primary' && { backgroundColor: accent.accent, borderColor: accent.accent },
+        variant === 'primary' && styles.primary,
         variant === 'danger' && styles.danger,
-        active && {
-          backgroundColor: oklchToHexAlpha(0.42, 0.1, accent.hue, 1),
-          borderColor: accent.accent,
-        },
+        active && styles.active,
         pressed && !inactive && styles.pressed,
         inactive && styles.disabled,
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={ink} />
+        <Spinner variant={variant} />
       ) : (
         <View style={styles.content}>
           {icon}
           {label !== undefined ? (
-            <Text style={[styles.label, { color: ink }]} numberOfLines={1}>
+            <Text style={[styles.label, ink]} numberOfLines={1}>
               {label}
             </Text>
           ) : null}
         </View>
       )}
     </Pressable>
+  )
+}
+
+/**
+ * The busy spinner, which is the one thing on a button whose colour has to be
+ * a prop rather than a style. Kept apart so that reading the theme for it
+ * re-renders a spinner nobody can see standing still, rather than every button
+ * on the screen, on every step of a drag on the accent picker.
+ */
+function Spinner({ variant }: { variant: 'primary' | 'secondary' | 'danger' }): ReactNode {
+  const { theme } = useUnistyles()
+  return (
+    <ActivityIndicator
+      color={
+        variant === 'primary'
+          ? theme.colors.onAccent
+          : variant === 'danger'
+            ? theme.colors.danger
+            : theme.colors.textPrimary
+      }
+    />
   )
 }
 
@@ -141,4 +156,11 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 13,
     fontWeight: '600',
   },
+  // The accent's three appearances on a button, all from the palette, so the
+  // picker recolours every button in the app without re-rendering one of them.
+  primary: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
+  active: { backgroundColor: theme.colors.accentDim, borderColor: theme.colors.accent },
+  inkOnAccent: { color: theme.colors.onAccent },
+  inkDanger: { color: theme.colors.danger },
+  inkPlain: { color: theme.colors.textPrimary },
 }))

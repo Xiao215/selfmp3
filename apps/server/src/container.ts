@@ -20,6 +20,8 @@ import { ListenService } from './services/listen.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
 import { YtDlpService } from './services/ytdlp.js'
+import { YtThrottleService } from './services/ytThrottle.js'
+import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MigrateService } from './services/migrate.js'
@@ -90,6 +92,7 @@ export interface Container {
   readonly covers: CoverService
   readonly scanner: ScannerService
   readonly ytdlp: YtDlpService
+  readonly throttle: YtThrottleService
   readonly youtubeMusicArtists: YouTubeMusicArtists
   readonly youtubeMusicLists: YouTubeMusicLists
   readonly listen: ListenService
@@ -263,8 +266,16 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
+  // How fast this server may ask YouTube for anything. Signed-in sessions get
+  // a much higher ceiling, and the cookie setting is read per call, so turning
+  // cookies on widens the budget without a restart (services/ytThrottle.ts).
+  const throttle = new YtThrottleService(
+    new ThrottleRepository(db),
+    () => settings.get().ytCookieSource !== 'none',
+  )
+
   // Cookie settings are read per call, so a change applies without a restart.
-  const ytdlp = new YtDlpService(logger, () => settings.get())
+  const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
   const listen = new ListenService(ytdlp)
@@ -285,6 +296,7 @@ export function createContainer(configured: Config): Container {
     lyrics,
     covers,
     ytdlp,
+    throttle,
     cloud: cloudSync,
     keepAwake,
     logger,
@@ -407,6 +419,7 @@ export function createContainer(configured: Config): Container {
     logger,
     db,
     storage,
+    throttle,
     songs,
     tags,
     playlists,

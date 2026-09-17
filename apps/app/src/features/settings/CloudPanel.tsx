@@ -113,7 +113,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   const cancel = (
     <Button
       label="Cancel"
-      icon={<X size={15} color={theme.colors.textPrimary} />}
+      icon={<X size={15} tone="textPrimary" />}
       onPress={() => cancelSignIn.mutate()}
     />
   )
@@ -227,7 +227,6 @@ function SignInReturn(): ReactNode {
 }
 
 function Connected({ status, onChange }: { status: CloudStatus; onChange: () => void }): ReactNode {
-  const { theme } = useUnistyles()
   const { sync, disconnect } = useCloudActions()
   const [confirming, setConfirming] = useState(false)
   const target = status.target
@@ -257,7 +256,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       >
         <Button
           label={syncing ? 'Uploading…' : 'Publish now'}
-          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
+          icon={<Refresh size={15} tone="textPrimary" />}
           disabled={syncing || sync.isPending}
           onPress={() => sync.mutate()}
         />
@@ -316,7 +315,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         ) : (
           <Button
             label="Disconnect"
-            icon={<Trash size={15} color={theme.colors.danger} />}
+            icon={<Trash size={15} tone="danger" />}
             variant="danger"
             disabled={disconnect.isPending}
             onPress={() => setConfirming(true)}
@@ -358,7 +357,6 @@ function AccountMenu({
   disabled: boolean
   onSignOut: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   return (
@@ -370,7 +368,7 @@ function AccountMenu({
         active={open}
         disabled={disabled}
       >
-        <More size={17} color={theme.colors.textSecondary} />
+        <More size={17} tone="textSecondary" />
       </IconButton>
       <Popover
         open={open}
@@ -383,7 +381,7 @@ function AccountMenu({
       >
         <SheetItem
           label="Sign out"
-          icon={<Trash size={15} color={theme.colors.danger} />}
+          icon={<Trash size={15} tone="danger" />}
           danger
           onPress={() => {
             setOpen(false)
@@ -530,15 +528,11 @@ function BucketForm({
           />
         ) : null}
         {onCancel ? (
-          <Button
-            label="Cancel"
-            icon={<X size={15} color={theme.colors.textPrimary} />}
-            onPress={onCancel}
-          />
+          <Button label="Cancel" icon={<X size={15} tone="textPrimary" />} onPress={onCancel} />
         ) : null}
         <Button
           label={action.isPending ? 'Checking the bucket…' : 'Connect'}
-          icon={<CloudUpload size={15} color={theme.colors.onAccent} />}
+          icon={<CloudUpload size={15} tone="onAccent" />}
           variant="primary"
           disabled={!complete || action.isPending}
           onPress={submit}

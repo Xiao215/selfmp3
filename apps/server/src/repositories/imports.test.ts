@@ -36,20 +36,20 @@ describe('ImportRepository', () => {
       .map(job => job.id)
 
   describe('claimNext', () => {
-    it('passes over a job waiting to retry, and takes it once it is not', () => {
+    it('takes jobs in the order they were asked for, and none twice', () => {
       const [first = '', second = ''] = enqueue('Sunrise', 'Moonrise')
 
-      expect(imports.claimNext([first])?.id).toBe(second)
-      expect(imports.claimNext([first])).toBeNull()
       expect(imports.claimNext()?.id).toBe(first)
+      expect(imports.claimNext()?.id).toBe(second)
+      expect(imports.claimNext()).toBeNull()
     })
   })
 
   describe('cancel', () => {
     it('calls off a job that is queued, resolving or downloading', () => {
-      const [queued = '', resolving = '', downloading = ''] = enqueue('One', 'Two', 'Three')
-      imports.claimNext([queued, downloading])
-      imports.claimNext([queued])
+      const [resolving = '', downloading = '', queued = ''] = enqueue('One', 'Two', 'Three')
+      imports.claimNext()
+      imports.claimNext()
       imports.update(downloading, { step: 'downloading' })
 
       for (const id of [queued, resolving, downloading]) {

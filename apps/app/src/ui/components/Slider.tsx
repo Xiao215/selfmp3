@@ -1,15 +1,47 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { oklchToHex } from '@selfmp3/client'
-import { useAccent } from '../accent'
 import { fractionOf, valueAt } from './slider.model'
 import type { SliderProps } from './slider.types'
 
 const THUMB = 18
-const HUES = [0, 60, 120, 180, 240, 300, 360]
+/*
+ * The rainbow track's stops, worked out once rather than per render. A drag
+ * re-renders this component on every touch move, and the seven conversions
+ * are the same seven colours every time — the track does not follow the
+ * accent, it is what the accent is being chosen from.
+ */
+const HUE_STOPS = [0, 60, 120, 180, 240, 300, 360].map(hue => ({
+  hue,
+  color: oklchToHex(0.72, 0.16, hue),
+}))
+
+/**
+ * The rainbow the accent is chosen from.
+ *
+ * Held apart from the slider and memoised, because it never changes and the
+ * slider around it re-renders on every touch move of a drag. Left inline, a
+ * phone would rebuild this gradient and its seven stops through
+ * react-native-svg sixty-odd times a second to draw a picture identical to
+ * the one already on screen.
+ */
+const HueTrack = memo(function HueTrack(): ReactNode {
+  return (
+    <Svg width="100%" height="100%">
+      <Defs>
+        <LinearGradient id="hue" x1="0" y1="0" x2="1" y2="0">
+          {HUE_STOPS.map(stop => (
+            <Stop key={stop.hue} offset={stop.hue / 360} stopColor={stop.color} />
+          ))}
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height="100%" fill="url(#hue)" />
+    </Svg>
+  )
+})
 
 /**
  * A slider on a phone: a thin track in a finger-sized hit area, answering the
@@ -27,8 +59,6 @@ export function Slider({
   hue = false,
   width = 140,
 }: SliderProps): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const range = { min, max, step }
   const [local, setLocal] = useState<{ value: number; from: number } | null>(null)
   const shown = local && local.from === value ? local.value : value
@@ -68,29 +98,14 @@ export function Slider({
     >
       <View pointerEvents="none" style={[styles.track, hue && styles.hueTrack]}>
         {hue ? (
-          <Svg width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="hue" x1="0" y1="0" x2="1" y2="0">
-                {HUES.map(h => (
-                  <Stop key={h} offset={h / 360} stopColor={oklchToHex(0.72, 0.16, h)} />
-                ))}
-              </LinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#hue)" />
-          </Svg>
+          <HueTrack />
         ) : (
-          <View
-            style={[styles.fill, { width: `${fraction * 100}%`, backgroundColor: accent.accent }]}
-          />
+          <View style={[styles.fill, styles.fillAccent, { width: `${fraction * 100}%` }]} />
         )}
       </View>
       <View
         pointerEvents="none"
-        style={[
-          styles.thumb,
-          { left: fraction * width - THUMB / 2 },
-          hue && { borderWidth: 2, borderColor: theme.colors.surface0 },
-        ]}
+        style={[styles.thumb, { left: fraction * width - THUMB / 2 }, hue && styles.thumbOnHue]}
       />
     </View>
   )
@@ -101,6 +116,9 @@ const styles = StyleSheet.create(theme => ({
   track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   hueTrack: { height: 6, borderRadius: 3 },
   fill: { height: '100%' },
+  // The palette's own, so a slider is recoloured without being re-rendered.
+  fillAccent: { backgroundColor: theme.colors.accent },
+  thumbOnHue: { borderWidth: 2, borderColor: theme.colors.surface0 },
   thumb: {
     position: 'absolute',
     top: 18 - THUMB / 2,

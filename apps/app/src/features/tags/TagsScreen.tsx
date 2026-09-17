@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { Tag } from '@selfmp3/shared'
+import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
   radius,
@@ -114,6 +114,7 @@ export function TagsScreen(): ReactNode {
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
+              maxLength={TAG_NAME_MAX}
               accessibilityLabel="New tag name"
             />
             <Button label="Add" variant="primary" onPress={() => void submit()} />

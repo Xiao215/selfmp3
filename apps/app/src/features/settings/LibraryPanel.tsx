@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { useUnistyles } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Song } from '@selfmp3/shared'
 import {
@@ -33,7 +32,6 @@ export function LibraryPanel({
   anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const library = useLibrary()
   const scan = useScanLibrary()
   const analysis = useAnalysisStatus(true)
@@ -54,7 +52,7 @@ export function LibraryPanel({
       <Row label="Rescan the folder" hint={scanHint(scan.data)}>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
-          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
+          icon={<Refresh size={15} tone="textPrimary" />}
           disabled={scan.isPending}
           onPress={() => scan.mutate()}
         />
@@ -65,14 +63,14 @@ export function LibraryPanel({
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}
-          icon={<Sparkles size={15} color={theme.colors.textPrimary} />}
+          icon={<Sparkles size={15} tone="textPrimary" />}
           disabled={running || startAnalysis.isPending}
           onPress={() => startAnalysis.mutate(false)}
         />
         {analysed > 0 && !running ? (
           <Button
             label="Redo all"
-            icon={<Refresh size={15} color={theme.colors.textPrimary} />}
+            icon={<Refresh size={15} tone="textPrimary" />}
             onPress={() => onConfirm('redo-analysis')}
           />
         ) : null}
@@ -96,7 +94,7 @@ export function LibraryPanel({
           <ButtonRow>
             <Button
               label="Forget missing songs"
-              icon={<Trash size={15} color={theme.colors.danger} />}
+              icon={<Trash size={15} tone="danger" />}
               variant="danger"
               onPress={() => onConfirm('forget-missing')}
             />
@@ -113,7 +111,6 @@ export function LibraryPanel({
  * time, so the library is refetched as they do.
  */
 function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean }): ReactNode {
-  const { theme } = useUnistyles()
   const client = useQueryClient()
   const { data: status } = useFixCoversStatus()
   const fixCovers = useFixCovers()
@@ -139,14 +136,14 @@ function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean })
         {running ? (
           <Button
             label="Stop looking"
-            icon={<X size={15} color={theme.colors.textPrimary} />}
+            icon={<X size={15} tone="textPrimary" />}
             disabled={fixCovers.isPending}
             onPress={() => fixCovers.mutate('cancel')}
           />
         ) : (
           <Button
             label="Find missing art"
-            icon={<Sparkles size={15} color={theme.colors.textPrimary} />}
+            icon={<Sparkles size={15} tone="textPrimary" />}
             disabled={fixCovers.isPending || missingArt === 0}
             onPress={() => fixCovers.mutate('start')}
           />

@@ -182,7 +182,7 @@ export const colors: ThemePalette = darkPalette(DEFAULT_ACCENT_HUE)
 /** Fill `colors` for a theme. Call once, at launch, before anything draws. */
 export function applyColorScheme(scheme: ColorScheme, hue: number = DEFAULT_ACCENT_HUE): void {
   activeScheme = scheme
-  Object.assign(colors, scheme === 'light' ? lightPalette(hue) : darkPalette(DEFAULT_ACCENT_HUE))
+  Object.assign(colors, scheme === 'light' ? lightPalette(hue) : darkPalette(hue))
 }
 
 export const radius = { sm: 6, md: 10, lg: 16 } as const

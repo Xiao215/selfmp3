@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { oklchToHexAlpha } from '@selfmp3/client'
-import { useAccent } from '../accent'
 import { Check, Minus } from './Icons'
+
+/* The tick on a danger box: near-white, and the same in either theme. */
+const DANGER_TICK = oklchToHexAlpha(0.99, 0, 0, 1)
 
 /**
  * A 17-point box that fills with the accent when on, with a dim fill and a
@@ -26,33 +28,21 @@ export function Checkbox({
   mixed?: boolean
   tone?: 'accent' | 'danger'
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  const fill = tone === 'danger' ? theme.colors.danger : accent.accent
-
   if (checked) {
     return (
-      <View style={[styles.box, { backgroundColor: fill, borderColor: fill }]}>
-        <Check
-          size={12}
-          color={tone === 'danger' ? oklchToHexAlpha(0.99, 0, 0, 1) : accent.onAccent}
-        />
+      <View style={[styles.box, tone === 'danger' ? styles.boxDanger : styles.boxAccent]}>
+        {tone === 'danger' ? (
+          <Check size={12} color={DANGER_TICK} />
+        ) : (
+          <Check size={12} tone="onAccent" />
+        )}
       </View>
     )
   }
   if (mixed) {
     return (
-      <View
-        style={[
-          styles.box,
-          // --accent-dim
-          {
-            backgroundColor: oklchToHexAlpha(0.42, 0.1, accent.hue, 1),
-            borderColor: accent.accent,
-          },
-        ]}
-      >
-        <Minus size={12} color={theme.colors.textPrimary} />
+      <View style={[styles.box, styles.boxMixed]}>
+        <Minus size={12} tone="textPrimary" />
       </View>
     )
   }
@@ -69,4 +59,10 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Ticked, in the accent or in red, and the half-ticked box between them —
+  // all three from the palette, so a list of checkboxes is recoloured by the
+  // accent picker without any of them being re-rendered.
+  boxAccent: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
+  boxDanger: { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger },
+  boxMixed: { backgroundColor: theme.colors.accentDim, borderColor: theme.colors.accent },
 }))

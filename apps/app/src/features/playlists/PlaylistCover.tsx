@@ -60,7 +60,11 @@ export function PlaylistCover({
     const Glyph = playlist && isLive(playlist) ? Live : ListMusic
     return (
       <View style={[frame, styles.empty]}>
-        <Glyph size={size !== undefined && size < 48 ? 14 : 26} color={theme.colors.textMuted} />
+        {/* Its own full-width box: the frame it sits in is a wrapping row, which
+            leaves a lone icon against the left edge. */}
+        <View style={styles.emptyGlyph}>
+          <Glyph size={size !== undefined && size < 48 ? 14 : 26} color={theme.colors.textMuted} />
+        </View>
       </View>
     )
   }
@@ -119,6 +123,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   fill: { width: '100%', aspectRatio: 1 },
+  emptyGlyph: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   empty: {
     // One icon, in the middle: a wrapping row would park it at the top.
     flexDirection: 'column',

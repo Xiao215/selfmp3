@@ -1,4 +1,4 @@
-import type { ImportJob, ImportQueue } from '@selfmp3/shared'
+import { IDLE_PACING, type ImportJob, type ImportQueue } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { badgeText, finished, jobsOf, noticeFor, stillGoing, type Batch } from './jobs.model.js'
 
@@ -26,6 +26,7 @@ const queue = (jobs: ImportJob[]): ImportQueue => ({
   jobs,
   active: jobs.filter(each => each.status === 'running').length,
   queued: jobs.filter(each => each.status === 'queued').length,
+  pacing: IDLE_PACING,
 })
 
 const batch = (jobIds: string[], label: string | null = null): Batch => ({

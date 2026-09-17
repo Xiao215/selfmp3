@@ -33,7 +33,10 @@ export function* songKeyCandidates(name: string, extension: string): Generator<s
 }
 
 /** Neither the folder nor the file is there yet. */
-export async function isFreeOnDisk(storage: StorageDriver, key: string): Promise<boolean> {
+export async function isFreeOnDisk(
+  storage: Pick<StorageDriver, 'exists'>,
+  key: string,
+): Promise<boolean> {
   return !(await storage.exists(path.posix.dirname(key))) && !(await storage.exists(key))
 }
 

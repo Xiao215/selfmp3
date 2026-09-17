@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -20,7 +20,6 @@ import { loginItem } from '../../ports/loginItem'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { Toggle } from '../../ui/components/Toggle'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -76,7 +75,6 @@ const LINKED_HOLD_MS = 2500
  * elsewhere names its section (`/settings?section=connection`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const { fromCloud } = useConnection()
   const romanizationOn = useRomanizationOn()
   const { width, wide } = useLayout()
@@ -108,7 +106,6 @@ export function SettingsScreen(): ReactNode {
   const { section: linked } = useLocalSearchParams<{ section?: string }>()
   const linkedSection = sections.find(section => section.id === linked)?.id
   const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'playback')
-  const accent = useAccent()
   const chipsRef = useRef<ScrollView>(null)
   const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
   const chipsWidth = useRef(0)
@@ -141,27 +138,38 @@ export function SettingsScreen(): ReactNode {
    * layout only when its own size changes, so a panel pushed down by Playback or
    * Library filling in never says it moved, and the index would stop a panel or
    * two short. Measured against the head, which starts the content and stays put.
+   *
+   * In the window's coordinates rather than `measureLayout`'s, because the head
+   * is the panels' sibling and not their ancestor. A browser does not mind —
+   * react-native-web subtracts two rectangles — but iOS measures by walking up
+   * from the node to the view it was given, finds the head is not on that path,
+   * and calls the failure callback. That read as an index that simply did not
+   * scroll on a phone while working on a desktop. Everything measured here is
+   * inside the same scroll content, so a scroll moves the head and the panels
+   * by the same amount and the difference between them is the offset wanted.
    */
   const measure = async (): Promise<void> => {
     const head = headRef.current
     if (!head) return
     const at = (node: View): Promise<{ y: number; height: number } | null> =>
       new Promise(resolve => {
-        node.measureLayout(
-          head,
-          (_x, y, _width, height) => resolve({ y, height }),
-          () => resolve(null),
+        node.measureInWindow((_x, y, _width, height) =>
+          resolve(Number.isFinite(y) ? { y, height } : null),
         )
       })
     const chips = chipBarRef.current
-    const [bar, placed] = await Promise.all([
+    const [origin, bar, placed] = await Promise.all([
+      at(head),
       chips ? at(chips) : null,
       Promise.all([...anchors.current].map(async ([id, node]) => ({ id, place: await at(node) }))),
     ])
+    if (!origin) return
     chipBarHeight.current = bar?.height ?? 0
     const pageTop = column ? COLUMN_TOP : NARROW_TOP
     tops.current = new Map(
-      placed.flatMap(({ id, place }) => (place ? [[id, pageTop + place.y] as const] : [])),
+      placed.flatMap(({ id, place }) =>
+        place ? [[id, pageTop + (place.y - origin.y)] as const] : [],
+      ),
     )
   }
 
@@ -254,10 +262,7 @@ export function SettingsScreen(): ReactNode {
         accessibilityState={{ selected: on }}
         style={({ pressed }) => [
           column ? styles.indexItem : styles.chip,
-          on &&
-            (column
-              ? [styles.indexItemOn, { borderLeftColor: accent.accent }]
-              : { borderColor: accent.accent }),
+          on && (column ? [styles.indexItemOn, styles.indexItemOnEdge] : styles.chipOn),
           pressed && styles.indexPressed,
         ]}
       >
@@ -298,29 +303,15 @@ export function SettingsScreen(): ReactNode {
         </View>
 
         {column ? null : (
-          <View
-            ref={chipBarRef}
-            style={[
-              styles.chipBar,
-              // Colours inline, not only from the sheet: a sticky header is
-              // re-parented into ScrollView's own animated wrapper, which
-              // Unistyles' live update does not reach, so the strip would keep
-              // the last theme's ground.
-              { backgroundColor: theme.colors.surface0, borderBottomColor: theme.colors.border },
-            ]}
+          <ChipBar
+            barRef={chipBarRef}
+            chipsRef={chipsRef}
+            onWidth={barWidth => {
+              chipsWidth.current = barWidth
+            }}
           >
-            <ScrollView
-              ref={chipsRef}
-              onLayout={event => {
-                chipsWidth.current = event.nativeEvent.layout.width
-              }}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chips}
-            >
-              {index}
-            </ScrollView>
-          </View>
+            {index}
+          </ChipBar>
         )}
 
         <StackedRows value={!wide}>
@@ -464,6 +455,52 @@ function CrossfadeRow({
 
 // ------------------------------------------------------------- connection
 
+// ------------------------------------------------------------- the index
+
+/**
+ * The sticky row of section chips.
+ *
+ * Its ground has to be read from the theme and written inline: a sticky header
+ * is re-parented into ScrollView's own animated wrapper, which Unistyles' live
+ * update does not reach, so from the sheet alone the strip would keep the last
+ * theme's colour. That makes it the one part of this page that has to be
+ * re-rendered when the theme moves — so it is its own component, and dragging
+ * the accent picker in Appearance re-renders this strip rather than the page
+ * of panels it is pinned to.
+ */
+function ChipBar({
+  barRef,
+  chipsRef,
+  onWidth,
+  children,
+}: {
+  barRef: RefObject<View | null>
+  chipsRef: RefObject<ScrollView | null>
+  onWidth: (width: number) => void
+  children: ReactNode
+}): ReactNode {
+  const { theme } = useUnistyles()
+  return (
+    <View
+      ref={barRef}
+      style={[
+        styles.chipBar,
+        { backgroundColor: theme.colors.surface0, borderBottomColor: theme.colors.border },
+      ]}
+    >
+      <ScrollView
+        ref={chipsRef}
+        onLayout={event => onWidth(event.nativeEvent.layout.width)}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
@@ -492,6 +529,10 @@ const styles = StyleSheet.create(theme => ({
     borderLeftColor: 'transparent',
   },
   indexItemOn: { backgroundColor: theme.colors.surface1 },
+  // The section you are on, edged in the accent, from the palette so the
+  // picker recolours the index without re-rendering the page.
+  indexItemOnEdge: { borderLeftColor: theme.colors.accent },
+  chipOn: { borderColor: theme.colors.accent },
   indexPressed: { backgroundColor: theme.colors.surface1 },
   indexText: { color: theme.colors.textMuted, fontSize: 13 },
   indexTextOn: { color: theme.colors.textPrimary, fontWeight: '600' },

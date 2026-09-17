@@ -61,8 +61,32 @@ describe('explainCookieError', () => {
     expect(
       explainCookieError('The playlist does not exist. Sign in if it is private', none),
     ).toMatch(/Settings → Importing/)
-    expect(explainCookieError('Sign in to confirm you’re not a bot', chrome)).toMatch(
+    expect(explainCookieError('This video is private', chrome)).toMatch(
       /logged in to YouTube Music/,
+    )
+  })
+
+  /*
+   * The bot wall is the one error that lies about itself. It says "Sign in",
+   * so every sign-in rule here matches it, and the advice they give — go and
+   * re-export your cookies — is both useless and risky: the cookies were never
+   * wrong, and using an account under a block is how the account goes too.
+   */
+  it('does not blame cookies when YouTube is rate-limiting the address', () => {
+    for (const settings of [none, chrome, file]) {
+      const explained = explainCookieError('Sign in to confirm you’re not a bot', settings)
+      expect(explained).toMatch(/rate-limiting this network/)
+      expect(explained).not.toMatch(/logged in to YouTube Music/)
+      expect(explained).not.toMatch(/export/i)
+    }
+  })
+
+  it('offers cookies as a way to raise the limit, but only when there are none', () => {
+    expect(explainCookieError('HTTP Error 429: Too Many Requests', none)).toMatch(
+      /raises the limit/,
+    )
+    expect(explainCookieError('HTTP Error 429: Too Many Requests', chrome)).not.toMatch(
+      /raises the limit/,
     )
   })
 
@@ -73,8 +97,8 @@ describe('explainCookieError', () => {
   })
 
   it('leaves unrelated errors alone', () => {
-    expect(explainCookieError('HTTP Error 429: Too Many Requests', chrome)).toBe(
-      'HTTP Error 429: Too Many Requests',
+    expect(explainCookieError('Unable to extract player version', chrome)).toBe(
+      'Unable to extract player version',
     )
   })
 })

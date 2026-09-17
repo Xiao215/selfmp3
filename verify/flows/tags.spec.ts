@@ -68,9 +68,7 @@ test.describe('choosing tags', () => {
       .flatMap(a => tags.filter(b => b.id !== a.id).map(b => [a, b] as const))
       .find(([a, b]) => {
         const both = present.filter(s => s.tagIds.includes(a.id) && s.tagIds.includes(b.id)).length
-        const union = present.filter(
-          s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id),
-        ).length
+        const union = present.filter(s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id)).length
         return both > 0 && both < union && count(a.id) > 0 && count(b.id) > 0
       })
     test.skip(!pair, 'needs two overlapping tags')

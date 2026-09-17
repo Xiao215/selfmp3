@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
-import { useAccent } from '../accent'
 
 /**
  * One line saying whether this device has your music yet, in the words Xiao
@@ -15,11 +14,9 @@ import { useAccent } from '../accent'
  * says anything until a download is actually running.
  */
 export function SyncStatus(): ReactNode {
-  const { theme } = useUnistyles()
   const downloads = useDownloads()
   // Bytes from their own store: a moving bar redraws this line, not every reader of the queue.
   const progress = useDownloadProgress()
-  const accent = useAccent()
   const header = syncHeader(downloads.situation)
   if (header.kind === 'none') return null
 
@@ -41,12 +38,7 @@ export function SyncStatus(): ReactNode {
     <View style={styles.bar} testID="sync-status" accessibilityLiveRegion="polite">
       {header.kind === 'downloading' ? (
         <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${Math.round(fraction * 100)}%`, backgroundColor: accent.accent },
-            ]}
-          />
+          <View style={[styles.progressFill, { width: `${Math.round(fraction * 100)}%` }]} />
         </View>
       ) : null}
       <View style={styles.row}>
@@ -63,7 +55,7 @@ export function SyncStatus(): ReactNode {
             accessibilityRole="button"
             accessibilityLabel={action}
           >
-            <Text style={[styles.action, { color: warn ? theme.colors.warning : accent.accent }]}>
+            <Text style={[styles.action, warn ? styles.actionOnData : styles.actionAccent]}>
               {action}
             </Text>
           </Pressable>
@@ -90,8 +82,11 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
   },
   text: { color: theme.colors.textSecondary, fontSize: type.small, flexShrink: 1 },
-  // The device's accent, or amber on mobile data.
+  // The device's accent, or amber on mobile data. Both are the theme's own, so
+  // the accent picker recolours this line without re-rendering it.
   action: { fontSize: type.small, fontWeight: '600' },
+  actionAccent: { color: theme.colors.accent },
+  actionOnData: { color: theme.colors.warning },
   error: { color: theme.colors.danger, fontSize: type.small, flex: 1 },
   progressTrack: {
     height: 3,
@@ -99,5 +94,5 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     overflow: 'hidden',
   },
-  progressFill: { height: 3 },
+  progressFill: { height: 3, backgroundColor: theme.colors.accent },
 }))

@@ -154,10 +154,31 @@ export const YtCookieTestSchema = z.object({
 })
 export type YtCookieTest = z.infer<typeof YtCookieTestSchema>
 
+/**
+ * Why the queue is not moving, when it is not moving for a reason that is
+ * nobody's fault.
+ *
+ * Pacing belongs to the queue rather than to any one job: YouTube limits the
+ * address, not the song. A job held back by it is still queued and still fine.
+ */
+export const ImportPacingSchema = z.object({
+  /** ms until the next download may start. 0 when nothing is holding it back. */
+  waitMs: z.number().nonnegative(),
+  /** Set only while a rate-limit answer is being waited out (epoch ms). */
+  pausedUntil: z.number().nullable(),
+  /** 1 normally; halved by each rate-limit incident and not restored by itself. */
+  ratchet: z.number().positive(),
+})
+export type ImportPacing = z.infer<typeof ImportPacingSchema>
+
+/** Nothing holding the queue back: what a queue not yet read is assumed to be. */
+export const IDLE_PACING: ImportPacing = { waitMs: 0, pausedUntil: null, ratchet: 1 }
+
 export const ImportQueueSchema = z.object({
   jobs: z.array(ImportJobSchema),
   active: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
+  pacing: ImportPacingSchema,
 })
 export type ImportQueue = z.infer<typeof ImportQueueSchema>
 

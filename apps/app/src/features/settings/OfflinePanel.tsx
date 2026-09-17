@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { useUnistyles } from 'react-native-unistyles'
 import { formatBytes } from '@selfmp3/shared'
 import {
   downloadedCount,
@@ -28,7 +27,6 @@ export function OfflinePanel({
   anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
@@ -162,7 +160,7 @@ export function OfflinePanel({
             />
             <Button
               label="Stop downloading"
-              icon={<X size={15} color={theme.colors.textPrimary} />}
+              icon={<X size={15} tone="textPrimary" />}
               onPress={() => queue.cancelAll()}
             />
           </>
@@ -173,12 +171,7 @@ export function OfflinePanel({
                 ? 'Everything is downloaded'
                 : `${held === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
             }
-            icon={
-              <CloudDownload
-                size={15}
-                color={missingBytes === 0 ? theme.colors.textMuted : theme.colors.onAccent}
-              />
-            }
+            icon={<CloudDownload size={15} tone={missingBytes === 0 ? 'textMuted' : 'onAccent'} />}
             variant="primary"
             disabled={missingBytes === 0}
             onPress={() => requestDownload(absentIds)}
@@ -199,7 +192,7 @@ export function OfflinePanel({
         {held > 0 ? (
           <Button
             label="Remove all downloads"
-            icon={<Trash size={15} color={theme.colors.danger} />}
+            icon={<Trash size={15} tone="danger" />}
             variant="danger"
             onPress={() => onConfirm('remove-downloads')}
           />

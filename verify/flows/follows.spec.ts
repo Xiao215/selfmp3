@@ -138,9 +138,7 @@ test.describe('a playlist that follows tags', () => {
       await panel.getByTestId('listen-tags-search').fill(second.name)
       await panel.getByRole('button', { name: second.name, exact: true }).first().click()
 
-      await expect
-        .poll(async () => (await playlist(page.request, id))?.rules?.rules.length)
-        .toBe(2)
+      await expect.poll(async () => (await playlist(page.request, id))?.rules?.rules.length).toBe(2)
       const widened = await songIdsOf(page.request, id)
       // Any of the tags, so the list can only have grown.
       expect(widened.length).toBeGreaterThanOrEqual(before.length)
@@ -151,7 +149,8 @@ test.describe('a playlist that follows tags', () => {
       await expect.poll(async () => (await playlist(page.request, id))?.kind).toBe('manual')
       const after = await songIdsOf(page.request, id)
       // The whole point: the songs are still there, and it is no longer a rule.
-      expect(after.toSorted()).toEqual(widened.toSorted())
+      const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b)
+      expect(ascending(after)).toEqual(ascending(widened))
       await expect(page.getByTestId('follows-row')).toHaveCount(0)
     } finally {
       await page.request.delete(`${API}/api/playlists/${id}`)

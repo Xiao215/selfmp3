@@ -1,7 +1,7 @@
 import { memo, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
@@ -17,11 +17,11 @@ import {
   describeEnergy,
   describeTempo,
 } from '@selfmp3/client'
+import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidth } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
@@ -137,8 +137,6 @@ export const SongRow = memo(function SongRow({
    */
   unavailable?: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
   const playing = playingOverride ?? playback === 'playing'
@@ -165,7 +163,7 @@ export const SongRow = memo(function SongRow({
 
   const tint = [
     // Selected: a translucent accent that reads as picked on the dark UI.
-    selected && { backgroundColor: oklchToHexAlpha(0.36, 0.08, accent.hue, 0.4) },
+    selected && styles.selected,
     (song.missing || unavailable) && styles.missing,
   ]
 
@@ -225,9 +223,9 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 {/* The web calls this "On this device", and draws exactly this. */}
                 {downloaded ? (
-                  <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
+                  <Downloaded size={13} tone="accent" />
                 ) : notDownloadedMark ? (
-                  <NotDownloaded size={13} color={theme.colors.textMuted} />
+                  <NotDownloaded size={13} tone="textMuted" />
                 ) : null}
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {song.artist || 'Unknown artist'}
@@ -252,7 +250,7 @@ export const SongRow = memo(function SongRow({
                 {...tip('More')}
                 style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
               >
-                <More size={16} color={theme.colors.textMuted} />
+                <More size={16} tone="textMuted" />
               </Pressable>
             </View>
           ) : null}
@@ -297,7 +295,7 @@ export const SongRow = memo(function SongRow({
             {...tip('Play')}
             style={styles.indexPlay}
           >
-            <Play size={16} color={theme.colors.textPrimary} />
+            <Play size={16} tone="textPrimary" />
           </Pressable>
         ) : (
           <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
@@ -323,9 +321,9 @@ export const SongRow = memo(function SongRow({
           </View>
           <View style={styles.subtitleRow}>
             {downloaded ? (
-              <Downloaded size={13} color={accent.accent} knockout={theme.colors.surface0} />
+              <Downloaded size={13} tone="accent" />
             ) : notDownloadedMark ? (
-              <NotDownloaded size={13} color={theme.colors.textMuted} />
+              <NotDownloaded size={13} tone="textMuted" />
             ) : null}
             <Text style={styles.artist} numberOfLines={1}>
               {song.artist || 'Unknown artist'}
@@ -363,9 +361,14 @@ export const SongRow = memo(function SongRow({
 
       <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
         {/* Below the album column's width the chips go; the button stays. */}
-        {albumColumn && tags
-          ? tags.map(tag => <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />)
-          : null}
+        {albumColumn && tags ? (
+          <RowTags
+            tags={tags}
+            hasAddButton={onEditTags !== undefined}
+            onToggleTag={onToggleTag}
+            onShowAll={anchor => onEditTags?.(anchor, song)}
+          />
+        ) : null}
         {onEditTags ? (
           <Pressable
             ref={tagAddRef}
@@ -375,7 +378,7 @@ export const SongRow = memo(function SongRow({
             {...tip('Edit tags')}
             style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
           >
-            <Plus size={13} color={theme.colors.textMuted} />
+            <Plus size={13} tone="textMuted" />
           </Pressable>
         ) : null}
       </View>
@@ -403,7 +406,7 @@ export const SongRow = memo(function SongRow({
                 pressed && styles.controlPressed,
               ]}
             >
-              <More size={16} color={theme.colors.textMuted} />
+              <More size={16} tone="textMuted" />
             </Pressable>
           </View>
         ) : null}
@@ -474,7 +477,6 @@ function Love({
   size: number
   visible: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
     <Pressable
       onPress={onPress}
@@ -488,21 +490,74 @@ function Love({
         pressed && styles.controlPressed,
       ]}
     >
-      <Heart
-        size={16}
-        filled={song.loved}
-        color={song.loved ? theme.colors.danger : theme.colors.textMuted}
-      />
+      <Heart size={16} filled={song.loved} tone={song.loved ? 'danger' : 'textMuted'} />
     </Pressable>
   )
 }
 
-/** A small tag chip, in the tag's own hue. */
+/**
+ * A song's tags, as many as the slot holds, and a count for the rest.
+ *
+ * The slot is a fixed width, so what used to happen to a fourth tag — or to
+ * one long name — was that it was cut in half against the album column. Chips
+ * are laid in until the next will not fit and the remainder becomes a "+2"
+ * that opens the tag window, where all of them are. See `rowTags.ts` for how
+ * the fitting is worked out.
+ */
+function RowTags({
+  tags,
+  hasAddButton,
+  onToggleTag,
+  onShowAll,
+}: {
+  tags: readonly Tag[]
+  hasAddButton: boolean
+  onToggleTag?: (tagId: number) => void
+  onShowAll: (anchor: View | null) => void
+}): ReactNode {
+  const widthOf = useChipWidth()
+  const moreRef = useRef<View>(null)
+  const { shown, hidden } = fitTags(tags, widthOf, chipBudget({ hasAddButton }))
+
+  return (
+    <>
+      {shown.map(tag => (
+        <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />
+      ))}
+      {hidden > 0 ? (
+        <View ref={moreRef} collapsable={false}>
+          <Pressable
+            onPress={() => onShowAll(moreRef.current)}
+            accessibilityRole="button"
+            accessibilityLabel={`${hidden} more ${hidden === 1 ? 'tag' : 'tags'}`}
+            {...tip(
+              tags
+                .slice(shown.length)
+                .map(tag => tag.name)
+                .join(', '),
+            )}
+            style={[styles.rowTag, styles.rowTagMore]}
+          >
+            <Text style={[styles.rowTagText, styles.rowTagMoreText]}>+{hidden}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * A small tag chip, in the tag's own hue.
+ *
+ * It reports the width it drew at, once: a name is the same width on every
+ * row, so one measurement is what tells every other row whether this tag fits.
+ */
 function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
   const palette = tagColors(tag.hue)
   return (
     <Pressable
       onPress={onPress}
+      onLayout={event => rememberChipWidth(tag.name, event.nativeEvent.layout.width)}
       accessibilityRole="button"
       accessibilityLabel={tag.name}
       style={[styles.rowTag, { backgroundColor: palette.background }]}
@@ -583,6 +638,9 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
   },
+  // The palette's own selected-row colour, so picking a row is recoloured by
+  // the accent picker without re-rendering a list of them.
+  selected: { backgroundColor: theme.colors.accentSelected },
   missing: {
     opacity: 0.55,
   },
@@ -684,7 +742,15 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
-  rowTag: { borderRadius: 20, paddingVertical: 4, paddingHorizontal: space.sm },
+  rowTag: {
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: space.sm,
+    // No one name may take the slot: past this it ends in an ellipsis.
+    maxWidth: TAG_CHIP_MAX_WIDTH,
+  },
+  rowTagMore: { backgroundColor: theme.colors.surface3 },
+  rowTagMoreText: { color: theme.colors.textSecondary },
   rowTagText: { fontSize: 11 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {

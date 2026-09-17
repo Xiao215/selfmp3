@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useAccent } from '../accent'
 import { NAV_HEIGHT, type } from '@selfmp3/client'
 import { activeTab, type TabHref } from './bottomNav.model'
 import { Download, ListMusic, Music, User } from './Icons'
@@ -31,11 +30,9 @@ const TABS: { href: TabHref; label: string; Icon: typeof Music }[] = [
 ]
 
 export function BottomNav(): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
-  const accent = useAccent()
   const current = activeTab(pathname)
 
   return (
@@ -61,13 +58,10 @@ export function BottomNav(): ReactNode {
             // react-native-web does not turn `accessibilityState` into aria-selected.
             aria-selected={active}
           >
-            <View style={[styles.pill, active && { backgroundColor: accent.accentPill }]}>
-              <tab.Icon size={20} color={active ? accent.accent : theme.colors.textMuted} />
+            <View style={[styles.pill, active && styles.pillOn]}>
+              <tab.Icon size={20} tone={active ? 'accent' : 'textMuted'} />
             </View>
-            <Text
-              style={[styles.label, active && { color: accent.accent, fontWeight: '600' }]}
-              numberOfLines={1}
-            >
+            <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
               {tab.label}
             </Text>
           </Pressable>
@@ -103,4 +97,8 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.label,
     fontWeight: '500',
   },
+  // The tab you are on, in the accent. From the palette rather than the accent
+  // context, so a drag on the picker recolours the bar without re-rendering it.
+  pillOn: { backgroundColor: theme.colors.accentPill },
+  labelOn: { color: theme.colors.accent, fontWeight: '600' },
 }))

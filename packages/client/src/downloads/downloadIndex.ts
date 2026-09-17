@@ -90,8 +90,36 @@ export function removeEntry(index: DownloadIndex, songId: number): DownloadIndex
   return { ...index, entries }
 }
 
+/**
+ * Every file this device is keeping, whatever it is for.
+ *
+ * Including songs the library no longer has: the entries and their files are
+ * still there, and this is the number the buttons that act on all of them —
+ * "Remove all downloads" — have to be gated on. For "how much of my library is
+ * here", which is what a person means, `downloadedFrom` is the one to ask.
+ */
 export function downloadedCount(index: DownloadIndex): number {
   return Object.keys(index.entries).length
+}
+
+/**
+ * How many of `songIds` are on this device.
+ *
+ * The count to show beside a library, because the index outlives the library
+ * it was filled from: a song removed, or a whole library replaced, leaves its
+ * entry and its file behind until something clears them. Counting entries
+ * instead once had the foot of the sidebar reading "45 songs · 66 saved
+ * offline", which is not a thing that can be true.
+ */
+export function downloadedFrom(index: DownloadIndex, songIds: readonly number[]): number {
+  let held = 0
+  const seen = new Set<number>()
+  for (const id of songIds) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    if (isDownloaded(index, id)) held += 1
+  }
+  return held
 }
 
 export function totalBytes(index: DownloadIndex): number {
@@ -115,18 +143,47 @@ export function pendingIds(index: DownloadIndex, songIds: readonly number[]): nu
 }
 
 /**
- * Entries the manifest says are out of date, plus entries for songs the
- * library no longer has. Both are safe to delete: the first will be fetched
- * again, the second is a file for a song that no longer exists.
+ * Files this device is keeping that it no longer has a reason to.
+ *
+ * Two different reasons, kept apart because they read as different things to
+ * whoever is being told. A song that *left the library* takes nothing with it
+ * — the entry and the file stay behind, and after a library is replaced there
+ * can be a great many of them. A song still in the library whose *audio was
+ * replaced* since it was downloaded has a file that would simply be fetched
+ * again. Both are safe to delete; only the second has "changed" happen to it,
+ * and saying it about the first is how the panel once reported 21 files as
+ * changed on a server that had never held them.
  */
-export function staleIds(index: DownloadIndex, manifest: SyncManifest): number[] {
+export interface StaleDownloads {
+  /** Entries for songs the library does not have any more. */
+  readonly gone: readonly number[]
+  /** Entries for songs still here whose audio was replaced since. */
+  readonly changed: readonly number[]
+  /** Both, in id order: what removing acts on. */
+  readonly all: readonly number[]
+  /** What removing all of them would give back. */
+  readonly bytes: number
+}
+
+export function staleDownloads(index: DownloadIndex, manifest: SyncManifest): StaleDownloads {
   const byId = new Map(manifest.entries.map(entry => [entry.id, entry]))
-  const stale: number[] = []
+  const gone: number[] = []
+  const changed: number[] = []
+  let bytes = 0
   for (const entry of Object.values(index.entries)) {
     const current = byId.get(entry.songId)
-    if (!current || current.etag !== entry.etag) stale.push(entry.songId)
+    if (current === undefined) gone.push(entry.songId)
+    else if (current.etag !== entry.etag) changed.push(entry.songId)
+    else continue
+    bytes += entry.sizeBytes
   }
-  return stale.sort((a, b) => a - b)
+  const order = (a: number, b: number): number => a - b
+  return {
+    gone: gone.sort(order),
+    changed: changed.sort(order),
+    all: [...gone, ...changed].sort(order),
+    bytes,
+  }
 }
 
 /** Bytes the given songs would add, for the "this will use N MB" line. */

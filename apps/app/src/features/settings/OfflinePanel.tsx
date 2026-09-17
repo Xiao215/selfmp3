@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import { formatBytes } from '@selfmp3/shared'
-import { downloadedCount, staleIds, totalBytes, useLibrary, useManifest } from '@selfmp3/client'
+import {
+  downloadedCount,
+  staleDownloads,
+  totalBytes,
+  useLibrary,
+  useManifest,
+  type StaleDownloads,
+} from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { downloadsFolder } from '../../ports/downloadsFolder'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -59,7 +66,7 @@ export function OfflinePanel({
   }, [settled])
   // Every song not here, including ones removed by hand: this button is pressed on purpose.
   const missingBytes = absentBytes
-  const stale = manifest.data ? staleIds(downloads.index, manifest.data) : []
+  const stale = manifest.data ? staleDownloads(downloads.index, manifest.data) : null
   const activeSong =
     downloads.activeSongId === null
       ? null
@@ -142,11 +149,8 @@ export function OfflinePanel({
       ) : null}
 
       {downloads.error ? <Notice tone="error">{downloads.error}</Notice> : null}
-      {stale.length > 0 ? (
-        <Text style={partStyles.hint}>
-          {stale.length} downloaded {stale.length === 1 ? 'file has' : 'files have'} changed on the
-          server since.
-        </Text>
+      {stale !== null && stale.all.length > 0 ? (
+        <Text style={partStyles.hint}>{staleHint(stale)}</Text>
       ) : null}
 
       <ButtonRow>
@@ -180,13 +184,15 @@ export function OfflinePanel({
             onPress={() => requestDownload(absentIds)}
           />
         )}
-        {stale.length > 0 ? (
+        {stale !== null && stale.all.length > 0 ? (
           <Button
-            label="Remove out-of-date files"
+            label={
+              stale.changed.length === 0 ? 'Remove leftover files' : 'Remove out-of-date files'
+            }
             busy={busy}
             onPress={() => {
               setBusy(true)
-              void queue.remove(stale).finally(() => setBusy(false))
+              void queue.remove([...stale.all]).finally(() => setBusy(false))
             }}
           />
         ) : null}
@@ -201,6 +207,30 @@ export function OfflinePanel({
       </ButtonRow>
     </Panel>
   )
+}
+
+/**
+ * The line above "Remove…", which has to name the right reason.
+ *
+ * A song that left the library and a song whose audio was replaced both leave
+ * a file worth deleting, but only the second changed. Saying "changed on the
+ * server" about a library that was replaced described a thing that never
+ * happened, in numbers large enough to be alarming.
+ */
+function staleHint(stale: StaleDownloads): string {
+  const files = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`
+  const gone = stale.gone.length
+  const changed = stale.changed.length
+  const room = `, using ${formatBytes(stale.bytes)}`
+  const forGone = `${files(gone)} here ${
+    gone === 1 ? 'is for a song' : 'are for songs'
+  } this library no longer has`
+  const replaced = `${changed === 1 ? 'has' : 'have'} been replaced since ${
+    changed === 1 ? 'it was' : 'they were'
+  } downloaded`
+  if (changed === 0) return `${forGone}${room}.`
+  if (gone === 0) return `${files(changed)} here ${replaced}${room}.`
+  return `${forGone}, and ${changed === 1 ? 'one more' : `${changed} more`} ${replaced}${room}.`
 }
 
 /** The running download's bar, on its own so the bytes redraw it and not the whole panel. */

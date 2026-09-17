@@ -399,28 +399,8 @@ export function LibraryScreen(): ReactNode {
       {/* Links asked of the server, until what they bring is published. */}
       {fromCloud ? <PendingImports /> : null}
 
-      {/* The list, and the selection bar floating over it: no row moves when it comes. */}
+      {/* The selection bar takes a lane above the list, so it covers no row. */}
       <View style={styles.listArea}>
-        {model.loading ? (
-          <ActivityIndicator style={styles.spinner} color={accent.accent} />
-        ) : (
-          <SongList
-            songs={visible}
-            label={`${heading} songs`}
-            renderSong={renderSong}
-            rowHeight={rowHeight}
-            onRefresh={pull.onRefresh}
-            refreshing={pull.refreshing}
-            contentContainerStyle={[
-              styles.list,
-              // On a phone the bar sits over the foot of the list; the last song
-              // can still scroll out from under it.
-              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
-            ]}
-            empty={emptyState}
-          />
-        )}
-
         {selection.active ? (
           <SelectionBar
             songs={selectedSongs}
@@ -433,6 +413,26 @@ export function LibraryScreen(): ReactNode {
             onDone={selection.clear}
           />
         ) : null}
+
+        {model.loading ? (
+          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+        ) : (
+          <SongList
+            songs={visible}
+            label={`${heading} songs`}
+            renderSong={renderSong}
+            rowHeight={rowHeight}
+            onRefresh={pull.onRefresh}
+            refreshing={pull.refreshing}
+            contentContainerStyle={[
+              styles.list,
+              // On a phone the bar still floats over the foot of the list; the
+              // last song can scroll out from under it.
+              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
+            ]}
+            empty={emptyState}
+          />
+        )}
       </View>
 
       <TagPicker

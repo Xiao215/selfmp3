@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -69,7 +69,10 @@ export function PlaylistsScreen(): ReactNode {
   })
   const model = usePlaylistsModel(sort)
   const [newOpen, setNewOpen] = useState(false)
+  /* The kinds menu opens under whichever of the two New buttons was pressed. */
   const newRef = useRef<View>(null)
+  const newTileRef = useRef<View>(null)
+  const [newFrom, setNewFrom] = useState<'head' | 'tile'>('head')
   const [gridWidth, setGridWidth] = useState(0)
 
   const setSort = (next: PlaylistSort): void => {
@@ -78,6 +81,12 @@ export function PlaylistsScreen(): ReactNode {
   }
 
   const { playlists, pinned } = model
+  /*
+   * Empty playlists sort to the end whatever the sort says: they have no cover,
+   * and a gap between two covers reads as a fault rather than as a playlist.
+   */
+  const filled = playlists.filter(playlist => playlist.songCount > 0)
+  const empties = playlists.filter(playlist => playlist.songCount === 0)
   const measured = wide ? gridWidth : window.width - space.lg * 2
   const columns = wide
     ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
@@ -87,6 +96,9 @@ export function PlaylistsScreen(): ReactNode {
   const totalDuration = playlists.reduce((sum, playlist) => sum + playlist.totalDuration, 0)
   const open = (playlist: Playlist): void =>
     router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
+  /** An empty playlist's own way to stop being empty: its page, picker open. */
+  const add = (playlist: Playlist): void =>
+    router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id), add: '1' } })
 
   const sortSelect = (
     <Select
@@ -126,12 +138,18 @@ export function PlaylistsScreen(): ReactNode {
                   variant="primary"
                   icon={<Plus size={15} color={accent.onAccent} />}
                   active={newOpen}
-                  onPress={() => setNewOpen(current => !current)}
+                  onPress={() => {
+                    setNewFrom('head')
+                    setNewOpen(current => !current)
+                  }}
                   testID="playlists-new"
                 />
               ) : (
                 <IconButton
-                  onPress={() => setNewOpen(current => !current)}
+                  onPress={() => {
+                    setNewFrom('head')
+                    setNewOpen(current => !current)
+                  }}
                   label="New playlist"
                   round
                   active={newOpen}
@@ -195,15 +213,42 @@ export function PlaylistsScreen(): ReactNode {
             style={styles.grid}
             onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
           >
+            <NewTile
+              width={tileWidth}
+              anchorRef={newTileRef}
+              onPress={() => {
+                setNewFrom('tile')
+                setNewOpen(true)
+              }}
+            />
             {/* Built in, and not a playlist: nothing to delete or rename. */}
             <GemsTile width={tileWidth} />
-            {playlists.map((playlist, index) => (
+            {filled.map((playlist, index) => (
               <PlaylistTile
                 key={playlist.id}
                 playlist={playlist}
                 index={index}
                 width={tileWidth}
                 onOpen={() => open(playlist)}
+                onAddSongs={() => add(playlist)}
+              />
+            ))}
+            {/*
+             * A playlist with nothing in it yet is ordinary — it is what every
+             * playlist looks like for its first minute — but it has no cover to
+             * show, so it goes after the ones that have.
+             */}
+            {empties.length > 0 ? (
+              <Text style={[styles.section, styles.gridSection]}>NOTHING IN THEM YET</Text>
+            ) : null}
+            {empties.map((playlist, index) => (
+              <PlaylistTile
+                key={playlist.id}
+                playlist={playlist}
+                index={filled.length + index}
+                width={tileWidth}
+                onOpen={() => open(playlist)}
+                onAddSongs={() => add(playlist)}
               />
             ))}
             {playlists.length === 0 ? (
@@ -221,7 +266,10 @@ export function PlaylistsScreen(): ReactNode {
                     label="New playlist"
                     variant="primary"
                     icon={<Plus size={15} color={accent.onAccent} />}
-                    onPress={() => setNewOpen(true)}
+                    onPress={() => {
+                      setNewFrom('head')
+                      setNewOpen(true)
+                    }}
                   />
                 </View>
               </View>
@@ -230,8 +278,64 @@ export function PlaylistsScreen(): ReactNode {
         )}
       </ScrollView>
 
-      <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} anchorRef={newRef} />
+      <NewPlaylist
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        anchorRef={newFrom === 'tile' ? newTileRef : newRef}
+      />
     </SafeAreaView>
+  )
+}
+
+/**
+ * The way into a new playlist, as the grid's first tile.
+ *
+ * The grid is where you look when you want a playlist, so it is where making
+ * one belongs — and a grid that starts with it has a beginning whether you own
+ * seven playlists or none. It is filled with the accent rather than outlined,
+ * because an empty playlist's tile is the dashed one: only one of the two can
+ * look like room for something.
+ */
+function NewTile({
+  width,
+  anchorRef,
+  onPress,
+}: {
+  width: number | undefined
+  anchorRef: RefObject<View | null>
+  onPress: () => void
+}): ReactNode {
+  const accent = useAccent()
+
+  return (
+    <View style={[styles.tile, width ? { width } : null]} ref={anchorRef} collapsable={false}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="New playlist"
+        {...tip('Playlist, smart playlist or ' + LIVE_NAME.toLowerCase() + ' playlist')}
+        testID="playlists-new-tile"
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <View
+          style={[
+            styles.newCover,
+            { borderColor: accent.accentDim, backgroundColor: accent.accentPill },
+          ]}
+        >
+          <Plus size={26} color={accent.accent} />
+          <Text style={styles.newKinds} numberOfLines={1}>
+            playlist · smart · {LIVE_NAME.toLowerCase()}
+          </Text>
+        </View>
+        <Text style={styles.tileName} numberOfLines={1}>
+          New playlist
+        </Text>
+        <Text style={styles.tileSub} numberOfLines={1}>
+          Pick songs, or let rules pick
+        </Text>
+      </Pressable>
+    </View>
   )
 }
 
@@ -280,11 +384,14 @@ function PlaylistTile({
   index,
   width,
   onOpen,
+  onAddSongs,
 }: {
   playlist: Playlist
   index: number
   width: number | undefined
   onOpen: () => void
+  /** Empty and not live: the tile's own way to fill it. */
+  onAddSongs: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -294,6 +401,12 @@ function PlaylistTile({
   const live = isLive(playlist)
   // With a mouse the play button waits for the pointer; a finger opens the page.
   const showPlay = finePointer && hovered && playlist.songCount > 0 && width !== undefined
+  /*
+   * Nothing to play in an empty one, so it offers the thing that would help:
+   * its page with the song picker already open. A live playlist fills itself
+   * from its rules, so it is sent to its page instead.
+   */
+  const showAdd = finePointer && hovered && playlist.songCount === 0 && !live && width !== undefined
 
   return (
     <View
@@ -343,6 +456,24 @@ function PlaylistTile({
           ]}
         >
           <Play size={15} color={accent.onAccent} />
+        </Pressable>
+      ) : null}
+
+      {showAdd ? (
+        <Pressable
+          onPress={onAddSongs}
+          accessibilityRole="button"
+          accessibilityLabel={`Add songs to ${playlist.name}`}
+          style={({ pressed }) => [
+            styles.addSongs,
+            { top: width - 30, width: width - 16, backgroundColor: accent.accent },
+            pressed && styles.fabPressed,
+          ]}
+        >
+          <Plus size={13} color={accent.onAccent} />
+          <Text style={[styles.addSongsText, { color: accent.onAccent }]} numberOfLines={1}>
+            Add songs
+          </Text>
         </Pressable>
       ) : null}
     </View>
@@ -398,7 +529,31 @@ const styles = StyleSheet.create(theme => ({
   shelfText: { flex: 1, minWidth: 0 },
   shelfName: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  /* A heading of its own row, so the tiles after it start a fresh line. */
+  gridSection: { width: '100%', marginTop: space.sm, marginBottom: 0 },
   tile: { width: '100%' },
+  newCover: {
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: space.sm,
+  },
+  newKinds: { color: theme.colors.textSecondary, fontSize: 10.5 },
+  addSongs: {
+    position: 'absolute',
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    height: 26,
+    borderRadius: radius.sm,
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+  },
+  addSongsText: { fontSize: 11.5, fontWeight: '600' },
   pressed: { opacity: 0.75 },
   tileName: {
     color: theme.colors.textPrimary,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Song, Tag } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
@@ -81,21 +81,23 @@ export function useSelectionBarFloating(): boolean {
 /**
  * The bar that runs a multi-selection.
  *
- * It floats over the list rather than sitting in it. In the page it pushed
- * every row down by its own height the moment the first row was ticked, so the
- * row you were about to tick next moved out from under the pointer. Floating,
- * no row moves; the parent puts it in a box laid over the list area
- * (`position: relative` by default) and it places itself in that box.
+ * On a computer it takes a lane of its own at the top of the list area: the
+ * list below it is that much shorter, so at no scroll position does the bar
+ * cover a row. It floated over the list once, to keep the rows still as it
+ * arrived — but the row it landed on was the one you had just ticked, which
+ * you could then neither read nor untick. The rows move down by the bar's
+ * height, once, when the first row is ticked; the bar is a plain block above
+ * the list, so the lane is always exactly as tall as the bar really is.
  *
- * On a computer it floats at the top, just under the page head, where the eye
- * already is while ticking and where nothing else competes (the foot of the
- * window has the player bar and the toasts). It is anchored by the count,
+ * It sits where the eye already is while ticking and where nothing else
+ * competes (the foot of the window has the player bar and the toasts). It is
+ * anchored by the count,
  * because the count is what you have to be sure of before pressing anything
  * else, and by a tri-state checkbox beside a line that says in words what
  * "all" currently means. Select-all while a search or filter is on selects the
  * filtered set, and the bar says so.
  *
- * On a phone it floats at the bottom, above the mini player or the tabs, where
+ * On a phone it still floats, at the bottom, above the mini player or the tabs, where
  * a thumb is: the count, then Play, Queue, More and Done as icons on one line.
  * Select all and a playlist's Remove move into More there.
  *
@@ -114,7 +116,6 @@ export function SelectionBar({
   onDeselectAll,
   onDone,
   playlist,
-  top = 0,
 }: {
   /** The selected songs, in the order the list has them. */
   songs: readonly Song[]
@@ -130,12 +131,6 @@ export function SelectionBar({
   onDone: () => void
   /** Set in a playlist, which offers removing from it without deleting. */
   playlist?: { readonly id: number; readonly name: string }
-  /**
-   * On a computer, how far below the top of its box it floats: a playlist's
-   * head scrolls with its songs, and the bar follows the bottom of the head
-   * until the head has gone and then stays at the top.
-   */
-  top?: number | Animated.AnimatedInterpolation<number>
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
@@ -237,10 +232,7 @@ export function SelectionBar({
   )
 
   const bar = wide ? (
-    <Animated.View
-      style={[styles.float, styles.floatTop, { transform: [{ translateY: top }] }]}
-      pointerEvents="box-none"
-    >
+    <View style={styles.lane}>
       <View
         style={[styles.bar, { borderColor: accentDim }]}
         role="toolbar"
@@ -307,7 +299,7 @@ export function SelectionBar({
 
         <View style={styles.doneWide}>{done}</View>
       </View>
-    </Animated.View>
+    </View>
   ) : (
     <View style={[styles.float, styles.floatBottom]} pointerEvents="box-none">
       <View
@@ -579,12 +571,13 @@ function summarise(songs: readonly Song[]): string {
 }
 
 const styles = StyleSheet.create(theme => ({
-  /* Over the list, never in it: the rows under it stay where they are. */
+  /* A computer's lane: above the list, so the list is shorter and nothing is covered. */
+  lane: { paddingHorizontal: space.lg, paddingTop: space.xs, paddingBottom: space.sm },
+  /* A phone's bar floats instead, over the foot of the list, where a thumb is. */
   float: {
     position: 'absolute',
     zIndex: 5,
   },
-  floatTop: { top: space.xs, left: space.lg, right: space.lg },
   floatBottom: { bottom: space.sm, left: space.sm, right: space.sm },
   bar: {
     flexDirection: 'row',

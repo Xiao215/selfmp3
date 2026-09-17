@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { useUnistyles } from 'react-native-unistyles'
 import { useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
@@ -29,7 +28,6 @@ export function ConnectionPanel({
   anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   return (
@@ -78,7 +76,7 @@ export function ConnectionPanel({
       <ButtonRow>
         <Button
           label="Refresh"
-          icon={<Refresh size={15} color={theme.colors.textPrimary} />}
+          icon={<Refresh size={15} tone="textPrimary" />}
           onPress={() => void library.refetch()}
         />
       </ButtonRow>

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useUnistyles } from 'react-native-unistyles'
+import type { ThemePalette } from '@selfmp3/client'
 import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
 
 /**
@@ -15,20 +16,44 @@ import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
  * badge sits on, for icons that knock a shape out of a filled badge.
  */
 
+/** A colour in the theme's palette, named. */
+type IconTone = keyof ThemePalette
+
 interface IconProps {
   readonly size?: number
   readonly color?: string
+  /**
+   * The theme colour to draw in, by name: `tone="accent"` rather than
+   * `color={accent.accent}`.
+   *
+   * It matters which of the two draws an icon in the accent. A colour passed
+   * in is a prop, so whoever works it out has to read the accent, and a
+   * screen that reads the accent is re-rendered — all of it — on every step
+   * of a drag on the accent picker. A tone is read here instead, by an icon
+   * that is a handful of paths, and the screen around it holds still.
+   */
+  readonly tone?: IconTone
   /** For icons that knock a shape out of a filled badge. */
   readonly knockout?: string
+}
+
+/** An icon's ink: what it was given, the tone it asked for, or the default. */
+function useInk(
+  given: string | undefined,
+  tone: IconTone | undefined,
+  fallback: IconTone = 'textSecondary',
+): string {
+  const { theme } = useUnistyles()
+  return given ?? theme.colors[tone ?? fallback]
 }
 
 function Icon({
   size = 20,
   color: given,
+  tone,
   children,
 }: IconProps & { children: ReactNode }): ReactNode {
-  const { theme } = useUnistyles()
-  const color = given ?? theme.colors.textSecondary
+  const color = useInk(given, tone)
   return (
     <Svg
       width={size}
@@ -45,9 +70,8 @@ function Icon({
   )
 }
 
-export const Play = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Play = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M7 4.5v15l13-7.5z" fill={color} stroke="none" />
@@ -55,9 +79,8 @@ export const Play = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Pause = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Pause = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Rect x="6" y="4.5" width="4" height="15" rx="1.4" fill={color} stroke="none" />
@@ -66,9 +89,8 @@ export const Pause = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Next = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Next = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M5 5v14l9-7z" fill={color} stroke="none" />
@@ -77,9 +99,8 @@ export const Next = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Prev = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Prev = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M19 5v14l-9-7z" fill={color} stroke="none" />
@@ -88,9 +109,8 @@ export const Prev = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Shuffle = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Shuffle = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M16 3h5v5" />
@@ -102,9 +122,8 @@ export const Shuffle = ({ color: colorGiven, ...rest }: IconProps): ReactNode =>
   )
 }
 
-export const Repeat = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Repeat = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="m17 2 4 4-4 4" />
@@ -115,9 +134,8 @@ export const Repeat = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const RepeatOne = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const RepeatOne = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="m17 2 4 4-4 4" />
@@ -129,9 +147,8 @@ export const RepeatOne = ({ color: colorGiven, ...rest }: IconProps): ReactNode 
   )
 }
 
-export const Volume = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Volume = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M11 5 6 9H2v6h4l5 4z" fill={color} stroke="none" />
@@ -141,9 +158,8 @@ export const Volume = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const VolumeMute = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const VolumeMute = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M11 5 6 9H2v6h4l5 4z" fill={color} stroke="none" />
@@ -152,9 +168,8 @@ export const VolumeMute = ({ color: colorGiven, ...rest }: IconProps): ReactNode
   )
 }
 
-export const Music = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Music = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M9 18V5l12-2v13" />
@@ -164,9 +179,8 @@ export const Music = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Download = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Download = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 3v12" />
@@ -176,9 +190,8 @@ export const Download = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-export const CloudDownload = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const CloudDownload = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M7 17a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 17" />
@@ -188,9 +201,8 @@ export const CloudDownload = ({ color: colorGiven, ...rest }: IconProps): ReactN
   )
 }
 
-export const CloudUpload = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const CloudUpload = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M7 17a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 17" />
@@ -203,10 +215,11 @@ export const CloudUpload = ({ color: colorGiven, ...rest }: IconProps): ReactNod
 export const Downloaded = ({
   color: colorGiven,
   knockout: knockoutGiven,
+  tone,
   ...rest
 }: IconProps): ReactNode => {
   const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+  const color = colorGiven ?? theme.colors[tone ?? 'textSecondary']
   const knockout = knockoutGiven ?? theme.colors.surface0
   return (
     <Icon color={color} {...rest}>
@@ -220,9 +233,8 @@ export const Downloaded = ({
  * Not on this device: the downloaded disc's counterpart, drawn as an outline
  * so it reads as the same mark, not yet filled in.
  */
-export const NotDownloaded = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textMuted
+export const NotDownloaded = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone, 'textMuted')
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="9" />
@@ -231,9 +243,8 @@ export const NotDownloaded = ({ color: colorGiven, ...rest }: IconProps): ReactN
   )
 }
 
-export const Info = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Info = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="9" />
@@ -243,9 +254,8 @@ export const Info = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const TagPlus = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const TagPlus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3 12.2V4.5A1.5 1.5 0 0 1 4.5 3h7.7l8.3 8.3a1.7 1.7 0 0 1 0 2.4l-6.8 6.8a1.7 1.7 0 0 1-2.4 0z" />
@@ -255,9 +265,8 @@ export const TagPlus = ({ color: colorGiven, ...rest }: IconProps): ReactNode =>
   )
 }
 
-export const Inbox = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Inbox = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M4 13.5 6.3 5.6A2 2 0 0 1 8.2 4h7.6a2 2 0 0 1 1.9 1.6L20 13.5" />
@@ -266,9 +275,8 @@ export const Inbox = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Folder = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Folder = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
@@ -276,9 +284,8 @@ export const Folder = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const CheckCircle = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const CheckCircle = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="9" />
@@ -287,9 +294,8 @@ export const CheckCircle = ({ color: colorGiven, ...rest }: IconProps): ReactNod
   )
 }
 
-export const Plus = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Plus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 5v14M5 12h14" />
@@ -297,9 +303,8 @@ export const Plus = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Search = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Search = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="11" cy="11" r="7" />
@@ -308,9 +313,8 @@ export const Search = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const X = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const X = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M18 6 6 18M6 6l12 12" />
@@ -318,9 +322,8 @@ export const X = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Check = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Check = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M20 6 9 17l-5-5" />
@@ -328,9 +331,8 @@ export const Check = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Minus = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Minus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M6 12h12" />
@@ -338,9 +340,8 @@ export const Minus = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const CheckSquare = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const CheckSquare = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M20 11.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
@@ -349,9 +350,8 @@ export const CheckSquare = ({ color: colorGiven, ...rest }: IconProps): ReactNod
   )
 }
 
-export const Refresh = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Refresh = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M21 12a9 9 0 1 1-2.64-6.36" />
@@ -360,9 +360,8 @@ export const Refresh = ({ color: colorGiven, ...rest }: IconProps): ReactNode =>
   )
 }
 
-export const Mic = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Mic = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
@@ -372,9 +371,8 @@ export const Mic = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const ListMusic = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const ListMusic = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3 6h11M3 12h8M3 18h6" />
@@ -384,9 +382,8 @@ export const ListMusic = ({ color: colorGiven, ...rest }: IconProps): ReactNode 
   )
 }
 
-export const Sparkles = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Sparkles = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
@@ -395,9 +392,8 @@ export const Sparkles = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-export const BarChart = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const BarChart = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
@@ -405,9 +401,8 @@ export const BarChart = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-export const Settings = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Settings = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="3" />
@@ -417,9 +412,8 @@ export const Settings = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
 }
 
 /** A person in a circle: the You tab. */
-export const User = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const User = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="9" />
@@ -429,9 +423,8 @@ export const User = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Moon = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Moon = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
@@ -439,9 +432,8 @@ export const Moon = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Trash = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Trash = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M4 7h16" />
@@ -452,9 +444,8 @@ export const Trash = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const More = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const More = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="5" r="1.4" fill={color} stroke="none" />
@@ -465,9 +456,8 @@ export const More = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
 }
 
 /** A pushpin: pinning a playlist to the sidebar. */
-export const Pin = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Pin = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 17v5" />
@@ -477,9 +467,8 @@ export const Pin = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
 }
 
 /** Two sheets: a copy. */
-export const Copy = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Copy = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Rect x="8" y="8" width="13" height="13" rx="2" />
@@ -488,9 +477,8 @@ export const Copy = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Pencil = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Pencil = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 20h9" />
@@ -500,9 +488,8 @@ export const Pencil = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
 }
 
 /** A dot sending out waves: a live playlist, which keeps itself up to date. */
-export const Live = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Live = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="2.6" fill={color} stroke="none" />
@@ -512,9 +499,8 @@ export const Live = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Grip = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Grip = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="9" cy="6" r="1.3" fill={color} stroke="none" />
@@ -527,9 +513,8 @@ export const Grip = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Clock = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Clock = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Circle cx="12" cy="12" r="9" />
@@ -538,9 +523,8 @@ export const Clock = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const ChevronDown = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const ChevronDown = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="m6 9 6 6 6-6" />
@@ -549,9 +533,8 @@ export const ChevronDown = ({ color: colorGiven, ...rest }: IconProps): ReactNod
 }
 
 /** Native only: a stack has a back edge, which the web's router never draws. */
-export const ChevronLeft = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const ChevronLeft = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="m15 6-6 6 6 6" />
@@ -559,9 +542,8 @@ export const ChevronLeft = ({ color: colorGiven, ...rest }: IconProps): ReactNod
   )
 }
 
-export const ChevronRight = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const ChevronRight = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="m9 6 6 6-6 6" />
@@ -569,9 +551,8 @@ export const ChevronRight = ({ color: colorGiven, ...rest }: IconProps): ReactNo
   )
 }
 
-export const Expand = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Expand = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-6" />
@@ -579,9 +560,8 @@ export const Expand = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const Collapse = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Collapse = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M4 10h6V4M20 14h-6v6M10 10 4 4M14 14l6 6" />
@@ -589,9 +569,8 @@ export const Collapse = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-export const Speed = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Speed = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
@@ -601,9 +580,8 @@ export const Speed = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Queue = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Queue = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3 6h13M3 12h13M3 18h8" />
@@ -612,9 +590,8 @@ export const Queue = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Tag = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Tag = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3 11V4a1 1 0 0 1 1-1h7l9 9-8 8-9-9Z" />
@@ -623,9 +600,8 @@ export const Tag = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
   )
 }
 
-export const Romanize = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Romanize = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M3 17 7.5 6l4.5 11M4.6 13h5.8" />
@@ -635,9 +611,8 @@ export const Romanize = ({ color: colorGiven, ...rest }: IconProps): ReactNode =
   )
 }
 
-export const Devices = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Devices = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h10A1.5 1.5 0 0 1 15 6.5V14" />
@@ -648,9 +623,8 @@ export const Devices = ({ color: colorGiven, ...rest }: IconProps): ReactNode =>
   )
 }
 
-export const Remote = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Remote = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Rect x="3" y="3" width="10" height="18" rx="2" />
@@ -661,9 +635,8 @@ export const Remote = ({ color: colorGiven, ...rest }: IconProps): ReactNode => 
   )
 }
 
-export const Metronome = ({ color: colorGiven, ...rest }: IconProps): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+export const Metronome = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path d="M9.5 3h5l4 18h-13z" />
@@ -676,10 +649,10 @@ export const Metronome = ({ color: colorGiven, ...rest }: IconProps): ReactNode 
 export const Heart = ({
   color: colorGiven,
   filled = false,
+  tone,
   ...rest
 }: IconProps & { filled?: boolean }): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.textSecondary
+  const color = useInk(colorGiven, tone)
   return (
     <Icon color={color} {...rest}>
       <Path
@@ -694,12 +667,13 @@ export const Heart = ({
 export const BrandMark = ({
   size = 22,
   color: colorGiven,
+  tone,
 }: {
   size?: number
   color?: string
+  tone?: IconTone
 }): ReactNode => {
-  const { theme } = useUnistyles()
-  const color = colorGiven ?? theme.colors.accent
+  const color = useInk(colorGiven, tone, 'accent')
   return (
     <Svg width={size} height={size} viewBox="0 0 512 512" fill={color}>
       <Path d="M186 168 L370 130 L370 190 L186 228 Z" />

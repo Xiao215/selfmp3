@@ -19,6 +19,7 @@ import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
+import { swipeBackAllowed } from '../src/shell/backGesture'
 import { useLayout } from '../src/shell/useLayout'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
@@ -69,6 +70,13 @@ const queryClient = new QueryClient({
 /** Screens that own the whole display: no tab bar, no mini player. */
 const FULL_SCREEN_ROUTES = ['/onboarding', '/now-playing']
 
+/**
+ * Now Playing comes up from the foot of the display and goes back down.
+ *
+ * A `fullScreenModal` has no sideways pop to inherit — the gesture a modal is
+ * offered is a downward one — and pulling this one down to close is
+ * `NowPlayingScreen`'s own responder, not the navigator's.
+ */
 const NOW_PLAYING_OPTIONS = {
   presentation: 'fullScreenModal',
   animation: 'slide_from_bottom',
@@ -151,15 +159,20 @@ function Shell(): ReactNode {
   const covered = pathname === '/now-playing' && modalCoversScreen
   const chrome = (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
-  // Kept, not rebuilt: a new object here is new options for every screen in
+  // Kept, not rebuilt: a new function here is new options for every screen in
   // the stack each time the shell renders.
   const surface = theme.colors.surface0
   const screenOptions = useMemo(
-    () => ({
-      headerShown: false,
-      contentStyle: { backgroundColor: surface },
-      animation: 'fade' as const,
-    }),
+    () =>
+      ({ route }: { route: { name: string } }) => ({
+        headerShown: false,
+        contentStyle: { backgroundColor: surface },
+        animation: 'fade' as const,
+        // Per screen, because the tab bar navigates inside this one stack:
+        // without it iOS popped back to the tab underneath on a swipe.
+        // `src/shell/backGesture.ts` has the rule and the reason.
+        gestureEnabled: swipeBackAllowed(route.name),
+      }),
     [surface],
   )
 

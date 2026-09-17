@@ -24,6 +24,8 @@ export class SyncRepository {
   readonly #songId
   readonly #tag
   readonly #tagByName
+  readonly #songAlias
+  readonly #addSongAlias
   readonly #aliasTarget
   readonly #addAlias
   readonly #aliases
@@ -46,6 +48,12 @@ export class SyncRepository {
     )
     this.#allStamps = db.prepare<[], StampRow>('SELECT kind, uid, field, hlc FROM sync_stamps')
     this.#songId = db.prepare<[string], { id: number }>('SELECT id FROM songs WHERE uid = ?')
+    this.#songAlias = db.prepare<[string], { id: number }>(
+      'SELECT song_id AS id FROM song_aliases WHERE uid = ?',
+    )
+    this.#addSongAlias = db.prepare(
+      'INSERT OR IGNORE INTO song_aliases (uid, song_id) VALUES (?, ?)',
+    )
     this.#tag = db.prepare<[string], { id: number; name: string }>(
       'SELECT id, name FROM tags WHERE uid = ?',
     )
@@ -112,8 +120,22 @@ export class SyncRepository {
 
   // --- Finding things by uid -------------------------------------------------
 
+  /** The song a uid means here: its own, or the one another server's uid was folded into. */
   songId(uid: string): number | null {
-    return this.#songId.get(uid)?.id ?? null
+    return this.#songId.get(uid)?.id ?? this.#songAlias.get(uid)?.id ?? null
+  }
+
+  /**
+   * Remember that another server calls this song by `uid`.
+   *
+   * Two servers that each scanned the same file gave it a uid apiece. Adoption
+   * finds that out from the audio's hash (`CloudAdopt`) and records the second
+   * uid here instead of making a second row, so everything that arrives naming
+   * it — a change from a device that read the other server's snapshot, a
+   * playlist that lists it — lands on the one song there is.
+   */
+  addSongAlias(uid: string, songId: number): void {
+    this.#addSongAlias.run(uid, songId)
   }
 
   /** The tag a uid means here: its own, or the one it was folded into. */

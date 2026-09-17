@@ -437,6 +437,26 @@ const MIGRATIONS: readonly Migration[] = [
         ON songs(source_url) WHERE source_url IS NOT NULL;
     `,
   },
+  {
+    // 24. A song two servers each made a row for, before either had heard of
+    // the other, is one song here — `tag_aliases`, for songs.
+    //
+    // A uid is handed out by whichever server first sees a file, so the same
+    // file scanned on two machines has two. The bucket tells them apart from
+    // two different songs by the audio's own hash, which is its file name
+    // there. When a snapshot names a song whose audio this server already
+    // holds under another uid, the second uid is kept here rather than being
+    // made into a second row: a change that names it still finds the song,
+    // and so does a playlist that lists it.
+    name: 'know a song by the second uid another server gave it',
+    sql: `
+      CREATE TABLE song_aliases (
+        uid     TEXT    PRIMARY KEY,
+        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_song_aliases_song ON song_aliases(song_id);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

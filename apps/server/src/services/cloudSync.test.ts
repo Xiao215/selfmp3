@@ -1066,6 +1066,95 @@ describe('CloudSyncService', () => {
       expect(songs.byId(mine)).toMatchObject({ title: 'Dusk (my name for it)', loved: true })
     })
 
+    /*
+     * A uid says who made the row, not what the song is. Two servers that each
+     * imported the same file give it a uid apiece, and a real library ended up
+     * with three rows to a song because of it (2026-09-17): every round of
+     * "their snapshot, then mine" added one more copy of everything shared. The
+     * bucket names audio by the hash of its bytes, and that is what says two
+     * songs are one.
+     */
+    describe('a song both sides have, under a uid each', () => {
+      /** Their library, and this server's own copy of one song in it: same bytes, its own uid. */
+      const sameAudio = 'their audio of Nova - Dusk'
+
+      it('is one song, not two, on a server that has never uploaded it', async () => {
+        const mine = addSong('Nova - Dusk', sameAudio)
+        const myUid = uidOf(mine)
+        const theirs = theirLibrary()
+        expect(myUid).not.toBe(uid('Nova - Dusk'))
+        seedBucket(theirs)
+
+        await connect()
+
+        // Three in the bucket, one of them already here under another name.
+        expect(songs.all()).toHaveLength(3)
+        expect(songs.byId(mine)).toMatchObject({
+          path: 'Nova - Dusk/Nova - Dusk.m4a',
+          missing: false,
+        })
+        // And it is published once, as this server knows it.
+        const published = latest().songs.filter(song => song.title === 'Dusk')
+        expect(published.map(song => song.uid)).toEqual([myUid])
+      })
+
+      it('is one song on a server that uploaded it long ago', async () => {
+        // The shape of the real thing: a server already connected and
+        // published, and then another one writes a newer snapshot.
+        const mine = addSong('Nova - Dusk', sameAudio)
+        await connect()
+        expect(latest().songs).toHaveLength(1)
+
+        seedBucket(theirSnapshot({ songs: theirLibrary().songs, at: '2030-01-01T00:00:00.000Z' }))
+        await sync.syncNow({ verify: true })
+        await sync.whenIdle()
+        await pass()
+
+        expect(songs.all().filter(song => song.title === 'Dusk')).toHaveLength(1)
+        expect(songs.all()).toHaveLength(3)
+        expect(songs.byId(mine)).toMatchObject({ missing: false })
+      })
+
+      it('does not grow by a copy each time the two take turns', async () => {
+        addSong('Nova - Dusk', sameAudio)
+        const theirs = theirLibrary()
+        seedBucket(theirs)
+        await connect()
+
+        for (const year of [2031, 2032, 2033]) {
+          seedBucket(theirSnapshot({ songs: theirs.songs, at: `${year}-01-01T00:00:00.000Z` }))
+          await sync.syncNow({ verify: true })
+          await sync.whenIdle()
+          await pass()
+        }
+
+        expect(songs.all()).toHaveLength(3)
+      })
+
+      it('puts the song in their playlist, which names it by their uid', async () => {
+        const mine = addSong('Nova - Dusk', sameAudio)
+        seedBucket(theirLibrary())
+
+        await connect()
+
+        const [mix] = playlists.all()
+        if (!mix) throw new Error('their playlist was not taken on')
+        expect(playlists.songIds(mix)).toContain(mine)
+      })
+
+      it('keeps two different songs of the same size as two', async () => {
+        // Same length in bytes, different bytes: size only narrows the search.
+        const other = 'THEIR AUDIO OF NOVA - DUSK'
+        expect(other).toHaveLength(sameAudio.length)
+        addSong('Nova - Dusk', other)
+        seedBucket(theirLibrary())
+
+        await connect()
+
+        expect(songs.all()).toHaveLength(4)
+      })
+    })
+
     it('adopts nothing the second time, and makes no second row for anything', async () => {
       seedBucket(theirLibrary())
       await connect()
@@ -1352,6 +1441,22 @@ describe('CloudSyncService', () => {
       songs.patch(id, { title: 'One again' })
       await pass()
       expect(songs.byId(id)?.title).toBe('One again')
+    })
+
+    it('applies a change that names a song by the uid another server gave it', async () => {
+      // A device that read the other server's snapshot only knows that uid, and
+      // this server folded it into its own row for the same audio (CloudAdopt).
+      const mine = addSong('Nova - Dusk', 'their audio of Nova - Dusk')
+      seedBucket(theirSnapshot({ songs: [theirSong('Nova - Dusk')] }))
+      await connect()
+      expect(songs.all()).toHaveLength(1)
+
+      writeLog(PHONE, 1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uid('Nova - Dusk'), fields: { loved: true } },
+      ] satisfies Change[])
+      await pass()
+
+      expect(songs.byId(mine)).toMatchObject({ loved: true })
     })
 
     it('stops at a change this build does not know, and still reads the other devices', async () => {

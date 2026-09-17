@@ -386,6 +386,7 @@ The doorman is deployed by hand with `npx wrangler deploy`
 | [docs/universal-progress.md](docs/universal-progress.md) | The running log of what was built and checked, phase by phase |
 | [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
 | [verify/README.md](verify/README.md) | The Playwright flows and what they need |
+| [docs/PREPROD.md](docs/PREPROD.md) | Checking a build against the real thing before calling it good: what to test on each platform, and how not to damage the library doing it |
 | [apps/app/.maestro/README.md](apps/app/.maestro/README.md) | The phone flows, run with Maestro on a simulator |
 
 Feature pages, each with what it does, how it works and where the code is:

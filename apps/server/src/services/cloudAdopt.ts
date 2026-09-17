@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import {
+  audioKey,
   fromCloudRules,
   sanitizeFilename,
   type CloudPlaylist,
@@ -73,6 +75,12 @@ const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio:
 const ADOPTED_SIGNATURE = 'adopted'
 const NO_LOCAL_FILE = 'none'
 
+/** A song in the snapshot that is one this server already has, under another uid. */
+interface SameSong {
+  readonly uid: string
+  readonly songId: number
+}
+
 interface Prepared {
   readonly song: CloudSong
   readonly path: string
@@ -119,9 +127,11 @@ export class CloudAdopt {
   /**
    * Take on everything in this snapshot that is not here yet.
    *
-   * Run twice over the same snapshot it does nothing the second time: every
-   * match is by uid, and a uid that is already a row here is skipped. A server
-   * holding ten of the bucket's fifty-two ends with fifty-two, not sixty-two.
+   * Run twice over the same snapshot it does nothing the second time: a uid
+   * that is already a row here is skipped, and so is one whose audio this
+   * server already holds under a uid of its own (`#songWithTheSameAudio`). A
+   * server holding ten of the bucket's fifty-two ends with fifty-two, not
+   * sixty-two — whether or not the two agree on what the ten are called.
    *
    * Picking where each song's file will go touches the disk, which the database
    * transaction cannot, so it happens first, for every song at once. The
@@ -130,13 +140,23 @@ export class CloudAdopt {
    * library that published would be the original bug wearing a hat.
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
-    const prepared = await this.#prepare(snapshot.songs)
+    const { prepared, same } = await this.#prepare(snapshot.songs)
     const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
     const newTags = snapshot.tags.filter(tag => !this.#sync.tag(tag.uid))
-    if (prepared.length === 0 && newPlaylists.length === 0 && newTags.length === 0) return NOTHING
+    if (
+      prepared.length === 0 &&
+      same.length === 0 &&
+      newPlaylists.length === 0 &&
+      newTags.length === 0
+    ) {
+      return NOTHING
+    }
 
     return this.#db.transaction((): AdoptionResult => {
       const tags = this.#adoptTags(snapshot)
+      // Before the playlists, which find their songs by uid: a list naming the
+      // other server's uid for a song has to find the song.
+      for (const { uid, songId } of same) this.#sync.addSongAlias(uid, songId)
       for (const item of prepared) this.#adoptSong(item)
       const playlists = this.#adoptPlaylists(newPlaylists)
       return {
@@ -158,11 +178,22 @@ export class CloudAdopt {
    * `taken` keeps two songs of the same name in one snapshot apart, since
    * neither is on disk or in the database yet for the other to find.
    */
-  async #prepare(songs: readonly CloudSong[]): Promise<Prepared[]> {
+  async #prepare(songs: readonly CloudSong[]): Promise<{ prepared: Prepared[]; same: SameSong[] }> {
     const prepared: Prepared[] = []
+    const same: SameSong[] = []
     const taken = new Set<string>()
     for (const song of songs) {
       if (this.#sync.songId(song.uid) !== null) continue
+      const songId = await this.#songWithTheSameAudio(song)
+      if (songId !== null) {
+        same.push({ uid: song.uid, songId })
+        this.#logger.info('a song from the bucket is one already here, under another uid', {
+          uid: song.uid,
+          songId,
+          title: song.title,
+        })
+        continue
+      }
       const key = await this.#freeKey(song, taken)
       if (!key) {
         this.#logger.warn('no free name in the library for a song from the bucket', {
@@ -173,7 +204,38 @@ export class CloudAdopt {
       }
       prepared.push({ song, path: key, audioPresent: this.#cloud.hasFile(song.audio.key) })
     }
-    return prepared
+    return { prepared, same }
+  }
+
+  /**
+   * The song here that *is* this one, whatever either side calls it.
+   *
+   * A uid says who made the row, not what the song is. Two servers that each
+   * scanned or imported the same file hand out a uid apiece, and matching on
+   * uid alone took the second for a new song: it was given a row, fetched from
+   * the bucket into a folder with a (2) after it, and published to every
+   * device as a second copy of a song they already had. Run alternately, two
+   * such servers add a copy of every shared song on every round — which is
+   * what a real library looked like on 2026-09-17, three rows to a song.
+   *
+   * What a song is, is its audio, and the bucket already names every file by
+   * the hash of its bytes. So the same key is the same song. This server knows
+   * the key of everything it has uploaded; for what it has not, size narrows it
+   * to a handful and the files themselves settle it.
+   */
+  async #songWithTheSameAudio(song: CloudSong): Promise<number | null> {
+    const known = this.#cloud.songWithAudio(song.audio.key)
+    if (known !== null) return known
+    for (const candidate of this.#cloud.unsentSongsOfSize(song.audio.size)) {
+      try {
+        const data = await this.#storage.read(candidate.path)
+        const key = audioKey(sha256(data), path.extname(candidate.path))
+        if (key === song.audio.key) return candidate.id
+      } catch {
+        // Gone between the scan and now: not a match, and not worth stopping for.
+      }
+    }
+    return null
   }
 
   async #freeKey(song: CloudSong, taken: Set<string>): Promise<string | null> {
@@ -343,4 +405,8 @@ export class CloudAdopt {
       this.#clock.observe(hlc)
     }
   }
+}
+
+function sha256(data: Buffer): string {
+  return createHash('sha256').update(data).digest('hex')
 }

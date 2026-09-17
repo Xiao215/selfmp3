@@ -378,6 +378,41 @@ export class CloudRepository {
     this.#saveState.run(state)
   }
 
+  /**
+   * The song here whose audio is this file in the bucket, or null.
+   *
+   * A bucket file is named by the hash of its bytes, so the same key is the
+   * same audio whatever either side calls the song. One that is really here is
+   * preferred over a row whose file has gone, and the oldest row over a newer
+   * one, since the newer is the likelier to be the accident.
+   */
+  songWithAudio(audioKey: string): number | null {
+    const row = this.#db
+      .prepare<[string], { id: number }>(
+        `SELECT s.id FROM cloud_songs c JOIN songs s ON s.id = c.song_id
+          WHERE c.audio_key = ? ORDER BY s.missing ASC, s.id ASC LIMIT 1`,
+      )
+      .get(audioKey)
+    return row?.id ?? null
+  }
+
+  /**
+   * Songs really here that have never been uploaded, of exactly this size.
+   *
+   * A song's hash is only written down when it goes up, so a server signing in
+   * for the first time knows none of its own. Size is what it does know, and
+   * two different recordings of exactly the same length in bytes are rare
+   * enough that hashing the few that match costs nothing.
+   */
+  unsentSongsOfSize(sizeBytes: number): { id: number; path: string }[] {
+    return this.#db
+      .prepare<[number], { id: number; path: string }>(
+        `SELECT s.id, s.path FROM songs s LEFT JOIN cloud_songs c ON c.song_id = s.id
+          WHERE c.song_id IS NULL AND s.missing = 0 AND s.size_bytes = ? ORDER BY s.id`,
+      )
+      .all(sizeBytes)
+  }
+
   hasFile(key: string): boolean {
     return (this.#hasFile.get(key)?.n ?? 0) > 0
   }

@@ -201,7 +201,7 @@ anything**, and takes on every song in it that it does not already have
 | **When** | Once per bucket, on the first pass after connecting, signing in, or starting up — and again when you press *Publish now*, which starts over. Nothing is published until it has finished, an import's own publish included. |
 | **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, play and skip counts, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
 | **`missing`** | Set on every adopted song: the audio is in the bucket, not on this disk. That is what the column has always meant. |
-| **Matching** | By uid, always. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, and a second run adopts nothing. |
+| **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
 | **`SELFMP3_PUBLISH_ANYWAY=1`** | Skips adoption as well as the guard below. It is how you say *this server's library is the one I want everywhere*, and merging the bucket's in first would be the opposite of that. |
@@ -214,11 +214,15 @@ on the strength of a snapshot whose songs this server may have *declined* to ove
 to import a link are not adopted either; they are the last week's, and the devices that made them
 say how they went.
 
-**What adoption cannot see.** A library restored from a disk backup with no database is scanned
-into fresh uids, and the bucket's songs are then a second set of rows under different uids: 52
-adopted beside 52 scanned. Uid is the only identity the bucket has, and guessing that two songs
-are one on the strength of their names would be a worse failure than the duplicate. Restore the
-database with the folder, or let adoption bring the files down instead of copying them by hand.
+**What adoption cannot see.** A re-encode. A library restored from a disk backup with no database
+is scanned into fresh uids, and that much is fine: the files are the same files, their hashes match
+the bucket's, and each is folded into the bucket's song rather than adopted beside it. (It was not
+always: until 2026-09-17 uid was the only identity compared, two servers that had each imported the
+same songs added a copy of every one on every round, and a real library reached three rows a song.)
+What still makes a second row is audio that really differs — the same song downloaded again at
+another bitrate, or re-tagged by a tool that rewrites the file. Guessing those are one on the
+strength of their names would be a worse failure than the duplicate; the import's own matcher
+(`services/alreadyHave.ts`) is what keeps them from arriving in the first place.
 
 **Then the files come down.** Behind the pass, one song at a time, the audio, cover and lyrics of
 every adopted song are fetched into the library folder

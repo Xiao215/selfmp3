@@ -19,8 +19,10 @@ Files:
 | Download, prune, storage guard | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
 | Which address a song plays and draws from | `apps/app/src/api/mediaAddress.model.ts`, `apps/app/src/ports/bucketMedia.ts` (+ `.web.ts`), `apps/app/sw/sw.ts` |
 | Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
+| What the counts mean | `downloadTally` in `packages/client/src/downloads/downloadIndex.ts` |
+| What removing means here | `removingTakesTheCopy` in `apps/app/src/ports/device.ts` (+ `.web.ts`) |
 | Late plays on the server | `apps/server/src/routes/songs.ts`, `repositories/stats.ts` |
-| Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts` |
+| Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts`, `packages/client/src/downloads/downloadIndex.test.ts`, `apps/app/src/features/settings/OfflinePanel.test.tsx`, `apps/app/src/ui/components/SongMenu.test.tsx` |
 
 ## Plays made offline
 
@@ -65,11 +67,49 @@ song at a time.
   downloads and all. The status then says how many songs did not fit.
 - **Songs removed by hand stay removed.** "Remove download" remembers the song, so the next
   pass does not put it straight back; downloading it again by hand forgets that.
+- **A song that leaves the library is forgotten rather than remembered.** Removing the row is
+  not "don't download this": the id can be handed to a different song later, and a cloud
+  library hands out its own, so remembering it would keep the wrong song off the device.
 - **Remove all downloads** also turns automatic downloads off, or the cache would simply fill
-  again.
+  again. While it runs, it and "Remove leftover files" both read "Removing…" and neither can
+  be pressed: two passes over one index would have the later one write back what the earlier
+  one deleted.
 
 Songs that leave the library are dropped from the cache, but only against a fresh answer from
 the server and never a song the library still has, even one whose file is missing today.
+
+## Removing a song
+
+The same words mean different things on the two kinds of device, so they ask different
+questions (`removingTakesTheCopy`; a port, never `Platform.OS` in a screen).
+
+- **On a computer**, "Remove from library…" offers the choice it always has: take the row out
+  and leave the file, or delete the audio file too. That file is the *server's* — the one in
+  the library folder, which a rescan would find again — so keeping it is a real option.
+- **On a phone**, there is no such folder and the owner's rule is plain: delete from library
+  means delete from local too. It is one action behind one confirmation, and it takes the
+  download with it. Dropping the download on its own is still there, separately, as "Remove
+  download".
+
+The multi-select confirmation (`ConfirmRemoveSongs`) is the same component either way: on a
+phone its tick-box is gone and its wording says the copies here go too.
+
+## The two numbers
+
+"How much of my library is here" and "what is this device keeping" are different questions and
+`downloadTally` answers both, so nothing has to work it out twice.
+
+The first is asked of the library in front of you. A song stops counting the moment it leaves
+it — removed here, or removed on another device and arrived by sync — without waiting for
+anything to agree. It is the sidebar's "45 songs · 41 saved offline" and the Settings panel's
+"41 of 43 songs downloaded", and both fall together.
+
+The second is asked of the index, which outlives the library it was filled from. A file left
+behind by a departed song is still a file taking up room, so it is what "Remove all downloads"
+is offered for, and what the leftovers line above it counts. Settings used to answer the
+second question and print it as the first: two songs removed from a library of 45 left it
+reading "43 of 43 songs downloaded", with the bar full and the two departed rows still counted
+as being here.
 
 A pass that finds nothing to do remembers the manifest it saw, so the next library bump that
 changes no file — a tag, a rename — skips reading every cached entry's size again.

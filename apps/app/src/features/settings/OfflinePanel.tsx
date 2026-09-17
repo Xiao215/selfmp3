@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { formatBytes } from '@selfmp3/shared'
 import {
-  downloadedCount,
+  downloadTally,
   staleDownloads,
-  totalBytes,
   useLibrary,
   useManifest,
   type StaleDownloads,
@@ -38,14 +37,22 @@ export function OfflinePanel({
     absentIds,
     absentBytes,
     requestDownload,
+    removeFiles,
+    removing,
   } = useDownloads()
-  const [busy, setBusy] = useState(false)
 
   const songIds = useMemo(
     () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
     [library.data],
   )
-  const held = downloadedCount(downloads.index)
+  /*
+   * Counted against the library in front of you, not against the index. A song
+   * removed anywhere — here, or on another device an hour ago — is out of
+   * `songIds` as soon as the library says so, and out of these numbers with
+   * it; the entry it may have left behind is `tally.kept`'s business and the
+   * leftovers line's, below.
+   */
+  const tally = downloadTally(downloads.index, songIds)
   /*
    * What the disk says, on a device that has one to ask. Read once when the
    * panel appears and again whenever the queue settles, which is when the
@@ -110,14 +117,12 @@ export function OfflinePanel({
 
       <Stats
         items={[
-          { value: String(held), label: `of ${songIds.length} songs downloaded` },
+          { value: String(tally.here), label: `of ${tally.songs} songs downloaded` },
           // The disk, where there is one to ask. The index and the folder can
           // disagree — a `.part` left by an interrupted download, a cover kept
           // beside a song — and the folder is the one that is true.
           {
-            value: formatBytes(
-              onDisk === null ? totalBytes(downloads.index) : onDisk.songs + onDisk.covers,
-            ),
+            value: formatBytes(onDisk === null ? tally.keptBytes : onDisk.songs + onDisk.covers),
             label: 'used',
           },
           ...(onDisk ? [{ value: formatBytes(onDisk.free), label: 'free on this disk' }] : []),
@@ -132,8 +137,8 @@ export function OfflinePanel({
           />
         </Row>
       ) : null}
-      {songIds.length > 0 ? (
-        <Meter fraction={held / songIds.length} label="Songs downloaded" />
+      {tally.songs > 0 ? (
+        <Meter fraction={tally.here / tally.songs} label="Songs downloaded" />
       ) : null}
 
       {working ? (
@@ -169,7 +174,7 @@ export function OfflinePanel({
             label={
               missingBytes === 0
                 ? 'Everything is downloaded'
-                : `${held === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
+                : `${tally.here === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
             }
             icon={<CloudDownload size={15} tone={missingBytes === 0 ? 'textMuted' : 'onAccent'} />}
             variant="primary"
@@ -177,23 +182,33 @@ export function OfflinePanel({
             onPress={() => requestDownload(absentIds)}
           />
         )}
+        {/*
+         * Deleting files takes as long as it takes, and the two buttons that
+         * do it act on overlapping sets. While either is running both say so
+         * and neither fires: pressing "Remove all downloads" a second time
+         * used to start a second pass over an index the first was still
+         * rewriting. `removing` is the provider's, so the state survives this
+         * panel and covers the removal the confirmation dialog starts.
+         */}
         {stale !== null && stale.all.length > 0 ? (
           <Button
             label={
-              stale.changed.length === 0 ? 'Remove leftover files' : 'Remove out-of-date files'
+              removing
+                ? 'Removing…'
+                : stale.changed.length === 0
+                  ? 'Remove leftover files'
+                  : 'Remove out-of-date files'
             }
-            busy={busy}
-            onPress={() => {
-              setBusy(true)
-              void queue.remove([...stale.all]).finally(() => setBusy(false))
-            }}
+            busy={removing}
+            onPress={() => void removeFiles([...stale.all])}
           />
         ) : null}
-        {held > 0 ? (
+        {tally.kept > 0 ? (
           <Button
-            label="Remove all downloads"
+            label={removing ? 'Removing…' : 'Remove all downloads'}
             icon={<Trash size={15} tone="danger" />}
             variant="danger"
+            busy={removing}
             onPress={() => onConfirm('remove-downloads')}
           />
         ) : null}

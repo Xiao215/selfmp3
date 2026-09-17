@@ -103,8 +103,26 @@ interface DownloadsContextValue {
   downloadByHand: (songIds: readonly number[]) => void
   /** Remove these, and keep them removed. */
   removeByHand: (songIds: readonly number[]) => Promise<void>
+  /**
+   * These songs are leaving the library: their copies here go with them.
+   *
+   * Not `removeByHand`, which keeps the song and remembers the removal so the
+   * next automatic pass does not fetch it straight back. A song that is gone
+   * has nothing to remember, and its id can be handed to a different song
+   * later — a cloud library numbers its own — so remembering it would keep the
+   * wrong song off this device.
+   */
+  dropDownloads: (songIds: readonly number[]) => Promise<void>
+  /** Delete these files, whatever their songs are: the leftovers button. */
+  removeFiles: (songIds: readonly number[]) => Promise<void>
   /** Remove every download, and stop downloading by itself, or they would come back. */
   removeAll: () => Promise<void>
+  /**
+   * A removal is running. The buttons that start one are disabled while it is,
+   * and starting a second does nothing: two passes over the same index would
+   * have the later one write back the entries the earlier one deleted.
+   */
+  readonly removing: boolean
   /** A song just counted as a play: keep a copy where songs are streamed from the bucket. */
   keepPlayed: (songId: number) => void
   /** Whether a song can start here now, without asking. */
@@ -313,11 +331,50 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [changeExcluded],
   )
 
-  const removeAll = useCallback(async () => {
-    setPrefs({ autoOnWifi: false })
-    clearRecent()
-    await downloadQueue.removeAll()
-  }, [setPrefs])
+  const dropDownloads = useCallback(
+    async (ids: readonly number[]) => {
+      // Forgotten rather than remembered: see `dropDownloads` on the context.
+      changeExcluded(ids, false)
+      forgetRecent(ids)
+      await downloadQueue.remove(ids)
+    },
+    [changeExcluded],
+  )
+
+  /*
+   * One removal at a time, so a button that starts one can be disabled for as
+   * long as it runs and a second press is a no-op rather than a second pass.
+   * Both the flag and the ref: the ref is read by the press that has just
+   * happened, before React has rendered the flag.
+   */
+  const [removing, setRemoving] = useState(false)
+  const removingNow = useRef(false)
+  const runRemoval = useCallback(async (work: () => Promise<void>): Promise<void> => {
+    if (removingNow.current) return
+    removingNow.current = true
+    setRemoving(true)
+    try {
+      await work()
+    } finally {
+      removingNow.current = false
+      setRemoving(false)
+    }
+  }, [])
+
+  const removeFiles = useCallback(
+    (ids: readonly number[]) => runRemoval(() => downloadQueue.remove(ids)),
+    [runRemoval],
+  )
+
+  const removeAll = useCallback(
+    () =>
+      runRemoval(async () => {
+        setPrefs({ autoOnWifi: false })
+        clearRecent()
+        await downloadQueue.removeAll()
+      }),
+    [runRemoval, setPrefs],
+  )
 
   // The player's commands are made once; they read the latest rules through this.
   const songsById = useMemo(
@@ -433,7 +490,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       requestDownload,
       downloadByHand,
       removeByHand,
+      dropDownloads,
+      removeFiles,
       removeAll,
+      removing,
       keepPlayed,
       mayPlay,
       checkPlay,
@@ -452,7 +512,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       requestDownload,
       downloadByHand,
       removeByHand,
+      dropDownloads,
+      removeFiles,
       removeAll,
+      removing,
       keepPlayed,
       mayPlay,
       checkPlay,

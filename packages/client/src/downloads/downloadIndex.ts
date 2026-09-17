@@ -96,34 +96,64 @@ export function removeEntry(index: DownloadIndex, songId: number): DownloadIndex
  * Including songs the library no longer has: the entries and their files are
  * still there, and this is the number the buttons that act on all of them —
  * "Remove all downloads" — have to be gated on. For "how much of my library is
- * here", which is what a person means, `downloadedFrom` is the one to ask.
+ * here", which is what a person means, ask `downloadTally`.
  */
 export function downloadedCount(index: DownloadIndex): number {
   return Object.keys(index.entries).length
 }
 
+export function totalBytes(index: DownloadIndex): number {
+  return Object.values(index.entries).reduce((sum, entry) => sum + entry.sizeBytes, 0)
+}
+
 /**
- * How many of `songIds` are on this device.
+ * Every number a person is shown about downloads, worked out in one place.
  *
- * The count to show beside a library, because the index outlives the library
- * it was filled from: a song removed, or a whole library replaced, leaves its
- * entry and its file behind until something clears them. Counting entries
- * instead once had the foot of the sidebar reading "45 songs · 66 saved
- * offline", which is not a thing that can be true.
+ * There are two questions here and the whole of this file is about not
+ * confusing them. *How much of my library is here* is asked of the library in
+ * front of you, so a song stops counting the moment it leaves it — whether it
+ * was removed on this device or on another one and arrived by sync, and
+ * without waiting for a round-trip to agree. *What is this device keeping* is
+ * asked of the index, because a file left behind by a departed song is still a
+ * file taking up room, and it is what "Remove all downloads" acts on.
+ *
+ * Settings asked the second question and printed the answer as the first. With
+ * two songs removed from a library of 45 it read "43 of 43 songs downloaded":
+ * the library had lost them and the index had not, so the bar filled to the end
+ * and the two rows that had just gone were still counted as being here.
  */
-export function downloadedFrom(index: DownloadIndex, songIds: readonly number[]): number {
-  let held = 0
+interface DownloadTally {
+  /** Songs the library has, counted once each: the N in "M of N songs downloaded". */
+  readonly songs: number
+  /** Of those, how many are on this device: the M. */
+  readonly here: number
+  /** What those M take up. */
+  readonly bytes: number
+  /** Entries this device keeps, this library's or not. */
+  readonly kept: number
+  /** What all of those take up, files for departed songs included. */
+  readonly keptBytes: number
+}
+
+export function downloadTally(index: DownloadIndex, songIds: readonly number[]): DownloadTally {
   const seen = new Set<number>()
+  let here = 0
+  let bytes = 0
   for (const id of songIds) {
     if (seen.has(id)) continue
     seen.add(id)
-    if (isDownloaded(index, id)) held += 1
+    const entry = entryFor(index, id)
+    if (entry === null) continue
+    here += 1
+    bytes += entry.sizeBytes
   }
-  return held
-}
-
-export function totalBytes(index: DownloadIndex): number {
-  return Object.values(index.entries).reduce((sum, entry) => sum + entry.sizeBytes, 0)
+  return {
+    songs: seen.size,
+    here,
+    bytes,
+    kept: downloadedCount(index),
+    keptBytes: totalBytes(index),
+  }
 }
 
 /**

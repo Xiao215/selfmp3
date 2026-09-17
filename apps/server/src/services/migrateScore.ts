@@ -188,17 +188,3 @@ export function searchQuery(source: MigrateSourceTrack): string {
     .join(' ')
     .trim()
 }
-
-/** Is a song close enough to one already in the library to skip it? */
-export function isAlreadyInLibrary(
-  source: MigrateSourceTrack,
-  songs: readonly { title: string; artist: string }[],
-): boolean {
-  const title = cleanTitle(source.title)
-  for (const song of songs) {
-    if (similarity(title, cleanTitle(song.title)) < 0.9) continue
-    if (!source.artist.trim() || !song.artist.trim()) return true
-    if (similarity(source.artist, song.artist) >= 0.75) return true
-  }
-  return false
-}

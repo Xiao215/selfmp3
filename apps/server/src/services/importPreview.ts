@@ -9,6 +9,7 @@ import {
   type Playlist,
 } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
+import { alreadyHave, sourceUrlIndex } from './alreadyHave.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
@@ -40,10 +41,17 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   const urls = extractUrls(text)
   if (urls.length === 0) throw HttpError.badRequest('that does not look like a link')
 
-  // An index of what is already here, so the UI can grey out duplicates.
-  const existing = new Set(
-    deps.songs.all().map(song => `${song.artist}::${song.title}`.toLowerCase()),
-  )
+  /*
+   * What is already here, so the UI can grey out duplicates.
+   *
+   * This was a set of `artist::title` compared as exact lowercased strings,
+   * and it let the same song in ten times: YouTube hands back a different
+   * spelling of the channel from one week to the next, and two strings that
+   * differ by one character are two different songs to an exact comparison.
+   * `alreadyHave` knows the link, the fuzzy name and the length instead.
+   */
+  const library = deps.songs.all()
+  const knownLinks = sourceUrlIndex(library)
 
   const items: ImportPreviewItem[] = []
   let kind: 'single' | 'playlist' = 'single'
@@ -63,7 +71,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
         album: track.album,
         duration: track.duration,
         thumbnail: track.thumbnail,
-        alreadyHave: existing.has(`${track.artist}::${track.title}`.toLowerCase()),
+        alreadyHave: alreadyHave(track, library, knownLinks) !== null,
       })
     }
   }

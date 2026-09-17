@@ -9,7 +9,8 @@ import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { run, summarizeError } from './ytdlp.js'
 import { parseSpotifyEmbed, parseTrackList, spotifyPlaylistId } from './migrateParse.js'
-import { isAlreadyInLibrary, rankCandidates, searchQuery, type SearchHit } from './migrateScore.js'
+import { rankCandidates, searchQuery, type SearchHit } from './migrateScore.js'
+import { alreadyHave as alreadyInLibrary, type LibrarySong } from './alreadyHave.js'
 
 /**
  * Playlist migration.
@@ -174,7 +175,11 @@ export class MigrateService {
   async #runMatch(stored: StoredJob, tracks: readonly MigrateSourceTrack[]): Promise<void> {
     const { job, controller } = stored
     // Snapshot once: fifty fuzzy scans of a changing list would be pointless work.
-    const library = this.#songs.all().map(song => ({ title: song.title, artist: song.artist }))
+    // Length and source link as well as the name: a migrated list is matched
+    // against the library by the same rule a pasted link is (alreadyHave.ts).
+    const library: LibrarySong[] = this.#songs
+      .all()
+      .map(song => ({ title: song.title, artist: song.artist, duration: song.duration }))
 
     let next = 0
     const worker = async (): Promise<void> => {
@@ -197,10 +202,10 @@ export class MigrateService {
 
   async #matchOne(
     source: MigrateSourceTrack,
-    library: readonly { title: string; artist: string }[],
+    library: readonly LibrarySong[],
     signal: AbortSignal,
   ): Promise<MigrateMatchItem> {
-    const alreadyHave = isAlreadyInLibrary(source, library)
+    const alreadyHave = alreadyInLibrary(source, library) !== null
     try {
       const hits = await this.#search(searchQuery(source), signal)
       return { source, candidates: rankCandidates(source, hits), alreadyHave, error: null }

@@ -20,6 +20,7 @@ import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
+import { normaliseUrl } from '../services/alreadyHave.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -44,15 +45,38 @@ export function importRoutes(container: Container): Router {
     ),
   )
 
-  /** Queue what is not already queued, so a double tap does not download twice. */
+  /**
+   * Queue what is not already queued *and* not already downloaded.
+   *
+   * The queue check alone only stopped a double tap. A link imported last
+   * month was long gone from `import_jobs`, so pasting it again downloaded the
+   * whole song a second time and left two files on disk under the same name
+   * with a `(2)` after it — which is how a dev library came to hold 111 files
+   * of 45 songs.
+   *
+   * By the video's id, not the link: the same song arrives as
+   * `youtube.com/watch?v=…` one day and `youtu.be/…` the next, and both have
+   * to be recognised. The preview already greys these out; this is the floor
+   * under it, for the share endpoint and for anyone who ticks one anyway.
+   */
   const enqueueFresh = (
     items: readonly ImportEnqueueItem[],
     tagIds: readonly number[],
     playlistId: number | null,
   ): ImportEnqueueResult => {
-    const fresh = items.filter(item => !container.imports.isPending(item.url))
+    const downloaded = new Set(
+      container.songs
+        .withSourceUrls()
+        .map(song => normaliseUrl(song.sourceUrl))
+        .filter((url): url is string => url !== null),
+    )
+    const fresh = items.filter(item => {
+      if (container.imports.isPending(item.url)) return false
+      const url = normaliseUrl(item.url)
+      return !(url && downloaded.has(url))
+    })
     if (fresh.length === 0) {
-      throw HttpError.conflict('those tracks are already in the queue')
+      throw HttpError.conflict('those tracks are already in your library or in the queue')
     }
     const jobs = container.imports.enqueue(fresh, tagIds, playlistId)
     container.importQueue.kick()

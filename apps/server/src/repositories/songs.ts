@@ -83,6 +83,7 @@ export class SongRepository {
   readonly #updateScanned
   readonly #markMissing
   readonly #clearMissing
+  readonly #withSource
   readonly #setSourceUrl
   readonly #deleteById
   readonly #recordPlay
@@ -144,6 +145,9 @@ export class SongRepository {
     this.#markMissing = db.prepare('UPDATE songs SET missing = 1 WHERE path = ?')
     this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
     this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
+    this.#withSource = db.prepare<[], { id: number; source_url: string }>(
+      'SELECT id, source_url FROM songs WHERE source_url IS NOT NULL',
+    )
     this.#deleteById = db.prepare('DELETE FROM songs WHERE id = ?')
 
     // `last_played_at` only moves forward: a play from last Tuesday, sent
@@ -188,6 +192,19 @@ export class SongRepository {
 
   all(): Song[] {
     return this.#all.all().map(toSong)
+  }
+
+  /**
+   * The songs downloaded from these links, by the id in the link rather than
+   * the link itself: the same video reaches us as `youtube.com/watch?v=…`,
+   * `music.youtube.com/watch?v=…` and `youtu.be/…`, and a download from one
+   * must be recognised when the next paste uses another.
+   *
+   * Only rows that came from a link are looked at — most of a scanned library
+   * has no source at all — which is what the partial index is for.
+   */
+  withSourceUrls(): { id: number; sourceUrl: string }[] {
+    return this.#withSource.all().map(row => ({ id: row.id, sourceUrl: row.source_url }))
   }
 
   byId(id: number): Song | null {

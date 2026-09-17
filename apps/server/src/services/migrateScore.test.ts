@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   durationScore,
-  isAlreadyInLibrary,
   normalizeForMatch,
   rankCandidates,
   scoreHit,
@@ -186,42 +185,5 @@ describe('searchQuery', () => {
     expect(
       searchQuery({ title: 'Creep (Remastered 2009)', artist: '', album: '', duration: 0 }),
     ).toBe('Creep')
-  })
-})
-
-describe('isAlreadyInLibrary', () => {
-  const library = [
-    { title: 'Get Lucky', artist: 'Daft Punk' },
-    { title: 'Creep', artist: 'Radiohead' },
-    { title: 'Hello', artist: '' },
-  ]
-
-  it('matches fuzzily on title and artist', () => {
-    expect(isAlreadyInLibrary(getLucky, library)).toBe(true)
-    expect(isAlreadyInLibrary({ ...getLucky, title: 'get lucky (feat. Pharrell)' }, library)).toBe(
-      true,
-    )
-    expect(isAlreadyInLibrary({ ...getLucky, artist: 'daft punk & pharrell' }, library)).toBe(true)
-  })
-
-  it('does not match the same title by a different artist', () => {
-    expect(
-      isAlreadyInLibrary({ title: 'Creep', artist: 'TLC', album: '', duration: 0 }, library),
-    ).toBe(false)
-  })
-
-  it('matches on title alone when either side has no artist', () => {
-    expect(
-      isAlreadyInLibrary({ title: 'Hello', artist: 'Adele', album: '', duration: 0 }, library),
-    ).toBe(true)
-    expect(
-      isAlreadyInLibrary({ title: 'Creep', artist: '', album: '', duration: 0 }, library),
-    ).toBe(true)
-    expect(
-      isAlreadyInLibrary(
-        { title: 'Around the World', artist: '', album: '', duration: 0 },
-        library,
-      ),
-    ).toBe(false)
   })
 })

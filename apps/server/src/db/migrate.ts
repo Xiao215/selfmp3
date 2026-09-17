@@ -424,6 +424,19 @@ const MIGRATIONS: readonly Migration[] = [
       INSERT INTO yt_throttle (id) VALUES (1);
     `,
   },
+  {
+    // 23. Finding a song by where it came from.
+    //
+    // The import preview asks "do I already have this link?" once per track in
+    // a pasted playlist, which is a scan of the whole library per track
+    // without this. Partial, because most rows are scanned files with no
+    // source at all and there is no point indexing a column of nulls.
+    name: 'find a song by the link it came from',
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_songs_source
+        ON songs(source_url) WHERE source_url IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

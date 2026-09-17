@@ -52,6 +52,19 @@ export function deviceKind(): DeviceKind {
   return described().kind
 }
 
+/**
+ * Whether removing a song from the library takes this device's copy with it.
+ *
+ * Never here. The installed desktop app keeps downloads and keeps the two
+ * options with them, because on a computer the second one is about the file in
+ * the server's library folder. A tab keeps nothing at all, so there is no copy
+ * to take. See the phone's twin, where it is the other way round.
+ *
+ * Not `deviceKind() === 'phone'`: that reads the user agent, and a browser on
+ * an iPhone answers "phone" while keeping no files whatsoever.
+ */
+export const removingTakesTheCopy = false
+
 function generateId(): string {
   const bytes = new Uint8Array(16)
   crypto.getRandomValues(bytes)

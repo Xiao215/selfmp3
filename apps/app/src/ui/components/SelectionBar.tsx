@@ -21,6 +21,7 @@ import {
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { removingTakesTheCopy } from '../../ports/device'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
@@ -137,7 +138,7 @@ export function SelectionBar({
   const accent = useAccent()
   const { data: library } = useLibrary()
   const player = usePlayer()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { state: downloads, queue: downloadQueue, dropDownloads } = useDownloads()
 
   const bulkTag = useBulkTag()
   const bulkLoved = useBulkLoved()
@@ -527,8 +528,14 @@ export function SelectionBar({
           songs={songs}
           pending={bulkDelete.isPending}
           error={deleteError}
+          takesTheCopy={removingTakesTheCopy}
           onCancel={() => setConfirming(false)}
-          onConfirm={deleteFile =>
+          onConfirm={deleteFile => {
+            // Where removing takes the copy with it, it goes now rather than
+            // after the answer: the counts that name these songs are drawn
+            // from the library and the index, and both have to lose them at
+            // the same moment.
+            if (removingTakesTheCopy) void dropDownloads(ids)
             bulkDelete.mutate(
               { songIds: ids, deleteFile },
               {
@@ -556,7 +563,7 @@ export function SelectionBar({
                 onError: error => setDeleteError(error.message),
               },
             )
-          }
+          }}
         />
       ) : null}
     </>

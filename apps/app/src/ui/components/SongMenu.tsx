@@ -15,6 +15,7 @@ import {
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { removingTakesTheCopy } from '../../ports/device'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import {
@@ -40,9 +41,15 @@ import { TagPicker } from './TagPicker'
  * do has to be reachable from here, tagging included. The song's name heads it,
  * so a menu opened by holding a row still says which row it came from.
  *
- * Destructive actions sit last and apart. Removing asks first, and "remove
- * from my list" and "delete the actual file" are separate choices, never one
- * mis-tap apart.
+ * Destructive actions sit last and apart, and removing always asks first.
+ * What it then offers depends on the device (`removingTakesTheCopy`): a
+ * computer separates "remove from my list" from "delete the actual file",
+ * which are never one mis-tap apart, because that second file is the server's
+ * and a rescan would find it again. A phone has no such file and one meaning —
+ * remove it, and take the download with it — so it asks once and does that.
+ *
+ * Dropping the download on its own stays where it is, above, as "Remove
+ * download": keeping the song and freeing the room is a different wish.
  *
  * Editing tags and the song's details replace the menu rather than stacking on
  * it. Kept short on purpose: the similar-songs pair folds into one row, and
@@ -163,7 +170,13 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
   const deleteSong = useDeleteSong()
-  const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
+  const {
+    state: downloads,
+    installed,
+    downloadByHand,
+    removeByHand,
+    dropDownloads,
+  } = useDownloads()
   const { wide } = useLayout()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
   const [similarOpen, setSimilarOpen] = useState(false)
@@ -306,6 +319,29 @@ function Items({
           danger
           onPress={() => setConfirmingDelete(true)}
         />
+      ) : removingTakesTheCopy ? (
+        /*
+         * One question, then one action. Removing a song here is removing it:
+         * the row leaves the library and the download leaves the device with
+         * it. The other choice a computer offers is about the file in the
+         * server's library folder, which is not this device's to decide.
+         */
+        <View>
+          <Text style={styles.hint}>
+            Remove “{song.title}” from your library?
+            {held ? ' The download on this device goes too.' : ''}
+          </Text>
+          <SheetItem
+            icon={<Trash size={16} color={theme.colors.danger} />}
+            label="Remove from library"
+            danger
+            onPress={then(() => {
+              void dropDownloads([song.id])
+              deleteSong.mutate({ id: song.id, deleteFile: false })
+            })}
+          />
+          <SheetItem label="Cancel" onPress={() => setConfirmingDelete(false)} />
+        </View>
       ) : (
         <View>
           <Text style={styles.hint}>Remove “{song.title}”?</Text>

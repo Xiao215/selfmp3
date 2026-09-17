@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
-  downloadedFrom,
+  downloadTally,
   oklchToHexAlpha,
   radius,
   railTags,
@@ -619,8 +619,7 @@ function Foot(): ReactNode {
    * library's included, so counting entries can say more are saved than exist.
    */
   const songIds = library.data?.songs.map(song => song.id) ?? []
-  const saved = downloadedFrom(state.index, songIds)
-  const songs = songIds.length
+  const { songs, here: saved } = downloadTally(state.index, songIds)
 
   // A failed refetch keeps the cached library, so an error wins over the data.
   const [dot, label] = library.isError

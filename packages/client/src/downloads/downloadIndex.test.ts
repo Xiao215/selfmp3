@@ -4,10 +4,10 @@ import {
   addEntry,
   bytesToDownload,
   downloadedCount,
+  downloadTally,
   EMPTY_INDEX,
   entryFor,
   fileNameFor,
-  downloadedFrom,
   isDownloaded,
   parseIndex,
   pendingIds,
@@ -123,25 +123,70 @@ describe('pendingIds', () => {
   })
 })
 
-describe('downloadedFrom', () => {
+describe('downloadTally', () => {
   it('counts only the songs asked about', () => {
     const index = withEntries(entry(1), entry(2), entry(9))
-    expect(downloadedFrom(index, [1, 2])).toBe(2)
+    expect(downloadTally(index, [1, 2]).here).toBe(2)
   })
 
-  it('ignores entries for songs the library no longer has', () => {
+  it('keeps the two questions apart', () => {
     // The sidebar's "45 songs · 66 saved offline": the index outlives a library.
     const index = withEntries(entry(1), entry(2), entry(9))
-    expect(downloadedCount(index)).toBe(3)
-    expect(downloadedFrom(index, [1])).toBe(1)
+    expect(downloadTally(index, [1])).toMatchObject({ songs: 1, here: 1, kept: 3 })
   })
 
-  it('counts a song asked about twice once', () => {
-    expect(downloadedFrom(withEntries(entry(1)), [1, 1])).toBe(1)
+  it('counts a song asked about twice once, in both the songs and the bytes', () => {
+    const index = withEntries(entry(1, { sizeBytes: 500 }))
+    expect(downloadTally(index, [1, 1])).toMatchObject({ songs: 1, here: 1, bytes: 500 })
   })
 
-  it('is nothing when the library is empty', () => {
-    expect(downloadedFrom(withEntries(entry(1)), [])).toBe(0)
+  it('is nothing when the library is empty, whatever the device is keeping', () => {
+    expect(downloadTally(withEntries(entry(1)), [])).toMatchObject({
+      songs: 0,
+      here: 0,
+      bytes: 0,
+      kept: 1,
+    })
+  })
+
+  /*
+   * The bug the owner hit on a phone, as arithmetic.
+   *
+   * A library of 45 with 43 downloaded. Two songs are removed — the rows go and,
+   * because this is a phone, their files go with them. Settings read the index
+   * for the first number and the library for the second and so said "43 of 43";
+   * both numbers now come from the same tally and it says 41 of 43.
+   */
+  it('drops a removed song from every number at once', () => {
+    const all = Array.from({ length: 45 }, (_, at) => at + 1)
+    const downloaded = all.slice(0, 43)
+    const index = withEntries(...downloaded.map(id => entry(id, { sizeBytes: 100 })))
+    expect(downloadTally(index, all)).toMatchObject({ songs: 45, here: 43, bytes: 4300 })
+
+    // Removed here: out of the library, and their downloads with them.
+    const left = all.filter(id => id !== 7 && id !== 8)
+    const after = removeEntry(removeEntry(index, 7), 8)
+    expect(downloadTally(after, left)).toMatchObject({
+      songs: 43,
+      here: 41,
+      bytes: 4100,
+      kept: 41,
+      keptBytes: 4100,
+    })
+  })
+
+  /*
+   * The same removal made on another device and arriving by sync. Nothing here
+   * deleted anything, so the files are still on this device — but they are no
+   * longer any of this library's business, and the count says so at once. The
+   * two left behind are what `staleDownloads` calls gone and what the panel
+   * offers to clear.
+   */
+  it('stops counting a song removed elsewhere before its file is cleared', () => {
+    const index = withEntries(entry(1), entry(2), entry(3))
+    const tally = downloadTally(index, [1, 2])
+    expect(tally).toMatchObject({ songs: 2, here: 2, kept: 3 })
+    expect(tally.keptBytes - tally.bytes).toBe(1000)
   })
 })
 

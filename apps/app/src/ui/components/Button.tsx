@@ -73,18 +73,17 @@ export function Button({
         inactive && styles.disabled,
       ]}
     >
-      {busy ? (
-        <Spinner variant={variant} />
-      ) : (
-        <View style={styles.content}>
-          {icon}
-          {label !== undefined ? (
-            <Text style={[styles.label, ink]} numberOfLines={1}>
-              {label}
-            </Text>
-          ) : null}
-        </View>
-      )}
+      <View style={styles.content}>
+        {/* Busy takes the icon's place and leaves the label, so a button can
+            say what it is doing — "Removing…" — while it spins. With no label
+            there is nothing to say and the spinner is the whole button. */}
+        {busy ? <Spinner variant={variant} /> : icon}
+        {label !== undefined ? (
+          <Text style={[styles.label, ink]} numberOfLines={1}>
+            {label}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   )
 }

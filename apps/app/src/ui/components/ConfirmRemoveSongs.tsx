@@ -23,6 +23,12 @@ import { Trash, X } from './Icons'
  * list" and "destroy the files" are not degrees of the same thing and must
  * never be one mis-tap apart.
  *
+ * `takesTheCopy` is the third face, and the one a phone gets: no box, because
+ * there is nothing to choose. The rows leave the library and the downloads
+ * leave the device with them, which is the only thing removing a song there
+ * has ever meant. The box's question is about the *server's* library folder,
+ * and a phone is not where that is answered.
+ *
  * Mounted only while it is showing, so the box always starts unticked.
  *
  * Because there is no toast to say it in, a failure is shown inside the
@@ -32,6 +38,7 @@ export function ConfirmRemoveSongs({
   songs,
   pending = false,
   error = null,
+  takesTheCopy = false,
   onCancel,
   onConfirm,
 }: {
@@ -39,11 +46,17 @@ export function ConfirmRemoveSongs({
   pending?: boolean
   /** Why the last attempt failed, if it did. */
   error?: string | null
+  /**
+   * Removing takes this device's own copies with it, and offers no choice
+   * about the server's files (`removingTakesTheCopy` in ports/device).
+   */
+  takesTheCopy?: boolean
   onCancel: () => void
   onConfirm: (deleteFile: boolean) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const [deleteFile, setDeleteFile] = useState(false)
+  const [deleteFileChosen, setDeleteFile] = useState(false)
+  const deleteFile = deleteFileChosen && !takesTheCopy
   const accent = useAccent()
   const { wide } = useLayout()
 
@@ -63,7 +76,7 @@ export function ConfirmRemoveSongs({
     >
       <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="Cancel" />
       <View
-        style={[styles.dialog, deleteFile && styles.dialogDestructive]}
+        style={[styles.dialog, (deleteFile || takesTheCopy) && styles.dialogDestructive]}
         role="dialog"
         aria-modal
         accessibilityViewIsModal
@@ -85,7 +98,17 @@ export function ConfirmRemoveSongs({
 
         <ScrollView contentContainerStyle={styles.body}>
           <Text style={styles.lede}>
-            {deleteFile ? (
+            {takesTheCopy ? (
+              <>
+                The {count === 1 ? 'song' : `${count} songs`} and everything about{' '}
+                {count === 1 ? 'it' : 'them'} — tags, play counts, playlist places — leave your
+                library,{' '}
+                <Text style={styles.strong}>
+                  and anything downloaded here is deleted from this device
+                </Text>
+                .
+              </>
+            ) : deleteFile ? (
               <>
                 The {count === 1 ? 'audio file is' : `${count} audio files are`} deleted from disk
                 and removed from your library.{' '}
@@ -116,27 +139,29 @@ export function ConfirmRemoveSongs({
             ) : null}
           </View>
 
-          <Pressable
-            style={[styles.choice, deleteFile && styles.choiceOn]}
-            onPress={() => setDeleteFile(value => !value)}
-            disabled={pending}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: deleteFile, disabled: pending }}
-          >
-            <View style={styles.choiceBox}>
-              <Checkbox checked={deleteFile} tone="danger" />
-            </View>
-            <View style={styles.choiceCopy}>
-              <Text style={styles.choiceTitle}>
-                Also delete the {count === 1 ? 'audio file' : `${count} audio files`} from disk
-              </Text>
-              <Text style={[styles.choiceHint, deleteFile && styles.choiceHintOn]}>
-                {deleteFile
-                  ? 'Permanent. There is no undo and nothing goes to a trash folder.'
-                  : 'Off: your files are left untouched.'}
-              </Text>
-            </View>
-          </Pressable>
+          {takesTheCopy ? null : (
+            <Pressable
+              style={[styles.choice, deleteFile && styles.choiceOn]}
+              onPress={() => setDeleteFile(value => !value)}
+              disabled={pending}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: deleteFile, disabled: pending }}
+            >
+              <View style={styles.choiceBox}>
+                <Checkbox checked={deleteFile} tone="danger" />
+              </View>
+              <View style={styles.choiceCopy}>
+                <Text style={styles.choiceTitle}>
+                  Also delete the {count === 1 ? 'audio file' : `${count} audio files`} from disk
+                </Text>
+                <Text style={[styles.choiceHint, deleteFile && styles.choiceHintOn]}>
+                  {deleteFile
+                    ? 'Permanent. There is no undo and nothing goes to a trash folder.'
+                    : 'Off: your files are left untouched.'}
+                </Text>
+              </View>
+            </Pressable>
+          )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
@@ -151,8 +176,13 @@ export function ConfirmRemoveSongs({
                   ? `Delete ${count} ${fileWord}`
                   : `Remove ${count} ${songWord}`
             }
-            icon={<Trash size={15} color={deleteFile ? theme.colors.danger : accent.onAccent} />}
-            variant={deleteFile ? 'danger' : 'primary'}
+            icon={
+              <Trash
+                size={15}
+                color={deleteFile || takesTheCopy ? theme.colors.danger : accent.onAccent}
+              />
+            }
+            variant={deleteFile || takesTheCopy ? 'danger' : 'primary'}
             onPress={() => onConfirm(deleteFile)}
             disabled={pending}
             grow={!wide}

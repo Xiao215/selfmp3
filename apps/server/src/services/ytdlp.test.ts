@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isVideoEntry, parseProgress, run, toProbedTrack } from './ytdlp.js'
+import { isVideoEntry, parseProgress, run, toProbedTrack, ytdlpAgeDays } from './ytdlp.js'
 
 describe('toProbedTrack', () => {
   const WATCH = 'https://www.youtube.com/watch?v=ZRtdQ81jPUQ'
@@ -98,5 +98,25 @@ describe('parseProgress', () => {
     expect(parseProgress('[download] 100% of 3.29MiB in 00:00:00 at 8.00MiB/s')).toBe(100)
     expect(parseProgress('[download] Destination: song.m4a')).toBeNull()
     expect(parseProgress('[ExtractAudio] Destination: song.m4a')).toBeNull()
+  })
+})
+
+describe('ytdlpAgeDays', () => {
+  const NOW = new Date('2026-09-17T00:00:00Z')
+
+  it('reads the release date out of a stable version', () => {
+    expect(ytdlpAgeDays('2026.08.19', NOW)).toBe(29)
+    expect(ytdlpAgeDays('2026.09.17', NOW)).toBe(0)
+  })
+
+  it('reads a nightly, which puts a time after the date', () => {
+    expect(ytdlpAgeDays('2026.09.10.232734', NOW)).toBe(7)
+  })
+
+  it('says nothing rather than something wrong for a build from source', () => {
+    expect(ytdlpAgeDays('2026.08.19.dev0+g1a2b3c4', NOW)).toBe(29)
+    expect(ytdlpAgeDays('unknown', NOW)).toBeNull()
+    expect(ytdlpAgeDays(null, NOW)).toBeNull()
+    expect(ytdlpAgeDays('', NOW)).toBeNull()
   })
 })

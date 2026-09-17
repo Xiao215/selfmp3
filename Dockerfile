@@ -67,7 +67,23 @@ RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
 # --- runtime ----------------------------------------------------------------
 FROM node:22-alpine
 
-RUN apk add --no-cache ffmpeg yt-dlp tini
+# Alpine's yt-dlp package tracks the stable branch and runs many months behind
+# — 2025.11.12 at the time of writing, against a tool YouTube breaks on a scale
+# of weeks. An out-of-date yt-dlp is the single most common cause of downloads
+# failing, so it comes from PyPI instead, which is current.
+#
+# It goes in a venv rather than over Alpine's own python because pip refuses to
+# write into a distro-managed site-packages (PEP 668), and --break-system-packages
+# is the wrong side of that argument. yt-dlp is pure Python, so nothing compiles.
+#
+# The official standalone binaries are deliberately not used: they are built
+# against glibc and this image is musl.
+#
+# YTDLP_REFRESH exists only to be changed. The build cache would otherwise hand
+# a scheduled rebuild the same layer, and the whole point of rebuilding weekly
+# is to pick up a yt-dlp that did not exist last week. CI passes the ISO week.
+ARG YTDLP_REFRESH=0
+RUN apk add --no-cache ffmpeg tini python3  && echo "yt-dlp refresh: ${YTDLP_REFRESH}"  && python3 -m venv /opt/ytdlp  && /opt/ytdlp/bin/pip install --no-cache-dir --upgrade pip yt-dlp  && ln -s /opt/ytdlp/bin/yt-dlp /usr/local/bin/yt-dlp  && yt-dlp --version
 
 ENV NODE_ENV=production \
     SELFMP3_HOST=0.0.0.0 \

@@ -214,6 +214,7 @@ export function importRoutes(container: Container): Router {
           jobs: container.imports.recent(query.limit),
           active: counts.running,
           queued: counts.queued,
+          pacing: container.throttle.status(),
         }
       },
     ),

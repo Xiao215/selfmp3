@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './helpers.js'
 
 /**
  * The command palette: find a song by its title and play it, then run a command.
@@ -8,8 +8,6 @@ import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
  * Desktop only: the palette opens from the sidebar's Search row. A browser tab
  * has no ⌘K (the installed app's menu has it), so the flow clicks the row.
  */
-
-const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 test.describe('command palette', () => {
   test('finds a song and plays it, and runs a command', async ({ page }, info) => {

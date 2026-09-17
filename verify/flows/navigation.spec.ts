@@ -63,19 +63,29 @@ test.describe('navigation', () => {
   })
 
   test('a phone shows one tag’s songs from Tags', async ({ page }, info) => {
-    test.skip(info.project.name !== 'phone', 'a computer filters by tag from its sidebar')
+    test.skip(info.project.name !== 'phone', 'a computer picks tags from its sidebar')
     await page.goto('/tags')
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
       timeout: 30_000,
     })
+    // A chip in the picker names its song count: "chill, 20 songs".
     const tag = page.getByRole('button', { name: /, [\d,]+ songs?$/ }).first()
+    const name = ((await tag.getAttribute('aria-label')) ?? '').split(',')[0] ?? ''
     await expect(tag.or(page.getByText(/No tags yet/))).toBeVisible({ timeout: 30_000 })
     test.skip(!(await tag.isVisible()), 'needs a tag in the dev library')
 
+    // Tapping a tag no longer leaves the page: it goes into the bar along the
+    // foot, which says what it comes to and is itself the way through.
     await tag.click()
+    await expect(page.getByTestId('tags-play-bar')).toBeVisible()
+    await page.getByTestId('tags-show-songs').click()
+
     await expect(page).toHaveURL(/\/$/)
     await libraryReady(page)
-    await expect(page.getByText('Filtered by')).toBeVisible()
+    // The library is showing that tag: the chip *is* the heading. Not Play —
+    // a phone's library head has never carried the transport, which lives in
+    // the bar on the page the tags were picked from.
+    await expect(page.getByRole('heading').filter({ hasText: name })).toBeVisible()
   })
 
   test('the library is still there afterwards', async ({ page }) => {

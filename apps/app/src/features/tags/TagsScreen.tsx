@@ -11,6 +11,7 @@ import {
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
+import { useRouter } from 'expo-router'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -40,6 +41,7 @@ import { existingTag } from './tags.model'
 export function TagsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
+  const router = useRouter()
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const model = useLibraryModel(downloads.index)
@@ -142,14 +144,26 @@ export function TagsScreen(): ReactNode {
       */}
       {model.tagFiltered ? (
         <View style={styles.bar} testID="tags-play-bar">
-          <View style={styles.barText}>
+          {/*
+            The words are the way to the songs themselves. Play starts them
+            without showing them, and a picker with no way through to the list
+            leaves you guessing what you built — so the count is a button, and
+            it opens the Library already showing these tags.
+          */}
+          <Pressable
+            onPress={() => router.navigate('/')}
+            accessibilityRole="link"
+            accessibilityLabel={`Show these songs: ${model.heading}, ${model.subtitle}`}
+            style={({ pressed }) => [styles.barText, pressed && { opacity: 0.7 }]}
+            testID="tags-show-songs"
+          >
             <Text style={styles.barTitle} numberOfLines={1}>
               {model.heading}
             </Text>
             <Text style={styles.barSub} numberOfLines={1}>
-              {model.subtitle}
+              {model.subtitle} ›
             </Text>
-          </View>
+          </Pressable>
           {alreadySaved ? (
             <Text style={styles.savedMark} testID="tags-saved">
               ✓ Saved

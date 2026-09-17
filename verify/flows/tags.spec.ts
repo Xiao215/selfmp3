@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows } from './helpers.js'
+import { libraryReady, skipIfNoLibrary, songRows, escaped } from './helpers.js'
 
 /**
  * Choosing tags to listen to.
@@ -46,7 +46,7 @@ async function pickTag(page: Page, name: string): Promise<void> {
   // A chip in the picker carries its song count in its name — "chill, 20 songs" —
   // so this matches the start of it rather than the whole.
   await panel
-    .getByRole('button', { name: new RegExp(`^${name}(,|$)`) })
+    .getByRole('button', { name: new RegExp(`^${escaped(name)}(,|$)`) })
     .first()
     .click()
   await panel.getByTestId('listen-tags-done').click()

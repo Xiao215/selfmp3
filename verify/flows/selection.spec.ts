@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './helpers.js'
 
 /**
  * Multi-select in the library: the way in, the count, what "all" means, and
@@ -38,7 +38,7 @@ test.describe('selecting songs', () => {
     if (info.project.name === 'phone') {
       // Held, the way a thumb does it: the row's own press, kept down.
       const box = (await page
-        .getByRole('button', { name: new RegExp(`^${first}, `) })
+        .getByRole('button', { name: new RegExp(`^${escaped(first)}, `) })
         .first()
         .boundingBox())!
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)

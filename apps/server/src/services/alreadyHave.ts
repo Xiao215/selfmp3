@@ -39,7 +39,7 @@ export interface LibrarySong {
 }
 
 /** What an incoming track offers it. */
-export interface IncomingTrack {
+interface IncomingTrack {
   readonly title: string
   readonly artist: string
   readonly duration?: number

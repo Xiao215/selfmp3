@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { escaped } from './helpers.js'
+
 /**
  * The tag inbox: a song without a tag is listed, tagged from the inbox one at a
  * time, and the inbox is empty again.
@@ -23,8 +25,6 @@ async function setTags(page: Page, songId: number, tagIds: number[]): Promise<vo
   const response = await page.request.put(`${API}/api/songs/${songId}/tags`, { data: { tagIds } })
   expect(response.ok()).toBe(true)
 }
-
-const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 test.describe('the tag inbox', () => {
   test('tag an untagged song one at a time, and see the inbox empty', async ({ page }) => {

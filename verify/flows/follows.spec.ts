@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary } from './helpers.js'
+import { libraryReady, skipIfNoLibrary, escaped } from './helpers.js'
 
 /**
  * A playlist that follows tags: saving one, editing it, and stopping.
@@ -78,7 +78,7 @@ test.describe('a playlist that follows tags', () => {
     const picker = page.getByTestId('listen-tags')
     await picker.getByTestId('listen-tags-search').fill(tag.name)
     await picker
-      .getByRole('button', { name: new RegExp(`^${tag.name}(,|$)`) })
+      .getByRole('button', { name: new RegExp(`^${escaped(tag.name)}(,|$)`) })
       .first()
       .click()
     await picker.getByTestId('listen-tags-done').click()
@@ -140,7 +140,7 @@ test.describe('a playlist that follows tags', () => {
       const panel = page.getByTestId('listen-tags')
       await panel.getByTestId('listen-tags-search').fill(second.name)
       await panel
-        .getByRole('button', { name: new RegExp(`^${second.name}(,|$)`) })
+        .getByRole('button', { name: new RegExp(`^${escaped(second.name)}(,|$)`) })
         .first()
         .click()
 

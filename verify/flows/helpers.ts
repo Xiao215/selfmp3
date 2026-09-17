@@ -8,6 +8,19 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  * Native Web's DOM, where every class name is generated.
  */
 
+/**
+ * A song or tag name, safe to drop into a `RegExp`.
+ *
+ * Library names are data, and real ones are full of regex metacharacters —
+ * `Engine Oil (AUTHENTIC CHINESE KISSA "Ai no Pegasus" -SPICY DRAGON OF LOVE -
+ * 2024 / LIVE)` matched nothing at all unescaped, and the flow that used it
+ * failed as a ten-second timeout that read like a broken app. Two specs had
+ * their own copy of this and a third did not; it lives here now.
+ */
+export function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /** The songs table, which is labelled `<heading> songs`. */
 export function songTable(page: Page): Locator {
   return page.getByRole('table', { name: /songs$/ })

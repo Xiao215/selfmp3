@@ -108,9 +108,9 @@ export class ImportRepository {
     `)
 
     // The parameter is a JSON array of job ids to pass over for now.
-    this.#nextQueued = db.prepare<[string], ImportJobRow>(`
+    this.#nextQueued = db.prepare<[], ImportJobRow>(`
       SELECT * FROM import_jobs
-       WHERE status = 'queued' AND id NOT IN (SELECT value FROM json_each(?))
+       WHERE status = 'queued'
        ORDER BY position, created_at
        LIMIT 1
     `)
@@ -189,10 +189,10 @@ export class ImportRepository {
     return this.#recent.all(limit).map(toJob)
   }
 
-  /** The next queued job, passing over `waiting`: jobs held back before a retry. */
-  claimNext(waiting: readonly string[] = []): ImportJob | null {
+  /** The next queued job, in the order they were asked for. */
+  claimNext(): ImportJob | null {
     const run = this.#db.transaction(() => {
-      const row = this.#nextQueued.get(JSON.stringify(waiting))
+      const row = this.#nextQueued.get()
       if (!row) return null
       this.#db
         .prepare(

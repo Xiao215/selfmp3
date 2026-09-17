@@ -1,4 +1,4 @@
-import { DEFAULT_APP_URL, type ImportEnqueue, type ImportQueue } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, IDLE_PACING, type ImportEnqueue, type ImportQueue } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask } from '../bridge.js'
@@ -161,6 +161,7 @@ export function Popup(): ReactNode {
         jobs: [...result.jobs, ...(previous?.jobs ?? [])],
         active: previous?.active ?? 0,
         queued: (previous?.queued ?? 0) + result.jobs.length,
+        pacing: previous?.pacing ?? IDLE_PACING,
       }))
       void queryClient.invalidateQueries({ queryKey: ['queue'] })
     },

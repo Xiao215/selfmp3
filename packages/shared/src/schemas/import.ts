@@ -166,12 +166,13 @@ export const ImportPacingSchema = z.object({
   waitMs: z.number().nonnegative(),
   /** Set only while a rate-limit answer is being waited out (epoch ms). */
   pausedUntil: z.number().nullable(),
-  /** Requests an hour the server is currently willing to make. */
-  budgetPerHour: z.number().nonnegative(),
   /** 1 normally; halved by each rate-limit incident and not restored by itself. */
   ratchet: z.number().positive(),
 })
 export type ImportPacing = z.infer<typeof ImportPacingSchema>
+
+/** Nothing holding the queue back: what a queue not yet read is assumed to be. */
+export const IDLE_PACING: ImportPacing = { waitMs: 0, pausedUntil: null, ratchet: 1 }
 
 export const ImportQueueSchema = z.object({
   jobs: z.array(ImportJobSchema),

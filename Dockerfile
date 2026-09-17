@@ -74,7 +74,11 @@ FROM node:22-alpine
 #
 # It goes in a venv rather than over Alpine's own python because pip refuses to
 # write into a distro-managed site-packages (PEP 668), and --break-system-packages
-# is the wrong side of that argument. yt-dlp is pure Python, so nothing compiles.
+# is the wrong side of that argument. `[default]` is upstream's documented
+# install: it brings mutagen, which is what embeds cover art into an m4a, and
+# yt-dlp-ejs, the scripts that solve YouTube's player challenges. Those run on
+# the node already in this image, which the server points yt-dlp at (BASE_ARGS
+# in services/ytdlp.ts). Every wheel has a musllinux build, so nothing compiles.
 #
 # The official standalone binaries are deliberately not used: they are built
 # against glibc and this image is musl.
@@ -83,7 +87,12 @@ FROM node:22-alpine
 # a scheduled rebuild the same layer, and the whole point of rebuilding weekly
 # is to pick up a yt-dlp that did not exist last week. CI passes the ISO week.
 ARG YTDLP_REFRESH=0
-RUN apk add --no-cache ffmpeg tini python3  && echo "yt-dlp refresh: ${YTDLP_REFRESH}"  && python3 -m venv /opt/ytdlp  && /opt/ytdlp/bin/pip install --no-cache-dir --upgrade pip yt-dlp  && ln -s /opt/ytdlp/bin/yt-dlp /usr/local/bin/yt-dlp  && yt-dlp --version
+RUN apk add --no-cache ffmpeg tini python3 \
+ && echo "yt-dlp refresh: ${YTDLP_REFRESH}" \
+ && python3 -m venv /opt/ytdlp \
+ && /opt/ytdlp/bin/pip install --no-cache-dir --upgrade pip "yt-dlp[default]" \
+ && ln -s /opt/ytdlp/bin/yt-dlp /usr/local/bin/yt-dlp \
+ && yt-dlp --version
 
 ENV NODE_ENV=production \
     SELFMP3_HOST=0.0.0.0 \

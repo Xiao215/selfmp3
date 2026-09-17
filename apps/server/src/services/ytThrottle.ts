@@ -176,8 +176,24 @@ export function isRateLimited(message: string): boolean {
   ].some(phrase => lower.includes(phrase))
 }
 
+/**
+ * YouTube refused the address for rate.
+ *
+ * A class rather than a phrase to look for, because the message is rewritten
+ * for people on its way up (ytCookies.ts) and the first version of this looked
+ * for yt-dlp's wording in text that no longer contained it: the explanation
+ * and the detection each worked, and together they cancelled out. The type
+ * survives whatever the message is changed to say.
+ */
+export class RateLimitedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RateLimitedError'
+  }
+}
+
 /** What the throttle looks like from outside, for the UI and the doctor. */
-export interface ThrottleStatus {
+interface ThrottleStatus {
   /** ms until the next request may go. 0 when nothing is holding it back. */
   readonly waitMs: number
   /** Set while a rate-limit answer is still being waited out (epoch ms). */
@@ -189,7 +205,7 @@ export interface ThrottleStatus {
 }
 
 /** Where the bucket's state is kept between restarts. */
-export interface ThrottleStore {
+interface ThrottleStore {
   get(now: number): ThrottleState
   save(state: ThrottleState): void
 }

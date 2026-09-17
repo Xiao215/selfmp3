@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
@@ -6,6 +9,7 @@ import { ImportRepository } from '../repositories/imports.js'
 import { SettingsRepository } from '../repositories/settings.js'
 import { ThrottleRepository } from '../repositories/throttle.js'
 import { ImportQueueService } from './importQueue.js'
+import { YtDlpService } from './ytdlp.js'
 import { YtThrottleService } from './ytThrottle.js'
 
 /**
@@ -14,26 +18,67 @@ import { YtThrottleService } from './ytThrottle.js'
  * Two answers, and telling them apart is the whole point: a song that cannot
  * be downloaded is a failure a person should see and decide about, while
  * YouTube refusing the address for rate says nothing about the song and must
- * not consume it. Everything below drives the real queue against a real
- * SQLite; only the things that would touch the network or the disk are stood
- * in for.
+ * not consume it. Everything below drives the real queue and the real
+ * YtDlpService against a real SQLite. The one thing stood in for is the
+ * `yt-dlp` binary itself, by a script on PATH that fails with whatever a test
+ * tells it to say.
+ *
+ * That is deliberate. An earlier version of this file replaced `download` with
+ * a function that threw yt-dlp's raw words, and passed — while in the server
+ * those words are rewritten for people before the queue ever sees them, and
+ * the queue, looking for "not a bot" in a sentence that no longer said it,
+ * failed every rate-limited job. Nothing between the binary and the database
+ * is faked here so that cannot happen quietly again.
  */
 
-/** Waits for the worker to settle, which it does across a few microtasks. */
-async function settle(): Promise<void> {
-  for (let i = 0; i < 10; i++) await new Promise(resolve => setTimeout(resolve, 0))
+/** Waits until `done` holds: the worker runs a real child process, so not at once. */
+async function until(done: () => boolean): Promise<void> {
+  for (let i = 0; i < 400 && !done(); i++) await new Promise(resolve => setTimeout(resolve, 10))
+  // A turn more, for the bookkeeping that follows whatever `done` was watching.
+  await new Promise(resolve => setTimeout(resolve, 20))
 }
 
 describe('ImportQueueService, when a download fails', () => {
   let imports: ImportRepository
   let throttle: YtThrottleService
   let queue: ImportQueueService
-  let download: ReturnType<typeof vi.fn>
   let db: Database.Database
   let now: number
+  let dir: string
+  let savedPath: string | undefined
+
+  /** What the stand-in `yt-dlp` will print to stderr before exiting 1. */
+  function ytDlpFailsWith(message: string): void {
+    fs.writeFileSync(path.join(dir, 'stderr.txt'), `ERROR: [youtube] 6I1SNW0tVYk: ${message}\n`)
+  }
+
+  /** How many times the stand-in was asked to download something. */
+  function downloads(): number {
+    const log = path.join(dir, 'calls.log')
+    return fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).length : 0
+  }
 
   beforeEach(() => {
     now = 1_700_000_000_000
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-queue-'))
+
+    // `--version` answers like the real thing so the tool check passes; any
+    // other call is a download, which is logged and then fails as instructed.
+    const bin = path.join(dir, 'bin')
+    fs.mkdirSync(bin)
+    fs.writeFileSync(
+      path.join(bin, 'yt-dlp'),
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then echo 2026.08.19; exit 0; fi
+echo call >> "${dir}/calls.log"
+cat "${dir}/stderr.txt" >&2
+exit 1
+`,
+      { mode: 0o755 },
+    )
+    savedPath = process.env.PATH
+    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
+
     db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     imports = new ImportRepository(db)
@@ -44,34 +89,34 @@ describe('ImportQueueService, when a download fails', () => {
       () => now,
     )
 
-    download = vi.fn()
     /** Stands in for a step no test here reaches; reaching one is the bug. */
     const nothing = (): never => {
       throw new Error('the test should not have got this far')
     }
 
     queue = new ImportQueueService({
-      config: { dataDir: '/tmp/selfmp3-test' },
+      config: { dataDir: dir },
       storage: { write: nothing, exists: async () => false },
       imports,
-      songs: { byId: () => null },
-      tags: { exists: () => [] },
-      playlists: { byId: () => null },
+      songs: { byId: () => null, patch: nothing, setSourceUrl: nothing, setInstrumental: nothing },
+      tags: { exists: () => [], addToSong: nothing },
+      playlists: { byId: () => null, add: nothing },
       settings,
       scanner: { ingest: nothing },
-      lyrics: { fetchRemote: async () => null },
+      lyrics: { fetchRemote: async () => null, writeSidecar: nothing },
       covers: { saveFromUrl: nothing },
-      ytdlp: {
-        status: async () => ({ ytdlp: true, ffmpeg: true, ytdlpVersion: '2026.08.19' }),
-        download,
-        probe: nothing,
-        probeDuration: async () => 0,
-      },
+      ytdlp: new YtDlpService(createLogger('silent'), () => settings.get(), throttle),
       cloud: { connected: false, uploadSong: nothing, kick: () => undefined },
       keepAwake: { hold: () => () => undefined },
       throttle,
       logger: createLogger('silent'),
     })
+  })
+
+  afterEach(() => {
+    queue.stop()
+    process.env.PATH = savedPath
+    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   /** One job, already named so the worker does not have to probe for a title. */
@@ -95,26 +140,28 @@ describe('ImportQueueService, when a download fails', () => {
   }
 
   it('leaves a broken song failed, and does not try it again', async () => {
-    download.mockRejectedValue(new Error('Private video. Sign in if you have been granted access'))
+    ytDlpFailsWith('Private video. Sign in if you have been granted access to this video')
     const id = enqueueOne()
 
     queue.kick()
-    await settle()
+    await until(() => imports.byId(id)?.status === 'error')
 
     const job = imports.byId(id)
     expect(job?.status).toBe('error')
-    expect(job?.error).toMatch(/Private video/)
+    expect(job?.error).toBeTruthy()
     // Tried once. A second attempt would mean the queue retried by itself.
-    expect(download).toHaveBeenCalledTimes(1)
+    expect(downloads()).toBe(1)
     expect(job?.attempts).toBe(1)
+    // A broken song is not the network's fault, and must not cost the budget.
+    expect(throttle.status().ratchet).toBe(1)
   })
 
   it('puts a rate-limited song back in the queue instead of failing it', async () => {
-    download.mockRejectedValue(new Error('Sign in to confirm you’re not a bot'))
+    ytDlpFailsWith('Sign in to confirm you’re not a bot. Use --cookies-from-browser')
     const id = enqueueOne()
 
     queue.kick()
-    await settle()
+    await until(() => downloads() >= 1 && imports.byId(id)?.status === 'queued')
 
     const job = imports.byId(id)
     // Nothing is wrong with this song, so nothing about it is marked wrong.
@@ -123,50 +170,51 @@ describe('ImportQueueService, when a download fails', () => {
   })
 
   it('stops the whole queue after a rate limit, rather than burning through it', async () => {
-    download.mockRejectedValue(new Error('HTTP Error 429: Too Many Requests'))
+    ytDlpFailsWith('Unable to download webpage: HTTP Error 429: Too Many Requests')
     for (let i = 0; i < 5; i++) enqueueOne()
 
     queue.kick()
-    await settle()
+    await until(() => throttle.status().pausedUntil !== null && imports.counts().running === 0)
 
     // The songs already in flight when the answer came back cannot be
     // un-asked, so the ceiling is the concurrency limit and not one — but the
     // queue stops there rather than working through all five.
     const limit = new SettingsRepository(db).get().importConcurrency
-    expect(download.mock.calls.length).toBeLessThanOrEqual(limit)
-    expect(throttle.status().pausedUntil).not.toBeNull()
+    expect(downloads()).toBeGreaterThanOrEqual(1)
+    expect(downloads()).toBeLessThanOrEqual(limit)
     // Nothing was consumed: every song is still waiting to be tried.
     expect(imports.counts().queued).toBe(5)
   })
 
   it('starts again by itself once the pause is over', async () => {
-    download.mockRejectedValue(new Error('Sign in to confirm you’re not a bot'))
+    ytDlpFailsWith('Sign in to confirm you’re not a bot')
     const id = enqueueOne()
     queue.kick()
-    await settle()
-    expect(download).toHaveBeenCalledTimes(1)
+    await until(() => downloads() === 1 && imports.byId(id)?.status === 'queued')
 
-    // Still paused a minute later.
+    // Still paused a minute later: asking changes nothing.
     now += 60_000
     queue.kick()
-    await settle()
-    expect(download).toHaveBeenCalledTimes(1)
+    await new Promise(resolve => setTimeout(resolve, 600)) // long enough to have spawned
+    expect(downloads()).toBe(1)
 
     // Past the pause it picks the job up again, with no one having clicked.
-    download.mockRejectedValue(new Error('Video unavailable'))
+    ytDlpFailsWith('Video unavailable')
     now += 20 * 60_000
     queue.kick()
-    await settle()
-    expect(download).toHaveBeenCalledTimes(2)
+    await until(() => imports.byId(id)?.status === 'error')
+    expect(downloads()).toBe(2)
     expect(imports.byId(id)?.status).toBe('error')
   })
 
-  it('halves the budget for a rate limit, and does not restore it on its own', async () => {
+  it('halves the budget for a rate limit, once, and does not restore it on its own', async () => {
     const before = throttle.status().budgetPerHour
-    download.mockRejectedValue(new Error('Sign in to confirm you’re not a bot'))
+    ytDlpFailsWith('Sign in to confirm you’re not a bot')
+    // Two at once, so two refusals land together: one incident, one cut.
+    enqueueOne()
     enqueueOne()
     queue.kick()
-    await settle()
+    await until(() => throttle.status().pausedUntil !== null && imports.counts().running === 0)
 
     expect(throttle.status().budgetPerHour).toBe(before / 2)
     now += 24 * 60 * 60_000

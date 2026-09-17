@@ -9,6 +9,15 @@ import { YTDLP_STALE_DAYS, ytdlpAgeDays } from '../services/ytdlp.js'
 const exec = promisify(execFile)
 
 /**
+ * How to get a newer yt-dlp, which depends on where this is running: the doctor
+ * runs inside the Docker image too, where there is no brew and the binary is
+ * baked in, so the fix there is a newer image rather than a newer package.
+ */
+const YTDLP_UPDATE_HINT = fs.existsSync('/.dockerenv')
+  ? 'docker compose pull && docker compose up -d'
+  : 'brew upgrade yt-dlp'
+
+/**
  * `selfmp3 doctor`: the five things that are usually wrong when something does
  * not work, each on one line with a tick or a cross. Mirrors scripts/doctor.sh
  * but runs anywhere node does — including inside the Docker image.
@@ -74,7 +83,7 @@ export async function runDoctor(
         : age === null
           ? ytdlp
           : age > YTDLP_STALE_DAYS
-            ? `${ytdlp} — ${age} days old, likely why downloads fail (brew upgrade yt-dlp)`
+            ? `${ytdlp} — ${age} days old, likely why downloads fail (${YTDLP_UPDATE_HINT})`
             : `${ytdlp} — ${age} days old`,
   })
 

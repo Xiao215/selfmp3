@@ -4,7 +4,7 @@ import { constants as fsConstants } from 'node:fs'
 import { cleanArtist, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
-import type { YtThrottleService } from './ytThrottle.js'
+import { isRateLimited, RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 
 /**
  * A typed wrapper around the `yt-dlp` command line.
@@ -168,8 +168,18 @@ export function parseProgress(line: string): number | null {
  * answers normally. That failure reads as a login problem and is not one, so
  * this pins every request to the address family that still has a reputation
  * worth anything.
+ *
+ * `--js-runtimes` hands yt-dlp the node this server is already running on.
+ * YouTube's player has to be run to be read, and yt-dlp enables only deno for
+ * that by default: on a machine without deno — the Docker image, which is
+ * built on node and has it sitting right there — it reports no runtime at all,
+ * warns that extraction without one is deprecated, and carries on in a mode
+ * that is on its way out. The option adds to the list rather than replacing
+ * it, so a Mac whose Homebrew yt-dlp brought deno keeps using that. The path is
+ * spelled out because `node` need not be on the PATH of whatever started the
+ * server, and this process is proof of where one is.
  */
-const BASE_ARGS = ['-4'] as const
+const BASE_ARGS = ['-4', '--js-runtimes', `node:${process.execPath}`] as const
 
 /**
  * How long a request someone is waiting on will sit for the budget before it
@@ -276,12 +286,6 @@ export function isVideoEntry(entry: { ie_key?: string; url?: string }): boolean 
   return !/\/(browse\/|playlist\?|channel\/|c\/|user\/|@)/.test(entry.url ?? '')
 }
 
-const NO_COOKIES: YtCookieSettings = {
-  ytCookieSource: 'none',
-  ytCookieBrowser: 'chrome',
-  ytCookieFile: '',
-}
-
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
@@ -296,11 +300,7 @@ export class YtDlpService {
    * preview and a download are the same request from the same address as far
    * as YouTube is concerned, so they come out of one budget.
    */
-  constructor(
-    logger: Logger,
-    cookies: () => YtCookieSettings = () => NO_COOKIES,
-    throttle: YtThrottleService,
-  ) {
+  constructor(logger: Logger, cookies: () => YtCookieSettings, throttle: YtThrottleService) {
     this.#logger = logger.child('yt-dlp')
     this.#cookies = cookies
     this.#throttle = throttle
@@ -348,6 +348,24 @@ export class YtDlpService {
     return explainCookieError(message, this.#cookies())
   }
 
+  /**
+   * The error for a run that failed, and the consequence if it was a rate
+   * limit.
+   *
+   * yt-dlp's own words decide which it is, before they are rewritten for a
+   * person — the rewritten text no longer says "bot" or "429", and looking for
+   * those after the fact is how a rate limit came to be treated as a broken
+   * song. The budget is cut here rather than by whoever called, so a block met
+   * while previewing a track or pasting a link counts the same as one met by
+   * the download queue: YouTube does not care which of them asked.
+   */
+  #failure(raw: string): Error {
+    if (!isRateLimited(raw)) return new Error(this.#explain(raw))
+    this.#throttle.penalize()
+    this.#logger.warn('YouTube is rate-limiting this address; pausing requests', { raw })
+    return new RateLimitedError(this.#explain(raw))
+  }
+
   /** Whether yt-dlp and ffmpeg are installed. Cached after the first success. */
   async status(force = false): Promise<ToolStatus> {
     if (this.#cachedStatus && !force) return this.#cachedStatus
@@ -378,8 +396,18 @@ export class YtDlpService {
   async probe(
     url: string,
     signal?: AbortSignal,
+    /**
+     * `patient` is for the download queue, which would rather wait for the
+     * budget than fail. Signed out, a request's worth takes 48 seconds to come
+     * back, so the wait a person will sit through would fail the queue's own
+     * jobs for nothing more than having been paced.
+     */
+    wait: 'interactive' | 'patient' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
-    await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
+    await this.#pace({
+      ...(signal ? { signal } : {}),
+      ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : {}),
+    })
     const result = await run(
       'yt-dlp',
       [
@@ -395,7 +423,7 @@ export class YtDlpService {
     )
 
     if (result.code !== 0) {
-      throw new Error(this.#explain(summarizeError(result.stderr, 'could not read that link')))
+      throw this.#failure(summarizeError(result.stderr, 'could not read that link'))
     }
 
     let parsed: YtDlpJson
@@ -451,7 +479,7 @@ export class YtDlpService {
       { timeoutMs: 60_000, ...(signal ? { signal } : {}) },
     )
     if (result.code !== 0) {
-      throw new Error(this.#explain(summarizeError(result.stderr, 'could not read that link')))
+      throw this.#failure(summarizeError(result.stderr, 'could not read that link'))
     }
     const direct = result.stdout
       .split('\n')
@@ -514,9 +542,7 @@ export class YtDlpService {
 
     if (result.timedOut) throw new Error('download timed out')
     if (result.code !== 0) {
-      throw new Error(
-        this.#explain(summarizeError(result.stderr + result.stdout, 'download failed')),
-      )
+      throw this.#failure(summarizeError(result.stderr + result.stdout, 'download failed'))
     }
 
     this.#logger.debug('download finished', { url: input.url })

@@ -14,7 +14,7 @@ import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 import type { YtDlpService } from './ytdlp.js'
-import { isRateLimited, type YtThrottleService } from './ytThrottle.js'
+import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
 /**
@@ -70,7 +70,7 @@ export class ImportQueueService {
   readonly #lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
   readonly #covers: Pick<CoverService, 'saveFromUrl'>
   readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
-  readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'penalize' | 'status'>
+  readonly #throttle: Pick<YtThrottleService, 'waitMs'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
   readonly #logger: Logger
@@ -79,6 +79,8 @@ export class ImportQueueService {
   readonly #inFlight = new Map<string, AbortController>()
   /** Library folders handed to imports that have not written their file yet. */
   readonly #claimedFolders = new Set<string>()
+  /** The wake-up set while the budget says wait; at most one at a time. */
+  #paceTimer: NodeJS.Timeout | null = null
   #activeCount = 0
   #draining = false
   #stopped = false
@@ -102,7 +104,7 @@ export class ImportQueueService {
     lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
     covers: Pick<CoverService, 'saveFromUrl'>
     ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
-    throttle: Pick<YtThrottleService, 'waitMs' | 'penalize' | 'status'>
+    throttle: Pick<YtThrottleService, 'waitMs'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
     logger: Logger
@@ -134,6 +136,8 @@ export class ImportQueueService {
 
   stop(): void {
     this.#stopped = true
+    if (this.#paceTimer) clearTimeout(this.#paceTimer)
+    this.#paceTimer = null
     for (const controller of this.#inFlight.values()) controller.abort()
     this.#inFlight.clear()
   }
@@ -180,7 +184,16 @@ export class ImportQueueService {
       // claimed job holding a slot open while it sleeps would look like work.
       const pacing = this.#throttle.waitMs()
       if (pacing > 0) {
-        setTimeout(() => this.kick(), Math.min(pacing, 60_000))
+        // One timer however many times this is asked: everything that kicks
+        // the queue during a pause would otherwise start a chain of its own.
+        // Capped, so a pause lifted by hand is noticed within the minute.
+        this.#paceTimer ??= setTimeout(
+          () => {
+            this.#paceTimer = null
+            this.kick()
+          },
+          Math.min(pacing, 60_000),
+        )
         return
       }
 
@@ -250,12 +263,10 @@ export class ImportQueueService {
        * click. The budget is cut, the queue stops for a while, and the job goes
        * back in the queue it never really left.
        */
-      if (isRateLimited(message)) {
-        this.#throttle.penalize()
-        const { pausedUntil } = this.#throttle.status()
-        this.#logger.warn('YouTube is rate-limiting this address; queue paused', {
-          until: pausedUntil ? new Date(pausedUntil).toISOString() : null,
-        })
+      if (error instanceof RateLimitedError) {
+        // The budget was already cut where the refusal was met (ytdlp.ts);
+        // all that is left to do here is not blame the song.
+        this.#logger.warn('rate limited; job put back in the queue', { title: job.title })
         this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
         this.#cloud.kick()
         return
@@ -304,7 +315,7 @@ export class ImportQueueService {
      */
     if (!title.trim() || !artist.trim()) {
       this.#imports.update(job.id, { step: 'resolving' })
-      const probed = await this.#ytdlp.probe(job.url, signal)
+      const probed = await this.#ytdlp.probe(job.url, signal, 'patient')
       if (probed.kind === 'playlist') {
         // `--no-playlist` means nothing to an album or playlist address: every
         // song in it would be downloaded, each over the last, into one file.

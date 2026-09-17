@@ -601,6 +601,43 @@ export function useRemoveFromPlaylist() {
   })
 }
 
+/**
+ * Put a playlist's songs in a new order, and show them in it at once.
+ *
+ * The whole order goes to the server, not a move instruction — that is what
+ * the route, the sync log and the bucket all speak, and it is what makes a
+ * reorder made offline merge sanely later (docs/SYNC.md: the latest order
+ * wins). The cached list is changed first: a row that snapped back to where
+ * it was until a refetch happened to come round makes a move that worked look
+ * like one that failed. If the request fails the old order comes back and the
+ * list is asked for again, so what is on screen is never a guess that stuck.
+ *
+ * Both ways of moving a row go through this: the grip a mouse drags at desktop
+ * width, and a held finger on a phone.
+ */
+export function useReorderPlaylist() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+      clientApi().reorderPlaylist(playlistId, songIds),
+    meta: { failure: 'Couldn’t save the new order' },
+
+    onMutate: async ({ playlistId, songIds }) => {
+      const key = queryKeys.playlistSongs(playlistId)
+      await client.cancelQueries({ queryKey: key })
+      const previous = client.getQueryData<PlaylistSongs>(key)
+      client.setQueryData<PlaylistSongs>(key, { ...(previous ?? {}), playlistId, songIds })
+      return { previous }
+    },
+
+    onError: (_error, { playlistId }, context) => {
+      const key = queryKeys.playlistSongs(playlistId)
+      if (context?.previous) client.setQueryData(key, context.previous)
+      void client.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
 /** Remove a whole selection from one manual playlist. Never touches the songs. */
 export function useRemoveManyFromPlaylist() {
   const client = useQueryClient()

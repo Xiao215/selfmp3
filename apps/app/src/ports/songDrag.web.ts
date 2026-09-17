@@ -16,6 +16,9 @@ import type { View } from 'react-native'
 
 const TYPE = 'application/x-selfmp3-songs'
 
+/** Marks a control whose drag is its own (`useNotADragSource`). */
+const NO_DRAG = 'data-no-song-drag'
+
 let dragging = false
 const listeners = new Set<() => void>()
 
@@ -43,6 +46,24 @@ export function useSongDragSource(
   useEffect(() => {
     const node = element(ref)
     if (!node || !enabled) return undefined
+    /*
+     * Pressed on a control with a drag of its own — a playlist's grip — the
+     * row stops being draggable until the finger is up again.
+     *
+     * Cancelling the drag once it has started is too late: react-native-web
+     * ends whatever gesture is in progress the moment a `dragstart` is
+     * dispatched, whether or not anything then prevents it, so the grip got
+     * one move and lost the pointer. The only way to keep the gesture is for
+     * the browser to never begin a drag, and the only thing it reads for that
+     * is the attribute.
+     */
+    const pressed = (event: Event): void => {
+      const from = event.target
+      node.draggable = !(from instanceof Element && from.closest(`[${NO_DRAG}]`))
+    }
+    const released = (): void => {
+      node.draggable = true
+    }
     const start = (event: DragEvent): void => {
       const carried = ids.current()
       if (!event.dataTransfer || carried.length === 0) return
@@ -56,10 +77,16 @@ export function useSongDragSource(
     }
     const end = (): void => setDragging(false)
     node.draggable = true
+    node.addEventListener('pointerdown', pressed, true)
+    node.addEventListener('pointerup', released, true)
+    node.addEventListener('pointercancel', released, true)
     node.addEventListener('dragstart', start)
     node.addEventListener('dragend', end)
     return () => {
       node.draggable = false
+      node.removeEventListener('pointerdown', pressed, true)
+      node.removeEventListener('pointerup', released, true)
+      node.removeEventListener('pointercancel', released, true)
       node.removeEventListener('dragstart', start)
       node.removeEventListener('dragend', end)
     }
@@ -123,6 +150,27 @@ export function useSongDropTarget(
   }, [ref, enabled])
 
   return over
+}
+
+/**
+ * A control inside a draggable row that has a drag of its own.
+ *
+ * A song row is a drag source, so it carries the page's `draggable`, and a
+ * press anywhere inside it that then moves starts the browser's own drag —
+ * which cancels the pointer stream, so a playlist's grip got one move event
+ * and then nothing. `draggable="false"` on the control is not enough: the
+ * browser keeps looking up the tree for something that *is* draggable and
+ * finds the row. So the control marks itself, and the row's own drag stands
+ * down when the press began inside a mark.
+ */
+export function useNotADragSource(ref: RefObject<View | null>): void {
+  useEffect(() => {
+    const node = element(ref)
+    if (!node) return undefined
+    node.setAttribute(NO_DRAG, '')
+    node.setAttribute('draggable', 'false')
+    return () => node.removeAttribute(NO_DRAG)
+  }, [ref])
 }
 
 export function useSongDragActive(): boolean {

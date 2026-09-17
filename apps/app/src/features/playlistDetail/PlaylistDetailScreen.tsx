@@ -9,15 +9,24 @@ import {
   useState,
 } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
-import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Animated,
+  PanResponder,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { formatBytes, formatLongDuration, type Song } from '@selfmp3/shared'
+import { formatBytes, formatLongDuration, type Song, type Tag } from '@selfmp3/shared'
 import {
   bytesToDownload,
   clientApi,
+  HIT_TARGET,
   isDownloaded,
   queryKeys,
   radius,
@@ -27,12 +36,16 @@ import {
   useLibrary,
   useManifest,
   usePlaylistSongs,
-  useRemoveFromPlaylist,
+  useReorderPlaylist,
+  useToggleLoved,
   useUpdatePlaylist,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { useIsCurrentSong, usePlayer } from '../../player/PlayerProvider'
+import { usePlayer } from '../../player/PlayerProvider'
+import { HoldToReorder } from '../../ui/components/HoldToReorder'
+import { dragCursor } from '../../ports/dragCursor'
+import { useNotADragSource } from '../../ports/songDrag'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -46,6 +59,7 @@ import {
   CloudDownload,
   Copy,
   Downloaded,
+  Grip,
   ListMusic,
   Live,
   More,
@@ -63,14 +77,18 @@ import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/Selection
 import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { SongRow } from '../../ui/components/SongRow'
+import { TagPicker } from '../../ui/components/TagPicker'
+import { songTagLookup } from '../library/library.model'
+import { useSetLibraryFilter } from '../library/libraryFilter'
+import { noteTagUsed } from '../library/recentTags.store'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { copyName, FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
-import { PlaylistSongRow } from './PlaylistSongRow'
 import { FollowsRow } from './FollowsRow'
-import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
+import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
 
 /**
  * One playlist.
@@ -111,11 +129,17 @@ export function PlaylistDetailScreen(): ReactNode {
   const playback = usePlaylistPlayback()
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
-  const removeFromPlaylist = useRemoveFromPlaylist()
+  const reorderPlaylist = useReorderPlaylist()
+  const toggleLoved = useToggleLoved()
+  const setFilter = useSetLibraryFilter()
   const { state: downloads, installed, downloadByHand } = useDownloads()
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   const menuAnchorRef = useRef<View | null>(null)
+  // The dashed ＋ in a row's tag column, and the window it opens — the same
+  // pair the library's rows have.
+  const [taggingSong, setTaggingSong] = useState<Song | null>(null)
+  const tagAnchorRef = useRef<View | null>(null)
   const [headMenuOpen, setHeadMenuOpen] = useState(false)
   const headMenuRef = useRef<View>(null)
   const [renaming, setRenaming] = useState(params.rename === '1')
@@ -134,7 +158,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
   const live = playlist !== null && isLive(playlist)
   const manual = playlist?.kind === 'manual'
-  const tags = library.data?.tags ?? []
+  const tags = useMemo(() => library.data?.tags ?? [], [library.data])
 
   const songs = useMemo(() => {
     const byId = new Map((library.data?.songs ?? []).map(song => [song.id, song]))
@@ -144,6 +168,9 @@ export function PlaylistDetailScreen(): ReactNode {
   }, [library.data, contents.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
   const inPlaylist = useMemo(() => new Set(songIds), [songIds])
+  // A row's chips, the library's way: looked up once per song and kept, so a
+  // memoised row is not handed a new array on every render.
+  const songTags = useMemo(() => songTagLookup(tags), [tags])
 
   const selection = useSelection(songIds)
   const selectedSongs = useMemo(
@@ -157,29 +184,6 @@ export function PlaylistDetailScreen(): ReactNode {
   // into an object handed to the mutations below.
   const name = `${playlist?.name ?? 'Playlist'}`
 
-  /**
-   * Move a track, and show it moved at once. The server is told the whole new
-   * order; the cached list changes first, or the row would snap back until the
-   * query happened to refetch, which makes a good move look like a failed one.
-   */
-  const moveTo = useCallback(
-    (from: number, to: number): void => {
-      const ids = moveItem(songIds, from, to)
-      queryClient.setQueryData(queryKeys.playlistSongs(playlistId), {
-        ...(contents.data ?? { playlistId }),
-        playlistId,
-        songIds: ids,
-      })
-      void clientApi()
-        .reorderPlaylist(playlistId, ids)
-        .catch(
-          () =>
-            void queryClient.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) }),
-        )
-    },
-    [songIds, queryClient, playlistId, contents.data],
-  )
-
   /*
    * What a row's handlers read at the moment they run, so the handlers are
    * made once (`rowActions`) and a row's memo holds. Inline closures per row
@@ -188,21 +192,23 @@ export function PlaylistDetailScreen(): ReactNode {
   const latest = useRef({
     songIds,
     rowHeight,
-    moveTo,
     selection,
     playback,
     playlistId,
-    removeFromPlaylist,
+    reorderPlaylist,
+    toggleLoved,
+    setFilter,
   })
   useEffect(() => {
     latest.current = {
       songIds,
       rowHeight,
-      moveTo,
       selection,
       playback,
       playlistId,
-      removeFromPlaylist,
+      reorderPlaylist,
+      toggleLoved,
+      setFilter,
     }
   })
 
@@ -216,16 +222,20 @@ export function PlaylistDetailScreen(): ReactNode {
    * it ends.
    */
   const dragStart = useCallback(
-    (index: number) => {
+    (songId: number) => {
+      const index = latest.current.songIds.indexOf(songId)
+      if (index < 0) return
       dragY.setValue(0)
       setDrag({ from: index, over: index })
     },
     [dragY],
   )
   const dragMove = useCallback(
-    (index: number, dy: number) => {
-      dragY.setValue(dy)
+    (songId: number, dy: number) => {
       const now = latest.current
+      const index = now.songIds.indexOf(songId)
+      if (index < 0) return
+      dragY.setValue(dy)
       const over = dropIndex(index, dy, now.rowHeight, now.songIds.length)
       setDrag(current =>
         current !== null && current.from === index && current.over === over
@@ -235,14 +245,18 @@ export function PlaylistDetailScreen(): ReactNode {
     },
     [dragY],
   )
-  const dragEnd = useCallback((index: number, dy: number) => {
+  const dragEnd = useCallback((songId: number, dy: number) => {
     const now = latest.current
-    const to = dropIndex(index, dy, now.rowHeight, now.songIds.length)
+    const index = now.songIds.indexOf(songId)
+    if (index < 0) return
+    const moved = movedTo(now.songIds, index, dy, now.rowHeight)
     // `dragY` is left where it is: the lift ends in the same render as the
     // move, and resetting it first would show the row back in its old place
     // for a frame.
     setDrag(null)
-    if (to !== index) now.moveTo(index, to)
+    if (moved) {
+      now.reorderPlaylist.mutate({ playlistId: now.playlistId, songIds: moved.songIds })
+    }
   }, [])
 
   const rowActions = useMemo<RowActions>(
@@ -261,14 +275,27 @@ export function PlaylistDetailScreen(): ReactNode {
         // The ⋯ again closes its own menu.
         setMenuSong(current => (current?.id === song.id ? null : song))
       },
-      toggleSelect: songId => latest.current.selection.toggle(songId),
-      remove: songId => {
-        const now = latest.current
-        now.removeFromPlaylist.mutate({ playlistId: now.playlistId, songId })
+      toggleSelect: song => latest.current.selection.toggle(song.id),
+      toggleLoved: song => latest.current.toggleLoved.mutate({ id: song.id, loved: !song.loved }),
+      // A chip here is a way out to the library, not a filter on the playlist:
+      // narrowing a list you arranged by hand is not what a playlist is for,
+      // and "the chill ones" is a question the library already answers.
+      toggleTag: tagId => {
+        noteTagUsed(tagId)
+        latest.current.setFilter(filter => ({ ...filter, tagIds: [tagId], query: '' }))
+        router.push('/')
       },
+      editTags: (anchor, song) => {
+        tagAnchorRef.current = anchor
+        setTaggingSong(current => (current?.id === song.id ? null : song))
+      },
+      // Holding a row is how it is moved, so holding to select is the menu's
+      // job here (`SongMenu`). Where there is no order to change, holding
+      // selects, exactly as it does in the library.
+      longPress: song => latest.current.selection.enter(song.id),
       measure: setRowHeight,
     }),
-    [dragStart, dragMove, dragEnd],
+    [dragStart, dragMove, dragEnd, router],
   )
 
   const liftedFrom = drag?.from ?? null
@@ -277,32 +304,44 @@ export function PlaylistDetailScreen(): ReactNode {
   // Not on this phone and no server to stream it from: faded.
   const unreachableHere = library.isError && installed
   const menuSongId = menuSong?.id ?? null
+  // A playlist you made can be put in any order you like; one that follows
+  // tags is in the order its rule gives, so its rows show no grip and do not
+  // lift under a held finger. Selection mode is not what reordering is for,
+  // so the grip steps aside while it is on.
+  const reorderable = manual && !selection.active
   const renderSong = useCallback(
-    ({ item, index }: { item: Song; index: number }) => (
-      <PlaylistRow
-        song={item}
-        index={index}
-        artUri={artFor(item)}
-        unavailable={unreachableHere && !isDownloaded(downloads.index, item.id)}
-        manual={manual}
-        playlistName={name}
-        selecting={selection.active}
-        selected={selection.has(item.id)}
-        dragging={drag?.from === index}
-        dropTarget={drag !== null && drag.over === index && drag.from !== index}
-        menuOpen={menuSongId === item.id}
-        actions={rowActions}
-      />
-    ),
+    ({ item, index }: { item: Song; index: number }) => {
+      const here = isDownloaded(downloads.index, item.id)
+      return (
+        <PlaylistRow
+          testID={`song-row-${index}`}
+          song={item}
+          index={index}
+          artUri={artFor(item)}
+          downloaded={here}
+          notDownloadedMark={installed && !here}
+          unavailable={unreachableHere && !here}
+          reorderable={reorderable}
+          selecting={selection.active}
+          selected={selection.has(item.id)}
+          lifted={drag?.from === index}
+          dropTarget={drag !== null && drag.over === index && drag.from !== index}
+          menuOpen={menuSongId === item.id}
+          tags={songTags(item)}
+          actions={rowActions}
+        />
+      )
+    },
     [
       artFor,
+      installed,
       unreachableHere,
       downloads.index,
-      manual,
-      name,
+      reorderable,
       selection,
       drag,
       menuSongId,
+      songTags,
       rowActions,
     ],
   )
@@ -498,7 +537,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // now — a live playlist with no rules is the whole library — and this is its
   // header rather than the top of a ScrollView drawing every row at once.
   const header = (
-    <View>
+    <View style={styles.gutter}>
       {wide ? null : (
         <Pressable
           // Back when the Playlists page is behind; after a playlist made from a
@@ -740,6 +779,9 @@ export function PlaylistDetailScreen(): ReactNode {
         playlist={manual && playlist ? { id: playlist.id, name: playlist.name } : undefined}
       />
 
+      {/* The dashed ＋ on a row, the same window the library's rows open. */}
+      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
+
       {manual && playlist ? (
         <AddSongsSheet
           open={adding}
@@ -770,90 +812,200 @@ export function PlaylistDetailScreen(): ReactNode {
 
 /** What a row can ask of the screen. Made once, so a row's memo holds. */
 interface RowActions {
-  readonly dragStart: (index: number) => void
-  readonly dragMove: (index: number, dy: number) => void
-  readonly dragEnd: (index: number, dy: number) => void
+  /**
+   * A move, named by the song rather than by where it sits. A row's place
+   * changes when a move ends, and a gesture built around a place that has
+   * changed since is a gesture that moves the wrong row — so the row's
+   * handlers are made once, for its song, and last as long as the row does.
+   */
+  readonly dragStart: (songId: number) => void
+  readonly dragMove: (songId: number, dy: number) => void
+  readonly dragEnd: (songId: number, dy: number) => void
   readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
   readonly more: (anchor: View | null, song: Song) => void
-  readonly toggleSelect: (songId: number) => void
-  readonly remove: (songId: number) => void
+  readonly toggleSelect: (song: Song) => void
+  readonly toggleLoved: (song: Song) => void
+  readonly toggleTag: (tagId: number) => void
+  readonly editTags: (anchor: View | null, song: Song) => void
+  readonly longPress: (song: Song) => void
   readonly measure: (height: number) => void
 }
 
 /**
- * One track, with its handlers bound to its song and place.
+ * One track of a playlist: the library's row, with what a playlist adds.
  *
- * `PlaylistSongRow` takes handlers with no arguments, so something has to
- * close over the song and the index; done here, with hooks, each handler is
- * remade only when its row moves. Done in the list's render, every handler of
- * every row was new each time and the row's memo never held.
+ * The row itself is `SongRow`, the same component and the same file the
+ * library draws — a song row is a song row, and a playlist that had its own
+ * was a playlist whose songs had no hearts, no tags and no colour under the
+ * one that was playing. What a playlist adds is a grip to drag by at desktop
+ * width, the lifted look while a row is being moved, and the line where it
+ * would land; taking a song off the playlist is in the ⋯ menu, where
+ * everything else done to a song already is.
+ *
+ * Only the handlers that need this row's place are made here — the press,
+ * which plays from it, and the three that carry a move. The rest are the
+ * screen's own, handed down unchanged, so the memo holds.
  */
 const PlaylistRow = memo(function PlaylistRow({
+  testID,
   song,
   index,
   artUri,
+  downloaded,
+  notDownloadedMark,
   unavailable,
-  manual,
-  playlistName,
+  reorderable,
   selecting,
   selected,
-  dragging,
+  lifted,
   dropTarget,
   menuOpen,
+  tags,
   actions,
 }: {
+  testID: string
   song: Song
   index: number
   artUri: string | null
+  downloaded: boolean
+  notDownloadedMark: boolean
   unavailable: boolean
-  manual: boolean
-  playlistName: string
+  /** This playlist's order is yours to change, and nothing is being selected. */
+  reorderable: boolean
   selecting: boolean
   selected: boolean
-  dragging: boolean
+  lifted: boolean
   dropTarget: boolean
   menuOpen: boolean
+  tags: readonly Tag[]
   actions: RowActions
 }): ReactNode {
-  // Asked per row, so a song change redraws two rows rather than the list.
-  const active = useIsCurrentSong(song.id)
+  const { wide } = useLayout()
   const songId = song.id
-  const onDragStart = useCallback(() => actions.dragStart(index), [actions, index])
-  const onDragMove = useCallback((dy: number) => actions.dragMove(index, dy), [actions, index])
-  const onDragEnd = useCallback((dy: number) => actions.dragEnd(index, dy), [actions, index])
+  const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
+  const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
+  const onDragEnd = useCallback((dy: number) => actions.dragEnd(songId, dy), [actions, songId])
   const onPress = useCallback(
     (event: GestureResponderEvent) => actions.press(event, songId, index),
     [actions, songId, index],
   )
-  const onMore = useCallback((anchor: View | null) => actions.more(anchor, song), [actions, song])
-  const onToggleSelect = useCallback(() => actions.toggleSelect(songId), [actions, songId])
-  const onRemove = useCallback(() => actions.remove(songId), [actions, songId])
+
+  // The grip belongs to a pointer: at desktop width it is the thing a mouse
+  // aims at. On a phone the row is the handle and a 44-point grip would only
+  // take the title's room, so there is none — holding the row is the gesture.
+  const grip = useMemo(
+    () =>
+      wide && reorderable ? (
+        <ReorderGrip
+          song={song}
+          onStart={onDragStart}
+          onMove={onDragMove}
+          onEnd={onDragEnd}
+          dragging={lifted}
+        />
+      ) : null,
+    [wide, reorderable, song, onDragStart, onDragMove, onDragEnd, lifted],
+  )
+
+  const holds = !wide && reorderable
 
   return (
-    <PlaylistSongRow
-      song={song}
-      index={index}
-      artUri={artUri}
-      active={active}
-      unavailable={unavailable}
-      manual={manual}
-      playlistName={playlistName}
-      selecting={selecting}
-      selected={selected}
-      dragging={dragging}
-      // The cell carries the travel, as an animated value (`LiftedCell`).
-      dragOffset={0}
-      dropTarget={dropTarget}
-      menuOpen={menuOpen}
-      onDragStart={manual ? onDragStart : undefined}
-      onDragMove={manual ? onDragMove : undefined}
-      onDragEnd={manual ? onDragEnd : undefined}
-      onToggleSelect={onToggleSelect}
-      onPress={onPress}
-      onMore={onMore}
-      onRemove={manual ? onRemove : undefined}
+    <HoldToReorder
+      enabled={holds}
+      onStart={onDragStart}
+      onMove={onDragMove}
+      onEnd={onDragEnd}
       onLayoutHeight={index === 0 ? actions.measure : undefined}
-    />
+    >
+      <SongRow
+        testID={testID}
+        song={song}
+        artUri={artUri}
+        downloaded={downloaded}
+        notDownloadedMark={notDownloadedMark}
+        unavailable={unavailable}
+        index={index}
+        tags={tags}
+        selecting={selecting}
+        selected={selected}
+        menuOpen={menuOpen}
+        leading={grip}
+        lifted={lifted}
+        dropTarget={dropTarget}
+        onPress={onPress}
+        onMore={actions.more}
+        onToggleLoved={actions.toggleLoved}
+        onToggleSelect={actions.toggleSelect}
+        onToggleTag={actions.toggleTag}
+        onEditTags={actions.editTags}
+        // `null` while the hold is the move's: see `SongRow`.
+        onLongPress={holds ? null : actions.longPress}
+      />
+    </HoldToReorder>
+  )
+})
+
+/**
+ * The grip a mouse drags a row by.
+ *
+ * A pan responder, where the held row uses gesture handler, and the reason is
+ * the input rather than the platform. A pointer press on a grip is already a
+ * statement of intent, so nothing has to be taken away from anything: React's
+ * own responder system grants it at once and measures it to the pixel. The
+ * held row cannot be that, which is why it is not — and gesture handler's web
+ * build, which is exact enough for a finger's 350ms hold, lost about a third
+ * of a mouse's travel here, landing rows one place short.
+ *
+ * The responder holds the travel so far, so one remade in the middle of a drag
+ * starts counting from nothing and the row jumps: it is made once, and reads
+ * this row's place when the drag runs rather than when it was built. The row
+ * underneath never sees the press, so dragging cannot start a song by accident.
+ */
+const ReorderGrip = memo(function ReorderGrip({
+  song,
+  onStart,
+  onMove,
+  onEnd,
+  dragging,
+}: {
+  song: Song
+  onStart: () => void
+  onMove: (dy: number) => void
+  onEnd: (dy: number) => void
+  dragging: boolean
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const { finePointer } = useLayout()
+  // The row around this one is a drag source — a song drags onto a playlist in
+  // the sidebar — and the browser's drag would swallow the grip's own.
+  const gripRef = useRef<View>(null)
+  useNotADragSource(gripRef)
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => onStart(),
+        onPanResponderMove: (_event, gesture) => onMove(gesture.dy),
+        onPanResponderRelease: (_event, gesture) => onEnd(gesture.dy),
+        onPanResponderTerminate: () => onEnd(0),
+      }),
+    [onStart, onMove, onEnd],
+  )
+
+  return (
+    <View
+      ref={gripRef}
+      {...pan.panHandlers}
+      accessibilityRole="button"
+      accessibilityLabel={`Move ${song.title}`}
+      {...tip('Drag to reorder')}
+      style={[styles.grip, !finePointer && styles.gripTouch, dragCursor(dragging)]}
+    >
+      <Grip size={16} color={theme.colors.textMuted} />
+    </View>
   )
 })
 
@@ -898,7 +1050,13 @@ const styles = StyleSheet.create(theme => ({
   split: { flex: 1, flexDirection: 'row' },
   listArea: { flex: 1, minWidth: 0 },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
+  // No side padding on the list: the rows carry their own, as the library's
+  // do, and an extra 16 here is what made the same row sit in a different
+  // place on this page. The head and the empty state take it themselves.
+  content: { paddingBottom: space.xl },
+  gutter: { paddingHorizontal: space.lg },
+  grip: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
+  gripTouch: { width: HIT_TARGET, height: HIT_TARGET },
   backRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -953,7 +1111,12 @@ const styles = StyleSheet.create(theme => ({
   disabled: { opacity: 0.45 },
   divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   spinner: { marginTop: space.xl },
-  empty: { alignItems: 'center', gap: space.sm, paddingTop: 48 },
+  empty: {
+    alignItems: 'center',
+    gap: space.sm,
+    paddingTop: 48,
+    paddingHorizontal: space.lg,
+  },
   emptyTitle: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '700' },
   emptyHint: {
     color: theme.colors.textMuted,

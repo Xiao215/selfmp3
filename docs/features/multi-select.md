@@ -52,7 +52,14 @@ rather than the only door.
 | Space on the focused row | Toggles | Toggles |
 | Enter on the focused row | Plays | Toggles |
 | Cmd/Ctrl+A inside the list | Selects every row in the list | Same |
+| Hold a row (phone) | Starts a selection with it | — |
 | Escape | — | Clears the selection and leaves the mode |
+
+**One exception to the hold.** On a playlist you made, holding a row lifts it to be moved
+instead: the order is yours there, and reordering has nowhere else to live on a touch screen
+(`apps/app/src/ui/components/HoldToReorder.tsx`). Selection is still a tap away from that row's ⋯,
+which is why **Select** is in the song menu on a playlist page at every width. On a playlist
+that follows tags there is no order to change, so holding does what it does everywhere else.
 
 "Selection mode" is the explicit state the Select button and the checkbox turn on. It exists
 because a phone has no modifiers: in it a tap selects instead of playing, and the checkboxes

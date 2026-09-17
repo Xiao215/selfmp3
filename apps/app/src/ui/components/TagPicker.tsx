@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
+import { fuzzyRank, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
   oklchToHexAlpha,
@@ -173,6 +173,9 @@ export function TagSearchList({
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={autoFocus}
+        // This field creates tags as well as searching them, so it stops where
+        // a tag name stops.
+        maxLength={TAG_NAME_MAX}
         accessibilityLabel="Search or create a tag"
       />
 

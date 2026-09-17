@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import type { Tag } from '@selfmp3/shared'
+import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   excludeTag,
   HIT_TARGET,
@@ -128,7 +128,7 @@ export function TagsScreen(): ReactNode {
                     autoFocus
                     autoCapitalize="none"
                     autoCorrect={false}
-                    maxLength={40}
+                    maxLength={TAG_NAME_MAX}
                     accessibilityLabel="New tag name"
                   />
                   <Button

@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import type { Tag } from '@selfmp3/shared'
+import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
   oklchToHexAlpha,
@@ -183,7 +183,7 @@ function Editor({
             onSubmitEditing={submit}
             autoCapitalize="none"
             autoCorrect={false}
-            maxLength={40}
+            maxLength={TAG_NAME_MAX}
             accessibilityLabel="Name"
           />
           <Button

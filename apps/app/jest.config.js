@@ -13,6 +13,10 @@ module.exports = {
   preset: 'jest-expo',
   testMatch: ['**/*.test.tsx'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // Reanimated in a test: the worklets package resolves to its JavaScript
+  // half rather than the `.native` one that installs a native runtime, so a
+  // shared value and `useAnimatedStyle` run in-process (the song visual).
+  resolver: require.resolve('react-native-worklets/jest/resolver'),
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@shopify/flash-list|react-native-unistyles|react-native-nitro-modules)',
   ],

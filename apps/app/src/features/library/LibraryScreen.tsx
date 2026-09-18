@@ -98,21 +98,6 @@ export function LibraryScreen(): ReactNode {
   const artFor = useArt()
   const rowHeight = useSongRowHeight()
 
-  /*
-   * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
-   * row, the chooser, the sidebar. One function, because every one of them
-   * also has to leave the tag in the rail's recent list — a tag chosen from a
-   * song row is as much a sign of interest as one chosen from the sidebar.
-   * Only turning one *on* counts: dismissing a tag should not promote it.
-   */
-  const chooseTag = useCallback(
-    (tagId: number) => {
-      if (!model.filter.tagIds.includes(tagId)) noteTagUsed(tagId)
-      model.toggleTag(tagId)
-    },
-    [model],
-  )
-
   const saved = useSaveTagsAsPlaylist()
   // A second press would make a second copy of the same playlist, so once these
   // tags are kept the button says so instead of offering again. Changing a tag
@@ -140,10 +125,26 @@ export function LibraryScreen(): ReactNode {
    * row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, toggleLoved })
+  const latest = useRef({ selection, songIds, playFrom, toggleLoved, model })
   useEffect(() => {
-    latest.current = { selection, songIds, playFrom, toggleLoved }
+    latest.current = { selection, songIds, playFrom, toggleLoved, model }
   })
+  /*
+   * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
+   * row, the chooser, the sidebar. One function, because every one of them
+   * also has to leave the tag in the rail's recent list — a tag chosen from a
+   * song row is as much a sign of interest as one chosen from the sidebar.
+   * Only turning one *on* counts: dismissing a tag should not promote it.
+   *
+   * Every row is handed this, so it reads the model through `latest` like the
+   * handlers below: made over the model, it was remade whenever the library
+   * changed, and a like redrew every row on screen to give each a new copy.
+   */
+  const chooseTag = useCallback((tagId: number) => {
+    const { filter, toggleTag } = latest.current.model
+    if (!filter.tagIds.includes(tagId)) noteTagUsed(tagId)
+    toggleTag(tagId)
+  }, [])
   const onRowPress = useCallback((event: GestureResponderEvent, song: Song) => {
     const now = latest.current
     // Shift and Cmd on the web, and a tap in selection mode, select; a plain

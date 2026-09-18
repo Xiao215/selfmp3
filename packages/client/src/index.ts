@@ -38,6 +38,8 @@ export { configureClient, clientApi, librarySnapshot, type ClientRuntime } from 
 
 export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
 export * from './queries/queries.js'
+// A recomputed list kept as the same array while its items are the same.
+export { useSameArray } from './queries/useSameArray.js'
 
 export * from './downloads/downloadIndex.js'
 export * from './downloads/syncPolicy.js'

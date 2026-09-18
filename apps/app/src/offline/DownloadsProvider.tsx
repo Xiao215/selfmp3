@@ -23,6 +23,7 @@ import {
   type SyncSituation,
   useLibrary,
   useManifest,
+  useSameArray,
 } from '@selfmp3/client'
 import { installedApp } from '../ports/install'
 import { bucketMedia } from '../ports/bucketMedia'
@@ -230,9 +231,14 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     if (onWifi(network)) downloadQueue.clearError()
   }, [network])
 
-  const songIds = useMemo(
-    () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
-    [library.data],
+  // The same array while they are the same ids: every list below, and the
+  // context value with them, is remade from it, and an edit to one song's
+  // heart is not a change to which songs there are.
+  const songIds = useSameArray(
+    useMemo(
+      () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
+      [library.data],
+    ),
   )
   const missingIds = useMemo(
     () => pendingIds(state.index, songIds).filter(id => !excluded.has(id)),
@@ -312,14 +318,21 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [changeExcluded],
   )
 
+  // Made once, reading the sizes at the moment of the request: `bytesFor` is
+  // remade with every library edit, and this was remade with it, and the
+  // context value with this — a render of everything that reads downloads.
+  const sizing = useRef(bytesFor)
+  useEffect(() => {
+    sizing.current = bytesFor
+  }, [bytesFor])
   const requestDownload = useCallback(
     (ids: readonly number[]) => {
-      const bytes = bytesFor(ids)
+      const bytes = sizing.current(ids)
       const ask = downloadAsk(network, dataAllowed, bytes)
       if (ask === 'none') downloadByHand(ids)
       else setQuestion({ kind: 'download', ask, songIds: ids, bytes })
     },
-    [bytesFor, network, dataAllowed, downloadByHand],
+    [network, dataAllowed, downloadByHand],
   )
 
   const removeByHand = useCallback(

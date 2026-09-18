@@ -71,7 +71,19 @@ export function buildAccent(
   }
 }
 
-/** A tag's chip, in its own hue. */
+/**
+ * A tag's chip, in its own hue.
+ *
+ * Two states that have to be told apart across a room, because a chip is the
+ * only place the app says which tags are playing: **off is hollow** — no
+ * fill, an edge in the tag's colour, the name in it — and **on is solid**, the
+ * hue filled in with a brighter ring around it and ink that reads against it.
+ * Before this they were the same pill at two brightnesses a step apart, and
+ * the owner could not tell on a phone which of nine tags he had picked.
+ *
+ * `background` is the *read-back* fill, for a chip that is stating a fact
+ * rather than offering a choice — the tags on a song's row.
+ */
 export function tagColors(
   hue: number,
   scheme: ColorScheme = activeScheme,
@@ -80,22 +92,31 @@ export function tagColors(
   text: string
   activeBackground: string
   activeText: string
+  /** The hollow chip's edge, which is all there is of it when it is off. */
+  outline: string
+  /** The ring around the filled chip: the hue, a shade brighter than the fill. */
+  activeOutline: string
 } {
   if (scheme === 'light') {
     // The dark theme's light ink would vanish on white: the same hue, turned
-    // round — a pale ground and dark ink.
+    // round — a pale ground and dark ink. Chosen goes the other way again, to
+    // the only saturated fill on a white page, so it cannot be mistaken.
     return {
       background: oklchToHexAlpha(0.9, 0.06, hue, 0.7),
       text: oklchToHex(0.42, 0.1, hue),
-      activeBackground: oklchToHexAlpha(0.8, 0.1, hue, 0.85),
-      activeText: oklchToHex(0.25, 0.06, hue),
+      activeBackground: oklchToHex(0.52, 0.17, hue),
+      activeText: oklchToHex(0.99, 0, 0),
+      outline: oklchToHexAlpha(0.6, 0.12, hue, 0.45),
+      activeOutline: oklchToHex(0.42, 0.16, hue),
     }
   }
   return {
     background: oklchToHexAlpha(0.34, 0.07, hue, 0.4),
     text: oklchToHex(0.86, 0.09, hue),
-    activeBackground: oklchToHexAlpha(0.5, 0.13, hue, 0.6),
-    activeText: oklchToHex(0.96, 0.04, hue),
+    activeBackground: oklchToHex(0.5, 0.13, hue),
+    activeText: oklchToHex(0.97, 0.03, hue),
+    outline: oklchToHexAlpha(0.62, 0.11, hue, 0.55),
+    activeOutline: oklchToHex(0.74, 0.15, hue),
   }
 }
 

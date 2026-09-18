@@ -110,8 +110,13 @@ test.describe('choosing tags', () => {
     await expect(page.getByRole('heading', { name: /^Library/ })).toBeVisible()
   })
 
-  test('the head offers Play only once a tag is on', async ({ page }, info) => {
-    test.skip(info.project.name === 'phone', 'the head’s buttons are a computer’s')
+  /**
+   * At both widths, because this is what the phone was missing: it could pick
+   * tags and then had nowhere on the page to start them — Play and Save were
+   * drawn only above the breakpoint, and the phone's own Tags page offered a
+   * count you had to tap to be taken to the songs.
+   */
+  test('the head offers Play and Save only once a tag is on', async ({ page }) => {
     await page.goto('/')
     await libraryReady(page)
     await skipIfNoLibrary(page)
@@ -129,5 +134,8 @@ test.describe('choosing tags', () => {
     await pickTag(page, used.name)
     await expect(page.getByTestId('library-play-tags')).toBeVisible()
     await expect(page.getByTestId('library-save-tags')).toBeVisible()
+    // And the songs themselves are on the same screen, under the picker,
+    // rather than behind a count that opens another page.
+    await expect(songRows(page).first()).toBeVisible()
   })
 })

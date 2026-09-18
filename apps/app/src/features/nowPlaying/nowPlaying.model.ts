@@ -52,16 +52,26 @@ export type SongWords =
 export function resolveSongWords({
   loading,
   parsed,
+  instrumental,
   romanizationOn,
   romanized,
   offline,
 }: {
   loading: boolean
   parsed: ParsedLyrics | null
+  /**
+   * The library's own answer that this song has no words: the server writes it
+   * down the first time a lookup finds none. Taken here rather than waited
+   * for, so a song that is played again is on its visual from the first frame
+   * — the lookup saying "none" a moment later used to flip the page's Lyrics
+   * button to Visual after it had already been drawn.
+   */
+  instrumental: boolean
   romanizationOn: boolean
   romanized: readonly string[] | null
   offline: boolean
 }): SongWords {
+  if (instrumental && !parsed) return { status: 'missing', offline: false }
   if (loading) return { status: 'loading' }
   if (parsed) {
     // Only romanization that lines up exactly: misaligned is worse than none.
@@ -194,8 +204,13 @@ export function autoMixLine({
     : 'ordered by tempo, key and energy'
 }
 
-/** How tall the similar-songs shelf is on a phone: heading, cards and the gap under them. */
-const SIMILAR_SHELF_HEIGHT = 132
+/**
+ * How tall the similar-songs shelf is on a phone: heading, cards and the gap
+ * under them. The shelf is drawn into exactly this height (`SimilarShelf`), so
+ * the room the cover gives up for it is the room it takes — and an empty slot
+ * held while the neighbours are being fetched is the same height as a full one.
+ */
+export const SIMILAR_SHELF_HEIGHT = 144
 
 /** The smallest the cover gets on a phone, shelf or not. */
 export const PHONE_ART_MIN = 180
@@ -204,6 +219,12 @@ export const PHONE_ART_MIN = 180
  * The phone page's cover, and whether the similar-songs shelf fits under the
  * controls. The cover gives up the shelf's height; if that would take it below
  * its floor, the shelf stays out and the page is as it was.
+ *
+ * `similar` is null while this song's neighbours are still being asked for.
+ * Not knowing is not the same as knowing there are none: the page keeps the
+ * shelf's place and the cover's size until the answer is in, rather than
+ * laying itself out for "no neighbours" and rearranging a frame later — which
+ * is what made the whole page jump every time the song changed.
  */
 export function similarShelfLayout({
   width,
@@ -214,12 +235,13 @@ export function similarShelfLayout({
   width: number
   height: number
   sidePadding: number
-  similar: number
+  similar: number | null
 }): { artSize: number; showShelf: boolean } {
   const room = (reserved: number): number =>
     Math.min(width - sidePadding * 2, 340, height - reserved)
   const withShelf = room(500 + SIMILAR_SHELF_HEIGHT)
-  if (similar > 0 && withShelf >= PHONE_ART_MIN) return { artSize: withShelf, showShelf: true }
+  const expected = similar === null || similar > 0
+  if (expected && withShelf >= PHONE_ART_MIN) return { artSize: withShelf, showShelf: true }
   return { artSize: Math.max(PHONE_ART_MIN, room(500)), showShelf: false }
 }
 

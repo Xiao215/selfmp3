@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -701,13 +702,23 @@ export function useFixCovers() {
   })
 }
 
-/** Nearest neighbours of a song. Cheap on the server, so cached only briefly. */
+/**
+ * Nearest neighbours of a song. Cheap on the server, so cached only briefly.
+ *
+ * The last song's answer is kept while the next one's is being fetched, and
+ * says so through `isPlaceholderData`. Not to draw — the phone's shelf shows
+ * nothing rather than another song's neighbours — but so that a page laid out
+ * around "this song has neighbours" does not spend the moment between two
+ * songs laid out around "it has none" and rearrange itself when the answer
+ * lands. See `similarShelfLayout`.
+ */
 export function useSimilar(songId: number | null, limit = 12): UseQueryResult<SimilarSongs, Error> {
   return useQuery({
     queryKey: songId === null ? ['similar', 'none'] : queryKeys.similar(songId),
     queryFn: () => clientApi().similar(songId ?? 0, limit),
     enabled: songId !== null,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   })
 }
 

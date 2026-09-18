@@ -56,7 +56,28 @@ export interface ProgressStore {
   /** The same object until the position or duration changes, as `useSyncExternalStore` requires. */
   get: () => PlayerProgress
   getPosition: () => number
-  set: (position: number, duration: number) => void
+  /**
+   * A tick, and the song the engine was timing when it made it. A tick for any
+   * other song is dropped rather than drawn: see `follow`.
+   */
+  set: (songId: number | null, position: number, duration: number) => void
+  /**
+   * The clock is this song's from now on, starting at `startAt` — the moment
+   * the queue moved, not the moment the player caught up.
+   *
+   * Changing songs is not instant: the engine goes on playing the song it is
+   * leaving while it opens the next one, and a phone's player reports its
+   * position only once a second. Without this the bar under the new song's
+   * name kept the old song's position until that first tick — a fraction of a
+   * second of the wrong song's progress, already in the new song's colour, and
+   * then a jump back to 0:00. So the position starts again here, and ticks
+   * still in flight for the song before are not the new song's position.
+   *
+   * Following the song already being followed, with no `startAt`, leaves the
+   * clock where it is: that is asking for the song that is sounding, which the
+   * engine leaves playing rather than starting again.
+   */
+  follow: (songId: number | null, startAt?: number) => void
   subscribe: (listener: () => void) => () => void
 }
 
@@ -65,10 +86,24 @@ export function createProgressStore(): ProgressStore {
     { position: 0, duration: 0 },
     (a, b) => a.position === b.position && a.duration === b.duration,
   )
+  // Null until something is loaded, which is what the engine reports too.
+  let timing: number | null = null
   return {
     get: store.get,
     getPosition: () => store.get().position,
-    set: (position, duration) => store.set({ position, duration }),
+    set: (songId, position, duration) => {
+      if (songId !== timing) return
+      store.set({ position, duration })
+    },
+    follow: (songId, startAt) => {
+      const again = timing === songId
+      timing = songId
+      if (again && startAt === undefined) return
+      // Length unknown again: the song's own is what the scrubber falls back
+      // to (`usePlayerProgress`), and the engine says the real one on its
+      // first tick.
+      store.set({ position: startAt ?? 0, duration: 0 })
+    },
     subscribe: store.subscribe,
   }
 }

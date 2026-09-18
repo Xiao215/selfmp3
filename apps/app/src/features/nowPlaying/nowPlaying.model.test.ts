@@ -28,6 +28,7 @@ const SYNCED: ParsedLyrics = {
 const base = {
   loading: false,
   parsed: null,
+  instrumental: false,
   romanizationOn: false,
   romanized: null,
   offline: false,
@@ -69,6 +70,20 @@ describe('now playing', () => {
       offline: true,
     })
     expect(resolveSongWords(base)).toEqual({ status: 'missing', offline: false })
+  })
+
+  it('does not wait for the lookup to repeat what the library already knows', () => {
+    // A song played before, whose lookup found nothing: it is on its visual
+    // from the first frame rather than showing "Looking for lyrics…" and the
+    // Lyrics button until the answer comes back a second time.
+    expect(resolveSongWords({ ...base, instrumental: true, loading: true })).toEqual({
+      status: 'missing',
+      offline: false,
+    })
+    // Words found anyway — a sidecar added since — win over the stale flag.
+    expect(resolveSongWords({ ...base, instrumental: true, parsed: SYNCED })).toMatchObject({
+      status: 'lyrics',
+    })
   })
 
   it('names the romanization for the language', () => {
@@ -124,9 +139,18 @@ describe('the similar-songs shelf on a phone', () => {
   it('fits on a tall phone, and the cover gives up its height', () => {
     // iPhone 17 Pro Max: 440 wide, 956 tall.
     expect(similarShelfLayout({ width: 440, height: 956, sidePadding: 16, similar: 10 })).toEqual({
-      artSize: 324,
+      artSize: 312,
       showShelf: true,
     })
+  })
+
+  it('keeps the shelf’s place while this song’s neighbours are unknown', () => {
+    // The song changed a moment ago and the answer is still out: laying the
+    // page out for "none" here is what made the cover jump to full width for a
+    // frame and back.
+    expect(similarShelfLayout({ width: 393, height: 852, sidePadding: 16, similar: null })).toEqual(
+      similarShelfLayout({ width: 393, height: 852, sidePadding: 16, similar: 4 }),
+    )
   })
 
   it('stays out when the cover would go below its floor, and the page is as it was', () => {

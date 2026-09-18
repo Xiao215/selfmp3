@@ -6,7 +6,7 @@ import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
-import { playSimilarOrder } from './nowPlaying.model'
+import { playSimilarOrder, SIMILAR_SHELF_HEIGHT } from './nowPlaying.model'
 
 /**
  * Similar songs under the controls, on a phone.
@@ -69,7 +69,12 @@ export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
 const SHELF_COVER = 64
 
 const styles = StyleSheet.create(theme => ({
-  shelf: { marginBottom: space.sm },
+  /*
+   * The height the page took off the cover for this, rather than whatever the
+   * cards add up to: the two agreeing is what keeps the page still while the
+   * songs are on their way (`SIMILAR_SHELF_HEIGHT`).
+   */
+  shelf: { height: SIMILAR_SHELF_HEIGHT, paddingBottom: space.sm },
   head: {
     flexDirection: 'row',
     alignItems: 'center',

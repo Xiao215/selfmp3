@@ -72,6 +72,7 @@ import {
   queueLines,
   romanName,
   similarShelfLayout,
+  SIMILAR_SHELF_HEIGHT,
   upNextLine,
   type QueueLine,
 } from './nowPlaying.model'
@@ -214,16 +215,30 @@ function PhoneNowPlaying(): ReactNode {
     })
   }, [pull, router])
 
-  // Sized from the room that is left, not the width alone: on a short phone
-  // the art shrinks rather than pushing the controls off the bottom.
-  // Nearest neighbours of what is playing, for the shelf under the controls.
+  /*
+   * Nearest neighbours of what is playing, for the shelf under the controls —
+   * and with them the cover's size, which is what is left of the room once the
+   * shelf has had its share (on a short phone the cover shrinks rather than
+   * pushing the controls off the bottom).
+   *
+   * Changing songs asks a new question, and until it is answered this page
+   * knows nothing about the new song's neighbours. Laying the page out for
+   * "none" in that moment is what made it jump — one frame of full-width
+   * cover with no shelf, then back to the shelf and a smaller cover.
+   *
+   * So the shape follows the last answer the query has (`useSimilar` keeps
+   * it) until this song's arrives: a library whose songs have neighbours
+   * keeps the shelf's place through the change, and one whose songs have none
+   * never makes room for it. The cards, though, are only ever this song's —
+   * the shelf holds its place empty rather than showing the song before's.
+   */
   const similar = useSimilar(song?.id ?? null, 10)
-  const similarSongs = similar.data?.songs ?? []
+  const similarSongs = similar.isPlaceholderData ? [] : (similar.data?.songs ?? [])
   const { artSize, showShelf } = similarShelfLayout({
     width,
     height,
     sidePadding: space.lg,
-    similar: similarSongs.length,
+    similar: similar.data?.songs.length ?? null,
   })
 
   if (song === null) {
@@ -404,8 +419,17 @@ function PhoneNowPlaying(): ReactNode {
                 </IconButton>
               </View>
 
-              {/* Under the lyrics the words have the room; the shelf is for the art. */}
-              {showShelf && !showWords ? <SimilarShelf songs={similarSongs} /> : null}
+              {/*
+                Under the lyrics the words have the room; the shelf is for the
+                art. The slot is the height the cover gave up, held whether or
+                not this song's neighbours have arrived yet, so the page does
+                not shuffle itself about as they land.
+              */}
+              {showShelf && !showWords ? (
+                <View style={styles.shelfSlot}>
+                  {similarSongs.length > 0 ? <SimilarShelf songs={similarSongs} /> : null}
+                </View>
+              ) : null}
             </>
           )}
         </View>
@@ -985,6 +1009,10 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minHeight: 0,
     marginHorizontal: -space.lg,
+  },
+  // Exactly what `similarShelfLayout` took off the cover for it.
+  shelfSlot: {
+    height: SIMILAR_SHELF_HEIGHT,
   },
   progress: {
     marginBottom: 6,

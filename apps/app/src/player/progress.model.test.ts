@@ -44,14 +44,61 @@ describe('a value store', () => {
 describe('the progress store', () => {
   it('keeps the same snapshot until something moves', () => {
     const store = createProgressStore()
-    store.set(3, 200)
+    store.follow(1)
+    store.set(1, 3, 200)
     const first = store.get()
-    store.set(3, 200)
+    store.set(1, 3, 200)
     // useSyncExternalStore loops forever on a snapshot that is new every read.
     expect(store.get()).toBe(first)
-    store.set(3.25, 200)
+    store.set(1, 3.25, 200)
     expect(store.get()).not.toBe(first)
     expect(store.getPosition()).toBe(3.25)
+  })
+
+  it('starts the clock again the moment the song changes', () => {
+    const store = createProgressStore()
+    store.follow(1)
+    store.set(1, 128, 200)
+
+    store.follow(2)
+    // Not 128 for the fraction of a second before the player's first tick.
+    expect(store.get()).toEqual({ position: 0, duration: 0 })
+  })
+
+  it('drops a tick the song being left still had in it', () => {
+    const store = createProgressStore()
+    store.follow(1)
+    store.set(1, 128, 200)
+    store.follow(2)
+
+    // The engine plays song 1 on until song 2 is open, and a phone's player
+    // reports a position once a second: this tick is song 1's.
+    store.set(1, 129, 200)
+    expect(store.getPosition()).toBe(0)
+
+    store.set(2, 0.5, 240)
+    expect(store.get()).toEqual({ position: 0.5, duration: 240 })
+  })
+
+  it('resumes where it left off, so a restored song does not flash 0:00', () => {
+    const store = createProgressStore()
+    store.follow(7, 203)
+    expect(store.getPosition()).toBe(203)
+  })
+
+  it('leaves the sounding song’s clock alone when it is asked for again', () => {
+    const store = createProgressStore()
+    store.follow(7)
+    store.set(7, 92, 240)
+
+    // Tapping the row of the song that is already playing: the engine leaves
+    // it where it is, so 0:00 here would be a second of fiction.
+    store.follow(7)
+    expect(store.get()).toEqual({ position: 92, duration: 240 })
+
+    // Saying where to begin is a different request, and it does move.
+    store.follow(7, 0)
+    expect(store.getPosition()).toBe(0)
   })
 })
 

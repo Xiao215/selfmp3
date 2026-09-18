@@ -607,6 +607,84 @@ controls; downloads and their pause/resume; and everything in
 
 ---
 
+## Measuring performance on a phone
+
+What a laptop can prove about the phone's speed, and what only the phone can.
+The 2026-09-17 pass (Now Playing's visual stuttering; a like leaving its
+pressed box on screen) is the worked example: each finding below was counted
+in a jest test first, and the fix is the test's assertion.
+
+**What a test on this Mac can count honestly** — renders and commits, not
+milliseconds:
+
+- **React renders per event.** Wrap the memoised component in a counting
+  `memo` (`LibraryScreen.perf.test.tsx` does this for `SongRow`, and logs which
+  props changed when a row rendered again), and put a component that calls the
+  context hook beside the screen to count how far a change reaches
+  (`PlayerReader`, `DownloadsReader`). A like went from 16 row renders to one.
+- **Shadow-tree commits per frame.** On the New Architecture, every
+  `Animated.Value.setValue` without the native driver is a `setNativeProps`,
+  and each of those is a commit of the whole shadow tree on the JavaScript
+  thread (`ReactNativeElement.setNativeProps` →
+  `UIManager::setNativeProps_DEPRECATED` → `shadowTree.commit`). Spy on
+  `Animated.Value.prototype.setValue` and divide by `requestAnimationFrame`
+  calls (`SongVisual.perf.test.tsx`). The visual went from 9–20 commits a
+  frame to one shared-value write, applied on the UI thread.
+- **What a dropdown leaves behind.** Open and close it ten times with fake
+  timers and compare mounted nodes, `jest.getTimerCount()`, and spies on
+  `Appearance`, `Dimensions` and `AccessibilityInfo` listeners before and after
+  (`AppearancePanel.perf.test.tsx`). The Settings theme dropdown leaves
+  nothing; a same-theme pick costs one synchronous pref write and Unistyles
+  ignores it.
+- **Work per edit on a cloud library**, timed in Node against the replica's
+  own functions: `show()`'s view rebuild, `LibrarySchema.parse` of a refetch,
+  React Query's `replaceEqualDeep`. At 2,000 songs: 3 + 29 + 12 ms on this
+  Mac's V8. Hermes on a phone is several times slower, so treat these as lower
+  bounds.
+
+**What is not honest here, and needs the phone:** any millisecond figure from
+jest (a JS-only renderer, V8, no layout, no Fabric); whether a frame is
+actually dropped; the cost of a layout prop (a border width, a font size)
+versus a transform; memory. Jest's Reanimated mock runs `useAnimatedStyle` on
+the JavaScript thread, so a test proves what is *written* per frame, not that
+the UI thread carries it.
+
+**On the device**, in this order:
+
+1. **The in-app perf monitor** (shake → *Show Perf Monitor*, dev build only):
+   two frame rates, JS and UI. A visual that stutters with the JS rate low and
+   the UI rate at 60/120 is a JS-thread stall; both low is the GPU or layout.
+   Watch the RAM number across ten open/close cycles of a sheet.
+2. **Xcode Instruments → Time Profiler** on a *release* build run from Xcode
+   (Product → Profile). Filter the call tree to the main thread and to
+   `com.facebook.react.JavaScript`. Look for `UIManager::setNativeProps`,
+   `ShadowTree::commit`, `Yoga` (`YGNodeCalculateLayout`) and
+   `hermes::vm` frames under a tap or during a visual. A commit per
+   `setValue` shows as a wall of `ShadowTree::commit` under the JS thread.
+3. **Instruments → Animation Hitches** (Core Animation) on the same build
+   records every late frame with what the main thread was doing.
+4. **Reanimated**: `useAnimatedStyle` and `useFrameCallback` run on the UI
+   thread; a `console.log` inside a worklet prints with `[worklet]`. To see
+   whether a value is animated on the UI thread or through a shadow-tree
+   commit, `ReanimatedModuleProxy::commitUpdates` versus
+   `synchronouslyUpdateUIProps` in Time Profiler: transforms and opacity take
+   the synchronous path, layout props (width, borderWidth) take a commit.
+5. **Hermes sampling profiler** for the JS thread alone: dev menu →
+   *Enable Sampling Profiler*, reproduce, disable; the trace opens in Chrome's
+   Performance panel and shows every JS function with its self time, including
+   the zod parse and the replica's replay on a like.
+6. **A memory leak from a sheet**: Instruments → Allocations, mark a
+   generation, open and close ten times, mark again; anything still live in
+   the second generation that was made by `Sheet`, `Popover` or `Overlay` is
+   the leak.
+
+A release build is the only one that answers a "does it feel slow" question:
+a dev build carries the dev menu, remote-debugging hooks and un-minified
+Hermes bytecode, and is slower everywhere by a factor that hides the thing
+being measured.
+
+---
+
 ## What was and was not verified
 
 *This is the record from when the phone app was a separate workspace, before

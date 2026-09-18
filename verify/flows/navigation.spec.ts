@@ -62,30 +62,44 @@ test.describe('navigation', () => {
     )
   })
 
-  test('a phone shows one tag’s songs from Tags', async ({ page }, info) => {
-    test.skip(info.project.name !== 'phone', 'a computer picks tags from its sidebar')
+  /**
+   * The Tags page is housekeeping now, not a second picker.
+   *
+   * It used to be where a phone picked what to listen to, which put the
+   * library's main verb two taps under You and then showed no songs when you
+   * used it. Picking moved to the library's own picker at both widths; what is
+   * left here is naming, colouring and deleting, and a way across to the
+   * picker for anyone who came looking for the old page.
+   */
+  test('a phone manages tags on the Tags page, and is sent to the library to pick', async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'phone', 'a computer edits tags from its sidebar')
     await page.goto('/tags')
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
       timeout: 30_000,
     })
-    // A chip in the picker names its song count: "chill, 20 songs".
-    const tag = page.getByRole('button', { name: /, [\d,]+ songs?$/ }).first()
-    const name = ((await tag.getAttribute('aria-label')) ?? '').split(',')[0] ?? ''
-    await expect(tag.or(page.getByText(/No tags yet/))).toBeVisible({ timeout: 30_000 })
-    test.skip(!(await tag.isVisible()), 'needs a tag in the dev library')
+    // Making a tag is a card in the page, not a bare field over the picker.
+    await page.getByTestId('tags-new').click()
+    await expect(page.getByTestId('tags-new-name')).toBeVisible()
+    // Nothing typed, nothing to create.
+    await expect(page.getByTestId('tags-create')).toBeDisabled()
+    await page.getByRole('button', { name: 'Close new tag' }).click()
 
-    // Tapping a tag no longer leaves the page: it goes into the bar along the
-    // foot, which says what it comes to and is itself the way through.
-    await tag.click()
-    await expect(page.getByTestId('tags-play-bar')).toBeVisible()
-    await page.getByTestId('tags-show-songs').click()
+    // A tag is a row that opens the editor, not a chip that starts music.
+    const row = page.getByRole('button', { name: /^Edit .+, [\d,]+ songs?$/ }).first()
+    await expect(row.or(page.getByText(/No tags yet/))).toBeVisible({ timeout: 30_000 })
+    if (await row.isVisible()) {
+      await row.click()
+      await expect(page.getByTestId('tag-editor')).toBeVisible()
+      await page.keyboard.press('Escape')
+    }
 
+    await page.getByTestId('tags-pick-to-listen').click()
     await expect(page).toHaveURL(/\/$/)
     await libraryReady(page)
-    // The library is showing that tag: the chip *is* the heading. Not Play —
-    // a phone's library head has never carried the transport, which lives in
-    // the bar on the page the tags were picked from.
-    await expect(page.getByRole('heading').filter({ hasText: name })).toBeVisible()
+    // The library arrives with its picker already down, where the songs are.
+    await expect(page.getByTestId('listen-tags')).toBeVisible()
   })
 
   test('the library is still there afterwards', async ({ page }) => {

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, radius, space, type, useLibrary } from '@selfmp3/client'
+import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { Search, X } from './Icons'
@@ -32,6 +32,13 @@ import { Search, X } from './Icons'
  * most and the few made lately, each a labelled lane. With something typed it
  * shows the matches and nothing else: once you are searching, a wall of tags
  * you did not search for is in the way.
+ *
+ * **The same panel, laid out for the room it has.** With a mouse the lane's
+ * label sits beside its chips and the chips are the compact size. On a phone
+ * the label goes above them — a 74-point gutter out of 368 is a quarter of the
+ * width spent on the word MOST USED — the chips are finger-sized, and the
+ * summary and Done take a row of their own along the foot rather than being
+ * squeezed in beside the search.
  */
 export function ListenTags({
   open,
@@ -48,42 +55,24 @@ export function ListenTags({
   summary?: string
 }): ReactNode {
   if (!open) return null
-  return (
-    <ListenTagsList
-      selected={selected}
-      onToggle={onToggle}
-      summary={summary}
-      onDone={onClose}
-      autoFocus
-    />
-  )
+  return <Panel selected={selected} onToggle={onToggle} summary={summary} onDone={onClose} />
 }
 
-/**
- * The panel itself, for a caller that draws it in its own flow: the library
- * head, and the phone's Tags page, which *is* the picker rather than a page
- * that opens one.
- */
-export function ListenTagsList({
+/** The panel itself, drawn in the caller's flow. */
+function Panel({
   selected,
   onToggle,
-  onEditTag,
   onDone,
   summary,
-  autoFocus = false,
-  style,
 }: {
   selected: readonly number[]
   onToggle: (tagId: number) => void
-  /** A long press on a chip, where tags can be renamed and deleted. */
-  onEditTag?: (tag: Tag) => void
   /** Shown as a Done button when the panel is something that closes. */
   onDone?: () => void
   summary?: string
-  autoFocus?: boolean
-  style?: StyleProp<ViewStyle>
 }): ReactNode {
   const { theme } = useUnistyles()
+  const { wide } = useLayout()
   const accent = useAccent()
   const [focused, setFocused] = useState(false)
   const [query, setQuery] = useState('')
@@ -100,29 +89,35 @@ export function ListenTagsList({
   const chip = (tag: Tag): ReactNode => (
     <Chip
       key={tag.id}
-      compact
+      choice
+      compact={wide}
       label={tag.name}
       hue={tag.hue}
       count={tag.songCount}
       selected={selected.includes(tag.id)}
       onPress={() => onToggle(tag.id)}
-      onLongPress={onEditTag ? () => onEditTag(tag) : undefined}
     />
   )
 
-  /** A labelled lane: the heading on the left, the chips flowing beside it. */
+  /** A labelled lane: the heading beside the chips, or above them on a phone. */
   const lane = (label: string, list: readonly Tag[]): ReactNode =>
     list.length === 0 ? null : (
-      <View style={styles.lane}>
-        <Text style={styles.laneLabel}>{label}</Text>
+      <View style={wide ? styles.lane : styles.laneStacked}>
+        <Text style={[styles.laneLabel, wide && styles.laneLabelBeside]}>{label}</Text>
         <View style={styles.cloud}>{list.map(chip)}</View>
       </View>
     )
 
   return (
-    <View style={[styles.panel, style]} testID="listen-tags">
+    <View style={[styles.panel, wide ? styles.panelWide : styles.panelNarrow]} testID="listen-tags">
       <View style={styles.searchRow}>
-        <View style={[styles.searchBox, focused && { borderColor: accent.accent }]}>
+        <View
+          style={[
+            styles.searchBox,
+            !wide && styles.searchBoxNarrow,
+            focused && { borderColor: accent.accent },
+          ]}
+        >
           <Search size={14} color={focused ? accent.accent : theme.colors.textMuted} />
           <TextInput
             style={styles.search}
@@ -134,7 +129,11 @@ export function ListenTagsList({
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
-            autoFocus={autoFocus}
+            // With a mouse the panel opens ready to type. On a phone it must
+            // not: the keyboard would come up over the chips the panel exists
+            // to show, for a search almost nobody wants at nine tags.
+            autoFocus={wide}
+            returnKeyType="search"
             accessibilityLabel="Search tags"
             testID="listen-tags-search"
           />
@@ -149,21 +148,14 @@ export function ListenTagsList({
             </Pressable>
           ) : null}
         </View>
-        {summary ? <Text style={styles.summary}>{summary}</Text> : null}
-        {onDone ? (
-          <Pressable
-            onPress={onDone}
-            accessibilityRole="button"
-            accessibilityLabel="Done choosing tags"
-            style={({ pressed }) => [styles.done, pressed && { opacity: 0.7 }]}
-            testID="listen-tags-done"
-          >
-            <Text style={[styles.doneLabel, { color: accent.accent }]}>Done</Text>
-          </Pressable>
-        ) : null}
+        {/* With a mouse the summary and Done ride along beside the search. */}
+        {wide ? foot({ summary, onDone, accent: accent.accent }) : null}
       </View>
 
-      <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={[styles.body, !wide && styles.bodyNarrow]}
+        keyboardShouldPersistTaps="handled"
+      >
         {trimmed ? (
           matches.length === 0 ? (
             <Text style={styles.hint}>No tag matches “{trimmed}”.</Text>
@@ -182,19 +174,59 @@ export function ListenTagsList({
           </>
         )}
       </ScrollView>
+
+      {/* On a phone they take the foot, where a thumb is and where a panel ends. */}
+      {!wide && (summary !== undefined || onDone !== undefined) ? (
+        <View style={styles.footRow}>
+          {foot({ summary, onDone, accent: accent.accent, spread: true })}
+        </View>
+      ) : null}
     </View>
+  )
+}
+
+/** What the choice comes to, and the way out of the panel. */
+function foot({
+  summary,
+  onDone,
+  accent,
+  spread = false,
+}: {
+  summary?: string
+  onDone?: () => void
+  accent: string
+  /** A row of its own: the summary to the left, Done to the right, count or no count. */
+  spread?: boolean
+}): ReactNode {
+  return (
+    <>
+      {summary ? <Text style={styles.summary}>{summary}</Text> : null}
+      {spread ? <View style={styles.footSpacer} /> : null}
+      {onDone ? (
+        <Pressable
+          onPress={onDone}
+          accessibilityRole="button"
+          accessibilityLabel="Done choosing tags"
+          style={({ pressed }) => [styles.done, pressed && { opacity: 0.7 }]}
+          testID="listen-tags-done"
+        >
+          <Text style={[styles.doneLabel, { color: accent }]}>Done</Text>
+        </Pressable>
+      ) : null}
+    </>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   panel: {
-    gap: space.sm,
-    padding: space.sm,
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: radius.md,
   },
+  panelWide: { gap: space.sm, padding: space.sm },
+  /* A phone has one panel on the screen and room to breathe in it. */
+  panelNarrow: { gap: space.md, padding: space.md },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   searchBox: {
     flex: 1,
@@ -209,6 +241,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.border,
     borderRadius: radius.sm,
   },
+  searchBoxNarrow: { minHeight: HIT_TARGET, paddingHorizontal: space.md },
   search: {
     flex: 1,
     minWidth: 0,
@@ -221,18 +254,31 @@ const styles = StyleSheet.create(theme => ({
   summary: { color: theme.colors.textMuted, fontSize: type.small },
   done: { minHeight: HIT_TARGET - 10, justifyContent: 'center', paddingHorizontal: space.sm },
   doneLabel: { fontSize: type.small, fontWeight: '700' },
+  footRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingTop: space.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  footSpacer: { flex: 1, minWidth: 0 },
   body: { flexShrink: 1, maxHeight: 210 },
-  // The label sits beside its chips rather than over them: a heading on its own
-  // line costs a row of height per group, and there are only ever two groups.
+  // Lower than a computer's, because the songs the picking is for are under
+  // it: a panel that fills a phone leaves nothing to look at.
+  bodyNarrow: { maxHeight: 200 },
+  // With a mouse the label sits beside its chips: a heading on its own line
+  // costs a row of height per group, and there are only ever two groups.
   lane: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, paddingBottom: space.xs },
+  /* On a phone the gutter is a quarter of the width, so the label goes above. */
+  laneStacked: { gap: space.xs, paddingBottom: space.md },
   laneLabel: {
-    width: 74,
-    paddingTop: 5,
     color: theme.colors.textMuted,
     fontSize: type.label,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  laneLabelBeside: { width: 74, paddingTop: 5 },
+  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs },
 }))

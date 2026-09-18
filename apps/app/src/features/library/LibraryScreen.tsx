@@ -330,6 +330,50 @@ export function LibraryScreen(): ReactNode {
           ) : null}
         </View>
 
+        {/*
+          A phone's library carries no sort and no idle Shuffle — a tap on a
+          row plays the list from there. But tags turn this list into an idea,
+          and an idea is worth starting and worth keeping, so the same three
+          controls a computer keeps in its header take a row of their own here.
+          Without them the phone could pick tags and then had to be told to go
+          somewhere else to play them.
+        */}
+        {!wide && model.tagFiltered ? (
+          <View style={styles.phoneTransport}>
+            <Button
+              label="Play"
+              variant="primary"
+              grow
+              accessibilityLabel="Play these tags"
+              icon={<Play size={14} color={accent.onAccent} />}
+              disabled={visible.length === 0}
+              onPress={() => player.playFrom(songIds, 0)}
+              testID="library-play-tags"
+            />
+            <Button
+              accessibilityLabel="Shuffle these tags"
+              icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
+              disabled={visible.length === 0}
+              onPress={() => player.playShuffled(songIds)}
+            />
+            {alreadySaved ? (
+              <View style={styles.savedSlot}>
+                <Text style={styles.savedMark} testID="library-saved">
+                  ✓ Saved
+                </Text>
+              </View>
+            ) : (
+              <Button
+                label={saved.saving ? 'Saving…' : 'Save'}
+                accessibilityLabel="Save these tags as a playlist"
+                disabled={saved.saving || visible.length === 0}
+                onPress={saveTheseTags}
+                testID="library-save-tags"
+              />
+            )}
+          </View>
+        ) : null}
+
         <View style={[styles.controls, headWide && styles.controlsWide]}>
           <View
             style={[
@@ -592,6 +636,9 @@ const styles = StyleSheet.create(theme => ({
   addTagPressed: { backgroundColor: theme.colors.surface2 },
   addTagLabel: { color: theme.colors.textMuted, fontSize: type.small },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  /* Play first and widest: it is what picking tags was for. */
+  phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  savedSlot: { justifyContent: 'center', paddingHorizontal: space.sm },
   chooser: { paddingHorizontal: space.lg },
   savedMark: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   screen: {

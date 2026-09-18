@@ -22,6 +22,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { Toggle } from '../../ui/components/Toggle'
+import { label, pageTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
@@ -262,7 +263,7 @@ export function SettingsScreen(): ReactNode {
         accessibilityState={{ selected: on }}
         style={({ pressed }) => [
           column ? styles.indexItem : styles.chip,
-          on && (column ? [styles.indexItemOn, styles.indexItemOnEdge] : styles.chipOn),
+          on && (column ? styles.indexItemOn : styles.chipOn),
           pressed && styles.indexPressed,
         ]}
       >
@@ -290,7 +291,7 @@ export function SettingsScreen(): ReactNode {
       >
         <View ref={headRef} style={styles.head}>
           <BackToYou />
-          <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
+          <Text style={styles.title} accessibilityRole="header">
             Settings
           </Text>
           <Text style={styles.sub}>
@@ -481,13 +482,7 @@ function ChipBar({
 }): ReactNode {
   const { theme } = useUnistyles()
   return (
-    <View
-      ref={barRef}
-      style={[
-        styles.chipBar,
-        { backgroundColor: theme.colors.surface0, borderBottomColor: theme.colors.border },
-      ]}
-    >
+    <View ref={barRef} style={[styles.chipBar, { backgroundColor: theme.colors.surface0 }]}>
       <ScrollView
         ref={chipsRef}
         onLayout={event => onWidth(event.nativeEvent.layout.width)}
@@ -507,16 +502,12 @@ const styles = StyleSheet.create(theme => ({
   contentColumn: { paddingTop: COLUMN_TOP, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 16 },
   head: { marginBottom: 20 },
-  title: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700', letterSpacing: -0.4 },
-  titleNarrow: { fontSize: 22 },
+  title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   panels: { gap: 14, maxWidth: 780 },
   indexColumn: { position: 'absolute', top: COLUMN_TOP, left: 32, width: 172, gap: 1 },
   indexTitle: {
-    color: theme.colors.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    ...label(theme.colors),
     paddingTop: 4,
     paddingHorizontal: 10,
     paddingBottom: 6,
@@ -524,16 +515,13 @@ const styles = StyleSheet.create(theme => ({
   indexItem: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent',
+    borderRadius: radius.pill,
   },
-  indexItemOn: { backgroundColor: theme.colors.surface1 },
-  // The section you are on, edged in the accent, from the palette so the
-  // picker recolours the index without re-rendering the page.
-  indexItemOnEdge: { borderLeftColor: theme.colors.accent },
-  chipOn: { borderColor: theme.colors.accent },
-  indexPressed: { backgroundColor: theme.colors.surface1 },
+  // The section you are on is the selected tone, as a chosen segment is (`S2`):
+  // a lighter fill, not an accent edge.
+  indexItemOn: { backgroundColor: theme.colors.surfaceSelected },
+  chipOn: { backgroundColor: theme.colors.surfaceSelected },
+  indexPressed: { backgroundColor: theme.colors.surface3 },
   indexText: { color: theme.colors.textMuted, fontSize: 13 },
   indexTextOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   chipBar: {
@@ -541,16 +529,12 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 10,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   chips: { gap: 6, paddingHorizontal: 16 },
   chip: {
     paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface1,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
   },
 }))

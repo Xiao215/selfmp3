@@ -25,7 +25,7 @@ function seenCover(pose: MovePose): { left: number; top: number; size: number } 
 describe('coverPose', () => {
   it('leaves the cover where the stage lays it out', () => {
     expect(seenCover(coverPose(g, 0))).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
-    expect(coverPose(g, 0).radius).toBe(12)
+    expect(coverPose(g, 0).radius).toBe(22)
   })
 
   it('shrinks it into the header in Focus', () => {
@@ -33,7 +33,7 @@ describe('coverPose', () => {
     expect(seen.left).toBeCloseTo(64)
     expect(seen.top).toBeCloseTo(10)
     expect(seen.size).toBeCloseTo(40)
-    expect(coverPose(g, 1).radius).toBe(6)
+    expect(coverPose(g, 1).radius).toBe(10)
   })
 
   it('moves its edges on the same straight line the animated layout did', () => {
@@ -47,7 +47,7 @@ describe('coverPose', () => {
 
   it('lays out corners that are seen at the right radius once scaled', () => {
     const pose = coverPose(g, 1)
-    expect((laidOutRadius(pose) ?? 0) * (pose.scale ?? 1)).toBeCloseTo(6)
+    expect((laidOutRadius(pose) ?? 0) * (pose.scale ?? 1)).toBeCloseTo(10)
     expect(laidOutRadius({ opacity: 1 })).toBeUndefined()
   })
 })

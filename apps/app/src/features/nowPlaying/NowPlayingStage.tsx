@@ -15,7 +15,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { radius, rgba, tagColors, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, radius, rgba, tagColors, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
@@ -52,6 +52,7 @@ import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
 import { tip } from '../../ui/tip'
+import { floating, label } from '../../ui/surfaces'
 
 /** The player bar's height: the page is the window above it. */
 const BAR = 84
@@ -471,7 +472,7 @@ function Stage({
           >
             <Romanize
               size={14}
-              color={lyrics.romanizationOn ? theme.colors.surface0 : theme.colors.textSecondary}
+              color={lyrics.romanizationOn ? theme.colors.onPrimary : theme.colors.textSecondary}
             />
             <Text style={[styles.toolText, lyrics.romanizationOn && styles.toolTextOn]}>
               {romanName(lyrics.language)}
@@ -696,11 +697,12 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     gap: 2,
     padding: 3,
-    borderRadius: 9,
+    borderRadius: radius.pill,
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
   },
-  tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 7 },
-  tabActive: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.13) },
+  tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+  // The chosen tab is the selected tone, as a chosen segment is (`S2`).
+  tabActive: { backgroundColor: theme.colors.surfaceSelected },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
   tabTextActive: { color: theme.colors.textPrimary },
   cover: {
@@ -714,14 +716,15 @@ const styles = StyleSheet.create(theme => ({
   },
   coverImage: { width: '100%', height: '100%' },
   meta: { position: 'absolute', zIndex: 2, gap: 10 },
-  title: { color: theme.colors.textPrimary, fontWeight: '800' },
+  // The display face, which carries its own weight: never bold it.
+  title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   byline: { color: theme.colors.textSecondary, fontSize: 14, marginTop: -4 },
   facts: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tempo: { color: theme.colors.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] },
   key: {
     height: 20,
     paddingHorizontal: 8,
-    borderRadius: 5,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
@@ -734,7 +737,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingVertical: 5,
     paddingHorizontal: 10,
-    borderRadius: 999,
+    borderRadius: radius.pill,
+    // The dashed edge is the mark itself: an add chip (`S2`).
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
@@ -776,19 +780,19 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingVertical: 5,
     paddingHorizontal: 11,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  toolTextOn: { color: theme.colors.surface0 },
+  toolTextOn: { color: theme.colors.onPrimary },
   expand: {
     position: 'absolute',
     zIndex: 4,
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
@@ -803,18 +807,14 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 8,
     paddingLeft: 8,
     paddingRight: 12,
-    borderRadius: radius.md,
-    backgroundColor: withAlpha(theme.colors.surface2, 0.88),
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    borderRadius: radius.card,
+    // It floats over the stage, so it is glass and casts the one shadow.
+    backgroundColor: theme.colors.glass,
+    ...floating(theme.colors),
   },
   upNextText: { minWidth: 0, maxWidth: 220 },
   upNextLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 10.5,
-    letterSpacing: 0.6,
+    ...label(theme.colors),
     fontVariant: ['tabular-nums'],
   },
   upNextTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },

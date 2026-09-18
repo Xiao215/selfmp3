@@ -1,5 +1,9 @@
 # Design system
 
+**The visual reference is `S2` of the UI mock** ([`docs/ui-mock/boards/S2-the-visual-system.html`](../ui-mock/boards/S2-the-visual-system.html)),
+with the behaviour in `S3`. Design against it, not against older screenshots. The move there
+is [`docs/UI-MIGRATION.md`](../UI-MIGRATION.md).
+
 The shared UI primitives: the dropdown, the floating-layer shell every menu sits in, the
 tokens, and the rules for stacking and focus. Anything built on top of these should not
 need to reinvent portalling, dismissing, focus handling or z-index numbers.
@@ -146,8 +150,32 @@ above the control (below near the top of the window, clamped at the sides). A tr
 ## Tokens
 
 The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `radius`,
-`space`, `type`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and Unistyles holds the light and dark
-themes built from them. The stylesheet's custom properties they came from are kept for
+`space`, `type`, `fonts`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and Unistyles holds the light
+and dark themes built from them.
+
+The rules from `S2`, as the code keeps them:
+
+- **No hairlines.** Separation is tone on tone: the ground (`surface0`), a card one step up
+  (`surface1`), a control (`surface2`), a raised control (`surface3`), the chosen segment
+  (`surfaceSelected`). An edge is drawn only where the edge is the mark itself: a checkbox's
+  ring, a dashed "add", a focus ring, a drop line.
+- **Paper**, the light theme, is warm and is not tinted by the accent hue. White cards on
+  cream have no tone to separate them, so a card casts a soft shadow there (`card()` in
+  `apps/app/src/ui/surfaces.ts`); in the dark it casts none. Only floating things (sheets,
+  menus, the bars, a lifted row) cast a shadow in both (`floating()`).
+- **Shapes** are named: `radius.pill` for buttons, fields, chips and segments; `card` 18 and
+  `cardLg` 22; `sheet` 26; `mini` 16; covers `cover` 10 and `coverSm` 8.
+- **Type**: the system font for rows and body; `fonts.display` (Bricolage Grotesque 600) for
+  page titles at `type.page` and sections at `type.section`; `fonts.serif` (Instrument Serif)
+  for greetings and big numbers. Neither face takes a `fontWeight`: the weight is in the file.
+  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `label()` and `serif()`.
+- **Buttons** come in four shapes (`Button.tsx`): the round white `PlayButton`, at most one
+  per page; the tonal pill; the text action; the accent pill, kept for the one button that
+  commits. **Chips** are neutral pills with a dot of the tag's hue; chosen is white.
+- **Tags' colours** come from `tagColors(hue)`: a tile fill and its ink, a dot, and the name in
+  its hue.
+- **Motion**: everything goes through `apps/app/src/ui/motion.ts`, which answers Reduce Motion
+  once. Pressables sink to 0.96 on the one spring (`motion.spring`). The stylesheet's custom properties they came from are kept for
 reference in `tokens.reference.css`, including:
 
 ```css

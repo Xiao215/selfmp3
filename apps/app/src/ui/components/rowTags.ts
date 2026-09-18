@@ -29,7 +29,7 @@ const TAG_ADD_WIDTH = 22
  * At most this many chips on a row, then a count (docs/ui-mock `S3`: "More
  * tags than fit: show two and a count"), however much room there is.
  */
-export const ROW_TAG_LIMIT = 2
+const ROW_TAG_LIMIT = 2
 /** No single chip may take the slot: a long name ends in an ellipsis instead. */
 export const TAG_CHIP_MAX_WIDTH = 96
 

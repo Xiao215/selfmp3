@@ -37,6 +37,7 @@ import {
   Tag,
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
+import { floating, label as labelText } from '../../ui/surfaces'
 import { useSetLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
 import {
@@ -204,7 +205,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         accessibilityLabel={label}
         onHoverIn={() => setHighlighted(index)}
         onPress={() => activate(index)}
-        style={[styles.item, on && [styles.itemOn, { borderLeftColor: accent.accent }]]}
+        style={[styles.item, on && styles.itemOn]}
       >
         {content}
       </Pressable>
@@ -487,14 +488,9 @@ const styles = StyleSheet.create(theme => ({
   },
   panel: {
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 20 },
+    ...floating(theme.colors),
   },
   inputRow: {
     flexDirection: 'row',
@@ -502,8 +498,6 @@ const styles = StyleSheet.create(theme => ({
     gap: 11,
     paddingVertical: 15,
     paddingHorizontal: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: theme.colors.textPrimary, padding: 0 },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
@@ -517,7 +511,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     paddingBottom: 5,
   },
-  groupText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  groupText: labelText(theme.colors),
   groupCount: { opacity: 0.75, letterSpacing: 0 },
   item: {
     flexDirection: 'row',
@@ -526,10 +520,9 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 40,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent',
+    borderRadius: 12,
   },
+  // The highlighted row is a lighter surface; it no longer has an accent bar.
   itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
   label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: 13 },
@@ -549,8 +542,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    // Set down a step from the panel: tone, not a rule.
     backgroundColor: theme.colors.surface0,
   },
   footText: { color: theme.colors.textMuted, fontSize: 11 },
@@ -558,8 +550,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 10,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     borderRadius: 5,
   },
 }))

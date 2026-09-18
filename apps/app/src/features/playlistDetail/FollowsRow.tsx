@@ -8,6 +8,7 @@ import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
+import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { followRules } from '../library/saveTags'
 import { followedTagIds, hasRulesBeyondTags } from './follows.model'
@@ -151,10 +152,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.xs + 2,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
-    backgroundColor: theme.colors.surface1,
+    ...card(theme.colors),
   },
   word: { color: theme.colors.textSecondary, fontSize: 12 },
   spacer: { flex: 1, minWidth: 0 },
@@ -170,7 +168,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
   },
   addLabel: { color: theme.colors.textMuted, fontSize: 11 },
-  stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm },
+  stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   stopLabel: { color: theme.colors.textSecondary, fontSize: 11.5 },
   warn: { width: '100%', color: theme.colors.warning, fontSize: 11.5 },
   panel: { width: '100%' },

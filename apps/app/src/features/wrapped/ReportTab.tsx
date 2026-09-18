@@ -21,6 +21,7 @@ import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play, Sparkles } from '../../ui/components/Icons'
+import { card, label, sectionTitle, serif } from '../../ui/surfaces'
 import { SongLine } from '../stats/SongLine'
 import { StatsFrame, type StatsFrameProps } from '../stats/StatsFrame'
 import { useStatsSongs, useWrappedFor } from '../stats/statsSource'
@@ -163,8 +164,7 @@ export function ReportTab({
           ))}
           <Button
             label="Go to the library"
-            variant="primary"
-            icon={<Play size={15} color={accent.onAccent} />}
+            icon={<Play size={15} color={theme.colors.textPrimary} />}
             onPress={() => backTo('/')}
           />
         </View>
@@ -468,16 +468,14 @@ const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   strong: { color: theme.colors.textPrimary, fontWeight: '700' },
   center: { textAlign: 'center', maxWidth: 420 },
+  // A card, with the danger in its ink rather than an edge.
   notice: {
+    ...card(theme.colors),
     marginBottom: 14,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.danger,
-    backgroundColor: theme.colors.surface1,
+    paddingHorizontal: 14,
   },
-  noticeText: { color: theme.colors.textPrimary, fontSize: 13 },
+  noticeText: { color: theme.colors.danger, fontSize: 13 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emoji: { fontSize: 36 },
   emptyActions: {
@@ -488,12 +486,9 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 8,
   },
   hero: {
+    ...card(theme.colors, radius.cardLg),
     overflow: 'hidden',
     marginBottom: 18,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface1,
   },
   heroWide: { flexDirection: 'row', alignItems: 'stretch' },
   heroMain: { justifyContent: 'center' },
@@ -507,18 +502,15 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     paddingVertical: 28,
     paddingHorizontal: 24,
-    borderLeftWidth: 1,
-    borderLeftColor: theme.colors.border,
   },
   factsNarrow: { paddingHorizontal: 18, paddingBottom: 22 },
+  // The number one is a step up from the hero it sits in: told apart by tone.
   numberOneWide: {
     width: 212,
     padding: 18,
     gap: 10,
     justifyContent: 'center',
-    borderLeftWidth: 1,
-    borderLeftColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.surface2,
   },
   numberOneNarrow: {
     flexDirection: 'row',
@@ -526,25 +518,17 @@ const styles = StyleSheet.create(theme => ({
     gap: 14,
     paddingVertical: 14,
     paddingHorizontal: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.surface2,
   },
-  eyebrow: {
-    color: theme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.1,
-  },
+  eyebrow: label(theme.colors),
+  // The big number is the serif, which has one weight.
   figure: {
-    color: theme.colors.textPrimary,
-    fontSize: 84,
+    ...serif(theme.colors, 84),
     lineHeight: 88,
-    fontWeight: '700',
-    letterSpacing: -3,
+    letterSpacing: -1,
     marginTop: 6,
   },
-  figureNarrow: { fontSize: 56, lineHeight: 60, letterSpacing: -2 },
+  figureNarrow: { fontSize: 56, lineHeight: 60, letterSpacing: -0.5 },
   figureUnit: { color: theme.colors.textSecondary, fontSize: 14 },
   traits: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 16 },
   /* Neutral, so a chip never has to sit on its own colour. The sparkle carries the accent. */
@@ -555,9 +539,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 5,
     paddingLeft: 9,
     paddingRight: 11,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   traitText: { fontSize: 12, fontWeight: '600', color: theme.colors.textPrimary },
@@ -570,12 +552,9 @@ const styles = StyleSheet.create(theme => ({
   factHint: { color: theme.colors.textMuted, fontSize: 11 },
   chapters: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: GAP },
   chapter: {
+    ...card(theme.colors),
     padding: 18,
     gap: 10,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
   },
   chapterFull: { width: '100%' },
   chapterHead: {
@@ -586,13 +565,13 @@ const styles = StyleSheet.create(theme => ({
   },
   chapterTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 9 },
   chapterNo: { fontSize: 11, fontWeight: '700', letterSpacing: 0.9, fontVariant: ['tabular-nums'] },
-  chapterTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  chapterTitle: sectionTitle(theme.colors),
   numberOneText: { flex: 1, minWidth: 0, gap: 1 },
   numberOneLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.9, marginBottom: 3 },
   numberOneTitle: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700' },
   numberOneTitleNarrow: { fontSize: 15 },
   numberOnePlays: { color: theme.colors.textMuted, fontSize: 11, marginTop: 2 },
-  subhead: { color: theme.colors.textMuted, fontSize: 11, letterSpacing: 0.9, marginTop: 8 },
+  subhead: { ...label(theme.colors), marginTop: 8 },
   rankRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -600,7 +579,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 8,
     paddingLeft: 6,
     paddingRight: 8,
-    borderRadius: radius.sm,
+    borderRadius: radius.cover,
     overflow: 'hidden',
   },
   rankBar: {
@@ -608,7 +587,7 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     top: 2,
     bottom: 2,
-    borderRadius: radius.sm,
+    borderRadius: radius.cover,
     backgroundColor: withAlpha(theme.colors.chartSeries, 0.22),
   },
   rank: { width: 16, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
@@ -619,7 +598,7 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  repeatFigure: { fontSize: 52, lineHeight: 56, fontWeight: '700', letterSpacing: -1.5 },
+  repeatFigure: { ...serif(theme.colors, 52), lineHeight: 56 },
   repeatTimes: { fontSize: 26, color: theme.colors.textSecondary },
   repeatSong: { fontSize: 15, color: theme.colors.textPrimary },
 }))

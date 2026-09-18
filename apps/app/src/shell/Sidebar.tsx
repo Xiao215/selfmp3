@@ -8,10 +8,10 @@ import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   clearTagFilter,
   downloadTally,
-  oklchToHexAlpha,
   radius,
   railTags,
   space,
+  tagColors,
   tagFiltered,
   tagSelected,
   toggleTag,
@@ -53,6 +53,7 @@ import {
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { setPaletteOpen } from './palette'
+import { label as labelText } from '../ui/surfaces'
 
 /**
  * The desktop's left rail.
@@ -138,7 +139,7 @@ export function Sidebar(): ReactNode {
               accessibilityState={{ selected: active }}
               testID={`nav-${destination.label.toLowerCase()}`}
             >
-              <destination.Icon size={18} tone={active ? 'accent' : 'textMuted'} />
+              <destination.Icon size={18} tone={active ? 'textPrimary' : 'textMuted'} />
               <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
                 {destination.label}
               </Text>
@@ -185,10 +186,7 @@ function SearchRow(): ReactNode {
       accessibilityRole="button"
       accessibilityLabel="Search"
       testID="nav-search"
-      style={({ pressed }) => [
-        styles.search,
-        (pressed || hovered) && { borderColor: theme.colors.borderStrong },
-      ]}
+      style={({ pressed }) => [styles.search, (pressed || hovered) && styles.searchHovered]}
     >
       <Search size={15} color={theme.colors.textMuted} />
       <Text style={styles.searchText}>Search</Text>
@@ -238,7 +236,7 @@ function Playlists(): ReactNode {
             pressed && !onPage && styles.rowPressed,
           ]}
         >
-          <ListMusic size={18} tone={onPage ? 'accent' : 'textMuted'} />
+          <ListMusic size={18} tone={onPage ? 'textPrimary' : 'textMuted'} />
           <Text
             style={[styles.label, styles.playlistsHeadLabel, onPage && styles.labelOn]}
             numberOfLines={1}
@@ -255,7 +253,7 @@ function Playlists(): ReactNode {
             accessibilityLabel="New playlist"
             {...tip('New playlist')}
           >
-            <Plus size={14} tone={onPage ? 'accent' : 'textMuted'} />
+            <Plus size={14} tone={onPage ? 'textPrimary' : 'textMuted'} />
           </Pressable>
         </View>
       </View>
@@ -555,7 +553,7 @@ function TagRow({
       style={[
         styles.tagRow,
         hovered && { backgroundColor: theme.colors.surface2 },
-        chosen && { backgroundColor: oklchToHexAlpha(0.35, 0.09, tag.hue, 0.32) },
+        chosen && styles.tagRowChosen,
       ]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
@@ -567,7 +565,7 @@ function TagRow({
         accessibilityLabel={tag.name}
         accessibilityState={{ selected: chosen }}
       >
-        <View style={[styles.dot, { backgroundColor: oklchToHexAlpha(0.68, 0.15, tag.hue, 1) }]} />
+        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
         <Text style={[styles.tagName, chosen && styles.tagNameIncluded]} numberOfLines={1}>
           {tag.name}
         </Text>
@@ -664,9 +662,8 @@ const styles = StyleSheet.create(theme => ({
   titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
   rail: {
     width: SIDEBAR_WIDTH,
+    // A card's tone beside the page, with no rule down its edge.
     backgroundColor: theme.colors.surface1,
-    borderRightWidth: 1,
-    borderRightColor: theme.colors.border,
     paddingHorizontal: space.md,
     paddingTop: space.xl,
     paddingBottom: space.md,
@@ -692,7 +689,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: radius.md,
+    borderRadius: 12,
   },
   label: {
     color: theme.colors.textSecondary,
@@ -705,11 +702,11 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 32,
     paddingHorizontal: space.sm,
     marginTop: -space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
+  // Pointed at, a step lighter: tone, where it used to gain an edge.
+  searchHovered: { backgroundColor: theme.colors.surface3 },
   searchText: { flex: 1, color: theme.colors.textMuted, fontSize: 13 },
   searchKeys: { flexDirection: 'row', gap: 3 },
   searchKey: {
@@ -720,8 +717,6 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
     color: theme.colors.textSecondary,
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -730,7 +725,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 4,
-    borderRadius: radius.md,
+    borderRadius: 12,
   },
   playlistsHeadMain: {
     flex: 1,
@@ -740,7 +735,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: radius.md,
+    borderRadius: 12,
   },
   playlistsHeadLabel: { flex: 1 },
   playlistRow: {
@@ -749,7 +744,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     minHeight: 32,
     paddingHorizontal: 6,
-    borderRadius: radius.sm,
+    borderRadius: 12,
+    // Clear until a song is dragged over: then the dashed edge is the drop
+    // target itself.
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -760,11 +757,11 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderColor: theme.colors.accent,
   },
-  // Where you are, in the accent, and the press behind it. All from the
-  // palette, so the accent picker recolours the whole rail without
-  // re-rendering any of it.
-  itemOn: { backgroundColor: theme.colors.accentPill },
-  labelOn: { color: theme.colors.accent, fontWeight: '600' },
+  // Where you are: a lighter surface and full-strength ink, not the accent,
+  // which is kept for the button that commits something (`S2`). Raised rather
+  // than `surfaceSelected`, which is white on Paper, as the rail is.
+  itemOn: { backgroundColor: theme.colors.surface3 },
+  labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
   dim: { opacity: 0.35 },
@@ -777,28 +774,21 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
-  groupTitleText: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.77,
-  },
+  groupTitleText: labelText(theme.colors),
   groupActions: { flexDirection: 'row', gap: 2 },
   tinyButton: {
     width: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   tagForm: { paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
   tagInput: {
     color: theme.colors.textPrimary,
     fontSize: 13,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     paddingVertical: 6,
     paddingHorizontal: 9,
   },
@@ -811,7 +801,7 @@ const styles = StyleSheet.create(theme => ({
   },
   suggestion: {
     backgroundColor: theme.colors.surface3,
-    borderRadius: 20,
+    borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: space.sm,
   },
@@ -822,7 +812,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 8,
     minHeight: 30,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
+    borderRadius: 12,
   },
   inboxName: { flex: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
   inboxNameOn: { fontWeight: '700' },
@@ -835,9 +825,11 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: radius.sm,
+    borderRadius: 12,
   },
-  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.sm },
+  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12 },
+  // A tag in the filter is a lighter surface, as a chosen chip is lit, not tinted.
+  tagRowChosen: { backgroundColor: theme.colors.surface3 },
   tagMain: {
     flex: 1,
     minWidth: 0,
@@ -864,19 +856,19 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 2,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: radius.card,
   },
   hint: { color: theme.colors.textMuted, fontSize: 12 },
   link: { color: theme.colors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
-  foot: { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 10, gap: 1 },
+  foot: { paddingTop: 10, gap: 1 },
   status: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: radius.md,
+    borderRadius: 12,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   statusText: { flex: 1, minWidth: 0, gap: 1 },

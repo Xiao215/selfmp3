@@ -16,6 +16,7 @@ import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, ChevronRight, Metronome, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
+import { sectionTitle } from '../../ui/surfaces'
 
 type PracticeGroup = 'loop' | 'speed' | 'key'
 type Group = PracticeGroup
@@ -364,11 +365,7 @@ function LoopButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${letter} ${when}`}
-      style={({ pressed }) => [
-        styles.abButton,
-        set && { borderColor: accent.accent },
-        pressed && styles.abPressed,
-      ]}
+      style={({ pressed }) => [styles.abButton, set && styles.abSet, pressed && styles.abPressed]}
     >
       <Text style={[styles.abLetter, set && { color: accent.accent }]}>{letter}</Text>
       <Text style={styles.abTime}>{when}</Text>
@@ -383,8 +380,6 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 0,
     minHeight: 0,
     backgroundColor: theme.colors.surface1,
-    borderLeftWidth: 1,
-    borderLeftColor: theme.colors.border,
   },
   head: {
     flexDirection: 'row',
@@ -395,11 +390,9 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 10,
     paddingLeft: 16,
     paddingRight: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   titles: { flex: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  title: sectionTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 12 },
   empty: {
     flex: 1,
@@ -422,7 +415,8 @@ const styles = StyleSheet.create(theme => ({
   emptyText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 21, textAlign: 'center' },
   body: { flex: 1 },
   bodyContent: { paddingTop: 4, paddingBottom: 20 },
-  group: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  // The groups are told apart by space, not a rule between them (`S2`).
+  group: { paddingBottom: 6 },
   groupHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -445,15 +439,19 @@ const styles = StyleSheet.create(theme => ({
   speeds: {
     flexDirection: 'row',
     gap: 2,
-    padding: 2,
+    padding: 3,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
-  speed: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 6, borderRadius: 5 },
+  speed: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
   speedHovered: { backgroundColor: theme.colors.surface3 },
-  speedActive: { backgroundColor: theme.colors.surface3 },
+  speedActive: { backgroundColor: theme.colors.surfaceSelected },
   speedLabel: {
     color: theme.colors.textMuted,
     fontSize: 12,
@@ -467,12 +465,12 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 52,
     justifyContent: 'center',
     gap: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 18,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
+  // A point that is set is the selected tone; its letter carries the accent.
+  abSet: { backgroundColor: theme.colors.surfaceSelected },
   abPressed: { backgroundColor: theme.colors.surface3 },
   abLetter: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '700' },
   abTime: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },

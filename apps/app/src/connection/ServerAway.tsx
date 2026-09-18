@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
-import { awayCopy, radius, type Reach, type ServerNeed } from '@selfmp3/client'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { awayCopy, type Reach, type ServerNeed } from '@selfmp3/client'
 import { useAccent } from '../ui/accent'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
+import { card } from '../ui/surfaces'
 
 /**
  * What a screen shows instead of what it came for, while the server behind a
@@ -29,6 +30,7 @@ export function ServerAway({
   testID: string
 }): ReactNode {
   const accent = useAccent()
+  const { theme } = useUnistyles()
 
   if (reach.state === 'looking') {
     return (
@@ -49,8 +51,7 @@ export function ServerAway({
       <View style={styles.actions}>
         <Button
           label="Look again"
-          icon={<Refresh size={13} color={accent.onAccent} />}
-          variant="primary"
+          icon={<Refresh size={13} color={theme.colors.textPrimary} />}
           onPress={reach.lookAgain}
           testID={`${testID}-look-again`}
         />
@@ -66,10 +67,7 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 24,
     padding: 18,
     gap: 8,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    ...card(theme.colors),
   },
   cardTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
   cardBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },

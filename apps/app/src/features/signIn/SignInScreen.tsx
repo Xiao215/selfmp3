@@ -14,6 +14,7 @@ import { useAccent } from '../../ui/accent'
 import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { sectionTitle, serif } from '../../ui/surfaces'
 import { afterCheck, copyFor, FOOTNOTE, TOOK_TOO_LONG, type SignInStage } from './signIn.model'
 
 /**
@@ -210,21 +211,12 @@ const styles = StyleSheet.create(theme => ({
   // Deep enough at the top that the Mac's traffic lights sit clear of the mark.
   frameWide: { paddingHorizontal: 56, paddingTop: 56, paddingBottom: 48 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  brandName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.title,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
+  // The name beside the mark is set as a section's title is: the display face at 18.
+  brandName: sectionTitle(theme.colors),
   middle: { flex: 1, justifyContent: 'center', gap: space.lg, maxWidth: 640 },
-  headline: {
-    color: theme.colors.textPrimary,
-    fontSize: 40,
-    lineHeight: 44,
-    fontWeight: '700',
-    letterSpacing: -1.2,
-  },
-  headlineWide: { fontSize: 60, lineHeight: 64, letterSpacing: -1.8 },
+  // A welcome, so the serif: one weight, never bolded.
+  headline: { ...serif(theme.colors, 44), lineHeight: 46, letterSpacing: -0.6 },
+  headlineWide: { fontSize: 60, lineHeight: 62, letterSpacing: -0.8 },
   body: { color: theme.colors.textSecondary, fontSize: type.title, lineHeight: 24, maxWidth: 420 },
   spinner: { alignSelf: 'flex-start' },
   error: { color: theme.colors.danger, fontSize: type.body, marginBottom: space.md },

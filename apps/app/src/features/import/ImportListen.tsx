@@ -160,12 +160,7 @@ export function ListenBar({
   const { track, status, duration } = listening
 
   return (
-    <View
-      style={[styles.bar, { borderColor: accent.accentDim }]}
-      role="region"
-      aria-label="Listening before import"
-      testID="listen-bar"
-    >
+    <View style={styles.bar} role="region" aria-label="Listening before import" testID="listen-bar">
       <IconButton onPress={onToggle} label={status === 'playing' ? 'Pause' : 'Play'}>
         {status === 'loading' ? (
           <ActivityIndicator size="small" color={accent.accent} />
@@ -200,12 +195,12 @@ const styles = StyleSheet.create(theme => ({
   thumb: {
     width: 56,
     height: 34,
-    borderRadius: 4,
+    borderRadius: radius.coverSm,
     overflow: 'hidden',
     backgroundColor: theme.colors.surface2,
   },
   // Album art is square; a video's still is not. The column stays 56 wide either way.
-  thumbSquare: { width: 40, height: 40, marginHorizontal: 8 },
+  thumbSquare: { width: 40, height: 40, marginHorizontal: 8, borderRadius: radius.cover },
   thumbPressed: { opacity: 0.85 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   cover: {
@@ -216,6 +211,7 @@ const styles = StyleSheet.create(theme => ({
   },
   coverOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
   // Drawn in the list, under its song's row: tight to it, a little air below.
+  // It sits on the review's card, so it is one step up from it, with no edge.
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -225,9 +221,8 @@ const styles = StyleSheet.create(theme => ({
     marginHorizontal: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    backgroundColor: theme.colors.surface0,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.surface2,
   },
   meta: { width: 180, minWidth: 0 },
   title: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },

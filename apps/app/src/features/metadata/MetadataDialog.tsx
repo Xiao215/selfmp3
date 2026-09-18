@@ -25,6 +25,7 @@ import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { floating, label as groupLabel, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
@@ -94,7 +95,7 @@ export function MetadataDialog({
 
   const current = (
     <View style={[styles.current, wide ? styles.currentWide : styles.currentNarrow]}>
-      <Text style={[styles.sectionTitle, !wide && styles.fullRow]}>IN YOUR LIBRARY</Text>
+      <Text style={[styles.groupTitle, !wide && styles.fullRow]}>IN YOUR LIBRARY</Text>
       <Cover uri={artFor(song)} title={song.album || song.title} size={wide ? 120 : 96} />
       <View style={[styles.fields, wide && styles.fieldsWide]}>
         {(
@@ -120,7 +121,7 @@ export function MetadataDialog({
   const suggestions = (
     <View style={[styles.candidates, wide && styles.candidatesWide]}>
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>SUGGESTIONS</Text>
+        <Text style={styles.groupTitle}>SUGGESTIONS</Text>
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
         {lookup.isPending ? <ActivityIndicator size="small" color={accent.accent} /> : null}
       </View>
@@ -150,8 +151,8 @@ export function MetadataDialog({
               accessibilityLabel={`${candidate.title}, ${candidateLine(candidate, formatDuration)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
               style={({ pressed }) => [
                 styles.candidate,
-                (active || pressed) && styles.candidateActive,
-                active && { borderColor: accent.accent },
+                pressed && styles.candidatePressed,
+                active && styles.candidateActive,
               ]}
             >
               <CandidateArt url={candidate.artworkUrl} />
@@ -184,7 +185,7 @@ export function MetadataDialog({
             <>
               <View style={styles.diffHead}>
                 <View style={styles.sectionHead}>
-                  <Text style={styles.sectionTitle}>CHANGES TO APPLY</Text>
+                  <Text style={styles.groupTitle}>CHANGES TO APPLY</Text>
                   <Pill text={`${count} of ${diffs.length}`} />
                 </View>
                 <View style={styles.diffActions}>
@@ -367,9 +368,8 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 880,
     maxHeight: 760,
     height: '86%',
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
+    ...floating(theme.colors),
   },
   dialogNarrow: { flex: 1 },
   head: {
@@ -379,18 +379,19 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 14,
     paddingRight: 14,
     paddingBottom: 12,
-    paddingLeft: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingLeft: 22,
   },
-  title: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  title: sectionTitle(theme.colors),
   bodyWide: { flex: 1, minHeight: 0, flexDirection: 'row' },
   bodyNarrow: { flex: 1 },
+  // The song as it is, a panel one step up from the dialog rather than a column behind a rule.
   currentScroll: {
     width: 240,
     flexGrow: 0,
-    borderRightWidth: 1,
-    borderRightColor: theme.colors.border,
+    marginLeft: 12,
+    marginBottom: 4,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.surface2,
   },
   candidatesScroll: { flex: 1 },
   current: { paddingVertical: 18, paddingHorizontal: 20, gap: 14 },
@@ -400,8 +401,6 @@ const styles = StyleSheet.create(theme => ({
     flexWrap: 'wrap',
     columnGap: 16,
     rowGap: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   fullRow: { width: '100%', marginBottom: 12 },
   fields: { flex: 1, minWidth: 0, gap: 7 },
@@ -410,12 +409,7 @@ const styles = StyleSheet.create(theme => ({
   fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: 13 },
   fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: 13 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-  },
+  groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
   candidatesWide: {},
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
@@ -428,33 +422,23 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderRadius: 14,
   },
-  candidateActive: { backgroundColor: theme.colors.surface2 },
+  candidatePressed: { backgroundColor: theme.colors.surface2 },
+  // The picked suggestion wears the palette's selected-row colour, not an accent edge.
+  candidateActive: { backgroundColor: theme.colors.accentSelected },
   candidateMain: { flex: 1, minWidth: 0, gap: 2 },
   candidateTitle: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '500' },
   candidateSub: { color: theme.colors.textMuted, fontSize: 12 },
   candidateMeta: { alignItems: 'flex-end', gap: 4 },
-  badge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
+  badge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: radius.pill },
   badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   score: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
-  art: { borderRadius: radius.sm, backgroundColor: theme.colors.surface3 },
-  artEmpty: {
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-    backgroundColor: theme.colors.surface3,
-  },
-  diff: {
-    marginTop: 4,
-    paddingTop: 14,
-    gap: 2,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  art: { borderRadius: radius.cover, backgroundColor: theme.colors.surface3 },
+  // A cover that is not there: the empty tone alone, no dashed edge.
+  artEmpty: { borderRadius: radius.cover, backgroundColor: theme.colors.surface3 },
+  // Space, not a rule, sets the changes apart from the suggestions.
+  diff: { marginTop: 16, gap: 2 },
   diffHead: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -470,7 +454,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingVertical: 7,
     paddingHorizontal: 8,
-    borderRadius: radius.sm,
+    borderRadius: 14,
   },
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
   diffPressed: { backgroundColor: theme.colors.surface2 },
@@ -488,7 +472,7 @@ const styles = StyleSheet.create(theme => ({
   pill: {
     paddingVertical: 1,
     paddingHorizontal: 7,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,
   },
   pillText: {
@@ -504,8 +488,6 @@ const styles = StyleSheet.create(theme => ({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
   footNarrow: { flexWrap: 'wrap' },
   footError: { marginRight: 'auto' },

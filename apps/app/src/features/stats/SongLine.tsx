@@ -60,7 +60,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 11,
     paddingVertical: 7,
     paddingHorizontal: 8,
-    borderRadius: radius.sm,
+    borderRadius: radius.cover,
   },
   lineHovered: { backgroundColor: theme.colors.surface2 },
   rank: { width: 20, color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { motion, oklchToHex } from '@selfmp3/client'
+import { motion, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
+import { floating } from '../surfaces'
 
 /**
  * Mounted once, in the shell's toast row: every message raised with `showToast`.
@@ -86,21 +87,11 @@ function ToastItem({
     return () => animation.stop()
   }, [leaving, shown, onGone, toast.id])
 
-  const border =
-    toast.tone === 'good'
-      ? oklchToHex(0.5, 0.1, 155)
-      : toast.tone === 'warn'
-        ? oklchToHex(0.55, 0.12, 78)
-        : toast.tone === 'error'
-          ? theme.colors.danger
-          : theme.colors.borderStrong
-
   return (
     <Animated.View
       style={[
         styles.toast,
         {
-          borderColor: border,
           opacity: shown,
           transform: [
             { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) },
@@ -152,17 +143,14 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 8,
     paddingRight: 8,
     paddingLeft: 14,
-    borderRadius: 999,
-    borderWidth: 1,
+    // A floating pill with no edge: its shadow lifts it off the page. An error
+    // says so in its red text; the other tones are told by what they say.
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    ...floating(theme.colors),
   },
   text: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
-  action: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  action: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   actionPressed: { backgroundColor: theme.colors.surface3 },
   actionLabel: { fontSize: 13, fontWeight: '600' },
 }))

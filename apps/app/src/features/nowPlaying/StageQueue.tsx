@@ -9,6 +9,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { dragCursor } from '../../ports/dragCursor'
 import { tip } from '../../ui/tip'
+import { label, sectionTitle } from '../../ui/surfaces'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
@@ -67,7 +68,6 @@ export function StageQueue({ onClose }: { onClose: () => void }): ReactNode {
               <Trash size={17} color={theme.colors.textSecondary} />
             </IconButton>
           ) : null}
-          <View style={styles.divider} />
           <IconButton onPress={onClose} label="Close queue" caption="Close">
             <X size={17} color={theme.colors.textSecondary} />
           </IconButton>
@@ -221,7 +221,6 @@ const QueueRow = memo(function QueueRow({
       style={[
         styles.row,
         (hovered || current) && styles.rowHighlighted,
-        current && { borderLeftColor: songColor.color },
         dragging && styles.rowDragging,
       ]}
       onPointerEnter={finePointer ? () => setHovered(true) : undefined}
@@ -302,22 +301,18 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 10,
     paddingRight: 10,
     paddingLeft: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   titles: { flex: 1, minWidth: 0, gap: 3 },
-  title: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  title: sectionTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 12 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  divider: { width: 1, height: 18, marginHorizontal: 4, backgroundColor: theme.colors.border },
+  // Clear and Close are held apart by space, not a rule between them.
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   toolbarLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
   toolbarHint: {
@@ -334,16 +329,12 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   playedPressed: { backgroundColor: theme.colors.surface2 },
   playedText: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '500' },
   upNext: {
-    color: theme.colors.textMuted,
-    fontSize: 10.5,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    ...label(theme.colors),
     paddingTop: 10,
     paddingBottom: 4,
     paddingHorizontal: 10,
@@ -352,10 +343,10 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    borderRadius: radius.sm,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent',
+    borderRadius: radius.cover,
   },
+  // Hovered, or the song playing: a step up in tone. The playing one's
+  // equaliser says which it is.
   rowHighlighted: { backgroundColor: theme.colors.surface2 },
   rowDragging: { opacity: 0.4 },
   dropLine: { position: 'absolute', left: 0, right: 0, height: 2 },

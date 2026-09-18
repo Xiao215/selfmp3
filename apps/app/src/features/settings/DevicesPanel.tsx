@@ -4,7 +4,14 @@ import { Text, TextInput, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type Device } from '@selfmp3/shared'
-import { clientApi, deviceListView, queryKeys, relativeTime, useDevices } from '@selfmp3/client'
+import {
+  clientApi,
+  deviceListView,
+  queryKeys,
+  radius,
+  relativeTime,
+  useDevices,
+} from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
@@ -179,11 +186,8 @@ function DevicesList({
         />
       </Row>
       <View style={styles.devices}>
-        {rows.map(({ device, ids }, position) => (
-          <View
-            key={device.id}
-            style={[styles.device, position === rows.length - 1 && styles.deviceLast]}
-          >
+        {rows.map(({ device, ids }) => (
+          <View key={device.id} style={styles.device}>
             <View style={[styles.dot, live && device.online && styles.dotOnline]} />
             <View style={styles.deviceName}>
               <Text style={styles.deviceText} numberOfLines={1}>
@@ -248,10 +252,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 10,
     paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
-  deviceLast: { borderBottomWidth: 0 },
   devicesMore: { paddingTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   devicesNote: { paddingTop: 10 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
@@ -263,7 +264,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },

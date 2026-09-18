@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useUnistyles } from 'react-native-unistyles'
-import { radius } from '@selfmp3/client'
+import { floating } from '../ui/surfaces'
 
 /**
  * Hover captions for the whole app, from one `data-tip` attribute: the web
@@ -243,10 +243,10 @@ export function TooltipHost(): ReactNode {
           gap: 6,
           maxWidth: 'min(320px, calc(100vw - 16px))',
           padding: '4px 8px',
+          // A raised control's tone and the floating shadow; no edge.
           background: colors.surface3,
-          border: `1px solid ${colors.borderStrong}`,
-          borderRadius: radius.sm,
-          boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
+          borderRadius: 12,
+          ...floating(colors),
           color: colors.textSecondary,
           fontFamily: FONT_STACK,
           fontSize: 12,

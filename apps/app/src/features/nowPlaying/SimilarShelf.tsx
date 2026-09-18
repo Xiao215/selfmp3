@@ -6,6 +6,7 @@ import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
+import { label } from '../../ui/surfaces'
 import { playSimilarOrder, SIMILAR_SHELF_HEIGHT } from './nowPlaying.model'
 
 /**
@@ -82,23 +83,17 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     marginBottom: 6,
   },
-  heading: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
+  heading: label(theme.colors),
   queueAll: {
     paddingVertical: 4,
     paddingHorizontal: 11,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
   },
   queueAllPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.2) },
   queueAllText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
   list: { gap: 8, paddingRight: space.lg },
-  card: { width: 84, padding: 4, gap: 3, borderRadius: radius.sm },
+  card: { width: 84, padding: 4, gap: 3, borderRadius: radius.cover },
   cardPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.08) },
   cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
   cardArtist: { color: theme.colors.textSecondary, fontSize: type.small - 2 },

@@ -41,6 +41,7 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
+import { card, label as groupLabel, pageTitle, sectionTitle } from '../../ui/surfaces'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -219,7 +220,7 @@ export function ImportScreen({
         keyboardShouldPersistTaps="handled"
         testID="import-screen"
       >
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+        <Text style={styles.heading} accessibilityRole="header">
           Import
         </Text>
         <Text style={styles.sub}>
@@ -231,11 +232,11 @@ export function ImportScreen({
         </Text>
 
         {tools && !tools.ytdlp ? (
-          <View style={[styles.notice, styles.noticeWarn]}>
+          <View style={styles.notice}>
             <View style={styles.noticeBody}>
               <Text style={styles.noticeText}>
-                <Text style={styles.strong}>yt-dlp isn’t installed.</Text> Importing needs it.
-                Install both tools with:
+                <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
+                Importing needs it. Install both tools with:
               </Text>
               <Text style={styles.code} selectable>
                 brew install yt-dlp ffmpeg
@@ -260,11 +261,7 @@ export function ImportScreen({
 
         <View style={[styles.form, !wide && styles.formNarrow]}>
           <TextInput
-            style={[
-              styles.linksInput,
-              wide && styles.linksInputWide,
-              hint !== null && { borderColor: theme.colors.danger },
-            ]}
+            style={[styles.linksInput, wide && styles.linksInputWide]}
             value={links}
             onChangeText={setLinks}
             placeholder={
@@ -321,7 +318,7 @@ export function ImportScreen({
 
         {error ? (
           <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-            <Text style={styles.noticeText}>{error}</Text>
+            <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
             <IconButton onPress={() => setError(null)} label="Dismiss">
               <X size={15} color={theme.colors.textMuted} />
             </IconButton>
@@ -547,7 +544,6 @@ function ReviewRow({
   onListen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
 
   const field = (key: 'title' | 'artist' | 'album', label: string, style: object): ReactNode => (
     <TextInput
@@ -599,10 +595,7 @@ function ReviewRow({
       <View style={[styles.thumb, styles.thumbEmpty]} />
     )
 
-  const rowStyle = [
-    styles.itemRow,
-    chosen && [styles.itemChosen, { borderColor: accent.accentDim }],
-  ]
+  const rowStyle = [styles.itemRow, chosen && styles.itemChosen]
 
   if (wide) {
     return (
@@ -695,14 +688,7 @@ function JobRow({
     )
 
   return (
-    <View
-      style={[
-        styles.job,
-        tone === 'running' && { borderColor: accent.accentDim },
-        tone === 'error' && { borderColor: theme.colors.danger },
-        tone === 'waiting' && { borderColor: theme.colors.warning },
-      ]}
-    >
+    <View style={styles.job}>
       <View style={styles.jobStatus} accessibilityLabel={label} accessible>
         {icon}
       </View>
@@ -764,8 +750,7 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40 },
   contentWide: { paddingTop: 28, paddingHorizontal: 32 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
+  heading: pageTitle(theme.colors),
   sub: {
     color: theme.colors.textMuted,
     fontSize: 13,
@@ -774,76 +759,71 @@ const styles = StyleSheet.create(theme => ({
     lineHeight: 19,
   },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
+  // With no edge around the notice, its first words carry the warning's colour.
+  strongWarn: { color: theme.colors.warning },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   linkText: { fontSize: 12, textDecorationLine: 'underline' },
+  // On the notice's card, so one step up from it.
   code: {
     marginTop: 6,
     color: theme.colors.textPrimary,
     fontSize: 12,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: theme.colors.surface0,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.coverSm,
   },
+  // A notice is a card; a warning or an error is told by its words, not an edge.
   notice: {
+    ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: radius.sm,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  noticeWarn: { borderColor: theme.colors.warning },
-  noticeError: { borderColor: theme.colors.danger, marginTop: 14, paddingRight: 4 },
+  noticeError: { marginTop: 14, paddingRight: 4 },
   noticeBody: { flex: 1 },
   noticeText: { flex: 1, color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  noticeTextError: { color: theme.colors.danger },
   form: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   formNarrow: { flexDirection: 'column', alignItems: 'stretch' },
+  /*
+   * A control on the ground: a control's fill and no edge. It holds several
+   * lines, so it is rounded as a card is rather than a pill; a link it cannot
+   * read is said in red underneath it.
+   */
   linksInput: {
     minHeight: 74,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     color: theme.colors.textPrimary,
     fontSize: 12,
     lineHeight: 18,
     textAlignVertical: 'top',
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.card,
   },
   linksInputWide: { flex: 1 },
   linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17, marginBottom: 8 },
   migrateCard: {
+    ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     marginTop: 18,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: radius.md,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
   },
-  migrateCardPressed: {
-    backgroundColor: theme.colors.surface2,
-    borderColor: theme.colors.borderStrong,
-  },
+  migrateCardPressed: { backgroundColor: theme.colors.surface2 },
   migrateText: { flex: 1, minWidth: 0, gap: 3 },
   migrateTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
   migrateSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   review: {
+    ...card(theme.colors),
     marginTop: 26,
     padding: 18,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
   },
   reviewHead: {
     flexDirection: 'row',
@@ -853,7 +833,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 14,
   },
-  reviewTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  reviewTitle: sectionTitle(theme.colors),
   reviewActions: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
   itemRow: {
     flexDirection: 'row',
@@ -861,42 +841,34 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingVertical: 5,
     paddingHorizontal: 8,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderRadius: 14,
     marginBottom: 2,
   },
   itemRowNarrow: { alignItems: 'flex-start' },
   itemHead: { paddingBottom: 7 },
-  itemChosen: { backgroundColor: theme.colors.surface0 },
-  headLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
+  // A chosen row is one step up from the review's card.
+  itemChosen: { backgroundColor: theme.colors.surface2 },
+  headLabel: groupLabel(theme.colors),
   colCheck: { width: 18, alignItems: 'center' },
   colThumb: { width: 56 },
   colTitle: { flex: 1.5, minWidth: 0 },
   colOther: { flex: 1, minWidth: 0 },
   colSide: { width: 78, textAlign: 'right' },
   sideCell: { alignItems: 'flex-end' },
-  thumb: { width: 56, height: 34, borderRadius: 4 },
+  thumb: { width: 56, height: 34, borderRadius: radius.coverSm },
   // Album art is square; a video's still is not. The column stays 56 wide either way.
-  thumbSquare: { width: 40, height: 40, marginHorizontal: 8 },
+  thumbSquare: { width: 40, height: 40, marginHorizontal: 8, borderRadius: radius.cover },
   thumbEmpty: { backgroundColor: theme.colors.surface2 },
   faded: { opacity: 0.55 },
+  // A field on a row that may itself be a step up, so the highest step: no edge.
   itemInput: {
     minHeight: 30,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     color: theme.colors.textPrimary,
     fontSize: 13,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface3,
+    borderRadius: radius.pill,
   },
   narrowFields: { flex: 1, minWidth: 0, gap: 6 },
   narrowTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -909,17 +881,12 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 2,
     paddingLeft: 6,
     paddingRight: 8,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,
   },
   dupText: { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '600' },
-  options: {
-    gap: 14,
-    marginTop: 18,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  // Space, not a rule, sets the options apart from the tracks.
+  options: { gap: 14, marginTop: 24 },
   option: { gap: 7 },
   optionCheck: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
@@ -933,21 +900,22 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 12,
   },
-  jobs: { gap: 4 },
+  jobs: { gap: 6 },
   foldAction: { paddingVertical: 4, paddingHorizontal: 6 },
   foldActionText: { fontSize: 13, fontWeight: '600' },
+  /*
+   * Each download is a small card. How it is going — running, waiting, failed —
+   * is its icon and the coloured line under its title, not an edge.
+   */
   job: {
+    ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     minHeight: 46,
     paddingVertical: 9,
-    paddingLeft: 12,
+    paddingLeft: 14,
     paddingRight: 10,
-    borderRadius: radius.sm,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
   jobStatus: { width: 20, alignItems: 'center' },
   jobDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.textMuted },

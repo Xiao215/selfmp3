@@ -1,3 +1,4 @@
+import { radius } from '@selfmp3/client'
 import type { StageGeometry } from './nowPlaying.model'
 
 /**
@@ -24,7 +25,8 @@ export const MOVE_EASING = [0.2, 0.8, 0.2, 1] as const
 export const COVER_TOP = 84
 /** The cover in Focus: a thumbnail in the header, beside the chevron. */
 const FOCUS_COVER = { left: 64, top: 10, size: 40 } as const
-const COVER_RADIUS = { stage: 12, focus: 6 } as const
+/** A big cover's corners on the stage, a row cover's in the header (`S2`). */
+const COVER_RADIUS = { stage: radius.cardLg, focus: radius.cover } as const
 
 /**
  * A piece of the page part-way through the move. Anything left out stays as

@@ -9,6 +9,7 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Button } from './Button'
+import { floating } from '../surfaces'
 import { Checkbox } from './Checkbox'
 import { IconButton } from './IconButton'
 import { Trash, X } from './Icons'
@@ -76,7 +77,7 @@ export function ConfirmRemoveSongs({
     >
       <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="Cancel" />
       <View
-        style={[styles.dialog, (deleteFile || takesTheCopy) && styles.dialogDestructive]}
+        style={styles.dialog}
         role="dialog"
         aria-modal
         accessibilityViewIsModal
@@ -212,12 +213,10 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 460,
     maxHeight: 620,
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
     overflow: 'hidden',
+    ...floating(theme.colors),
   },
-  dialogDestructive: { borderColor: theme.colors.danger },
   head: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -227,8 +226,6 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: space.md,
     paddingBottom: space.md,
     paddingLeft: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   title: {
     flex: 1,
@@ -247,7 +244,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: space.sm,
     paddingHorizontal: 10,
     backgroundColor: theme.colors.surface0,
-    borderRadius: radius.sm,
+    borderRadius: 12,
     gap: 2,
   },
   listItem: { color: theme.colors.textSecondary, fontSize: 12 },
@@ -258,12 +255,11 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingVertical: 11,
     paddingHorizontal: space.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: 12,
   },
+  // Ticked, the choice takes a red wash: tone, where it had a red edge.
   choiceOn: {
-    borderColor: theme.colors.danger,
     backgroundColor: oklchToHexAlpha(0.3, 0.07, 22, 0.28),
   },
   choiceBox: { marginTop: 1 },
@@ -279,8 +275,6 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.md,
     paddingHorizontal: 18,
     paddingBottom: space.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
   actionsCompact: { flexDirection: 'column-reverse', minHeight: HIT_TARGET },
 }))

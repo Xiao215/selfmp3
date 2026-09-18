@@ -4,6 +4,7 @@ import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, useLibrary, useRequestCloudImport } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
+import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { CloudUpload } from '../../ui/components/Icons'
 import { Select } from '../../ui/components/Select'
@@ -138,24 +139,20 @@ export function QueueViaBucket(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   card: {
+    ...card(theme.colors),
     marginTop: 16,
     padding: 18,
     gap: 10,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
   },
-  title: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  title: sectionTitle(theme.colors),
   body: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  // A control on the card: one step up from it, a pill, no edge.
   input: {
-    backgroundColor: theme.colors.surface0,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.pill,
     color: theme.colors.textPrimary,
     fontSize: 14,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
   field: { marginTop: 2 },

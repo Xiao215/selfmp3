@@ -7,6 +7,7 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Button } from './Button'
+import { floating } from '../surfaces'
 
 /**
  * A plain yes-or-no question before something that cannot be taken back.
@@ -76,7 +77,7 @@ function Dialog({
     >
       <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityLabel="Cancel" />
       <View
-        style={[styles.dialog, danger && styles.dialogDanger]}
+        style={styles.dialog}
         role="alertdialog"
         aria-modal
         accessibilityViewIsModal
@@ -122,11 +123,9 @@ const styles = StyleSheet.create(theme => ({
     padding: 18,
     gap: space.md,
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
+    ...floating(theme.colors),
   },
-  dialogDanger: { borderColor: theme.colors.danger },
   title: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700', lineHeight: 22 },
   body: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 20 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },

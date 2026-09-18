@@ -21,6 +21,7 @@ import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../accent'
 import { useSongColor } from '../useSongColor'
 import { Button } from './Button'
+import { floating, label as labelText } from '../surfaces'
 import { Cover } from './Cover'
 import { EnergyWave } from './EnergyWave'
 import { IconButton } from './IconButton'
@@ -289,10 +290,9 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 460,
     maxHeight: 720,
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
     overflow: 'hidden',
+    ...floating(theme.colors),
   },
   head: {
     flexDirection: 'row',
@@ -311,15 +311,9 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.md,
     paddingHorizontal: 18,
     paddingBottom: space.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
-  groupTitle: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-  },
+  // The groups are told apart by their labels and the room between them.
+  groupTitle: labelText(theme.colors),
   fact: { flexDirection: 'row', gap: space.md },
   factLabel: { width: 76, color: theme.colors.textMuted, fontSize: 13.5 },
   factValue: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },

@@ -17,6 +17,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, formatLongDuration, type Song } from '@selfmp3/shared'
 import {
+  fonts,
   HIT_TARGET,
   isDownloaded,
   loopRegionPercent,
@@ -33,6 +34,7 @@ import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
+import { PlayButton } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SimilarShelf } from './SimilarShelf'
 import { Toggle } from '../../ui/components/Toggle'
@@ -47,8 +49,6 @@ import {
   Mic,
   Moon,
   Next,
-  Pause,
-  Play,
   Prev,
   Queue,
   Repeat,
@@ -83,6 +83,8 @@ import { useSongWords } from './useSongWords'
 import { useSongVisual } from './visualChoice'
 import { motionCaption, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
+import { label, sectionTitle } from '../../ui/surfaces'
+import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 
 /** What covers the stage. Lyrics are not one of these: they sit where the artwork was. */
 type Panel = 'none' | 'queue'
@@ -381,22 +383,19 @@ function PhoneNowPlaying(): ReactNode {
                 <IconButton onPress={player.previous} label="Previous" size={52} round>
                   <Prev size={30} color={theme.colors.textPrimary} />
                 </IconButton>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.playButton,
-                    { backgroundColor: pressed ? songColor.tint : songColor.color },
-                    pressed && styles.playButtonPressed,
-                  ]}
+                {/* The round white Play (`S2`): the page's one primary. */}
+                <PlayButton
                   onPress={player.toggle}
-                  accessibilityRole="button"
-                  accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
-                >
-                  {player.isPlaying ? (
-                    <Pause size={30} color={theme.colors.onAccent} />
-                  ) : (
-                    <Play size={30} color={theme.colors.onAccent} />
-                  )}
-                </Pressable>
+                  label={player.isPlaying ? 'Pause' : 'Play'}
+                  size={68}
+                  icon={
+                    <PlayPauseIcon
+                      playing={player.isPlaying}
+                      size={30}
+                      color={theme.colors.onPrimary}
+                    />
+                  }
+                />
                 <IconButton onPress={player.next} label="Next" size={52} round>
                   <Next size={30} color={theme.colors.textPrimary} />
                 </IconButton>
@@ -584,7 +583,7 @@ function PhoneWords({
             onPress={() => lyrics.setRomanization(!on)}
             style={[styles.tool, on && styles.toolOn]}
           >
-            <Romanize size={15} color={on ? theme.colors.surface0 : theme.colors.textSecondary} />
+            <Romanize size={15} color={on ? theme.colors.onPrimary : theme.colors.textSecondary} />
             <Text style={[styles.toolText, on && styles.toolTextOn]}>
               {romanName(lyrics.language)}
             </Text>
@@ -775,12 +774,7 @@ function QueuePanel({
     const isCurrent = index === player.queue.index
     const isPast = index < player.queue.index
     return (
-      <View
-        style={[
-          styles.queueRow,
-          isCurrent && { backgroundColor: theme.colors.surface2, borderLeftColor: songColor.color },
-        ]}
-      >
+      <View style={[styles.queueRow, isCurrent && styles.queueRowCurrent]}>
         <Pressable
           style={styles.queueMain}
           onPress={() => player.jumpTo(index)}
@@ -903,12 +897,9 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: 'transparent',
   },
   context: {
+    ...label(theme.colors),
     flex: 1,
-    color: theme.colors.textMuted,
-    fontSize: type.tiny,
     textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   stage: {
     flex: 1,
@@ -925,7 +916,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 10,
   },
   artShadow: {
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     shadowColor: '#000',
     shadowOpacity: 0.55,
     shadowRadius: 20,
@@ -939,11 +930,12 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 14,
     gap: 3,
   },
+  // The song's name is the display face, which carries its own weight.
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 21,
-    lineHeight: 26,
-    fontWeight: '700',
+    fontFamily: fonts.display,
+    fontSize: type.large,
+    lineHeight: 27,
     textAlign: 'center',
     letterSpacing: -0.3,
   },
@@ -986,12 +978,12 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 11,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  toolTextOn: { color: theme.colors.surface0 },
+  toolTextOn: { color: theme.colors.onPrimary },
   wordsTitles: {
     flex: 1,
     minWidth: 0,
@@ -1024,22 +1016,10 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
     marginBottom: 14,
   },
-  playButton: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playButtonPressed: {
-    transform: [{ scale: 0.96 }],
-  },
   practiceSheet: { height: 560 },
   foot: {
     flexDirection: 'row',
     gap: 2,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
     paddingTop: 6,
     paddingBottom: 6,
   },
@@ -1050,7 +1030,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 4,
     minHeight: HIT_TARGET,
     paddingVertical: 6,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   actionPressed: {
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
@@ -1077,18 +1057,12 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 58,
     paddingLeft: space.lg,
     paddingRight: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   queueTitles: {
     flex: 1,
     minWidth: 0,
   },
-  queueHeading: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  queueHeading: sectionTitle(theme.colors),
   queueSub: {
     color: theme.colors.textMuted,
     fontSize: type.small,
@@ -1099,8 +1073,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingVertical: space.sm,
     paddingHorizontal: space.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   queueToolbarLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
   queueToolbarHint: {
@@ -1120,15 +1092,11 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     minHeight: HIT_TARGET,
     paddingHorizontal: 10,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   queuePlayedText: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '500' },
   queueUpNext: {
-    color: theme.colors.textMuted,
-    fontSize: type.tiny,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    ...label(theme.colors),
     paddingTop: 10,
     paddingBottom: 4,
     paddingHorizontal: 10,
@@ -1137,11 +1105,11 @@ const styles = StyleSheet.create(theme => ({
     height: QUEUE_ROW,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radius.sm,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent',
+    borderRadius: radius.cover,
     paddingRight: 2,
   },
+  // The song playing is a step up in tone, and its equaliser says which it is.
+  queueRowCurrent: { backgroundColor: theme.colors.surface2 },
   queueMain: {
     flex: 1,
     minWidth: 0,

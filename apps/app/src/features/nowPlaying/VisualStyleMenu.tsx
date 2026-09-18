@@ -61,7 +61,7 @@ export function VisualStyleMenu({
           onClose()
         }}
       />
-      <View style={styles.divider} />
+      <View style={styles.groupGap} />
       {VISUAL_KINDS.map(kind => {
         const on = visual.chosen && visual.kind === kind
         return (
@@ -80,7 +80,7 @@ export function VisualStyleMenu({
       <Text style={styles.following} numberOfLines={1}>
         {following}
       </Text>
-      <View style={styles.divider} />
+      <View style={styles.groupGap} />
       <SheetItem
         icon={<Refresh size={15} color={theme.colors.textSecondary} />}
         label="Look for lyrics again"
@@ -94,7 +94,8 @@ export function VisualStyleMenu({
 }
 
 const styles = StyleSheet.create(theme => ({
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
+  // The menu's groups are held apart by space, not a rule (`S2`).
+  groupGap: { height: space.sm },
   blank: { width: 15, height: 15 },
   following: {
     color: theme.colors.textMuted,

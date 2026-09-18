@@ -25,6 +25,7 @@ import {
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
+import { card, label as groupLabel, pageTitle, sectionTitle } from '../../ui/surfaces'
 import { useAccent } from '../../ui/accent'
 import { BackRow, useBackTo } from '../../ui/components/BackRow'
 import { Button } from '../../ui/components/Button'
@@ -54,11 +55,11 @@ import {
   type MigrateRow,
 } from './migrate.model'
 
-/** The confidence pills, in their own OKLCH values: ground, edge. */
-const TONE_FILL: Record<ConfidenceTone, [string, string]> = {
-  good: [oklchToHexAlpha(0.36, 0.08, 155, 0.45), oklchToHexAlpha(0.5, 0.1, 155, 0.55)],
-  fair: [oklchToHexAlpha(0.36, 0.09, 78, 0.5), oklchToHexAlpha(0.5, 0.11, 78, 0.55)],
-  poor: [oklchToHexAlpha(0.34, 0.09, 22, 0.45), oklchToHexAlpha(0.5, 0.12, 22, 0.55)],
+/** The confidence pills' grounds, in their own OKLCH values. A pill has no edge. */
+const TONE_FILL: Record<ConfidenceTone, string> = {
+  good: oklchToHexAlpha(0.36, 0.08, 155, 0.45),
+  fair: oklchToHexAlpha(0.36, 0.09, 78, 0.5),
+  poor: oklchToHexAlpha(0.34, 0.09, 22, 0.45),
 }
 
 /**
@@ -159,7 +160,7 @@ export function MigrateScreen(): ReactNode {
         testID="migrate-screen"
       >
         <BackRow label="Import" href="/import" testID="back-to-import" />
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+        <Text style={styles.heading} accessibilityRole="header">
           Migrate a playlist
         </Text>
         <Text style={styles.sub}>
@@ -177,7 +178,7 @@ export function MigrateScreen(): ReactNode {
 
         {error ? (
           <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-            <Text style={styles.noticeText}>{error}</Text>
+            <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
             <IconButton onPress={() => setError(null)} label="Dismiss">
               <X size={15} color={theme.colors.textMuted} />
             </IconButton>
@@ -187,7 +188,8 @@ export function MigrateScreen(): ReactNode {
         {done ? (
           <View style={[styles.notice, styles.noticeGood]} testID="migrate-done">
             <Text style={styles.noticeText}>
-              <Text style={styles.strong}>{queuedMessage(done.count)}</Text> Watch progress on the{' '}
+              <Text style={[styles.strong, styles.strongGood]}>{queuedMessage(done.count)}</Text>{' '}
+              Watch progress on the{' '}
               <Text
                 style={[styles.linkText, { color: accent.accent }]}
                 onPress={() => backTo('/import')}
@@ -345,12 +347,11 @@ export function MigrateScreen(): ReactNode {
                   <Text style={[styles.headLabel, styles.colConf, styles.right]}>Confidence</Text>
                 </View>
               ) : null}
-              {rows.map((row, position) => (
+              {rows.map(row => (
                 <MatchRow
                   key={row.index}
                   row={row}
                   wide={wide}
-                  last={position === rows.length - 1 && !pending}
                   checked={chosen.has(row.index)}
                   onToggle={() => toggle(row.index)}
                   onPick={index => setPicked(current => new Map(current).set(row.index, index))}
@@ -411,7 +412,7 @@ function ConfidencePill({
   label?: string
 }): ReactNode {
   const { theme } = useUnistyles()
-  const [ground, edge] = TONE_FILL[tone]
+  const ground = TONE_FILL[tone]
   const ink =
     tone === 'good'
       ? theme.colors.good
@@ -420,7 +421,7 @@ function ConfidencePill({
         : theme.colors.danger
   return (
     <View
-      style={[styles.pill, { backgroundColor: ground, borderColor: edge }]}
+      style={[styles.pill, { backgroundColor: ground }]}
       accessible={label !== undefined}
       accessibilityLabel={label}
     >
@@ -433,19 +434,16 @@ function ConfidencePill({
 function MatchRow({
   row,
   wide,
-  last,
   checked,
   onToggle,
   onPick,
 }: {
   row: MigrateRow
   wide: boolean
-  last: boolean
   checked: boolean
   onToggle: () => void
   onPick: (index: number) => void
 }): ReactNode {
-  const accent = useAccent()
   const { item, match } = row
   const [thumbFailed, setThumbFailed] = useState(false)
   const level = confidenceLevel(match?.confidence ?? 0)
@@ -526,12 +524,7 @@ function MatchRow({
     />
   ) : null
 
-  const rowStyle = [
-    styles.tableRow,
-    !last && styles.rowDivided,
-    checked && styles.rowChosen,
-    checked && wide && { borderLeftColor: accent.accent },
-  ]
+  const rowStyle = [styles.tableRow, checked && styles.rowChosen]
 
   if (wide) {
     return (
@@ -563,8 +556,7 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40 },
   contentWide: { paddingTop: 28, paddingHorizontal: 32 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
+  heading: pageTitle(theme.colors),
   sub: {
     color: theme.colors.textMuted,
     fontSize: 13,
@@ -573,23 +565,22 @@ const styles = StyleSheet.create(theme => ({
     lineHeight: 19,
   },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
+  strongGood: { color: theme.colors.good },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   code: { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface2, fontSize: 11 },
   linkText: { fontSize: 12, textDecorationLine: 'underline' },
+  // A notice is a card; an error or a success is told by its words, not an edge.
   notice: {
+    ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: radius.sm,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  noticeError: { borderColor: theme.colors.danger, paddingRight: 4 },
-  noticeGood: { borderColor: theme.colors.good, flexWrap: 'wrap' },
+  noticeError: { paddingRight: 4 },
+  noticeGood: { flexWrap: 'wrap' },
   noticeText: {
     flex: 1,
     minWidth: 200,
@@ -597,28 +588,25 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 13,
     lineHeight: 19,
   },
+  noticeTextError: { color: theme.colors.danger },
   form: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   formNarrow: { flexDirection: 'column', alignItems: 'stretch' },
+  // A control on the ground, with no edge; it holds many lines, so it is rounded as a card is.
   textInput: {
     minHeight: 150,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     color: theme.colors.textPrimary,
     fontSize: 13,
     lineHeight: 19,
     textAlignVertical: 'top',
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.card,
   },
   textInputWide: { flex: 1 },
   review: {
+    ...card(theme.colors),
     padding: 18,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
   },
   reviewHead: {
     flexDirection: 'row',
@@ -629,7 +617,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 12,
   },
   reviewTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reviewTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  reviewTitle: sectionTitle(theme.colors),
   reviewActions: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
   progress: {
     height: 4,
@@ -654,41 +642,24 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     paddingVertical: 3,
     paddingHorizontal: 9,
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: radius.pill,
   },
   pillText: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  table: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-  },
+  // The rows sit straight on the review's card, set apart by space rather than rules.
+  table: { gap: 2 },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    backgroundColor: theme.colors.surface0,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent',
+    borderRadius: 14,
   },
-  tableHead: {
-    backgroundColor: theme.colors.surface2,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  rowDivided: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  rowChosen: { backgroundColor: theme.colors.surface1 },
+  tableHead: { paddingBottom: 4 },
+  // A ticked row is one step up from the card.
+  rowChosen: { backgroundColor: theme.colors.surface2 },
   rowNarrow: { alignItems: 'flex-start' },
-  headLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
+  headLabel: groupLabel(theme.colors),
   right: { textAlign: 'right' },
   colCheck: { width: 30, alignItems: 'center', paddingTop: 2 },
   colSource: { flex: 1, minWidth: 170 },
@@ -702,38 +673,37 @@ const styles = StyleSheet.create(theme => ({
   dup: {
     marginTop: 3,
     paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
+    paddingHorizontal: 7,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,
   },
   dupText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
   matchInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  thumb: { width: 54, height: 40, borderRadius: radius.sm, backgroundColor: theme.colors.surface2 },
+  thumb: {
+    width: 54,
+    height: 40,
+    borderRadius: radius.cover,
+    backgroundColor: theme.colors.surface3,
+  },
   matchText: { flex: 1, minWidth: 0, gap: 3 },
   pick: { maxWidth: 420 },
-  pendingRow: { padding: 14, alignItems: 'center', backgroundColor: theme.colors.surface0 },
+  pendingRow: { padding: 14, alignItems: 'center' },
   narrowBody: { flex: 1, minWidth: 0, gap: 8 },
   narrowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   narrowSource: { flex: 1, minWidth: 0 },
-  options: {
-    gap: 14,
-    marginTop: 18,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  // Space, not a rule, sets the options apart from the songs.
+  options: { gap: 14, marginTop: 24 },
   option: { gap: 7 },
   fieldLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  // A control on the card: one step up from it, a pill, no edge.
   nameInput: {
     maxWidth: 360,
     minHeight: 36,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     color: theme.colors.textPrimary,
     fontSize: 13,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.pill,
   },
   submit: { flexDirection: 'row', gap: 10, marginTop: 18 },
 }))

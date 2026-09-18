@@ -10,7 +10,7 @@ import { isDownloaded, HIT_TARGET, radius, space, type, useToggleLoved } from '@
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
-import { Button } from '../../ui/components/Button'
+import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Play, Plus, Search, Shuffle, X } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
@@ -33,6 +33,7 @@ import { noteTagUsed } from './recentTags.store'
 import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
 import { useSaveTagsAsPlaylist } from './saveTags'
 import { usePullToRefresh } from './usePullToRefresh'
+import { pageTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 
 /**
@@ -255,7 +256,6 @@ export function LibraryScreen(): ReactNode {
           {model.tagFiltered ? (
             <Button
               label={query ? 'Search all songs' : 'Show all songs'}
-              variant="primary"
               onPress={model.clearTags}
             />
           ) : null}
@@ -341,12 +341,9 @@ export function LibraryScreen(): ReactNode {
         */}
         {!wide && model.tagFiltered ? (
           <View style={styles.phoneTransport}>
-            <Button
-              label="Play"
-              variant="primary"
-              grow
-              accessibilityLabel="Play these tags"
-              icon={<Play size={14} color={accent.onAccent} />}
+            <PlayButton
+              label="Play these tags"
+              icon={<Play size={20} color={theme.colors.onPrimary} />}
               disabled={visible.length === 0}
               onPress={() => player.playFrom(songIds, 0)}
               testID="library-play-tags"
@@ -413,33 +410,33 @@ export function LibraryScreen(): ReactNode {
 
           {/* A phone's library is the search and the list: order and play live on a computer. */}
           {wide ? (
-          <View style={[styles.actions, headWide && styles.actionsWide]}>
-            <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
-              <Select
-                value={filter.sort}
-                options={model.sortOptions.map(option => ({
-                  value: option.field,
-                  label: option.label,
-                }))}
-                onChange={model.setSort}
-                label="Sort by"
-                testID="library-sort"
-              />
-            </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.direction,
-                dense && styles.directionDense,
-                pressed && styles.sortButtonPressed,
-              ]}
-              onPress={model.toggleDirection}
-              accessibilityRole="button"
-              accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
-            >
-              <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
-            </Pressable>
+            <View style={[styles.actions, headWide && styles.actionsWide]}>
+              <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
+                <Select
+                  value={filter.sort}
+                  options={model.sortOptions.map(option => ({
+                    value: option.field,
+                    label: option.label,
+                  }))}
+                  onChange={model.setSort}
+                  label="Sort by"
+                  testID="library-sort"
+                />
+              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.direction,
+                  dense && styles.directionDense,
+                  pressed && styles.sortButtonPressed,
+                ]}
+                onPress={model.toggleDirection}
+                accessibilityRole="button"
+                accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
+              >
+                <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
+              </Pressable>
 
-            {/*
+              {/*
               With no tags on, Shuffle alone — a click on any row already plays
               the list from there, and "play 1,204 songs alphabetically" is not
               a thing anybody wants a button for.
@@ -449,42 +446,47 @@ export function LibraryScreen(): ReactNode {
               follows these tags, and then says it did rather than offering
               again.
             */}
-            <View style={[styles.transport, headWide ? styles.transportWide : styles.transportCompact]}>
-              {model.tagFiltered ? (
-                alreadySaved ? (
-                  <Text style={styles.savedMark} testID="library-saved">
-                    ✓ Saved
-                  </Text>
-                ) : (
-                  <Button
-                    label={saved.saving ? 'Saving…' : 'Save as playlist'}
-                    accessibilityLabel="Save these tags as a playlist"
-                    disabled={saved.saving || visible.length === 0}
-                    onPress={saveTheseTags}
-                    testID="library-save-tags"
-                  />
-                )
-              ) : null}
-              <Button
-                label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
-                accessibilityLabel="Shuffle"
-                icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
-                disabled={visible.length === 0}
-                onPress={() => player.playShuffled(songIds)}
-              />
-              {model.tagFiltered ? (
+              <View
+                style={[
+                  styles.transport,
+                  headWide ? styles.transportWide : styles.transportCompact,
+                ]}
+              >
+                {model.tagFiltered ? (
+                  alreadySaved ? (
+                    <Text style={styles.savedMark} testID="library-saved">
+                      ✓ Saved
+                    </Text>
+                  ) : (
+                    <Button
+                      label={saved.saving ? 'Saving…' : 'Save as playlist'}
+                      accessibilityLabel="Save these tags as a playlist"
+                      disabled={saved.saving || visible.length === 0}
+                      onPress={saveTheseTags}
+                      testID="library-save-tags"
+                    />
+                  )
+                ) : null}
                 <Button
-                  label="Play"
-                  variant="primary"
-                  accessibilityLabel="Play these tags"
-                  icon={<Play size={14} color={accent.onAccent} />}
+                  label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
+                  accessibilityLabel="Shuffle"
+                  icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
-                  onPress={() => player.playFrom(songIds, 0)}
-                  testID="library-play-tags"
+                  onPress={() => player.playShuffled(songIds)}
                 />
-              ) : null}
+                {model.tagFiltered ? (
+                  <PlayButton
+                    label="Play these tags"
+                    // The size of the controls beside it, so the head stays one line.
+                    size={dense ? 36 : HIT_TARGET}
+                    icon={<Play size={16} color={theme.colors.onPrimary} />}
+                    disabled={visible.length === 0}
+                    onPress={() => player.playFrom(songIds, 0)}
+                    testID="library-play-tags"
+                  />
+                ) : null}
+              </View>
             </View>
-          </View>
           ) : null}
         </View>
       </View>
@@ -501,20 +503,20 @@ export function LibraryScreen(): ReactNode {
             keyboardShouldPersistTaps="handled"
           >
             {installed ? (
-            <Chip
-              label="On this phone"
-              selected={filter.downloadedOnly}
-              icon={
-                <Downloaded
-                  size={12}
-                  color={
-                    filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.textSecondary
-                  }
-                  knockout={theme.colors.surface1}
-                />
-              }
-              onPress={model.toggleDownloadedOnly}
-            />
+              <Chip
+                label="On this phone"
+                selected={filter.downloadedOnly}
+                icon={
+                  <Downloaded
+                    size={12}
+                    color={
+                      filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.textSecondary
+                    }
+                    knockout={theme.colors.surface1}
+                  />
+                }
+                onPress={model.toggleDownloadedOnly}
+              />
             ) : null}
           </ScrollView>
         </View>
@@ -590,11 +592,7 @@ export function LibraryScreen(): ReactNode {
         )}
       </View>
 
-      <TagPicker
-        song={taggingSong}
-        onClose={() => setTaggingSong(null)}
-        anchorRef={tagAnchorRef}
-      />
+      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
 
       <SongMenu
         song={menuSong}
@@ -637,7 +635,7 @@ const styles = StyleSheet.create(theme => ({
   addTagPressed: { backgroundColor: theme.colors.surface2 },
   addTagLabel: { color: theme.colors.textMuted, fontSize: type.small },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
-  /* Play first and widest: it is what picking tags was for. */
+  /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   savedSlot: { justifyContent: 'center', paddingHorizontal: space.sm },
   chooser: { paddingHorizontal: space.lg },
@@ -651,12 +649,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 18,
     gap: space.md,
   },
-  heading: {
-    color: theme.colors.textPrimary,
-    fontSize: type.large,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
+  heading: pageTitle(theme.colors),
   sub: {
     color: theme.colors.textMuted,
     fontSize: 13,
@@ -692,10 +685,12 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+    // A control on the ground. Its edge is there only for the focus ring: at
+    // rest it is the fill's own colour, so nothing outlines the box.
     backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderColor: theme.colors.surface2,
+    borderRadius: radius.pill,
     paddingLeft: 10,
     paddingRight: 10,
     minHeight: HIT_TARGET,
@@ -719,37 +714,15 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
   },
-  sortButton: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface2,
-  },
   sortButtonPressed: {
     backgroundColor: theme.colors.surface3,
-  },
-  sortLabel: {
-    flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
   },
   direction: {
     width: HIT_TARGET,
     height: HIT_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   directionArrow: {

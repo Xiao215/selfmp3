@@ -8,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   clientApi,
   isDownloaded,
-  oklchToHexAlpha,
   queryKeys,
   radius,
   space,
@@ -24,7 +23,6 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { removingTakesTheCopy } from '../../ports/device'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
@@ -45,6 +43,7 @@ import {
 } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
+import { floating } from '../surfaces'
 
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
@@ -135,7 +134,6 @@ export function SelectionBar({
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
-  const accent = useAccent()
   const { data: library } = useLibrary()
   const player = usePlayer()
   const { state: downloads, queue: downloadQueue, dropDownloads } = useDownloads()
@@ -201,7 +199,6 @@ export function SelectionBar({
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
   const songWord = count === 1 ? 'song' : 'songs'
   const totalWord = total === 1 ? 'song' : 'songs'
-  const accentDim = oklchToHexAlpha(0.42, 0.1, accent.hue, 1)
 
   const closeMenu = (): void => {
     setMenuOpen(false)
@@ -234,12 +231,7 @@ export function SelectionBar({
 
   const bar = wide ? (
     <View style={styles.lane}>
-      <View
-        style={[styles.bar, { borderColor: accentDim }]}
-        role="toolbar"
-        aria-label="Selection actions"
-        testID="selection-bar"
-      >
+      <View style={styles.bar} role="toolbar" aria-label="Selection actions" testID="selection-bar">
         <View style={styles.anchor}>
           <Pressable
             style={styles.all}
@@ -304,7 +296,7 @@ export function SelectionBar({
   ) : (
     <View style={[styles.float, styles.floatBottom]} pointerEvents="box-none">
       <View
-        style={[styles.bar, styles.barCompact, { borderColor: accentDim }]}
+        style={[styles.bar, styles.barCompact]}
         role="toolbar"
         aria-label="Selection actions"
         testID="selection-bar"
@@ -374,7 +366,7 @@ export function SelectionBar({
                 onPress={act(removeSelectedFromPlaylist)}
               />
             ) : null}
-            {count > 0 ? <View style={styles.divider} /> : null}
+            {count > 0 ? <View style={styles.groupGap} /> : null}
           </>
         )}
 
@@ -401,7 +393,7 @@ export function SelectionBar({
               />
             ) : null}
 
-            <View style={styles.divider} />
+            <View style={styles.groupGap} />
 
             <SheetItem
               icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
@@ -478,7 +470,7 @@ export function SelectionBar({
               </View>
             ) : null}
 
-            <View style={styles.divider} />
+            <View style={styles.groupGap} />
 
             {held.length < count ? (
               <SheetItem
@@ -507,7 +499,7 @@ export function SelectionBar({
               />
             ) : null}
 
-            <View style={styles.divider} />
+            <View style={styles.groupGap} />
 
             <SheetItem
               icon={<Trash size={15} color={theme.colors.danger} />}
@@ -592,10 +584,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     padding: space.sm,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     // Lifted off the rows it covers, so it reads as over them rather than one of them.
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+    ...floating(theme.colors),
   },
   barCompact: { gap: 2, paddingVertical: 6, paddingLeft: space.md, paddingRight: 4 },
   anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 },
@@ -625,6 +616,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingBottom: space.sm,
   },
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
+  // The menu's groups are set apart by room, not a rule.
+  groupGap: { height: space.sm },
   nested: { paddingLeft: space.lg },
 }))

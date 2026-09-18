@@ -9,6 +9,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
+import { floating } from '../surfaces'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when
@@ -250,9 +251,7 @@ function AnchoredPopover({
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
-            style={
-              panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 - PANEL_BORDER * 2 }
-            }
+            style={panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 }}
           >
             <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
           </ScrollView>
@@ -265,19 +264,17 @@ function AnchoredPopover({
   return null
 }
 
-const PANEL_BORDER = 1
-
 const styles = StyleSheet.create(theme => ({
   catcher: { position: 'absolute' },
+  // A control-toned panel with no edge: it floats, so its shadow and its tone
+  // tell it from the page (`S2`, "Depth").
   panel: {
     position: 'absolute',
     backgroundColor: theme.colors.surface2,
-    borderWidth: PANEL_BORDER,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     paddingVertical: space.xs,
     paddingHorizontal: space.xs,
     overflow: 'hidden',
-    boxShadow: '0 14px 36px rgba(0, 0, 0, 0.45)',
+    ...floating(theme.colors),
   },
 }))

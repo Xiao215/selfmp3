@@ -2,10 +2,11 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { radius, space, type } from '@selfmp3/client'
+import { space, type } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
+import { card } from '../../ui/surfaces'
 import { unreachableCopy } from './library.model'
 
 /**
@@ -39,7 +40,7 @@ export function CantReach({ onRetry }: { onRetry: () => void }): ReactNode {
       </View>
       <Text style={styles.body}>{copy.body}</Text>
       <View style={styles.actions}>
-        <Button label="Try again" variant="primary" onPress={onRetry} />
+        <Button label="Try again" onPress={onRetry} />
         <Button
           label={wide ? 'Connection settings' : 'Settings'}
           onPress={() => router.push({ pathname: '/settings', params: { section: 'connection' } })}
@@ -57,10 +58,7 @@ const styles = StyleSheet.create(theme => ({
     marginTop: space.xl,
     padding: 18,
     gap: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface1,
+    ...card(theme.colors),
   },
   cardCompact: { maxWidth: undefined },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

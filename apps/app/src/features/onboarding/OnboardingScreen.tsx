@@ -9,6 +9,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { ApiError, normaliseBaseUrl, radius, space, type } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
+import { pageTitle } from '../../ui/surfaces'
 
 /**
  * First run: where is the server?
@@ -139,12 +140,7 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 1,
     justifyContent: 'center',
   },
-  wordmark: {
-    color: theme.colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
+  wordmark: pageTitle(theme.colors),
   blurb: {
     color: theme.colors.textSecondary,
     fontSize: type.body,
@@ -157,14 +153,13 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
     marginTop: space.md,
   },
+  // A control on the ground: a control's fill, a pill, no edge.
   input: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.pill,
     color: theme.colors.textPrimary,
     fontSize: type.body,
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
   error: {

@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View, type GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Line, Path } from 'react-native-svg'
-import { radius } from '@selfmp3/client'
 import {
   formatNumber,
   labelEvery as defaultLabelEvery,
   niceCeiling,
   type ColumnDatum,
 } from '../../features/stats/stats.model'
+import { card, floating, label as labelText, serif } from '../surfaces'
 
 /**
  * Hand-drawn charts: one series, no library.
@@ -206,10 +206,10 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
     gap: 1,
+    // It floats over the plot: a raised control's tone and a shadow, no edge.
     backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.sm,
+    borderRadius: 12,
+    ...floating(theme.colors),
   },
   tooltipValue: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '700' },
   tooltipDetail: { color: theme.colors.textMuted, fontSize: 11 },
@@ -218,17 +218,10 @@ const styles = StyleSheet.create(theme => ({
   tile: {
     paddingVertical: 16,
     paddingHorizontal: 18,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    ...card(theme.colors),
   },
-  tileLabel: { color: theme.colors.textMuted, fontSize: 12, marginBottom: 6 },
-  tileValue: {
-    color: theme.colors.textPrimary,
-    fontSize: 26,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
+  tileLabel: { ...labelText(theme.colors), marginBottom: 6 },
+  // A big number is the serif, which has one weight.
+  tileValue: serif(theme.colors, 26),
   tileHint: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
 }))

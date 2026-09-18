@@ -8,6 +8,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { Search, X } from './Icons'
+import { card, label as labelText } from '../surfaces'
 
 /**
  * Choosing tags to listen to.
@@ -218,12 +219,8 @@ function foot({
 }
 
 const styles = StyleSheet.create(theme => ({
-  panel: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
-  },
+  // A card in the page's flow: one step up from the ground, no edge.
+  panel: card(theme.colors),
   panelWide: { gap: space.sm, padding: space.sm },
   /* A phone has one panel on the screen and room to breathe in it. */
   panelNarrow: { gap: space.md, padding: space.md },
@@ -236,10 +233,12 @@ const styles = StyleSheet.create(theme => ({
     gap: 7,
     minHeight: 34,
     paddingHorizontal: 10,
-    backgroundColor: theme.colors.surface0,
+    // A control on the card. Its edge is there only to carry the focus ring,
+    // and is clear until then.
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderColor: 'transparent',
+    borderRadius: radius.pill,
   },
   searchBoxNarrow: { minHeight: HIT_TARGET, paddingHorizontal: space.md },
   search: {
@@ -247,7 +246,7 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     color: theme.colors.textPrimary,
     fontSize: type.body,
-    // As in TagPicker: the accent border is the focus, and the browser's own
+    // As in TagPicker: the accent ring is the focus, and the browser's own
     // ring on top of it drew a second white outline.
     _web: { outlineStyle: 'none' },
   },
@@ -259,8 +258,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     paddingTop: space.xs,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
   footSpacer: { flex: 1, minWidth: 0 },
   body: { flexShrink: 1, maxHeight: 210 },
@@ -272,12 +269,7 @@ const styles = StyleSheet.create(theme => ({
   lane: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, paddingBottom: space.xs },
   /* On a phone the gutter is a quarter of the width, so the label goes above. */
   laneStacked: { gap: space.xs, paddingBottom: space.md },
-  laneLabel: {
-    color: theme.colors.textMuted,
-    fontSize: type.label,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
+  laneLabel: labelText(theme.colors),
   laneLabelBeside: { width: 74, paddingTop: 5 },
   cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs },

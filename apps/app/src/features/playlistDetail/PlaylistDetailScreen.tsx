@@ -29,9 +29,7 @@ import {
   HIT_TARGET,
   isDownloaded,
   queryKeys,
-  radius,
   space,
-  type,
   useDeletePlaylist,
   useLibrary,
   useManifest,
@@ -50,8 +48,9 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
+import { pageTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
-import { Button } from '../../ui/components/Button'
+import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
 import {
@@ -447,7 +446,7 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityRole="header"
           {...(finePointer ? tip('Rename') : {})}
         >
-          <Text style={[styles.heading, !wide && styles.headingCompact]} numberOfLines={2}>
+          <Text style={styles.heading} numberOfLines={2}>
             {name}
           </Text>
         </Pressable>
@@ -475,23 +474,15 @@ export function PlaylistDetailScreen(): ReactNode {
     </View>
   )
 
+  // The page's one white Play (`S2`).
   const playButton = (
-    <Pressable
+    <PlayButton
       onPress={() => playback.play(playlistId, songIds)}
       disabled={nothing}
-      accessibilityRole="button"
-      accessibilityLabel={`Play ${name}`}
+      label={`Play ${name}`}
       testID="playlist-play"
-      {...tip('Play')}
-      style={({ pressed }) => [
-        styles.play,
-        { backgroundColor: accent.accent },
-        pressed && styles.playPressed,
-        nothing && styles.disabled,
-      ]}
-    >
-      <Play size={20} color={accent.onAccent} />
-    </Pressable>
+      icon={<Play size={20} color={theme.colors.onPrimary} />}
+    />
   )
   const shuffleButton = (
     <IconButton
@@ -499,6 +490,7 @@ export function PlaylistDetailScreen(): ReactNode {
       label={`Shuffle ${name}`}
       caption="Shuffle"
       disabled={nothing}
+      filled
     >
       <Shuffle size={20} color={theme.colors.textSecondary} />
     </IconButton>
@@ -511,6 +503,7 @@ export function PlaylistDetailScreen(): ReactNode {
         onPress={() => downloadByHand(songIds)}
         label={pendingBytes > 0 ? `Download · ${formatBytes(pendingBytes)}` : 'Downloaded'}
         disabled={pendingBytes === 0}
+        filled
       >
         {pendingBytes > 0 ? (
           <CloudDownload size={19} color={theme.colors.textSecondary} />
@@ -527,6 +520,7 @@ export function PlaylistDetailScreen(): ReactNode {
         caption="More"
         active={headMenuOpen}
         testID="playlist-more"
+        filled
       >
         <More size={19} color={theme.colors.textSecondary} />
       </IconButton>
@@ -595,6 +589,7 @@ export function PlaylistDetailScreen(): ReactNode {
                   onPress={() => setAdding(true)}
                   label="Add songs"
                   testID="playlist-add-songs"
+                  filled
                 >
                   <Plus size={20} color={theme.colors.textSecondary} />
                 </IconButton>
@@ -644,8 +639,7 @@ export function PlaylistDetailScreen(): ReactNode {
       {live ? null : (
         <Button
           label="Add songs"
-          variant="primary"
-          icon={<Plus size={15} color={accent.onAccent} />}
+          icon={<Plus size={15} color={theme.colors.textPrimary} />}
           onPress={() => setAdding(true)}
         />
       )}
@@ -1072,44 +1066,26 @@ const styles = StyleSheet.create(theme => ({
   titles: { flexShrink: 1, minWidth: 0, gap: 3 },
   eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   eyebrowText: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
-  heading: {
-    color: theme.colors.textPrimary,
-    fontSize: type.large + 6,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  headingCompact: { fontSize: type.large + 2 },
+  heading: pageTitle(theme.colors),
+  // A field in place of the name: the control surface, and no edge.
   headingInput: {
     paddingVertical: 2,
     paddingHorizontal: space.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.sm,
+    borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
   description: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
   descriptionInput: {
     paddingVertical: 5,
     paddingHorizontal: space.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.sm,
+    borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
   meta: { color: theme.colors.textMuted, fontSize: 12.5 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   spacer: { flex: 1 },
-  play: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: space.xs,
-  },
-  playPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
-  disabled: { opacity: 0.45 },
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
+  // Room between the menu's groups, where a line used to be.
+  divider: { height: space.sm },
   spinner: { marginTop: space.xl },
   empty: {
     alignItems: 'center',

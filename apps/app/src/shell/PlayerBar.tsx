@@ -23,8 +23,6 @@ import {
   Metronome,
   Moon,
   Next,
-  Pause,
-  Play,
   Prev,
   Queue,
   Repeat,
@@ -41,13 +39,15 @@ import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
 import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
+import { floating } from '../ui/surfaces'
+import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
 
 /**
  * The transport across the foot of the desktop layout.
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
- * right, three groups with a hairline between them, because a row of controls
+ * right, three groups with room between them, because a row of controls
  * reads as a wall of icons and they are three jobs: what is on screen, how it
  * plays, and where it comes out.
  *
@@ -357,11 +357,11 @@ function PlayButton({
         pressed && styles.playPressed,
       ]}
     >
-      {playing ? (
-        <Pause size={20} color={theme.colors.surface0} />
-      ) : (
-        <Play size={20} color={enabled ? theme.colors.surface0 : theme.colors.textMuted} />
-      )}
+      <PlayPauseIcon
+        playing={playing}
+        size={20}
+        color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
+      />
     </Pressable>
   )
 }
@@ -597,7 +597,7 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.cover,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   bar: {
@@ -606,10 +606,11 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.lg,
     paddingHorizontal: 18,
+    // A card's tone with no line along its top; it floats over the page, so it
+    // casts the floating shadow (`S2`, "Depth").
     backgroundColor: theme.colors.surface1,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
     overflow: 'hidden',
+    ...floating(theme.colors),
   },
   playedLine: { position: 'absolute', left: 0, top: -1, height: 2 },
   left: {
@@ -633,7 +634,7 @@ const styles = StyleSheet.create(theme => ({
     height: 28,
     paddingHorizontal: 9,
     marginHorizontal: 2,
-    borderRadius: 14,
+    borderRadius: radius.pill,
   },
   pillText: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centre: {
@@ -648,7 +649,7 @@ const styles = StyleSheet.create(theme => ({
   playButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 4,
@@ -665,7 +666,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  groupDivided: { paddingLeft: space.sm, borderLeftWidth: 1, borderLeftColor: theme.colors.border },
+  // The groups are set apart by room, not a rule.
+  groupDivided: { paddingLeft: space.md },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   volumePopover: { alignItems: 'center', gap: 10, paddingTop: 10, paddingBottom: 2 },
   readout: {
@@ -681,7 +683,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
-  sliderFill: { height: 4, borderRadius: radius.sm },
+  sliderFill: { height: 4, borderRadius: 2 },
   /* Wider than the track, so the handle is easy to catch. */
   sliderUpright: { width: 32, height: 128, alignItems: 'center', cursor: 'pointer' },
   sliderTrackUpright: {
@@ -699,6 +701,5 @@ const styles = StyleSheet.create(theme => ({
     height: HANDLE,
     borderRadius: HANDLE / 2,
     backgroundColor: theme.colors.textPrimary,
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4)',
   },
 }))

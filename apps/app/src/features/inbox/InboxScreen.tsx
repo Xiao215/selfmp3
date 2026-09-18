@@ -7,8 +7,7 @@ import { useNavigation, useRouter } from 'expo-router'
 import { TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   isDownloaded,
-  oklchToHexAlpha,
-  radius,
+  tagColors,
   tempoMark,
   useCreateTag,
   useLibrary,
@@ -27,6 +26,7 @@ import { Cover } from '../../ui/components/Cover'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Check, ChevronRight, Inbox, Play, Plus, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { card, pageTitle } from '../../ui/surfaces'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { BackToYou } from '../../ui/components/BackToYou'
@@ -60,7 +60,7 @@ import {
  * simply wrong.
  */
 export function InboxScreen(): ReactNode {
-  const accent = useAccent()
+  const { theme } = useUnistyles()
   const router = useRouter()
   const navigation = useNavigation()
   const player = usePlayer()
@@ -114,10 +114,7 @@ export function InboxScreen(): ReactNode {
         <BackToYou />
         <View style={[styles.head, !wide && styles.headNarrow]}>
           <View style={styles.titles}>
-            <Text
-              style={[styles.heading, !wide && styles.headingNarrow]}
-              accessibilityRole="header"
-            >
+            <Text style={styles.heading} accessibilityRole="header">
               Untagged
             </Text>
             {subtitle ? <Text style={styles.sub}>{subtitle}</Text> : null}
@@ -125,8 +122,7 @@ export function InboxScreen(): ReactNode {
           {untagged.length > 0 ? (
             <Button
               label="Start tagging"
-              variant="primary"
-              icon={<Play size={15} color={accent.onAccent} />}
+              icon={<Play size={15} color={theme.colors.textPrimary} />}
               onPress={() => setSession(ids)}
             />
           ) : null}
@@ -297,8 +293,7 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
             {queue.length > 0 ? <Button label="Back to the last song" onPress={back} /> : null}
             <Button
               label="Done"
-              variant="primary"
-              icon={<Check size={15} color={accent.onAccent} />}
+              icon={<Check size={15} color={theme.colors.textPrimary} />}
               onPress={onExit}
             />
           </View>
@@ -404,43 +399,16 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
                 aria-pressed={on}
                 accessibilityLabel={tag.name}
                 testID={`triage-tag-${tag.id}`}
-                style={[
-                  styles.tag,
-                  {
-                    backgroundColor: oklchToHexAlpha(
-                      on ? 0.55 : 0.3,
-                      on ? 0.14 : 0.05,
-                      tag.hue,
-                      on ? 0.7 : 0.35,
-                    ),
-                    borderColor: oklchToHexAlpha(
-                      on ? 0.72 : 0.45,
-                      on ? 0.14 : 0.08,
-                      tag.hue,
-                      on ? 1 : 0.45,
-                    ),
-                  },
-                ]}
+                style={[styles.tag, on ? styles.tagOn : styles.tagOff]}
               >
                 {wide && position < 9 ? (
-                  <View
-                    style={[styles.kbd, { borderColor: oklchToHexAlpha(0.45, 0.06, tag.hue, 0.6) }]}
-                  >
-                    <Text
-                      style={[styles.kbdText, { color: oklchToHexAlpha(0.86, 0.08, tag.hue, 1) }]}
-                    >
-                      {position + 1}
-                    </Text>
+                  <View style={[styles.kbd, !on && styles.kbdOff]}>
+                    <Text style={[styles.kbdText, on && styles.inkOn]}>{position + 1}</Text>
                   </View>
                 ) : null}
-                {on ? <Check size={13} color={oklchToHexAlpha(0.98, 0.02, tag.hue, 1)} /> : null}
-                <Text
-                  style={[
-                    styles.tagText,
-                    on && styles.tagTextOn,
-                    { color: oklchToHexAlpha(on ? 0.98 : 0.86, on ? 0.02 : 0.08, tag.hue, 1) },
-                  ]}
-                >
+                <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+                {on ? <Check size={13} color={theme.colors.onPrimary} /> : null}
+                <Text style={[styles.tagText, on && styles.tagTextOn, on && styles.inkOn]}>
                   {tag.name}
                 </Text>
               </Pressable>
@@ -505,8 +473,7 @@ const styles = StyleSheet.create(theme => ({
   },
   headNarrow: { flexDirection: 'column', gap: 12 },
   titles: { flexShrink: 1 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
+  heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 6 },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   lead: { marginBottom: 14 },
@@ -565,16 +532,13 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 22,
     padding: 18,
-    borderRadius: radius.lg,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    ...card(theme.colors),
   },
   cardNarrow: { flexDirection: 'column', gap: 14 },
   meta: { flex: 1, minWidth: 0, alignItems: 'flex-start', gap: 6 },
   metaNarrow: { alignItems: 'center', flex: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: 26, lineHeight: 31, fontWeight: '700' },
-  titleNarrow: { fontSize: 20, lineHeight: 24, textAlign: 'center' },
+  title: { ...pageTitle(theme.colors), lineHeight: 36 },
+  titleNarrow: { textAlign: 'center' },
   artist: { color: theme.colors.textSecondary, fontSize: 14 },
   album: { color: theme.colors.textMuted },
   features: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -590,18 +554,29 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 8,
     paddingRight: 14,
     borderRadius: 999,
-    borderWidth: 1,
   },
-  tagText: { fontSize: 14 },
+  // A neutral pill with a dot of the tag's hue, and white when it is on the
+  // song: the same two faces as every tag chip in the app (`Chip`).
+  tagOff: { backgroundColor: theme.colors.surface2 },
+  tagOn: { backgroundColor: theme.colors.textPrimary },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  tagText: { color: theme.colors.textPrimary, fontSize: 14 },
   tagTextOn: { fontWeight: '600' },
+  inkOn: { color: theme.colors.onPrimary },
+  // The number key for a tag, as a small key cap one step up from the pill.
   kbd: {
     minWidth: 20,
     paddingHorizontal: 4,
     borderRadius: 4,
-    borderWidth: 1,
     alignItems: 'center',
   },
-  kbdText: { fontSize: 11, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  kbdOff: { backgroundColor: theme.colors.surface3 },
+  kbdText: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   newTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -620,8 +595,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
     gap: 12,
     paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
   footNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -8 },
 }))

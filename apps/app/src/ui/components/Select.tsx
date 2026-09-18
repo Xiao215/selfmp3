@@ -7,6 +7,7 @@ import { useLayout } from '../../shell/useLayout'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
+import { label as labelText } from '../surfaces'
 
 interface SelectOption<T> {
   readonly value: T
@@ -91,7 +92,7 @@ export function Select<T extends string | number>({
           size === 'small' && styles.controlSmall,
           size === 'inline' && styles.controlInline,
           pressed && styles.controlPressed,
-          // Open, the control keeps an accent edge.
+          // Open, the control stays lit.
           open && styles.fieldOpen,
         ]}
         onPress={() => setOpen(true)}
@@ -150,13 +151,10 @@ const styles = StyleSheet.create(theme => ({
     minHeight: HIT_TARGET,
     paddingHorizontal: space.md,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
-  // Open, edged in the accent — from the palette, so the picker recolours it
-  // without re-rendering the control.
-  fieldOpen: { borderColor: theme.colors.accent },
+  // Open, the control is a step lighter: tone, not an edge.
+  fieldOpen: { backgroundColor: theme.colors.surface3 },
   /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,
@@ -202,18 +200,14 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
   },
   groupLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.7,
+    ...labelText(theme.colors),
     paddingTop: 6,
     paddingHorizontal: 10,
     paddingBottom: 4,
   },
+  // A group after the first is set apart by room, not a rule.
   groupDivided: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    marginTop: 4,
+    marginTop: space.sm,
     paddingTop: 9,
   },
 }))

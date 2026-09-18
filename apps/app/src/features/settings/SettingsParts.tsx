@@ -2,14 +2,18 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { oklchToHex, oklchToHexAlpha, radius } from '@selfmp3/client'
+import { oklchToHexAlpha, radius } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
+import { card, sectionTitle, serif } from '../../ui/surfaces'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
  * quiet line of explanation, the control on the right. On a phone the control
  * drops under the words.
+ *
+ * A section is a card, and its rows are told apart by spacing alone (`S2`: no
+ * hairlines; where tone is not enough, space is the second tool).
  */
 
 const Stacked = createContext(false)
@@ -150,15 +154,7 @@ export function Notice({
 }): ReactNode {
   const hue = tone === 'warn' ? 78 : tone === 'error' ? 22 : 155
   return (
-    <View
-      style={[
-        styles.notice,
-        {
-          borderColor: oklchToHex(0.45, 0.1, hue),
-          backgroundColor: oklchToHexAlpha(0.3, 0.06, hue, 0.3),
-        },
-      ]}
-    >
+    <View style={[styles.notice, { backgroundColor: oklchToHexAlpha(0.3, 0.06, hue, 0.3) }]}>
       <Text
         style={[
           styles.noticeText,
@@ -207,13 +203,11 @@ export const partStyles = StyleSheet.create(theme => ({
   input: {
     minWidth: 220,
     paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     fontSize: 13,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
   code: { fontSize: 12, color: theme.colors.textPrimary, backgroundColor: theme.colors.surface2 },
@@ -227,15 +221,12 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     paddingVertical: 8,
     paddingRight: 8,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   detailsRowPressed: { opacity: 0.7 },
   detailsRowText: { color: theme.colors.textMuted, fontSize: 13 },
   panel: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    ...card(theme.colors),
     padding: 18,
   },
   panelHead: {
@@ -245,7 +236,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 16,
   },
-  panelTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  panelTitle: sectionTitle(theme.colors),
   hint: { color: theme.colors.textMuted, fontSize: 12 },
   lead: {
     color: theme.colors.textSecondary,
@@ -260,11 +251,10 @@ const styles = StyleSheet.create(theme => ({
     gap: 24,
     minHeight: 46,
     paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
-  rowLast: { borderBottomWidth: 0 },
+  // The card's own padding is below the last row, so it needs none of its own.
+  rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
   name: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   rowHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, maxWidth: 400 },
@@ -278,7 +268,7 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
-  statValue: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: '700' },
+  statValue: serif(theme.colors, 28),
   statLabel: { color: theme.colors.textMuted, fontSize: 12 },
   meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   meterFill: {
@@ -287,11 +277,11 @@ const styles = StyleSheet.create(theme => ({
     borderBottomRightRadius: 3,
     backgroundColor: theme.colors.accent,
   },
+  // Its tone is a wash of the notice's hue; no edge.
   notice: {
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: radius.sm,
-    borderWidth: 1,
+    borderRadius: radius.card,
     marginVertical: 8,
   },
   noticeText: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
@@ -304,10 +294,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 5,
-    borderWidth: 1,
-    borderBottomWidth: 2,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
 }))

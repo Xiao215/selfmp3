@@ -5,9 +5,9 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
-  oklchToHexAlpha,
   radius,
   space,
+  tagColors,
   useCreateTag,
   useLibrary,
   useSetSongTags,
@@ -199,9 +199,7 @@ export function TagSearchList({
               accessibilityLabel={item.name}
             >
               <Checkbox checked={on} />
-              <View
-                style={[styles.dot, { backgroundColor: oklchToHexAlpha(0.68, 0.15, item.hue, 1) }]}
-              />
+              <View style={[styles.dot, { backgroundColor: tagColors(item.hue).dot }]} />
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -242,13 +240,14 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     color: theme.colors.textPrimary,
     fontSize: 14,
-    backgroundColor: theme.colors.surface1,
+    // A control on the panel, a step up from a sheet or a popover. Its edge is
+    // clear until it carries the focus ring, in the accent. The browser's own
+    // ring on top of it drew a second, white outline, and Chrome draws an
+    // `auto` ring at any width: it has to be no outline at all.
+    backgroundColor: theme.colors.surface3,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
-    // The border says it has focus, in the accent. The browser's own ring on top
-    // of it drew a second, white outline, and Chrome draws an `auto` ring at any
-    // width: it has to be no outline at all.
+    borderColor: 'transparent',
+    borderRadius: radius.pill,
     _web: { outlineStyle: 'none' },
   },
   /* In a pop-up: room above the box, a menu's height. */
@@ -269,16 +268,14 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     minHeight: HIT_TARGET,
     paddingHorizontal: space.md,
-    borderRadius: radius.sm,
+    borderRadius: 12,
   },
-  itemPressed: { backgroundColor: theme.colors.surface2 },
+  itemPressed: { backgroundColor: theme.colors.surface3 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: 14 },
   count: { color: theme.colors.textMuted, fontSize: 11 },
+  // Set apart from the list by room, not a rule.
   create: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    borderRadius: 0,
     marginTop: space.xs,
   },
   createName: { fontWeight: '700' },

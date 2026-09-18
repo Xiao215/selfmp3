@@ -81,15 +81,9 @@ const config = {
       'expo-font',
       {
         fonts: [
-          require.resolve(
-            '@expo-google-fonts/instrument-serif/400Regular/InstrumentSerif_400Regular.ttf',
-          ),
-          require.resolve(
-            '@expo-google-fonts/instrument-serif/400Regular_Italic/InstrumentSerif_400Regular_Italic.ttf',
-          ),
-          require.resolve(
-            '@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf',
-          ),
+          require.resolve('@expo-google-fonts/instrument-serif/400Regular/InstrumentSerif_400Regular.ttf'),
+          require.resolve('@expo-google-fonts/instrument-serif/400Regular_Italic/InstrumentSerif_400Regular_Italic.ttf'),
+          require.resolve('@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf'),
         ],
       },
     ],

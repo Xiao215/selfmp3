@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
+import { space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
+import { card } from '../surfaces'
 
 /**
  * One line saying whether this device has your music yet, in the words Xiao
@@ -69,8 +70,7 @@ const styles = StyleSheet.create(theme => ({
   bar: {
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.md,
+    ...card(theme.colors),
     marginHorizontal: space.lg,
     marginBottom: space.sm,
     gap: space.xs,

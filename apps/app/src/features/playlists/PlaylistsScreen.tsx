@@ -12,7 +12,7 @@ import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, type Playlist } from '@selfmp3/shared'
-import { radius, space, type, useGems } from '@selfmp3/client'
+import { radius, space, useGems } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -23,6 +23,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Live, Pin, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
+import { card, floating, label, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
@@ -135,8 +136,7 @@ export function PlaylistsScreen(): ReactNode {
               {wide ? (
                 <Button
                   label="New"
-                  variant="primary"
-                  icon={<Plus size={15} color={accent.onAccent} />}
+                  icon={<Plus size={15} color={theme.colors.textPrimary} />}
                   active={newOpen}
                   onPress={() => {
                     setNewFrom('head')
@@ -151,7 +151,7 @@ export function PlaylistsScreen(): ReactNode {
                     setNewOpen(current => !current)
                   }}
                   label="New playlist"
-                  round
+                  filled
                   active={newOpen}
                   testID="playlists-new"
                 >
@@ -262,8 +262,7 @@ export function PlaylistsScreen(): ReactNode {
                 <View style={styles.emptyAction}>
                   <Button
                     label="New playlist"
-                    variant="primary"
-                    icon={<Plus size={15} color={accent.onAccent} />}
+                    icon={<Plus size={15} color={theme.colors.textPrimary} />}
                     onPress={() => {
                       setNewFrom('head')
                       setNewOpen(true)
@@ -290,9 +289,9 @@ export function PlaylistsScreen(): ReactNode {
  *
  * The grid is where you look when you want a playlist, so it is where making
  * one belongs — and a grid that starts with it has a beginning whether you own
- * seven playlists or none. It is filled with the accent rather than outlined,
- * because an empty playlist's tile is the dashed one: only one of the two can
- * look like room for something.
+ * seven playlists or none. It is washed with the accent, so it reads as the
+ * way in rather than as one more playlist with nothing in it yet, whose cover
+ * is a plain tone.
  */
 function NewTile({
   width,
@@ -315,12 +314,7 @@ function NewTile({
         testID="playlists-new-tile"
         style={({ pressed }) => pressed && styles.pressed}
       >
-        <View
-          style={[
-            styles.newCover,
-            { borderColor: accent.accentDim, backgroundColor: accent.accentPill },
-          ]}
-        >
+        <View style={[styles.newCover, { backgroundColor: accent.accentPill }]}>
           <Plus size={26} color={accent.accent} />
           <Text style={styles.newKinds} numberOfLines={1}>
             yours, or {FOLLOWS_LABEL}
@@ -449,11 +443,11 @@ function PlaylistTile({
           {...tip('Play')}
           style={({ pressed }) => [
             styles.fab,
-            { top: width - FAB - 8, backgroundColor: accent.accent },
+            { top: width - FAB - 8 },
             pressed && styles.fabPressed,
           ]}
         >
-          <Play size={15} color={accent.onAccent} />
+          <Play size={15} color={theme.colors.onPrimary} />
         </Pressable>
       ) : null}
 
@@ -464,12 +458,12 @@ function PlaylistTile({
           accessibilityLabel={`Add songs to ${playlist.name}`}
           style={({ pressed }) => [
             styles.addSongs,
-            { top: width - 30, width: width - 16, backgroundColor: accent.accent },
+            { top: width - 30, width: width - 16 },
             pressed && styles.fabPressed,
           ]}
         >
-          <Plus size={13} color={accent.onAccent} />
-          <Text style={[styles.addSongsText, { color: accent.onAccent }]} numberOfLines={1}>
+          <Plus size={13} color={theme.colors.textPrimary} />
+          <Text style={styles.addSongsText} numberOfLines={1}>
             Add songs
           </Text>
         </Pressable>
@@ -490,21 +484,10 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.lg,
   },
   titles: { flexShrink: 1, minWidth: 0 },
-  heading: {
-    color: theme.colors.textPrimary,
-    fontSize: type.large,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
+  heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 3 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  section: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    marginBottom: space.sm,
-  },
+  section: { ...label(theme.colors), marginBottom: space.sm },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -519,10 +502,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 10,
     padding: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface1,
+    ...card(theme.colors),
   },
   shelfText: { flex: 1, minWidth: 0 },
   shelfName: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
@@ -532,8 +512,7 @@ const styles = StyleSheet.create(theme => ({
   tile: { width: '100%' },
   newCover: {
     aspectRatio: 1,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderRadius: radius.card,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -548,10 +527,12 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     gap: 5,
     height: 26,
-    borderRadius: radius.sm,
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+    borderRadius: radius.pill,
+    // A control over artwork: the glass, and it floats.
+    backgroundColor: theme.colors.glass,
+    ...floating(theme.colors),
   },
-  addSongsText: { fontSize: 11.5, fontWeight: '600' },
+  addSongsText: { color: theme.colors.textPrimary, fontSize: 11.5, fontWeight: '600' },
   pressed: { opacity: 0.75 },
   tileName: {
     color: theme.colors.textPrimary,
@@ -567,7 +548,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 2,
     paddingHorizontal: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(12, 12, 20, 0.78)',
+    backgroundColor: theme.colors.glass,
   },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badgeText: { color: theme.colors.textPrimary, fontSize: 10.5, fontWeight: '700' },
@@ -580,7 +561,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(12, 12, 20, 0.78)',
+    backgroundColor: theme.colors.glass,
   },
   fab: {
     position: 'absolute',
@@ -590,7 +571,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: FAB / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 6px 16px rgba(0, 0, 0, 0.45)',
+    // The white Play (`S2`), shown on one tile at a time as the pointer finds it.
+    backgroundColor: theme.colors.textPrimary,
+    ...floating(theme.colors),
   },
   fabPressed: { transform: [{ scale: 0.95 }] },
   spinner: { marginTop: space.xl },
@@ -598,10 +581,7 @@ const styles = StyleSheet.create(theme => ({
     width: '100%',
     padding: 18,
     gap: space.sm,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    ...card(theme.colors),
   },
   emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
   emptyHint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, maxWidth: 520 },

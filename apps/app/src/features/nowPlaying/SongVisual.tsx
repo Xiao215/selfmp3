@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
+import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource'
 import { useReducedMotion } from '../../ui/useReducedMotion'
@@ -547,7 +548,7 @@ function Orbit({
 
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  rounded: { borderRadius: 14, overflow: 'hidden' },
+  rounded: { borderRadius: radius.card, overflow: 'hidden' },
   blob: { position: 'absolute' },
   centre: {
     position: 'absolute',

@@ -10,6 +10,7 @@ import { useServerSongIds } from '../../connection/useServerSongIds'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useAccent } from '../../ui/accent'
+import { floating, sectionTitle } from '../../ui/surfaces'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { MetadataDialog } from './MetadataDialog'
@@ -140,24 +141,21 @@ const styles = StyleSheet.create(theme => ({
     width: '100%',
     maxWidth: 460,
     backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.lg,
+    borderRadius: radius.sheet,
     overflow: 'hidden',
+    ...floating(theme.colors),
   },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 14,
+    paddingTop: 16,
     paddingRight: 14,
-    paddingBottom: 12,
-    paddingLeft: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingBottom: 4,
+    paddingLeft: 22,
   },
-  title: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '600' },
-  body: { paddingTop: 4, paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
+  title: sectionTitle(theme.colors),
+  body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
   cardTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 16 },
   cardBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
 }))

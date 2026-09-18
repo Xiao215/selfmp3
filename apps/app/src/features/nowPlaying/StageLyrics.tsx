@@ -315,7 +315,7 @@ const LyricLine = memo(function LyricLine({
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 0 },
-  line: { borderRadius: radius.sm },
+  line: { borderRadius: radius.cover },
   words: { fontWeight: '700' },
   roman: { fontWeight: '500', fontStyle: 'italic', opacity: 0.8, letterSpacing: 0.2 },
 })

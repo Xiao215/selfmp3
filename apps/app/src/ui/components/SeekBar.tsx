@@ -248,7 +248,8 @@ const styles = StyleSheet.create(theme => ({
   trackInline: { height: 4, borderRadius: 2 },
   fillInline: { height: 4, borderRadius: 2 },
   thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
-  /* `.loop-region`: low-contrast, a little taller than the track, edged in the accent. */
+  /* `.loop-region`: low-contrast, a little taller than the track. Its two edges are
+     the loop's ends, the mark itself, so they stay. */
   loop: {
     position: 'absolute',
     top: '50%',
@@ -285,10 +286,6 @@ const styles = StyleSheet.create(theme => ({
     height: THUMB,
     borderRadius: THUMB / 2,
     backgroundColor: theme.colors.textPrimary,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
   },
   times: {
     flexDirection: 'row',

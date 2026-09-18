@@ -1,5 +1,5 @@
-import { useRef, useSyncExternalStore } from 'react'
-import { AccessibilityInfo, Animated, Platform } from 'react-native'
+import { useState, useSyncExternalStore } from 'react'
+import { AccessibilityInfo, Animated } from 'react-native'
 import { motion } from '@selfmp3/client'
 
 /**
@@ -29,7 +29,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** Whether moves are instant right now, for code outside React. */
-export function motionReduced(): boolean {
+function motionReduced(): boolean {
   return reduced
 }
 
@@ -42,8 +42,11 @@ export function useMotionReduced(): boolean {
   return useSyncExternalStore(subscribe, motionReduced, motionReduced)
 }
 
-/** The native driver where there is one; a browser animates on the JS side. */
-const nativeDriver = Platform.OS !== 'web'
+/**
+ * The native driver, as the rest of the app asks for it: a browser has none
+ * and react-native-web runs the same animation on the JS side instead.
+ */
+const nativeDriver = true
 
 /**
  * The one spring (`motion.spring`), or a jump to the end under Reduce Motion.
@@ -65,23 +68,30 @@ export function spring(value: Animated.Value, toValue: number): Animated.Composi
   return animation
 }
 
-/** A timed move, or a jump to the end under Reduce Motion. */
+/**
+ * A timed move, or a jump to the end under Reduce Motion. `onDone` runs when
+ * it lands — at once, when there is no move — and not if it is interrupted.
+ */
 export function timing(
   value: Animated.Value,
   toValue: number,
   duration: number,
+  onDone?: () => void,
 ): Animated.CompositeAnimation | null {
   if (reduced) {
     value.setValue(toValue)
+    onDone?.()
     return null
   }
   const animation = Animated.timing(value, { toValue, duration, useNativeDriver: nativeDriver })
-  animation.start()
+  animation.start(({ finished }) => {
+    if (finished) onDone?.()
+  })
   return animation
 }
 
 /** How far a pressed thing sinks (`M1`, "Press"). */
-export const PRESS_SCALE = 0.96
+const PRESS_SCALE = 0.96
 
 /**
  * Everything pressable sinks to 0.96 on the spring and comes back on release.
@@ -92,10 +102,16 @@ export function usePressScale(to: number = PRESS_SCALE): {
   style: { transform: { scale: Animated.Value }[] }
   handlers: { onPressIn: () => void; onPressOut: () => void }
 } {
-  const scale = useRef(new Animated.Value(1)).current
-  const handlers = useRef({
-    onPressIn: () => void spring(scale, to),
-    onPressOut: () => void spring(scale, 1),
-  }).current
-  return { style: { transform: [{ scale }] }, handlers }
+  // Made once per component, in state rather than a ref, so render reads nothing mutable.
+  const [press] = useState(() => {
+    const scale = new Animated.Value(1)
+    return {
+      style: { transform: [{ scale }] },
+      handlers: {
+        onPressIn: () => void spring(scale, to),
+        onPressOut: () => void spring(scale, 1),
+      },
+    }
+  })
+  return press
 }

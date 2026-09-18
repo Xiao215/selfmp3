@@ -5,6 +5,7 @@ import { useLayout } from '../../shell/useLayout'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { pageTitle } from '../../ui/surfaces'
 import { ImportScreen } from './ImportScreen'
 import { QueueViaBucket } from './QueueViaBucket'
 
@@ -36,7 +37,7 @@ export function ImportViaServer(): ReactNode {
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
       >
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+        <Text style={styles.heading} accessibilityRole="header">
           Import
         </Text>
         <ServerAway reach={reach} need="import" testID="import-server" />
@@ -51,6 +52,5 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40 },
   contentWide: { paddingTop: 28, paddingHorizontal: 32, maxWidth: 820 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
+  heading: pageTitle(theme.colors),
 }))

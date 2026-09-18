@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { Rgb } from '@selfmp3/client'
+import { radius, type Rgb } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource'
@@ -115,7 +115,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
         width: '100%',
         height: '100%',
         display: 'block',
-        borderRadius: rounded ? 14 : 0,
+        borderRadius: rounded ? radius.card : 0,
       }}
     />
   )

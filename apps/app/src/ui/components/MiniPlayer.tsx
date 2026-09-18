@@ -11,7 +11,9 @@ import { DevicesSheet } from '../../features/devices/DevicesSheet'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
-import { Devices, Next, Pause, Play } from './Icons'
+import { Devices, Next } from './Icons'
+import { floating } from '../surfaces'
+import { PlayPauseIcon } from './PlayPauseIcon'
 
 /**
  * The compact strip above the tab bar.
@@ -113,11 +115,7 @@ export function MiniPlayer(): ReactNode {
         onPress={player.toggle}
         label={player.isPlaying ? 'Pause' : 'Play'}
       >
-        {player.isPlaying ? (
-          <Pause size={22} color={theme.colors.textPrimary} />
-        ) : (
-          <Play size={22} color={theme.colors.textPrimary} />
-        )}
+        <PlayPauseIcon playing={player.isPlaying} size={22} color={theme.colors.textPrimary} />
       </IconButton>
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={theme.colors.textSecondary} />
@@ -152,10 +150,11 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
+    // A step up from the page with no edge along its top; it floats over the
+    // list, so it casts the floating shadow (`S2`, "Depth").
     backgroundColor: theme.colors.surface2,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
     overflow: 'hidden',
+    ...floating(theme.colors),
   },
   expand: {
     position: 'absolute',

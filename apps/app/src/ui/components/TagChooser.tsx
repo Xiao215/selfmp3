@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
+import { radius } from '@selfmp3/client'
 import { Chip } from './Chip'
 import { TagPlus } from './Icons'
 import { Sheet } from './Sheet'
@@ -73,9 +74,11 @@ const styles = StyleSheet.create(theme => ({
     gap: 5,
     paddingVertical: 5,
     paddingHorizontal: 10,
-    borderRadius: 999,
+    // The dashed edge is the mark of a place something will go, as on Chip's
+    // add chip.
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderStrong,
     borderStyle: 'dashed',
   },
   addPressed: { backgroundColor: theme.colors.surface2 },

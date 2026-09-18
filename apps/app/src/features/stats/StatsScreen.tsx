@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatLongDuration, formatRelative, STATS_RANGE_LABELS } from '@selfmp3/shared'
-import { radius, type ServerConnection } from '@selfmp3/client'
+import type { ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { ColumnChart, StatTile } from '../../ui/components/charts'
+import { card, sectionTitle } from '../../ui/surfaces'
 import { ReportTab } from '../wrapped/ReportTab'
 import { SongLine } from './SongLine'
 import { StatsFrame, type StatsFrameProps } from './StatsFrame'
@@ -196,13 +197,11 @@ const styles = StyleSheet.create(theme => ({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 22 },
   tileCell: { flexGrow: 1, flexBasis: 170 },
   panels: { gap: 14 },
+  // A card on the ground: told apart by tone, not an edge (`S2`).
   panel: {
+    ...card(theme.colors),
     padding: 18,
     gap: 12,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
   },
   panelHead: {
     flexDirection: 'row',
@@ -210,7 +209,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'baseline',
     gap: 10,
   },
-  panelTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  panelTitle: sectionTitle(theme.colors),
   list: { gap: 1 },
   listColumns: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 },
   columnCell: { flexBasis: 280, flexGrow: 1, maxWidth: '33.3%' },

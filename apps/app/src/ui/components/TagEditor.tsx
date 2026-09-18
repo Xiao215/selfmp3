@@ -9,6 +9,7 @@ import {
   oklchToHexAlpha,
   radius,
   space,
+  tagColors,
   useDeleteTag,
   useRenameTag,
   useSetTagHue,
@@ -18,6 +19,7 @@ import { Button } from './Button'
 import { Check, Plus, Trash } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
+import { label } from '../surfaces'
 
 /**
  * Everything you can do to a tag itself.
@@ -112,7 +114,7 @@ function Editor({
   return (
     <View>
       <View style={styles.title}>
-        <View style={[styles.dot, { backgroundColor: oklchToHexAlpha(0.72, 0.14, tag.hue, 1) }]} />
+        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
         <Text style={styles.titleText} numberOfLines={1}>
           Tag <Text style={styles.titleName}>{tag.name}</Text>
         </Text>
@@ -123,13 +125,8 @@ function Editor({
 
       <View style={styles.filters} role="group" aria-label="Filter the library">
         <Pressable
-          style={[
-            styles.filter,
-            chosen && {
-              backgroundColor: oklchToHexAlpha(0.45, 0.12, accent.hue, 0.35),
-              borderColor: oklchToHexAlpha(0.42, 0.1, accent.hue, 1),
-            },
-          ]}
+          // Chosen, it is white, like a chosen chip.
+          style={[styles.filter, chosen && styles.filterOn]}
           accessibilityRole="button"
           accessibilityState={{ selected: chosen }}
           onPress={() => {
@@ -138,7 +135,7 @@ function Editor({
           }}
         >
           {chosen ? (
-            <Check size={14} color={theme.colors.textPrimary} />
+            <Check size={14} color={theme.colors.onPrimary} />
           ) : (
             <Plus size={14} color={theme.colors.textSecondary} />
           )}
@@ -205,8 +202,6 @@ function Editor({
         </View>
       </View>
 
-      <View style={styles.divider} />
-
       {!confirmingDelete ? (
         <SheetItem
           icon={<Trash size={15} color={theme.colors.danger} />}
@@ -264,15 +259,15 @@ const styles = StyleSheet.create(theme => ({
     gap: 6,
     padding: space.sm,
     minHeight: 36,
-    borderRadius: radius.sm,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    // A control one step up from the panel it sits on.
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface3,
   },
+  filterOn: { backgroundColor: theme.colors.textPrimary },
   filterText: { color: theme.colors.textSecondary, fontSize: 12 },
-  filterTextOn: { color: theme.colors.textPrimary },
+  filterTextOn: { color: theme.colors.onPrimary },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
-  fieldLabel: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600', marginBottom: 5 },
+  fieldLabel: { ...label(theme.colors), marginBottom: 5 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   input: {
     flex: 1,
@@ -280,13 +275,12 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     color: theme.colors.textPrimary,
     fontSize: 13,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: theme.colors.surface3,
+    borderRadius: radius.pill,
   },
   error: { color: theme.colors.danger, fontSize: 12, marginTop: 5 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // The ring is the mark of the chosen colour, so it keeps its edge.
   swatchRing: {
     borderWidth: 2,
     borderColor: 'transparent',
@@ -300,6 +294,5 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: space.xs },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
 }))

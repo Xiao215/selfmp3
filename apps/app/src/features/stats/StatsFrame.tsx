@@ -5,6 +5,7 @@ import { useLayout } from '../../shell/useLayout'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
+import { pageTitle } from '../../ui/surfaces'
 import {
   periodLabel,
   STATS_PERIODS,
@@ -52,7 +53,7 @@ export function StatsFrame({
       >
         <BackToYou />
         <View style={styles.titleRow}>
-          <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+          <Text style={styles.heading} accessibilityRole="header">
             Stats
           </Text>
           {actions ? <View style={styles.actions}>{actions}</View> : null}
@@ -87,8 +88,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     minHeight: 36,
   },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: 22 },
+  heading: pageTitle(theme.colors),
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   controls: {
     flexDirection: 'row',

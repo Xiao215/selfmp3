@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { HIT_TARGET, radius, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { HIT_TARGET, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { BarChart, ChevronRight, Inbox, Settings, Tag } from '../../ui/components/Icons'
@@ -12,6 +12,7 @@ import { isUntagged } from '../inbox/inbox.model'
 import { useStatsFor } from '../stats/statsSource'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { card, pageTitle } from '../../ui/surfaces'
 import { youRows, type YouRow, type YouRowId } from './you.model'
 
 const ICONS: Record<YouRowId, typeof Tag> = {
@@ -67,12 +68,12 @@ function YouPage({ plays }: { plays: number | undefined }): ReactNode {
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID="you-screen"
       >
-        <Text style={[styles.heading, !wide && styles.headingNarrow]} accessibilityRole="header">
+        <Text style={styles.heading} accessibilityRole="header">
           You
         </Text>
         <View style={styles.card}>
-          {rows.map((row, index) => (
-            <Row key={row.id} row={row} first={index === 0} />
+          {rows.map(row => (
+            <Row key={row.id} row={row} />
           ))}
         </View>
       </ScrollView>
@@ -80,7 +81,7 @@ function YouPage({ plays }: { plays: number | undefined }): ReactNode {
   )
 }
 
-function Row({ row, first }: { row: YouRow; first: boolean }): ReactNode {
+function Row({ row }: { row: YouRow }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
@@ -93,11 +94,7 @@ function Row({ row, first }: { row: YouRow; first: boolean }): ReactNode {
       accessibilityRole="link"
       accessibilityLabel={spoken}
       testID={`you-${row.id}`}
-      style={({ pressed }) => [
-        styles.row,
-        !first && styles.rowDivided,
-        pressed && { backgroundColor: theme.colors.surface2 },
-      ]}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.colors.surface2 }]}
     >
       <Icon size={19} color={accent.accent} />
       <Text style={styles.label} numberOfLines={1}>
@@ -124,15 +121,8 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40 },
   contentWide: { paddingTop: 28, paddingHorizontal: 32, maxWidth: 640 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700', marginBottom: 16 },
-  headingNarrow: { fontSize: 22 },
-  card: {
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
-  },
+  heading: { ...pageTitle(theme.colors), marginBottom: 16 },
+  card: { overflow: 'hidden', ...card(theme.colors) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -140,7 +130,6 @@ const styles = StyleSheet.create(theme => ({
     minHeight: HIT_TARGET + 8,
     paddingHorizontal: 14,
   },
-  rowDivided: { borderTopWidth: 1, borderTopColor: theme.colors.border },
   label: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 15 },
   hint: { color: theme.colors.textMuted, fontSize: 13, flexShrink: 1 },
   pill: {

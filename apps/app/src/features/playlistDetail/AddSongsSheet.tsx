@@ -122,13 +122,9 @@ export function AddSongsSheet({
                       onPress={() => add(song)}
                       accessibilityRole="button"
                       accessibilityLabel={`Add ${song.title}`}
-                      style={({ pressed }) => [
-                        styles.add,
-                        { backgroundColor: accent.accent },
-                        pressed && styles.pressed,
-                      ]}
+                      style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                     >
-                      <Plus size={15} color={accent.onAccent} />
+                      <Plus size={15} color={theme.colors.textPrimary} />
                     </Pressable>
                   )}
                 </View>
@@ -139,7 +135,7 @@ export function AddSongsSheet({
 
         <View style={styles.foot}>
           <Text style={styles.hint}>{added.size === 0 ? ' ' : `${added.size} added`}</Text>
-          <Button label="Done" variant="primary" onPress={close} testID="add-songs-done" />
+          <Button label="Done" onPress={close} testID="add-songs-done" />
         </View>
       </View>
     </Sheet>
@@ -154,10 +150,13 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingHorizontal: space.md,
     minHeight: 38,
-    borderRadius: radius.sm,
+    // A search field on the sheet, raised above it whether the sheet is a
+    // card (a phone) or the control surface (a dialog). The edge only
+    // carries the focus ring: at rest it is the fill's own colour.
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    backgroundColor: theme.colors.surface1,
+    borderColor: theme.colors.surface3,
+    backgroundColor: theme.colors.surface3,
   },
   input: {
     flex: 1,
@@ -187,10 +186,13 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 64,
     justifyContent: 'flex-end',
   },
+  // Each + adds at once, and there is one on every row, so it is a quiet round
+  // control rather than the accent: forty accent buttons would be a wall.
   add: {
     width: 32,
-    height: 28,
-    borderRadius: radius.sm,
+    height: 32,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface3,
     alignItems: 'center',
     justifyContent: 'center',
   },

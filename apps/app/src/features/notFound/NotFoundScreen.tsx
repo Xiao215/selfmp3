@@ -9,6 +9,7 @@ import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { ChevronLeft } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { pageTitle } from '../../ui/surfaces'
 
 /**
  * The waveform's bars, left to right: a height each, and 0 for the one that
@@ -72,7 +73,7 @@ export function NotFoundScreen(): ReactNode {
           ))}
         </View>
 
-        <Text style={[styles.title, !wide && styles.titleNarrow]} accessibilityRole="header">
+        <Text style={styles.title} accessibilityRole="header">
           Nothing plays at this address
         </Text>
         <Text style={styles.line}>
@@ -89,7 +90,6 @@ export function NotFoundScreen(): ReactNode {
         <View style={styles.buttons}>
           <Button
             label="Go to your library"
-            variant="primary"
             onPress={() => router.replace('/')}
             testID="not-found-library"
           />
@@ -147,14 +147,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 1,
     backgroundColor: theme.colors.surface3,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    textAlign: 'center',
-  },
-  titleNarrow: { fontSize: 19 },
+  title: { ...pageTitle(theme.colors), textAlign: 'center' },
   line: {
     color: theme.colors.textMuted,
     fontSize: 14,
@@ -177,7 +170,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 4,
     marginTop: space.xs,
   },
-  place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.sm },
+  place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.pill },
   placePressed: { backgroundColor: theme.colors.surface2 },
   placeText: { color: theme.colors.textMuted, fontSize: 13 },
 }))

@@ -11,6 +11,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
+import { floating } from '../../ui/surfaces'
 import { useDeviceContext } from './DevicesProvider'
 
 /** How long the offer stays before it goes by itself. */
@@ -169,13 +170,7 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 7,
     borderRadius: 999,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    ...floating(theme.colors),
   },
   main: {
     flexDirection: 'row',

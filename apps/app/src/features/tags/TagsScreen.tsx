@@ -5,9 +5,9 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
-  oklchToHexAlpha,
   radius,
   space,
+  tagColors,
   tagSelected,
   toggleTag,
   type,
@@ -22,6 +22,7 @@ import { Button } from '../../ui/components/Button'
 import { Plus, Search, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { TagEditor } from '../../ui/components/TagEditor'
+import { card, label, pageTitle } from '../../ui/surfaces'
 import { useLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
 import { openTagSearch } from '../library/tagSearch.store'
@@ -106,10 +107,7 @@ export function TagsScreen(): ReactNode {
         <BackToYou />
         <View style={styles.headRow}>
           <View style={styles.titles}>
-            <Text
-              style={[styles.heading, !wide && styles.headingNarrow]}
-              accessibilityRole="header"
-            >
+            <Text style={styles.heading} accessibilityRole="header">
               Tags
             </Text>
             <Text style={styles.sub}>{tagsHeadline(tags.length)} · rename, recolour, delete</Text>
@@ -269,9 +267,7 @@ export function TagsScreen(): ReactNode {
                 ]}
                 testID={`tag-row-${tag.id}`}
               >
-                <View
-                  style={[styles.dot, { backgroundColor: oklchToHexAlpha(0.72, 0.14, tag.hue, 1) }]}
-                />
+                <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
                 <Text style={styles.rowName} numberOfLines={1}>
                   {tag.name}
                 </Text>
@@ -305,26 +301,16 @@ const styles = StyleSheet.create(theme => ({
   headNarrow: { paddingTop: 18, paddingHorizontal: space.lg },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   titles: { flex: 1, minWidth: 0, gap: 2 },
-  heading: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' },
-  headingNarrow: { fontSize: type.large },
+  heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: type.small },
   hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18, padding: space.lg },
   newCard: {
     gap: space.sm,
     padding: space.md,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.md,
+    ...card(theme.colors),
   },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fieldLabel: {
-    color: theme.colors.textMuted,
-    fontSize: type.label,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
+  fieldLabel: label(theme.colors),
   newRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   newHint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: 16 },
   error: { color: theme.colors.danger, fontSize: type.small },
@@ -335,10 +321,13 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     color: theme.colors.textPrimary,
     fontSize: type.body,
-    backgroundColor: theme.colors.surface0,
+    // A control on a card, one step up from it. The edge is there only to
+    // carry the focus ring: at rest it is the fill's own colour, so nothing
+    // outlines the field until it has focus.
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderColor: theme.colors.surface2,
+    borderRadius: radius.pill,
     _web: { outlineStyle: 'none' },
   },
   searchBox: {
@@ -347,10 +336,12 @@ const styles = StyleSheet.create(theme => ({
     gap: 7,
     minHeight: HIT_TARGET,
     paddingHorizontal: space.md,
-    backgroundColor: theme.colors.surface1,
+    // A control on the ground; as with the field above, the edge is the
+    // fill's colour until focus turns it into the accent ring.
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderColor: theme.colors.surface2,
+    borderRadius: radius.pill,
   },
   search: {
     flex: 1,
@@ -379,9 +370,7 @@ const styles = StyleSheet.create(theme => ({
     minHeight: HIT_TARGET + 6,
     paddingHorizontal: space.sm,
     marginHorizontal: -space.sm,
-    borderRadius: radius.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderRadius: 12,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   rowName: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: type.body },

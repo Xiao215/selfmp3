@@ -223,10 +223,13 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     color: theme.colors.textPrimary,
     fontSize: 14,
-    backgroundColor: theme.colors.surface1,
+    // A control on the sheet, which is a card on a phone and the control
+    // surface as a dialog, so the field is raised above both. The edge only
+    // carries the focus ring: at rest it is the fill's own colour.
+    backgroundColor: theme.colors.surface3,
     borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: radius.sm,
+    borderColor: theme.colors.surface3,
+    borderRadius: radius.pill,
   },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   checkLabel: { color: theme.colors.textPrimary, fontSize: 13.5, flexShrink: 1 },

@@ -53,7 +53,7 @@ export function PlaylistCover({
   const frame = [
     styles.frame,
     size === undefined ? styles.fill : { width: size, height: size },
-    { borderRadius: size !== undefined && size < 48 ? radius.sm : radius.md },
+    { borderRadius: coverRadius(size) },
   ]
 
   if (covers.length === 0) {
@@ -79,6 +79,16 @@ export function PlaylistCover({
 }
 
 const NO_SONGS: readonly Song[] = []
+
+/**
+ * The corner for a cover this size (`S2`): a tile in the grid and the big
+ * cover at the top of a playlist are cards, 18 round; a cover in a row is
+ * 10, and a small one 8.
+ */
+function coverRadius(size: number | undefined): number {
+  if (size === undefined || size >= 96) return radius.card
+  return size >= 40 ? radius.cover : radius.coverSm
+}
 
 /**
  * The library by song id, built once per library and shared by every tile.
@@ -129,10 +139,6 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-    backgroundColor: 'transparent',
   },
   half: { width: '50%', height: '50%' },
   whole: { width: '100%', height: '100%' },

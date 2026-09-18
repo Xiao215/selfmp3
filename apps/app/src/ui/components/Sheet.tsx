@@ -3,12 +3,12 @@ import type { ReactNode } from 'react'
 import { Animated, Easing, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useAccent } from '../accent'
 import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
+import { floating } from '../surfaces'
 
 /**
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
@@ -188,7 +188,6 @@ export function SheetItem({
   role?: 'menuitem' | 'option'
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const dense = usePanelDense()
   // With a mouse the row under it lights up.
   const [hovered, setHovered] = useState(false)
@@ -200,9 +199,7 @@ export function SheetItem({
       ? active || hovered
         ? theme.colors.textPrimary
         : theme.colors.textSecondary
-      : active
-        ? accent.accent
-        : theme.colors.textPrimary
+      : theme.colors.textPrimary
   return (
     <Pressable
       onPress={onPress}
@@ -214,6 +211,7 @@ export function SheetItem({
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [
         styles.item,
+        !dense && active && styles.itemActive,
         dense && styles.itemDense,
         dense && (active || hovered) && styles.itemActiveDense,
         dense && danger && hovered && styles.itemDangerDense,
@@ -252,11 +250,10 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     bottom: 0,
     backgroundColor: theme.colors.surface1,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    borderTopWidth: 1,
-    borderColor: theme.colors.border,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     paddingTop: space.sm,
+    ...floating(theme.colors),
     paddingHorizontal: space.sm,
   },
   dialogFrame: {
@@ -274,12 +271,10 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 420,
     maxHeight: '80%',
     backgroundColor: theme.colors.surface2,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: radius.sheet,
     padding: space.sm,
     overflow: 'hidden',
-    boxShadow: '0 20px 48px rgba(0, 0, 0, 0.5)',
+    ...floating(theme.colors),
   },
   content: {
     alignSelf: 'stretch',
@@ -297,8 +292,6 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.xs,
     paddingBottom: space.sm + 2,
     marginBottom: space.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
     gap: 1,
   },
   titleLabel: {
@@ -321,7 +314,12 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     minHeight: HIT_TARGET + 4,
     paddingHorizontal: space.md,
-    borderRadius: radius.sm,
+    borderRadius: 12,
+  },
+  // The chosen line is a lighter surface, not accent ink: the accent is kept
+  // for the one button that commits something (`S2`).
+  itemActive: {
+    backgroundColor: theme.colors.surface2,
   },
   /* `.popover-item`: 8 by 10, 13-point type, where there is a mouse. */
   itemDense: {

@@ -14,3 +14,6 @@ apps/app/public/sw.js
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios
 apps/app/android
+
+# The agreed UI mock, exported from the design canvas as plain HTML (docs/ui-mock/README.md)
+docs/ui-mock

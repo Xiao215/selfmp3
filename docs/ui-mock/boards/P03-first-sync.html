@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P03 · First sync · self.mp3 UI mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0d13;color:#f4f5f9;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;--s:"Instrument Serif",Georgia,serif;--d:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+a{color:#7a9eff}a:hover{color:#86afff}
+button{font-family:inherit;cursor:pointer}
+</style>
+<style>
+html{background:#05060a}
+body{background:#05060a !important;min-height:100vh;box-sizing:border-box;padding:20px 24px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.mock-strip{display:flex;gap:16px;align-items:baseline;font:500 13px/18px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#aeb1b9;align-self:stretch}
+.mock-strip a{color:#7a9eff;text-decoration:none}.mock-strip b{color:#f4f5f9;font-weight:600}
+.mock-board{position:relative;width:390px;height:844px;flex-shrink:0;overflow:hidden;border-radius:28px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+body.bare{padding:0;display:block;min-height:0}body.bare .mock-strip{display:none}body.bare .mock-board{border-radius:0;box-shadow:none}
+</style>
+</head>
+<body>
+<div class="mock-strip"><a href="../index.html">← All screens</a><b>P03 · First sync</b><span>390 × 844</span></div>
+<div class="mock-board">
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0b0d13; position: relative; overflow: hidden; display: flex; flex-direction: column;">
+  <div style="height: 54px; flex-shrink: 0;"></div>
+  <main style="flex-grow: 1; position: relative; display: flex; flex-direction: column; padding: 60px 28px 0; gap: 28px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <h1 style="margin: 0; font-family: var(--s); font-size: 40px; font-weight: 400; letter-spacing: -0.5px; line-height: 42px;">Hello, Xiao<span style="font-style: italic; color: #b2ccff;">.</span></h1>
+      <p style="margin: 0; font-size: 15px; line-height: 22px; color: #aeb1b9;">Your library is on its way. You can start playing while the covers arrive.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 22px; background: #151821;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex;"><img src="../covers/21.jpg" alt="" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; position: relative; z-index: 3;"><img src="../covers/2.jpg" alt="" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-left: -18px; position: relative; z-index: 2;"><img src="../covers/42.jpg" alt="" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-left: -18px; position: relative; z-index: 1;"><span style="width: 44px; height: 44px; border-radius: 10px; background: #1f2330; margin-left: -18px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #aeb1b9;">+42</span></div>
+        <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 15px; font-weight: 600;">45 songs · 8 tags · 4 playlists</span><span style="font-size: 13px; color: #aeb1b9;">31 of 45 covers so far</span></div>
+      </div>
+      <div style="height: 6px; border-radius: 999px; background: #1f2330; position: relative;"><div style="position: absolute; left: 0; top: 0; height: 6px; width: 69%; border-radius: 999px; background: #7a9eff;"></div></div>
+    </div>
+    <label style="display: flex; align-items: center; gap: 14px; padding: 4px 6px; cursor: pointer;"><input type="checkbox" style="position: absolute; opacity: 0; width: 1px; height: 1px;"><span style="width: 44px; height: 26px; border-radius: 999px; background: #2c3140; position: relative; flex-shrink: 0;"><span style="position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 999px; background: #aeb1b9;"></span></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 15px; font-weight: 600;">Keep every song on this phone</span><span style="font-size: 13px; color: #aeb1b9;">About 310 MB. Off, songs stream and stay once played.</span></span></label>
+    <a href="P04-home.html" style="margin-top: auto; margin-bottom: 60px; height: 54px; border-radius: 999px; background: #f4f5f9; color: #0b0d13; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none;">Start listening</a>
+  </main>
+</div>
+</div>
+<script>if(location.hash==="#bare")document.body.className="bare";</script>
+</body>
+</html>

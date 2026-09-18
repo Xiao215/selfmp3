@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P08 · A tag · self.mp3 UI mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0d13;color:#f4f5f9;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;--d:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+a{color:#7a9eff}a:hover{color:#86afff}
+button{font-family:inherit;cursor:pointer}
+</style>
+<style>
+html{background:#05060a}
+body{background:#05060a !important;min-height:100vh;box-sizing:border-box;padding:20px 24px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.mock-strip{display:flex;gap:16px;align-items:baseline;font:500 13px/18px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#aeb1b9;align-self:stretch}
+.mock-strip a{color:#7a9eff;text-decoration:none}.mock-strip b{color:#f4f5f9;font-weight:600}
+.mock-board{position:relative;width:390px;height:844px;flex-shrink:0;overflow:hidden;border-radius:28px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+body.bare{padding:0;display:block;min-height:0}body.bare .mock-strip{display:none}body.bare .mock-board{border-radius:0;box-shadow:none}
+</style>
+</head>
+<body>
+<div class="mock-strip"><a href="../index.html">← All screens</a><b>P08 · A tag</b><span>390 × 844</span></div>
+<div class="mock-board">
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0b0d13; position: relative; overflow: hidden; display: flex; flex-direction: column;">
+  <img src="../covers/37.jpg" alt="" style="position: absolute; left: -80px; top: -120px; width: 550px; height: 560px; object-fit: cover; filter: blur(54px); opacity: .55;">
+  <div style="position: absolute; left: 0; right: 0; top: 0; height: 560px; background: linear-gradient(rgba(11,13,19,.1) 0%, rgba(11,13,19,.75) 60%, #0b0d13 100%);"></div>
+  <div style="height: 54px; flex-shrink: 0;"></div>
+  <header style="height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; position: relative;">
+    <a href="P04-home.html" aria-label="Back" style="width: 40px; height: 40px; border-radius: 999px; background: rgba(255,255,255,.12); color: #f4f5f9; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+    <button type="button" aria-label="More" style="width: 40px; height: 40px; border-radius: 999px; border: 0; background: rgba(255,255,255,.12); color: #f4f5f9; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+  </header>
+  <section style="position: relative; padding: 18px 20px 0; display: flex; flex-direction: column; gap: 16px;">
+    <span style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 168px; height: 168px; border-radius: 20px; overflow: hidden; background: #1a1d25; flex-shrink: 0;"><img src="../covers/37.jpg" alt="" style="width: 84px; height: 84px; object-fit: cover;"><img src="../covers/25.jpg" alt="" style="width: 84px; height: 84px; object-fit: cover;"><img src="../covers/16.jpg" alt="" style="width: 84px; height: 84px; object-fit: cover;"><img src="../covers/41.jpg" alt="" style="width: 84px; height: 84px; object-fit: cover;"></span>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #8fb1ff;"></span><span style="font-size: 12px; font-weight: 600; letter-spacing: .9px; color: #aeb1b9; text-transform: uppercase;">Tag</span></div>
+      <h1 style="margin: 0; font-family: var(--d); font-size: 40px; font-weight: 700; letter-spacing: -1px; line-height: 40px;">night drive</h1>
+      <span style="font-size: 14px; color: #aeb1b9;">12 songs · 46 min · played most at 11 pm</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;"><span style="height: 32px; padding: 0 12px 0 9px; border-radius: 999px; background: #f4f5f9; color: #0b0d13; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 999px; background: #8fb1ff;"></span>night drive</span><a href="P09-add-tags-and-artists-together.html" style="height: 32px; padding: 0 12px; border-radius: 999px; border: 1px dashed rgba(255,255,255,.35); color: #d6d8de; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; text-decoration: none;">+ Add a tag</a></div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <button type="button" aria-label="Play" style="width: 56px; height: 56px; border-radius: 999px; border: 0; background: #f4f5f9; color: #0b0d13; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5z"/></svg></button>
+      <button type="button" style="height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: rgba(255,255,255,.12); color: #f4f5f9; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; white-space: nowrap;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg>Shuffle</button>
+    </div>
+  </section>
+  <main style="flex-grow: 1; min-height: 0; overflow: hidden; padding: 20px 16px 0; display: flex; flex-direction: column; position: relative;">
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/37.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">幽霊東京</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Ayase · 3:44</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/25.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ヒッチコック</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>ヨルシカ · 4:23</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/16.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">藍二乗</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>ヨルシカ · 4:18</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/41.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Engine Oil (Live)</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a4f5c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Not on this device"><path d="M7 18a4 4 0 0 1-.6-7.95A6 6 0 0 1 18 9a4 4 0 0 1 0 9z"/></svg><span>ZUTOMAYO · 4:40</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px; background: linear-gradient(90deg, rgba(167,192,128,.16), rgba(167,192,128,0)); margin: 0 -16px; padding: 0 16px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/21.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"><span style="position: absolute; inset: 0; border-radius: 10px; background: rgba(11,13,19,.45); display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 12px;"><span style="width: 3px; height: 14px; border-radius: 2px; background: #a7c080;"></span><span style="width: 3px; height: 8px; border-radius: 2px; background: #a7c080;"></span><span style="width: 3px; height: 18px; border-radius: 2px; background: #a7c080;"></span><span style="width: 3px; height: 10px; border-radius: 2px; background: #a7c080;"></span></span></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #a7c080; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ノーチラス - Nautilus</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Yorushika · 4:32</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/30.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">又三郎 - Matasaburo</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Yorushika · 3:53</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+  </main>
+  <div style="position: absolute; left: 12px; right: 12px; bottom: 106px; height: 60px; border-radius: 16px; background: #1a1d25; box-shadow: 0 10px 28px rgba(0,0,0,.45); display: flex; align-items: center; gap: 12px; padding: 8px; box-sizing: border-box; overflow: hidden;">
+    <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 38%; background: linear-gradient(90deg, rgba(167,192,128,.34), rgba(167,192,128,0)); pointer-events: none;"></div>
+    <a href="P21-now-playing.html" aria-label="Open now playing" style="position: absolute; inset: 0;"></a>
+    <img src="../covers/21.jpg" alt="" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; position: relative;">
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; pointer-events: none;">
+      <span style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ノーチラス - Nautilus</span>
+      <span style="font-size: 12px; color: #aeb1b9;">Yorushika</span>
+    </div>
+    <a href="P25-up-next.html" aria-label="Up next" style="position: relative; width: 40px; height: 44px; color: #aeb1b9; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="m17 15 4 2.5-4 2.5z" fill="currentColor"/></svg></a>
+    <button type="button" aria-label="Play" style="position: relative; width: 44px; height: 44px; border-radius: 999px; border: 0; background: transparent; color: #f4f5f9; display: flex; align-items: center; justify-content: center; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5z"/></svg></button>
+    <button type="button" aria-label="Next" style="position: relative; width: 44px; height: 44px; border-radius: 999px; border: 0; background: transparent; color: #aeb1b9; display: flex; align-items: center; justify-content: center; padding: 0;"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5.8v12.4a1 1 0 0 0 1.5.86L16 12.9a1 1 0 0 0 0-1.72L6.5 4.94A1 1 0 0 0 5 5.8z"/><rect x="17" y="5" width="2.5" height="14" rx="1"/></svg></button>
+    <div style="position: absolute; left: 0; bottom: 0; height: 2px; width: 38%; background: #a7c080;"></div>
+  </div>
+  <nav aria-label="Tabs" style="position: absolute; left: 16px; bottom: 36px; height: 60px; width: 282px; border-radius: 999px; background: rgba(31,34,44,.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 28px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: space-around; padding: 0 6px; box-sizing: border-box;"><button type="button" aria-current="page" style="height: 48px; padding: 0 14px; border-radius: 999px; border: 0; background: #f4f5f9; color: #0b0d13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10px; font-weight: 600;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button><button type="button" style="height: 48px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: #aeb1b9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10px; font-weight: 600;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span>Library</span></button><button type="button" style="height: 48px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: #aeb1b9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10px; font-weight: 600;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15V6"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg><span>Playlists</span></button></nav>
+  <a href="P18-search-opened-from-home.html" aria-label="Search" style="position: absolute; right: 16px; bottom: 36px; width: 60px; height: 60px; border-radius: 999px; background: rgba(31,34,44,.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 28px rgba(0,0,0,.45); color: #f4f5f9; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></a>
+</div>
+</div>
+<script>if(location.hash==="#bare")document.body.className="bare";</script>
+</body>
+</html>

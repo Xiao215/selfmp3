@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1 · Describe a playlist · self.mp3 UI mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0d13;color:#f4f5f9;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;--s:"Instrument Serif",Georgia,serif;--d:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+a{color:#7a9eff}a:hover{color:#86afff}
+button{font-family:inherit;cursor:pointer}
+</style>
+<style>
+html{background:#05060a}
+body{background:#05060a !important;min-height:100vh;box-sizing:border-box;padding:20px 24px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.mock-strip{display:flex;gap:16px;align-items:baseline;font:500 13px/18px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#aeb1b9;align-self:stretch}
+.mock-strip a{color:#7a9eff;text-decoration:none}.mock-strip b{color:#f4f5f9;font-weight:600}
+.mock-board{position:relative;width:390px;height:844px;flex-shrink:0;overflow:hidden;border-radius:28px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+body.bare{padding:0;display:block;min-height:0}body.bare .mock-strip{display:none}body.bare .mock-board{border-radius:0;box-shadow:none}
+</style>
+</head>
+<body>
+<div class="mock-strip"><a href="../index.html">← All screens</a><b>A1 · Describe a playlist</b><span>390 × 844</span></div>
+<div class="mock-board">
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0b0d13; position: relative; overflow: hidden; display: flex; flex-direction: column;">
+  <div style="height: 54px; flex-shrink: 0;"></div>
+  <header style="height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px;"><a href="P16-playlists.html" style="font-size: 15px; font-weight: 600; text-decoration: none; color: #aeb1b9;">Cancel</a><span style="font-family: var(--d); font-size: 17px; font-weight: 600;">New playlist</span><span style="width: 52px;"></span></header>
+  <main style="flex-grow: 1; min-height: 0; overflow: hidden; padding: 18px 20px 0; display: flex; flex-direction: column; gap: 16px;">
+    <form style="margin: 0; display: flex; flex-direction: column; gap: 8px;"><label for="d" style="font-family: var(--s); font-size: 30px; line-height: 32px;">Describe it</label><textarea id="d" rows="3" style="border: 0; border-radius: 18px; background: #151821; color: #f4f5f9; font-size: 16px; line-height: 23px; padding: 14px 16px; font-family: inherit; resize: none; outline: none;">slow and rainy, mostly piano, nothing I played this week</textarea></form>
+    <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 13px; color: #aeb1b9;">14 of your songs fit · 52 min</span><button type="button" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: #1f2330; color: #f4f5f9; font-size: 12px; font-weight: 600;">Try again</button></div>
+    <div style="display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/23.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">晴る - Sunny</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Yorushika · calm, 84 bpm · 3:46</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/21.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ノーチラス - Nautilus</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Yorushika · piano, 92 bpm · 4:32</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/9.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">祝福</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#43c07a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="On this device"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>YOASOBI · 'rain' in the lyrics · 3:21</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 64px;">
+          <span style="position: relative; width: 48px; height: 48px; flex-shrink: 0;"><img src="../covers/16.jpg" alt="" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;"></span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 15px; font-weight: 600; color: #f4f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">藍二乗</span>
+            <span style="font-size: 13px; color: #aeb1b9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a4f5c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Not on this device"><path d="M7 18a4 4 0 0 1-.6-7.95A6 6 0 0 1 18 9a4 4 0 0 1 0 9z"/></svg><span>ヨルシカ · calm, 88 bpm · 4:18</span></span>
+          </div>
+          <button type="button" aria-label="More" style="width: 36px; height: 44px; border: 0; background: transparent; color: #7c8089; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; margin-right: -8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+    </div>
+    <div style="margin-top: auto; padding-bottom: 40px; display: flex; flex-direction: column; gap: 8px;"><button type="button" style="height: 50px; border-radius: 999px; border: 0; background: #f4f5f9; color: #0b0d13; font-size: 16px; font-weight: 600;">Make this playlist</button><span style="font-size: 12px; color: #7c8089; text-align: center;">It becomes an ordinary playlist. Only your own songs are ever used.</span></div>
+  </main>
+</div>
+</div>
+<script>if(location.hash==="#bare")document.body.className="bare";</script>
+</body>
+</html>

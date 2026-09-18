@@ -1,0 +1,1017 @@
+{
+  "source": "https://claude.ai/artifact/RneWGXzpAkxLovnY6Q1RfJ",
+  "files": {
+    "Main.dc.html": "boards/P04-home.html",
+    "StartReadMe.dc.html": "boards/S1-read-this-first.html",
+    "StartSystem.dc.html": "boards/S2-the-visual-system.html",
+    "StartRules.dc.html": "boards/S3-rules-the-pictures-cannot-show.html",
+    "WelcomeTiles.dc.html": "boards/P01-welcome-first-launch.html",
+    "Welcome.dc.html": "boards/P02-welcome-a-device-that-signed-in-before.html",
+    "FirstSync.dc.html": "boards/P03-first-sync.html",
+    "HomeFinalPaper.dc.html": "boards/P05-home-light-theme.html",
+    "FeatWeek.dc.html": "boards/P06-home-the-sunday-card.html",
+    "TagsHome.dc.html": "boards/P07-all-tags.html",
+    "TagCoverLit.dc.html": "boards/P08-a-tag.html",
+    "CombineArtist.dc.html": "boards/P09-add-tags-and-artists-together.html",
+    "ArtistPage.dc.html": "boards/P10-an-artist.html",
+    "ArtistRules.dc.html": "boards/P11-why-artists-are-places-not-tags.html",
+    "Library.dc.html": "boards/P12-library.html",
+    "Selecting.dc.html": "boards/P13-library-selecting-songs.html",
+    "SongMenu.dc.html": "boards/P14-song-menu.html",
+    "FeatSongPage.dc.html": "boards/P15-a-song-s-own-page.html",
+    "PlaylistsV2.dc.html": "boards/P16-playlists.html",
+    "PlaylistDetail.dc.html": "boards/P17-a-playlist.html",
+    "Search.dc.html": "boards/P18-search-opened-from-home.html",
+    "SearchFromLibrary.dc.html": "boards/P19-search-opened-from-library.html",
+    "SearchOptions.dc.html": "boards/P20-why-one-search-many-doors.html",
+    "NowPlayingQuiet.dc.html": "boards/P21-now-playing.html",
+    "LyricsOnly.dc.html": "boards/P22-lyrics-only.html",
+    "VisualHorizon-8cxu.dc.html": "boards/P23-no-lyrics-horizon.html",
+    "VisualRipples-p86g.dc.html": "boards/P24-no-lyrics-ripples.html",
+    "QueueMini.dc.html": "boards/P25-up-next.html",
+    "QueueOptions.dc.html": "boards/P26-why-how-up-next-behaves.html",
+    "LockScreen.dc.html": "boards/P27-lock-screen.html",
+    "FeatWidget.dc.html": "boards/P28-home-screen-widget.html",
+    "Import.dc.html": "boards/P29-import.html",
+    "ImportReview.dc.html": "boards/P30-import-review-a-link.html",
+    "YouV2.dc.html": "boards/P31-you.html",
+    "StatsCards.dc.html": "boards/P32-stats.html",
+    "StatsPoster.dc.html": "boards/P33-the-month-as-a-page-paper.html",
+    "PosterReceipt.dc.html": "boards/P34-month-look-receipt.html",
+    "PosterWall.dc.html": "boards/P35-month-look-wall.html",
+    "PosterCalendar.dc.html": "boards/P36-month-look-calendar.html",
+    "PosterWords.dc.html": "boards/P37-month-look-words.html",
+    "Settings.dc.html": "boards/P38-settings.html",
+    "DeskWelcome.dc.html": "boards/C01-welcome.html",
+    "DeskFirstSync.dc.html": "boards/C02-first-sync.html",
+    "DeskHome.dc.html": "boards/C03-home.html",
+    "DeskLibrary.dc.html": "boards/C04-library.html",
+    "DeskSearch.dc.html": "boards/C05-search-k.html",
+    "DeskTag.dc.html": "boards/C06-a-tag.html",
+    "DeskPlaylists.dc.html": "boards/C07-playlists.html",
+    "DeskPlaylist.dc.html": "boards/C08-a-playlist.html",
+    "DeskNowPlaying.dc.html": "boards/C09-now-playing.html",
+    "DeskVisual.dc.html": "boards/C10-a-song-without-lyrics.html",
+    "DeskQueueRail.dc.html": "boards/C11-up-next-the-rail.html",
+    "DeskQueueDelete.dc.html": "boards/C12-up-next-drag-a-song-out-to-remove-it.html",
+    "DeskImport.dc.html": "boards/C13-import.html",
+    "DeskImportReview.dc.html": "boards/C14-import-review-a-link.html",
+    "DeskStatsCards.dc.html": "boards/C15-stats.html",
+    "DeskStatsPoster.dc.html": "boards/C16-the-month-as-a-front-page.html",
+    "DeskSettings.dc.html": "boards/C17-settings.html",
+    "ExtPopupSong.dc.html": "boards/E1-popup-on-a-song.html",
+    "ExtPopupList.dc.html": "boards/E2-popup-on-a-playlist.html",
+    "ExtStates.dc.html": "boards/E3-the-other-states.html",
+    "ExtPill.dc.html": "boards/E4-the-pill-and-the-right-click.html",
+    "ExtOptions.dc.html": "boards/E5-options.html",
+    "Motion.dc.html": "boards/M1-the-five-moves.html",
+    "MotionPhone.dc.html": "boards/M2-transitions-on-a-phone.html",
+    "MotionDesktop.dc.html": "boards/M3-transitions-on-a-computer.html",
+    "FutureAI.dc.html": "boards/L1-the-six-ideas.html",
+    "FutureDescribe.dc.html": "boards/L2-a1-describe-a-playlist.html",
+    "FutureLyricLine.dc.html": "boards/L3-a2-what-a-line-is-saying.html",
+    "FutureTidy.dc.html": "boards/L4-a4-tidy-up-with-a-review.html",
+    "FutureMore.dc.html": "boards/L5-the-ten-ideas.html",
+    "FutureNote.dc.html": "boards/L6-t1-a-note-on-a-song.html",
+    "FutureSafe.dc.html": "boards/L7-t3-is-my-music-safe.html"
+  },
+  "pages": [
+    {
+      "id": "start",
+      "name": "1 · Start here"
+    },
+    {
+      "id": "phone",
+      "name": "2 · Phone"
+    },
+    {
+      "id": "computer",
+      "name": "3 · Computer and web"
+    },
+    {
+      "id": "extension",
+      "name": "4 · Extension"
+    },
+    {
+      "id": "motion",
+      "name": "5 · Motion"
+    },
+    {
+      "id": "later",
+      "name": "6 · Later"
+    }
+  ],
+  "boards": {
+    "StartReadMe.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 900,
+      "title": "Read this first",
+      "page": "start"
+    },
+    "StartSystem.dc.html": {
+      "x": 1360,
+      "y": 0,
+      "w": 1280,
+      "h": 980,
+      "title": "The visual system",
+      "page": "start"
+    },
+    "StartRules.dc.html": {
+      "x": 2720,
+      "y": 0,
+      "w": 1280,
+      "h": 900,
+      "title": "Rules the pictures cannot show",
+      "page": "start"
+    },
+    "WelcomeTiles.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P01 · Welcome · first launch",
+      "w": 390,
+      "x": 0,
+      "y": 0,
+      "page": "phone"
+    },
+    "Welcome.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P02 · Welcome · a device that signed in before",
+      "w": 390,
+      "x": 470,
+      "y": 0,
+      "page": "phone"
+    },
+    "FirstSync.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P03 · First sync",
+      "w": 390,
+      "x": 940,
+      "y": 0,
+      "page": "phone"
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P04 · Home",
+      "w": 390,
+      "x": 0,
+      "y": 1300,
+      "page": "phone"
+    },
+    "HomeFinalPaper.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P05 · Home · light theme",
+      "w": 390,
+      "x": 470,
+      "y": 1300,
+      "page": "phone"
+    },
+    "FeatWeek.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P06 · Home · the Sunday card",
+      "w": 390,
+      "x": 940,
+      "y": 1300,
+      "page": "phone"
+    },
+    "TagsHome.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P07 · All tags",
+      "w": 390,
+      "x": 1410,
+      "y": 1300,
+      "page": "phone"
+    },
+    "TagCoverLit.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P08 · A tag",
+      "w": 390,
+      "x": 1880,
+      "y": 1300,
+      "page": "phone"
+    },
+    "CombineArtist.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P09 · Add · tags and artists together",
+      "w": 390,
+      "x": 2350,
+      "y": 1300,
+      "page": "phone"
+    },
+    "ArtistPage.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P10 · An artist",
+      "w": 390,
+      "x": 2820,
+      "y": 1300,
+      "page": "phone"
+    },
+    "ArtistRules.dc.html": {
+      "h": 460,
+      "title": "P11 · Why · artists are places, not tags",
+      "w": 820,
+      "x": 3290,
+      "y": 1300,
+      "page": "phone"
+    },
+    "Library.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P12 · Library",
+      "w": 390,
+      "x": 0,
+      "y": 2600,
+      "page": "phone"
+    },
+    "Selecting.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P13 · Library · selecting songs",
+      "w": 390,
+      "x": 470,
+      "y": 2600,
+      "page": "phone"
+    },
+    "SongMenu.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P14 · Song menu (⋯)",
+      "w": 390,
+      "x": 940,
+      "y": 2600,
+      "page": "phone"
+    },
+    "FeatSongPage.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P15 · A song's own page",
+      "w": 390,
+      "x": 1410,
+      "y": 2600,
+      "page": "phone"
+    },
+    "PlaylistsV2.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P16 · Playlists",
+      "w": 390,
+      "x": 1880,
+      "y": 2600,
+      "page": "phone"
+    },
+    "PlaylistDetail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P17 · A playlist",
+      "w": 390,
+      "x": 2350,
+      "y": 2600,
+      "page": "phone"
+    },
+    "Search.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P18 · Search · opened from Home",
+      "w": 390,
+      "x": 0,
+      "y": 3900,
+      "page": "phone"
+    },
+    "SearchFromLibrary.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P19 · Search · opened from Library",
+      "w": 390,
+      "x": 470,
+      "y": 3900,
+      "page": "phone"
+    },
+    "SearchOptions.dc.html": {
+      "h": 260,
+      "title": "P20 · Why · one search, many doors",
+      "w": 820,
+      "x": 940,
+      "y": 3900,
+      "page": "phone"
+    },
+    "NowPlayingQuiet.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P21 · Now Playing",
+      "w": 390,
+      "x": 0,
+      "y": 5200,
+      "page": "phone"
+    },
+    "LyricsOnly.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P22 · Lyrics only",
+      "w": 390,
+      "x": 470,
+      "y": 5200,
+      "page": "phone"
+    },
+    "VisualHorizon-8cxu.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P23 · No lyrics · Horizon",
+      "w": 390,
+      "x": 940,
+      "y": 5200,
+      "page": "phone"
+    },
+    "VisualRipples-p86g.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P24 · No lyrics · Ripples",
+      "w": 390,
+      "x": 1410,
+      "y": 5200,
+      "page": "phone"
+    },
+    "QueueMini.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P25 · Up next",
+      "w": 390,
+      "x": 1880,
+      "y": 5200,
+      "page": "phone"
+    },
+    "QueueOptions.dc.html": {
+      "h": 400,
+      "title": "P26 · Why · how Up next behaves",
+      "w": 820,
+      "x": 2350,
+      "y": 5200,
+      "page": "phone"
+    },
+    "LockScreen.dc.html": {
+      "h": 844,
+      "title": "P27 · Lock screen",
+      "w": 390,
+      "x": 3250,
+      "y": 5200,
+      "page": "phone"
+    },
+    "FeatWidget.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P28 · Home-screen widget",
+      "w": 390,
+      "x": 3720,
+      "y": 5200,
+      "page": "phone"
+    },
+    "Import.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P29 · Import",
+      "w": 390,
+      "x": 0,
+      "y": 6500,
+      "page": "phone"
+    },
+    "ImportReview.dc.html": {
+      "x": 470,
+      "y": 6500,
+      "w": 390,
+      "h": 844,
+      "title": "P30 · Import · review a link",
+      "page": "phone",
+      "is_interactive": true
+    },
+    "YouV2.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P31 · You",
+      "w": 390,
+      "x": 0,
+      "y": 7800,
+      "page": "phone"
+    },
+    "StatsCards.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P32 · Stats",
+      "w": 390,
+      "x": 470,
+      "y": 7800,
+      "page": "phone"
+    },
+    "StatsPoster.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P33 · The month as a page · Paper",
+      "w": 390,
+      "x": 940,
+      "y": 7800,
+      "page": "phone"
+    },
+    "PosterReceipt.dc.html": {
+      "h": 720,
+      "title": "P34 · Month look · Receipt",
+      "w": 480,
+      "x": 1410,
+      "y": 7800,
+      "page": "phone"
+    },
+    "PosterWall.dc.html": {
+      "h": 720,
+      "title": "P35 · Month look · Wall",
+      "w": 480,
+      "x": 1970,
+      "y": 7800,
+      "page": "phone"
+    },
+    "PosterCalendar.dc.html": {
+      "h": 720,
+      "title": "P36 · Month look · Calendar",
+      "w": 480,
+      "x": 2530,
+      "y": 7800,
+      "page": "phone"
+    },
+    "PosterWords.dc.html": {
+      "h": 720,
+      "title": "P37 · Month look · Words",
+      "w": 480,
+      "x": 3090,
+      "y": 7800,
+      "page": "phone"
+    },
+    "Settings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "P38 · Settings",
+      "w": 390,
+      "x": 3650,
+      "y": 7800,
+      "page": "phone"
+    },
+    "DeskWelcome.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C01 · Welcome",
+      "w": 1280,
+      "x": 0,
+      "y": 0,
+      "page": "computer"
+    },
+    "DeskFirstSync.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C02 · First sync",
+      "w": 1280,
+      "x": 1360,
+      "y": 0,
+      "page": "computer"
+    },
+    "DeskHome.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C03 · Home",
+      "w": 1280,
+      "x": 0,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskLibrary.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C04 · Library",
+      "w": 1280,
+      "x": 1360,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskSearch.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C05 · Search (⌘K)",
+      "w": 1280,
+      "x": 2720,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskTag.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C06 · A tag",
+      "w": 1280,
+      "x": 4080,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskPlaylists.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C07 · Playlists",
+      "w": 1280,
+      "x": 5440,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskPlaylist.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C08 · A playlist",
+      "w": 1280,
+      "x": 6800,
+      "y": 1250,
+      "page": "computer"
+    },
+    "DeskNowPlaying.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C09 · Now Playing",
+      "w": 1280,
+      "x": 0,
+      "y": 2500,
+      "page": "computer"
+    },
+    "DeskVisual.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C10 · A song without lyrics",
+      "w": 1280,
+      "x": 1360,
+      "y": 2500,
+      "page": "computer"
+    },
+    "DeskQueueRail.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C11 · Up next, the rail",
+      "w": 1280,
+      "x": 2720,
+      "y": 2500,
+      "page": "computer"
+    },
+    "DeskQueueDelete.dc.html": {
+      "h": 440,
+      "title": "C12 · Up next · drag a song out to remove it",
+      "w": 1000,
+      "x": 4080,
+      "y": 2500,
+      "page": "computer"
+    },
+    "DeskImport.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C13 · Import",
+      "w": 1280,
+      "x": 0,
+      "y": 3750,
+      "page": "computer"
+    },
+    "DeskImportReview.dc.html": {
+      "x": 1360,
+      "y": 3750,
+      "w": 1280,
+      "h": 800,
+      "title": "C14 · Import · review a link",
+      "page": "computer",
+      "is_interactive": true
+    },
+    "DeskStatsCards.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C15 · Stats",
+      "w": 1280,
+      "x": 2720,
+      "y": 3750,
+      "page": "computer"
+    },
+    "DeskStatsPoster.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C16 · The month as a front page",
+      "w": 1280,
+      "x": 4080,
+      "y": 3750,
+      "page": "computer"
+    },
+    "DeskSettings.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "title": "C17 · Settings",
+      "w": 1280,
+      "x": 5440,
+      "y": 3750,
+      "page": "computer"
+    },
+    "ExtPopupSong.dc.html": {
+      "h": 560,
+      "is_interactive": true,
+      "title": "E1 · Popup on a song",
+      "w": 360,
+      "x": 0,
+      "y": 0,
+      "page": "extension"
+    },
+    "ExtPopupList.dc.html": {
+      "h": 560,
+      "is_interactive": true,
+      "title": "E2 · Popup on a playlist",
+      "w": 360,
+      "x": 440,
+      "y": 0,
+      "page": "extension"
+    },
+    "ExtStates.dc.html": {
+      "h": 600,
+      "title": "E3 · The other states",
+      "w": 820,
+      "x": 880,
+      "y": 0,
+      "page": "extension"
+    },
+    "ExtPill.dc.html": {
+      "h": 600,
+      "title": "E4 · The pill and the right-click",
+      "w": 900,
+      "x": 1780,
+      "y": 0,
+      "page": "extension"
+    },
+    "ExtOptions.dc.html": {
+      "h": 600,
+      "title": "E5 · Options",
+      "w": 900,
+      "x": 2760,
+      "y": 0,
+      "page": "extension"
+    },
+    "Motion.dc.html": {
+      "h": 560,
+      "title": "M1 · The five moves",
+      "w": 820,
+      "x": 0,
+      "y": 0,
+      "page": "motion"
+    },
+    "MotionPhone.dc.html": {
+      "h": 760,
+      "title": "M2 · Transitions on a phone",
+      "w": 1000,
+      "x": 900,
+      "y": 0,
+      "page": "motion"
+    },
+    "MotionDesktop.dc.html": {
+      "h": 660,
+      "title": "M3 · Transitions on a computer",
+      "w": 1000,
+      "x": 1980,
+      "y": 0,
+      "page": "motion"
+    },
+    "FutureAI.dc.html": {
+      "h": 800,
+      "title": "The six ideas",
+      "w": 820,
+      "x": 0,
+      "y": 0,
+      "page": "later"
+    },
+    "FutureDescribe.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "A1 · Describe a playlist",
+      "w": 390,
+      "x": 900,
+      "y": 0,
+      "page": "later"
+    },
+    "FutureLyricLine.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "A2 · What a line is saying",
+      "w": 390,
+      "x": 1370,
+      "y": 0,
+      "page": "later"
+    },
+    "FutureTidy.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "A4 · Tidy up, with a review",
+      "w": 390,
+      "x": 1840,
+      "y": 0,
+      "page": "later"
+    },
+    "FutureMore.dc.html": {
+      "h": 860,
+      "title": "The ten ideas",
+      "w": 820,
+      "x": 0,
+      "y": 1300,
+      "page": "later"
+    },
+    "FutureNote.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "T1 · A note on a song",
+      "w": 390,
+      "x": 900,
+      "y": 1300,
+      "page": "later"
+    },
+    "FutureSafe.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "T3 · Is my music safe",
+      "w": 390,
+      "x": 1370,
+      "y": 1300,
+      "page": "later"
+    }
+  },
+  "notes": {
+    "t-start-1": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 4000,
+      "text": "Start here · read these three, then open page 2",
+      "page": "start"
+    },
+    "spec-start-1": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "Blue notes like this one are the written spec for the row beside them. Yellow notes are review comments and can be ignored once they are gone.",
+      "color": "blue",
+      "page": "start"
+    },
+    "t-phone-2": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 1400,
+      "text": "1 · Getting in",
+      "page": "phone"
+    },
+    "spec-phone-2": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "First launch shows tag tiles with invented everyday names, because nobody else's covers are right for a stranger. A device that has signed in before shows the last covers it kept. One button, Continue with Google. There is no sign-in screen inside the app, and Sign out comes back here.\n\nFirst sync: playing can start while covers arrive. 'Keep every song on this phone' is off by default.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-3": {
+      "kind": "title1",
+      "x": 0,
+      "y": 1000,
+      "maxW": 4110,
+      "text": "2 · Home, tags and artists",
+      "page": "phone"
+    },
+    "spec-phone-3": {
+      "x": -500,
+      "y": 1300,
+      "w": 420,
+      "maxH": 840,
+      "text": "Home is the landing page, in this order: greeting in the serif, search field, four tag tiles, 'All 8 tags', recently played. No Shuffle all. The avatar opens You, + opens Import. On Sunday one card sits under the greeting and opens the month page; it is not there the rest of the week.\n\nAll tags: most played first; songs with no tag yet are a card at the top, never a page of their own. Hold a tag to rename, recolour or delete it.\n\nA tag page is lit by its covers: Play, Shuffle, Add. Add opens the sheet that combines tags and artists: search, the chosen ones on one row that scrolls sideways, Tags and Artists lists, and the count only on the button. An artist page is the same page with a figure where the dot would be.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-4": {
+      "kind": "title1",
+      "x": 0,
+      "y": 2300,
+      "maxW": 2740,
+      "text": "3 · Library, a song, playlists",
+      "page": "phone"
+    },
+    "spec-phone-4": {
+      "x": -500,
+      "y": 2600,
+      "w": 420,
+      "maxH": 840,
+      "text": "One row component everywhere: cover, title, artist with the on-device mark, time, ⋯. Library and Search are the only lists that show tags on rows: two, then a count.\n\nSelecting: the action bar sits at the bottom on a phone. The ⋯ menu has no Play next and no Select.\n\nTapping a title opens the song's own page: cover, tags, Play, Lyrics, then plays, first heard, a small history, and songs that sound like it.\n\nPlaylists sort by last played. No pins, no empty playlists, no download button on the page.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-5": {
+      "kind": "title1",
+      "x": 0,
+      "y": 3600,
+      "maxW": 1760,
+      "text": "4 · Search",
+      "page": "phone"
+    },
+    "spec-phone-5": {
+      "x": -500,
+      "y": 3900,
+      "w": 420,
+      "maxH": 840,
+      "text": "One Search page. Home's field, the search circle in the bar and Library's field all open it; the door only sets the scope it starts on. Before typing it shows your tags and what you played last. There is no search history.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-6": {
+      "kind": "title1",
+      "x": 0,
+      "y": 4900,
+      "maxW": 4110,
+      "text": "5 · Playing",
+      "page": "phone"
+    },
+    "spec-phone-6": {
+      "x": -500,
+      "y": 5200,
+      "w": 420,
+      "maxH": 840,
+      "text": "The mini player is a floating card above the bar with a progress wash and a queue button; tapping it opens Now Playing.\n\nNow Playing: no selector at the top. ⓘ opens the song's page. The foot is Lyrics · Sleep · queue. Tags wrap quietly under the artist. Lyrics is a swipe or the pill and opens the lyrics-only page. A song without lyrics shows Horizon or Ripples instead, coloured from its cover.\n\nUp next is a sheet that covers the mini player and the bar. The playing song is on top with an equaliser. Hold to move, swipe left to remove; no grips, no ×. Played songs sink to the end, greyed.\n\nLock screen: the system player; no Loved button and no add-tag button. Widget: four tag tiles, tap to play, and what is playing.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-7": {
+      "kind": "title1",
+      "x": 0,
+      "y": 6200,
+      "maxW": 1400,
+      "text": "6 · Import",
+      "page": "phone"
+    },
+    "spec-phone-7": {
+      "x": -500,
+      "y": 6500,
+      "w": 420,
+      "maxH": 840,
+      "text": "Paste a link, or share one to the app from YouTube. 'Look it up' opens the review list. Every song is coming in unless it is left out: no checkmarks. Tap a song and its row opens with Title and Artist fields and a waveform you can drag to listen; there is no album field. Swipe left to leave a song out; it stays in the list, dimmed and struck through. A song you already have says so and is skipped. Importing can add a tag; it never offers a playlist.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-phone-8": {
+      "kind": "title1",
+      "x": 0,
+      "y": 7500,
+      "maxW": 4040,
+      "text": "7 · You, stats, settings",
+      "page": "phone"
+    },
+    "spec-phone-8": {
+      "x": -500,
+      "y": 7800,
+      "w": 420,
+      "maxH": 840,
+      "text": "You is behind the avatar on Home: the person, this month as one card, then Import, Report and Settings as rows.\n\nStats is a page of cards: Listened, Peak hour, Streak, then one ranked module that switches between Songs, Artists and Tags.\n\nReport opens the month as a page, with five looks to pick from: Paper, Receipt, Wall, Calendar, Words. It is an image to keep or share.\n\nSettings: accent swatches plus a hue slider; storage lives under 'On this phone'.",
+      "color": "blue",
+      "page": "phone"
+    },
+    "t-computer-9": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 2640,
+      "text": "1 · Getting in",
+      "page": "computer"
+    },
+    "spec-computer-9": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "Same two steps as the phone. 'Keep every song on this computer' is on by default here. The web app is this same layout in a tab: no menu bar, no ⌘K, Space for play and pause, and no on-device marks because a browser streams.",
+      "color": "blue",
+      "page": "computer"
+    },
+    "t-computer-10": {
+      "kind": "title1",
+      "x": 0,
+      "y": 950,
+      "maxW": 8080,
+      "text": "2 · Browsing",
+      "page": "computer"
+    },
+    "spec-computer-10": {
+      "x": -500,
+      "y": 1250,
+      "w": 420,
+      "maxH": 840,
+      "text": "Sidebar, top to bottom: Search (⌘K), Home, Library, Import, then Playlists and Tags as sections whose headers open the full list and whose rows are the most recent few, then your name, then Settings last.\n\nHome has a large search field. The field in a list header and ⌘K are the same search, drawn as a palette over the page.\n\nA tag, a playlist and an artist are one page layout. Tags show on rows in Library and Search only.\n\nThe player bar is absent while nothing is loaded.",
+      "color": "blue",
+      "page": "computer"
+    },
+    "t-computer-11": {
+      "kind": "title1",
+      "x": 0,
+      "y": 2200,
+      "maxW": 5080,
+      "text": "3 · Playing",
+      "page": "computer"
+    },
+    "spec-computer-11": {
+      "x": -500,
+      "y": 2500,
+      "w": 420,
+      "maxH": 840,
+      "text": "Player bar: cover and title, transport, speed, volume, Up next, devices, with the same progress wash as the phone's mini player.\n\nNow Playing has Lyrics (or Visual) and About; Up next is not a tab there because the rail already exists.\n\nUp next is a rail beside the list. Drag to reorder. Drag a row out of the rail to remove it, with Undo; Delete on a focused row and the right-click menu do the same and draw nothing.",
+      "color": "blue",
+      "page": "computer"
+    },
+    "t-computer-12": {
+      "kind": "title1",
+      "x": 0,
+      "y": 3450,
+      "maxW": 6720,
+      "text": "4 · Import, stats, settings",
+      "page": "computer"
+    },
+    "spec-computer-12": {
+      "x": -500,
+      "y": 3750,
+      "w": 420,
+      "maxH": 840,
+      "text": "Import review: rows stay aligned in one grid. Under the pointer a row shows play over its cover and 'Leave out' at its end. The playing row turns its title and artist into fields, and a bar with a draggable waveform opens directly under that row, as wide as the title and artist columns.\n\nStats is the same cards as the phone, wider. The month as a page is a newspaper front page here.",
+      "color": "blue",
+      "page": "computer"
+    },
+    "t-extension-13": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 3660,
+      "text": "The browser extension · same language, smaller",
+      "page": "extension"
+    },
+    "spec-extension-13": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "The popup is 360 wide. On a song: title and artist are editable before saving, and a tag can be added; never a playlist. On a playlist: click any name and both title and artist become fields; every song is coming in unless you click the far end of its row, which dims it and says 'Left out'. No checkmarks.\n\nThe other states, the pill on YouTube pages and the options page use the same surfaces, pills and type as the app.",
+      "color": "blue",
+      "page": "extension"
+    },
+    "t-motion-14": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 2980,
+      "text": "Motion · five moves, and how screens change",
+      "page": "motion"
+    },
+    "spec-motion-14": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "One spring for anything that moves (stiffness 220, damping 24); fades keep today's 100, 140 and 220 ms. Every illustration loops and has its timing written under it. With Reduce Motion on, all of it is instant.\n\nNot in this round: the cover travelling from a row into Now Playing.",
+      "color": "blue",
+      "page": "motion"
+    },
+    "t-later-15": {
+      "kind": "title1",
+      "x": 0,
+      "y": -300,
+      "maxW": 2230,
+      "text": "Later · where AI could help (not scheduled)",
+      "page": "later"
+    },
+    "spec-later-15": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 840,
+      "text": "Ideas only; nothing on this page is agreed work. Three rules hold for all of them: your own library only, it proposes and you approve, never a chat window.",
+      "color": "blue",
+      "page": "later"
+    },
+    "t-later-16": {
+      "kind": "title1",
+      "x": 0,
+      "y": 1000,
+      "maxW": 1760,
+      "text": "Later · a treasure place (not scheduled)",
+      "page": "later"
+    },
+    "spec-later-16": {
+      "x": -500,
+      "y": 1300,
+      "w": 420,
+      "maxH": 840,
+      "text": "Ten ideas in three groups: making the library yours, listening quality you can feel, and getting music in. Two are drawn.",
+      "color": "blue",
+      "page": "later"
+    }
+  }
+}

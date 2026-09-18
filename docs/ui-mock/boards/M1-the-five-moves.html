@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M1 · The five moves · self.mp3 UI mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0d13;color:#f4f5f9;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;--d:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+a{color:#7a9eff}a:hover{color:#86afff}
+button{font-family:inherit;cursor:pointer}
+@keyframes press{0%,25%{transform:scale(1)}32%,58%{transform:scale(.96)}66%,100%{transform:scale(1)}}
+@keyframes swapOut{0%,42%{opacity:1;transform:scale(1) rotate(0)}50%,92%{opacity:0;transform:scale(.5) rotate(-30deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes swapIn{0%,42%{opacity:0;transform:scale(.5) rotate(30deg)}50%,92%{opacity:1;transform:scale(1) rotate(0)}100%{opacity:0;transform:scale(.5) rotate(30deg)}}
+@keyframes rise{0%{transform:translateY(96px);opacity:0}14%{transform:translateY(-5px);opacity:1}22%{transform:translateY(0)}78%{transform:translateY(0);opacity:1}88%,100%{transform:translateY(96px);opacity:0}}
+@keyframes arrive{0%{opacity:0;transform:translateY(12px)}14%,78%{opacity:1;transform:translateY(0)}88%,100%{opacity:0;transform:translateY(12px)}}
+@keyframes breathe{0%,38%{transform:scale(1);box-shadow:0 18px 40px rgba(0,0,0,.5)}48%,88%{transform:scale(.84);box-shadow:0 6px 16px rgba(0,0,0,.35)}100%{transform:scale(1);box-shadow:0 18px 40px rgba(0,0,0,.5)}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<style>
+html{background:#05060a}
+body{background:#05060a !important;min-height:100vh;box-sizing:border-box;padding:20px 24px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.mock-strip{display:flex;gap:16px;align-items:baseline;font:500 13px/18px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#aeb1b9;align-self:stretch}
+.mock-strip a{color:#7a9eff;text-decoration:none}.mock-strip b{color:#f4f5f9;font-weight:600}
+.mock-board{position:relative;width:820px;height:560px;flex-shrink:0;overflow:hidden;border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+body.bare{padding:0;display:block;min-height:0}body.bare .mock-strip{display:none}body.bare .mock-board{border-radius:0;box-shadow:none}
+</style>
+</head>
+<body>
+<div class="mock-strip"><a href="../index.html">← All screens</a><b>M1 · The five moves</b><span>820 × 560</span></div>
+<div class="mock-board">
+<div style="width: 820px; height: 560px; box-sizing: border-box; background: #0b0d13; padding: 28px 32px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px;">
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="height: 220px; border-radius: 18px; background: #11141a; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 118px; height: 98px; border-radius: 18px; background: #203b16; color: #aede9e; padding: 14px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; animation: press 2.6s cubic-bezier(.2,.8,.2,1) infinite;"><span style="font-family: var(--d); font-size: 22px; font-weight: 600;">yoasobi</span><span style="font-size: 12px;">15 songs</span></div>
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">1 · Press</span>
+      <span style="font-size: 12px; color: #aeb1b9; line-height: 16px;">Everything you can tap sinks to 0.96 under the finger and springs back. Tiles, rows, buttons, chips: one rule, one spring.</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="height: 220px; border-radius: 18px; background: #11141a; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 72px; height: 72px; border-radius: 999px; background: #f4f5f9; color: #0b0d13; position: relative; display: flex; align-items: center; justify-content: center;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="position: absolute; animation: swapOut 3s cubic-bezier(.2,.8,.2,1) infinite;"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="position: absolute; animation: swapIn 3s cubic-bezier(.2,.8,.2,1) infinite;"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>
+        </div>
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">2 · Play becomes pause</span>
+      <span style="font-size: 12px; color: #aeb1b9; line-height: 16px;">The glyph turns and scales through the swap, 180 ms, with a light tap of haptics. The button itself never moves.</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="height: 220px; border-radius: 18px; background: #11141a; display: flex; align-items: flex-end; justify-content: center; padding: 0 12px 16px; box-sizing: border-box; overflow: hidden;">
+        <div style="width: 100%; height: 56px; border-radius: 14px; background: #1f2330; box-shadow: 0 10px 28px rgba(0,0,0,.45); display: flex; align-items: center; gap: 10px; padding: 6px; box-sizing: border-box; animation: rise 4.2s cubic-bezier(.2,.8,.2,1) infinite;">
+          <img src="../covers/21.jpg" alt="" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover;">
+          <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;"><span style="display: block; height: 8px; width: 60%; border-radius: 4px; background: #aeb1b9;"></span><span style="display: block; height: 6px; width: 40%; border-radius: 3px; background: #4a4f5c;"></span></div>
+        </div>
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">3 · The mini player arrives</span>
+      <span style="font-size: 12px; color: #aeb1b9; line-height: 16px;">First song of the session: the card rises from under the tab bar with a small overshoot, 320 ms. Songs after that only crossfade the words.</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="height: 220px; border-radius: 18px; background: #11141a; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 16px; box-sizing: border-box; align-content: center;">
+        <div style="height: 56px; border-radius: 14px; background: #203b16; animation: arrive 4.2s cubic-bezier(.2,.8,.2,1) infinite; animation-delay: 0s;"></div>
+        <div style="height: 56px; border-radius: 14px; background: #51231d; animation: arrive 4.2s cubic-bezier(.2,.8,.2,1) infinite; animation-delay: .06s;"></div>
+        <div style="height: 56px; border-radius: 14px; background: #233056; animation: arrive 4.2s cubic-bezier(.2,.8,.2,1) infinite; animation-delay: .12s;"></div>
+        <div style="height: 56px; border-radius: 14px; background: #452e00; animation: arrive 4.2s cubic-bezier(.2,.8,.2,1) infinite; animation-delay: .18s;"></div>
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">4 · Tiles arrive</span>
+      <span style="font-size: 12px; color: #aeb1b9; line-height: 16px;">On the first paint of Home only: tiles fade up 60 ms apart. Never again on a tab switch, so it stays a welcome and not a wait.</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="height: 220px; border-radius: 18px; background: #11141a; display: flex; align-items: center; justify-content: center;">
+        <img src="../covers/25.jpg" alt="" style="width: 132px; height: 132px; border-radius: 14px; object-fit: cover; animation: breathe 4.4s cubic-bezier(.2,.8,.2,1) infinite;">
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">5 · The cover breathes</span>
+      <span style="font-size: 12px; color: #aeb1b9; line-height: 16px;">In Now Playing the cover shrinks to 0.84 while paused and grows back on play, 400 ms. The page says whether it is playing without you reading a glyph.</span>
+    </div>
+  </div>
+
+  <div style="margin-top: auto; border-radius: 18px; background: #151821; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px;">
+    <span style="font-size: 13px; font-weight: 600;">One spring for the whole app</span>
+    <span style="font-size: 12px; color: #aeb1b9; line-height: 17px;">Today: fixed timings of 100, 140 and 220 ms with an ease-out. Proposed: keep those for fades, and add one spring token (stiffness 220, damping 24) for anything that moves in space: presses, the rise, the sheet, the swap. With Reduce Motion on, every one of these is instant, as now. The cover-to-Now-Playing shared transition is a possible sixth move; it is the only one that needs new machinery, so it is not in this set.</span>
+  </div>
+</div>
+</div>
+<script>if(location.hash==="#bare")document.body.className="bare";</script>
+</body>
+</html>

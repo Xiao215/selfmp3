@@ -4,8 +4,8 @@
 > `apps/mobile` are deleted and `apps/app` is the only UI. This file stays as
 > the record of the decisions — the stack, the ports, what does not port
 > one-to-one — and everything below about phases, gates, the spike and the
-> reference captures is history. The run itself is logged in
-> [universal-progress.md](universal-progress.md).
+> reference captures is history. The log of the run itself was taken out of the
+> tree on 2026-09-18; `git log -- docs/universal-progress.md` finds it.
 
 The plan for folding `apps/web` and `apps/mobile` into a single Expo app that
 renders on iOS, Android and in the browser, with the phone treated as a first

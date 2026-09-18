@@ -3,9 +3,9 @@ import { formatBytes } from '@selfmp3/shared'
 /**
  * When a device downloads, what it says about it, and when a song cannot play.
  *
- * The design Xiao chose on 2026-09-12 (docs/universal-progress.md, "Downloading
- * and streaming"), written once for every client that keeps songs: the phone
- * and the desktop. A browser always streams, so for it most of this answers
+ * The design Xiao chose on 2026-09-12 (docs/features/offline-sync.md), written
+ * once for every client that keeps songs: the phone and the desktop. A browser
+ * always streams, so for it most of this answers
  * "nothing to do".
  *
  * Nothing here knows how the network is detected or where bytes go. It is

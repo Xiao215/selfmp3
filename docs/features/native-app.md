@@ -7,8 +7,7 @@ drawn at phone width; the layout is decided by width, not by platform.
 
 **The full guide is [`docs/MOBILE.md`](../MOBILE.md)**: prerequisites, running
 it on a phone, local builds, Android Auto testing with the Desktop Head Unit.
-[`docs/universal-progress.md`](../universal-progress.md) records what has been
-checked, on which simulator, and how.
+[`docs/PREPROD.md`](../PREPROD.md) is what to check before calling a build good.
 
 ## Using it
 

@@ -11,8 +11,7 @@ top is padded for the traffic lights.
 
 **The plan and the reasoning are [`docs/DESKTOP.md`](../DESKTOP.md)**: why
 Electron, what each phase adds, and what was rejected.
-[`docs/universal-progress.md`](../universal-progress.md) records what has been
-checked, on what, and how.
+[`docs/PREPROD.md`](../PREPROD.md) is what to check before calling a build good.
 
 ## Why it exists when a tab already works
 

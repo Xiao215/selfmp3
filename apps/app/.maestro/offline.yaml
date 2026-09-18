@@ -17,7 +17,7 @@
 # Not asserted, because it does not exist: the plan's "an undownloaded song
 # says so instead of failing". The web app refuses to start it and says why;
 # the phone starts it, and it sits paused with no word. That is a visible
-# change, so it is a question in docs/universal-progress.md, not a fix here.
+# change, so it is a question for Xiao, not a fix here.
 appId: com.selfmp3.app
 ---
 - launchApp

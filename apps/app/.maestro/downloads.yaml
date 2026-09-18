@@ -1,7 +1,7 @@
 # Phase 4: a song that is not on the phone, with streaming off, says why
 # instead of loading and sitting paused.
 #
-# The design (docs/universal-progress.md, "Downloading and streaming"): two
+# The design (docs/features/offline-sync.md): two
 # settings, "Download automatically on Wi-Fi" and "Play songs that aren't
 # downloaded". With both off, a song removed by hand stays removed and cannot
 # play, and tapping it explains.

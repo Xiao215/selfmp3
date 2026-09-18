@@ -393,7 +393,8 @@ a written result for each in the progress log:
 **Gate:** results written. Stop and ask if 1 or 2 fails.
 
 **Result, 2026-09-15 (Playwright's Chromium 153, headless): all four pass.**
-The long form is in [universal-progress.md](universal-progress.md).
+The long form was in `docs/universal-progress.md`, since taken out of the tree;
+`git log -- docs/universal-progress.md` finds it.
 
 | Question | Answer | What it changed |
 |---|---|---|

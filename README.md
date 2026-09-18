@@ -383,7 +383,7 @@ The doorman is deployed by hand with `npx wrangler deploy`
 | [docs/UNIVERSAL.md](docs/UNIVERSAL.md) | The plan that folded the web and phone apps into one Expo app (done) |
 | [docs/DESKTOP.md](docs/DESKTOP.md) | The plan and reasoning for the desktop app |
 | [docs/EXTENSION.md](docs/EXTENSION.md) | The plan for the Chrome extension, and how far it has got |
-| [docs/universal-progress.md](docs/universal-progress.md) | The running log of what was built and checked, phase by phase |
+| [docs/UI-MIGRATION.md](docs/UI-MIGRATION.md) | The plan for moving the app to the redesigned interface. The mock it builds to is [docs/ui-mock/](docs/ui-mock/README.md) |
 | [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
 | [verify/README.md](verify/README.md) | The Playwright flows and what they need |
 | [docs/PREPROD.md](docs/PREPROD.md) | Checking a build against the real thing before calling it good: what to test on each platform, and how not to damage the library doing it |

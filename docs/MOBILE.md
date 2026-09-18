@@ -10,9 +10,9 @@ rather than a cache the OS may evict. Everything else it does, the same app
 already does in a tab; the shared zod schemas and pure helpers in
 `packages/shared` are used verbatim, not copied.
 
-An iOS dev client has been built and run on simulators since this was written;
-[docs/universal-progress.md](universal-progress.md) is the record of what has
-been checked, on what, and how.
+An iOS dev client has been built and run on simulators since this was written.
+What to check on a phone before calling a build good is in
+[PREPROD.md](PREPROD.md).
 
 **No Android binary has ever been built, and nothing has ever run on a physical
 Android device.** Not once, not partly. Every Android claim in this file is
@@ -689,8 +689,8 @@ being measured.
 
 *This is the record from when the phone app was a separate workspace, before
 any binary was built. The dev client has been built and run on iOS simulators
-since; [docs/universal-progress.md](universal-progress.md) is the current
-record, phase by phase.*
+since; the log of those runs, `docs/universal-progress.md`, was taken out of the
+tree on 2026-09-18 and `git log` finds it.*
 
 Everything below was actually run in the sandbox this was written in — Linux, no
 Xcode, no Android SDK.

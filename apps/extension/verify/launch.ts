@@ -16,7 +16,7 @@ export interface LaunchedExtension {
  * Chromium with the built extension loaded, in a profile of its own.
  *
  * Playwright's Chromium rather than Google Chrome: Chrome stopped honouring
- * `--load-extension` (docs/universal-progress.md, the extension's Phase 0). The
+ * `--load-extension` (docs/EXTENSION.md, Phase 0). The
  * extension's committed key gives it the same id here as in anyone's Chrome.
  */
 export async function launchExtension(): Promise<LaunchedExtension> {

@@ -3,7 +3,8 @@
 > **Status:** phases 0 through 5 are on `main` (2026-09-14) and `apps/desktop`
 > ships from them. The spike scripts and the reference captures this plan
 > mentions have since been deleted; the sections about them are history. The
-> run is logged in [universal-progress.md](universal-progress.md).
+> run was logged in `docs/universal-progress.md`, since taken out of the tree;
+> `git log -- docs/universal-progress.md` finds it.
 >
 > **Two things this plan describes are no longer true, and the text below is
 > kept as the record of what was planned rather than corrected:**
@@ -52,8 +53,8 @@ palette, and the server has served that build at `http://localhost:4600` since
   `~/Library/Application Support` are not.
 
 The decision was already taken, and this document builds on it rather than
-re-opening it (`docs/universal-progress.md`, "Downloading and streaming —
-decided by Xiao, 2026-09-12"):
+re-opening it (decided by Xiao, 2026-09-12; what was built from it is
+`docs/features/offline-sync.md`):
 
 > **Toolkit: Electron**, wrapping the universal app's web export, with disk,
 > keychain and updates supplied behind the ports. Not for the Mac App Store, so
@@ -337,7 +338,8 @@ moment they gain something, and ends with a gate.
   Windows and Linux: not built. The browser and the phone: see
   offline-sync.md.*
 - A "Desktop" section at the end of `docs/universal-progress.md`, where each
-  phase writes what it found, in the voice the file already has.
+  phase writes what it found, in the voice the file already has. (That log has
+  since been taken out of the tree.)
 
 Exit: docs committed; no code.
 

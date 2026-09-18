@@ -4,6 +4,12 @@ import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { Stack, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
+import { useFonts } from 'expo-font'
+import {
+  InstrumentSerif_400Regular,
+  InstrumentSerif_400Regular_Italic,
+} from '@expo-google-fonts/instrument-serif'
+import { BricolageGrotesque_600SemiBold } from '@expo-google-fonts/bricolage-grotesque'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -45,6 +51,18 @@ hideScrollbars()
 
 // Coming back to the app is focus, for the queries that refetch on it.
 listenForAppFocus()
+
+/**
+ * The design's two faces (`fonts` in packages/client). A native build embeds
+ * them through the `expo-font` config plugin, so this finds them already there;
+ * a browser gets them as `@font-face` from here, and a dev client built before
+ * the plugin was added loads them at runtime the same way.
+ */
+const FONTS = {
+  InstrumentSerif_400Regular,
+  InstrumentSerif_400Regular_Italic,
+  BricolageGrotesque_600SemiBold,
+}
 
 const queryClient = new QueryClient({
   // An edit that failed says so. Most are taps that leave nothing on screen to
@@ -131,6 +149,10 @@ function Shell(): ReactNode {
   usePlaybackMemory()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
+  // A face that failed to load is not a reason to keep the app shut: the system
+  // font stands in, and nothing else depends on it.
+  const [fontsLoaded, fontError] = useFonts(FONTS)
+  const fontsReady = fontsLoaded || fontError !== null
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.
@@ -141,8 +163,8 @@ function Shell(): ReactNode {
   useEffect(() => {
     // hideAsync is safe to call more than once, so no "already hidden" flag is
     // needed — and tracking one in state would re-render the whole shell.
-    if (status !== 'loading') void SplashScreen.hideAsync()
-  }, [status])
+    if (status !== 'loading' && fontsReady) void SplashScreen.hideAsync()
+  }, [status, fontsReady])
 
   useEffect(() => {
     // Google sign-in is the only way in: the library is the bucket's, and the
@@ -195,7 +217,7 @@ function Shell(): ReactNode {
        * A phone's splash screen covers this already; a browser and the desktop app
        * have no splash, so this is theirs.
        */}
-      {status === 'loading' ? (
+      {status === 'loading' || !fontsReady ? (
         <View
           pointerEvents="none"
           style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface0 }]}

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 import { oklchToHex } from './oklch.js'
-import { buildAccent, colors, DEFAULT_ACCENT_HUE } from './tokens.js'
+import { buildAccent, colors, DEFAULT_ACCENT_HUE, tagColors } from './tokens.js'
 
 /**
  * The phone's arithmetic against the browser's.
@@ -110,6 +110,7 @@ describe('token parity with the web stylesheet', () => {
     ['surface-1', 'surface1'],
     ['surface-2', 'surface2'],
     ['surface-3', 'surface3'],
+    ['surface-selected', 'surfaceSelected'],
     ['text-primary', 'textPrimary'],
     ['text-secondary', 'textSecondary'],
     ['text-muted', 'textMuted'],
@@ -128,5 +129,20 @@ describe('token parity with the web stylesheet', () => {
   ] as const)('--%s is %s', (cssName, key) => {
     const { l, c, h } = cssToken(cssName)
     expect(colors[key]).toBe(oklchToHex(l, c, h))
+  })
+})
+
+describe('a tag, from its hue', () => {
+  // S2: tile oklch(0.32 0.07 h), ink oklch(0.85 0.10 h), dot oklch(0.80 0.12 h).
+  it.each([20, 150, 268])('draws hue %i as S2 writes it', hue => {
+    expect(tagColors(hue, 'dark')).toMatchObject({
+      tile: oklchToHex(0.32, 0.07, hue),
+      tileInk: oklchToHex(0.85, 0.1, hue),
+      dot: oklchToHex(0.8, 0.12, hue),
+    })
+  })
+
+  it('gives two hues two different tiles', () => {
+    expect(tagColors(20, 'dark').tile).not.toBe(tagColors(150, 'dark').tile)
   })
 })

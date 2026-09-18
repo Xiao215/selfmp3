@@ -20,11 +20,19 @@ beforeEach(forgetChipWidths)
 
 describe('fitTags', () => {
   it('shows every tag when they all fit', () => {
-    const tags = [tag('a'), tag('b'), tag('c')]
-    const fitted = fitTags(tags, widths({ a: 24, b: 24, c: 24 }), 133)
+    const tags = [tag('a'), tag('b')]
+    const fitted = fitTags(tags, widths({ a: 24, b: 24 }), 133)
 
-    expect(fitted.shown).toHaveLength(3)
+    expect(fitted.shown).toHaveLength(2)
     expect(fitted.hidden).toBe(0)
+  })
+
+  it('shows two and a count, however much room there is', () => {
+    const tags = [tag('a'), tag('b'), tag('c'), tag('d')]
+    const fitted = fitTags(tags, widths({ a: 24, b: 24, c: 24, d: 24 }), 1000)
+
+    expect(fitted.shown.map(entry => entry.name)).toEqual(['a', 'b'])
+    expect(fitted.hidden).toBe(2)
   })
 
   it('drops tags until the chips and the count both fit', () => {

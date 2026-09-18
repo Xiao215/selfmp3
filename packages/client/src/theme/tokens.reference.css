@@ -17,11 +17,13 @@
 
   --accent-hue: 268;
 
-  /* Surfaces, darkest to lightest. */
+  /* Surfaces, darkest to lightest (docs/ui-mock S2): ground, card, control,
+     raised control, the selected segment. No hairlines: separation is tone. */
   --surface-0: oklch(0.16 0.012 var(--accent-hue));
-  --surface-1: oklch(0.19 0.014 var(--accent-hue));
+  --surface-1: oklch(0.21 0.018 var(--accent-hue));
   --surface-2: oklch(0.23 0.016 var(--accent-hue));
-  --surface-3: oklch(0.28 0.018 var(--accent-hue));
+  --surface-3: oklch(0.259 0.024 var(--accent-hue));
+  --surface-selected: oklch(0.315 0.027 var(--accent-hue));
 
   /* Ink. */
   --text-primary: oklch(0.97 0.005 var(--accent-hue));
@@ -44,10 +46,13 @@
   --chart-series: oklch(0.62 0.15 var(--accent-hue));
   --chart-grid: oklch(0.29 0.014 var(--accent-hue));
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 16px;
   --radius-pill: 999px;
+  --radius-sheet: 26px;
+  --radius-card-lg: 22px;
+  --radius-card: 18px;
+  --radius-mini: 16px;
+  --radius-cover: 10px;
+  --radius-cover-sm: 8px;
 
   --shadow-1: 0 1px 2px oklch(0.08 0.02 var(--accent-hue) / 0.35);
   --shadow-2: 0 6px 18px oklch(0.08 0.02 var(--accent-hue) / 0.4);
@@ -98,25 +103,29 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --surface-0: oklch(0.985 0.004 var(--accent-hue));
-  --surface-1: oklch(1 0 0);
-  --surface-2: oklch(0.96 0.006 var(--accent-hue));
-  --surface-3: oklch(0.93 0.008 var(--accent-hue));
+  /* Paper: warm, and not moved by the hue. Only the accent is. */
+  --surface-0: #f6f2ea;
+  --surface-1: #ffffff;
+  --surface-2: #ebe5d9;
+  --surface-3: #e3dccd;
+  --surface-selected: #ffffff;
 
-  --text-primary: oklch(0.22 0.015 var(--accent-hue));
-  --text-secondary: oklch(0.44 0.014 var(--accent-hue));
-  --text-muted: oklch(0.56 0.012 var(--accent-hue));
+  --text-primary: #1b1a17;
+  --text-secondary: #6b675f;
+  --text-muted: #8a857b;
 
   --accent: oklch(0.52 0.19 var(--accent-hue));
   --accent-strong: oklch(0.46 0.21 var(--accent-hue));
   --accent-dim: oklch(0.9 0.05 var(--accent-hue));
   --on-accent: oklch(0.99 0 0);
 
-  --border: oklch(0.89 0.008 var(--accent-hue));
-  --border-strong: oklch(0.8 0.01 var(--accent-hue));
+  --border: #e0d9cb;
+  --border-strong: #cfc6b4;
 
   --chart-series: oklch(0.55 0.16 var(--accent-hue));
-  --chart-grid: oklch(0.91 0.006 var(--accent-hue));
+  --chart-grid: #ebe5d9;
 
+  /* White on cream has no tone to separate it, so a card casts a soft shadow. */
+  --shadow-card: 0 1px 2px rgb(27 26 23 / 0.06), 0 8px 24px rgb(27 26 23 / 0.06);
   --shadow-panel: 0 12px 40px oklch(0.5 0.02 var(--accent-hue) / 0.14);
 }

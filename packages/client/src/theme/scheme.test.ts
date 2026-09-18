@@ -24,6 +24,9 @@ const LIGHT = (() => {
 })()
 
 function lightToken(name: string): string {
+  // Paper's greys are written as hex: they are fixed, not worked out from the hue.
+  const hex = new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`).exec(LIGHT)
+  if (hex) return hex[1]!
   const match = new RegExp(
     `--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+(var\\(--accent-hue\\)|[\\d.]+)\\)`,
   ).exec(LIGHT)
@@ -50,6 +53,7 @@ describe('the light theme', () => {
     ['surface-1', 'surface1'],
     ['surface-2', 'surface2'],
     ['surface-3', 'surface3'],
+    ['surface-selected', 'surfaceSelected'],
     ['text-primary', 'textPrimary'],
     ['text-secondary', 'textSecondary'],
     ['text-muted', 'textMuted'],
@@ -76,9 +80,25 @@ describe('the light theme', () => {
     expect(buildAccent(DEFAULT_ACCENT_HUE).accent).toBe('#7a9eff')
   })
 
-  it('turns tag chips round so their ink still reads', () => {
-    expect(tagColors(150, 'light').text).not.toBe(tagColors(150, 'dark').text)
+  it('turns a tag round so its ink still reads', () => {
+    // Dark: a deep tile with light ink. Paper: a pale tint with dark ink.
+    const dark = tagColors(150, 'dark')
+    const light = tagColors(150, 'light')
+    expect(light.tileInk).not.toBe(dark.tileInk)
+    expect(luminance(light.tile)).toBeGreaterThan(luminance(light.tileInk))
+    expect(luminance(dark.tile)).toBeLessThan(luminance(dark.tileInk))
     applyColorScheme('light')
-    expect(tagColors(150)).toEqual(tagColors(150, 'light'))
+    expect(tagColors(150)).toEqual(light)
+  })
+
+  it('does not tint Paper by the accent hue', () => {
+    expect(lightPalette(150).surface0).toBe(lightPalette(DEFAULT_ACCENT_HUE).surface0)
+    expect(lightPalette(150).accent).not.toBe(lightPalette(DEFAULT_ACCENT_HUE).accent)
   })
 })
+
+/** Rough relative lightness of a hex colour, enough to say which of two is lighter. */
+function luminance(hex: string): number {
+  const n = Number.parseInt(hex.slice(1, 7), 16)
+  return ((n >> 16) & 255) * 0.2126 + ((n >> 8) & 255) * 0.7152 + (n & 255) * 0.0722
+}

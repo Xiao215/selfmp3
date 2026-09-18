@@ -1,16 +1,20 @@
 import type { ReactNode } from 'react'
-import { Pressable } from 'react-native'
+import { Animated, Pressable } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, radius, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, withAlpha } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
+import { usePressScale } from '../motion'
 import { tip } from '../tip'
 
 /**
- * A square target that darkens while pressed.
+ * A round target for an icon (docs/ui-mock `S2`).
  *
- * 34px with a mouse, which is the default where there is one at desktop
- * width; otherwise the touch size, `HIT_TARGET`. The icon inside is the
- * caller's, because every icon already takes its own size and colour.
+ * Bare by default — the transport, a row's ⋯ — and a veil while pressed.
+ * `filled` puts it on the control surface, 40 across on a phone and 36 with a
+ * mouse: the + and the sort in a page's header, anything that sits on its own.
+ * Either way it is round and sinks to 0.96 on the spring while pressed. The
+ * icon inside is the caller's, because every icon already takes its own size
+ * and colour.
  */
 export function IconButton({
   children,
@@ -20,7 +24,7 @@ export function IconButton({
   size: sizeProp,
   disabled = false,
   active = false,
-  round = false,
+  filled = false,
   caption,
 }: {
   children: ReactNode
@@ -34,29 +38,37 @@ export function IconButton({
   disabled?: boolean
   /** Toggled on, for anything that stays lit — shuffle, repeat, a loved heart. */
   active?: boolean
+  /** On the control surface, for a button standing on its own in a header. */
+  filled?: boolean
+  /** @deprecated Every icon button is round now; kept so callers need not change at once. */
   round?: boolean
 }): ReactNode {
   const { dense } = useLayout()
-  const size = sizeProp ?? (dense ? 34 : HIT_TARGET)
+  const press = usePressScale()
+  const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      {...tip(caption ?? label)}
-      accessibilityState={{ disabled, selected: active }}
-      style={({ pressed }) => [
-        styles.button,
-        { width: size, height: size, borderRadius: round ? size / 2 : radius.sm },
-        pressed && !disabled && styles.pressed,
-        disabled && styles.disabled,
-      ]}
-    >
-      {children}
-    </Pressable>
+    <Animated.View style={press.style}>
+      <Pressable
+        {...press.handlers}
+        onPress={onPress}
+        disabled={disabled}
+        hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        {...tip(caption ?? label)}
+        accessibilityState={{ disabled, selected: active }}
+        style={({ pressed }) => [
+          styles.button,
+          { width: size, height: size, borderRadius: size / 2 },
+          filled && styles.filled,
+          pressed && !disabled && (filled ? styles.filledPressed : styles.pressed),
+          disabled && styles.disabled,
+        ]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
   )
 }
 
@@ -64,6 +76,12 @@ const styles = StyleSheet.create(theme => ({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  filled: {
+    backgroundColor: theme.colors.surface2,
+  },
+  filledPressed: {
+    backgroundColor: theme.colors.surface3,
   },
   /* A light veil rather than a surface: over a song-coloured page a solid box read as a dark square. */
   pressed: {

@@ -64,19 +64,19 @@ function Segment({
 }
 
 const styles = StyleSheet.create(theme => ({
+  // A pill on the control surface; the chosen segment is a lighter pill inside
+  // it (`S2`, "Selected segment"). Tone, not an edge.
   group: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     gap: 2,
-    padding: 2,
+    padding: 3,
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
-  item: { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 5 },
+  item: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radius.pill },
   itemHovered: { backgroundColor: theme.colors.surface3 },
-  itemActive: { backgroundColor: theme.colors.surface3 },
-  label: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
+  itemActive: { backgroundColor: theme.colors.surfaceSelected },
+  label: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
   labelActive: { color: theme.colors.textPrimary },
 }))

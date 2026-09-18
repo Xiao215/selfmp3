@@ -75,6 +75,24 @@ const config = {
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
+    // The design's two faces, embedded at build time so a phone never draws a
+    // page in the system font first (docs/UI-MIGRATION.md, "Stack").
+    [
+      'expo-font',
+      {
+        fonts: [
+          require.resolve(
+            '@expo-google-fonts/instrument-serif/400Regular/InstrumentSerif_400Regular.ttf',
+          ),
+          require.resolve(
+            '@expo-google-fonts/instrument-serif/400Regular_Italic/InstrumentSerif_400Regular_Italic.ttf',
+          ),
+          require.resolve(
+            '@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf',
+          ),
+        ],
+      },
+    ],
   ],
 
   /**

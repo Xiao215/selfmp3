@@ -1,26 +1,10 @@
-import { useEffect, useState } from 'react'
-import { AccessibilityInfo } from 'react-native'
+import { useMotionReduced } from './motion'
 
 /**
  * Whether this device asks for less motion: Reduce Motion on an iPhone or a
- * Mac, `prefers-reduced-motion` in a browser (React Native Web answers the
- * same question from the media query).
- *
- * False until the answer arrives, which is a frame or two after launch — long
- * before anything worth animating has happened.
+ * Mac, `prefers-reduced-motion` in a browser. One answer for the whole app,
+ * kept in `./motion`, which every move goes through.
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    let alive = true
-    void AccessibilityInfo.isReduceMotionEnabled().then(value => {
-      if (alive) setReduced(value)
-    })
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced)
-    return () => {
-      alive = false
-      subscription.remove()
-    }
-  }, [])
-  return reduced
+  return useMotionReduced()
 }

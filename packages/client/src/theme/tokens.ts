@@ -72,62 +72,62 @@ export function buildAccent(
 }
 
 /**
- * A tag's chip, in its own hue.
+ * A tag's colours, from its hue (docs/ui-mock, `S2`).
  *
- * Two states that have to be told apart across a room, because a chip is the
- * only place the app says which tags are playing: **off is hollow** — no
- * fill, an edge in the tag's colour, the name in it — and **on is solid**, the
- * hue filled in with a brighter ring around it and ink that reads against it.
- * Before this they were the same pill at two brightnesses a step apart, and
- * the owner could not tell on a phone which of nine tags he had picked.
+ * A tag is a place now, not a coloured button: its **tile** on Home and the
+ * top of its page is the only thing drawn in its hue at any size — a deep fill
+ * with light ink of the same hue in the dark, a pale tint with dark ink on
+ * Paper. Everywhere else a tag is a neutral pill carrying a **dot** of its
+ * hue, and a chosen chip is white, not coloured, so nine tags in nine hues
+ * still read as one quiet row.
  *
- * `background` is the *read-back* fill, for a chip that is stating a fact
- * rather than offering a choice — the tags on a song's row.
+ * `ink` is the tag's name drawn in its hue on the page's own ground, for the
+ * few places a name stands alone (the tags under a song in Now Playing).
  */
 export function tagColors(
   hue: number,
   scheme: ColorScheme = activeScheme,
 ): {
-  background: string
-  text: string
-  activeBackground: string
-  activeText: string
-  /** The hollow chip's edge, which is all there is of it when it is off. */
-  outline: string
-  /** The ring around the filled chip: the hue, a shade brighter than the fill. */
-  activeOutline: string
+  /** The tile's fill. */
+  tile: string
+  /** The tile's name and count. */
+  tileInk: string
+  /** The dot on a chip, a row and the sidebar. */
+  dot: string
+  /** The name in its hue, on the ground. */
+  ink: string
 } {
   if (scheme === 'light') {
-    // The dark theme's light ink would vanish on white: the same hue, turned
-    // round — a pale ground and dark ink. Chosen goes the other way again, to
-    // the only saturated fill on a white page, so it cannot be mistaken.
     return {
-      background: oklchToHexAlpha(0.9, 0.06, hue, 0.7),
-      text: oklchToHex(0.42, 0.1, hue),
-      activeBackground: oklchToHex(0.52, 0.17, hue),
-      activeText: oklchToHex(0.99, 0, 0),
-      outline: oklchToHexAlpha(0.6, 0.12, hue, 0.45),
-      activeOutline: oklchToHex(0.42, 0.16, hue),
+      tile: oklchToHex(0.93, 0.045, hue),
+      tileInk: oklchToHex(0.38, 0.11, hue),
+      dot: oklchToHex(0.66, 0.15, hue),
+      ink: oklchToHex(0.42, 0.1, hue),
     }
   }
   return {
-    background: oklchToHexAlpha(0.34, 0.07, hue, 0.4),
-    text: oklchToHex(0.86, 0.09, hue),
-    activeBackground: oklchToHex(0.5, 0.13, hue),
-    activeText: oklchToHex(0.97, 0.03, hue),
-    outline: oklchToHexAlpha(0.62, 0.11, hue, 0.55),
-    activeOutline: oklchToHex(0.74, 0.15, hue),
+    tile: oklchToHex(0.32, 0.07, hue),
+    tileInk: oklchToHex(0.85, 0.1, hue),
+    dot: oklchToHex(0.8, 0.12, hue),
+    ink: oklchToHex(0.86, 0.09, hue),
   }
 }
 
 export type Accent = ReturnType<typeof buildAccent>
 
-/** The dark theme's fixed colours: written by hand before any of this existed. */
+/**
+ * The dark theme's fixed colours, `S2` of docs/ui-mock: the ground, a card one
+ * step up, a control, a raised control, and the white segment's dark twin.
+ * There are no hairlines in this design; `border` and `borderStrong` are kept
+ * for the few things that still need an edge (a focus ring, a dashed add chip)
+ * and nothing new separates with them.
+ */
 const DARK = {
   surface0: '#0b0d13',
-  surface1: '#11141a',
+  surface1: '#151821',
   surface2: '#1a1d25',
-  surface3: '#252932',
+  surface3: '#1f2330',
+  surfaceSelected: '#2c3140',
 
   textPrimary: '#f4f5f9',
   textSecondary: '#aeb1b9',
@@ -136,6 +136,8 @@ const DARK = {
   danger: '#f0555b',
   warning: '#ebaa2d',
   good: '#43c07a',
+  /** Behind a row being swiped away. */
+  remove: '#5a2a2e',
 
   border: '#2a2e36',
   borderStrong: '#3e424d',
@@ -147,6 +149,7 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     surface1: DARK.surface1,
     surface2: DARK.surface2,
     surface3: DARK.surface3,
+    surfaceSelected: DARK.surfaceSelected,
     textPrimary: DARK.textPrimary,
     textSecondary: DARK.textSecondary,
     textMuted: DARK.textMuted,
@@ -154,8 +157,20 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     danger: DARK.danger,
     warning: DARK.warning,
     good: DARK.good,
+    remove: DARK.remove,
     border: DARK.border,
     borderStrong: DARK.borderStrong,
+    /** Ink on the white primary fill: the round Play, a chosen chip, the active tab. */
+    onPrimary: DARK.surface0,
+    /**
+     * The floating bar, the search circle and controls over artwork: a
+     * translucent fill (no blur on native; the web adds `backdrop-filter`).
+     */
+    glass: '#1f222ceb',
+    /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
+    cardShadow: '#00000000',
+    /** The shadow under anything that floats: the bar, the mini player, a sheet. */
+    floatShadow: '#00000073',
     // One series colour in the accent's hue, so a green theme draws green bars,
     // and recessive gridlines tinted by the hue.
     chartSeries: oklchToHex(0.62, 0.15, hue),
@@ -166,27 +181,34 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
 export type ThemePalette = ReturnType<typeof darkPalette>
 
 /**
- * The light theme, `:root[data-theme='light']` in tokens.reference.css. Its
- * surfaces are tinted by the hue, faintly, as they are there. Danger, warning
- * and good are the same in both.
+ * The light theme, "Paper" in `S2`: a warm ground, white cards with a soft
+ * shadow (white on cream has no tone to separate it), and warm ink. Unlike the
+ * dark theme's accent-tinted greys it is not moved by the hue; only the accent
+ * is. Danger, warning and good are the same in both.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
   return {
-    surface0: oklchToHex(0.985, 0.004, hue),
-    surface1: oklchToHex(1, 0, 0),
-    surface2: oklchToHex(0.96, 0.006, hue),
-    surface3: oklchToHex(0.93, 0.008, hue),
-    textPrimary: oklchToHex(0.22, 0.015, hue),
-    textSecondary: oklchToHex(0.44, 0.014, hue),
-    textMuted: oklchToHex(0.56, 0.012, hue),
+    surface0: '#f6f2ea',
+    surface1: '#ffffff',
+    surface2: '#ebe5d9',
+    surface3: '#e3dccd',
+    surfaceSelected: '#ffffff',
+    textPrimary: '#1b1a17',
+    textSecondary: '#6b675f',
+    textMuted: '#8a857b',
     ...buildAccent(hue, 'light'),
     danger: DARK.danger,
     warning: DARK.warning,
-    good: DARK.good,
-    border: oklchToHex(0.89, 0.008, hue),
-    borderStrong: oklchToHex(0.8, 0.01, hue),
+    good: '#2f9a5e',
+    remove: '#f3d6d3',
+    border: '#e0d9cb',
+    borderStrong: '#cfc6b4',
+    onPrimary: '#f6f2ea',
+    glass: '#ffffffe6',
+    cardShadow: '#1b1a170f',
+    floatShadow: '#1b1a1724',
     chartSeries: oklchToHex(0.55, 0.16, hue),
-    chartGrid: oklchToHex(0.91, 0.006, hue),
+    chartGrid: '#ebe5d9',
   }
 }
 
@@ -206,18 +228,65 @@ export function applyColorScheme(scheme: ColorScheme, hue: number = DEFAULT_ACCE
   Object.assign(colors, scheme === 'light' ? lightPalette(hue) : darkPalette(hue))
 }
 
-export const radius = { sm: 6, md: 10, lg: 16 } as const
+/**
+ * `S2`'s shapes. Pills and round buttons are fully round; the rest are named
+ * for what wears them. `sm`, `md` and `lg` are the old scale, kept only until
+ * the last caller has moved (docs/UI-MIGRATION.md, Phase 1).
+ */
+export const radius = {
+  pill: 999,
+  sheet: 26,
+  cardLg: 22,
+  card: 18,
+  mini: 16,
+  cover: 10,
+  coverSm: 8,
+  sm: 6,
+  md: 10,
+  lg: 16,
+} as const
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const
 
-/** A 14px base with a compact 1.5 line height. */
+/**
+ * A 14px base with a compact 1.5 line height, and `S2`'s larger sizes:
+ * `display` for a greeting or a name in the serif, `page` for a page title and
+ * `section` for a section's in the display face, `tile` for a tag tile's name,
+ * `row` over `rowSub` for a song row. `label` is the small uppercase heading
+ * (11, tracked 0.9: `labelTracking`).
+ */
 export const type = {
   body: 14,
   small: 12,
   tiny: 11,
-  label: 10,
+  label: 11,
   title: 17,
   large: 22,
+  display: 46,
+  page: 30,
+  section: 18,
+  tile: 22,
+  row: 15,
+  rowSub: 13,
+} as const
+
+/** The letter-spacing of `type.label`, which is always uppercase. */
+export const labelTracking = 0.9
+
+/**
+ * The two faces the design adds to the system font (`S2`, "Type"). They are
+ * embedded in the native build and served to the web by `expo-font`; these are
+ * the family names they are registered under.
+ *
+ * - `serif`: Instrument Serif, for greetings, a name at the top of a page and
+ *   big numbers. It has one weight; never set `fontWeight` with it.
+ * - `display`: Bricolage Grotesque 600, for page and section titles and tile
+ *   names. The weight is in the file, so a caller sets no `fontWeight` either.
+ */
+export const fonts = {
+  serif: 'InstrumentSerif_400Regular',
+  serifItalic: 'InstrumentSerif_400Regular_Italic',
+  display: 'BricolageGrotesque_600SemiBold',
 } as const
 
 /** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
@@ -233,7 +302,13 @@ export const MINI_PLAYER_HEIGHT = 56
  * `tokens.reference.css`'s motion tokens: quick and subtle. `--dur-fast`,
  * `--dur`, `--dur-slow`, and the `--ease-out` curve.
  */
-export const motion = { fast: 100, base: 140, slow: 220 } as const
+export const motion = {
+  fast: 100,
+  base: 140,
+  slow: 220,
+  /** The one spring for anything that moves (`S2`, `M1`): a press, a swap, a sheet. */
+  spring: { stiffness: 220, damping: 24 },
+} as const
 
 /**
  * The width at which the app stops being a phone and becomes a desktop.

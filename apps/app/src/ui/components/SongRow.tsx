@@ -237,7 +237,7 @@ export const SongRow = memo(function SongRow({
             style={styles.main}
           >
             <View style={styles.art}>
-              <Cover uri={artUri} title={song.album || song.title} size={40} />
+              <Cover uri={artUri} title={song.album || song.title} size={48} />
               {active ? (
                 <View style={styles.playingOverlay}>
                   <Equalizer paused={!playing} size={12} color={songColor.tint} />
@@ -252,7 +252,7 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 {/* The web calls this "On this device", and draws exactly this. */}
                 {downloaded ? (
-                  <Downloaded size={13} tone="accent" />
+                  <Downloaded size={13} tone="good" />
                 ) : notDownloadedMark ? (
                   <NotDownloaded size={13} tone="textMuted" />
                 ) : null}
@@ -352,7 +352,7 @@ export const SongRow = memo(function SongRow({
           </View>
           <View style={styles.subtitleRow}>
             {downloaded ? (
-              <Downloaded size={13} tone="accent" />
+              <Downloaded size={13} tone="good" />
             ) : notDownloadedMark ? (
               <NotDownloaded size={13} tone="textMuted" />
             ) : null}
@@ -578,22 +578,23 @@ function RowTags({
 }
 
 /**
- * A small tag chip, in the tag's own hue.
+ * A small tag chip: a neutral pill with a dot of the tag's hue (`S2`).
  *
  * It reports the width it drew at, once: a name is the same width on every
  * row, so one measurement is what tells every other row whether this tag fits.
  */
 function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
-  const palette = tagColors(tag.hue)
+  const { dot } = tagColors(tag.hue)
   return (
     <Pressable
       onPress={onPress}
       onLayout={event => rememberChipWidth(tag.name, event.nativeEvent.layout.width)}
       accessibilityRole="button"
       accessibilityLabel={tag.name}
-      style={[styles.rowTag, { backgroundColor: palette.background }]}
+      style={styles.rowTag}
     >
-      <Text style={[styles.rowTagText, { color: palette.text }]} numberOfLines={1}>
+      <View style={[styles.rowTagDot, { backgroundColor: dot }]} />
+      <Text style={styles.rowTagText} numberOfLines={1}>
         {tag.name}
       </Text>
     </Pressable>
@@ -635,7 +636,7 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: space.lg,
     paddingRight: space.sm,
     marginHorizontal: space.xs,
-    borderRadius: radius.sm,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   /* `.song-row` at desktop width: 7 by 10, 12 between cells. */
@@ -646,7 +647,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 7,
     paddingHorizontal: 10,
     marginHorizontal: space.sm,
-    borderRadius: radius.sm,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   rowHovered: {
@@ -658,9 +659,8 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingVertical: 3,
-    borderRadius: radius.sm,
   },
   mainWide: {
     flex: 1,
@@ -701,7 +701,7 @@ const styles = StyleSheet.create(theme => ({
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: type.body,
+    fontSize: type.row,
     fontWeight: '600',
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
@@ -709,7 +709,7 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     color: theme.colors.textPrimary,
     fontSize: type.body,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   badge: {
     fontSize: 10,
@@ -723,13 +723,13 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   subtitle: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
+    color: theme.colors.textSecondary,
+    fontSize: type.rowSub,
     flexShrink: 1,
   },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   /* The artist is what is scanned for, so it never shrinks; the album does. */
-  artist: { flexShrink: 0, color: theme.colors.textMuted, fontSize: type.small },
+  artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
   badges: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
   tempo: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
@@ -742,7 +742,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(10, 8, 16, 0.55)',
-    borderRadius: radius.sm,
+    borderRadius: radius.cover,
   },
   /* `.song-list.is-selecting .song-select` at phone width. */
   select: {
@@ -767,7 +767,7 @@ const styles = StyleSheet.create(theme => ({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   /* A fixed column, so it lines up down the page; the title takes the slack. */
   albumColumn: {
@@ -784,33 +784,38 @@ const styles = StyleSheet.create(theme => ({
     height: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
   rowTag: {
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: radius.pill,
     paddingVertical: 4,
     paddingHorizontal: space.sm,
+    backgroundColor: theme.colors.surface2,
     // No one name may take the slot: past this it ends in an ellipsis.
     maxWidth: TAG_CHIP_MAX_WIDTH,
   },
-  rowTagMore: { backgroundColor: theme.colors.surface3 },
+  rowTagMore: { backgroundColor: theme.colors.surface2 },
   rowTagMoreText: { color: theme.colors.textSecondary },
-  rowTagText: { fontSize: 11 },
+  rowTagDot: { width: 6, height: 6, borderRadius: 3 },
+  rowTagText: { fontSize: 11, color: theme.colors.textPrimary, flexShrink: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {
     width: HIT_TARGET,
     height: HIT_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   controlWide: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   controlPressed: {
     backgroundColor: theme.colors.surface2,

@@ -8,7 +8,7 @@ import { Check, Minus } from './Icons'
 const DANGER_TICK = oklchToHexAlpha(0.99, 0, 0, 1)
 
 /**
- * A 17-point box that fills with the accent when on, with a dim fill and a
+ * A round 18-point mark (docs/ui-mock `C04`) that fills with the accent when on, with a dim fill and a
  * dash when only some of what it stands for is on.
  *
  * Only the mark. The thing you press, and what it is called, belong to the
@@ -51,9 +51,10 @@ export function Checkbox({
 
 const styles = StyleSheet.create(theme => ({
   box: {
-    width: 17,
-    height: 17,
-    borderRadius: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    // The ring is the mark itself, not a hairline between two things.
     borderWidth: 1.5,
     borderColor: theme.colors.borderStrong,
     alignItems: 'center',

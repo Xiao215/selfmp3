@@ -1,38 +1,28 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useAccent } from '../accent'
-import { tagColors, type } from '@selfmp3/client'
+import { usePressScale } from '../motion'
+import { radius, tagColors, type } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
- * A tag: a pill in the tag's own hue. With no hue it is a plain chip in the
- * app's accent — the "on this phone" switch.
+ * A chip (docs/ui-mock `S2`, "Parts, as drawn"): a neutral pill. A tag carries
+ * a dot of its hue before its name; a chip with no hue is a plain one — the
+ * "All" in Library's strip, the "on this phone" switch.
  *
- * Two faces for a tag: off, and chosen. There is no third — every tag you turn
- * on adds its songs to the list, so "hide these" has nothing left to mean.
+ * Two faces: off, and chosen. **Chosen is white** with dark ink, whatever the
+ * tag's hue, so a row of nine tags in nine hues is one quiet row with the
+ * chosen ones plainly lit — the difference is light against dark, which
+ * survives a glance, a dark room and a colour-blind reader.
  *
- * **Off is hollow, chosen is filled.** They used to be the same pill at two
- * brightnesses one step apart, which on a phone, among nine tags in nine
- * different hues, told you nothing: brighter than what? Now the off chip has
- * no fill at all — an edge in the tag's colour and the name inside it — and
- * the chosen one is that colour filled in, ringed, with ink that reads on it.
- * The difference survives a glance, a dark room and a colour-blind reader,
- * because it is shape before it is colour.
+ * `choice` adds a check to the chosen state, for a chip picked from a set.
+ * A chip reading a choice back leaves it off, because it carries an × instead.
  *
- * `choice` adds a check to the chosen state: it is for a chip you are picking
- * from a set of them, where several are on show and only some are on. A chip
- * that is reading a choice back — the tags in the library's title, the ones a
- * playlist follows — leaves it off, because it carries an × instead and a row
- * of ✓× is noise.
+ * `count` puts the tag's song count on the pill, dimmed.
  *
- * `count` puts the tag's song count on the pill, dimmed, for the places where
- * a tag is being weighed up rather than read back: the picker offers it,
- * the chips in a heading do not.
- *
- * A finger's target on a phone: 8 by 12 points of padding around 12-point
- * text. `compact` is the smaller chip, 5 by 10, for a row with a mouse.
- * `onRemove` adds the ×.
+ * A finger's target on a phone: 8 by 14 around 13-point text. `compact` is
+ * the smaller chip for a row with a mouse. `onRemove` adds the ×. `dashed` is
+ * the add chip: an outline and no fill, for "+ tag".
  */
 export function Chip({
   testID,
@@ -43,6 +33,7 @@ export function Chip({
   count,
   choice = false,
   compact = false,
+  dashed = false,
   onPress,
   onLongPress,
   onRemove,
@@ -55,23 +46,15 @@ export function Chip({
   count?: number
   choice?: boolean
   compact?: boolean
+  dashed?: boolean
   onPress: () => void
   onLongPress?: () => void
   onRemove?: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
-  const palette = tagColors(hue ?? accent.hue)
-  // A chip with no hue of its own is not a tag, so its off state stays the
-  // app's grey rather than borrowing the accent's colour for an edge.
-  const plain = hue === undefined && !selected
-  const background = selected ? palette.activeBackground : 'transparent'
-  const border = plain
-    ? theme.colors.borderStrong
-    : selected
-      ? palette.activeOutline
-      : palette.outline
-  const text = plain ? theme.colors.textSecondary : selected ? palette.activeText : palette.text
+  const press = usePressScale()
+  const dot = hue === undefined ? null : tagColors(hue).dot
+  const text = selected ? theme.colors.onPrimary : theme.colors.textPrimary
 
   const padding = compact ? styles.labelCompact : styles.labelStrip
 
@@ -82,11 +65,16 @@ export function Chip({
   )
 
   return (
-    <View
+    <Animated.View
       testID={testID}
-      style={[styles.chip, { backgroundColor: background, borderColor: border }]}
+      style={[
+        styles.chip,
+        selected ? styles.chipSelected : dashed ? styles.chipDashed : styles.chipOff,
+        press.style,
+      ]}
     >
       <Pressable
+        {...press.handlers}
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={450}
@@ -103,6 +91,7 @@ export function Chip({
         ]}
       >
         {icon}
+        {dot === null ? null : <View style={[styles.dot, { backgroundColor: dot }]} />}
         {choice && selected ? <Check size={compact ? 11 : 12} color={text} /> : null}
         {name}
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
@@ -118,36 +107,42 @@ export function Chip({
           <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   )
 }
 
-const styles = StyleSheet.create(() => ({
+const styles = StyleSheet.create(theme => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 999,
-    // Both states carry the edge, so turning one on never moves the row.
+    borderRadius: radius.pill,
+  },
+  chipOff: { backgroundColor: theme.colors.surface2 },
+  chipSelected: { backgroundColor: theme.colors.textPrimary },
+  // The add chip is the one drawn by its edge: it is a place something will go.
+  chipDashed: {
+    backgroundColor: 'transparent',
     borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.borderStrong,
   },
   press: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
-  // A point off each side, for the border that is now always there: the chip
-  // is the size it has always been.
-  labelStrip: { paddingHorizontal: 11, paddingVertical: 7 },
-  labelCompact: { paddingHorizontal: 9, paddingVertical: 4 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  labelStrip: { paddingHorizontal: 14, paddingVertical: 8 },
+  labelCompact: { paddingHorizontal: 10, paddingVertical: 5 },
   beforeRemove: { paddingRight: 2 },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.8,
   },
   count: { fontSize: type.tiny, fontWeight: '500', opacity: 0.6, fontVariant: ['tabular-nums'] },
   label: {
-    fontSize: type.small,
+    fontSize: 13,
     fontWeight: '500',
   },
-  remove: { paddingLeft: 2, paddingRight: 8 },
+  remove: { paddingLeft: 2, paddingRight: 10 },
   removeGlyph: { fontSize: 14, opacity: 0.6 },
 }))

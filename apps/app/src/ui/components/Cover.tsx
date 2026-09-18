@@ -34,7 +34,9 @@ export function Cover({
   const dimensions = {
     width: size,
     height: size,
-    borderRadius: cornerRadius ?? (size >= 120 ? radius.lg : radius.sm),
+    // `S2`: a big cover is a card, a row's cover 10, a small one 8.
+    borderRadius:
+      cornerRadius ?? (size >= 120 ? radius.card : size >= 40 ? radius.cover : radius.coverSm),
   }
 
   if (uri && !failed) {

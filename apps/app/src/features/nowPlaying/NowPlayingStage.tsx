@@ -343,7 +343,7 @@ function Stage({
           ) : null}
           <View style={styles.tags}>
             {tags.map(tag => (
-              <Text key={tag.id} style={[styles.tag, { color: tagColors(tag.hue).text }]}>
+              <Text key={tag.id} style={[styles.tag, { color: tagColors(tag.hue).ink }]}>
                 {tag.name}
               </Text>
             ))}

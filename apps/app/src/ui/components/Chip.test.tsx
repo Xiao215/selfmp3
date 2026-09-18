@@ -31,21 +31,22 @@ describe('Chip', () => {
     ).toMatchObject({ selected: false })
   })
 
-  it('is filled when it is chosen and hollow when it is not', async () => {
-    // The owner could not tell nine tinted pills apart on a phone when the
-    // only difference was a step of brightness. The two states are now two
-    // shapes: no fill at all, or the hue filled in.
+  it("is white when it is chosen, whatever the tag's hue", async () => {
+    // Nine tags in nine hues read as one quiet row; the chosen ones are lit,
+    // and two chosen tags of different hues look the same.
     await render(
       <>
         <Chip testID="off" label="chill" hue={150} selected={false} onPress={() => undefined} />
         <Chip testID="on" label="hype" hue={150} selected onPress={() => undefined} />
+        <Chip testID="on2" label="study" hue={20} selected onPress={() => undefined} />
       </>,
     )
     const off = boxOf('off')
     const on = boxOf('on')
-    expect(off['backgroundColor']).toBe('transparent')
-    expect(on['backgroundColor']).not.toBe('transparent')
-    expect(on['borderColor']).not.toBe(off['borderColor'])
+    expect(on['backgroundColor']).not.toBe(off['backgroundColor'])
+    expect(boxOf('on2')['backgroundColor']).toBe(on['backgroundColor'])
+    // No edge on either: separation is tone.
+    expect(off['borderWidth'] ?? 0).toBe(0)
   })
 
   it('calls back when tapped', async () => {

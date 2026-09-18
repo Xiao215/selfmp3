@@ -25,6 +25,11 @@ const TAG_SLOT_PADDING_LEFT = 20
 const TAG_GAP = 5
 /** The dashed ⊕, which keeps its place in the slot whether or not it is lit. */
 const TAG_ADD_WIDTH = 22
+/**
+ * At most this many chips on a row, then a count (docs/ui-mock `S3`: "More
+ * tags than fit: show two and a count"), however much room there is.
+ */
+export const ROW_TAG_LIMIT = 2
 /** No single chip may take the slot: a long name ends in an ellipsis instead. */
 export const TAG_CHIP_MAX_WIDTH = 96
 
@@ -79,7 +84,7 @@ export function fitTags(
   widthOf: (tag: Tag) => number,
   budget: number,
 ): { shown: readonly Tag[]; hidden: number } {
-  for (let shown = tags.length; shown > 0; shown--) {
+  for (let shown = Math.min(tags.length, ROW_TAG_LIMIT); shown > 0; shown--) {
     if (rowWidth(tags, widthOf, shown) <= budget) {
       return { shown: tags.slice(0, shown), hidden: tags.length - shown }
     }

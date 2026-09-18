@@ -48,6 +48,9 @@ export function useSongWords(song: Song): {
   const words = resolveSongWords({
     loading: lyrics.isLoading || looking,
     parsed,
+    // Asking again by hand is a fresh question, and it shows as one: the flag
+    // is on its way off and "Looking for lyrics…" belongs on screen meanwhile.
+    instrumental: song.instrumental && !looking,
     romanizationOn,
     romanized,
     offline: error instanceof ApiError && error.isOffline,

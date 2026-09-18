@@ -344,7 +344,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(
     () =>
       engine.subscribe(state => {
-        stores.progress.set(state.currentTime, state.duration)
+        // Tagged with the song the engine is timing, so a tick the song being
+        // left still had in it is not drawn as the new song's position.
+        stores.progress.set(engine.currentSongId, state.currentTime, state.duration)
         stores.stalled.set(state.stalled)
         playbackErrorRef.current(state)
         setEngineState(previous => (differsBesidesClock(previous, state) ? state : previous))
@@ -411,9 +413,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       trackingRef.current = { songId, listenedSeconds: 0, counted: false }
       // Starting part-way is not listening to the part skipped.
       lastPositionRef.current = startAt ?? 0
+      // The clock is this song's from here, not from the engine's first tick
+      // for it — which on a phone is up to a second away. `startAt` goes
+      // through as it came: without one, asking again for the song already
+      // playing leaves its clock alone rather than sending it back to 0:00.
+      stores.progress.follow(songId, startAt)
       void engine.load(songId, startAt ? { autoplay, startAt } : { autoplay })
     },
-    [engine],
+    [engine, stores],
   )
 
   // Everywhere a song's bytes might come from, on this device, right now.
@@ -503,18 +510,22 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         if (state.index === queueRef.current.index && state.repeat === 'one') {
           engine.seek(0)
           void engine.play()
+          const again = state.items[state.index] ?? null
           trackingRef.current = {
-            songId: state.items[state.index] ?? null,
+            songId: again,
             listenedSeconds: 0,
             counted: false,
           }
           lastPositionRef.current = 0
+          // Back to the top now, rather than showing the end of the song for
+          // the tick it takes the player to report that it went back.
+          stores.progress.follow(again, 0)
         } else {
           loadIndex(state, true)
         }
       },
     })
-  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor])
+  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor, stores])
 
   // --- commands ------------------------------------------------------------
 

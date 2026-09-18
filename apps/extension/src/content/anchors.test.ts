@@ -4,7 +4,7 @@ import { findAnchor, siteOf, type IsVisible } from './anchors.js'
 
 /**
  * The page skeletons are the shapes the live pages had when this was tried
- * against them (docs/EXTENSION.md, Phase 0, question 4) — ids, classes, `hidden`
+ * against them (docs/features/browser-extension.md, "What the spike settled", question 4) — ids, classes, `hidden`
  * and nesting, and nothing else.
  *
  * jsdom has no layout, so visibility here is "not inside something hidden",

@@ -12,7 +12,7 @@ import {
 import { readHue, readTheme, resolveScheme, type ThemeChoice } from '../appearancePrefs'
 
 /**
- * The app's two themes, as Unistyles holds them (docs/UNIVERSAL.md, "Stack":
+ * The app's two themes, as Unistyles holds them (docs/ARCHITECTURE.md, "Stack":
  * Unistyles 3).
  *
  * Both are built from the same OKLCH tokens

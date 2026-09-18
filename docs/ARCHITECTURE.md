@@ -32,7 +32,7 @@ apps/server
   public/                the page it serves on :4600: hand-written HTML, CSS and
                          JS, the server's setup and status and nothing else
 
-apps/app                 one Expo app for iOS, Android and the web (docs/UNIVERSAL.md)
+apps/app                 one Expo app for iOS, Android and the web (Foundations and Stack, below)
   app/                   expo-router file routes, one per screen
   src/features/          a folder per screen or tool; each model file is pure and tested
   src/ports/             what differs by platform: engine, offline store, prefs,
@@ -64,7 +64,7 @@ The desktop app is a *shell*, not a fourth client. The page inside it is
 `apps/app`'s web export byte for byte — the same one Pages serves — and
 everything a window can do that a tab cannot goes through a port in
 `src/ports/`, the same mechanism that separates a phone from a browser. See
-[DESKTOP.md](DESKTOP.md).
+[features/desktop-app.md](features/desktop-app.md).
 
 ---
 
@@ -232,6 +232,152 @@ Workbox would generate most of this, but not the part that matters: slicing a ca
 response into a 206 for range requests. Since that is the whole reason offline playback
 works on iOS, the file is written by hand and the three caching strategies are explicit —
 cache-first for the shell, cache-first-with-range for audio, network-first for the API.
+
+---
+
+## Foundations
+
+The rules that keep `apps/app` cheap to extend. They were written when the
+separate web and phone apps were folded into one Expo app (September 2026), and
+code comments cite them by number. Where a rule can be enforced by a tool, it is.
+
+**1. No platform in packages.** `packages/shared` and `packages/replica` already
+compile without the DOM library, so a reach for `window` fails at build time.
+The new `packages/client` follows the same rule. If a package needs the
+platform, it declares an interface and the app supplies it — the pattern
+`packages/replica/src/platform.ts` already uses for `CloudFetch` and
+`DeviceStore`. *Enforced by:* `"lib": ["ES2023"]` in the package tsconfig.
+
+**2. Every platform difference is a named port.** A port is an interface in a
+package and a `.web.ts` / `.native.ts` pair in the app, resolved by Metro's
+platform extensions. Screens never read `Platform.OS` for behaviour; they read
+the port's declared capabilities. Adding a platform later (a desktop shell, a
+TV) means implementing the ports, not touching screens. *Enforced by:* an
+ESLint rule forbidding `Platform.OS` outside `src/ports/` and `src/shell/`.
+
+**3. One folder per feature; the model file imports no UI.** A feature lives
+in `apps/app/src/features/<name>/`: its screen, its components, and a
+`<name>.model.ts` hook that holds every piece of state and behaviour. The
+model file imports from `packages/*` and React only — never from
+`react-native`, `expo-*` or a component — so vitest runs it with no
+simulator, and the screen is a thin renderer of it. Adding a feature is one
+folder. *Enforced by:* `no-restricted-imports` on `**/*.model.ts`, and a
+vitest project that includes only those files.
+
+**4. One design token source.** Colours are OKLCH lightness/chroma/hue triples
+in one file (`packages/client/src/theme/tokens.ts`), resolved to hex by the
+converter beside it. Spacing, radii, type scale, motion durations and the 820-point
+breakpoint live beside them. Unistyles builds the light and dark themes from
+that file; the accent hue is a runtime theme change. The one copy
+in CSS, `tokens.reference.css`, is held to it. *Enforced by:* the token-parity
+test in `packages/client/src/theme/tokens.test.ts`.
+
+**5. Layout responds to width.** A component is written once with breakpoint
+variants, not as a phone version and a desktop version. Where the two really
+are different objects (a popover versus a sheet), the component decides at the
+breakpoint and the caller does not know.
+
+**6. Interaction follows the input, not the device.** Hover reveals, right-click
+menus and keyboard shortcuts exist wherever there is a pointer or a keyboard;
+long-press and swipe exist wherever there is a finger. A `useInput()` hook
+reports which are present. An iPad with a keyboard gets both.
+
+**7. Features declare their platforms.** Each note in `docs/features/` gets a
+"Where" line: which platforms carry the feature and, when one does not, why
+(no server to import on; no pitch shifting on Android).
+
+**8. Tests at the layer that can run them.** Pure logic and model files:
+vitest, as now. Components and screens: `jest-expo` with React Native Testing
+Library, which renders them without a device. Smoke flows: Maestro on the
+phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
+
+---
+
+## Stack
+
+| Concern | Choice | Why, and what was rejected |
+|---|---|---|
+| Framework | Expo SDK 57, React Native 0.86, New Architecture | Already what the phone runs on. Web target is Metro with `react-native-web` 0.21, which Expo bundles for this SDK and which is the mainstream universal path in 2026. |
+| Routing | expo-router | Already in place. File routes work on all three platforms and give the web real URLs. `expo-router/unstable-native-tabs` gives the phone a real tab bar (Liquid Glass on iOS 26, Material on Android); `expo-router/ui` headless tabs drive the desktop sidebar from the same route files. Web output stays `single`: `static` would need every `playlist/[id]` pre-rendered, and playlist ids are runtime data. |
+| Styling | Unistyles 3 | Closest to what exists: tokens plus `StyleSheet`. On web it emits real CSS classes with media queries and `:hover` / `:focus` / `:active`, and themes switch without re-rendering. Needs the New Architecture, which is on. *Tamagui* rejected: it brings its own component kit and compiler, and the app has its own design system. *NativeWind / Uniwind* rejected: Tailwind's vocabulary would replace the OKLCH tokens rather than express them; if Tailwind is ever wanted, Uniwind (same authors) is the one to evaluate. |
+| Lists | FlashList v2 behind a `SongList` component | JS-only, built for the New Architecture, no size estimates. Web support is confirmed in the spike; if it falls short there, `SongList.web.tsx` uses `FlatList` and nothing else changes. |
+| Data | `@tanstack/react-query` | Already on both sides; the hooks merge. No other state library: player and offline state live in their providers, as now. |
+| Audio, web | the existing two-`<audio>` engine | Moved as-is behind the engine port. Gapless, crossfade, rate, pitch lock, analyser. |
+| Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto, rate; pitch lock on iOS via `pitchAlgorithm`. It is an alpha. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
+| Offline, web | Cache API + service worker | Existing code behind the offline port. |
+| Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
+| Offline, native | files + JSON index | Existing code behind the same port. |
+| Icons | `react-native-svg` | Already ported. One file for all three platforms. |
+| Canvas work | Expo DOM components (`'use dom'`) on native | The song visual, the wrapped card and the energy wave are canvas drawings. On web they run as they do now; on the phone the same React DOM component renders in a webview. Reserved for genuinely DOM-only pieces — never for ordinary UI. |
+| Errors | `@sentry/react-native` with its Expo plugin | A phone away from the server fails silently otherwise. One day of work; opt-in via an env var so the personal build can leave it off. |
+| Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
+| Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |
+| Desktop shell | **Electron 44.3.0** (Chromium 152, Node 24; macOS 13 or newer) | The installed desktop app wraps `apps/app`'s web export rather than drawing a second UI. One rendering engine on every OS, TypeScript end to end, and the four things the shell needs are all first-party: `protocol.handle` for `app://` with `Range`, `safeStorage` for the keychain, `navigator.mediaSession` for macOS Now Playing, `setAsDefaultProtocolClient` for the `selfmp3://` sign-in return. Tauri 2, react-native-macos and Mac Catalyst rejected; the reasoning is in [features/desktop-app.md](features/desktop-app.md). Pinned exactly: Electron ships a major every eight weeks and an upgrade is a commit of its own. |
+| Desktop packaging | **electron-builder 26.15.3** | `dmg` and `zip` for macOS (arm64, x64), with `nsis` and `AppImage` listed and unbuilt. Electron Forge rejected as more than this needs. The shell has no runtime `dependencies` — esbuild bundles everything but `electron` — which is what sidesteps electron-builder's known trouble collecting workspace-hoisted packages (electron-builder #2205, #9654). |
+| Desktop updates | **electron-updater 6.8.9**, from GitHub Releases | The only updater that needs no server. Squirrel on macOS refuses to apply an update to an ad-hoc signature (electron #36640), so unsigned builds only check the latest release's tag and open its page. Which tier a build is gets baked in by `apps/desktop/scripts/build.mjs`, because there is no API that asks a running app whether its own signature is one macOS would validate — and `canInstall` on the status is how the page knows never to draw a button that would fail. |
+| The desktop contract | **`packages/desktop-bridge`**: zod schemas plus the `DesktopBridge` interface | The repository's rule that a contract is shared code, not documentation. `apps/desktop` implements it and `apps/app` consumes it, so a channel renamed on one side is a compile error on the other. No new dependency of its own: zod is already here. Compiled without the DOM library, like every other package. |
+| Media session | **`navigator.mediaSession`**, behind a `MediaSessionPort` | Chromium bridges it to `MPNowPlayingInfoCenter` and the media keys on macOS, SMTC on Windows and MPRIS on Linux, so one web file serves the desktop app and a phone's browser alike. The native file is a no-op: track-player owns the lock screen. `globalShortcut` is not used for media keys — on macOS it registers and never fires while Electron's `HardwareMediaKeyHandling` is on (electron #20788), and turning that off would lose the Now Playing panel. |
+| Electron tests | **Playwright `_electron`** (1.63, already here) plus **electron-playwright-helpers 3.1.2** | The smoke flow launches the *built* app, so the product is what is tested. `app.evaluate` reads the main process directly, which is how a 206 from `protocol.handle` is observed rather than inferred. The main process's pure modules — the range answer, the download index, the menu model, the update rule — run in the root vitest. |
+| Desktop icon | **sharp**, the version `apps/server` already pins | One PNG at 1024 rendered from `apps/app/public/icons/icon.svg` by `apps/desktop/scripts/icon.mjs`; electron-builder makes the `.icns` and the `.ico` from it. Not a new dependency — the server has used sharp for cover art since before this — and rendering rather than keeping a second copy is what stops the app's mark drifting from the favicon's. Generating the container formats here would have meant macOS's `iconutil`, which CI's Linux runners do not have. |
+
+Version notes: Unistyles 3 requires `react-native-nitro-modules` and a dev
+client rebuild, which the project already does for track-player.
+`react-native-web` 0.21 supports React 19.2. Both are pinned by Expo's
+`bundledNativeModules.json`; run `npx expo-doctor` after adding them.
+
+## The ports
+
+Each is an interface in `packages/client`, implemented twice in `apps/app/src/ports`.
+
+| Port | What it hides | Web | Native |
+|---|---|---|---|
+| `PlaybackEngine` | load, play, pause, seek, rate, volume, queue-ahead, events | two `<audio>` elements, Web Audio analyser, `preservesPitch`, crossfade | track-player: native queue, lock screen, remote events; `pitchAlgorithm` on iOS. Fallback: expo-audio |
+| `OfflineStore` | is it here, fetch it, remove it, usage, progress | Cache API + service worker range slicing | `expo-file-system` + JSON index |
+| `DeviceStore` | small persistent values | IndexedDB (exists in `packages/replica`) | files (exists) |
+| `Keyboard` | global shortcuts, the command palette trigger | `document` keydown | no-op, or hardware keyboard on iPad later |
+| `Share` | receive a shared link, share a wrapped card | Web Share Target, `navigator.share` | `expo-sharing`, an intent filter |
+| `Files` | reveal a song's file | server endpoint (on the server itself only) | unavailable, declared |
+| `Media session` | lock-screen metadata | `navigator.mediaSession` | track-player metadata |
+
+The engine port declares capabilities — `crossfade`, `analyser`, `pitchLock`,
+`lockScreen`, `nativeQueue` — and the practice panel, the visualiser and the
+settings page read them. A control for something the platform cannot do is not
+rendered, and the settings page says why, the way the phone's About section
+does for crossfade today.
+
+## What does not port one-to-one
+
+What React Native does differently from the DOM, and what the app does about
+each.
+
+- **Container queries and `min()`-sized artwork.** The now-playing pages size
+  the cover from the room left over. React Native has `onLayout`; the shell
+  measures once and passes sizes down.
+- **Tooltips.** Hover-only; web-only. A `Tooltip` that renders its child and
+  nothing else on native.
+- **Popovers anchored to a button.** React Native has no `position: fixed`. A
+  `Popover` primitive measures its anchor with `measureInWindow` and draws in
+  a portal (`Modal` on native, a root-level host on web). Below the breakpoint
+  it is a `Sheet`.
+- **Range inputs.** The scrubber and volume become the phone's `SeekBar`
+  everywhere; keyboard stepping is added on web.
+- **The service worker.** Stays a separate esbuild step to `public/sw.js`,
+  registered from `_layout.web.tsx`. Expo's web export copies `public/` as-is.
+- **Static HTML per route.** Not used: `playlist/[id]` cannot be pre-rendered
+  for ids that only exist at runtime. The export stays a single-page app, and
+  the Pages workflow keeps its 404 redirect.
+- **Crossfade and the analyser.** Web only, declared as engine capabilities.
+  The native engine reports `crossfade: false` and the settings page says so,
+  as the phone does today.
+- **Pitch lock.** Web and iOS. Android's player has no pitch-preserving rate
+  change; the practice panel shows speed without the lock there.
+- **Reveal in Finder.** On the server itself only. Declared unavailable elsewhere.
+- **Canvas drawings.** The song visual, wrapped card and energy wave run as
+  `'use dom'` components on native. They are self-contained today, which is
+  what makes this cheap; keep them that way.
+- **Hover reveals in rows.** `Pressable` on web reports hover; rows show their
+  controls on hover where there is a pointer and always where there is not,
+  exactly the trade the CSS makes now.
 
 ---
 

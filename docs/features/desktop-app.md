@@ -9,8 +9,8 @@ at `/selfmp3/`. Anything that looks different in the window and in the tab is a
 bug, with one named exception: the window's title bar is inset, so the sidebar's
 top is padded for the traffic lights.
 
-**The plan and the reasoning are [`docs/DESKTOP.md`](../DESKTOP.md)**: why
-Electron, what each phase adds, and what was rejected.
+What is still to be built for the desktop and the iPad is in
+[`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
 [`docs/PREPROD.md`](../PREPROD.md) is what to check before calling a build good.
 
 ## Why it exists when a tab already works
@@ -51,7 +51,7 @@ offline settings behave as they do on a phone at home.
   presence of the bridge — never a second Metro platform or a build switch.
 - **Not the server.** It does not hold the library, run yt-dlp or open the
   SQLite file. The server keeps running where it runs. Embedding it is written
-  up under "Later" in `DESKTOP.md`, with the reason it waits.
+  up in `docs/FEATURE_TODO.md`, with the reason it waits.
 - **Not a Mac App Store app**, and not Windows or Linux yet: their targets are
   in the packaging config and are not built.
 
@@ -74,6 +74,42 @@ exposed by the preload with `contextIsolation` on, `nodeIntegration` off and
 `packages/desktop-bridge` on the receiving side, so an invalid message is an
 error at the boundary rather than a crash in the middle. There is no
 `ipcRenderer` on the page.
+
+## Why Electron, and what was rejected
+
+Decided 2026-09-12, for four reasons that hold even though the shell is thin:
+one rendering engine on every OS, and the desktop layout has only ever been
+checked in Chromium; TypeScript end to end; the four things the shell needs are
+first-party (`protocol.handle` for files with `Range`, `safeStorage` for the
+keychain, `navigator.mediaSession` for Now Playing and the media keys,
+`setAsDefaultProtocolClient` for the `selfmp3://` return); and it can host a
+Node process later if the server is ever embedded. The packages and their pinned
+versions are in the Stack table of [ARCHITECTURE.md](../ARCHITECTURE.md).
+
+sources are in the progress file's Desktop section once phase 0 writes it):
+
+- Official Electron builds decode AAC and MP3 (`proprietary_codecs`,
+  `ffmpeg_branding = "Chrome"`), and the default `autoplayPolicy` needs no
+  gesture, so the engine's `play()` and `AudioContext.resume()` work cold.
+- A privileged custom scheme (`standard`, `secure`, `supportFetchAPI`,
+  `allowServiceWorkers`, `stream`) registers service workers and keeps a stable
+  origin for IndexedDB; `file://` does neither. `protocol.handle` hands over the
+  request's `Range:` header but `net.fetch('file://…')` ignores it and answers
+  200 with the whole body, so the 206 has to be built by hand — which is why
+  the server's range rule moves to `packages/shared`.
+- `safeStorage` is the keychain-backed store; `utilityProcess` is the sanctioned
+  way to run Node in a child if the server is ever embedded; better-sqlite3 13
+  and sharp 0.35 are Node-API with prebuilds, so that later phase needs no
+  rebuild step either.
+- Tauri 2.11 would put the UI in WKWebView, which refuses service workers on
+  custom schemes (tauri #13031) and whose `preservesPitch` with a
+  `MediaElementSource` was still being fixed in Safari Technology Preview in
+  2026 — the exact combination the practice panel and the analyser use. Tauri 3's
+  Chromium runtime is an alpha as of 2026-09-13. Revisit only if it stabilises.
+- react-native-macos is at 0.81 against the app's 0.86; Expo has no prebuild
+  for it; Unistyles 3 and track-player do not build for it.
+- "Designed for iPad" is Mac App Store or TestFlight only; Catalyst needs the
+  paid program to distribute. Both are cloud-only clients.
 
 ## Notes for whoever touches it next
 

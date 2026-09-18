@@ -13,7 +13,7 @@ export const DESKTOP_APP_ORIGIN = 'app://selfmp3'
  * The browser extension's id (apps/extension). Chrome derives an id from the
  * public key an extension carries, and the extension's manifest commits one, so
  * this id is the same on every install and no other extension can arrive with
- * it (docs/EXTENSION.md).
+ * it (docs/features/browser-extension.md).
  */
 export const EXTENSION_ID = 'ojgfoohmmkangonahnbdpelfgmkjkfpi'
 

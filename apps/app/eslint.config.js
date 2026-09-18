@@ -81,7 +81,7 @@ module.exports = [
     },
   },
   {
-    // docs/UNIVERSAL.md foundation 3, enforced.
+    // docs/ARCHITECTURE.md foundation 3, enforced.
     //
     // A model file holds a feature's state and behaviour and draws nothing, so
     // vitest can run it in milliseconds with no simulator and no browser. The
@@ -115,7 +115,7 @@ module.exports = [
     },
   },
   {
-    // docs/UNIVERSAL.md foundation 2, enforced.
+    // docs/ARCHITECTURE.md foundation 2, enforced.
     //
     // Screens read a port's declared capabilities, never the platform. The two
     // places allowed to ask which platform this is are the ports themselves and

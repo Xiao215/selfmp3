@@ -58,7 +58,7 @@ import { setPaletteOpen } from './palette'
  * The desktop's left rail.
  *
  * The same destinations the tab bar carries, in the same order, from the same
- * route files — `docs/UNIVERSAL.md` foundation 5. Only the arrangement differs,
+ * route files — `docs/ARCHITECTURE.md` foundation 5. Only the arrangement differs,
  * which is what a breakpoint is for: a row of icons along the bottom under 820,
  * a column with words beside them above it.
  *

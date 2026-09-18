@@ -90,7 +90,7 @@ publish:
 
 # Present and deliberately not in any default build: nothing here reads
 # `process.platform` to do something these could not, and nothing is tested on
-# them. See "Later" in docs/DESKTOP.md.
+# them. See "The desktop app" in docs/FEATURE_TODO.md.
 win:
   target: nsis
 linux:

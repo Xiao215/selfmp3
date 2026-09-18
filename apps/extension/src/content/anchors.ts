@@ -4,7 +4,7 @@
  * The list per site is in order, and the first *visible* match wins: when you
  * leave a watch page YouTube keeps the old one in the DOM, hidden, so a match
  * is not the same thing as a place on screen. Everything here came from trying
- * it against the live pages (docs/EXTENSION.md, Phase 0, question 4).
+ * it against the live pages (docs/features/browser-extension.md, "What the spike settled", question 4).
  *
  * Two anchors are deliberately absent. Anything positioned as a sibling of
  * `#actions-inner` or `#menu` is stretched to about 500 px by YouTube's own

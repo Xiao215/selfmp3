@@ -10,7 +10,7 @@ import { ALARM, ALARM_MINUTES, createWatcher } from './watcher.js'
 
 /**
  * The extension's background worker: the one part of it that talks to a server
- * (docs/EXTENSION.md, "Shape").
+ * (docs/features/browser-extension.md, "Shape").
  *
  * Chrome starts it for a message, an alarm or a menu click, and stops it when it
  * has been idle, so nothing here may count on staying alive: what has to outlast

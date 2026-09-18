@@ -15,7 +15,7 @@ import { Sheet } from './Sheet'
  * there is not enough room for one.
  *
  * One component, two shapes, and the caller does not know which it got:
- * `docs/UNIVERSAL.md` foundation 5, and its "does not port one-to-one" note
+ * `docs/ARCHITECTURE.md` foundation 5, and its "does not port one-to-one" note
  * that a popover anchored to a button becomes a sheet below the breakpoint.
  *
  * React Native has no `position: fixed`, so above the breakpoint the anchor is

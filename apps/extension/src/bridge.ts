@@ -14,7 +14,7 @@ import { z } from 'zod'
  * The only door between the extension's pages and its background worker.
  *
  * Only the worker talks to a server: it holds the address and the token, where
- * no page of youtube.com can reach them (docs/EXTENSION.md, "Shape"). The popup
+ * no page of youtube.com can reach them (docs/features/browser-extension.md, "Shape"). The popup
  * and the options page ask it through here, and every request and every reply
  * is checked against a schema on both sides — what packages/desktop-bridge does
  * for the desktop app.

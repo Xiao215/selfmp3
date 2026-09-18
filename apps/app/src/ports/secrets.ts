@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store'
  * private — the token is a real credential, and the hostname is a Tailscale
  * name that is nobody else's business either.
  *
- * This is a port, in the sense `docs/UNIVERSAL.md` foundation 2 means: an
+ * This is a port, in the sense `docs/ARCHITECTURE.md` foundation 2 means: an
  * interface with an implementation per platform, resolved by Metro's platform
  * extensions, so that no screen ever asks which platform it is on. This file is
  * the native one and `secrets.web.ts` is the web one; an import of

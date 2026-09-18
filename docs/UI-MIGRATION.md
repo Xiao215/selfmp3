@@ -516,9 +516,10 @@ Relative, not days. S is a sitting, M is two or three, L is most of a week of si
 
 ### Ground rules
 
-Those of `docs/UNIVERSAL.md` and `docs/DESKTOP.md` apply unchanged: one phase per branch
+The rules every unattended run in this repository has kept: one phase per branch
 (`ui/phase-N`), commit at every green gate and never on red, no new dependency without a
-Stack line above, ports before screens. Added for this work:
+Stack line above, ports before screens, and the foundations in
+[ARCHITECTURE.md](ARCHITECTURE.md). Added for this work:
 
 - **The mock is the spec.** If the mock and this document disagree, the mock's `S3` board
   wins over the mock's pictures, and both win over this document. Fix this document in the

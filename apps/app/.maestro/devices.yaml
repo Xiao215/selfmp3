@@ -1,6 +1,6 @@
 # Phase 3 gate: devices and handoff, which the phone gains with the move.
 #
-# Named by the gate in docs/UNIVERSAL.md:
+# Run as:
 #   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 #
 # Needs two devices on one Mac, which a one-device run cannot fake:

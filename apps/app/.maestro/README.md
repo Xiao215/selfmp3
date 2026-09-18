@@ -1,6 +1,7 @@
 # Phone flows
 
-Maestro flows for the phone halves of the checks in `docs/UNIVERSAL.md`.
+Maestro flows: the phone halves of the checks that Playwright runs in a browser
+(`docs/ARCHITECTURE.md`, foundation 8).
 
 These need a Mac: a booted simulator, a dev client built from this workspace,
 and `maestro` on the `PATH` (`curl -Ls https://get.maestro.mobile.dev | bash`,

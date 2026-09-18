@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { chooseRoute, createRouter, ROUTE_MEMO_MS, type RouteSources } from './connection.js'
 
 /**
- * Which way in wins (I3, docs/EXTENSION.md, Phase 5's gate).
+ * Which way in wins (docs/features/browser-extension.md, "Connecting (I3)").
  *
  * The three answers the phase is about, each with a probe that is a function:
  * a server that answers is asked directly, one that does not sends the link to

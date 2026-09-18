@@ -14,7 +14,7 @@ export default defineConfig({
       'scripts/**/*.test.mjs',
     ],
     // The universal app's component tests are jest-expo's, not vitest's
-    // (docs/UNIVERSAL.md foundation 8): they render React Native, whose source
+    // (docs/ARCHITECTURE.md foundation 8): they render React Native, whose source
     // vitest cannot parse. Without this they were collected here as well and
     // failed to load — two failed files under a green test count, which is
     // exactly the kind of red that reads as green at a glance.

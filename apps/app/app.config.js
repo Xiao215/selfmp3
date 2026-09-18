@@ -97,7 +97,7 @@ const config = {
    * The web target. `bundler: 'metro'` is what makes this the same bundle the
    * phone runs rather than a second toolchain; `output: 'single'` keeps it a
    * single-page app, because `playlist/[id]` cannot be pre-rendered for ids
-   * that only exist at runtime (see docs/UNIVERSAL.md, "does not port").
+   * that only exist at runtime (see docs/ARCHITECTURE.md, "does not port").
    */
   web: {
     bundler: 'metro',

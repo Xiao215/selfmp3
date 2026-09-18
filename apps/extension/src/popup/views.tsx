@@ -26,7 +26,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { Choices } from '../bridge.js'
 import { hostOf, progressLine, type Connection } from './popup.model.js'
 
-/** The pieces the popup is drawn from, each a state of docs/EXTENSION.md's table. */
+/** The pieces the popup is drawn from, each a state of docs/features/browser-extension.md's table. */
 
 function Gear(): ReactNode {
   return (

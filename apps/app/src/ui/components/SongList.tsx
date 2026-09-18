@@ -12,7 +12,7 @@ function keyOf(song: Song): string {
  * A list of songs, wherever one is shown.
  *
  * One component rather than a bare list at each call site, as
- * `docs/UNIVERSAL.md` asks, so the choice of list can change in one file and
+ * `docs/ARCHITECTURE.md` asks, so the choice of list can change in one file and
  * no screen knows. It also keeps the table semantics in one place: the library
  * is a `role=table` of `role=row`s, and a row with no table around it
  * announces nothing useful.

@@ -155,4 +155,228 @@ Two rules the code keeps, and the reasons:
   should say. It is never told your tags, your playlists, your server's address
   or its token.
 
-The plan it was built to, phase by phase, is [EXTENSION.md](../EXTENSION.md).
+What is not built yet is in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
+
+## Shape
+
+Three places code runs, and one rule: **only the background talks to a server
+or the doorman.**
+
+```
+ youtube.com tab                 extension origin (chrome-extension://<id>)
+┌───────────────────────┐       ┌──────────────────────────────────────────────┐
+│ content/youtube.ts    │ msg   │ background.ts (service worker)               │
+│  page kind, the pill  ├──────►│  connection: server direct, else bucket (I3) │
+│  no network, no token │◄──────┤  api (createApi) · replica (bucket)          │
+└───────────────────────┘       │  job watcher → badge, notifications (F1)     │
+                                │  context menus (B2) · library link index     │
+ popup.html / review.html       │                                              │
+┌───────────────────────┐ msg   │  secrets in IndexedDB, never storage.local   │
+│ React DOM: A and C    ├──────►│                                              │
+└───────────────────────┘       └──────────────────────────────────────────────┘
+ options.html: connect (Google, or address + token)
+```
+
+Why the background owns the network:
+
+- **One writer.** The replica's outbox must never reuse a sequence number; one
+  context holding it is the simplest way to keep that true.
+- **Secrets stay out of pages.** `chrome.storage.local` is readable by content
+  scripts, and content scripts run inside youtube.com. The doorman session and
+  the server token live in the extension origin's IndexedDB, which no content
+  script can open.
+- **One poll loop.** The badge and the notifications need something that
+  outlives the popup.
+
+**The bridge** (`src/bridge.ts`) is the only door between contexts, following
+`packages/desktop-bridge`: every message type has a zod schema for its request
+and its reply, checked on both sides. The popup wraps bridge calls in React
+Query; the content script calls them directly.
+
+### Connecting (I3)
+
+The options page offers two ways in:
+
+1. **Sign in with Google** — the same account as every other device. The
+   background opens the replica with an extension `CloudPlatform`:
+
+   | Member | Extension |
+   |---|---|
+   | `store` | IndexedDB, a copy of `apps/app/src/ports/idbStore.web.ts` |
+   | `fetch`, `randomBytes`, `decodeText` | `fetch`, `crypto.getRandomValues`, `DecompressionStream('gzip')` as in `cloudPlatform.web.ts` |
+   | `returnUrl` | `https://<id>.chromiumapp.org/` |
+   | `openSignIn` | `chrome.identity.launchWebAuthFlow`, then read `#signin-code` and call `claimSignIn` |
+   | `deviceKind` | `'extension'` |
+   | `onWake` | the worker's `online` event |
+
+   The server's addresses and token come from `cloudServer()`, as they do for
+   the app.
+
+   Sign-in starts from the **options page**, not the worker: `beginSignIn`
+   saves the attempt before opening the window, but the code comes back only in
+   the redirect, and a worker suspended during a slow Google sign-in would lose
+   it. The page lives as long as its tab. Connecting also opens the library
+   once, so the first download (1.3 MB gzipped at 5,000 songs) happens there
+   and not on the first popup.
+
+   After recording a change the background calls `flushCloudChanges()` straight
+   away, and opens the library whenever the worker starts with a non-empty
+   outbox: the 1.5 s timer does fire, but a worker stopped before it leaves the
+   change waiting for the next open. A write the doorman refuses is retried
+   under the same seq and never reported, so the popup shows an outbox that has
+   not emptied for a minute as not sent yet.
+2. **A server address and token** typed in, for a server with no bucket.
+
+Before a preview or an import, and each time the popup opens, the background
+probes every candidate address with `reachServer` (`packages/client`) and keeps the answer for 60 seconds. The header pill shows what won:
+"Home server" or "Via your bucket".
+
+The two paths do not offer the same things, and the popup must not pretend
+they do:
+
+| | Server direct | Via the bucket |
+|---|---|---|
+| Details before importing | Preview; title and artist editable | No preview. The page's own title and channel (YouTube oEmbed) shown read-only, with "Your server will read the details when it fetches this." |
+| Tags and playlists | The server's ids | The replica's ids, mapped to uids by `requestImport` |
+| C: a playlist's tracks | Listed, with ticks | Not listed; one "Request the whole playlist" (the server skips what you have) |
+| C: "Also create playlist" | Yes (`createPlaylistName`) | Hidden: `importRequested` has no name field |
+| Progress | Job step and percent | Request state from the next snapshot |
+| Cancel | `cancelImport` | `cancelCloudImport` |
+| Already have | Link index + preview `alreadyHave` | Link index from the replica's songs |
+
+Tag and playlist ids from one path are never used with the other: a
+connection object carries its own api, and everything the popup shows is read
+through it.
+
+## The popup, state by state
+
+`popup.model.ts` turns five inputs into one state: the page kind (from the tab
+URL through shared's `youtubeVideoId`, `youtubePlaylistId`, `youtubeMusicAlbum`,
+`youtubeChannel`), the connection, a hit in the link index, the preview, and a
+job for this link. It is pure and has the most tests.
+
+| State | Shown when | Drawn as |
+|---|---|---|
+| Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
+| Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
+| Song | Single, not in the library | Card, "Cleaned from …" when `tidyVideoTitle` changed it, title and artist fields, tag chips with the default tags ticked, manual playlists (pinned first), Import |
+| Already in your library | Link index hit, or `alreadyHave` | "In your library since … · played N times", Open in self.mp3, Import anyway |
+| Playlist, album, artist (C) | `kind: 'playlist'` | Track rows with ticks, "have" rows unticked, "Also create playlist", tags, "Import N songs", and "Open the full review" past 30 tracks |
+| Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
+| Added | Job done | Tags and playlist it went to |
+| Waiting for your server | Bucket request `waiting` | The sentence from the mock |
+| Can't import | Job `error`, or the preview refused | The server's own message, which already names the fix |
+
+Two small corrections to the mock, found in the code:
+
+- The added state shows tags and playlist but not BPM and key: analysis runs
+  after an import finishes, so they are rarely known in time.
+- The cleaned title for the example is アイドル, not "Idol". The tidy rule
+  takes what is inside 「」; it does not translate.
+
+**Open in self.mp3** opens the app's Import page at `<app>/import`, where the
+queue and the song are. The app has no song route and the library does not read
+a search from the URL. `<app>` is the server's own address when connected
+directly, `https://xiao215.github.io/selfmp3` through the bucket. **Open the full
+review** opens `<app>/import?url=<link>`, which the Import page already
+understands from the share target.
+
+---
+
+## The pill (B1) and the menu (B2)
+
+- The content script runs on `www.youtube.com`, `m.youtube.com` and
+  `music.youtube.com`. The page kind comes from the URL alone (`pageKind`):
+  only `/watch?v=` gets a pill, whatever `list=` says. YouTube Music's album
+  links turn into `/playlist?list=OLAK5uy_…`, and its artists are `/@handle`.
+- **When to look again.** One `ensure()` runs at start; on the Navigation API's
+  `currententrychange` (available in the content script's world, fires within
+  10 ms of every URL change on all three sites, Back included); on
+  `yt-navigate-finish` on www as a backup; and from a `MutationObserver`
+  debounced to 200 ms. The observer matters: YouTube redraws the button row
+  1.1–1.7 s after each navigation and deletes whatever was put in it.
+- **Where it goes** lives in `anchors.ts` alone. The first *visible* match wins,
+  because the last watch page stays in the DOM, hidden:
+
+  | Site | In order |
+  |---|---|
+  | www | `ytd-watch-metadata #top-level-buttons-computed` (prepend, left of Like; repaired after each navigation) · `ytd-watch-metadata #owner` (append) · `ytd-watch-metadata #top-row` (append) |
+  | m. | `ytm-slim-video-action-bar-renderer .slim-video-action-bar-actions` (prepend) · `ytm-slim-video-action-bar-renderer` |
+  | music | `ytmusic-player-bar .right-controls-buttons` (prepend; visible during ads and at 800 px) · `ytmusic-player-bar .middle-controls-buttons` (hidden during ads and when narrow) |
+
+  Never a sibling of `#actions-inner` or `#menu`, where YouTube's CSS stretches
+  it. No visible anchor within 5 seconds means no pill, and there are at most
+  five repairs per URL: below ~600 px YouTube Music hides its bar, and an
+  uncapped observer loops. It never throws into the page.
+- The pill is `document.createElement('selfmp3-pill')` with a closed shadow
+  root and an inline layout style on the outer element: content scripts have no
+  `customElements`, and `:host` rules lose to YouTube's CSS. The video id is
+  read from `location` at click time, since the row lags the URL by a second.
+  Its states: **self.mp3** → **Importing 40%** → **Added · Undo** (Undo cancels
+  while the job can still be cancelled, for six seconds) → **In library**.
+- Unit tests use small hand-written fixtures of those structures in jsdom, with
+  `isVisible` and the navigation source passed in, since jsdom has neither
+  layout nor the Navigation API.
+- A click sends `quickImport {url}`. The background resolves the connection.
+  Direct: preview, stop at "In library" if `alreadyHave`, otherwise enqueue
+  with the tidied title, no tags (the worker adds the defaults), no playlist.
+  Bucket: `requestCloudImport({url})`. The pill follows the job through the
+  same watcher as the badge.
+- v1 shows the pill on watch pages only. Playlist pages use the popup (C).
+- **Menus:** "Import link to self.mp3" (the same quick import) and "Import with
+  tags and playlist…", on links on any page and on the page itself on YouTube.
+  The second opens `review.html?url=` in a small window, the popup's UI with a
+  link given instead of a tab, because a context-menu click cannot open the
+  action popup reliably.
+
+## The watcher (F1)
+
+- Every import the extension starts is a **batch**: the job ids (or request
+  uids) one click created, kept in `chrome.storage.local`. These are not secret.
+- While a batch is open the background polls `importQueue()` (or
+  `cloudImports()`) every 2 seconds while it is awake. A `chrome.alarms` alarm
+  every 30 seconds, Chrome's floor, wakes it if it was suspended.
+- **Badge:** the number of unfinished jobs across open batches. A red "!" once
+  a batch finished with a failure, cleared when the popup opens. Nothing while
+  idle.
+- **One notification per batch**, with copy from `jobs.model.ts`: "Idol added",
+  or "18 songs added · City pop night drive · 1 couldn't be downloaded". A click
+  opens the app's Import page.
+- The **link index** (`videoId → song`) is rebuilt when `GET /api/library/version`
+  (direct) or the cloud library (bucket) changes, and stored in IndexedDB so the
+  popup's "already have" answer is instant.
+
+---
+
+## What the spike settled
+
+Four questions that could have changed the design were answered with a scrap
+MV3 extension before anything was built (2026-09-15, Playwright's Chromium 153,
+headless). Code comments cite them by number.
+
+1. **Local network.** Can the service worker `POST` to
+   `http://100.x.y.z:4600`, to a LAN address, and to the `https://….ts.net`
+   address from SETUP.md, with the server letting the extension's origin
+   through? Chrome's Local Network Access rules are the unknown. If only HTTPS
+   works, the options page prefers the `ts.net` address and says why. If a
+   permission is needed, the options page asks for that one origin.
+2. **Sign-in.** Does `launchWebAuthFlow` against `wrangler dev` finish on
+   `https://<id>.chromiumapp.org/#signin-code=…`, with the dev vars changed?
+3. **Replica in a worker.** Does `createCloudLibrary` open in an MV3 service
+   worker on IndexedDB, and how long does it take on the real bucket? If it is
+   too slow, fall back to writing the `importRequested` log file directly
+   (`HlcClock`, `newUid`, `logKey`) with no tags or playlist in bucket mode.
+4. **The pill's anchors** on today's YouTube watch page and YouTube Music player,
+   across in-app navigation.
+
+
+| Question | Answer | What it changed |
+|---|---|---|
+| 1. Local network | The worker and extension pages reached loopback and a local-marked address with no Local Network Access block, preflight header or prompt. Chrome sends `Origin: chrome-extension://<id>` on every POST, with or without host permissions, so today's server answers 403. A content script on a public page is blocked before the request leaves. | Phase 1 item 1 is required; no host permission for the server; only the background talks to it |
+| 2. Sign-in | `launchWebAuthFlow` (`interactive: true`) returned `https://<id>.chromiumapp.org/#signin-code=…` with the fragment intact. The doorman's own code, with both addresses in `APP_ORIGINS`, redirects there and accepts the claim and the log `PUT`s; today it refuses both. The replica needs no change. | Sign-in from the options page |
+| 3. Replica in a worker | Runs unchanged. At 5,000 songs: cold open 150 ms (620 ms with 150 ms added per request), 45 ms after a worker restart, 3.9 MB of IndexedDB, a 36 KB gzipped bundle. No seq reused across worker and browser restarts; 600 concurrent `store.update`s from the worker and a page ended at 600. | The full replica, no log-only fallback; explicit flush; first open while connecting |
+| 4. Anchors | Exactly one pill on every watch page on all three sites, through sidebar clicks, Back and every page type; none elsewhere. | The pill section above |
+
+Not testable on this Mac: Tailscale (`100.x` and `https://….ts.net`), real
+Chrome 152 (it ignores `--load-extension`), real Google sign-in. They are on the
+by-hand list in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).

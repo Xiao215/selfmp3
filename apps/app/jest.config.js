@@ -1,6 +1,6 @@
 // Component tests, which vitest cannot run.
 //
-// docs/UNIVERSAL.md foundation 8: tests at the layer that can run them. Pure
+// docs/ARCHITECTURE.md foundation 8: tests at the layer that can run them. Pure
 // logic and model files are vitest's, and they are the fast ones — no React at
 // all. Anything that renders needs a React Native renderer, and vitest has no
 // way to be one yet, so jest-expo and React Native Testing Library take the

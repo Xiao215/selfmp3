@@ -3,7 +3,7 @@ import type { CloudServer } from '@selfmp3/shared'
 
 /**
  * Where an import goes: the server itself when it answers, the bucket when it
- * does not (I3, docs/EXTENSION.md).
+ * does not (I3, docs/features/browser-extension.md).
  *
  * Only the server runs yt-dlp, so it is the one that can *read* a link — say
  * what it holds, and play a song before it is added. Everything the extension

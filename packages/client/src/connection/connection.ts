@@ -58,8 +58,7 @@ export function normaliseBaseUrl(input: string): string | null {
   // `URL` does. Worth knowing that it is a silent drop rather than a refusal:
   // someone who types credentials here gets unauthenticated requests and no
   // explanation. Refusing would be kinder, but this is a move, and changing
-  // behaviour inside one is how a regression hides. See the note in
-  // docs/UNIVERSAL.md.
+  // behaviour inside one is how a regression hides.
   const at = authority.lastIndexOf('@')
   const hostPort = at === -1 ? authority : authority.slice(at + 1)
 

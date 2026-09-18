@@ -21,7 +21,7 @@ import { useLibraryFilter } from './libraryFilter'
 /**
  * Everything the library screen knows, with nothing it draws.
  *
- * `docs/UNIVERSAL.md` foundation 3: one folder per feature, and the model file
+ * `docs/ARCHITECTURE.md` foundation 3: one folder per feature, and the model file
  * imports from `packages/*` and React and nothing else — no `react-native`, no
  * `expo-*`, no component. That is not tidiness for its own sake. It means the
  * rules that decide what a search shows, what "nothing matches" means as

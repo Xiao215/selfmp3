@@ -1,6 +1,6 @@
 # Phase 3 gate: a downloaded song plays with the Mac out of reach.
 #
-# Named by the gate in docs/UNIVERSAL.md:
+# Run as:
 #   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 #
 # Run it through offline-run.sh, not on its own. The plan says airplane mode,

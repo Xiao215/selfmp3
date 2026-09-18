@@ -9,7 +9,7 @@ import { codeFromRedirect, signInFailure } from './signIn.js'
  *
  * Signing in is the way in that keeps working: the server is asked directly
  * whenever it answers, and when it does not the link waits in the bucket for it
- * (I3, docs/EXTENSION.md). An address is still offered under it, for a library
+ * (I3, docs/features/browser-extension.md). An address is still offered under it, for a library
  * with a server and no bucket at all, and for a server this computer can reach
  * that the bucket has never been told about.
  *

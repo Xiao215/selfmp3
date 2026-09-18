@@ -220,7 +220,7 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
     /*
      * The worker writes the attempt down and says where to go; the options page
      * is what opens it. A worker suspended while Google is slow would lose the
-     * code that comes back, and the page will not be (docs/EXTENSION.md).
+     * code that comes back, and the page will not be (docs/features/browser-extension.md).
      */
     signIn: async () => ({ url: await needsCloud().beginSignIn() }),
 

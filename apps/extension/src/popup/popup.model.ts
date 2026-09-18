@@ -14,7 +14,7 @@ import { importable, type PageKind } from '../pageKind.js'
  *
  * Whether a server answers, the link (the tab's, or one pasted), whether the
  * library already has that song, what the server read at the link, and a job
- * for it — and exactly one state comes out, in the order docs/EXTENSION.md
+ * for it — and exactly one state comes out, in the order docs/features/browser-extension.md
  * ("The popup, state by state") lists them.
  */
 
@@ -142,7 +142,7 @@ export function popupView(input: PopupInputs): PopupView {
 /**
  * The same popup with the server away: no preview, no ticking through a list,
  * and nothing editable — because only the server can read a link at all
- * (docs/EXTENSION.md, "The two paths do not offer the same things").
+ * (docs/features/browser-extension.md, "The two paths do not offer the same things").
  *
  * What is lost is the looking, not the importing. A link left here is fetched
  * the next time the server is awake (SYNC.md, rule 6), which is why this is a

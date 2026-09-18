@@ -33,7 +33,7 @@ import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } fr
  * Below 820 it is the phone: the screen fills the display with a mini player
  * and a tab bar stacked under it. At 820 and above it is the desktop: a sidebar
  * down the left, the screen beside it, a player bar across the foot. Same
- * routes, same screens, same providers — `docs/UNIVERSAL.md`, foundation 5.
+ * routes, same screens, same providers — `docs/ARCHITECTURE.md`, foundation 5.
  *
  * Dragging a browser window across the breakpoint swaps the chrome without
  * remounting the screen, because the screen is `children` either way and React

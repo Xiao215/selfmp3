@@ -7,7 +7,7 @@ import type { PillState } from '../bridge.js'
  * It is a plain element, not a custom element: `customElements` is null in a
  * content script's world, so `define` is not available. The layout properties
  * are inline on the outer element because YouTube's page CSS beats a `:host`
- * rule (docs/EXTENSION.md, Phase 0, question 4).
+ * rule (docs/features/browser-extension.md, "What the spike settled", question 4).
  */
 
 export const PILL_TAG = 'selfmp3-pill'

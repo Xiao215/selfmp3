@@ -17,7 +17,7 @@ import { StyleSheet } from 'react-native-unistyles'
  * above the tab bar and the mini player because it is the shell's last child
  * rather than because it is a different window. One tree, which VoiceOver and
  * Maestro can both read, and which is also the "root-level host on web"
- * `docs/UNIVERSAL.md` calls for.
+ * `docs/ARCHITECTURE.md` calls for.
  *
  * `pointerEvents="box-none"` on the host so an empty overlay is not a sheet of
  * glass over the app.

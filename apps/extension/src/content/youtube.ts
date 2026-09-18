@@ -10,8 +10,8 @@ import { createPill, PILL_TAG, type PillHandles } from './pill.js'
  * and the video id is read from the address at click time, because for about a
  * second after an in-page navigation the row still belongs to the last video.
  *
- * Three things learned from trying this on the live pages (docs/EXTENSION.md,
- * Phase 0, question 4):
+ * Three things learned from trying this on the live pages (docs/features/browser-extension.md,
+ * "What the spike settled", question 4):
  *   - the Navigation API fires within 10 ms of every URL change, on all three
  *     sites and on Back, where `yt-navigate-finish` exists only on www;
  *   - YouTube redraws its button row a second or so after each navigation and

@@ -244,7 +244,7 @@ export const motion = { fast: 100, base: 140, slow: 220 } as const
  * a narrow browser window each get the layout that fits them rather than the
  * one their operating system implies.
  *
- * It lives here beside the other tokens because `docs/UNIVERSAL.md` says it
+ * It lives here beside the other tokens because `docs/ARCHITECTURE.md` says it
  * does: one design token source, and the breakpoint is a design token.
  */
 export const BREAKPOINT = 820

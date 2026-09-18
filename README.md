@@ -142,8 +142,7 @@ item for any link anywhere. The toolbar counts what it is importing and says wha
 Sign in with Google and it finds your server by itself — and when the server is asleep it
 leaves the link in your bucket for the server to fetch when it wakes. It is
 loaded unpacked from `apps/extension` rather than installed from a store. See
-[browser-extension.md](docs/features/browser-extension.md); the plan it was built to is
-[docs/EXTENSION.md](docs/EXTENSION.md).
+[browser-extension.md](docs/features/browser-extension.md).
 
 ### Listening
 
@@ -380,9 +379,7 @@ The doorman is deployed by hand with `npx wrangler deploy`
 | [docs/SYNC.md](docs/SYNC.md) | The library in a bucket: the layout, signing in, how edits combine, setting it up |
 | [docs/MOBILE.md](docs/MOBILE.md) | Building and running the iPhone and Android app, and Android Auto |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code is laid out, and why |
-| [docs/UNIVERSAL.md](docs/UNIVERSAL.md) | The plan that folded the web and phone apps into one Expo app (done) |
-| [docs/DESKTOP.md](docs/DESKTOP.md) | The plan and reasoning for the desktop app |
-| [docs/EXTENSION.md](docs/EXTENSION.md) | The plan for the Chrome extension, and how far it has got |
+| [docs/FEATURE_TODO.md](docs/FEATURE_TODO.md) | What was planned or researched and is not built yet: the iPad, the desktop, the extension |
 | [docs/UI-MIGRATION.md](docs/UI-MIGRATION.md) | The plan for moving the app to the redesigned interface. The mock it builds to is [docs/ui-mock/](docs/ui-mock/README.md) |
 | [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
 | [verify/README.md](verify/README.md) | The Playwright flows and what they need |

@@ -8,7 +8,7 @@ import { finePointer } from '../ports/pointer'
  *
  * This is the only place in the app that looks at the width. Everything else
  * asks `wide`, so there is exactly one number to change and no screen has an
- * opinion about what a phone is. `docs/UNIVERSAL.md`, foundation 5: a component
+ * opinion about what a phone is. `docs/ARCHITECTURE.md`, foundation 5: a component
  * is written once with breakpoint variants, not as a phone version and a
  * desktop version.
  *

@@ -13,7 +13,7 @@ import type { KeyValueStore } from './store.js'
  *   `chrome-extension://` address, so the doorman is sent to
  *   `https://<id>.chromiumapp.org/`, which Chrome intercepts rather than
  *   loading. That address is never fetched and needs no CORS; the doorman
- *   allows it only as a return address (docs/EXTENSION.md, Phase 0, question 2).
+ *   allows it only as a return address (docs/features/browser-extension.md, "What the spike settled", question 2).
  * - **Who opens it.** `chrome.identity.launchWebAuthFlow` lives on the options
  *   page, which stays alive while Google is slow; a worker suspended in the
  *   middle would lose the code. So this platform does not open anything — it

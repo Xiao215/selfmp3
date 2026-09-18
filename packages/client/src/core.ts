@@ -4,7 +4,7 @@
  * The barrel carries the query hooks, and with them React and React Query. The
  * browser extension's background worker wants the API client, which server
  * answers and the import rules, and nothing that renders; a bundle of the barrel
- * would pull the rest in with them (docs/EXTENSION.md).
+ * would pull the rest in with them (docs/features/browser-extension.md).
  */
 export type {
   ApiContext,

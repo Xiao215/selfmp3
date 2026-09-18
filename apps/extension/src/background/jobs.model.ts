@@ -7,7 +7,7 @@ import type { ImportJob, ImportQueue } from '@selfmp3/shared'
  * everything the server happens to be doing — a phone's share and a scan both
  * add jobs nobody at this computer asked for. So each import the extension
  * starts is remembered by its job ids, and only those are counted and reported
- * on (docs/EXTENSION.md, "The watcher").
+ * on (docs/features/browser-extension.md, "The watcher").
  *
  * Everything here is pure; the worker's side of it is watcher.ts.
  */

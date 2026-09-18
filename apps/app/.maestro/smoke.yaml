@@ -1,6 +1,6 @@
 # Phase 2 gate: the phone app's current feature set, after the move to apps/app.
 #
-# Named by the gate in docs/UNIVERSAL.md:
+# Run as:
 #   maestro test .maestro/smoke.yaml   # play, next, mini player, sort, tag filter, menu, download
 #
 # SKELETON. The steps below are the flow the gate asks for, written against the

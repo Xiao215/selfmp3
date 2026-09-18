@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
@@ -518,6 +519,7 @@ export function ImportScreen({
             </View>
           </View>
         ) : null}
+        <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )

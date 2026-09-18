@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
@@ -273,6 +274,7 @@ export function PlaylistsScreen(): ReactNode {
             ) : null}
           </View>
         )}
+        <ChromeSpacer />
       </ScrollView>
 
       <NewPlaylist

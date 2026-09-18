@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, escaped } from './helpers.js'
+import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
  * Choosing tags to listen to.
@@ -59,7 +59,7 @@ test.describe('choosing tags', () => {
       info.project.name === 'phone',
       'a phone chooses tags on its own Tags page, not in the library head',
     )
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
@@ -117,7 +117,7 @@ test.describe('choosing tags', () => {
    * count you had to tap to be taken to the songs.
    */
   test('the head offers Play and Save only once a tag is on', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

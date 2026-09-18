@@ -1,6 +1,13 @@
 import { expect, test, type Locator } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './helpers.js'
+import {
+  escaped,
+  libraryReady,
+  openLibrary,
+  skipIfNoLibrary,
+  songRows,
+  titleOf,
+} from './helpers.js'
 
 /**
  * Multi-select in the library: the way in, the count, what "all" means, and
@@ -16,7 +23,7 @@ import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './hel
  */
 test.describe('selecting songs', () => {
   test('select two, see the count, select all, and get out again', async ({ page }, info) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page, 2)
 

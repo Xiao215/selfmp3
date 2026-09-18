@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
@@ -403,6 +404,7 @@ export function SettingsScreen(): ReactNode {
             </Panel>
           </View>
         </StackedRows>
+        <ChromeSpacer />
       </ScrollView>
 
       {column ? (

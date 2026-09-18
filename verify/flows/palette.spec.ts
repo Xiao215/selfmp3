@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './helpers.js'
+import {
+  escaped,
+  libraryReady,
+  openLibrary,
+  skipIfNoLibrary,
+  songRows,
+  titleOf,
+} from './helpers.js'
 
 /**
  * The command palette: find a song by its title and play it, then run a command.
@@ -12,7 +19,7 @@ import { libraryReady, skipIfNoLibrary, songRows, titleOf, escaped } from './hel
 test.describe('command palette', () => {
   test('finds a song and plays it, and runs a command', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'the palette opens from the sidebar')
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

@@ -25,7 +25,7 @@ import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.sto
 import { openTagSearch } from '../features/library/tagSearch.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
-import { isLive, pinnedPlaylists } from '../features/playlists/playlists.model'
+import { isLive, sortPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { menuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -39,8 +39,8 @@ import { BrandMark } from '../ui/components/BrandMark'
 import {
   BarChart,
   Download,
+  Home,
   Inbox,
-  ListMusic,
   Live,
   More,
   Music,
@@ -48,8 +48,10 @@ import {
   Search,
   Settings,
   Tag as TagIcon,
+  User,
   X,
 } from '../ui/components/Icons'
+import { useAccent } from '../ui/accent'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { setPaletteOpen } from './palette'
@@ -76,18 +78,23 @@ import { label as labelText } from '../ui/surfaces'
  * the foot, a status line: reachable or not, and what is offline.
  */
 const DESTINATIONS: {
-  href: '/' | '/import' | '/stats' | '/settings'
+  href: '/' | '/library' | '/import' | '/stats'
   label: string
   Icon: typeof Music
 }[] = [
-  { href: '/', label: 'Library', Icon: Music },
+  { href: '/', label: 'Home', Icon: Home },
+  { href: '/library', label: 'Library', Icon: Music },
   // Import and Stats both need the server itself. A cloud library reaches it by
   // the addresses in its last sync and says so when it cannot, which is the
   // page's business — leaving the row out instead said the feature did not exist.
+  // Stats keeps a row of its own on a computer; on a phone it is under You
+  // (docs/UI-MIGRATION.md, Open question 7).
   { href: '/import', label: 'Import', Icon: Download },
   { href: '/stats', label: 'Stats', Icon: BarChart },
-  { href: '/settings', label: 'Settings', Icon: Settings },
 ]
+
+/** How many playlists the rail lists: the ones played last. The header opens them all. */
+const RAIL_PLAYLISTS = 4
 
 export const SIDEBAR_WIDTH = 244
 
@@ -151,6 +158,7 @@ export function Sidebar(): ReactNode {
       <Playlists />
       <Tags />
       <Foot />
+      <SettingsRow />
     </View>
   )
 }
@@ -211,18 +219,18 @@ function Playlists(): ReactNode {
   const plusRef = useRef<View>(null)
 
   const all = library?.playlists
-  const pinned = useMemo(() => pinnedPlaylists(all ?? []), [all])
+  const recent = useMemo(() => sortPlaylists(all ?? [], 'recent').slice(0, RAIL_PLAYLISTS), [all])
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = pathname === '/playlists' || pathname.startsWith('/playlists/')
 
   return (
-    <View style={styles.playlists} testID="sidebar-playlists">
+    <View style={styles.section} testID="sidebar-playlists">
       {/*
-        The header is the row: "Show all" under the pins was a second name for
-        the same page, and the header above it did nothing when clicked. The ＋
-        sits beside the row rather than inside it, so it is its own button.
+        A section, as Tags is: its header opens every playlist ("All 4"), and
+        the few under it are the ones played last. The ＋ beside the header makes
+        any of the three kinds.
       */}
-      <View style={[styles.playlistsHead, onPage && styles.itemOn]}>
+      <View style={styles.groupTitle}>
         <Pressable
           onPress={() => {
             if (pathname !== '/playlists') router.navigate('/playlists')
@@ -231,19 +239,10 @@ function Playlists(): ReactNode {
           accessibilityLabel="Playlists"
           accessibilityState={{ selected: onPage }}
           testID="nav-playlists"
-          style={({ pressed }) => [
-            styles.playlistsHeadMain,
-            pressed && !onPage && styles.rowPressed,
-          ]}
+          style={styles.groupTitleMain}
         >
-          <ListMusic size={18} tone={onPage ? 'textPrimary' : 'textMuted'} />
-          <Text
-            style={[styles.label, styles.playlistsHeadLabel, onPage && styles.labelOn]}
-            numberOfLines={1}
-          >
-            Playlists
-          </Text>
-          <Text style={styles.count}>{all?.length ?? ''}</Text>
+          <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
+          {all && all.length > 0 ? <Text style={styles.groupAll}>All {all.length}</Text> : null}
         </Pressable>
         <View ref={plusRef} collapsable={false}>
           <Pressable
@@ -253,13 +252,13 @@ function Playlists(): ReactNode {
             accessibilityLabel="New playlist"
             {...tip('New playlist')}
           >
-            <Plus size={14} tone={onPage ? 'textPrimary' : 'textMuted'} />
+            <Plus size={14} tone="textMuted" />
           </Pressable>
         </View>
       </View>
 
-      {pinned.map(playlist => (
-        <PinnedPlaylist
+      {recent.map(playlist => (
+        <RailPlaylist
           key={playlist.id}
           playlist={playlist}
           active={pathname === `/playlists/${playlist.id}`}
@@ -268,9 +267,6 @@ function Playlists(): ReactNode {
           }
         />
       ))}
-      {pinned.length === 0 && (all?.length ?? 0) > 0 ? (
-        <Text style={[styles.hint, styles.pinHint]}>Pin a playlist from its ⋯ menu.</Text>
-      ) : null}
 
       <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} anchorRef={plusRef} />
     </View>
@@ -278,10 +274,10 @@ function Playlists(): ReactNode {
 }
 
 /**
- * A pinned playlist. Songs dragged from a list drop onto it; a live one
+ * A playlist in the rail. Songs dragged from a list drop onto it; a live one
  * dims while they are dragged, because its rules decide what is in it.
  */
-function PinnedPlaylist({
+function RailPlaylist({
   playlist,
   active,
   onOpen,
@@ -361,7 +357,7 @@ function Tags(): ReactNode {
 
   // A tag filters the library, so choosing one from elsewhere goes there.
   const toLibrary = (): void => {
-    if (pathname !== '/') router.navigate('/')
+    if (pathname !== '/library') router.navigate('/library')
   }
   const choose = (tagId: number): void => {
     if (!tagSelected(filter, tagId)) noteTagUsed(tagId)
@@ -387,7 +383,18 @@ function Tags(): ReactNode {
   return (
     <View style={styles.group}>
       <View style={styles.groupTitle}>
-        <Text style={styles.groupTitleText}>TAGS</Text>
+        <Pressable
+          onPress={() => router.navigate('/tags')}
+          accessibilityRole="link"
+          accessibilityLabel={`All ${tags.length} tags`}
+          testID="sidebar-tags"
+          style={styles.groupTitleMain}
+        >
+          <Text style={[styles.groupTitleText, pathname === '/tags' && styles.groupTitleOn]}>
+            TAGS
+          </Text>
+          {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
+        </Pressable>
         <View style={styles.groupActions}>
           {tagFiltered(filter) ? (
             <Pressable
@@ -600,14 +607,17 @@ function TagRow({
 }
 
 /**
- * The foot: one line that answers the glance down — can this app reach its
- * library, and how much of it is kept offline. It opens Settings, where both
- * are managed. Rescanning the folder lives there and in ⌘K; a task needed once
- * in a while does not want a permanent place under the tags.
+ * The foot: you (`C03`), with one line under that answers the glance down —
+ * can this app reach its library, and how much of it is kept offline. It
+ * opens You. Rescanning the folder lives in Settings and in ⌘K; a task needed
+ * once in a while does not want a permanent place under the tags.
  */
 function Foot(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
+  const pathname = usePathname()
+  const accent = useAccent()
+  const avatar = tagColors(accent.hue)
   const library = useLibrary()
   const { state } = useDownloads()
   const { fromCloud } = useConnection()
@@ -634,15 +644,19 @@ function Foot(): ReactNode {
       <Pressable
         style={({ pressed }) => [
           styles.status,
+          pathname === '/you' && styles.itemOn,
           pressed && { backgroundColor: theme.colors.surface2 },
         ]}
-        onPress={() => router.navigate('/settings')}
+        onPress={() => router.navigate('/you')}
         accessibilityRole="button"
-        accessibilityLabel={library.data ? `${label}, ${detail}` : label}
+        accessibilityLabel={library.data ? `You. ${label}, ${detail}` : `You. ${label}`}
         testID="sidebar-status"
-        {...tip('Connection and offline songs')}
+        {...tip('You, your connection and offline songs')}
       >
-        <View style={[styles.statusDot, { backgroundColor: dot }]} />
+        <View style={[styles.avatar, { backgroundColor: avatar.tile }]}>
+          <User size={15} color={avatar.tileInk} />
+          <View style={[styles.statusDot, { backgroundColor: dot }]} />
+        </View>
         <View style={styles.statusText}>
           <Text style={styles.footLabel} numberOfLines={1}>
             {label}
@@ -658,12 +672,41 @@ function Foot(): ReactNode {
   )
 }
 
+/** Settings, last in the rail (`C03`). */
+function SettingsRow(): ReactNode {
+  const router = useRouter()
+  const pathname = usePathname()
+  const active = pathname === '/settings'
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.item,
+        active && styles.itemOn,
+        pressed && !active && styles.rowPressed,
+      ]}
+      onPress={() => {
+        if (!active) router.navigate('/settings')
+      }}
+      accessibilityRole="tab"
+      accessibilityLabel="Settings"
+      accessibilityState={{ selected: active }}
+      testID="nav-settings"
+    >
+      <Settings size={18} tone={active ? 'textPrimary' : 'textMuted'} />
+      <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
+        Settings
+      </Text>
+    </Pressable>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
   rail: {
     width: SIDEBAR_WIDTH,
-    // A card's tone beside the page, with no rule down its edge.
-    backgroundColor: theme.colors.surface1,
+    // The page's own ground (`C03`): the rail is told apart by what is in it,
+    // not by a tone or a rule down its edge.
+    backgroundColor: theme.colors.surface0,
     paddingHorizontal: space.md,
     paddingTop: space.xl,
     paddingBottom: space.md,
@@ -720,7 +763,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 4,
     overflow: 'hidden',
   },
-  playlists: { gap: 1, marginTop: -space.sm },
+  section: { gap: 1 },
   playlistsHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -774,7 +817,16 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
+  groupTitleMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: space.sm,
+  },
   groupTitleText: labelText(theme.colors),
+  groupTitleOn: { color: theme.colors.textPrimary },
+  groupAll: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600' },
   groupActions: { flexDirection: 'row', gap: 2 },
   tinyButton: {
     width: 24,
@@ -864,13 +916,30 @@ const styles = StyleSheet.create(theme => ({
   foot: { paddingTop: 10, gap: 1 },
   status: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 12,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Whether the library can be reached, as a dot on the avatar's shoulder.
+  statusDot: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    borderWidth: 2,
+    borderColor: theme.colors.surface0,
+  },
   statusText: { flex: 1, minWidth: 0, gap: 1 },
   statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   footLabel: { color: theme.colors.textSecondary, fontSize: 13 },

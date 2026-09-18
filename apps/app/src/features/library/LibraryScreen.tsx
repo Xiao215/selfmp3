@@ -1,3 +1,4 @@
+import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
@@ -68,6 +69,16 @@ export function LibraryScreen(): ReactNode {
   const { filter, songs, visible, songIds, songTags } = model
 
   const [searchFocused, setSearchFocused] = useState(false)
+  // Home's field and the search circle open Library with its box ready to type
+  // in, until there is one Search page (docs/UI-MIGRATION.md, Phase 3). The
+  // address says so once; it is taken off again so going back does not re-open it.
+  const searchRef = useRef<TextInput>(null)
+  const { search: searchParam } = useLocalSearchParams<{ search?: string }>()
+  useEffect(() => {
+    if (searchParam !== '1') return
+    searchRef.current?.focus()
+    router.setParams({ search: undefined })
+  }, [searchParam])
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
@@ -384,6 +395,7 @@ export function LibraryScreen(): ReactNode {
           >
             <Search size={15} color={searchFocused ? accent.accent : theme.colors.textMuted} />
             <TextInput
+              ref={searchRef}
               style={styles.search}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}

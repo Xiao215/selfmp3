@@ -17,6 +17,14 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
+# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 60000
+- tapOn:
+    id: 'tab-library'
+
 - extendedWaitUntil:
     visible:
       id: 'library-screen'
@@ -38,8 +46,10 @@ appId: com.selfmp3.app
 - evalScript: ${output.before = maestro.copiedText}
 
 # --- the list ----------------------------------------------------------------
+# Devices is on Now Playing, which the mini player opens.
 - tapOn:
-    id: 'mini-player-devices'
+    id: 'mini-player'
+- tapOn: 'Devices'
 - assertVisible:
     id: 'devices-sheet'
 - assertVisible: 'this device'

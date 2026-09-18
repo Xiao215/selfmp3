@@ -90,7 +90,7 @@ export function NotFoundScreen(): ReactNode {
         <View style={styles.buttons}>
           <Button
             label="Go to your library"
-            onPress={() => router.replace('/')}
+            onPress={() => router.replace('/library')}
             testID="not-found-library"
           />
           {wide && canGoBack ? (

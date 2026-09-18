@@ -44,6 +44,7 @@ import {
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
+import { useFloatingChrome } from '../../shell/bottomInset'
 
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
@@ -134,6 +135,8 @@ export function SelectionBar({
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
+  // Above the tab bar and the mini player, which float over the page on a phone.
+  const chrome = useFloatingChrome()
   const { data: library } = useLibrary()
   const player = usePlayer()
   const { state: downloads, queue: downloadQueue, dropDownloads } = useDownloads()
@@ -294,7 +297,10 @@ export function SelectionBar({
       </View>
     </View>
   ) : (
-    <View style={[styles.float, styles.floatBottom]} pointerEvents="box-none">
+    <View
+      style={[styles.float, styles.floatBottom, { bottom: chrome + space.sm }]}
+      pointerEvents="box-none"
+    >
       <View
         style={[styles.bar, styles.barCompact]}
         role="toolbar"

@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
@@ -23,12 +24,11 @@ const ICONS: Record<YouRowId, typeof Tag> = {
 }
 
 /**
- * You: the phone's fourth tab, a short list of the pages that are not a tab
- * of their own (you.model.ts).
+ * You: a short list of the pages that are not a tab of their own
+ * (you.model.ts), behind the avatar in Home's header on a phone.
  *
- * Linked only from the tab bar. A computer has all of these in its sidebar
- * already; at that width the page still draws, harmlessly, for anyone who
- * types its address.
+ * A computer reaches it from the name row at the foot of its sidebar, which
+ * has the rest of these as rows already.
  */
 export function YouScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -76,6 +76,7 @@ function YouPage({ plays }: { plays: number | undefined }): ReactNode {
             <Row key={row.id} row={row} />
           ))}
         </View>
+        <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )

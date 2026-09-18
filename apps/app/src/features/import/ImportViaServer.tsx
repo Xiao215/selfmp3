@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
 import { ScrollView, Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -42,6 +43,7 @@ export function ImportViaServer(): ReactNode {
         </Text>
         <ServerAway reach={reach} need="import" testID="import-server" />
         {reach.state === 'away' ? <QueueViaBucket /> : null}
+        <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )

@@ -1,7 +1,7 @@
 /**
  * The You page, without the screen: which rows it lists and what each says.
  *
- * You is the phone's fourth tab. It gathers the pages a computer keeps in its
+ * You is behind the avatar on a phone's Home. It gathers the pages a computer keeps in its
  * sidebar and a phone has nowhere else to put: Stats, Untagged and Tags,
  * with Settings.
  *

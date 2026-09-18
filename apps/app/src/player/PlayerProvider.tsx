@@ -1142,6 +1142,15 @@ export function useSongPlayback(songId: number): 'playing' | 'paused' | null {
   return useSyncExternalStore(store.subscribe, read, read)
 }
 
+/**
+ * Whether a song is loaded, for the chrome that floats over a phone's page and
+ * makes room for the mini player. False outside the provider rather than an
+ * error, so a screen rendered alone in a test draws.
+ */
+export function useSongLoaded(): boolean {
+  return (useContext(PlayerContext)?.current ?? null) !== null
+}
+
 export function usePlayer(): PlayerApi {
   const value = useContext(PlayerContext)
   if (!value) throw new Error('usePlayer must be used inside a PlayerProvider')

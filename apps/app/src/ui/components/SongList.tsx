@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useMemo } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { FlatList, type FlatListProps, type StyleProp, type ViewStyle } from 'react-native'
@@ -101,6 +102,8 @@ export function SongList({
       scrollEnabled={scrollEnabled}
       style={style}
       contentContainerStyle={contentContainerStyle}
+      // Room under the last song for a phone's floating tab bar and mini player.
+      ListFooterComponent={ChromeSpacer}
       ListHeaderComponent={header}
       onRefresh={onRefresh}
       refreshing={refreshing}

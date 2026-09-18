@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady } from './helpers.js'
+import { libraryReady, openLibrary } from './helpers.js'
 
 /**
  * Getting to the other screens.
@@ -13,6 +13,50 @@ import { libraryReady } from './helpers.js'
  * `useServerSettings`, and phase 1 made those one hook.
  */
 test.describe('navigation', () => {
+  /**
+   * The app opens on Home (docs/ui-mock `P04`, `C03`): a greeting, one search
+   * field, and Library one tap away. On a phone the bar is Home · Library ·
+   * Playlists with a search circle beside it.
+   */
+  test('a fresh launch lands on Home, and Library is one tap away', async ({ page }, info) => {
+    await page.goto('/')
+    await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
+    await expect(
+      page.getByRole('heading', { name: /^Good (morning|afternoon|evening|night)\.$/ }),
+    ).toBeVisible()
+    await expect(page.getByTestId('home-search')).toBeVisible()
+
+    if (info.project.name === 'phone') {
+      for (const tab of ['Home', 'Library', 'Playlists']) {
+        await expect(page.getByRole('tab', { name: tab, exact: true })).toBeVisible()
+      }
+      await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      await page.getByRole('tab', { name: 'Library', exact: true }).click()
+    } else {
+      await page.getByTestId('nav-library').click()
+    }
+    await expect(page).toHaveURL(/\/library$/)
+    await libraryReady(page)
+  })
+
+  test("a phone's search circle opens Library with its search box ready", async ({
+    page,
+  }, info) => {
+    test.skip(
+      info.project.name !== 'phone',
+      "the circle is a phone's; a computer has ⌘K and the rail",
+    )
+    await page.goto('/')
+    await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('tab-search').click()
+    await expect(page).toHaveURL(/\/library/)
+    await libraryReady(page)
+    await expect(page.getByRole('textbox', { name: 'Search library' })).toBeFocused()
+  })
+
   test('playlists', async ({ page }) => {
     await page.goto('/playlists')
     await expect(page.getByRole('heading', { name: /playlists/i })).toBeVisible({
@@ -40,11 +84,15 @@ test.describe('navigation', () => {
   })
 
   test('a phone reaches Tags and Settings from You, and comes back', async ({ page }, info) => {
-    test.skip(info.project.name !== 'phone', 'You is a phone’s tab; a computer has the sidebar')
+    test.skip(
+      info.project.name !== 'phone',
+      'You is behind a phone’s avatar; a computer has the sidebar',
+    )
     await page.goto('/')
-    await libraryReady(page)
+    await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
 
-    await page.getByRole('tab', { name: 'You', exact: true }).click()
+    // You is the avatar in Home's header.
+    await page.getByTestId('home-you').click()
     await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
     await page.getByRole('link', { name: /^Tags/ }).click()
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible()
@@ -55,8 +103,8 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
-    // Settings is one of You's pages, so You stays lit.
-    await expect(page.getByRole('tab', { name: 'You', exact: true })).toHaveAttribute(
+    // Settings is reached from Home, through You, so Home stays lit.
+    await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -96,7 +144,7 @@ test.describe('navigation', () => {
     }
 
     await page.getByTestId('tags-pick-to-listen').click()
-    await expect(page).toHaveURL(/\/$/)
+    await expect(page).toHaveURL(/\/library$/)
     await libraryReady(page)
     // The library arrives with its picker already down, where the songs are.
     await expect(page.getByTestId('listen-tags')).toBeVisible()
@@ -107,7 +155,7 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
   })
 })

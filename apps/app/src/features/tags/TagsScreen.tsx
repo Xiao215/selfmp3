@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
@@ -74,7 +75,7 @@ export function TagsScreen(): ReactNode {
       const turningOn = !tagSelected(filter, tagId)
       if (turningOn) noteTagUsed(tagId)
       setFilter(current => toggleTag(current, tagId))
-      if (turningOn) router.navigate('/')
+      if (turningOn) router.navigate('/library')
     },
     [filter, setFilter, router],
   )
@@ -224,7 +225,7 @@ export function TagsScreen(): ReactNode {
       <Pressable
         onPress={() => {
           openTagSearch()
-          router.navigate('/')
+          router.navigate('/library')
         }}
         accessibilityRole="link"
         accessibilityLabel="Pick tags to listen to, in your library"
@@ -276,6 +277,7 @@ export function TagsScreen(): ReactNode {
               </Pressable>
             ))
           )}
+          <ChromeSpacer />
         </ScrollView>
       )}
 

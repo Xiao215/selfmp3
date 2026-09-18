@@ -3,24 +3,23 @@ import { describe, expect, it } from 'vitest'
 import { activeTab } from '../ui/components/bottomNav.model'
 import { swipeBackAllowed } from './backGesture'
 
-/** The four tabs the bar draws, as `BottomNav` lists them. */
-const TABS = ['/', '/playlists', '/import', '/you']
+/** The three tabs the bar draws, as `BottomNav` lists them. */
+const TABS = ['/', '/library', '/playlists']
 
 describe('the swipe-back gesture', () => {
   it('is off on every page a tab points at, so no swipe changes tab', () => {
-    for (const route of ['index', 'playlists/index', 'import/index', 'you']) {
+    for (const route of ['index', 'library', 'playlists/index']) {
       expect(swipeBackAllowed(route)).toBe(false)
     }
   })
 
   it('is off on a folder route spelled without its index', () => {
     expect(swipeBackAllowed('playlists')).toBe(false)
-    expect(swipeBackAllowed('import')).toBe(false)
   })
 
   it('covers every tab in the bar', () => {
     // Changing tab pushes the tab's own page, and nothing else does, so the
-    // pages that must refuse the gesture are exactly these four. A fifth tab
+    // pages that must refuse the gesture are exactly these three. A fourth tab
     // is covered the moment `activeTab` knows it.
     for (const href of TABS) {
       expect(activeTab(href)).toBe(href)
@@ -36,7 +35,9 @@ describe('the swipe-back gesture', () => {
   it('stays on a page pushed from the one it goes back to', () => {
     for (const route of [
       'playlists/[id]',
+      'import/index',
       'import/migrate',
+      'you',
       'settings',
       'stats/index',
       'stats/report',

@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, playSong, skipIfNoLibrary, songRows, transport } from './helpers.js'
+import {
+  libraryReady,
+  openLibrary,
+  playSong,
+  skipIfNoLibrary,
+  songRows,
+  transport,
+} from './helpers.js'
 
 /**
  * Practice: loop a phrase, change the speed, and put it all back.
@@ -14,7 +21,7 @@ test.describe('practice', () => {
   test('set an A–B loop, clear it, and change the speed', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'a phone opens practice from Now Playing')
     test.setTimeout(60_000)
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, playSong, skipIfNoLibrary, songRows } from './helpers.js'
+import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
  * Coming back after a refresh.
@@ -12,7 +12,7 @@ import { libraryReady, playSong, skipIfNoLibrary, songRows } from './helpers.js'
  */
 test.describe('coming back', () => {
   test('a refresh keeps the song, and the address names it', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
     await playSong(page, songRows(page).first())

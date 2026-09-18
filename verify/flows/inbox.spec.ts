@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { escaped } from './helpers.js'
+import { escaped, openLibrary } from './helpers.js'
 
 /**
  * The tag inbox: a song without a tag is listed, tagged from the inbox one at a
@@ -45,7 +45,7 @@ test.describe('the tag inbox', () => {
 
     await setTags(page, target.id, [])
     try {
-      await page.goto('/')
+      await openLibrary(page)
       await page.evaluate(() => {
         localStorage.setItem('selfmp3:triage-play-along', 'false')
         localStorage.setItem('selfmp3.triage-play-along', 'false')

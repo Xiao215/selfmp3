@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   libraryReady,
+  openLibrary,
   playSong,
   positionSeconds,
   seekReady,
@@ -21,7 +22,7 @@ import {
  */
 test.describe('playback', () => {
   test('a song plays, and the player bar shows it', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
@@ -44,7 +45,7 @@ test.describe('playback', () => {
    * as a press of itself and played the song again from the start.
    */
   test('Space pauses and plays again', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
@@ -70,7 +71,7 @@ test.describe('playback', () => {
   })
 
   test('next moves to another song', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page, 2)
 
@@ -78,7 +79,7 @@ test.describe('playback', () => {
     await playSong(page, await topRow(page))
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Next' }).click()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
     // The now-playing control is labelled with whatever is now playing.
     await expect(page.getByRole('button', { name: /^Open now playing: / })).not.toHaveAttribute(
       'aria-label',

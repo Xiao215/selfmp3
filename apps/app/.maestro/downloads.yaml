@@ -12,15 +12,25 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
+# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 60000
+- tapOn:
+    id: 'tab-library'
+
 - extendedWaitUntil:
     visible:
       id: 'song-row-0'
     timeout: 60000
 
 # --- both settings off ---------------------------------------------------------
-# Settings is one of the pages the You tab lists.
+# Settings is under You, which is the avatar on Home.
 - tapOn:
-    id: 'tab-you'
+    id: 'tab-home'
+- tapOn:
+    id: 'home-you'
 - tapOn:
     id: 'you-settings'
 - scrollUntilVisible:
@@ -60,7 +70,9 @@ appId: com.selfmp3.app
 
 # --- back as it was ------------------------------------------------------------------
 - tapOn:
-    id: 'tab-you'
+    id: 'tab-home'
+- tapOn:
+    id: 'home-you'
 - tapOn:
     id: 'you-settings'
 - scrollUntilVisible:

@@ -112,7 +112,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const runCommand = (id: PaletteCommandId): void => {
     switch (id) {
       case 'nav-library':
-        router.navigate('/')
+        router.navigate('/library')
         return
       case 'nav-playlists':
         router.navigate('/playlists')
@@ -170,7 +170,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         // whatever was already chosen.
         noteTagUsed(tag.id)
         setFilter(current => toggleTag(clearTagFilter(current), tag.id))
-        router.navigate('/')
+        router.navigate('/library')
       },
     })),
     ...lyricHits.map(hit => ({ key: `lyric-${hit.songId}`, run: () => playSong(hit.songId) })),

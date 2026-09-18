@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, playSong, skipIfNoLibrary, songRows } from './helpers.js'
+import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
  * Now Playing on a computer, driven from the player bar.
@@ -17,7 +17,7 @@ test.describe('now playing', () => {
     page,
   }, info) => {
     test.skip(info.project.name === 'phone', 'the tabbed page is the computer layout')
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
     await playSong(page, songRows(page).first())
@@ -64,7 +64,7 @@ test.describe('now playing', () => {
 
   test('in Focus the player bar steps aside while the mouse is still', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'Focus is the computer layout')
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
     await playSong(page, songRows(page).first())
@@ -89,7 +89,7 @@ test.describe('now playing', () => {
       info.project.name !== 'phone',
       'the shelf is the phone page’s; the stage has no room for it',
     )
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page, 3)
     await playSong(page, songRows(page).first())

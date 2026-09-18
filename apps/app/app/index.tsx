@@ -1,10 +1,7 @@
 /**
- * The library route.
+ * The first route: Home (docs/ui-mock `P04`, `C03`), where the app opens.
  *
  * A route file renders a feature and does nothing else — `docs/ARCHITECTURE.md`'s
- * layout for `apps/app`. The screen and everything it knows live in
- * `src/features/library/`, which is also where its model and that model's tests
- * are, so a feature is one folder rather than a screen here and its logic
- * somewhere else.
+ * layout for `apps/app`.
  */
-export { LibraryScreen as default } from '../src/features/library/LibraryScreen'
+export { HomeScreen as default } from '../src/features/home/HomeScreen'

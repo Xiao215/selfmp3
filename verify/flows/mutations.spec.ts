@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import { libraryReady, openLibrary, rowFor, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
 
 /**
  * Loving a song: the mutation path, end to end.
@@ -15,7 +15,7 @@ import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf } from './help
  */
 test.describe('loving a song', () => {
   test('survives a reload, and can be undone', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

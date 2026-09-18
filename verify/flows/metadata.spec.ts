@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, rowFor, skipIfNoLibrary } from './helpers.js'
+import { libraryReady, openLibrary, rowFor, skipIfNoLibrary } from './helpers.js'
 
 /**
  * Fixing a song's metadata: open it from the song's menu, look at the
@@ -16,7 +16,7 @@ test.describe('fixing metadata', () => {
   test('review a suggestion’s changes, untick them, and cancel', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'the row menu is a desktop hover here')
     test.setTimeout(90_000)
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
     test.skip((await rowFor(page, SONG).count()) === 0, `${SONG} is not in this library`)

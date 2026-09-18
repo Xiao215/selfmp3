@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
@@ -148,7 +149,9 @@ export function InboxScreen(): ReactNode {
                 // Back when the library is what is behind; otherwise the
                 // library in this page's place, rather than one more page on top.
                 onPress={() =>
-                  cameFrom(navigation.getState(), 'index') ? router.back() : router.replace('/')
+                  cameFrom(navigation.getState(), 'library')
+                    ? router.back()
+                    : router.replace('/library')
                 }
               />
             </View>
@@ -454,6 +457,7 @@ function Triage({ ids, onExit }: { ids: readonly number[]; onExit: () => void })
           <Inbox size={13} color={theme.colors.textMuted} />
           <Text style={styles.hint}>Songs you skip stay in Untagged.</Text>
         </View>
+        <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )

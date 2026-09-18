@@ -292,11 +292,11 @@ export const fonts = {
 /** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
 export const HIT_TARGET = 44
 
-/** `tokens.reference.css`'s `--mobile-nav-height`, before the safe-area inset is added. */
-export const NAV_HEIGHT = 58
+/** The phone's floating tab bar and search circle (`P04`): 60 high, floating over the page. */
+export const NAV_HEIGHT = 60
 
-/** Height of the mini player that sits above the nav: 8px + 40px cover + 8px. */
-export const MINI_PLAYER_HEIGHT = 56
+/** The floating mini player above the bar: 8 + a 44 cover + 8. */
+export const MINI_PLAYER_HEIGHT = 60
 
 /**
  * `tokens.reference.css`'s motion tokens: quick and subtle. `--dur-fast`,

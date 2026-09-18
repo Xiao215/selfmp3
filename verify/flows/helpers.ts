@@ -21,6 +21,15 @@ export function escaped(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Open the library, which is `/library` now that the app opens on Home
+ * (docs/UI-MIGRATION.md, Phase 2). Every flow that starts with "open Library"
+ * goes through here, so where Library lives is written once.
+ */
+export async function openLibrary(page: Page): Promise<void> {
+  await page.goto('/library')
+}
+
 /** The songs table, which is labelled `<heading> songs`. */
 export function songTable(page: Page): Locator {
   return page.getByRole('table', { name: /songs$/ })

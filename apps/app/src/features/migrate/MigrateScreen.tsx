@@ -1,3 +1,4 @@
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
@@ -397,6 +398,7 @@ export function MigrateScreen(): ReactNode {
             ) : null}
           </View>
         )}
+        <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )

@@ -14,6 +14,14 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
+# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 60000
+- tapOn:
+    id: 'tab-library'
+
 # --- library -----------------------------------------------------------------
 # Waited for rather than asserted at once: a dev client fetches its bundle on
 # launch, and after Metro restarts the cold bundle takes about 13 seconds.

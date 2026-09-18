@@ -30,11 +30,18 @@ export function PlayPauseIcon({
     if (playing === shown) return
     // Out to nothing, swap the glyph at the bottom of the dip, and back in.
     // Under Reduce Motion both halves land at once and the glyph just changes.
+    // Stopped only if it is still on its way out: `stop()` stops the value
+    // itself, which once the swap has happened would freeze the glyph coming
+    // back in, half faded.
+    let landed = false
     const out = timing(turn, 0, SWAP_MS / 2, () => {
+      landed = true
       setShown(playing)
       timing(turn, 1, SWAP_MS / 2)
     })
-    return () => out?.stop()
+    return () => {
+      if (!landed) out?.stop()
+    }
   }, [playing, shown, turn])
 
   const style = {

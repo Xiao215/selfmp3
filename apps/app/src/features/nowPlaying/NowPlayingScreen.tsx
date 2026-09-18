@@ -140,7 +140,9 @@ function PhoneNowPlaying(): ReactNode {
   const { width, height } = useWindowDimensions()
   const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
 
-  const [panel, setPanel] = useState<Panel>('none')
+  // The mini player's queue button opens the page with Up next already raised.
+  const { panel: panelParam } = useLocalSearchParams<{ panel?: string }>()
+  const [panel, setPanel] = useState<Panel>(panelParam === 'queue' ? 'queue' : 'none')
   const [showWords, setShowWords] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
   // While the timer runs the Sleep button says how long is left, not just "Sleep".

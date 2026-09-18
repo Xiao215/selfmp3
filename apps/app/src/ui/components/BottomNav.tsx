@@ -1,32 +1,35 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { NAV_HEIGHT, radius, type } from '@selfmp3/client'
+import { NAV_HEIGHT, radius } from '@selfmp3/client'
+import { glassBlur } from '../../ports/glassBlur'
+import { navBottom } from '../../shell/bottomInset'
+import { usePressScale } from '../motion'
+import { floating } from '../surfaces'
 import { activeTab, type TabHref } from './bottomNav.model'
-import { Download, ListMusic, Music, User } from './Icons'
+import { Home, ListMusic, Music, Search } from './Icons'
 
 /**
- * The tab bar.
+ * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
+ * with Home, Library and Playlists, and a separate search circle beside it.
  *
- * Hand-rolled rather than expo-router's Tabs: a mini player has to sit
- * directly above the tabs, and a custom bar is less code besides.
+ * Hand-rolled rather than expo-router's Tabs: the mini player floats directly
+ * above it, and a custom bar is less code besides.
  *
- * Four tabs. Library, Playlists and Import are places you go every day; the
- * fourth, You, lists the rest — Stats, Untagged, Tags and Settings — rather
- * than giving the bar's last slot to Settings alone. Import works anywhere:
- * connected, it looks a link up; signed in to the cloud, it asks the server.
+ * Everything that is not a tab is reached from Home — the tags, You behind the
+ * avatar, Import behind the + — so three tabs are enough. The current tab is a
+ * white pill with dark ink, as a chosen chip is; neither is the accent, which
+ * is kept for the button that commits.
  *
- * The current tab is marked twice: a white pill behind the icon, and its label
- * at full strength. Colour alone is a weak signal at 20px; light against dark
- * is not, and neither is the accent, which is kept for the button that commits.
+ * Both float, on glass: a translucent fill that a browser also blurs. The page
+ * runs on under them, so every list keeps room at its end (`useBottomInset`).
  */
-const TABS: { href: TabHref; label: string; Icon: typeof Music }[] = [
-  { href: '/', label: 'Library', Icon: Music },
-  { href: '/playlists', label: 'Playlists', Icon: ListMusic },
-  { href: '/import', label: 'Import', Icon: Download },
-  { href: '/you', label: 'You', Icon: User },
+const TABS: { href: TabHref; label: string; Icon: typeof Music; id: string }[] = [
+  { href: '/', label: 'Home', Icon: Home, id: 'home' },
+  { href: '/library', label: 'Library', Icon: Music, id: 'library' },
+  { href: '/playlists', label: 'Playlists', Icon: ListMusic, id: 'playlists' },
 ]
 
 export function BottomNav(): ReactNode {
@@ -34,69 +37,114 @@ export function BottomNav(): ReactNode {
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
   const current = activeTab(pathname)
+  const bottom = navBottom(insets.bottom)
 
   return (
-    <View
-      style={[styles.bar, { paddingBottom: insets.bottom, height: NAV_HEIGHT + insets.bottom }]}
-      accessibilityRole="tablist"
-    >
-      {TABS.map(tab => {
-        const active = tab.href === current
-        return (
-          <Pressable
-            key={tab.href}
-            style={styles.tab}
-            onPress={() => {
-              // A lit tab still goes to its own first page: You from Settings,
-              // Playlists from a playlist, as a phone's tab bar does.
-              if (pathname !== tab.href) router.navigate(tab.href)
-            }}
-            testID={`tab-${tab.label.toLowerCase()}`}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: active }}
-            // react-native-web does not turn `accessibilityState` into aria-selected.
-            aria-selected={active}
-          >
-            <View style={[styles.pill, active && styles.pillOn]}>
-              <tab.Icon size={20} tone={active ? 'onPrimary' : 'textMuted'} />
-            </View>
-            <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        )
-      })}
-    </View>
+    <>
+      <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
+        {TABS.map(tab => {
+          const active = tab.href === current
+          return (
+            <Pressable
+              key={tab.href}
+              style={[styles.tab, active && styles.tabOn]}
+              onPress={() => {
+                // A lit tab still goes to its own first page: Home from
+                // Settings, Playlists from a playlist, as a phone's tab bar does.
+                if (pathname !== tab.href) router.navigate(tab.href)
+              }}
+              testID={`tab-${tab.id}`}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: active }}
+              // react-native-web does not turn `accessibilityState` into aria-selected.
+              aria-selected={active}
+            >
+              <tab.Icon size={20} tone={active ? 'onPrimary' : 'textSecondary'} />
+              <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
+      <SearchCircle bottom={bottom} />
+    </>
   )
 }
 
+/**
+ * Search, on its own beside the tabs. Until the Search page exists
+ * (docs/UI-MIGRATION.md, Phase 3) it opens Library with its search box ready.
+ */
+function SearchCircle({ bottom }: { bottom: number }): ReactNode {
+  const router = useRouter()
+  const press = usePressScale()
+  return (
+    <Animated.View style={[styles.circleSlot, { bottom }, press.style]}>
+      <Pressable
+        {...press.handlers}
+        testID="tab-search"
+        onPress={() => router.navigate({ pathname: '/library', params: { search: '1' } })}
+        accessibilityRole="button"
+        accessibilityLabel="Search"
+        style={styles.circle}
+      >
+        <Search size={20} tone="textPrimary" />
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+/** Room between the bar and the search circle, and from each edge. */
+const EDGE = 16
+
 const styles = StyleSheet.create(theme => ({
   bar: {
+    position: 'absolute',
+    left: EDGE,
+    right: EDGE + NAV_HEIGHT + EDGE,
+    height: NAV_HEIGHT,
+    borderRadius: radius.pill,
     flexDirection: 'row',
-    // A card's tone against the page, with no line along its top.
-    backgroundColor: theme.colors.surface1,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 6,
+    backgroundColor: theme.colors.glass,
+    ...glassBlur,
+    ...floating(theme.colors),
   },
   tab: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  pill: {
-    width: 46,
-    height: 26,
+    height: 48,
+    minWidth: 64,
+    paddingHorizontal: 12,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: type.label,
-    fontWeight: '500',
+    gap: 1,
   },
   // The tab you are on: the white primary fill, as a chosen chip is.
-  pillOn: { backgroundColor: theme.colors.textPrimary },
-  labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
+  tabOn: { backgroundColor: theme.colors.textPrimary },
+  label: {
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  labelOn: { color: theme.colors.onPrimary },
+  circleSlot: {
+    position: 'absolute',
+    right: EDGE,
+    width: NAV_HEIGHT,
+    height: NAV_HEIGHT,
+  },
+  circle: {
+    width: NAV_HEIGHT,
+    height: NAV_HEIGHT,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.glass,
+    ...glassBlur,
+    ...floating(theme.colors),
+  },
 }))

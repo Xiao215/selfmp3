@@ -1,29 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, Text } from 'react-native'
+import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { useSongColor } from '../useSongColor'
-import { currentColorScheme, MINI_PLAYER_HEIGHT, motion, space } from '@selfmp3/client'
-import { DevicesSheet } from '../../features/devices/DevicesSheet'
+import {
+  currentColorScheme,
+  MINI_PLAYER_HEIGHT,
+  motion,
+  NAV_HEIGHT,
+  radius,
+  space,
+} from '@selfmp3/client'
+import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
-import { Devices, Next } from './Icons'
+import { Next, Queue } from './Icons'
 import { floating } from '../surfaces'
 import { PlayPauseIcon } from './PlayPauseIcon'
 
 /**
- * The compact strip above the tab bar.
+ * The mini player: a card floating over the page, above the tab bar
+ * (docs/ui-mock `P04`).
  *
- * Nothing when there is no current track, so the list gets the full screen
+ * Nothing when there is no current track, so the list gets the whole screen
  * until something is playing; then it rises into place. The progress wash:
  * the cover's colour fills the card from the left as the song plays, fading
  * out at its leading edge, with a thin line along its foot. Tapping anywhere
- * but the two transport buttons opens the song's own page, and those two are
- * full touch targets — the only transport on the compact layout's home screen.
+ * but the buttons opens Now Playing. The buttons are Up next, play and next,
+ * each a full touch target; Devices lives on Now Playing and in Settings.
  */
 export function MiniPlayer(): ReactNode {
   const { theme } = useUnistyles()
@@ -31,7 +40,7 @@ export function MiniPlayer(): ReactNode {
   const player = usePlayer()
   const router = useRouter()
   const song = player.current
-  const [devicesOpen, setDevicesOpen] = useState(false)
+  const insets = useSafeAreaInsets()
   const songColor = useSongColor(song, song ? artFor(song) : null)
 
   // Slides up when a song first appears; the words fade over when it changes.
@@ -66,6 +75,7 @@ export function MiniPlayer(): ReactNode {
       testID="mini-player"
       style={[
         styles.bar,
+        { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
         {
           opacity: rise,
           transform: [
@@ -79,7 +89,9 @@ export function MiniPlayer(): ReactNode {
         },
       ]}
     >
-      <MiniProgress color={songColor.color} />
+      <View style={styles.clip} pointerEvents="none">
+        <MiniProgress color={songColor.color} />
+      </View>
 
       <Pressable
         style={styles.expand}
@@ -88,7 +100,7 @@ export function MiniPlayer(): ReactNode {
         accessibilityLabel={`Open now playing: ${song.title}`}
       />
 
-      <Cover uri={artFor(song)} title={song.album || song.title} size={40} />
+      <Cover uri={artFor(song)} title={song.album || song.title} size={44} />
       <Animated.View style={[styles.meta, { opacity: words }]} pointerEvents="none">
         <Text style={styles.title} numberOfLines={1}>
           {song.title}
@@ -98,10 +110,14 @@ export function MiniPlayer(): ReactNode {
         </Text>
       </Animated.View>
 
-      {/* Where else this could be playing, first in the row: beside the
-          transport, not buried in a menu. */}
-      <IconButton testID="mini-player-devices" onPress={() => setDevicesOpen(true)} label="Devices">
-        <Devices size={19} color={theme.colors.textSecondary} />
+      {/* Up next. Until it is a sheet of its own (docs/UI-MIGRATION.md, Phase 6)
+          it opens Now Playing with the queue already raised. */}
+      <IconButton
+        testID="mini-player-queue"
+        onPress={() => router.push({ pathname: '/now-playing', params: { panel: 'queue' } })}
+        label="Up next"
+      >
+        <Queue size={20} color={theme.colors.textSecondary} />
       </IconButton>
       {/*
         The transport carries whether it is playing in its own testID, rather
@@ -120,8 +136,6 @@ export function MiniPlayer(): ReactNode {
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={theme.colors.textSecondary} />
       </IconButton>
-
-      <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </Animated.View>
   )
 }
@@ -145,16 +159,31 @@ function MiniProgress({ color }: { color: string }): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   bar: {
-    height: MINI_PLAYER_HEIGHT + 1,
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    height: MINI_PLAYER_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.md,
-    // A step up from the page with no edge along its top; it floats over the
-    // list, so it casts the floating shadow (`S2`, "Depth").
+    gap: 4,
+    paddingLeft: space.sm,
+    paddingRight: 4,
+    borderRadius: radius.mini,
+    // A control's tone over the page; it floats over the list, so it casts
+    // the floating shadow (`S2`, "Depth").
     backgroundColor: theme.colors.surface2,
-    overflow: 'hidden',
     ...floating(theme.colors),
+  },
+  // The wash is clipped to the card's corners; the card itself is not, or
+  // its shadow would be clipped with it.
+  clip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.mini,
+    overflow: 'hidden',
   },
   expand: {
     position: 'absolute',
@@ -166,14 +195,16 @@ const styles = StyleSheet.create(theme => ({
   meta: {
     flex: 1,
     minWidth: 0,
+    marginLeft: 8,
+    gap: 1,
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   artist: {
-    color: theme.colors.textMuted,
-    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
   },
 }))

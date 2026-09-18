@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf, topRow } from './helpers.js'
+import {
+  libraryReady,
+  openLibrary,
+  rowFor,
+  skipIfNoLibrary,
+  songRows,
+  titleOf,
+  topRow,
+} from './helpers.js'
 
 /**
  * The library: the screen that proves `useLibrary` still works.
@@ -11,7 +19,7 @@ import { libraryReady, rowFor, skipIfNoLibrary, songRows, titleOf, topRow } from
  */
 test.describe('library', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
   })
 

@@ -303,6 +303,16 @@ export const Plus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode
   )
 }
 
+/** A house, for Home: a roof over a door. */
+export const Home = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" />
+    </Icon>
+  )
+}
+
 export const Search = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

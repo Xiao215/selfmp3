@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
+import { libraryReady, openLibrary, skipIfNoLibrary, songRows, titleOf } from './helpers.js'
 
 /**
  * A song's ⋯ menu: what is in it, in what order, and the two things it opens.
@@ -22,7 +22,7 @@ const ORDER = [
 
 test.describe('the song menu', () => {
   test('lists the web’s actions in order, and opens details and tags', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

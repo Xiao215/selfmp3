@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { libraryReady, skipIfNoLibrary, escaped } from './helpers.js'
+import { escaped, libraryReady, openLibrary, skipIfNoLibrary } from './helpers.js'
 
 /**
  * A playlist that follows tags: saving one, editing it, and stopping.
@@ -65,7 +65,7 @@ async function twoTags(page: Page): Promise<readonly [LibraryTag, LibraryTag] | 
 test.describe('a playlist that follows tags', () => {
   test('saving the chosen tags makes one, and it follows them', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'the head’s Save is a computer’s')
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
@@ -103,7 +103,7 @@ test.describe('a playlist that follows tags', () => {
   })
 
   test('the Follows row adds a tag, and Stop following keeps every song', async ({ page }) => {
-    await page.goto('/')
+    await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 

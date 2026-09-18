@@ -16,6 +16,7 @@ import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
+import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout } from './useLayout'
@@ -30,8 +31,9 @@ import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } fr
 /**
  * The frame around every screen, and the only thing that knows the width.
  *
- * Below 820 it is the phone: the screen fills the display with a mini player
- * and a tab bar stacked under it. At 820 and above it is the desktop: a sidebar
+ * Below 820 it is the phone: the screen fills the display, and a mini player
+ * and a tab bar float over its foot (docs/ui-mock `P04`); every scrolling page
+ * leaves room for them with `useBottomInset`. At 820 and above it is the desktop: a sidebar
  * down the left, the screen beside it, a player bar across the foot. Same
  * routes, same screens, same providers — `docs/ARCHITECTURE.md`, foundation 5.
  *
@@ -240,7 +242,7 @@ const VOLUME_STEP = 0.05
 function MenuCommands(): ReactNode {
   const player = usePlayer()
   useCommands({
-    library: () => router.navigate('/'),
+    library: () => router.navigate('/library'),
     playlists: () => router.navigate('/playlists'),
     'now-playing': () => router.navigate('/now-playing'),
     settings: () => router.navigate('/settings'),
@@ -279,11 +281,13 @@ function PaletteHost(): ReactNode {
  * the mini player, so a message never covers the transport.
  */
 function Toasts(): ReactNode {
-  // Above a phone's floating selection bar rather than over its buttons.
+  // Above a phone's floating tab bar and mini player, and above its floating
+  // selection bar rather than over its buttons.
   const lifted = useSelectionBarFloating()
+  const chrome = useFloatingChrome()
   return (
     <View
-      style={[styles.toasts, lifted && { bottom: 10 + SELECTION_BAR_SPACE }]}
+      style={[styles.toasts, { bottom: 10 + chrome + (lifted ? SELECTION_BAR_SPACE : 0) }]}
       pointerEvents="box-none"
     >
       <ResumeToast />

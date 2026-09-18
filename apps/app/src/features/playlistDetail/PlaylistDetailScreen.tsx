@@ -282,7 +282,7 @@ export function PlaylistDetailScreen(): ReactNode {
       toggleTag: tagId => {
         noteTagUsed(tagId)
         latest.current.setFilter(filter => ({ ...filter, tagIds: [tagId], query: '' }))
-        router.push('/')
+        router.push('/library')
       },
       editTags: (anchor, song) => {
         tagAnchorRef.current = anchor

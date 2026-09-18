@@ -22,6 +22,14 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
+# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 90000
+- tapOn:
+    id: 'tab-library'
+
 # The library is the cached copy, which shows once the request has timed out
 # and been retried once: about half a minute.
 - extendedWaitUntil:

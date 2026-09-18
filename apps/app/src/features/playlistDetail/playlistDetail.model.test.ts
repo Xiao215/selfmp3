@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cameFrom, dropIndex, moveItem } from './playlistDetail.model'
+import { cameFrom, dropIndex, movedTo, moveItem } from './playlistDetail.model'
 
 describe('where a back link goes', () => {
   const stack = (...names: string[]) => ({
@@ -48,5 +48,48 @@ describe('reordering a playlist', () => {
 
   it('stays put before the row height is known', () => {
     expect(dropIndex(3, 120, 0, 5)).toBe(3)
+  })
+})
+
+/*
+ * What a finished move means, whichever way the row was moved: the grip a
+ * mouse drags at desktop width and a held finger on a phone both end here,
+ * and the order this returns is the one order the server is sent.
+ */
+describe('what a finished move sends', () => {
+  const ids = [10, 11, 12, 13, 14]
+
+  it('gives the whole new order, and where the row landed', () => {
+    expect(movedTo(ids, 0, 110, 50)).toEqual({ to: 2, songIds: [11, 12, 10, 13, 14] })
+    expect(movedTo(ids, 4, -160, 50)).toEqual({ to: 1, songIds: [10, 14, 11, 12, 13] })
+  })
+
+  it('sends nothing for a hold let go where it started', () => {
+    expect(movedTo(ids, 2, 0, 50)).toBeNull()
+    // Less than half a row is not a move.
+    expect(movedTo(ids, 2, 20, 50)).toBeNull()
+    // A move that was taken away comes back as no travel at all.
+    expect(movedTo(ids, 0, 0, 50)).toBeNull()
+  })
+
+  it('sends nothing before a row has been measured', () => {
+    expect(movedTo(ids, 1, 400, 0)).toBeNull()
+  })
+
+  it('never carries a row past either end', () => {
+    expect(movedTo(ids, 1, -400, 50)).toEqual({ to: 0, songIds: [11, 10, 12, 13, 14] })
+    expect(movedTo(ids, 1, 400, 50)).toEqual({ to: 4, songIds: [10, 12, 13, 14, 11] })
+  })
+
+  it('keeps every song, and the caller’s list', () => {
+    const given = [...ids]
+    const moved = movedTo(given, 3, -150, 50)
+    expect(moved?.songIds).toHaveLength(ids.length)
+    expect([...(moved?.songIds ?? [])].sort((a, b) => a - b)).toEqual(ids)
+    expect(given).toEqual(ids)
+  })
+
+  it('has nothing to say about an empty playlist', () => {
+    expect(movedTo([], 0, 100, 50)).toBeNull()
   })
 })

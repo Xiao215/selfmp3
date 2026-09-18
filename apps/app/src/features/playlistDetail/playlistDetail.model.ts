@@ -45,3 +45,23 @@ export function dropIndex(from: number, dy: number, rowHeight: number, count: nu
   const rows = rowHeight > 0 ? Math.round(dy / rowHeight) : 0
   return Math.max(0, Math.min(count - 1, from + rows))
 }
+
+/**
+ * What a finished move means: where the row landed, and the whole new order to
+ * send. Null when it landed where it started — a hold let go without moving,
+ * or a move that came back — and there is nothing to tell the server.
+ *
+ * One function for both ways of moving a row: the grip a mouse drags at
+ * desktop width, and a held finger on a phone. They differ in how the travel
+ * is measured, and in nothing after that.
+ */
+export function movedTo(
+  songIds: readonly number[],
+  from: number,
+  dy: number,
+  rowHeight: number,
+): { to: number; songIds: number[] } | null {
+  const to = dropIndex(from, dy, rowHeight, songIds.length)
+  if (to === from) return null
+  return { to, songIds: moveItem(songIds, from, to) }
+}

@@ -482,6 +482,7 @@ do it; *Server* means it needs the server's own disk or tools.
 | Playlists: create, rename, pin, smart rules | yes | no | Both (rules editor at desktop width first) |
 | Now playing: art, lyrics, queue, about | yes | art, lyrics, queue | Both |
 | Lyrics romanisation, focus mode | yes | no | Both (focus at desktop width) |
+| Playlist reorder | drag by the grip | hold the row and move it | Both (`ui/components/HoldToReorder`) |
 | Queue reorder | drag | no | Both (drag with gesture-handler) |
 | Devices, handoff, remote control | yes | no | Both |
 | Offline library | Cache API | files | Both, one UI |

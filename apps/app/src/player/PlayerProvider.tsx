@@ -1142,11 +1142,6 @@ export function useSongPlayback(songId: number): 'playing' | 'paused' | null {
   return useSyncExternalStore(store.subscribe, read, read)
 }
 
-/** Whether this song is the loaded one, playing or paused. */
-export function useIsCurrentSong(songId: number): boolean {
-  return useSongPlayback(songId) !== null
-}
-
 export function usePlayer(): PlayerApi {
   const value = useContext(PlayerContext)
   if (!value) throw new Error('usePlayer must be used inside a PlayerProvider')

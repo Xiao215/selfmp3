@@ -59,6 +59,12 @@ const SIDEBAR_WIDTH = 244
  * closures over it (one function serves every row), and whether this is the
  * loaded song is asked of the player by the row itself (`useSongPlayback`)
  * rather than handed down, which would redraw every row on every song change.
+ *
+ * A playlist's rows are these rows. What a playlist adds — a grip to drag by,
+ * the lifted look while a row is being moved, the line where it would land —
+ * arrives as `leading`, `lifted` and `dropTarget`, so there is one song row in
+ * the app and not one per page. Taking a song off a playlist is in its ⋯ menu,
+ * where every other thing done to a song already is.
  */
 export const SongRow = memo(function SongRow({
   testID,
@@ -81,6 +87,9 @@ export const SongRow = memo(function SongRow({
   onLongPress,
   menuOpen = false,
   unavailable = false,
+  leading,
+  lifted = false,
+  dropTarget = false,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -123,8 +132,12 @@ export const SongRow = memo(function SongRow({
   onToggleTag?: (tagId: number) => void
   /** The dashed + beside the chips. Handed the +, so the tag window can open over it. */
   onEditTags?: (anchor: View | null, song: Song) => void
-  /** Holding the row on a phone. Without it, holding opens the ⋯ menu. */
-  onLongPress?: (song: Song) => void
+  /**
+   * Holding the row on a phone. Without it, holding opens the ⋯ menu; `null`
+   * when something outside the row has the hold already — on a playlist you
+   * made, holding a row lifts it to be moved.
+   */
+  onLongPress?: ((song: Song) => void) | null
   /**
    * This row's menu is open. The menu covers the pointer, so the row stops
    * hearing it; without this the ⋯ faded out under its own menu and stayed
@@ -136,6 +149,15 @@ export const SongRow = memo(function SongRow({
    * server is not answering. Drawn faded, as a song whose file is missing is.
    */
   unavailable?: boolean
+  /**
+   * Drawn at the very start of the row, before the checkbox: a playlist's grip.
+   * Memoise it at the call site, or the row's memo stops holding.
+   */
+  leading?: ReactNode
+  /** This row is the one being moved, so it rides above its neighbours. */
+  lifted?: boolean
+  /** A move would land here: a line in the accent on the row's top edge. */
+  dropTarget?: boolean
 }): ReactNode {
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
@@ -165,7 +187,10 @@ export const SongRow = memo(function SongRow({
     // Selected: a translucent accent that reads as picked on the dark UI.
     selected && styles.selected,
     (song.missing || unavailable) && styles.missing,
+    // Held and moving: off the page, over the rows it is passing.
+    lifted && styles.lifted,
   ]
+  const dropLine = dropTarget ? <View style={styles.dropLine} /> : null
 
   if (!wide) {
     return (
@@ -179,6 +204,8 @@ export const SongRow = memo(function SongRow({
         */}
         <View testID={testID} role="row" style={[styles.row, ...tint]}>
           {active ? <RowWash color={songColor.color} /> : null}
+          {dropLine}
+          {leading}
           {selecting && onToggleSelect ? (
             <SelectBox
               song={song}
@@ -191,11 +218,13 @@ export const SongRow = memo(function SongRow({
           <Pressable
             onPress={event => onPress(event, song)}
             onLongPress={
-              onLongPress
-                ? () => onLongPress(song)
-                : onMore
-                  ? () => onMore(moreRef.current, song)
-                  : undefined
+              onLongPress === null
+                ? undefined
+                : onLongPress
+                  ? () => onLongPress(song)
+                  : onMore
+                    ? () => onMore(moreRef.current, song)
+                    : undefined
             }
             onPressIn={() => press(true)}
             onPressOut={() => press(false)}
@@ -278,6 +307,8 @@ export const SongRow = memo(function SongRow({
       onPointerLeave={dense ? () => setHovered(false) : undefined}
     >
       {active ? <RowWash color={songColor.color} /> : null}
+      {dropLine}
+      {leading}
       {onToggleSelect ? (
         <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
           <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
@@ -643,6 +674,22 @@ const styles = StyleSheet.create(theme => ({
   selected: { backgroundColor: theme.colors.accentSelected },
   missing: {
     opacity: 0.55,
+  },
+  /* A row held and moving. The cell around it does the raising (`LiftedCell`);
+     this is only what the row itself wears while it is off the page. */
+  lifted: {
+    backgroundColor: theme.colors.surface2,
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
+  },
+  /* Where a held row would land, on the top edge of the row it is over. */
+  dropLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: theme.colors.accent,
   },
   art: {
     position: 'relative',

@@ -6,6 +6,7 @@ import { Stack, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { failureText } from '@selfmp3/client'
 import TrackPlayer from 'react-native-track-player'
@@ -84,33 +85,39 @@ const NOW_PLAYING_OPTIONS = {
 
 export default function RootLayout(): ReactNode {
   return (
-    <SafeAreaProvider>
-      <ThemedStatusBar />
-      {/* Outermost of the app's own providers: everything below draws with it. */}
-      <AccentProvider>
-        <QueryClientProvider client={queryClient}>
-          <ConnectionProvider>
-            <DownloadsProvider>
-              <PlayerProvider>
-                {/*
-                  Inside the player, not around it: devices reads the player to
-                  build a heartbeat and calls back into it to execute a handoff,
-                  and the player has no idea other devices exist.
-                */}
-                <DevicesProvider>
-                  <CarProvider>
-                    {/* Around the shell: the sidebar and the library share it. */}
-                    <LibraryFilterProvider>
-                      <Shell />
-                    </LibraryFilterProvider>
-                  </CarProvider>
-                </DevicesProvider>
-              </PlayerProvider>
-            </DownloadsProvider>
-          </ConnectionProvider>
-        </QueryClientProvider>
-      </AccentProvider>
-    </SafeAreaProvider>
+    // Outermost of all: gesture handler installs the root it arbitrates
+    // gestures under, and a handler mounted outside one never fires. The one
+    // gesture in the app is holding a playlist's row to move it
+    // (`ui/components/HoldToReorder`), and it is the page furthest from here.
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <ThemedStatusBar />
+        {/* Outermost of the app's own providers: everything below draws with it. */}
+        <AccentProvider>
+          <QueryClientProvider client={queryClient}>
+            <ConnectionProvider>
+              <DownloadsProvider>
+                <PlayerProvider>
+                  {/*
+                    Inside the player, not around it: devices reads the player to
+                    build a heartbeat and calls back into it to execute a handoff,
+                    and the player has no idea other devices exist.
+                  */}
+                  <DevicesProvider>
+                    <CarProvider>
+                      {/* Around the shell: the sidebar and the library share it. */}
+                      <LibraryFilterProvider>
+                        <Shell />
+                      </LibraryFilterProvider>
+                    </CarProvider>
+                  </DevicesProvider>
+                </PlayerProvider>
+              </DownloadsProvider>
+            </ConnectionProvider>
+          </QueryClientProvider>
+        </AccentProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
 
@@ -203,3 +210,5 @@ function ThemedStatusBar(): ReactNode {
   const { rt } = useUnistyles()
   return <StatusBar style={rt.themeName === 'light' ? 'dark' : 'light'} />
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } })

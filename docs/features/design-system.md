@@ -9,6 +9,7 @@ Files:
 | What | Where |
 |---|---|
 | Dropdown | `apps/app/src/ui/components/Select.tsx` |
+| The song row | `apps/app/src/ui/components/SongRow.tsx` |
 | Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
 | Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
 | Tokens | `packages/client/src/theme/tokens.ts`, `tokens.reference.css`; themes in `apps/app/src/ui/theme/unistyles.ts` |
@@ -47,6 +48,34 @@ Behaviour worth knowing:
   `label` — decided by the primitive, not by the caller.
 - The selected option is marked with a check; long values truncate with an ellipsis in the
   trigger rather than stretching the row.
+
+## `<SongRow>` — the one song row
+
+**There is one song row in the app, and every list of songs draws it.** The library and a
+playlist are the two, and for a while they were two components: the playlist's had no heart,
+no tag chips, no dashed ＋, no equaliser on the cover and none of the colour the playing
+song's cover gives its row — so the same song looked like a different kind of thing
+depending on which page you found it on. A new list of songs uses this; it does not start a
+row of its own.
+
+What a page adds, it adds as props rather than as a second row:
+
+| Prop | For |
+|---|---|
+| `leading` | A node at the very start of the row, before the checkbox. A playlist's drag grip is the only one |
+| `lifted` | This row is being moved: it wears a raised surface and a shadow |
+| `dropTarget` | A move would land here: a line in the accent along the row's top edge |
+| `index` | The position number at desktop width, which becomes a play button on hover |
+| `onLongPress` | What holding it on a phone does. Left out, the ⋯ menu opens; `null` when something outside the row owns the hold, as a playlist's move does |
+
+Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`), which already takes
+a `playlist` and offers **Remove from this playlist** there — so a playlist needs no button
+of its own in the row.
+
+The row is memoised, and the list it is in is long, so nothing handed to it may be new on
+every render: hand it the page's own stable handlers (each takes the song, so one function
+serves every row), memoise `leading`, and look tags up through `songTagLookup`
+(`features/library/library.model.ts`), which keeps one array per song.
 
 ## `<Popover>` — the floating-layer shell
 

@@ -194,7 +194,7 @@ app's sign-in and downloads, which makes this the upgrade test as well.
 | **First launch of a fresh build** | — | Can take 15–60 s once while macOS scans it | Do not mistake this for a hang |
 | **Plays from disk** | Double-click a downloaded song | Time advances; works with Wi-Fi off | |
 | **The not-downloaded case** | A cloud song with no green mark | Refuses, offering to download. **The desktop cannot stream from the bucket**; the web and the phone can | Silence, or a toast blaming "offline" |
-| **Counts agree** | Sidebar footer vs Settings → Offline music | The same two numbers in both places | "82 of 61 songs downloaded": the index counting songs the library no longer has |
+| **Counts agree** | Sidebar footer vs Settings → Offline music | The same two numbers in both places — both read one shared tally since 2026-09-17 | "82 of 61 songs downloaded": the index counting songs the library no longer has |
 | **Settings header** | Top of Settings | Says what this is and how many songs | "self.mp3 web · 0 songs" in the desktop app |
 | **Auto-download** | Import a song from another device | It arrives *and downloads* here unasked, on Wi-Fi | |
 | **Reach** | Import, Stats | As on the web | |
@@ -217,21 +217,93 @@ Load `apps/extension/dist` unpacked (or the zip from `npm run zip:extension`).
 
 ## Stage 5 · The phone
 
-A development or release build on a real phone — the simulator has no mobile data, no
-lock screen worth the name and no car.
+A **release** build on a real phone. Not the simulator — it has no mobile data, no lock
+screen worth the name and no car — and not a development build either: that is an empty
+shell which fetches its code from a bundler on the Mac over the local network, so it
+proves nothing about what a person installs and stops working the moment the phone
+leaves the Wi-Fi. A release build carries its code and runs anywhere.
 
-- [ ] Sign-in through Google returns to the app.
-- [ ] **Streaming a song that is not downloaded**, on Wi-Fi, with automatic downloads off.
-      This is the newest path and the least proven: the player sends the doorman's bearer
-      as a track header. Sound within a couple of seconds, scrubbing works, the lock
-      screen shows title and cover.
+### Getting it onto an iPhone
+
+Once per phone:
+
+1. A **data** cable, straight into the Mac. Unlock the phone. macOS asks *Allow accessory
+   to connect?* — Allow. If Finder shows the phone's details, it is paired; there is no
+   second Trust prompt to wait for.
+2. Open Xcode with the phone plugged in. **Developer Mode does not exist in Settings until
+   Xcode has seen the phone**; afterwards it is at the very bottom of Settings → Privacy &
+   Security. Turn it on; the phone restarts. `xcrun devicectl list devices` should then
+   say `connected`.
+3. After the first install: Settings → General → VPN & Device Management → the developer
+   certificate → **Trust**. Until then the app installs and refuses to launch ("invalid
+   code signature … not been explicitly trusted").
+
+Every time:
+
+```bash
+cd apps/app
+npx expo run:ios --configuration Release --device <udid> --no-bundler
+```
+
+The UDID is in `xcrun xctrace list devices`. The first build is 15–20 minutes, later ones
+a few. It generates `apps/app/ios/`, which is ignored by git and by Prettier. The phone
+must be plugged in and unlocked at the install step, or it waits on *Connecting to…*
+for ever.
+
+When iOS asks whether the app may **find devices on your local network, say no.** A user
+does not need it — the library is the bucket's and the server is reached at its public
+address — and denying it makes the run stricter: the phone cannot fall back on a LAN
+address, so Import working at all proves the public one.
+
+### What to check
+
+- [ ] Sign-in through Google returns to the app, and the library's count matches the server's.
+- [ ] **Streaming a song that is not downloaded**, on Wi-Fi, with automatic downloads off
+      (pause the download bar at once, or it fetches everything first). The player sends
+      the doorman's bearer as a track header; first confirmed working on a real iPhone on
+      2026-09-17. Sound within a couple of seconds, scrubbing works, the lock screen shows
+      title and cover.
 - [ ] The same on mobile data asks first, once.
-- [ ] Play it again with no signal: it plays, from the copy kept when it counted as a play.
-- [ ] That copy is **not** listed as "on this device", and Settings' storage figure does not count it as a download.
+- [ ] Import on mobile data shows the real form, not "Your server isn't answering".
+- [ ] Play the streamed song again with no signal: it plays, from the copy kept when it
+      counted as a play. That copy is **not** listed under *On this phone*.
 - [ ] Download it by hand: instant, no second fetch.
 - [ ] Airplane mode, cold start: the library opens and downloaded songs play.
 - [ ] Background the app mid-song for five minutes; it keeps playing and the controls still work.
-- [ ] Tags bar along the foot: the count opens the Library showing those tags.
+
+### What a phone gets wrong that nothing else shows
+
+Each of these was found by hand on a phone, passed every automated check at the time,
+and is worth thirty seconds on every run:
+
+- [ ] **Skip a few songs with Now Playing open.** The seek bar must start at 0:00, never
+      at the last song's position for a moment; and the page must not change shape — the
+      artwork stays one size, the Similar songs strip keeps its place (empty for an
+      instant is fine), and *Lyrics* does not flicker to *Visual*.
+- [ ] **Open the Visual of a song with no lyrics, then use the app.** Taps must stay
+      instant. The visual once committed the native view tree up to twenty times a frame,
+      and the whole app felt slow while it was up.
+- [ ] **Like a song in a list.** The pressed highlight goes the moment the finger lifts.
+      A highlight that lingers means the tap's release is queued behind a re-render of
+      the whole list.
+- [ ] **Swipe sideways on a tab's own page** (Library, Playlists, Import, You): nothing
+      happens. Swipe on a pushed page (a playlist, Settings): it goes back.
+- [ ] **Pick two tags in the Library.** The songs are listed under the picker, Play /
+      shuffle / Save are there, and a picked chip is filled with a ✓ while an unpicked one
+      is hollow — tellable at arm's length.
+- [ ] **You → Tags** is management only: rows, tap to rename or recolour, *New tag*, and
+      *Pick tags to listen to*, which opens the Library with the picker down.
+- [ ] **In a playlist, hold a row and drag it.** It reorders, and the order survives a
+      relaunch. A playlist that follows tags does not lift — holding starts a selection.
+      Rows there look exactly like the Library's: heart, tags, the accent wash on the
+      playing row.
+- [ ] **Remove a downloaded song from the library.** One confirmation, and it is gone from
+      the phone too. The sidebar line and Settings → Offline music then show the *same*
+      two numbers, both lower.
+- [ ] **Remove all downloads.** The button reads *Removing…* and cannot be tapped twice.
+
+For numbers rather than feel — frames, which thread is busy — see "Measuring performance
+on a phone" in [MOBILE.md](MOBILE.md).
 
 ---
 

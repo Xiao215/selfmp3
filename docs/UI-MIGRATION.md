@@ -1,6 +1,6 @@
 # Moving the app to the new interface
 
-**Status: a plan. Nothing here is built.** Written 2026-09-18, against the app as it stands on
+**Status: a plan. Open questions answered 2026-09-18; Phases 1 and 2 under way.** Written 2026-09-18, against the app as it stands on
 `main` that day. The target is the mock in [`docs/ui-mock/`](ui-mock/README.md); screen
 numbers like `P04` and `C11` in this document are files in `docs/ui-mock/boards/`.
 
@@ -214,10 +214,11 @@ The one phase in which navigation changes. Do it in one branch and merge it whol
   - Recently played: covers, from `song.lastPlayedAt`, newest first, no repeats, and a
     "Library" link.
   - Header: the date line, + (Import), the avatar (You).
-- **Sidebar** (`Sidebar.tsx`): Search, Home, Library, Import; a Playlists section whose
-  header opens `/playlists` ("All 4") and lists the most recently played few; a Tags section
-  the same way ("All 8") with counts; then the name row with sync state; Settings last.
-  Stats leaves the rail; it is under the name row's page. Pins go in Phase 5 with the rest
+- **Sidebar** (`Sidebar.tsx`): Search, Home, Library, Import, Stats; a Playlists section
+  whose header opens `/playlists` ("All 4") and lists the most recently played few; a Tags
+  section the same way ("All 8") with counts; then the name row with sync state; Settings
+  last. Stats stays a top-level row on the computer (Open question 7); on a phone it is
+  under You. Pins go in Phase 5 with the rest
   of the playlist changes, so the section shows recents from the start.
 - **Computer Home** (`C03`): the same content, a large search field at the top.
 - You is reachable only from the avatar on a phone. `YouScreen` is not redesigned yet.
@@ -573,26 +574,25 @@ after Phase 1's fonts. Approve the widget's native target. Each of these is a st
 
 ## Open questions
 
-Answer these in place before the phase that needs them.
+Answered by Xiao on 2026-09-18.
 
-1. **The untagged card (Phase 4).** The mock says "Tag them one at a time, while they play".
-   Proposed: tapping it plays the untagged songs as a queue and opens Now Playing with the
-   tag editor raised; each time tags are saved the next song starts. Yes, or something
-   simpler (open Library filtered to untagged)?
-2. **The four old visuals (Phase 6).** The design kept Horizon and Ripples. Proposed: they
-   replace aurora, pulse, spectrum and drift outright, and `autoVisual()` picks between the
-   two by energy. Or do the old four stay in the picker?
-3. **Artists with two spellings, and "feat." (Phase 4).** Proposed: an artist is the exact
-   artist string for now; merging spellings is a `FixMetadata` job and splitting
-   collaborations is not done. Acceptable for a first version?
-4. **Selecting on a computer without Select in the menu (Phase 5).** Proposed: a checkbox on
-   hover in the number column, plus shift- and ⌘-click. Yes?
-5. **Downloading one playlist (Phase 5).** With the button gone, the only way to keep songs
-   on a phone is the global setting. Is that intended, or does "Download" move into the
-   playlist's ⋯ menu?
-6. **Blur (Stack).** Is `expo-blur` acceptable, or is the translucent fill enough?
-7. **Stats on the computer's rail (Phase 2).** The agreed sidebar has no Stats row; it is
-   reached from the name row. Confirm, since it is a top-level row today.
+1. **The untagged card (Phase 4).** Tapping it plays the untagged songs as a queue and opens
+   Now Playing with the tag editor raised; each time tags are saved the next song starts.
+   **Answer: yes, as proposed.**
+2. **The four old visuals (Phase 6).** **Answer: Horizon and Ripples replace aurora, pulse,
+   spectrum and drift outright**, and `autoVisual()` picks between the two by energy.
+3. **Artists with two spellings, and "feat." (Phase 4).** **Answer: split collaborations.**
+   An artist string is split on "feat.", "ft.", "&", "×", "x" between names and ","; each
+   part, trimmed and compared case-insensitively, is an artist, and a song belongs to every
+   artist it names. Merging two spellings of one artist stays a `FixMetadata` job.
+4. **Selecting on a computer without Select in the menu (Phase 5).** **Answer: yes**, a
+   checkbox on hover in the number column, plus shift- and ⌘-click.
+5. **Downloading one playlist (Phase 5).** **Answer: "Download" moves into the playlist's ⋯
+   menu.** The button on the page goes; keeping one playlist on the phone stays possible.
+6. **Blur (Stack).** **Answer: no `expo-blur`.** A translucent fill on native;
+   `backdrop-filter` on the web.
+7. **Stats on the computer's rail (Phase 2).** **Answer: on a phone Stats is under You (the
+   name page); on the computer and the web it stays a top-level sidebar row**, under Import.
 
 ## What to do first
 

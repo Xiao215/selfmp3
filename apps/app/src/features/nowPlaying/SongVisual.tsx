@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -41,17 +46,26 @@ export interface SongVisualProps {
  * music, so a `PlayheadClock` runs on between ticks and snaps to each one.
  *
  * One `requestAnimationFrame` loop on the JavaScript thread steps the motion
- * (`visualMotion.model.ts`, the same steps the browser takes) and sets a few
- * dozen `Animated.Value`s; Animated applies those to the views directly, with
- * no React render. Only the style showing is written, and nothing is written
- * once a paused visual has settled. Reduce Motion sets one still frame.
+ * (`visualMotion.model.ts`, the same steps the browser takes) and writes every
+ * number a style moves into one Reanimated shared value, once a frame. Each
+ * view's `useAnimatedStyle` reads its numbers from that array on the UI
+ * thread and sets the view's opacity and transform there directly: no React
+ * render, and no shadow-tree commit. (It used to set a few dozen
+ * `Animated.Value`s a frame; on the New Architecture each `setValue` is a
+ * `setNativeProps`, which is a commit of the whole shadow tree — a dozen to
+ * twenty of them a frame, on the thread that also has to answer a tap.)
+ *
+ * Nothing is written once a paused visual has settled. Reduce Motion writes
+ * one still frame.
  */
 export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualProps): ReactNode {
   const player = usePlayer()
   const reduced = useReducedMotion()
   const [size, setSize] = useState<Size | null>(null)
   const { colors, tuning } = useVisualLook(song)
-  const [channels] = useState(makeChannels)
+  const frame = useSharedValue<readonly number[]>(EMPTY_FRAME)
+  const ringWidths = useSharedValue<readonly number[]>(NO_RINGS)
+  const [drawn] = useState(makeDrawn)
   const [clock] = useState(() => new PlayheadClock())
   const [middle, edge] = colors.ground
 
@@ -73,30 +87,30 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
     if (!size || !reduced) return
     const motion = createMotionState(BARS)
     stillMotion(motion, tuning, sampler.source)
-    apply(kind, motion, channels, tuning, size, true)
-  }, [kind, reduced, size, tuning, sampler.source, channels])
+    write(kind, motion, drawn, tuning, size, true, frame, ringWidths)
+  }, [kind, reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
   useEffect(() => {
     if (!size || reduced) return undefined
     const motion = createMotionState(BARS)
     let last = performance.now()
-    let frame = 0
-    // The channels outlive a style: a paused Pulse left them settled, and a
-    // style picked then must still write its first frame, or Aurora never draws its floor.
+    let handle = 0
+    // The frame outlives a style: a paused Pulse left it settled, and a style
+    // picked then must still write its first frame, or Aurora never draws its floor.
     let first = true
     const tick = (): void => {
-      frame = requestAnimationFrame(tick)
+      handle = requestAnimationFrame(tick)
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       const { player: p, sampler: s, tuning: tu } = live.current
       stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
-      apply(kind, motion, channels, tu, size, first)
+      write(kind, motion, drawn, tu, size, first, frame, ringWidths)
       first = false
     }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [kind, reduced, size, channels, clock])
+    handle = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(handle)
+  }, [kind, reduced, size, drawn, clock, frame, ringWidths])
 
   return (
     <View
@@ -120,13 +134,13 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
       </Svg>
       {size ? (
         kind === 'aurora' ? (
-          <Aurora size={size} colors={colors} channels={channels} />
+          <Aurora size={size} colors={colors} frame={frame} />
         ) : kind === 'pulse' ? (
-          <Pulse size={size} colors={colors} channels={channels} />
+          <Pulse size={size} colors={colors} frame={frame} ringWidths={ringWidths} />
         ) : kind === 'spectrum' ? (
-          <Spectrum size={size} colors={colors} channels={channels} />
+          <Spectrum size={size} colors={colors} frame={frame} />
         ) : (
-          <Drift size={size} colors={colors} channels={channels} tuning={tuning} />
+          <Drift size={size} colors={colors} frame={frame} tuning={tuning} />
         )
       ) : null}
     </View>
@@ -143,43 +157,47 @@ const BLOBS = 3
 const DRIFT_RINGS = 3
 const SPECKS_PER_RING = 9
 
-/** Every value a style moves, made once per visual and written each frame. */
-interface Channels {
-  blobs: { opacity: Animated.Value; x: Animated.Value; y: Animated.Value; scale: Animated.Value }[]
-  rings: { scale: Animated.Value; opacity: Animated.Value; width: Animated.Value }[]
+/*
+ * Where each moving number sits in a frame. One array holds every style's
+ * numbers, so a frame is one write from the JavaScript thread however many
+ * views move; each view's style reads its own few.
+ */
+/** Per blob: opacity, x, y, scale. */
+const BLOB_AT = 0
+const BLOB_SIZE = 4
+/** Per ring: scale, opacity. Its width is a layout prop and travels apart (`ringWidths`). */
+const RING_AT = BLOB_AT + BLOBS * BLOB_SIZE
+const RING_SIZE = 2
+const DOT_AT = RING_AT + MAX_RINGS * RING_SIZE
+const HALO_AT = DOT_AT + 1
+const BAR_AT = HALO_AT + 1
+/** Per orbit: turn in degrees, scale, opacity. */
+const ORBIT_AT = BAR_AT + BARS
+const ORBIT_SIZE = 3
+const FRAME_LENGTH = ORBIT_AT + DRIFT_RINGS * ORBIT_SIZE
+
+const EMPTY_FRAME: readonly number[] = Array.from({ length: FRAME_LENGTH }, () => 0)
+const NO_RINGS: readonly number[] = Array.from({ length: MAX_RINGS }, () => 2)
+
+type Frame = SharedValue<readonly number[]>
+
+/** What the loop remembers between frames, made once per visual. */
+interface Drawn {
+  /** The frame being filled in, written to the shared value as a copy. */
+  out: number[]
+  /** Each ring view's border width, sent only when a new ring takes the view. */
+  widths: number[]
   /** Which ring each ring view last showed, so its width is set once, when a new ring takes it. */
   ringIds: number[]
-  dot: Animated.Value
-  halo: Animated.Value
-  bars: Animated.Value[]
-  orbits: { turn: Animated.Value; scale: Animated.Value; opacity: Animated.Value }[]
   /** Whether the last frame written was a settled, silent one. */
   settled: boolean
 }
 
-function makeChannels(): Channels {
-  const value = (initial = 0): Animated.Value => new Animated.Value(initial)
+function makeDrawn(): Drawn {
   return {
-    blobs: Array.from({ length: BLOBS }, () => ({
-      opacity: value(),
-      x: value(),
-      y: value(),
-      scale: value(1),
-    })),
-    rings: Array.from({ length: MAX_RINGS }, () => ({
-      scale: value(0.02),
-      opacity: value(),
-      width: value(2),
-    })),
+    out: [...EMPTY_FRAME],
+    widths: [...NO_RINGS],
     ringIds: Array.from({ length: MAX_RINGS }, () => -1),
-    dot: value(1),
-    halo: value(),
-    bars: Array.from({ length: BARS }, () => value(0.03)),
-    orbits: Array.from({ length: DRIFT_RINGS }, () => ({
-      turn: value(),
-      scale: value(1),
-      opacity: value(0.5),
-    })),
     settled: false,
   }
 }
@@ -191,109 +209,153 @@ function isSettled(m: MotionState): boolean {
   return true
 }
 
-/** Writes this frame into the showing style's values. */
-function apply(
+/** Writes this frame into the shared value the showing style reads. */
+function write(
   kind: VisualKind,
   m: MotionState,
-  ch: Channels,
+  drawn: Drawn,
   tu: MotionTuning,
   size: Size,
   force: boolean,
+  frame: Frame,
+  ringWidths: Frame,
 ): void {
   const settled = isSettled(m)
-  if (settled && ch.settled && !force) return
-  ch.settled = settled
+  if (settled && drawn.settled && !force) return
+  drawn.settled = settled
+  const out = drawn.out
   const g = m.glow
   if (kind === 'aurora') {
     const r = Math.max(size.width, size.height) * 0.42
-    ch.blobs.forEach((blob, i) => {
-      blob.opacity.setValue(auroraBrightness(g, m.flash))
-      blob.x.setValue(Math.sin(m.sway * 0.9 + i * 2.1) * r * 0.3 * (0.3 + 0.7 * g))
-      blob.y.setValue(Math.cos(m.sway * 0.7 + i * 1.3) * r * 0.12)
-      blob.scale.setValue(0.75 + 0.35 * g + 0.08 * m.flash)
-    })
+    for (let i = 0; i < BLOBS; i++) {
+      const at = BLOB_AT + i * BLOB_SIZE
+      out[at] = auroraBrightness(g, m.flash)
+      out[at + 1] = Math.sin(m.sway * 0.9 + i * 2.1) * r * 0.3 * (0.3 + 0.7 * g)
+      out[at + 2] = Math.cos(m.sway * 0.7 + i * 1.3) * r * 0.12
+      out[at + 3] = 0.75 + 0.35 * g + 0.08 * m.flash
+    }
   } else if (kind === 'pulse') {
-    ch.rings.forEach((view, slot) => {
+    let widthsChanged = false
+    for (let slot = 0; slot < MAX_RINGS; slot++) {
+      const at = RING_AT + slot * RING_SIZE
       const ring = m.rings.find(candidate => candidate.id % MAX_RINGS === slot)
       if (!ring) {
-        view.opacity.setValue(0)
-        return
+        out[at + 1] = 0
+        continue
       }
-      if (ch.ringIds[slot] !== ring.id) {
-        ch.ringIds[slot] = ring.id
-        view.width.setValue(1.5 + 5 * ring.strength)
+      if (drawn.ringIds[slot] !== ring.id) {
+        drawn.ringIds[slot] = ring.id
+        drawn.widths[slot] = 1.5 + 5 * ring.strength
+        widthsChanged = true
       }
-      view.scale.setValue(0.02 + 0.98 * ringReach(ring, tu))
-      view.opacity.setValue(ringFade(ring, tu) * 0.9)
-    })
-    ch.dot.setValue(0.5 + 0.8 * g + 0.7 * m.kick)
-    ch.halo.setValue(Math.min(1, 0.08 + 0.35 * g + 0.35 * m.kick))
+      out[at] = 0.02 + 0.98 * ringReach(ring, tu)
+      out[at + 1] = ringFade(ring, tu) * 0.9
+    }
+    if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
+    out[DOT_AT] = 0.5 + 0.8 * g + 0.7 * m.kick
+    out[HALO_AT] = Math.min(1, 0.08 + 0.35 * g + 0.35 * m.kick)
   } else if (kind === 'spectrum') {
-    ch.bars.forEach((bar, i) => bar.setValue(Math.max(0.03, m.bands[i] ?? 0)))
+    for (let i = 0; i < BARS; i++) out[BAR_AT + i] = Math.max(0.03, m.bands[i] ?? 0)
   } else {
-    ch.orbits.forEach((orbit, ring) => {
-      const degrees = ((m.spin * (1 + ring * 0.25) * 180) / Math.PI) % 360
-      orbit.turn.setValue(degrees)
-      orbit.scale.setValue(1 + 0.3 * m.burst * ((ring + 1) / DRIFT_RINGS))
-      orbit.opacity.setValue(0.3 + 0.55 * g)
-    })
+    for (let ring = 0; ring < DRIFT_RINGS; ring++) {
+      const at = ORBIT_AT + ring * ORBIT_SIZE
+      out[at] = ((m.spin * (1 + ring * 0.25) * 180) / Math.PI) % 360
+      out[at + 1] = 1 + 0.3 * m.burst * ((ring + 1) / DRIFT_RINGS)
+      out[at + 2] = 0.3 + 0.55 * g
+    }
   }
+  // A copy: the shared value is handed to the UI thread after this frame's
+  // work, and `out` is filled in again on the next.
+  frame.value = out.slice()
 }
 
 interface StyleProps {
   size: Size
   colors: VisualColors
-  channels: Channels
+  frame: Frame
 }
 
 /* Soft glows in the cover's colours: bigger, brighter and quicker the louder it is. */
-function Aurora({ size, colors, channels }: StyleProps): ReactNode {
-  const r = Math.max(size.width, size.height) * 0.42
+function Aurora({ size, colors, frame }: StyleProps): ReactNode {
   return (
     <>
-      {channels.blobs.map((blob, index) => {
-        const id = `aurora-${index}`
-        const ink = rgbCss(colors.inks[AURORA_INKS[index]!])
-        return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.blob,
-              {
-                left: size.width * (0.2 + index * 0.3) - r,
-                top: size.height * (0.35 + (index % 2) * 0.25) - r,
-                width: r * 2,
-                height: r * 2,
-                opacity: blob.opacity,
-                transform: [{ translateX: blob.x }, { translateY: blob.y }, { scale: blob.scale }],
-              },
-            ]}
-          >
-            <Svg width="100%" height="100%">
-              <Defs>
-                <RadialGradient id={id} cx="50%" cy="50%" r="50%">
-                  <Stop offset="0" stopColor={ink} stopOpacity={0.9} />
-                  <Stop offset="1" stopColor={ink} stopOpacity={0} />
-                </RadialGradient>
-              </Defs>
-              <Circle cx="50%" cy="50%" r="50%" fill={`url(#${id})`} />
-            </Svg>
-          </Animated.View>
-        )
-      })}
+      {AURORA_INKS.slice(0, BLOBS).map((inkIndex, index) => (
+        <Blob
+          key={index}
+          index={index}
+          size={size}
+          ink={rgbCss(colors.inks[inkIndex]!)}
+          frame={frame}
+        />
+      ))}
     </>
   )
 }
 
+function Blob({
+  index,
+  size,
+  ink,
+  frame,
+}: {
+  index: number
+  size: Size
+  ink: string
+  frame: Frame
+}): ReactNode {
+  const r = Math.max(size.width, size.height) * 0.42
+  const id = `aurora-${index}`
+  const at = BLOB_AT + index * BLOB_SIZE
+  const moving = useAnimatedStyle(() => {
+    const f = frame.value
+    return {
+      opacity: f[at] ?? 0,
+      transform: [
+        { translateX: f[at + 1] ?? 0 },
+        { translateY: f[at + 2] ?? 0 },
+        { scale: f[at + 3] ?? 1 },
+      ],
+    }
+  })
+  return (
+    <Animated.View
+      style={[
+        styles.blob,
+        {
+          left: size.width * (0.2 + index * 0.3) - r,
+          top: size.height * (0.35 + (index % 2) * 0.25) - r,
+          width: r * 2,
+          height: r * 2,
+        },
+        moving,
+      ]}
+    >
+      <Svg width="100%" height="100%">
+        <Defs>
+          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor={ink} stopOpacity={0.9} />
+            <Stop offset="1" stopColor={ink} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx="50%" cy="50%" r="50%" fill={`url(#${id})`} />
+      </Svg>
+    </Animated.View>
+  )
+}
+
 /* A ring leaves the centre on each hit; the dot follows the level and kicks. */
-function Pulse({ size, colors, channels }: StyleProps): ReactNode {
+function Pulse({ size, colors, frame, ringWidths }: StyleProps & { ringWidths: Frame }): ReactNode {
   const reach = Math.min(size.width, size.height) * 0.96
   const dot = Math.min(size.width, size.height) * 0.09
   const halo = reach * 0.6
   const haloInk = rgbCss(colors.inks[0])
+  const haloStyle = useAnimatedStyle(() => ({ opacity: frame.value[HALO_AT] ?? 0 }))
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: frame.value[DOT_AT] ?? 1 }],
+  }))
   return (
     <View style={styles.centre}>
-      <Animated.View style={[styles.ring, { width: halo, height: halo, opacity: channels.halo }]}>
+      <Animated.View style={[styles.ring, { width: halo, height: halo }, haloStyle]}>
         <Svg width="100%" height="100%">
           <Defs>
             <RadialGradient id="pulse-halo" cx="50%" cy="50%" r="50%">
@@ -304,117 +366,182 @@ function Pulse({ size, colors, channels }: StyleProps): ReactNode {
           <Circle cx="50%" cy="50%" r="50%" fill="url(#pulse-halo)" />
         </Svg>
       </Animated.View>
-      {channels.rings.map((ring, slot) => (
-        <Animated.View
+      {Array.from({ length: MAX_RINGS }, (_, slot) => (
+        <Ring
           key={slot}
-          style={[
-            styles.ring,
-            {
-              width: reach,
-              height: reach,
-              borderRadius: reach / 2,
-              borderColor: rgbCss(colors.inks[slot % 2]!),
-              borderWidth: ring.width,
-              opacity: ring.opacity,
-              transform: [{ scale: ring.scale }],
-            },
-          ]}
+          slot={slot}
+          reach={reach}
+          ink={rgbCss(colors.inks[slot % 2]!)}
+          frame={frame}
+          ringWidths={ringWidths}
         />
       ))}
       <Animated.View
-        style={{
-          width: dot,
-          height: dot,
-          borderRadius: dot / 2,
-          backgroundColor: rgbCss(colors.inks[2]),
-          transform: [{ scale: channels.dot }],
-        }}
+        style={[
+          {
+            width: dot,
+            height: dot,
+            borderRadius: dot / 2,
+            backgroundColor: rgbCss(colors.inks[2]),
+          },
+          dotStyle,
+        ]}
       />
     </View>
   )
 }
 
+function Ring({
+  slot,
+  reach,
+  ink,
+  frame,
+  ringWidths,
+}: {
+  slot: number
+  reach: number
+  ink: string
+  frame: Frame
+  ringWidths: Frame
+}): ReactNode {
+  const at = RING_AT + slot * RING_SIZE
+  const moving = useAnimatedStyle(() => {
+    const f = frame.value
+    return { opacity: f[at + 1] ?? 0, transform: [{ scale: f[at] ?? 0.02 }] }
+  })
+  // Its own style, off its own value: a border width is a layout prop, so a
+  // change to it is a shadow-tree commit. Set when a ring takes this view —
+  // a few times a second at most — rather than carried in every frame.
+  const width = useAnimatedStyle(() => ({ borderWidth: ringWidths.value[slot] ?? 2 }))
+  return (
+    <Animated.View
+      style={[
+        styles.ring,
+        { width: reach, height: reach, borderRadius: reach / 2, borderColor: ink },
+        width,
+        moving,
+      ]}
+    />
+  )
+}
+
 /* Bars for the song: its curve's level and hits, low to high. */
-function Spectrum({ size, colors, channels }: StyleProps): ReactNode {
+function Spectrum({ size, colors, frame }: StyleProps): ReactNode {
   const gap = Math.max(3, size.width / BARS / 5)
   const barWidth = (size.width - gap * (BARS + 1)) / BARS
   const tall = size.height * 0.62
   return (
     <View style={[styles.bars, { gap, paddingHorizontal: gap, bottom: size.height * 0.14 }]}>
-      {channels.bars.map((bar, index) => (
-        <Animated.View
+      {Array.from({ length: BARS }, (_, index) => (
+        <Bar
           key={index}
-          style={{
-            width: barWidth,
-            height: tall,
-            borderRadius: Math.min(3, barWidth / 2),
-            backgroundColor: rgbCss(index < BARS / 2 ? colors.inks[0] : colors.inks[1]),
-            transformOrigin: 'bottom',
-            transform: [{ scaleY: bar }],
-          }}
+          index={index}
+          width={barWidth}
+          height={tall}
+          ink={rgbCss(index < BARS / 2 ? colors.inks[0] : colors.inks[1])}
+          frame={frame}
         />
       ))}
     </View>
   )
 }
 
+function Bar({
+  index,
+  width,
+  height,
+  ink,
+  frame,
+}: {
+  index: number
+  width: number
+  height: number
+  ink: string
+  frame: Frame
+}): ReactNode {
+  const at = BAR_AT + index
+  const moving = useAnimatedStyle(() => ({ transform: [{ scaleY: frame.value[at] ?? 0.03 }] }))
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          borderRadius: Math.min(3, width / 2),
+          backgroundColor: ink,
+          transformOrigin: 'bottom',
+        },
+        moving,
+      ]}
+    />
+  )
+}
+
 /* Specks orbiting the centre: faster the louder it is, thrown outward on a hit. */
-function Drift({
-  size,
-  colors,
-  channels,
-  tuning,
-}: StyleProps & { tuning: MotionTuning }): ReactNode {
+function Drift({ size, colors, frame, tuning }: StyleProps & { tuning: MotionTuning }): ReactNode {
   const base = Math.min(size.width, size.height)
   const reach = driftReach(tuning.feel.energy)
-  const turns = useMemo(
-    () =>
-      channels.orbits.map(orbit =>
-        orbit.turn.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] }),
-      ),
-    [channels],
-  )
   return (
     <>
-      {channels.orbits.map((orbit, ring) => {
-        const radius = base * (0.08 + ((ring + 1) / DRIFT_RINGS) * reach)
-        const ink = rgbCss(colors.inks[ring % 3]!)
-        const speck = 1.6 + ring * 0.8
-        const offset = ring * 0.7
+      {Array.from({ length: DRIFT_RINGS }, (_, ring) => (
+        <Orbit
+          key={ring}
+          ring={ring}
+          size={size}
+          radius={base * (0.08 + ((ring + 1) / DRIFT_RINGS) * reach)}
+          ink={rgbCss(colors.inks[ring % 3]!)}
+          frame={frame}
+        />
+      ))}
+    </>
+  )
+}
+
+function Orbit({
+  ring,
+  size,
+  radius,
+  ink,
+  frame,
+}: {
+  ring: number
+  size: Size
+  radius: number
+  ink: string
+  frame: Frame
+}): ReactNode {
+  const at = ORBIT_AT + ring * ORBIT_SIZE
+  const moving = useAnimatedStyle(() => {
+    const f = frame.value
+    return {
+      opacity: f[at + 2] ?? 0.5,
+      transform: [{ rotate: `${f[at] ?? 0}deg` }, { scale: f[at + 1] ?? 1 }],
+    }
+  })
+  const speck = 1.6 + ring * 0.8
+  const offset = ring * 0.7
+  return (
+    <Animated.View style={[styles.fill, moving]}>
+      {Array.from({ length: SPECKS_PER_RING }, (_, index) => {
+        const angle = offset + (index / SPECKS_PER_RING) * Math.PI * 2
+        const r = radius * (0.85 + ((index * 7) % 5) * 0.06)
+        const dot = speck * (1 + (index % 3) * 0.5)
         return (
-          <Animated.View
-            key={ring}
-            style={[
-              styles.fill,
-              {
-                opacity: orbit.opacity,
-                transform: [{ rotate: turns[ring]! }, { scale: orbit.scale }],
-              },
-            ]}
-          >
-            {Array.from({ length: SPECKS_PER_RING }, (_, index) => {
-              const angle = offset + (index / SPECKS_PER_RING) * Math.PI * 2
-              const r = radius * (0.85 + ((index * 7) % 5) * 0.06)
-              const dot = speck * (1 + (index % 3) * 0.5)
-              return (
-                <View
-                  key={index}
-                  style={{
-                    position: 'absolute',
-                    left: size.width / 2 + Math.cos(angle) * r - dot,
-                    top: size.height / 2 + Math.sin(angle) * r - dot,
-                    width: dot * 2,
-                    height: dot * 2,
-                    borderRadius: dot,
-                    backgroundColor: ink,
-                  }}
-                />
-              )
-            })}
-          </Animated.View>
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              left: size.width / 2 + Math.cos(angle) * r - dot,
+              top: size.height / 2 + Math.sin(angle) * r - dot,
+              width: dot * 2,
+              height: dot * 2,
+              borderRadius: dot,
+              backgroundColor: ink,
+            }}
+          />
         )
       })}
-    </>
+    </Animated.View>
   )
 }
 

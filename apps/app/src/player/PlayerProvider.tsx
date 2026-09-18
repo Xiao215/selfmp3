@@ -40,6 +40,7 @@ import {
   secondsToCount,
   tapLoop,
   useLibrary,
+  useSameArray,
   useServerSettings,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
@@ -854,10 +855,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // Renamed on the way out: `resolveQueue` returns `{ songs, current }`, and a
   // `.current` read during render is indistinguishable from a ref access to
   // the React Compiler, which then gives up on memoising this component.
-  const resolved = useMemo(() => {
-    const { songs: queueSongs, current } = resolveQueue(queue, songsById)
-    return { queueSongs, currentSong: current }
-  }, [queue, songsById])
+  //
+  // The queue's songs are kept as the same array while they are the same
+  // songs. Every edit to the library — a like, a tag, a play counted — remakes
+  // `songsById`, and with it this list; as a new array each time it made a new
+  // player value, and every screen and control that reads the player was
+  // rendered again for a change to a song it does not show.
+  const resolvedNow = useMemo(() => resolveQueue(queue, songsById), [queue, songsById])
+  const queueSongs = useSameArray(resolvedNow.songs)
+  const currentSong = resolvedNow.current
+  const resolved = useMemo(() => ({ queueSongs, currentSong }), [queueSongs, currentSong])
 
   /*
    * The fade into the next song, and gapless, told to the engine. Both come
@@ -872,7 +879,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     const id = peekNext(queue)
     return id === null ? null : (songsById.get(id) ?? null)
   }, [queue, songsById])
-  const currentSong = resolved.currentSong
   const nextCrossfadeSeconds = useMemo(
     () => (autoMix ? autoMixCrossfade(currentSong, nextSong, crossfadeSeconds) : crossfadeSeconds),
     [autoMix, currentSong, nextSong, crossfadeSeconds],

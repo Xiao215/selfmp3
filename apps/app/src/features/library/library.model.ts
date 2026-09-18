@@ -11,6 +11,7 @@ import {
   toggleTag,
   usedTags,
   useLibrary,
+  useSameArray,
   type DownloadIndex,
   type LibraryFilter,
 } from '@selfmp3/client'
@@ -91,7 +92,12 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   const tags = useMemo(() => usedTags(songs, allTags), [songs, allTags])
 
   const downloaded = useCallback((songId: number) => isDownloaded(downloads, songId), [downloads])
-  const visible = useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded])
+  // Kept as the same array while the same songs are in the same order, so a
+  // like — which remakes `songs` with one song replaced — does not remake the
+  // ids, the selection and every row handler that hangs off them.
+  const visible = useSameArray(
+    useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded]),
+  )
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
 
   const seconds = useMemo(

@@ -30,7 +30,17 @@ test.describe('the song menu', () => {
     await expect(menu.getByRole('button', { name: /^(Like|Unlike)$/ })).toBeVisible()
     await expect(menu.getByRole('button', { name: 'Tags', exact: true })).toBeVisible()
 
-    // Each action present, and each below the one before it.
+    // Each action present, and each below the one before it — read once the
+    // sheet has stopped rising on a phone, or the later items are read higher
+    // than the earlier ones only because the sheet moved in between.
+    let settled = NaN
+    await expect
+      .poll(async () => {
+        const before = settled
+        settled = (await menu.boundingBox())?.y ?? NaN
+        return settled === before
+      })
+      .toBe(true)
     let previousTop = -Infinity
     for (const label of ORDER) {
       // From the start of the name: a row's detail (the › of Add to playlist) is part of it.

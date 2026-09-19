@@ -20,6 +20,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { titleBarInset } from '../../ports/titleBarInset'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
@@ -123,10 +124,11 @@ export function NowPlayingStage(): ReactNode {
 
 function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
+  const { top } = useSafeAreaInsets()
   useEscape(true, onClose)
   return (
     <View style={styles.page} accessibilityLabel="Now playing">
-      <View style={styles.head}>
+      <View style={[styles.head, { top }]}>
         <IconButton onPress={onClose} label="Close">
           <ChevronDown size={22} color={theme.colors.textSecondary} />
         </IconButton>
@@ -157,6 +159,8 @@ function Stage({
   onMode: (mode: PageMode) => void
 }): ReactNode {
   const { theme } = useUnistyles()
+  // Under an iPad's status bar, not behind it; a computer's window has none.
+  const { top } = useSafeAreaInsets()
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()
@@ -490,7 +494,7 @@ function Stage({
         )}
       </Moving>
 
-      <View style={[styles.head, chrome]}>
+      <View style={[styles.head, { top }, chrome]}>
         <IconButton
           onPress={focus ? () => onMode('stage') : onClose}
           label={focus ? 'Back to the full page' : 'Close now playing'}

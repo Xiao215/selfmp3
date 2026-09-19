@@ -14,6 +14,7 @@ import { DoormanError } from '@selfmp3/replica'
 import { fonts, radius, space, tagColors, type } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
+import { deviceWord } from '../../ports/device'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { onSignInCode } from '../../ports/signInReturn'
 import { titleBarInset } from '../../ports/titleBarInset'
@@ -58,9 +59,12 @@ import {
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
 
+/** A window wide enough for the text half's full margin. */
+const ROOMY = 1100
+
 export function WelcomeScreen(): ReactNode {
   const { theme } = useUnistyles()
-  const { wide } = useLayout()
+  const { wide, finePointer, width } = useLayout()
   const { signedInToCloud } = useConnection()
   const [stage, setStage] = useState<SignInStage>({ kind: 'idle', message: null })
   const [kept, setKept] = useState<readonly string[] | null>(null)
@@ -172,6 +176,11 @@ export function WelcomeScreen(): ReactNode {
   const copy = copyFor(stage)
   const busy = stage.kind === 'waiting' || stage.kind === 'claiming'
   const art = kept === null ? null : welcomeArt(kept)
+  const device = deviceWord({ wide, finePointer })
+  // Two halves on a wide screen. An iPad in portrait is barely past the
+  // breakpoint, so the text half's margin and the button give way there.
+  const margin = width >= ROOMY ? 96 : 48
+  const pill = Math.min(320, width / 2 - margin * 2)
 
   const words = (
     <View style={styles.words}>
@@ -201,7 +210,7 @@ export function WelcomeScreen(): ReactNode {
             testID="welcome-google"
             label={stage.kind === 'idle' ? 'Continue with Google' : 'Try again'}
             google={stage.kind === 'idle'}
-            width={wide ? 320 : undefined}
+            width={wide ? pill : undefined}
             onPress={begin}
           />
         ) : (
@@ -209,7 +218,7 @@ export function WelcomeScreen(): ReactNode {
         )}
         {stage.kind === 'idle' ? (
           <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-            {welcomeFootnote(wide)}
+            {welcomeFootnote(device)}
           </Text>
         ) : (
           <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
@@ -228,7 +237,7 @@ export function WelcomeScreen(): ReactNode {
           </View>
           <ScrollView
             style={styles.screen}
-            contentContainerStyle={styles.textHalf}
+            contentContainerStyle={[styles.textHalf, { paddingHorizontal: margin }]}
             keyboardShouldPersistTaps="handled"
           >
             {words}
@@ -364,7 +373,6 @@ const styles = StyleSheet.create(theme => ({
   textHalf: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 96,
     paddingVertical: 60,
     gap: 26,
   },
@@ -402,7 +410,8 @@ const styles = StyleSheet.create(theme => ({
     alignContent: 'center',
     columnGap: 14,
     rowGap: 18,
-    marginHorizontal: 40,
+    // Narrow enough that an iPad's half still takes two tiles abreast.
+    marginHorizontal: 24,
     marginBottom: 0,
   },
   tile: {

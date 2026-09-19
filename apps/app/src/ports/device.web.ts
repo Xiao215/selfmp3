@@ -70,3 +70,16 @@ function generateId(): string {
   crypto.getRandomValues(bytes)
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
+
+/**
+ * What to call this device in a sentence. A browser cannot tell a tablet from
+ * a computer by name, so the layout and the pointer say it: wide with a mouse
+ * is a computer, wide with a finger a tablet, and narrow a phone.
+ */
+export function deviceWord(layout: { wide: boolean; finePointer: boolean }): DeviceWord {
+  if (desktop) return 'computer'
+  if (!layout.wide) return 'phone'
+  return layout.finePointer ? 'computer' : 'tablet'
+}
+
+type DeviceWord = 'phone' | 'iPad' | 'tablet' | 'computer'

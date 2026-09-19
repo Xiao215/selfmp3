@@ -11,6 +11,17 @@ appId: com.selfmp3.app
 ---
 - launchApp
 - openLink: 'selfmp3://welcome'
+# A simulator that has not followed this link before asks first, and can ask
+# again as the app comes up.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible: 'Open in .*'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: 'welcome-google'
@@ -19,6 +30,8 @@ appId: com.selfmp3.app
     id: 'welcome-address-toggle'
 - tapOn:
     id: 'welcome-address'
+# The keyboard's first appearance can swallow what is typed while it rises.
+- waitForAnimationToEnd
 # Whatever an earlier try left in the field goes first.
 - eraseText: 60
 - inputText: ${SERVER}

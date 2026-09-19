@@ -29,6 +29,7 @@ import { ListenTags } from '../../ui/components/ListenTags'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
+import { deviceWord } from '../../ports/device'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
@@ -50,7 +51,7 @@ export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const { wide, dense } = useLayout()
+  const { wide, dense, finePointer } = useLayout()
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
@@ -289,7 +290,7 @@ export function LibraryScreen(): ReactNode {
           <View style={styles.subRow}>
             <Text style={styles.sub} testID="library-subline">
               {model.subtitle}
-              {installed && !model.loading ? ` · ${hereCount} on this ${wide ? 'computer' : 'phone'}` : ''}
+              {installed && !model.loading ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}` : ''}
             </Text>
             {model.matchNote ? (
               <Text style={styles.sub} testID="library-match-note">

@@ -73,6 +73,7 @@ function useNow(): Date {
 
 function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   const { wide } = useLayout()
+  const beside = useCardsBeside(wide)
   const router = useRouter()
   const now = useNow()
   const bottom = useBottomInset()
@@ -135,8 +136,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
         <SearchField wide={wide} onPress={openSearch} />
 
-        <View style={wide ? styles.columns : styles.stack}>
-          <View style={wide ? styles.mainColumn : styles.stack}>
+        <View style={beside ? styles.columns : styles.stack}>
+          <View style={beside ? styles.mainColumn : styles.stack}>
             {wide ? (
               <SectionHead
                 title="Your tags"
@@ -163,7 +164,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
               </Pressable>
             ) : null}
           </View>
-          {wide ? <ThisWeek stats={stats} /> : null}
+          {wide ? <ThisWeek stats={stats} beside={beside} /> : null}
         </View>
 
         {recents.length > 0 ? (
@@ -431,13 +432,17 @@ function listened(minutes: number): { big: string; small: string } {
   return { big: `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, '0')}`, small: '' }
 }
 
-/** A computer's card beside the tiles: this week in three numbers, and the way to Stats. */
-function ThisWeek({ stats }: { stats: Stats | undefined }): ReactNode {
+/**
+ * A computer's card beside the tiles, or under them on a narrow page: this
+ * week in three numbers, and the way to Stats.
+ */
+function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean }): ReactNode {
   const router = useRouter()
-  if (!stats) return <View style={styles.sideColumn} />
+  const column = beside ? styles.sideColumn : styles.stack
+  if (!stats) return <View style={column} />
   const time = listened(stats.totals.minutes)
   return (
-    <View style={styles.sideColumn}>
+    <View style={column}>
       <SectionHead title="This week" action={null} />
       <View style={styles.weekCard} testID="home-this-week">
         <View style={styles.weekNumbers}>
@@ -503,6 +508,18 @@ const GUTTER_WIDE = 48
 const PAGE_MAX = 1040
 const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
+/**
+ * The narrowest page that keeps the card column beside the tiles. Below it (an
+ * iPad in portrait, a narrow window) the cards go under the tiles, which then
+ * take the page's whole width rather than a sliver of it.
+ */
+const BESIDE_MIN = 880
+
+/** Whether the card column sits beside the tiles, or under them. */
+function useCardsBeside(wide: boolean): boolean {
+  const column = useContentWidth()
+  return wide && (column === null || Math.min(column, PAGE_MAX) >= BESIDE_MIN)
+}
 
 /**
  * How wide the row of tiles is, worked out from the page rather than
@@ -515,7 +532,8 @@ function useTilesRowWidth(wide: boolean): number {
   if (!wide) return Math.floor(window.width - GUTTER_NARROW * 2)
   if (column === null) return 0
   const page = Math.min(column, PAGE_MAX)
-  return Math.floor(page - GUTTER_WIDE * 2 - SIDE_COLUMN - COLUMN_GAP)
+  const cards = page >= BESIDE_MIN ? SIDE_COLUMN + COLUMN_GAP : 0
+  return Math.floor(page - GUTTER_WIDE * 2 - cards)
 }
 
 const styles = StyleSheet.create(theme => ({

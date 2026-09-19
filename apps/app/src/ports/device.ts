@@ -75,3 +75,14 @@ function generateId(): string {
   else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
+
+/**
+ * What to call this device in a sentence: "on this iPad", "tells this phone".
+ * The layout does not decide it: an iPad is wide enough for a computer's
+ * layout and is still not a computer.
+ */
+export function deviceWord(_layout: { wide: boolean; finePointer: boolean }): DeviceWord {
+  return Platform.OS === 'ios' && Platform.isPad ? 'iPad' : 'phone'
+}
+
+type DeviceWord = 'phone' | 'iPad' | 'tablet' | 'computer'

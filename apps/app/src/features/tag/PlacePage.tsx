@@ -129,7 +129,7 @@ export function PlacePage({
             <PlaylistCover songIds={ids} size={wide ? 176 : 196} />
           </View>
         )}
-        <View style={styles.titles}>
+        <View style={[styles.titles, wide && styles.titlesWide]}>
           <View style={styles.kind}>
             {place.kind === 'tag' ? (
               <View style={[styles.kindDot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
@@ -350,13 +350,16 @@ const styles = StyleSheet.create(theme => ({
     ...glassBlur,
   },
   hero: { gap: 16 },
-  heroWide: { flexDirection: 'row', alignItems: 'flex-end', gap: 28 },
+  // The buttons go under the name when the page cannot hold all three abreast
+  // (an iPad in portrait), rather than squeezing the name to nothing.
+  heroWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 28 },
   mosaic: {
     alignSelf: 'flex-start',
     boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35)',
     borderRadius: radius.card,
   },
   titles: { gap: 6, flexShrink: 1, minWidth: 0 },
+  titlesWide: { flexGrow: 1, flexBasis: 220 },
   kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kindDot: { width: 7, height: 7, borderRadius: 3.5 },
   kindText: labelText(theme.colors),

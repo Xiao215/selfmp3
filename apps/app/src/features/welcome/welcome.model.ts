@@ -71,12 +71,10 @@ export function welcomeArt(kept: readonly string[]): WelcomeArt {
 }
 
 /**
- * The line under the button. A phone is told the library is not on it; a
- * computer is told it could be (`C01`), because a computer is where the server
- * runs if anywhere does.
+ * The line under the button: the library is not on this device, and signing
+ * in only tells the device where it is. `device` is `deviceWord` from the
+ * device port.
  */
-export function welcomeFootnote(wide: boolean): string {
-  return wide
-    ? 'Your library lives in your own storage. Signing in only tells this computer where it is.'
-    : 'Your library lives in your own storage. Signing in only tells this phone where it is.'
+export function welcomeFootnote(device: string): string {
+  return `Your library lives in your own storage. Signing in only tells this ${device} where it is.`
 }

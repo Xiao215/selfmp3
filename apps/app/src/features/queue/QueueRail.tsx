@@ -33,6 +33,12 @@ import { useQueueEdits } from './useQueueEdits'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
 const RAIL_WIDTH = 288
+/**
+ * The narrowest window that keeps the rail beside the page: the sidebar, a
+ * page a list still reads in, and the rail. Narrower (an iPad in portrait),
+ * the rail lies over the page instead, as the board draws it.
+ */
+const BESIDE_MIN = 1060
 /** Every row of the rail is this tall, so a drag is counted in rows by arithmetic. */
 const ROW_HEIGHT = 44
 
@@ -83,6 +89,7 @@ interface RowActions {
 }
 
 function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode {
+  const { width } = useLayout()
   const { theme } = useUnistyles()
   const router = useRouter()
   const artFor = useArt()
@@ -225,7 +232,7 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
   return (
     <Animated.View
       ref={railRef}
-      style={[styles.rail, slide]}
+      style={[styles.rail, width < BESIDE_MIN && styles.railOver, slide]}
       testID="queue-rail"
       role="complementary"
     >
@@ -538,6 +545,14 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     // A step up from the page, told apart by tone and not by a line (`S2`).
     backgroundColor: theme.colors.surface1,
+  },
+  railOver: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
+    boxShadow: '-18px 0 40px rgba(0, 0, 0, 0.35)',
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: sectionTitle(theme.colors),

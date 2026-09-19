@@ -153,30 +153,36 @@ export function PlayerBar(): ReactNode {
                 </Text>
               </View>
             </Pressable>
-            <IconButton
-              onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-              label={song.loved ? 'Unlike' : 'Like'}
-              active={song.loved}
-            >
-              <Heart
-                size={17}
-                filled={song.loved}
-                color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
-              />
-            </IconButton>
-            <View ref={tagsRef} collapsable={false}>
-              <IconButton
-                onPress={() => setTagsOpen(open => !open)}
-                label={`Tags for ${song.title}`}
-                caption="Edit tags"
-                active={tagsOpen}
-              >
-                <TagPlus
-                  size={17}
-                  color={tagsOpen ? songColor.color : theme.colors.textSecondary}
-                />
-              </IconButton>
-            </View>
+            {/* Under the tight width the song's name needs the room more: Like and
+                Tags are on Now Playing and in the song menu as well. */}
+            {tight ? null : (
+              <>
+                <IconButton
+                  onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
+                  label={song.loved ? 'Unlike' : 'Like'}
+                  active={song.loved}
+                >
+                  <Heart
+                    size={17}
+                    filled={song.loved}
+                    color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
+                  />
+                </IconButton>
+                <View ref={tagsRef} collapsable={false}>
+                  <IconButton
+                    onPress={() => setTagsOpen(open => !open)}
+                    label={`Tags for ${song.title}`}
+                    caption="Edit tags"
+                    active={tagsOpen}
+                  >
+                    <TagPlus
+                      size={17}
+                      color={tagsOpen ? songColor.color : theme.colors.textSecondary}
+                    />
+                  </IconButton>
+                </View>
+              </>
+            )}
           </>
         ) : (
           <Text style={styles.artist}>Nothing playing</Text>

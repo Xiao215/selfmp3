@@ -1,0 +1,50 @@
+# The wide layout on a touch screen: an iPad in portrait is past the breakpoint,
+# so it has the sidebar and the player bar rather than tabs and a mini player,
+# and smoke.yaml's phone steps do not apply.
+#
+# Run on an iPad simulator, connected the same way (connect.yaml):
+#   maestro --device <iPad udid> test .maestro/tablet.yaml
+appId: com.selfmp3.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 60000
+- assertVisible:
+    id: 'sidebar'
+
+# A tile on Home opens its tag as a page.
+- tapOn:
+    id: 'home-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'place-name'
+    timeout: 10000
+
+# Library from the sidebar; a row plays, and the player bar has it.
+- tapOn:
+    id: 'nav-library'
+- extendedWaitUntil:
+    visible:
+      id: 'library-screen'
+    timeout: 30000
+- tapOn:
+    id: 'song-row-0'
+- assertVisible:
+    id: 'player-bar'
+- assertVisible: 'Pause'
+
+# Up next is the rail beside the page, opened and closed from the bar.
+- tapOn:
+    id: 'player-bar-queue'
+- assertVisible:
+    id: 'queue-rail'
+- tapOn:
+    id: 'player-bar-queue'
+- assertNotVisible:
+    id: 'queue-rail'
+
+# The bar's pause stops it.
+- tapOn: 'Pause'
+- assertVisible: 'Play'

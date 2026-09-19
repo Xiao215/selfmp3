@@ -106,6 +106,18 @@ describe('now playing', () => {
     expect(stageGeometry(900, 400).visualCover).toBe(150)
   })
 
+  it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {
+    const portrait = stageGeometry(834, 1110, 24)
+    expect(portrait.stacked).toBe(true)
+    expect(portrait.cover).toBeCloseTo(300.24)
+    expect(portrait.inset).toBe(24)
+    // Landscape, and a computer's window, keep the cover beside the words.
+    expect(stageGeometry(1194, 750).stacked).toBe(false)
+    expect(stageGeometry(1280, 816).stacked).toBe(false)
+    // Width decides first: a tall window past 1000 is not stacked.
+    expect(stageGeometry(1100, 1300).stacked).toBe(false)
+  })
+
   it('shrinks the cover on a short page, but never below 180', () => {
     expect(stageGeometry(1280, 600).cover).toBe(310)
     expect(stageGeometry(900, 300).cover).toBe(180)

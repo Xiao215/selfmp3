@@ -622,7 +622,8 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
-    minWidth: 200,
+    // The song's room (docs/ui-mock `T09`): 300 in full, 220 under the tight width.
+    minWidth: 300,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -662,7 +663,7 @@ const styles = StyleSheet.create(theme => ({
   playPressed: { transform: [{ scale: 0.96 }] },
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },
-  leftTight: { minWidth: 150 },
+  leftTight: { minWidth: 220 },
   right: {
     flexShrink: 0,
     flexDirection: 'row',

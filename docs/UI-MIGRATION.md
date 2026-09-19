@@ -607,7 +607,8 @@ build (docs/features/widget.md); on the simulator it shows the tags and Now play
 a tile opens its tag. Leftovers are on `ui/finish`. Not merged to `main`. Gates: `npm run
 check` green; `verify:flows` green (select-all counts only songs whose files are there);
 Maestro `connect`, `smoke`, `downloads` and `offline` green on the iPhone 17 with a dev client
-rebuilt from this branch; `connect` and `tablet` green on the iPad Pro 11-inch in portrait.
+rebuilt from this branch; `connect` and `tablet` green on the iPad Pro 11-inch in portrait,
+built to the iPad boards `T01`–`T09` (see FEATURE_TODO.md, The iPad).
 The packaged desktop app (a dmg built on the Mac) passes `verify:desktop` against the lane
 server. `devices.yaml` needs a second device and was not run. Not yet looked at: Android.
 

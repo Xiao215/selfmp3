@@ -410,7 +410,13 @@ export function LibraryScreen(): ReactNode {
               <View
                 style={[
                   styles.transport,
-                  headWide ? styles.transportWide : styles.transportCompact,
+                  // A row of its own only for the three a tag brings; Shuffle alone
+                  // stays beside the order (an iPad in portrait).
+                  headWide
+                    ? styles.transportWide
+                    : model.tagFiltered
+                      ? styles.transportCompact
+                      : undefined,
                 ]}
               >
                 {model.tagFiltered ? (

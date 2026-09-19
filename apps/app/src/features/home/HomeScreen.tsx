@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Song, Stats } from '@selfmp3/shared'
@@ -366,7 +367,14 @@ function Tile({
           accessibilityLabel={`${tile.tag.name}, ${tile.songs} ${tile.songs === 1 ? 'song' : 'songs'}`}
           style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
         >
-          <Text style={[styles.tileName, { color: colours.tileInk }]} numberOfLines={1}>
+          <Text
+            style={[
+              styles.tileName,
+              width !== undefined && width < SMALL_TILE && styles.tileNameSmall,
+              { color: colours.tileInk },
+            ]}
+            numberOfLines={1}
+          >
             {tile.tag.name}
           </Text>
           <Text style={[styles.tileCount, { color: colours.tileInk }]}>
@@ -441,20 +449,25 @@ function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
   const time = listened(stats.totals.minutes)
+  // Under the tiles the two cards sit abreast, each half the page (`T02`).
+  const cards = beside ? styles.cardsStacked : styles.cardsAbreast
+  const half = beside ? null : styles.cardHalf
   return (
     <View style={column}>
       <SectionHead title="This week" action={null} />
-      <View style={styles.weekCard} testID="home-this-week">
-        <View style={styles.weekNumbers}>
-          <Figure value={time.big} unit={time.small} caption="listened" />
-          <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
-          <Figure value={String(stats.streakDays)} unit="d" caption="streak" />
+      <View style={cards}>
+        <View style={[styles.weekCard, half]} testID="home-this-week">
+          <View style={styles.weekNumbers}>
+            <Figure value={time.big} unit={time.small} caption="listened" />
+            <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
+            <Figure value={String(stats.streakDays)} unit="d" caption="streak" />
+          </View>
+          <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
+            <Text style={styles.linkSmall}>Stats and report</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
-          <Text style={styles.linkSmall}>Stats and report</Text>
-        </Pressable>
+        <ImportsHint style={half} />
       </View>
-      <ImportsHint />
     </View>
   )
 }
@@ -480,13 +493,13 @@ function Figure({
 }
 
 /** A quiet way to Import from the card column; the sidebar has the row as well. */
-function ImportsHint(): ReactNode {
+function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
   const router = useRouter()
   return (
     <Pressable
       onPress={() => router.navigate('/import')}
       accessibilityRole="link"
-      style={styles.importCard}
+      style={[styles.importCard, style]}
     >
       <View style={styles.importIcon}>
         <Download size={16} tone="textPrimary" />
@@ -501,6 +514,8 @@ function ImportsHint(): ReactNode {
 
 /** Between two tiles, across and down. */
 const TILE_GAP = 10
+/** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
+const SMALL_TILE = 140
 
 /** The page's side gutters, the widest a computer's page grows, and the card column beside the tiles. */
 const GUTTER_NARROW = 20
@@ -547,6 +562,9 @@ const styles = StyleSheet.create(theme => ({
     width: '100%',
   },
   stack: { gap: 10 },
+  cardsStacked: { gap: 12 },
+  cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  cardHalf: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   columns: { flexDirection: 'row', gap: COLUMN_GAP, alignItems: 'flex-start' },
   mainColumn: { flex: 1, minWidth: 0, gap: 12 },
   sideColumn: { width: SIDE_COLUMN, gap: 12 },
@@ -618,6 +636,7 @@ const styles = StyleSheet.create(theme => ({
     letterSpacing: -0.3,
     paddingRight: 36,
   },
+  tileNameSmall: { fontSize: type.tile - 3 },
   tileCount: { fontSize: 12, fontWeight: '500' },
   tileCover: {
     position: 'absolute',

@@ -36,7 +36,7 @@ export function ResumeToast(): ReactNode {
   const player = usePlayer()
   const library = useLibrary()
   const accent = useAccent()
-  const { finePointer } = useLayout()
+  const { finePointer, width } = useLayout()
   const memory = usePlaybackMemoryState()
   const [candidate, setCandidate] = useState<Device | null>(null)
   const [hovered, setHovered] = useState(false)
@@ -86,7 +86,9 @@ export function ResumeToast(): ReactNode {
   if (!candidate || !song) return null
 
   return (
-    <View style={styles.toast} role="status">
+    // Never wider than the window's room for it: in an iPad's Slide Over, 320
+    // wide, it ran past both edges (docs/ui-mock `T08`).
+    <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
       <Pressable
         onPress={() => {
           const target = handoffTarget(candidate.state, Date.now())
@@ -164,7 +166,6 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    maxWidth: 460,
     paddingVertical: 5,
     paddingLeft: 5,
     paddingRight: 7,
@@ -186,5 +187,5 @@ const styles = StyleSheet.create(theme => ({
   mainHovered: { backgroundColor: theme.colors.surface3 },
   label: { fontSize: 13, fontWeight: '600' },
   song: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
-  from: { color: theme.colors.textMuted, fontSize: 11 },
+  from: { color: theme.colors.textMuted, fontSize: 11, flexShrink: 2, minWidth: 0 },
 }))

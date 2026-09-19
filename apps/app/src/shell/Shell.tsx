@@ -81,9 +81,25 @@ export function Shell({
 }
 
 /**
- * The frame itself, with the overlay host already wrapped around it so sheets
- * and popovers land above the tab bar and the player bar rather than inside
+ * The frame, with the overlay host already wrapped around it so sheets and
+ * popovers land above the tab bar and the player bar rather than inside
  * whichever screen opened them.
+ *
+ * One tree at every width, the chrome in it or not. The page sits at the same
+ * place in it whether the frame is a phone's or a computer's, so crossing 820 —
+ * an iPad turned, a Split View divider dragged, a window resized — swaps the
+ * chrome around the page and never remounts it: the song, the scroll, a
+ * half-typed search and an open sheet stay (docs/ui-mock `T09`). Two frame
+ * components, as this was, were two trees, and React rebuilt every screen at
+ * the crossing. Now Playing's taking the tab bar away learned the same lesson
+ * earlier: a page that moves to a new parent is a new page.
+ *
+ * Phone: the page, and over its foot the mini player and the tab bar, and over
+ * those Up next when it is open (`P25`); Up next is there without the chrome
+ * too, since Now Playing's foot opens it, and the toasts come after it so an
+ * Undo is drawn over the sheet that asked for it. Computer: the sidebar, the
+ * page (measured, for the screens that lay out by its width), Up next's rail
+ * and the practice panel beside it, and the player bar across the foot.
  */
 function frame(
   wide: boolean,
@@ -92,74 +108,50 @@ function frame(
   barHidden: boolean,
   children: ReactNode,
 ): ReactNode {
-  if (wide && chrome) {
-    return (
-      <WideFrame sidebar={sidebar} barHidden={barHidden}>
-        {children}
-      </WideFrame>
-    )
-  }
-
-  return <CompactFrame chrome={chrome}>{children}</CompactFrame>
-}
-
-/**
- * The phone's frame: the page, and over its foot the mini player and the tab
- * bar, and over those Up next when it is open (docs/ui-mock `P25`).
- *
- * One tree with the chrome in it or not, never a different tree. When Now
- * Playing hid the tab bar by returning a bare view instead, React saw the
- * screens move to a new parent and remounted every one of them: closing Now
- * Playing put a page scrolled to its end back at the top.
- *
- * Up next is there without the chrome too, since Now Playing's foot opens it.
- * The toasts come after it, so the Undo for a song swiped away is drawn over
- * the sheet that swiped it rather than under it.
- */
-function CompactFrame({ chrome, children }: { chrome: boolean; children: ReactNode }): ReactNode {
-  const queueOpen = useQueueSheetOpen()
   return (
-    <View style={styles.root} testID={chrome ? 'shell-compact' : undefined}>
-      <View style={styles.content}>
-        <PageStep wide={false}>{children}</PageStep>
-      </View>
-      {chrome ? <MiniPlayer /> : null}
-      {chrome ? <BottomNav /> : null}
-      <QueueSheet />
-      {chrome || queueOpen ? <Toasts /> : null}
-    </View>
+    <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
+      {children}
+    </Frame>
   )
 }
 
-/** The desktop frame, which measures the page column for the screens inside it. */
-function WideFrame({
+function Frame({
+  wide,
+  chrome,
   sidebar,
   barHidden,
   children,
 }: {
+  wide: boolean
+  chrome: boolean
   sidebar: boolean
   barHidden: boolean
   children: ReactNode
 }): ReactNode {
+  const queueOpen = useQueueSheetOpen()
   const [contentWidth, setContentWidth] = useState<number | null>(null)
   return (
-    <View style={styles.root} testID="shell-wide">
+    <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
       <View style={styles.columns}>
-        {sidebar ? <Sidebar /> : null}
+        {wide && sidebar ? <Sidebar /> : null}
         <View
           style={styles.content}
           onLayout={event => setContentWidth(Math.round(event.nativeEvent.layout.width))}
         >
-          <ContentWidthContext.Provider value={contentWidth}>
-            <PageStep wide>{children}</PageStep>
+          <ContentWidthContext.Provider value={wide ? contentWidth : null}>
+            <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
-          <Toasts />
+          {wide ? <Toasts /> : null}
         </View>
         {/* Up next, between the page and the practice panel, across every page. */}
-        <QueueRail />
-        <PracticeSide />
+        {wide ? <QueueRail /> : null}
+        {wide ? <PracticeSide /> : null}
       </View>
-      <BarSlot hidden={barHidden} />
+      {wide ? <BarSlot hidden={barHidden} /> : null}
+      {!wide && chrome ? <MiniPlayer /> : null}
+      {!wide && chrome ? <BottomNav /> : null}
+      {wide ? null : <QueueSheet />}
+      {!wide && (chrome || queueOpen) ? <Toasts /> : null}
     </View>
   )
 }

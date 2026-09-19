@@ -34,6 +34,15 @@ const config = {
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: true,
       },
+      // The iPhone stays portrait (`orientation` above); the iPad turns every
+      // way, and the layout follows its width (docs/ui-mock `T06`–`T09`). Expo
+      // writes only the iPhone's key from `orientation`, never this one.
+      'UISupportedInterfaceOrientations~ipad': [
+        'UIInterfaceOrientationPortrait',
+        'UIInterfaceOrientationPortraitUpsideDown',
+        'UIInterfaceOrientationLandscapeLeft',
+        'UIInterfaceOrientationLandscapeRight',
+      ],
     },
     // Shared with the home-screen widget (targets/widget), which reads the
     // snapshot the app leaves here. Must match the target's own entitlement.

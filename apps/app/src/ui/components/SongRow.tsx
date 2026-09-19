@@ -320,7 +320,9 @@ export const SongRow = memo(function SongRow({
       {dropLine}
       {leading}
       {onToggleSelect ? (
-        <Reveal shown={selecting || selected || revealed}>
+        // A finger gets no circle waiting in every row (docs/ui-mock `T09`): it
+        // holds a row to start choosing, as on a phone, and the circles come then.
+        <Reveal shown={selecting || selected || (dense && revealed)}>
           <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
         </Reveal>
       ) : null}
@@ -347,7 +349,13 @@ export const SongRow = memo(function SongRow({
 
       <Pressable
         onPress={event => onPress(event, song)}
-        onLongPress={onMore ? () => onMore(moreRef.current, song) : undefined}
+        onLongPress={
+          !dense && onToggleSelect
+            ? () => onToggleSelect(song)
+            : onMore
+              ? () => onMore(moreRef.current, song)
+              : undefined
+        }
         delayLongPress={450}
         accessibilityRole="button"
         accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
@@ -371,7 +379,8 @@ export const SongRow = memo(function SongRow({
             <Text style={styles.artist} numberOfLines={1}>
               {song.artist || 'Unknown artist'}
             </Text>
-            {song.album && !albumColumn ? (
+            {/* With a finger the second line is the artist alone (`T03`). */}
+            {song.album && !albumColumn && dense ? (
               <Text style={styles.albumInline} numberOfLines={1}>
                 {' · '}
                 {song.album}

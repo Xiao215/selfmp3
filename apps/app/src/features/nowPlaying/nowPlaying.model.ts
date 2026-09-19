@@ -155,15 +155,30 @@ export interface StageGeometry {
   readonly visualTitle: number
   readonly lyric: number
   readonly focusLyric: number
+  /**
+   * A page taller than it is wide (an iPad in portrait, `T05`): the cover and
+   * the title share a row, and the words run the page's width under them.
+   */
+  readonly stacked: boolean
+  /** The status bar's height over the page (an iPad's), which the head sits under. */
+  readonly inset: number
 }
 
+/** Past this width a page keeps its cover and its words side by side, however tall. */
+const STACK_MAX_WIDTH = 1000
+
 /** The page's measurements, from its own size. */
-export function stageGeometry(width: number, height: number): StageGeometry {
+export function stageGeometry(width: number, height: number, inset = 0): StageGeometry {
+  const stacked = width < STACK_MAX_WIDTH && height > width
   return {
+    stacked,
+    inset,
     pad: clamp(28, width * 0.05, 72),
     gutter: clamp(28, width * 0.05, 72),
     right: clamp(20, width * 0.04, 56),
-    cover: Math.max(180, Math.min(400, width * 0.34, height - 290)),
+    cover: stacked
+      ? clamp(200, width * 0.36, 320)
+      : Math.max(180, Math.min(400, width * 0.34, height - 290)),
     title: clamp(22, width * 0.022, 30),
     visualCover: clamp(150, Math.min(width * 0.16, height * 0.28), 220),
     visualTitle: clamp(28, width * 0.031, 44),

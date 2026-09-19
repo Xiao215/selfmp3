@@ -19,36 +19,24 @@ in the feature's own document under `docs/features/`.
 
 ## The iPad
 
-The phone app runs on an iPad today in portrait only, with the layout its width gives it
-(834 was checked and fixed: safe area, bar, header). Finishing it is independent of
-everything else and can run on its own branch.
-The boards are `T01`–`T09` in [ui-mock](ui-mock/index.html#ipad): portrait, landscape,
-Split View, Slide Over, and every width where the layout gives way (`T09`).
+Built to the boards `T01`–`T09` in [ui-mock](ui-mock/index.html#ipad) on 2026-09-19: the
+iPad turns every way (`UISupportedInterfaceOrientations~ipad` in `app.config.js`; the
+iPhone stays portrait), each width in `T09` gives way as drawn, Now Playing stacks in
+portrait, a finger gets no select circle or hover play in a row (holding a row selects), and
+crossing 820 keeps the page (`Shell.tsx` is one tree at every width;
+`verify/flows/navigation.spec.ts` checks 1194 → 507 → 1194 in a browser). Checked on the
+iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678, 507 and
+320 in a browser. What is left:
 
-- **Orientation.** The iPhone stays portrait; the iPad gets all four. In `app.config.js`,
-  `orientation: 'portrait'` stays, because Expo's plugin writes only
-  `UISupportedInterfaceOrientations` and never the `~ipad` key, and
-  `ios.infoPlist['UISupportedInterfaceOrientations~ipad']` lists the four by name.
-  `ios.requireFullScreen` stays false: Apple deprecated `UIRequiresFullScreen` in iPadOS 26
-  (TN3192), and iPadOS 26 rotates an iPad regardless of the mask when rotation lock is off.
-  No `expo-screen-orientation`: a static mask does not need it, and react-native-screens
-  4.23+ conflicts with its lock.
-- **Widths.** The layout is decided by width, so nothing should change; check that it does
-  not at 1194 (landscape), 834 (portrait), 678 and 507 (Split View), 375 and 320 (Slide
-  Over, the phone layout narrower than it has ever been drawn). Crossing 820 while resizing
-  must not remount the screen; `Shell.tsx` promises this and
-  `verify/flows/navigation.spec.ts` checks it in a browser at 1194 → 507 as the stand-in,
-  since `simctl` cannot rotate or split. One known hazard: React Native's `Dimensions`
-  change event has failed to fire on the first entry into Split View
-  (facebook/react-native #28935; its state under Fabric is unconfirmed). If the simulator
-  shows it, `useLayout` takes its width from an `onLayout` on the root view as well, and
-  the larger of the two wins.
+- **Landscape and Split View on the simulator, by hand, once.** Neither `simctl` nor
+  Maestro turns an iPad simulator (Maestro's `setOrientation` leaves the app taking touches
+  in the wrong place until it is relaunched), so the Simulator's ⌘← / ⌘→ is the way. One
+  known hazard: React Native's `Dimensions` change event has failed to fire on the first
+  entry into Split View (facebook/react-native #28935; its state under Fabric is
+  unconfirmed). If the simulator shows it, `useLayout` takes its width from an `onLayout`
+  on the root view as well, and the larger of the two wins.
 - **Trackpad hover.** `Pressable` on iPadOS reports `onHoverIn`. `finePointer` stays false
   for now, so controls stay finger-sized and always visible, the right default for a tablet.
-- **Checks.** `.maestro/smoke.yaml` on an "iPad Pro 11-inch" simulator in portrait;
-  landscape and Split View by hand, once. Done when `npm run check:app` is green, the phone
-  flows pass in a browser at 1194 and at 507, and the four orientations are in
-  `ios/…/Info.plist` after prebuild.
 - **Hardware keyboard shortcuts.** Deferred by Xiao on 2026-09-14. React Native core
   delivers no key events on iOS and Expo has no module for it, so the way in is a local Expo
   module (`apps/app/modules/key-commands`, about 60 lines of Swift over `expo-modules-core`)

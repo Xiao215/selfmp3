@@ -72,7 +72,7 @@ const VISUAL_FOOT = 44
 export function stageCover(g: StageGeometry, height: number, visual: boolean): CoverBox {
   return visual
     ? { left: g.pad, top: height - VISUAL_FOOT - g.visualCover, size: g.visualCover }
-    : { left: g.pad, top: COVER_TOP, size: g.cover }
+    : { left: g.pad, top: COVER_TOP + g.inset, size: g.cover }
 }
 
 /**
@@ -81,12 +81,12 @@ export function stageCover(g: StageGeometry, height: number, visual: boolean): C
  * that makes the cover's edges travel exactly as the animated left, top and
  * width did.
  */
-export function coverPose(at: CoverBox, m: number): MovePose {
+export function coverPose(at: CoverBox, m: number, inset = 0): MovePose {
   const half = at.size / 2
   const focusHalf = FOCUS_COVER.size / 2
   return {
     translateX: (FOCUS_COVER.left + focusHalf - (at.left + half)) * m,
-    translateY: (FOCUS_COVER.top + focusHalf - (at.top + half)) * m,
+    translateY: (FOCUS_COVER.top + inset + focusHalf - (at.top + half)) * m,
     scale: lerp(1, FOCUS_COVER.size / at.size, m),
     radius: lerp(COVER_RADIUS.stage, COVER_RADIUS.focus, m),
   }
@@ -100,12 +100,22 @@ interface WordsFrame {
 
 /** Where the lyrics column's edges are, `m` of the way from the stage to Focus. */
 export function wordsFrame(width: number, g: StageGeometry, m: number): WordsFrame {
+  // Stacked, the words start under the cover and the row of tabs below it.
+  const stage = g.stacked
+    ? { left: g.pad, top: stackedTabsTop(g) + STACKED_TABS_HEIGHT }
+    : { left: g.pad + g.cover + g.gutter, top: 60 + g.inset }
   return {
-    left: lerp(g.pad + g.cover + g.gutter, width * 0.12, m),
+    left: lerp(stage.left, width * 0.12, m),
     right: lerp(g.right, width * 0.12, m),
-    top: lerp(60, 56, m),
+    top: lerp(stage.top, 56 + g.inset, m),
   }
 }
+
+/** The row under a stacked page's cover: Lyrics and About, Romaji and expand (`T05`). */
+export function stackedTabsTop(g: StageGeometry): number {
+  return COVER_TOP + g.inset + g.cover + 24
+}
+const STACKED_TABS_HEIGHT = 52
 
 /**
  * The lyrics column, laid out where its mode puts it and slid there from where

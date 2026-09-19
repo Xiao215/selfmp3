@@ -141,4 +141,33 @@ test.describe('navigation', () => {
     await openLibrary(page)
     await libraryReady(page)
   })
+
+  /**
+   * Turning an iPad, or dragging its Split View divider, across 820 changes
+   * the layout under the same page and never remounts it (docs/ui-mock `T09`):
+   * a half-typed search stays, in the very same field. A browser resized from
+   * landscape (1194) to Split View (507) and back is the stand-in, since a
+   * simulator can neither turn nor split on command.
+   */
+  test('crossing 820 keeps the page: a half-typed search stays', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'one window, resized; the phone project is fixed')
+    await page.setViewportSize({ width: 1194, height: 834 })
+    await page.goto('/search')
+    const field = page.getByPlaceholder('Songs, tags, artists, lyrics')
+    await expect(field).toBeVisible({ timeout: 30_000 })
+    await field.fill('yoas')
+    // A mark on the element itself: a remounted page would draw a new field without it.
+    await field.evaluate(element => element.setAttribute('data-kept', 'yes'))
+    await expect(page.getByTestId('shell-wide')).toBeVisible()
+
+    await page.setViewportSize({ width: 507, height: 834 })
+    await expect(page.getByTestId('shell-compact')).toBeVisible()
+    await expect(field).toHaveValue('yoas')
+    await expect(field).toHaveAttribute('data-kept', 'yes')
+
+    await page.setViewportSize({ width: 1194, height: 834 })
+    await expect(page.getByTestId('shell-wide')).toBeVisible()
+    await expect(field).toHaveValue('yoas')
+    await expect(field).toHaveAttribute('data-kept', 'yes')
+  })
 })

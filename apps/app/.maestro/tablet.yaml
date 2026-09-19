@@ -29,6 +29,16 @@ appId: com.selfmp3.app
     visible:
       id: 'library-screen'
     timeout: 30000
+# A finger has no circle waiting in each row (docs/ui-mock `T09`): holding a
+# row starts choosing, as on a phone.
+- longPressOn:
+    id: 'song-row-2'
+- assertVisible:
+    id: 'selection-done'
+- tapOn:
+    id: 'selection-done'
+- assertNotVisible:
+    id: 'selection-done'
 - tapOn:
     id: 'song-row-0'
 - assertVisible:

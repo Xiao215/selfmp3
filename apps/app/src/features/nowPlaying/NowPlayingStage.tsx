@@ -45,7 +45,7 @@ import {
 import { motionMs } from '../../ui/motion'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
-import { coverPose, stageCover, wordsFrame, wordsPose } from './stageMove.model'
+import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './stageMove.model'
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongVisual } from './visualChoice'
@@ -215,7 +215,7 @@ function Stage({
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
   const height = (size?.height ?? window.height) - BAR
-  const g = useMemo(() => stageGeometry(width, height), [width, height])
+  const g = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
   const move = useStageMove(focus)
@@ -265,6 +265,29 @@ function Stage({
       <ChevronDown size={13} color={theme.colors.textSecondary} />
     </Pressable>
   ) : null
+
+  const tabList = (
+    <View style={styles.tabs} role="tablist" aria-label="Show">
+      {tabs.map(([value, label]) => (
+        <Pressable
+          key={value}
+          role="tab"
+          aria-selected={shownTab === value}
+          onPress={() => onTab(value)}
+          style={({ pressed }) => [
+            styles.tab,
+            shownTab === value && styles.tabActive,
+            pressed && styles.tabActive,
+          ]}
+        >
+          <Text style={[styles.tabText, shownTab === value && styles.tabTextActive]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  )
+  // Stacked (`T05`), the tabs leave the head for a row under the cover, with
+  // Romaji and expand at its other end.
+  const tabsRow = g.stacked && !focus ? stackedTabsTop(g) : null
 
   return (
     <Animated.View
@@ -350,7 +373,7 @@ function Stage({
           Focus: its artwork and its shadow shrink with it. */}
       <Moving
         move={move}
-        pose={m => coverPose(box, m)}
+        pose={m => coverPose(box, m, g.inset)}
         style={[
           styles.cover,
           chrome,
@@ -371,7 +394,10 @@ function Stage({
             visualStage
               ? // Beside the stepped-down cover, its foot on the cover's foot.
                 { left: box.left + box.size + 28, right: g.right, bottom: BAR + 44 }
-              : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
+              : g.stacked
+                ? // Beside the cover, as a tag page's name is.
+                  { left: box.left + box.size + g.gutter, top: box.top + 16, right: g.right }
+                : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
           ]}
         >
           <Text
@@ -516,32 +542,25 @@ function Stage({
             <Text style={styles.context} pointerEvents="none">
               {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
             </Text>
-            <View style={styles.tabs} role="tablist" aria-label="Show">
-              {tabs.map(([value, label]) => (
-                <Pressable
-                  key={value}
-                  role="tab"
-                  aria-selected={shownTab === value}
-                  onPress={() => onTab(value)}
-                  style={({ pressed }) => [
-                    styles.tab,
-                    shownTab === value && styles.tabActive,
-                    pressed && styles.tabActive,
-                  ]}
-                >
-                  <Text style={[styles.tabText, shownTab === value && styles.tabTextActive]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {stylePill}
+            {g.stacked ? null : (
+              <>
+                {tabList}
+                {stylePill}
+              </>
+            )}
           </>
         )}
       </View>
 
+      {tabsRow !== null ? (
+        <View style={[styles.tools, chrome, { top: tabsRow, left: g.pad }]}>
+          {tabList}
+          {stylePill}
+        </View>
+      ) : null}
+
       {focus && stylePill ? (
-        <View style={[styles.tools, chrome, { top: 12, right: 66 }]}>{stylePill}</View>
+        <View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>{stylePill}</View>
       ) : null}
 
       {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' ? (
@@ -549,7 +568,11 @@ function Stage({
           style={[
             styles.tools,
             chrome,
-            focus ? { top: 15, right: 66 } : { top: height - 48, right: g.right },
+            focus
+              ? { top: top + 15, right: 66 }
+              : tabsRow !== null
+                ? { top: tabsRow + 4, right: g.right + 52 }
+                : { top: height - 48, right: g.right },
           ]}
         >
           <Pressable
@@ -579,7 +602,7 @@ function Stage({
           style={({ pressed }) => [
             styles.expand,
             chrome,
-            focus ? { top: 12, right: 20 } : { top: 68, right: g.right },
+            focus ? { top: top + 12, right: 20 } : { top: tabsRow ?? top + 68, right: g.right },
             pressed && styles.expandPressed,
           ]}
         >

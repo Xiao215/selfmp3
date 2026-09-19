@@ -5,6 +5,7 @@ import {
   coverPose,
   laidOutRadius,
   moveKeyframes,
+  stackedTabsTop,
   stageCover,
   wordsFrame,
   wordsPose,
@@ -120,5 +121,21 @@ describe('moveKeyframes', () => {
       const pose = coverPose(box, frame.offset)
       expect(frame.borderRadius).toBe(`${laidOutRadius(pose)}px`)
     }
+  })
+})
+
+describe('a stacked page (T05)', () => {
+  const tall = stageGeometry(834, 1110, 24)
+
+  it('starts the cover under the status bar, and the words under the row of tabs', () => {
+    expect(stageCover(tall, 1110, false).top).toBe(COVER_TOP + 24)
+    const words = wordsFrame(834, tall, 0)
+    expect(words.left).toBe(tall.pad)
+    expect(words.top).toBeGreaterThan(stackedTabsTop(tall))
+  })
+
+  it('moves the cover into the header under the status bar in Focus', () => {
+    const cover = stageCover(tall, 1110, false)
+    expect(seenCover(coverPose(cover, 1, 24), cover).top).toBeCloseTo(10 + 24)
   })
 })

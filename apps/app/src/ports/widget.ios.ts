@@ -1,4 +1,3 @@
-import { ExtensionStorage } from '@bacons/apple-targets'
 import { File } from 'expo-file-system'
 import { WIDGET_KEY, type WidgetSnapshot } from '../features/widget/widget.model'
 
@@ -12,13 +11,43 @@ import { WIDGET_KEY, type WidgetSnapshot } from '../features/widget/widget.model
  */
 const APP_GROUP = 'group.com.selfmp3.app'
 
-const storage = new ExtensionStorage(APP_GROUP)
+interface Storage {
+  set: (key: string, value: string) => void
+}
+interface StorageModule {
+  ExtensionStorage: (new (group: string) => Storage) & { reloadWidget: () => void }
+}
 
-export const hasWidget = true
+/**
+ * The native module, if this build has it. A dev client built before the
+ * widget existed does not, and asking for a module that is not there throws
+ * at import — which would stop the whole app opening. So it is looked for
+ * here, and a build without it simply has no widget to feed.
+ */
+function loadStorage(): StorageModule | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- a module that may not be linked
+    return require('@bacons/apple-targets') as StorageModule
+  } catch {
+    return null
+  }
+}
+
+const native = loadStorage()
+const storage = (() => {
+  try {
+    return native ? new native.ExtensionStorage(APP_GROUP) : null
+  } catch {
+    return null
+  }
+})()
+
+export const hasWidget = storage !== null
 
 export function sendWidgetSnapshot(snapshot: WidgetSnapshot): void {
+  if (!storage || !native) return
   storage.set(WIDGET_KEY, JSON.stringify(snapshot))
-  ExtensionStorage.reloadWidget()
+  native.ExtensionStorage.reloadWidget()
 }
 
 /**

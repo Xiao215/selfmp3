@@ -45,9 +45,12 @@ export function useMotionSampler(song: Song, active: boolean): MotionSampler {
   )
 
   const feel = useMemo(() => visualFeel(song.audioFeatures), [song.audioFeatures])
+  // Each song gets a sampler of its own, even when nothing else here changed:
+  // the live sampler's running average and peak belong to the song before.
   const songId = song.id
   return useMemo(
-    () => chooseSampler({ canHear, analyser, curve, feel, songId }),
+    () => chooseSampler({ canHear, analyser, curve, feel }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- songId starts a fresh sampler.
     [canHear, analyser, curve, feel, songId],
   )
 }

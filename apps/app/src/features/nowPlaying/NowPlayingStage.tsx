@@ -41,6 +41,7 @@ import {
   type PageMode,
   type StageTab,
 } from './nowPlaying.model'
+import { motionMs } from '../../ui/motion'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
 import { coverPose, stageCover, wordsFrame, wordsPose } from './stageMove.model'
@@ -192,14 +193,14 @@ function Stage({
   useEffect(() => {
     Animated.timing(shown, {
       toValue: 1,
-      duration: ENTER_MS,
+      duration: motionMs(ENTER_MS),
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
     }).start(() => setEntered(true))
     setStageExit(then => {
       Animated.timing(shown, {
         toValue: 0,
-        duration: LEAVE_MS,
+        duration: motionMs(LEAVE_MS),
         easing: Easing.bezier(0.4, 0, 1, 1),
         useNativeDriver: true,
       }).start(() => then())

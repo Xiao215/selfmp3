@@ -184,12 +184,6 @@ export function motionTuning(feel: VisualFeel, bpmKnown: boolean): MotionTuning 
 const ease = (dt: number, seconds: number): number => 1 - Math.exp(-dt / seconds)
 
 /**
- * Nothing here draws the sampler's bands, so it is handed no room for them
- * and each sampler skips working them out.
- */
-const NO_BANDS = new Float32Array(0)
-
-/**
  * One frame. `playing` false steps as silence (the sampler is not asked) and
  * holds the hills where they are; `dt` 0 changes nothing at all, for a frame
  * drawn twice.
@@ -209,7 +203,7 @@ export function stepMotion(
   let level = 0
   let onset = 0
   if (playing) {
-    const heard = sampler.sample(seconds, NO_BANDS)
+    const heard = sampler.sample(seconds)
     level = clamp01(heard.level)
     onset = clamp01(heard.onset)
     for (const trail of state.hills) listen(trail, level, dt)

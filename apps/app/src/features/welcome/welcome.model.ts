@@ -77,6 +77,6 @@ export function welcomeArt(kept: readonly string[]): WelcomeArt {
  */
 export function welcomeFootnote(wide: boolean): string {
   return wide
-    ? 'This computer can also hold the library itself: the server runs here and the phone plays from it. Signing in tells both where it is.'
+    ? 'Your library lives in your own storage. Signing in only tells this computer where it is.'
     : 'Your library lives in your own storage. Signing in only tells this phone where it is.'
 }

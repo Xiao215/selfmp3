@@ -101,13 +101,12 @@ describe('finding hits in the stored curve', () => {
 
   it('lets a chorus ring again after each hit, where the raw onset never falls', () => {
     const onset = Array.from({ length: 80 }, (_, i) => (i % 10 === 0 ? 1 : 0.88))
-    const sampler = curveSampler(curveOf(Array(80).fill(-10), onset), 3)
-    const into = new Float32Array(16)
+    const sampler = curveSampler(curveOf(Array(80).fill(-10), onset))
     const rings: number[] = []
     let armed = true
     for (let frame = 0; frame < 120; frame++) {
       const seconds = frame / 30
-      const { onset: hit } = sampler.sample(seconds, into)
+      const { onset: hit } = sampler.sample(seconds)
       if (armed && hit >= 0.45) {
         rings.push(Math.round(seconds * 2) / 2)
         armed = false
@@ -118,50 +117,23 @@ describe('finding hits in the stored curve', () => {
 })
 
 describe('the curve sampler', () => {
-  it('draws low bars in a quiet part and tall ones in a loud part', () => {
+  it('reads a quiet part low and a loud part high', () => {
     const curve = curveOf([...Array(40).fill(-40), ...Array(40).fill(-8)], Array(80).fill(0))
-    const sampler = curveSampler(curve, 7)
-    const bands = new Float32Array(24)
-    const quiet = sampler.sample(1, bands).level
-    const quietMean = bands.reduce((a, b) => a + b, 0) / bands.length
-    const loud = sampler.sample(3, bands).level
-    const loudMean = bands.reduce((a, b) => a + b, 0) / bands.length
+    const sampler = curveSampler(curve)
     expect(sampler.source).toBe('curve')
-    expect(quiet).toBeLessThan(0.2)
-    expect(loud).toBeGreaterThan(0.9)
-    expect(loudMean).toBeGreaterThan(quietMean * 3)
-  })
-
-  it('lifts the low bands on a hit', () => {
-    const onsets = Array(40).fill(0)
-    onsets[20] = 1
-    const curve = curveOf(Array(40).fill(-15), onsets)
-    const before = new Float32Array(24)
-    const on = new Float32Array(24)
-    curveSampler(curve, 7).sample(0.8, before)
-    curveSampler(curve, 7).sample(1, on)
-    expect(on[0]!).toBeGreaterThan(before[0]! + 0.3)
+    expect(sampler.sample(1).level).toBeLessThan(0.2)
+    expect(sampler.sample(3).level).toBeGreaterThan(0.9)
   })
 
   it('does not step over a one-frame hit between two draws', () => {
     const onsets = Array(40).fill(0)
     onsets[21] = 1 // 1.05 s
-    const sampler = curveSampler(curveOf(Array(40).fill(-15), onsets), 1)
-    const bands = new Float32Array(8)
-    sampler.sample(1.0, bands)
+    const sampler = curveSampler(curveOf(Array(40).fill(-15), onsets))
+    sampler.sample(1.0)
     // A slow frame lands at 1.12, well past the hit's own 50 ms.
-    expect(sampler.sample(1.12, bands).onset).toBe(1)
+    expect(sampler.sample(1.12).onset).toBe(1)
     // A seek back reads only where it lands.
-    expect(sampler.sample(0.2, bands).onset).toBe(0)
-  })
-
-  it('wobbles differently for different songs', () => {
-    const curve = curveOf(Array(40).fill(-15), Array(40).fill(0))
-    const a = new Float32Array(16)
-    const b = new Float32Array(16)
-    curveSampler(curve, 1).sample(1, a)
-    curveSampler(curve, 2).sample(1, b)
-    expect(Array.from(a)).not.toEqual(Array.from(b))
+    expect(sampler.sample(0.2).onset).toBe(0)
   })
 })
 
@@ -173,21 +145,18 @@ describe('the live sampler', () => {
       fakeAnalyser(() => steady(0)),
       () => 0,
     )
-    const bands = new Float32Array(16)
-    expect(sampler.sample(0, bands)).toEqual({ level: 0, onset: 0 })
-    expect(Array.from(bands).every(v => v === 0)).toBe(true)
+    expect(sampler.sample(0)).toEqual({ level: 0, onset: 0 })
   })
 
   it('reads a loud passage higher than a quiet one', () => {
-    const bands = new Float32Array(16)
     const quiet = liveSampler(
       fakeAnalyser(() => steady(120)),
       () => 0,
-    ).sample(0, bands).level
+    ).sample(0).level
     const loud = liveSampler(
       fakeAnalyser(() => steady(230)),
       () => 0,
-    ).sample(0, bands).level
+    ).sample(0).level
     expect(loud).toBeGreaterThan(quiet * 1.8)
     expect(loud).toBeLessThanOrEqual(1)
   })
@@ -203,11 +172,10 @@ describe('the live sampler', () => {
       }),
       () => seconds,
     )
-    const bands = new Float32Array(16)
     const onsets: number[] = []
     for (let frame = 0; frame < 40; frame++) {
       seconds = frame / 60
-      onsets.push(sampler.sample(seconds, bands).onset)
+      onsets.push(sampler.sample(seconds).onset)
     }
     expect(onsets[hitAt]).toBeGreaterThan(0.9)
     expect(Math.max(...onsets.slice(1, hitAt))).toBe(0)
@@ -220,14 +188,13 @@ describe('the live sampler', () => {
       fakeAnalyser(() => steady(spectrum)),
       () => seconds,
     )
-    const bands = new Float32Array(16)
     const onsets: number[] = []
     for (let frame = 0; frame < 60; frame++) {
       // A seek at frame 20: the playhead jumps a minute and the spectrum with it.
       if (frame === 20) spectrum = 220
       const playhead = frame < 20 ? frame / 60 : 60 + frame / 60
       seconds = frame / 60
-      onsets.push(sampler.sample(playhead, bands).onset)
+      onsets.push(sampler.sample(playhead).onset)
     }
     expect(Math.max(...onsets)).toBe(0)
   })
@@ -251,35 +218,21 @@ describe('the live sampler', () => {
       },
     }
     const sampler = liveSampler(node, () => seconds)
-    const bands = new Float32Array(16)
     const onsets: number[] = []
     for (let frame = 0; frame < 40; frame++) {
       seconds = frame / 60
-      onsets.push(sampler.sample(seconds, bands).onset)
+      onsets.push(sampler.sample(seconds).onset)
     }
     expect(onsets[30]).toBeGreaterThan(0.9)
     expect(Math.max(...onsets.slice(1, 30))).toBe(0)
-    // The bars still stop at the top, as Spectrum always drew them.
-    expect(bands[0]).toBe(1)
-  })
-
-  it('fills the bands low to high from the usable bins', () => {
-    const sampler = liveSampler(
-      fakeAnalyser(() => Array.from({ length: 128 }, (_, i) => 255 - i * 2)),
-      () => 0,
-    )
-    const bands = new Float32Array(12)
-    sampler.sample(0, bands)
-    expect(bands[0]!).toBeGreaterThan(bands[11]!)
   })
 })
 
 describe('the tempo stand-in', () => {
   it('kicks on the beat and not between', () => {
     const sampler = beatSampler(visualFeel({ bpm: 120, energy: 0.8 } as never))
-    const bands = new Float32Array(16)
-    expect(sampler.sample(10, bands).onset).toBeGreaterThan(0.8)
-    expect(sampler.sample(10.3, bands).onset).toBeLessThan(0.2)
+    expect(sampler.sample(10).onset).toBeGreaterThan(0.8)
+    expect(sampler.sample(10.3).onset).toBeLessThan(0.2)
   })
 })
 
@@ -288,17 +241,13 @@ describe('choosing a sampler', () => {
   const curve = curveOf([-10], [0])
 
   it('listens where it can, then reads the curve, then keeps the tempo', () => {
-    expect(chooseSampler({ canHear: true, analyser, curve, feel, songId: 1 }).source).toBe('live')
-    expect(chooseSampler({ canHear: false, analyser, curve, feel, songId: 1 }).source).toBe('curve')
-    expect(chooseSampler({ canHear: true, analyser: null, curve, feel, songId: 1 }).source).toBe(
-      'curve',
-    )
-    expect(
-      chooseSampler({ canHear: false, analyser: null, curve: null, feel, songId: 1 }).source,
-    ).toBe('beat')
+    expect(chooseSampler({ canHear: true, analyser, curve, feel }).source).toBe('live')
+    expect(chooseSampler({ canHear: false, analyser, curve, feel }).source).toBe('curve')
+    expect(chooseSampler({ canHear: true, analyser: null, curve, feel }).source).toBe('curve')
+    expect(chooseSampler({ canHear: false, analyser: null, curve: null, feel }).source).toBe('beat')
     const empty = curveOf([], [])
-    expect(
-      chooseSampler({ canHear: false, analyser: null, curve: empty, feel, songId: 1 }).source,
-    ).toBe('beat')
+    expect(chooseSampler({ canHear: false, analyser: null, curve: empty, feel }).source).toBe(
+      'beat',
+    )
   })
 })

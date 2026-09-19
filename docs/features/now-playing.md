@@ -60,9 +60,8 @@ the same hue as its placeholder cover.
 ## Songs with no words
 
 A song never opens onto an empty page. When there are no lyrics, the words area shows a
-visual drawn from the song itself, with one line under it: *No lyrics · 140 BPM · A minor*,
-leaving out what is not known (`visualCaption`). "No lyrics" is one state — a saved answer
-that the song has no words and a lookup that found nothing look the same (see
+visual drawn from the song itself. "No lyrics" is one state — a saved answer that the song
+has no words and a lookup that found nothing look the same (see
 [lyrics-plus.md](lyrics-plus.md#songs-with-no-words) for the flag the server keeps).
 **Style ▾** chooses another visual, or looks for lyrics again.
 
@@ -86,8 +85,8 @@ the title.
 (`analyser()` in `ports/engine.web.ts`) is the sound itself. Everywhere else — a phone,
 Safari, a touch browser, a cloud library, offline — the song's motion curve, worked out by
 the server when it analysed the song, is played back against the playhead. A song with
-neither falls back to a stand-in drawn from its tempo and energy. The line under the caption
-says which: *Following the sound*, *Following the song* or *Following the tempo*.
+neither falls back to a stand-in drawn from its tempo and energy. A quiet line in the
+**Style ▾** menu says which: *Following the sound*, *Following the song* or *Following the tempo*.
 
 ## On the phone
 

@@ -1,5 +1,5 @@
 import type { FrequencyAnalyser } from '@selfmp3/client'
-import { beatKick, beatPhase, synthLevels, valueNoise, type VisualFeel } from './visuals.model'
+import { beatKick, beatPhase, type VisualFeel } from './visuals.model'
 
 /**
  * What the music is doing right now, for a visual to draw every frame.
@@ -14,16 +14,16 @@ import { beatKick, beatPhase, synthLevels, valueNoise, type VisualFeel } from '.
  * to a stand-in drawn from its tempo and energy, which is the one place a beat
  * keeps time on its own.
  *
- * All three sit behind one small interface, so the four styles draw the same
- * way whichever is behind them, and the styles never learn which it is. Live
+ * All three sit behind one small interface, so Horizon and Ripples draw the
+ * same way whichever is behind them, and never learn which it is. Live
  * and curve agree on what "loud" means: both become a level through the same
  * decibel scale (`levelFromDb`). Pure apart from the analyser it is handed:
  * vitest runs every sampler.
  */
 
 export interface MotionSampler {
-  /** `seconds` is the playhead; `into` has `bands.length` slots to fill. */
-  sample(seconds: number, into: Float32Array): { level: number; onset: number }
+  /** `seconds` is the playhead. Level and onset are both 0–1. */
+  sample(seconds: number): { level: number; onset: number }
   /** 'live' reads the analyser, 'curve' the stored motion, 'beat' the tempo/energy fallback. */
   readonly source: 'live' | 'curve' | 'beat'
 }
@@ -91,10 +91,11 @@ export function curveLevel(loudness: number): number {
 
 /* ------------------------------------------------------------------- live */
 
-/** How a live band is shaped from the analyser's reading (0–1 across its range): Spectrum's curve. */
+/** How a live bin is shaped from the analyser's reading (0–1 across its range), for the level. */
 function shapeBin(value: number): number {
   // A modern master sits near the top of the analyser's range, and a gentle
-  // curve draws every bar at full length; a steep one leaves room for quiet.
+  // curve reads every bin as full; a steep one leaves room for quiet. The
+  // loudness reference below was measured on this curve, so it stays.
   return Math.min(1, Math.pow(Math.max(0, Math.min(1, value)), 2.6) * 1.25)
 }
 
@@ -158,10 +159,9 @@ function liveLevel(rms: number): number {
 /**
  * The sound itself, from the engine's analyser.
  *
- * Each bin is read as a share of the analyser's decibel range. Bands are the
- * usable bins averaged into as many bands as asked for, on Spectrum's curve;
- * level is their root mean square, turned into an estimate of the loudness,
- * so a quiet verse is genuinely lower rather than normalised up. Onset is
+ * Each bin is read as a share of the analyser's decibel range. Level is the
+ * shaped usable bins' root mean square, turned into an estimate of the
+ * loudness, so a quiet verse is genuinely lower rather than normalised up. Onset is
  * spectral flux on the low bins: how far each has risen above its own short
  * running average, summed, over a peak that falls away over a second or two,
  * so a hit reads near 1 in a loud song and a quiet one alike, with a floor so
@@ -209,7 +209,7 @@ export function liveSampler(
   return {
     source: 'live',
     trace,
-    sample(seconds, into) {
+    sample(seconds) {
       const at = now()
       const dt = last === null ? 1 / 60 : Math.max(0, Math.min(0.1, at - last))
       last = at
@@ -231,15 +231,6 @@ export function liveSampler(
       }
       trace.rms = Math.sqrt(squares / usable)
       const level = liveLevel(trace.rms)
-
-      const bands = into.length
-      for (let band = 0; band < bands; band++) {
-        const start = Math.floor((band / bands) * usable)
-        const end = Math.max(start + 1, Math.floor(((band + 1) / bands) * usable))
-        let sum = 0
-        for (let i = start; i < end; i++) sum += Math.min(1, values[i] ?? 0)
-        into[band] = shapeBin(sum / (end - start))
-      }
 
       let flux = 0
       const follow = 1 - Math.exp(-dt / FLUX_MEMORY)
@@ -265,39 +256,6 @@ export function liveSampler(
 
 /* ------------------------------------------------------------------ curve */
 
-/** A seed from the song, so two songs' bars do not wobble identically. */
-function songSeed(songId: number): number {
-  const s = Math.sin(songId * 12.9898 + 78.233) * 43758.5453
-  return (s - Math.floor(s)) * 100
-}
-
-/**
- * Bands for a song whose sound cannot be heard, shaped from its curve: overall
- * height from the level, tilted so the bass stands taller, as music does; the
- * low bands jump on a hit and the top end shimmers with it; and a slow wobble
- * per band, seeded by the song, so it reads as a spectrum rather than a bar
- * chart of one number.
- */
-function curveBands(
-  into: Float32Array,
-  level: number,
-  onset: number,
-  seconds: number,
-  seed: number,
-): void {
-  const count = into.length
-  const presence = 0.35 + 0.65 * level
-  for (let i = 0; i < count; i++) {
-    const x = count > 1 ? i / (count - 1) : 0
-    const tilt = 0.28 + 0.72 * Math.pow(1 - x, 1.2)
-    const wobble = valueNoise(i * 0.37 + seed, seconds * 1.3)
-    let value = level * tilt * (0.5 + 0.5 * wobble)
-    if (x < 0.3) value += onset * (1 - x / 0.3) * 0.55 * presence
-    if (x > 0.55) value += onset * 0.3 * valueNoise(i * 1.7 + seed * 3, seconds * 9) * presence
-    into[i] = Math.max(0, Math.min(1, value))
-  }
-}
-
 /** How far either side a frame is compared with, for its hit (≈ ±250 ms at 20 fps). */
 const HIT_CONTEXT_SECONDS = 0.25
 /** A hit is the highest frame within this many seconds either side (≈ ±100 ms). */
@@ -312,8 +270,8 @@ const HIT_FLOOR = 0.15
  *
  * The stored onset is normalised to the song's own 98th percentile, so a dense
  * loud chorus sits near the top nearly every frame. Read as it is, that is one
- * long hit that never lets go — Pulse stopped ringing exactly where the song
- * is busiest. So a hit is a frame that stands out from its own surroundings:
+ * long hit that never lets go — Ripples would stop ringing exactly where the
+ * song is busiest. So a hit is a frame that stands out from its surroundings:
  * the highest within ±100 ms, and above the ±250 ms average by more than a
  * whisker, scaled by how far it rises towards the local top and weighted by
  * its own strength so a quiet passage's hits stay softer than a chorus's. That
@@ -361,15 +319,12 @@ export function curveHits(onset: Uint8Array, rate: number): Float32Array {
  * The onset is the strongest hit passed since the last draw, not just the
  * frame where this draw landed: a hit is a single 50 ms frame, and a phone
  * drawing at 30 frames a second could step straight over it. A seek or a
- * pause (the playhead jumping or standing) reads only where it is. The bands
- * also feel the raw onset, softened, so a busy passage shimmers between hits.
+ * pause (the playhead jumping or standing) reads only where it is.
  */
 export function curveSampler(
   curve: MotionCurveLike,
-  songId: number,
   sample: CurveSample = sampleCurve,
 ): MotionSampler {
-  const seed = songSeed(songId)
   const frames = Math.min(curve.loudness.length, curve.onset.length)
   const hits = curveHits(curve.onset.subarray(0, frames), curve.rate)
   const hitAt = (seconds: number): number => {
@@ -379,7 +334,7 @@ export function curveSampler(
   let previous = -1
   return {
     source: 'curve',
-    sample(seconds, into) {
+    sample(seconds) {
       const here = sample(curve, seconds)
       let onset = seconds < curve.duration ? hitAt(seconds) : 0
       const gap = seconds - previous
@@ -389,9 +344,7 @@ export function curveSampler(
         for (let i = Math.max(0, first); i <= lastFrame; i++) onset = Math.max(onset, hits[i] ?? 0)
       }
       previous = seconds
-      const level = curveLevel(here.level)
-      curveBands(into, level, Math.max(onset, here.onset * 0.5), seconds, seed)
-      return { level, onset }
+      return { level: curveLevel(here.level), onset }
     },
   }
 }
@@ -401,16 +354,14 @@ export function curveSampler(
 /**
  * The stand-in for a song with no curve and no sound to hear: the tempo and
  * energy synthesis the visuals always had, behind the same interface. The
- * onset is the beat's kick, so Pulse still rings on the beat for a song not
+ * onset is the beat's kick, so Ripples still rings on the beat for a song not
  * analysed yet — the only place anything keeps time by itself.
  */
 export function beatSampler(feel: VisualFeel): MotionSampler {
   return {
     source: 'beat',
-    sample(seconds, into) {
+    sample(seconds) {
       const kick = beatKick(beatPhase(seconds, feel.bpm))
-      const levels = synthLevels(into.length, seconds, feel.bpm, feel.energy)
-      for (let i = 0; i < into.length; i++) into[i] = levels[i] ?? 0
       const level = Math.min(1, 0.2 + 0.45 * feel.loudness + 0.2 * feel.energy * kick)
       return { level, onset: kick * (0.55 + 0.45 * feel.energy) }
     },
@@ -423,16 +374,13 @@ export function chooseSampler({
   analyser,
   curve,
   feel,
-  songId,
 }: {
   canHear: boolean
   analyser: FrequencyAnalyser | null
   curve: MotionCurveLike | null
   feel: VisualFeel
-  songId: number
 }): MotionSampler {
   if (canHear && analyser) return liveSampler(analyser)
-  if (curve && Math.min(curve.loudness.length, curve.onset.length) > 0)
-    return curveSampler(curve, songId)
+  if (curve && Math.min(curve.loudness.length, curve.onset.length) > 0) return curveSampler(curve)
   return beatSampler(feel)
 }

@@ -14,8 +14,6 @@ import {
   parseVisualChoices,
   rippleDisc,
   sunPlace,
-  synthLevels,
-  visualCaption,
   visualColors,
   visualFeel,
   withVisualChoice,
@@ -63,16 +61,6 @@ describe('a choice kept for one song', () => {
     const chosen = withVisualChoice({ '4': 'ripples' }, 9, 'horizon')
     expect(chosen).toEqual({ '4': 'ripples', '9': 'horizon' })
     expect(withVisualChoice(chosen, 4, null)).toEqual({ '9': 'horizon' })
-  })
-})
-
-describe('the caption', () => {
-  it('says there are no lyrics, then the tempo and key it knows', () => {
-    expect(visualCaption(features({ bpm: 139.6, key: 'A minor' }))).toBe(
-      'No lyrics · 140 BPM · A minor',
-    )
-    expect(visualCaption(features({ bpm: null, key: 'C major' }))).toBe('No lyrics · C major')
-    expect(visualCaption(null)).toBe('No lyrics')
   })
 })
 
@@ -172,17 +160,6 @@ describe('motion from the song', () => {
     expect(beatPhase(1, 120)).toBeCloseTo(0)
     expect(beatKick(0)).toBe(1)
     expect(beatKick(0.9)).toBeLessThan(0.02)
-  })
-
-  it('builds stand-in bands whose bass lands on the beat', () => {
-    const onBeat = synthLevels(24, 10, 120, 0.8)
-    const offBeat = synthLevels(24, 10.3, 120, 0.8)
-    expect(onBeat).toHaveLength(24)
-    for (const level of onBeat) {
-      expect(level).toBeGreaterThanOrEqual(0)
-      expect(level).toBeLessThanOrEqual(1)
-    }
-    expect(onBeat[0]!).toBeGreaterThan(offBeat[0]!)
   })
 })
 

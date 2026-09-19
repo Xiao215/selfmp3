@@ -246,7 +246,7 @@ describe('a synthetic curve, end to end', () => {
       onset[i] = i % 10 === 0 ? 255 : 20
     }
     const curve: MotionCurveLike = { rate: 20, duration: 8, loudness, onset }
-    const { fired } = run(curveSampler(curve, 36), 8)
+    const { fired } = run(curveSampler(curve), 8)
     // The first hit's frame starts at 3 s; interpolation reaches it a drawn frame early.
     expect(fired.filter(t => t < 2.95)).toEqual([])
     expect(fired.length).toBe(10)

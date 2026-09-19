@@ -50,6 +50,8 @@ describe('the invented tiles', () => {
 describe('welcomeFootnote', () => {
   it('names the device it is on', () => {
     expect(welcomeFootnote(false)).toMatch(/this phone/)
-    expect(welcomeFootnote(true)).toMatch(/This computer/)
+    expect(welcomeFootnote(true)).toMatch(/this computer/)
+    // Not "the server runs here": a browser tab is not where the server is.
+    expect(welcomeFootnote(true)).not.toMatch(/server runs here/)
   })
 })

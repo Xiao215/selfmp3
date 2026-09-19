@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Easing } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { MOVE_EASING, MOVE_MS, type PoseAt } from './stageMove.model'
+import { motionMs } from '../../ui/motion'
 
 /**
  * The move between the stage and Focus, on an iPad: Animated on the native
@@ -21,7 +22,7 @@ export function useStageMove(focus: boolean): StageMove {
   useEffect(() => {
     Animated.timing(value, {
       toValue: target,
-      duration: MOVE_MS,
+      duration: motionMs(MOVE_MS),
       easing: Easing.bezier(...MOVE_EASING),
       useNativeDriver: true,
     }).start()

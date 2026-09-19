@@ -9,6 +9,7 @@ import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toa
 import { IconButton } from './IconButton'
 import { X } from './Icons'
 import { floating } from '../surfaces'
+import { motionMs } from '../motion'
 
 /**
  * Mounted once, in the shell's toast row: every message raised with `showToast`.
@@ -77,7 +78,7 @@ function ToastItem({
   useEffect(() => {
     const animation = Animated.timing(shown, {
       toValue: leaving ? 0 : 1,
-      duration: leaving ? motion.base : motion.fast,
+      duration: motionMs(leaving ? motion.base : motion.fast),
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
     })

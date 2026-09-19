@@ -80,16 +80,8 @@ export function withVisualChoice(
   return next
 }
 
-/** "No lyrics · 140 BPM · A minor", leaving out what is not known. */
-export function visualCaption(features: AudioFeatures | null | undefined): string {
-  const parts = ['No lyrics']
-  if (features?.bpm != null) parts.push(`${Math.round(features.bpm)} BPM`)
-  if (features?.key) parts.push(features.key)
-  return parts.join(' · ')
-}
-
 /**
- * What the visual is following, said quietly under the caption: the sound
+ * What the visual is following, said quietly in its style menu: the sound
  * itself where the browser can listen, the song's stored motion where it
  * cannot, and only its tempo when neither is there.
  */
@@ -327,36 +319,12 @@ export function beatKick(phase: number): number {
   return Math.exp(-phase * 5)
 }
 
-/**
- * Levels by band where the sound itself cannot be heard: low to high, 0–1,
- * built from the song's tempo and energy. The bass lands on the beat, the top
- * end on the off-beats, and the rest wanders, so they read as music rather
- * than as a sine wave. The tempo stand-in (`beatSampler`) fills its bands
- * from it.
- */
-export function synthLevels(count: number, seconds: number, bpm: number, energy: number): number[] {
-  const beats = (seconds * bpm) / 60
-  const kick = Math.exp(-(((beats % 1) + 1) % 1) * 7)
-  const hat = Math.exp(-((((beats * 2) % 1) + 1) % 1) * 12)
-  const levels: number[] = []
-  for (let i = 0; i < count; i++) {
-    const x = count > 1 ? i / (count - 1) : 0
-    const tilt = Math.pow(1 - x, 1.3) * 0.8 + 0.06
-    let level =
-      tilt * (0.3 + 0.7 * valueNoise(i * 0.33, seconds * (1 + 2 * energy))) * (0.3 + 0.7 * energy)
-    level += kick * (x < 0.14 ? 0.6 : x < 0.3 ? 0.22 : 0.05) * (0.3 + energy)
-    level += hat * (x > 0.6 ? 0.28 : 0) * energy
-    levels.push(Math.max(0, Math.min(1, level)))
-  }
-  return levels
-}
-
 function hash(x: number, y: number): number {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
   return s - Math.floor(s)
 }
 
-/** Smooth value noise, 0–1: the stand-in bands' wander, the curve's per-band wobble, and Horizon's first hills. */
+/** Smooth value noise, 0–1: the shape of Horizon's first hills, before any sound has been heard. */
 export function valueNoise(x: number, y: number): number {
   const xi = Math.floor(x)
   const yi = Math.floor(y)

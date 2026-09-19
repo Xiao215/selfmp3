@@ -44,6 +44,17 @@ export function useMotionReduced(): boolean {
 }
 
 /**
+ * A duration, or none under Reduce Motion: for the few animations that must
+ * run their own `Animated` call because what happens at the end has to happen
+ * even when it is interrupted — the stage's exit changes the route there — so
+ * they cannot go through `timing`, which leaves an interrupted move's end
+ * alone. They still land at once when less motion is asked for.
+ */
+export function motionMs(ms: number): number {
+  return reduced ? 0 : ms
+}
+
+/**
  * The native driver, as the rest of the app asks for it: a browser has none
  * and react-native-web runs the same animation on the JS side instead.
  */

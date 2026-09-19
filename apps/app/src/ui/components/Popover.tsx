@@ -10,6 +10,7 @@ import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
+import { motionMs } from '../motion'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when
@@ -136,7 +137,7 @@ function AnchoredPopover({
   useEffect(() => {
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
-      duration: open ? motion.base : motion.fast,
+      duration: motionMs(open ? motion.base : motion.fast),
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
     }).start(({ finished }) => {

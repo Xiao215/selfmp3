@@ -97,8 +97,10 @@ test.describe('selecting songs', () => {
     // different number of rows once select-all has scrolled through them.
     const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
     const library = (await (await page.request.get(`${api}/api/library`)).json()) as {
-      songs: unknown[]
+      songs: { missing: boolean }[]
     }
-    expect(library.songs).toHaveLength(total)
+    // Library lists, and so selects, only songs whose file is there; a song
+    // the server kept after its file vanished is not a row to select.
+    expect(library.songs.filter(song => !song.missing)).toHaveLength(total)
   })
 })

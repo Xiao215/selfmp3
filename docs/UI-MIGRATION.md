@@ -296,8 +296,10 @@ opens a tag by filtering Library.
   Select gone from the menu, it starts with a checkbox that appears on hover in the number
   column and with shift- and ⌘-click, which `useSelection` already understands. The bar
   stays at the bottom on a phone and the top on a computer.
-- **Song menu** (`P14`): remove Play next and Select. Add to queue stays. "Song details…"
-  becomes "Go to song".
+- **Song menu** (`P14`): remove Play next and Select. Add to queue stays. "Song details"
+  opens the song's own page instead of a dialog (`P14` keeps the words "Song details", and the
+  mock wins over this line, which first said "Go to song"). Play next moves to the song page
+  (`P15`).
 - **A song's own page** (`features/song/SongScreen.tsx`, `/song/[id]`, `P15`): cover, tags,
   Play, Lyrics; then plays, first heard, a small history strip; then songs that sound like
   it (`SimilarShelf` exists). `SongDetails` the dialog is folded into it and deleted. Tapping

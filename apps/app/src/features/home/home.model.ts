@@ -1,4 +1,5 @@
 import type { Song, Tag } from '@selfmp3/shared'
+import { tagsMostPlayed } from '../tag/tag.model'
 
 /**
  * Home, without the screen (docs/ui-mock `P04`, `C03`): what the greeting says,
@@ -65,28 +66,11 @@ export function homeTiles(
   songs: readonly Song[],
   limit: number = HOME_TILES,
 ): HomeTile[] {
-  const byTag = new Map<number, Song[]>()
-  for (const song of songs) {
-    for (const id of song.tagIds) {
-      const list = byTag.get(id)
-      if (list) list.push(song)
-      else byTag.set(id, [song])
-    }
-  }
-  const plays = (list: readonly Song[]): number =>
-    list.reduce((sum, song) => sum + song.playCount, 0)
-
-  return tags
-    .map(tag => ({ tag, list: byTag.get(tag.id) ?? [] }))
-    .filter(entry => entry.list.length > 0)
-    .sort(
-      (a, b) =>
-        plays(b.list) - plays(a.list) ||
-        b.list.length - a.list.length ||
-        a.tag.name.localeCompare(b.tag.name),
-    )
+  // The same order All tags lists them in (tag.model.ts).
+  return tagsMostPlayed(tags, songs)
+    .filter(standing => standing.songs.length > 0)
     .slice(0, limit)
-    .map(({ tag, list }) => ({ tag, songs: list.length, cover: tileCover(list) }))
+    .map(({ tag, songs: list }) => ({ tag, songs: list.length, cover: tileCover(list) }))
 }
 
 /** The tag's most played song with a cover, or its first song if none has one. */

@@ -607,8 +607,9 @@ build (docs/features/widget.md); on the simulator it shows the tags and Now play
 a tile opens its tag. Leftovers are on `ui/finish`. Not merged to `main`. Gates: `npm run
 check` green; `verify:flows` green (select-all counts only songs whose files are there);
 Maestro `connect`, `smoke`, `downloads` and `offline` green on the iPhone 17 with a dev client
-rebuilt from this branch. `devices.yaml` needs a second device and was not run. Not yet looked
-at: the iPad, the packaged desktop app, and Android.
+rebuilt from this branch; `connect` and `tablet` green on the iPad Pro 11-inch in portrait.
+`devices.yaml` needs a second device and was not run. Not yet looked at: the packaged desktop
+app, and Android.
 
 Deliberate differences, kept in the commit messages too:
 

@@ -12,7 +12,7 @@
  *    kept under this account's ids, and another account's library would hand
  *    the same ids to other songs, so nothing kept may outlive the account.
  * 4. Forget the saved library, for the same reason.
- * 5. Hand back to the app, which asks to sign in again.
+ * 5. Hand back to the app, which returns to Welcome (`SIGNED_OUT_ROUTE`).
  */
 export interface SignOutSteps {
   readonly sendPendingChanges: () => Promise<void>
@@ -22,6 +22,12 @@ export interface SignOutSteps {
   readonly forgetSavedLibrary: () => Promise<void>
   readonly done: () => void
 }
+
+/**
+ * Where a device goes once it has signed out: Welcome, the one way in
+ * (docs/ui-mock `S3`, "Sign out returns here").
+ */
+export const SIGNED_OUT_ROUTE = '/welcome'
 
 export async function signOutOfCloud(steps: SignOutSteps): Promise<void> {
   await steps.sendPendingChanges().catch(() => undefined)

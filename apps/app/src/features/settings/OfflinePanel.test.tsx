@@ -4,7 +4,7 @@ import type { Library, Song, SyncManifest } from '@selfmp3/shared'
 import { OfflinePanel } from './OfflinePanel'
 
 /**
- * The numbers in Settings → Offline music, and the buttons that delete things.
+ * The numbers in Settings → On this phone, and the buttons that delete things.
  *
  * Two findings from a real iPhone live here. The counts read the index where
  * they should have read the library, so two songs removed from a library of 45
@@ -101,9 +101,10 @@ function downloads(
   }
 }
 
-const draw = () => render(<OfflinePanel anchor={() => undefined} onConfirm={jest.fn()} />)
+const draw = () =>
+  render(<OfflinePanel title="On this phone" anchor={() => undefined} onConfirm={jest.fn()} />)
 
-describe('Offline music counts', () => {
+describe('On this phone counts', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockManifest = { data: undefined }
@@ -177,7 +178,9 @@ describe('the buttons that delete things', () => {
     // Nothing leftover, so "Remove all downloads" is the only button here.
     mockManifest = { data: undefined }
     mockDownloads = downloads([1, 2], { removing: true })
-    await render(<OfflinePanel anchor={() => undefined} onConfirm={onConfirm} />)
+    await render(
+      <OfflinePanel title="On this phone" anchor={() => undefined} onConfirm={onConfirm} />,
+    )
 
     const button = screen.getByRole('button', { name: 'Removing…' })
     expect(button).toBeDisabled()

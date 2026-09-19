@@ -27,6 +27,8 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { swipeBackAllowed } from '../src/shell/backGesture'
+import { afterWelcome } from '../src/features/welcome/firstSync.model'
+import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
@@ -87,7 +89,7 @@ const queryClient = new QueryClient({
 })
 
 /** Screens that own the whole display: no tab bar, no mini player. */
-const FULL_SCREEN_ROUTES = ['/onboarding', '/now-playing']
+const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
 
 /**
  * Now Playing comes up from the foot of the display and goes back down.
@@ -168,17 +170,21 @@ function Shell(): ReactNode {
 
   useEffect(() => {
     // Google sign-in is the only way in: the library is the bucket's, and the
-    // server does not have to be running. `/onboarding`, typing a server's
-    // address, exists in development builds only, for the simulator tests.
-    const ownItsRoute = pathname === '/onboarding' || pathname === '/sign-in'
-    if (status === 'missing' && !ownItsRoute) router.replace('/sign-in')
+    // server does not have to be running. Welcome is where it starts, and in a
+    // development build it also takes a server's address, for the simulator
+    // tests. Signing out lands here too, by the same rule.
+    if (status === 'missing' && pathname !== '/welcome') router.replace('/welcome')
   }, [status, pathname, router])
 
-  // Already connected, sign-in has nothing to offer, and a link to it would draw
-  // it inside the whole app, sidebar and library around it.
+  // Welcome with a library is done: a device's first Google sign-in goes on to
+  // First sync, once, and anything else — a later sign-in, an address typed in
+  // development, a link to Welcome from inside the app — goes Home. Decided
+  // here rather than on Welcome, so no second redirect can race it.
   useEffect(() => {
-    if (status === 'ready' && pathname === '/sign-in') router.replace('/')
-  }, [status, pathname, router])
+    if (status === 'ready' && pathname === '/welcome') {
+      router.replace(afterWelcome(fromCloud, storedFirstSync()))
+    }
+  }, [status, pathname, fromCloud, router])
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'

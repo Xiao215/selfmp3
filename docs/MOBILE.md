@@ -109,10 +109,11 @@ it and let `npx expo prebuild --clean` rebuild it rather than editing it.
 After the first build, `npm run start --workspace @selfmp3/app` is enough for
 day-to-day work; rebuild the three packages first if one of them changed.
 
-On first launch the app asks you to sign in with Google, and the library is the
-one in your bucket. There is no server address to type: the phone never talks
-to the server directly. Development builds keep an address screen
-(`selfmp3://onboarding`) for the simulator tests, which cannot sign in.
+On first launch the app opens on Welcome, whose one button is Continue with
+Google, and the library is the one in your bucket. There is no server address to
+type: the phone never talks to the server directly. Development builds keep a way
+to type one, a quiet "Connect to a server by address" under the button, for the
+simulator tests, which cannot sign in (`apps/app/.maestro/connect.yaml`).
 
 ### Android, from nothing to a running app
 

@@ -27,7 +27,7 @@ describe('routeFor', () => {
   })
 
   it('ignores anything else, including a sign-in return', () => {
-    expect(routeFor('selfmp3://sign-in#signin-code=abc')).toBeNull()
+    expect(routeFor('selfmp3://welcome#signin-code=abc')).toBeNull()
     expect(routeFor('https://example.com/playlist/12')).toBeNull()
     expect(routeFor('selfmp3://settings')).toBeNull()
   })

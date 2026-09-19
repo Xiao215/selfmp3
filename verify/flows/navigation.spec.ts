@@ -68,7 +68,7 @@ test.describe('navigation', () => {
     ).toBeVisible({ timeout: 30_000 })
   })
 
-  test('a phone reaches Tags and Settings from You, and comes back', async ({ page }, info) => {
+  test('a phone reaches Stats and Settings from You, and comes back', async ({ page }, info) => {
     test.skip(
       info.project.name !== 'phone',
       'You is behind a phone’s avatar; a computer has the sidebar',
@@ -76,18 +76,23 @@ test.describe('navigation', () => {
     await page.goto('/')
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
 
-    // You is the avatar in Home's header.
+    // You is the avatar in Home's header (`P31`): the person, this month as one
+    // card that opens Stats, then Import, Report and Settings.
     await page.getByTestId('home-you').click()
-    await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
-    // Stats, Tags and Settings: songs without a tag are a card on All tags now,
-    // not a row of their own.
-    await expect(page.getByTestId('you-inbox')).toHaveCount(0)
-    await page.getByRole('link', { name: /^Tags/ }).click()
-    await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Back', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
+    await expect(page.getByTestId('you-screen')).toBeVisible()
+    await expect(page.getByTestId('you-import')).toBeVisible()
+    await expect(page.getByTestId('you-report')).toBeVisible()
+    // Tags is Home's, through its tiles and "All N tags"; not a row here.
+    await expect(page.getByTestId('you-tags')).toHaveCount(0)
 
-    await page.getByRole('link', { name: /^Settings/ }).click()
+    await page.getByTestId('you-stats').click()
+    await expect(page.getByRole('heading', { name: 'Stats', exact: true })).toBeVisible({
+      timeout: 30_000,
+    })
+    await page.getByRole('button', { name: 'Back to You', exact: true }).click()
+    await expect(page.getByTestId('you-screen')).toBeVisible()
+
+    await page.getByTestId('you-settings').click()
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })

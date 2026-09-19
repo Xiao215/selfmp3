@@ -91,6 +91,38 @@ const platform: CoverPlatform = {
 
 const store = createCoverStore(platform)
 
+/** Whether this device keeps covers at all. A phone always does. */
+export const keepsCovers = true
+
+/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
+const PICTURE = /\.(jpe?g|png|webp|gif)$/i
+
+/**
+ * The covers this phone still holds, newest first, for Welcome to show a
+ * device that signed in before (docs/ui-mock `P02`).
+ *
+ * Both folders, read as files rather than through the store: the store only
+ * knows a cloud cover once a row has asked for it this launch, and Welcome is
+ * drawn before any row. Newest first so the fan is what was played lately,
+ * not whichever album sorts first.
+ */
+export function keptCovers(limit: number): Promise<readonly string[]> {
+  try {
+    const files: File[] = []
+    for (const dir of [CACHE, STORE]) {
+      if (!dir.exists) continue
+      for (const entry of dir.list()) {
+        if (entry instanceof File && PICTURE.test(entry.name)) files.push(entry)
+      }
+    }
+    files.sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
+    return Promise.resolve(files.slice(0, limit).map(file => file.uri))
+  } catch {
+    // Nothing kept, or nothing readable: Welcome draws its tiles.
+    return Promise.resolve([])
+  }
+}
+
 export const subscribeCovers = store.subscribeCovers
 export const coversVersion = store.coversVersion
 export const coversNow = store.coversNow

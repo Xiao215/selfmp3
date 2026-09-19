@@ -9,8 +9,8 @@ import { createSignInInbox, signInLink } from './signInCodes'
  */
 describe('signInLink', () => {
   it('reads the target and the code from an installed app’s link', () => {
-    expect(signInLink('selfmp3://sign-in#signin-code=4F7K2QXM')).toEqual({
-      target: 'sign-in',
+    expect(signInLink('selfmp3://welcome#signin-code=4F7K2QXM')).toEqual({
+      target: 'welcome',
       code: '4F7K2QXM',
     })
     expect(signInLink('selfmp3://settings#signin-code=4F7K-2QXM')).toEqual({
@@ -24,7 +24,7 @@ describe('signInLink', () => {
       target: 'settings',
       code: '4F7K2QXM',
     })
-    expect(signInLink('selfmp3://sign-in/#signin-code=4F7K2QXM')?.target).toBe('sign-in')
+    expect(signInLink('selfmp3://welcome/#signin-code=4F7K2QXM')?.target).toBe('welcome')
   })
 
   it('is null for anything that is not a sign-in coming back', () => {
@@ -41,7 +41,7 @@ describe('createSignInInbox', () => {
     expect(inbox.arrive('selfmp3://settings#signin-code=4F7K2QXM')).toBe(true)
 
     const firstRun: string[] = []
-    inbox.listen('sign-in', code => firstRun.push(code))
+    inbox.listen('welcome', code => firstRun.push(code))
     expect(firstRun).toEqual([])
 
     const settings: string[] = []
@@ -52,17 +52,17 @@ describe('createSignInInbox', () => {
   it('hands a code to whoever is listening as it arrives', () => {
     const inbox = createSignInInbox()
     const seen: string[] = []
-    inbox.listen('sign-in', code => seen.push(code))
-    inbox.arrive('selfmp3://sign-in#signin-code=4F7K2QXM')
+    inbox.listen('welcome', code => seen.push(code))
+    inbox.arrive('selfmp3://welcome#signin-code=4F7K2QXM')
     expect(seen).toEqual(['4F7K2QXM'])
   })
 
   it('hands each code over once, even when its link arrives twice', () => {
     const inbox = createSignInInbox()
     const seen: string[] = []
-    inbox.listen('sign-in', code => seen.push(code))
-    inbox.arrive('selfmp3://sign-in#signin-code=4F7K2QXM')
-    inbox.arrive('selfmp3://sign-in#signin-code=4F7K2QXM')
+    inbox.listen('welcome', code => seen.push(code))
+    inbox.arrive('selfmp3://welcome#signin-code=4F7K2QXM')
+    inbox.arrive('selfmp3://welcome#signin-code=4F7K2QXM')
     expect(seen).toEqual(['4F7K2QXM'])
   })
 

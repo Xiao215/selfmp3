@@ -11,8 +11,7 @@ import { clearConnection, loadConnection, saveConnection } from './storedConnect
  *
  * Read from the keychain once at launch; `status` exists so the router can
  * tell "still reading" apart from "never set up", which are the same
- * `connection === null` otherwise and would flash the onboarding screen at
- * every cold start.
+ * `connection === null` otherwise and would flash Welcome at every cold start.
  */
 
 interface ConnectionContextValue {
@@ -57,7 +56,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     void (async () => {
       // Signed in to the cloud beats everything: the library is then the
       // bucket's, and no server has to be awake or even exist. A stored address
-      // is a development build that went through `/onboarding` instead, which is
+      // is a development build whose address was typed on Welcome instead, which is
       // how the simulator flows get a library without a Google account.
       const [signedIn, server] = await Promise.all([
         cloudSession.loadSession().catch(() => null),

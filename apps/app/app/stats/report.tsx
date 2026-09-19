@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { StatsViaServer } from '../../src/features/stats/StatsViaServer'
+import { ReportScreen } from '../../src/features/wrapped/ReportScreen'
 
-/** The listening report's route: the same Stats page, opened on its Report tab. */
+/** The month as a page: the period as one picture, in a look of your choosing. */
 export default function ReportRoute(): ReactNode {
-  return <StatsViaServer initialTab="report" />
+  return <ReportScreen />
 }

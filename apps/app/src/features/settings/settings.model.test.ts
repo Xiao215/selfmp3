@@ -5,6 +5,7 @@ import {
   activeSection,
   ALL_SECTIONS,
   crossfadeLabel,
+  devicePlace,
   healthLine,
   landingOffset,
   percentLabel,
@@ -44,6 +45,25 @@ describe('settings', () => {
     expect(ids(false, true, false, true)).not.toContain('shortcuts')
     expect(ids(false, true, true, true)).toContain('shortcuts')
     expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
+  })
+
+  it('leads with the account and the look, then what this device keeps (P38, C17)', () => {
+    expect(sectionsFor(false).map(section => section.label)).toEqual([
+      'Account',
+      'Appearance',
+      'On this phone',
+      'Devices',
+      'Playback',
+      'Library',
+      'Importing',
+      'Cloud',
+      'Lyrics',
+      'About',
+    ])
+    const computer = sectionsFor(false, true, true, true, devicePlace('desktop'))
+    expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
+    expect(devicePlace('phone')).toBe('phone')
+    expect(devicePlace('other')).toBe('computer')
   })
 
   it('shows the desktop section only where there is a shell to ask', () => {

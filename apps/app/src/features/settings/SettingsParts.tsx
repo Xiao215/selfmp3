@@ -5,15 +5,17 @@ import { StyleSheet } from 'react-native-unistyles'
 import { oklchToHexAlpha, radius } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, sectionTitle, serif } from '../../ui/surfaces'
+import { card, label as labelText, serif } from '../../ui/surfaces'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
  * quiet line of explanation, the control on the right. On a phone the control
  * drops under the words.
  *
- * A section is a card, and its rows are told apart by spacing alone (`S2`: no
- * hairlines; where tone is not enough, space is the second tool).
+ * A section is a small uppercase label over a card (`P38`, `C17`), and its rows
+ * are told apart by spacing alone. The boards draw a line between rows; `S2`
+ * has no hairlines anywhere, and where tone is not enough, space is the
+ * second tool.
  */
 
 const Stacked = createContext(false)
@@ -36,14 +38,14 @@ export function Panel({
   children: ReactNode
 }): ReactNode {
   return (
-    <View ref={anchor} style={styles.panel}>
-      <View style={styles.panelHead}>
-        <Text style={styles.panelTitle} accessibilityRole="header">
+    <View ref={anchor} style={styles.group}>
+      <View style={styles.groupHead}>
+        <Text style={styles.groupLabel} accessibilityRole="header">
           {title}
         </Text>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
-      {children}
+      <View style={styles.panel}>{children}</View>
     </View>
   )
 }
@@ -225,18 +227,21 @@ const styles = StyleSheet.create(theme => ({
   },
   detailsRowPressed: { opacity: 0.7 },
   detailsRowText: { color: theme.colors.textMuted, fontSize: 13 },
-  panel: {
-    ...card(theme.colors),
-    padding: 18,
-  },
-  panelHead: {
+  group: { gap: 8 },
+  groupHead: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
+    gap: 10,
+    paddingHorizontal: 4,
   },
-  panelTitle: sectionTitle(theme.colors),
+  groupLabel: labelText(theme.colors),
+  // The first row brings its own space above it; the last needs the card's below.
+  panel: {
+    ...card(theme.colors),
+    paddingTop: 5,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
   hint: { color: theme.colors.textMuted, fontSize: 12 },
   lead: {
     color: theme.colors.textSecondary,
@@ -249,14 +254,14 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 24,
-    minHeight: 46,
+    minHeight: 54,
     paddingVertical: 11,
   },
   rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
-  name: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  name: { color: theme.colors.textPrimary, fontSize: 15 },
   rowHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, maxWidth: 400 },
   control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },

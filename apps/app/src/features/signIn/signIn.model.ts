@@ -3,7 +3,7 @@
  * sign-in whose way back never arrived is given up on.
  *
  * Nothing here asks for a code. The doorman sends Google back to the app with
- * the code inside the link — `selfmp3://sign-in#signin-code=…`, or this page's
+ * the code inside the link — `selfmp3://welcome#signin-code=…`, or this page's
  * own address on the web — and the app claims the session with it. A person
  * never sees that code, so when the link is lost the answer is to start again,
  * not a box asking for something they were never shown.
@@ -31,9 +31,6 @@ type AttemptState = 'gone' | 'pending' | 'done'
 
 export const TOOK_TOO_LONG = 'That took too long. Try again.'
 
-/** Under the button, on the first screen. */
-export const FOOTNOTE = 'Use the Google account your library lives in.'
-
 /** The stage after asking the doorman how the attempt stands. Only a wait is moved on. */
 export function afterCheck(stage: SignInStage, attempt: AttemptState, now: number): SignInStage {
   if (stage.kind !== 'waiting') return stage
@@ -46,29 +43,41 @@ export function afterCheck(stage: SignInStage, attempt: AttemptState, now: numbe
 interface SignInCopy {
   /** The headline's first line. */
   readonly lead: string
-  /** Its second line, in the accent. */
-  readonly accent: string
+  /** Its second line. */
+  readonly rest: string
+  /** What ends it, set in the serif's italic and the accent, as every greeting's full stop is. */
+  readonly mark: string
   readonly body: string | null
 }
 
-/** The words for each stage. The same on every device, so none of them names one. */
+/**
+ * The words for each stage, as Welcome sets them. The same on every device, so
+ * none of them names one: the line under the button is Welcome's, and does.
+ */
 export function copyFor(stage: SignInStage): SignInCopy {
   switch (stage.kind) {
     case 'idle':
-      return { lead: 'Your music.', accent: 'Anywhere, offline.', body: null }
+      return {
+        lead: 'Your music,',
+        rest: 'your words for it',
+        mark: '.',
+        body: 'The songs you saved, on every device, sorted by the tags you give them. No feed, no ads, nobody else’s taste.',
+      }
     case 'waiting':
       return {
         lead: 'Finish in your',
-        accent: 'browser.',
+        rest: 'browser',
+        mark: '.',
         body: 'Google is open in your browser. self.mp3 comes back by itself when you’re done.',
       }
     case 'lost':
       return {
         lead: 'Didn’t come',
-        accent: 'back?',
+        rest: 'back',
+        mark: '?',
         body: 'Google finished, but the browser didn’t hand the sign-in back to self.mp3. Start again, and choose Open when it asks.',
       }
     case 'claiming':
-      return { lead: 'Signing you', accent: 'in…', body: null }
+      return { lead: 'Signing you', rest: 'in', mark: '…', body: null }
   }
 }

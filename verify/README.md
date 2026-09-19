@@ -31,7 +31,7 @@ for GitHub Pages and for the desktop shell.
 The app has to be *told* where its server is, since the address is not its own
 origin. The flows do it through the `secrets` port, which in a browser is
 `localStorage`, and a fresh Playwright context has none — without it the app
-quite correctly shows its sign-in screen and every flow times out waiting for a
+quite correctly shows Welcome and every flow times out waiting for a
 library. `SELFMP3_WEB_URL` and `SELFMP3_APP_API` override either half, for a
 build served from somewhere else or a server on another port:
 

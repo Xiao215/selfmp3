@@ -3,10 +3,10 @@ import * as Linking from 'expo-linking'
 import { createSignInInbox, type SignInTarget } from './signInCodes'
 
 /**
- * Coming back from Google, on a phone: to the first-run screen, or to
+ * Coming back from Google, on a phone: to Welcome, or to
  * Settings → Cloud.
  *
- * The doorman sends Safari back to `selfmp3://sign-in` or `selfmp3://settings`
+ * The doorman sends Safari back to `selfmp3://welcome` or `selfmp3://settings`
  * with the code in the fragment. Expo Router opens that screen; the link itself
  * is read here — the one that launched the app, and any that arrive while it is
  * open — into an inbox that keeps it until the screen is listening. Nobody types

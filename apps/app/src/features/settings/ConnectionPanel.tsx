@@ -8,7 +8,8 @@ import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
 
 /**
- * Which library this device answers from, and how to leave it.
+ * Account: which library this device answers from, and how to leave it. First
+ * on the page, as `P38` draws it.
  *
  * Google sign-in is the only way in on every device: the library is the
  * bucket's, and no server has to be awake or even exist. Connecting to a server
@@ -31,7 +32,7 @@ export function ConnectionPanel({
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   return (
-    <Panel title="Connection" hint="on this device" anchor={anchor}>
+    <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (
         <Row label="Signed in" hint="With Google — the library is the bucket’s.">
           <Button

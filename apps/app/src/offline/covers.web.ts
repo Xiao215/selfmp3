@@ -71,6 +71,34 @@ const platform: CoverPlatform = {
 
 const store = createCoverStore(platform)
 
+/**
+ * Whether this device keeps covers at all: the installed app does, and a tab,
+ * which draws each cover from its own address, does not.
+ */
+export const keepsCovers = coverFiles !== null
+
+/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
+const PICTURE = /\.(jpe?g|png|webp|gif)$/i
+
+/**
+ * The covers this device still holds, for Welcome to show a device that signed
+ * in before (docs/ui-mock `P02`). The installed app lists its covers folder; a
+ * tab keeps none, and Welcome draws its tiles there.
+ *
+ * In the folder's order: the shell's listing carries no dates, and which few
+ * covers come back matters less than that they are the person's own.
+ */
+export async function keptCovers(limit: number): Promise<readonly string[]> {
+  const files = coverFiles
+  if (!files) return []
+  try {
+    const names = (await files.list()).filter(name => PICTURE.test(name))
+    return names.slice(0, limit).map(name => files.uriFor(name))
+  } catch {
+    return []
+  }
+}
+
 export const subscribeCovers = store.subscribeCovers
 export const coversVersion = store.coversVersion
 export const coversNow = store.coversNow

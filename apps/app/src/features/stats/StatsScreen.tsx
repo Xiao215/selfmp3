@@ -1,71 +1,57 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatLongDuration, formatRelative, STATS_RANGE_LABELS } from '@selfmp3/shared'
-import type { ServerConnection } from '@selfmp3/client'
+import { useRouter } from 'expo-router'
+import Svg, { Path } from 'react-native-svg'
+import type { Song, Stats } from '@selfmp3/shared'
+import { radius, tagColors, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
-import { ColumnChart, StatTile } from '../../ui/components/charts'
-import { card, sectionTitle } from '../../ui/surfaces'
-import { ReportTab } from '../wrapped/ReportTab'
-import { SongLine } from './SongLine'
-import { StatsFrame, type StatsFrameProps } from './StatsFrame'
-import { useHistoryFor, useStatsFor, useStatsSongs } from './statsSource'
+import { useArt } from '../../offline/useArt'
+import { Cover } from '../../ui/components/Cover'
+import { User } from '../../ui/components/Icons'
+import { Segmented } from '../../ui/components/Segmented'
+import { card, label, serif } from '../../ui/surfaces'
+import { songLink } from '../song/song.model'
+import { artistLink, tagLink } from '../tag/placeLinks'
+import { StatsFrame } from './StatsFrame'
+import { useStatsFor, useStatsSongs } from './statsSource'
 import {
-  bestStreakHint,
-  dailyColumns,
-  daysLabel,
-  formatHour,
-  hourlyColumns,
-  peakHour,
-  recentSongs,
+  listenedCard,
+  peakCard,
+  RANK_KINDS,
+  rankedEmpty,
+  rankedRows,
+  sparkPath,
   statsRangeFor,
+  streakCard,
+  type RankedRow,
+  type RankKind,
   type StatsPeriod,
-  type StatsTab,
 } from './stats.model'
 
+/** The line beside Listened, in its own box's units. */
+const SPARK = { width: 120, height: 56 }
+
+/** The page column's width from which the three lists fit side by side. */
+const THREE_LISTS = 860
+
 /**
- * Stats: one page with two tabs, Overview and Report, over one shared window.
- *
- * `/stats` opens Overview and `/stats/report` opens Report; after that the
- * tabs switch in place, and the window chosen on one is the window the other
- * shows.
+ * Stats (`P32`, `C15`): Listened, Peak hour and Streak as cards, each one big
+ * number with a small picture of where it came from, then one ranked module of
+ * what was played most. The month told as a page is the Report's, one link away.
  *
  * `via` is a server reached directly from a cloud library (StatsViaServer): the
  * numbers are then its, and the songs they name are lined up with this
  * device's (statsSource.ts).
  */
-export function StatsScreen({
-  initialTab = 'overview',
-  via,
-}: { initialTab?: StatsTab; via?: ServerConnection } = {}): ReactNode {
-  const [tab, setTab] = useState<StatsTab>(initialTab)
+export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
   const [period, setPeriod] = useState<StatsPeriod>('month')
-  const frame: StatsFrameProps = { tab, onTab: setTab, period, onPeriod: setPeriod }
-  return tab === 'overview' ? <Overview {...frame} via={via} /> : <ReportTab {...frame} via={via} />
-}
-
-/**
- * The numbers.
- *
- * Tiles first, because most of these answers are a single number; then when
- * the plays happened, and what was played last. What was played most is the
- * Report's to tell, so it is not said twice.
- */
-function Overview({ via, ...frame }: StatsFrameProps & { via?: ServerConnection }): ReactNode {
-  const { wide } = useLayout()
-  const range = statsRangeFor(frame.period)
-  const { data: stats, isLoading } = useStatsFor(via, range)
-  const { data: history } = useHistoryFor(via)
-  const songFor = useStatsSongs(via)
-
-  const daily = useMemo(() => dailyColumns(stats?.daily ?? []), [stats])
-  const hourly = useMemo(() => hourlyColumns(stats?.hourly ?? []), [stats])
-  const recent = useMemo(() => recentSongs(history?.events ?? []), [history])
-  const peak = stats ? peakHour(stats.hourly) : null
+  const { data: stats, isLoading } = useStatsFor(via, statsRangeFor(period))
 
   return (
-    <StatsFrame {...frame} testID="stats-screen">
+    <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
         <Text style={styles.hint}>Working it out…</Text>
       ) : !stats ? (
@@ -75,118 +61,297 @@ function Overview({ via, ...frame }: StatsFrameProps & { via?: ServerConnection 
         />
       ) : stats.totals.plays === 0 ? (
         <Empty
-          emoji="📊"
           title="Nothing to show yet"
-          hint="Play some music and this fills in — what you played, when, and how often."
+          hint="Play some music and this fills in — how long, when, and what most."
         />
       ) : (
         <>
-          <View style={styles.tiles}>
-            {[
-              <StatTile key="plays" label="Plays" value={stats.totals.plays.toLocaleString()} />,
-              <StatTile
-                key="time"
-                label="Time listening"
-                value={formatLongDuration(stats.totals.minutes * 60)}
-              />,
-              <StatTile
-                key="songs"
-                label="Different songs"
-                value={stats.totals.songsPlayed.toLocaleString()}
-                hint={`of ${stats.totals.librarySize.toLocaleString()} in your library`}
-              />,
-              <StatTile
-                key="streak"
-                label="Current streak"
-                value={daysLabel(stats.streakDays)}
-                hint={bestStreakHint(stats.longestStreakDays)}
-              />,
-              <StatTile
-                key="never"
-                label="Never played"
-                value={stats.totals.neverPlayed.toLocaleString()}
-                hint="worth a shuffle sometime"
-              />,
-            ].map(tile => (
-              <View key={tile.key} style={styles.tileCell}>
-                {tile}
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.panels}>
-            <Panel title="Plays per day" hint={STATS_RANGE_LABELS[range]}>
-              <ColumnChart
-                data={daily}
-                height={170}
-                emptyMessage="No plays in this window"
-                caption={`Plays per day, ${STATS_RANGE_LABELS[range].toLowerCase()}`}
-              />
-            </Panel>
-
-            <Panel
-              title="When you listen"
-              hint={peak ? `busiest around ${formatHour(peak.hour)}` : undefined}
-            >
-              <ColumnChart
-                data={hourly}
-                height={140}
-                labelEvery={6}
-                caption="Plays by hour of the day"
-              />
-            </Panel>
-
-            {recent.length > 0 ? (
-              <Panel title="Recently played">
-                <View style={[styles.list, wide && styles.listColumns]}>
-                  {recent.slice(0, 24).map(event => (
-                    <View key={event.songId} style={wide ? styles.columnCell : undefined}>
-                      <SongLine
-                        song={songFor(event.songId)}
-                        title={event.title}
-                        artist={event.artist}
-                        trailing={formatRelative(event.playedAt)}
-                      />
-                    </View>
-                  ))}
-                </View>
-              </Panel>
-            ) : null}
-          </View>
+          <Cards stats={stats} />
+          <Ranked stats={stats} via={via} />
         </>
       )}
     </StatsFrame>
   )
 }
 
-function Panel({
-  title,
-  hint,
-  children,
-}: {
-  title: string
-  hint?: string
-  children: ReactNode
-}): ReactNode {
-  return (
-    <View style={styles.panel}>
-      <View style={styles.panelHead}>
-        <Text style={styles.panelTitle} accessibilityRole="header">
-          {title}
+/**
+ * The three cards. A computer lays them in one row, Listened twice as wide; a
+ * phone gives Listened the width and puts the other two side by side under it.
+ */
+function Cards({ stats }: { stats: Stats }): ReactNode {
+  const { wide } = useLayout()
+  const listened = useMemo(() => listenedCard(stats), [stats])
+  const peak = useMemo(() => peakCard(stats.hourly), [stats])
+  // Today is read once per answer: the dots move on when the numbers do.
+  const streak = useMemo(() => streakCard(stats, new Date()), [stats])
+
+  const listenedView = (
+    <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
+      <View style={styles.listenedWords}>
+        <Text style={styles.cardLabel}>Listened</Text>
+        <Text style={[styles.bigNumber, wide && styles.bigNumberWide]} numberOfLines={1}>
+          {listened.value}
         </Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        <Text style={styles.cardLine}>{listened.line}</Text>
       </View>
-      {children}
+      <Spark values={listened.trend} />
+    </View>
+  )
+
+  const peakView = (
+    <View
+      style={[styles.card, styles.small, wide && styles.cardWide]}
+      accessible
+      accessibilityLabel={
+        peak.value ? `Peak hour: ${peak.value}, ${peak.words}` : 'Peak hour: no plays yet'
+      }
+      testID="stats-peak"
+    >
+      <Text style={styles.cardLabel}>Peak hour</Text>
+      <View style={[styles.hours, wide && styles.hoursWide]}>
+        {peak.bars.map((share, hour) => (
+          <View
+            key={hour}
+            style={[
+              styles.hour,
+              { height: `${Math.max(4, share * 100)}%` },
+              hour === peak.peak && styles.hourPeak,
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.cardFoot}>
+        <Text style={styles.midNumber}>{peak.value ?? '—'}</Text>
+        {peak.words ? <Text style={styles.cardNote}>{peak.words}</Text> : null}
+      </View>
+    </View>
+  )
+
+  const streakView = (
+    <View
+      style={[styles.card, styles.small, wide && styles.cardWide]}
+      accessible
+      accessibilityLabel={`Streak: ${streak.value}${streak.line ? `, ${streak.line}` : ''}`}
+      testID="stats-streak"
+    >
+      <Text style={styles.cardLabel}>Streak</Text>
+      <View style={styles.dots}>
+        {streak.dots.map(dot => (
+          <View
+            key={dot.date}
+            style={[
+              styles.dot,
+              dot.played && styles.dotPlayed,
+              // Today is white whichever it is: where the run stands now.
+              dot.today && styles.dotToday,
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.cardFoot}>
+        <Text style={styles.midNumber}>{streak.value}</Text>
+        {streak.line ? <Text style={styles.cardNote}>{streak.line}</Text> : null}
+      </View>
+    </View>
+  )
+
+  if (wide) {
+    return (
+      <View style={styles.cardRow}>
+        <View style={styles.twoCols}>{listenedView}</View>
+        <View style={styles.oneCol}>{peakView}</View>
+        <View style={styles.oneCol}>{streakView}</View>
+      </View>
+    )
+  }
+  return (
+    <>
+      {listenedView}
+      <View style={styles.cardRow}>
+        <View style={styles.oneCol}>{peakView}</View>
+        <View style={styles.oneCol}>{streakView}</View>
+      </View>
+    </>
+  )
+}
+
+/** Minutes per day as one accent stroke. Decoration beside the number, so unread. */
+function Spark({ values }: { values: readonly number[] }): ReactNode {
+  const { theme } = useUnistyles()
+  if (values.length < 2) return null
+  return (
+    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width={SPARK.width} height={SPARK.height} viewBox={`0 0 ${SPARK.width} ${SPARK.height}`}>
+        <Path
+          d={sparkPath(values, SPARK.width, SPARK.height)}
+          fill="none"
+          stroke={theme.colors.accent}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
     </View>
   )
 }
 
-function Empty({ emoji, title, hint }: { emoji?: string; title: string; hint: string }): ReactNode {
+/**
+ * What was played most: Songs, Artists and Tags. A phone shows one at a time
+ * and switches between them; a computer with the width for all three puts them
+ * side by side, as `C15` draws them. The page column is measured rather than
+ * the window, since the sidebar and the practice panel take their share of it.
+ */
+function Ranked({ stats, via }: { stats: Stats; via: ServerConnection | undefined }): ReactNode {
+  const column = useContentWidth()
+  const [kind, setKind] = useState<RankKind>('songs')
+
+  if (column !== null && column >= THREE_LISTS) {
+    return (
+      <View style={[styles.card, styles.rankedWide]} testID="stats-ranked">
+        {RANK_KINDS.map(option => (
+          <View key={option.value} style={styles.rankedColumn}>
+            <Text style={styles.columnLabel} accessibilityRole="header">
+              {option.label}
+            </Text>
+            <RankedList stats={stats} kind={option.value} via={via} />
+          </View>
+        ))}
+      </View>
+    )
+  }
+  return (
+    <View style={[styles.card, styles.ranked]} testID="stats-ranked">
+      <Segmented value={kind} onChange={setKind} label="Most played" options={RANK_KINDS} />
+      <RankedList stats={stats} kind={kind} via={via} />
+    </View>
+  )
+}
+
+function RankedList({
+  stats,
+  kind,
+  via,
+}: {
+  stats: Stats
+  kind: RankKind
+  via: ServerConnection | undefined
+}): ReactNode {
+  const rows = useMemo(() => rankedRows(stats, kind), [stats, kind])
+  const songFor = useStatsSongs(via)
+  const { data: library } = useLibrary()
+  const hueOf = useMemo(
+    () => new Map((library?.tags ?? []).map(tag => [tag.name, tag.hue])),
+    [library],
+  )
+  if (rows.length === 0) return <Text style={styles.listEmpty}>{rankedEmpty(kind)}</Text>
+  return (
+    <View>
+      {rows.map((row, index) => (
+        <RankedLine
+          key={row.key}
+          row={row}
+          song={row.kind === 'song' ? songFor(row.songId) : undefined}
+          hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
+          testID={`stats-ranked-${kind}-${index}`}
+        />
+      ))}
+    </View>
+  )
+}
+
+/**
+ * One place in the ranking: its number in the serif, a picture, the name and
+ * how much, and a bar under the name. The first bar is the accent; the rest
+ * are quieter, so the eye reads the list as "the first, and then the others".
+ *
+ * Each opens its page: a song its own page, an artist or a tag the place. A
+ * song this device cannot line up with the server's, and a song with no
+ * artist, open nothing.
+ */
+function RankedLine({
+  row,
+  song,
+  hue,
+  testID,
+}: {
+  row: RankedRow
+  song: Song | undefined
+  hue: number | undefined
+  testID: string
+}): ReactNode {
+  const router = useRouter()
+  const artFor = useArt()
   const { theme } = useUnistyles()
+
+  const open =
+    row.kind === 'song'
+      ? song
+        ? () => router.navigate(songLink(song.id))
+        : undefined
+      : row.kind === 'artist'
+        ? row.known
+          ? () => router.navigate(artistLink(row.name))
+          : undefined
+        : () => router.navigate(tagLink(row.name))
+
+  const picture =
+    row.kind === 'song' ? (
+      <Cover uri={song ? artFor(song) : null} title={row.name} size={36} />
+    ) : row.kind === 'artist' ? (
+      <View style={styles.artistFigure}>
+        <User size={17} tone="textPrimary" />
+      </View>
+    ) : (
+      <View style={styles.tagSquare}>
+        <View
+          style={[
+            styles.tagDot,
+            { backgroundColor: hue === undefined ? theme.colors.textMuted : tagColors(hue).dot },
+          ]}
+        />
+      </View>
+    )
+
+  return (
+    <Pressable
+      disabled={!open}
+      onPress={open}
+      accessibilityRole={open ? 'link' : undefined}
+      accessibilityLabel={`${row.rank}. ${row.name}${
+        row.kind === 'song' && row.artist ? `, ${row.artist}` : ''
+      }, ${row.trailing}`}
+      testID={testID}
+      style={({ pressed }) => [styles.line, pressed && styles.linePressed]}
+    >
+      <Text style={styles.rank}>{row.rank}</Text>
+      {picture}
+      <View style={styles.lineBody}>
+        <View style={styles.lineTop}>
+          <Text style={styles.lineName} numberOfLines={1}>
+            {row.name}
+          </Text>
+          <Text style={styles.lineTrailing} numberOfLines={1}>
+            {row.trailing}
+          </Text>
+        </View>
+        <View style={styles.track}>
+          <View
+            style={[
+              styles.fill,
+              row.rank === 1 && styles.fillFirst,
+              { width: `${Math.max(2, row.share * 100)}%` },
+            ]}
+          />
+        </View>
+      </View>
+    </Pressable>
+  )
+}
+
+function Empty({ title, hint }: { title: string; hint: string }): ReactNode {
   return (
     <View style={styles.empty}>
-      {emoji ? <Text style={styles.emoji}>{emoji}</Text> : null}
-      <Text style={[styles.panelTitle, { color: theme.colors.textPrimary }]}>{title}</Text>
+      <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={[styles.hint, styles.emptyHint]}>{hint}</Text>
     </View>
   )
@@ -194,26 +359,86 @@ function Empty({ emoji, title, hint }: { emoji?: string; title: string; hint: st
 
 const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 22 },
-  tileCell: { flexGrow: 1, flexBasis: 170 },
-  panels: { gap: 14 },
-  // A card on the ground: told apart by tone, not an edge (`S2`).
-  panel: {
-    ...card(theme.colors),
-    padding: 18,
+  // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
+  card: { ...card(theme.colors, radius.cardLg), padding: 18 },
+  cardWide: { height: 190, paddingHorizontal: 20 },
+  cardRow: { flexDirection: 'row', gap: 12 },
+  twoCols: { flex: 2, minWidth: 0 },
+  oneCol: { flex: 1, minWidth: 0 },
+  listened: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  panelHead: {
+  listenedWords: { gap: 4, flexShrink: 1 },
+  cardLabel: label(theme.colors),
+  // Big numbers are the serif, which has one weight (`S2`).
+  bigNumber: { ...serif(theme.colors, 52), lineHeight: 54 },
+  bigNumberWide: { fontSize: 60, lineHeight: 60 },
+  cardLine: { color: theme.colors.textSecondary, fontSize: 13 },
+  small: { height: 150, padding: 16, justifyContent: 'space-between' },
+  hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
+  hoursWide: { height: 60 },
+  // An hour with plays is the raised tone; the busiest is the accent.
+  hour: { flex: 1, borderRadius: 2, backgroundColor: theme.colors.surface3 },
+  hourPeak: { backgroundColor: theme.colors.accent },
+  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.surface3 },
+  dotPlayed: { backgroundColor: theme.colors.accent },
+  dotToday: { backgroundColor: theme.colors.textPrimary },
+  cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
+  midNumber: { ...serif(theme.colors, 28), lineHeight: 30 },
+  cardNote: { color: theme.colors.textSecondary, fontSize: 12 },
+  ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
+  rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
+  rankedColumn: { flex: 1, minWidth: 0, gap: 4 },
+  columnLabel: { ...label(theme.colors), paddingBottom: 4 },
+  listEmpty: { color: theme.colors.textMuted, fontSize: 13, paddingVertical: 14 },
+  line: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 10,
+    minHeight: 48,
+    borderRadius: radius.cover,
   },
-  panelTitle: sectionTitle(theme.colors),
-  list: { gap: 1 },
-  listColumns: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 },
-  columnCell: { flexBasis: 280, flexGrow: 1, maxWidth: '33.3%' },
+  linePressed: { opacity: 0.7 },
+  rank: { ...serif(theme.colors, 18), width: 18, color: theme.colors.textMuted },
+  artistFigure: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surfaceSelected,
+  },
+  tagSquare: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.cover,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface3,
+  },
+  tagDot: { width: 10, height: 10, borderRadius: 5 },
+  lineBody: { flex: 1, minWidth: 0, gap: 5 },
+  lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  lineName: {
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  lineTrailing: { color: theme.colors.textSecondary, fontSize: 12 },
+  track: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.surface3,
+    overflow: 'hidden',
+  },
+  fill: { height: 4, borderRadius: 2, backgroundColor: theme.colors.textMuted },
+  fillFirst: { backgroundColor: theme.colors.accent },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emoji: { fontSize: 36 },
+  emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
   emptyHint: { textAlign: 'center', maxWidth: 360 },
 }))

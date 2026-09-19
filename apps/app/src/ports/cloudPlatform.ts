@@ -148,7 +148,7 @@ export const cloudPlatform: CloudPlatform = {
    * its own page instead, which still works — so an app newer than its
    * doorman degrades to typing rather than breaking.
    */
-  returnUrl: 'selfmp3://sign-in',
+  returnUrl: 'selfmp3://welcome',
   // The promise is returned, not dropped. `openSignIn` may fail — no browser,
   // a refusal from the OS — and a floating promise turns that into an uncaught
   // rejection nobody sees, leaving the screen saying "Waiting for Google…"

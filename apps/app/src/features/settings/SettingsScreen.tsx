@@ -20,6 +20,7 @@ import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanization
 import { loginItem } from '../../ports/loginItem'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { BackToYou } from '../../ui/components/BackToYou'
 import { Toggle } from '../../ui/components/Toggle'
@@ -41,8 +42,10 @@ import { ShortcutsPanel } from './ShortcutsPanel'
 import {
   activeSection,
   crossfadeLabel,
+  devicePlace,
   healthLine,
   landingOffset,
+  onThisDevice,
   sectionsFor,
   type Confirming,
   type SectionId,
@@ -67,11 +70,14 @@ const CHOSEN_HOLD_MS = 900
 const LINKED_HOLD_MS = 2500
 
 /**
- * Settings.
+ * Settings (`P38`, `C17`).
  *
- * What syncs and what does not, kept apart. Playback, importing and lyrics
- * live on the server so the server and every phone agree; downloads, the accent
- * and the theme belong to this device. The page carries its own index — a
+ * Grouped as the boards group it: the account and the look first, then what
+ * this device keeps — "On this phone", "On this computer" — and its devices,
+ * then what the server keeps for every device: playback, the library,
+ * importing, the cloud. Downloads, the accent and the theme belong to this
+ * device; the rest live on the server so it and every phone agree. Each group
+ * is a label over a card, its rows told apart by space. The page carries its own index — a
  * column beside the panels on a wide screen, a sticky row of chips above them
  * on a narrow one — and every setting has the same anatomy. A link from
  * elsewhere names its section (`/settings?section=connection`) and lands there.
@@ -91,7 +97,8 @@ export function SettingsScreen(): ReactNode {
 
   // A mouse or trackpad stands in for a keyboard, and only the installed app —
   // the one with a login item — has a menu of keys to list.
-  const sections = sectionsFor(fromCloud, installedApp, finePointer, loginItem.available)
+  const place = devicePlace(deviceKind())
+  const sections = sectionsFor(fromCloud, installedApp, finePointer, loginItem.available, place)
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
@@ -107,7 +114,7 @@ export function SettingsScreen(): ReactNode {
   )
   const { section: linked } = useLocalSearchParams<{ section?: string }>()
   const linkedSection = sections.find(section => section.id === linked)?.id
-  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'playback')
+  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'connection')
   const chipsRef = useRef<ScrollView>(null)
   const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
   const chipsWidth = useRef(0)
@@ -318,6 +325,24 @@ export function SettingsScreen(): ReactNode {
 
         <StackedRows value={!wide}>
           <View style={styles.panels}>
+            <ConnectionPanel
+              anchor={node => anchorAt('connection', node)}
+              onConfirm={setConfirming}
+            />
+
+            <AppearancePanel anchor={node => anchorAt('appearance', node)} />
+
+            {/* A browser streams and keeps nothing: only an installed app has songs on it. */}
+            {installedApp ? (
+              <OfflinePanel
+                title={onThisDevice(place)}
+                anchor={node => anchorAt('offline', node)}
+                onConfirm={setConfirming}
+              />
+            ) : null}
+
+            <DevicesPanel anchor={node => anchorAt('devices', node)} />
+
             {settings.data ? (
               <Panel
                 title="Playback"
@@ -342,10 +367,13 @@ export function SettingsScreen(): ReactNode {
               </Panel>
             ) : null}
 
-            {/* A browser streams and keeps nothing: only an installed app has offline music. */}
-            {installedApp ? (
-              <OfflinePanel anchor={node => anchorAt('offline', node)} onConfirm={setConfirming} />
-            ) : null}
+            {fromCloud ? null : (
+              <LibraryPanel
+                libraryPath={health.data?.libraryPath}
+                anchor={node => anchorAt('library', node)}
+                onConfirm={setConfirming}
+              />
+            )}
 
             {settings.data && !fromCloud ? (
               <ImportingPanel
@@ -355,20 +383,7 @@ export function SettingsScreen(): ReactNode {
               />
             ) : null}
 
-            {fromCloud ? null : (
-              <LibraryPanel
-                libraryPath={health.data?.libraryPath}
-                anchor={node => anchorAt('library', node)}
-                onConfirm={setConfirming}
-              />
-            )}
-
             {fromCloud ? null : <CloudPanel anchor={node => anchorAt('cloud', node)} />}
-
-            <ConnectionPanel
-              anchor={node => anchorAt('connection', node)}
-              onConfirm={setConfirming}
-            />
 
             <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
               <Row
@@ -384,12 +399,9 @@ export function SettingsScreen(): ReactNode {
               </Row>
             </Panel>
 
-            <DevicesPanel anchor={node => anchorAt('devices', node)} />
-
             {loginItem.available ? (
               <DesktopPanel anchor={node => anchorAt('desktop', node)} />
             ) : null}
-            <AppearancePanel anchor={node => anchorAt('appearance', node)} />
 
             {shortcuts ? (
               <ShortcutsPanel items={shortcuts} anchor={node => anchorAt('shortcuts', node)} />
@@ -502,11 +514,12 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
   contentColumn: { paddingTop: COLUMN_TOP, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
-  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 16 },
+  // `S2`'s phone gutter.
+  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
   head: { marginBottom: 20 },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
-  panels: { gap: 14, maxWidth: 780 },
+  panels: { gap: 20, maxWidth: 780 },
   indexColumn: { position: 'absolute', top: COLUMN_TOP, left: 32, width: 172, gap: 1 },
   indexTitle: {
     ...label(theme.colors),
@@ -527,12 +540,12 @@ const styles = StyleSheet.create(theme => ({
   indexText: { color: theme.colors.textMuted, fontSize: 13 },
   indexTextOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   chipBar: {
-    marginHorizontal: -16,
+    marginHorizontal: -20,
     paddingVertical: 10,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
-  chips: { gap: 6, paddingHorizontal: 16 },
+  chips: { gap: 6, paddingHorizontal: 20 },
   chip: {
     paddingVertical: 7,
     paddingHorizontal: 12,

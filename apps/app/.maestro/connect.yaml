@@ -1,0 +1,28 @@
+# Connecting a signed-out phone to a server by its address, the way every other
+# flow here expects the phone to be set up (README.md).
+#
+# Run as:
+#   maestro test -e SERVER=192.168.1.20:4600 .maestro/connect.yaml
+#
+# Development builds only: Welcome draws the address form behind a quiet text
+# action there, and nowhere in a normal build. Connecting goes straight to Home;
+# First sync follows a Google sign-in, never an address.
+appId: com.selfmp3.app
+---
+- launchApp
+- openLink: 'selfmp3://welcome'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-google'
+    timeout: 60000
+- tapOn:
+    id: 'welcome-address-toggle'
+- tapOn:
+    id: 'welcome-address'
+- inputText: ${SERVER}
+- tapOn:
+    id: 'welcome-connect'
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 30000

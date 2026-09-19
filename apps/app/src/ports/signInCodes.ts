@@ -4,19 +4,19 @@ import { SignInCodeSchema } from '@selfmp3/shared'
  * Sign-in links coming back to the app, and the inbox they wait in.
  *
  * Google's sign-in ends with the doorman sending the browser back to where the
- * sign-in started — `selfmp3://sign-in` or `selfmp3://settings` in an installed
- * app, this site's own `/sign-in` or `/settings` in a browser — with the code
+ * sign-in started — `selfmp3://welcome` or `selfmp3://settings` in an installed
+ * app, this site's own `/welcome` or `/settings` in a browser — with the code
  * that claims the session in the fragment. Nobody reads or types that code: it
  * comes back inside the link, and this is where the link lands.
  *
  * Two targets rather than one, so a code meant for Settings (the server
- * signing in) is never spent by the first-run screen, or the other way round.
+ * signing in) is never spent by Welcome, or the other way round.
  * The inbox keeps a link that arrives before its screen is listening, which a
  * cold launch from a sign-in always is, and hands each code over once.
  */
 
-/** Where a sign-in can come back to: the first-run screen, or Settings → Cloud. */
-export type SignInTarget = 'sign-in' | 'settings'
+/** Where a sign-in can come back to: Welcome, or Settings → Cloud. */
+export type SignInTarget = 'welcome' | 'settings'
 
 export interface SignInLink {
   readonly target: SignInTarget
@@ -41,7 +41,7 @@ export function signInLink(url: string): SignInLink | null {
     .replace(/^selfmp3:\/\//, '/')
     .replace(/\/+$/, '')
   const last = path.slice(path.lastIndexOf('/') + 1)
-  return last === 'sign-in' || last === 'settings' ? { target: last, code: code.data } : null
+  return last === 'welcome' || last === 'settings' ? { target: last, code: code.data } : null
 }
 
 interface SignInInbox {
@@ -54,7 +54,7 @@ interface SignInInbox {
 export function createSignInInbox(): SignInInbox {
   const waiting: SignInLink[] = []
   const listeners: Record<SignInTarget, Set<(code: string) => void>> = {
-    'sign-in': new Set(),
+    welcome: new Set(),
     settings: new Set(),
   }
   /*

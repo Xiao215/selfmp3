@@ -22,18 +22,26 @@ The first deep link on a fresh simulator raises "Open in self.mp3?", and
 `simctl openurl` does not return until it is answered — which looks exactly
 like a hung simulator. Tap Open (or `maestro hierarchy` to see it is there).
 
-All three flows go through the real app, so the phone has to be set up first,
+The three gate flows go through the real app, so the phone has to be set up first,
 and the same way for all three: **connected to the Mac by address**, not
 signed in to the cloud. Presence, handoff and remote control travel through
 the Mac's event stream, so a cloud-only phone has no other devices by design.
-The sign-in screen has no way to the address form; open it directly:
+
+A development build's Welcome has a quiet "Connect to a server by address"
+under the Google button, which opens the address form in place; a normal build
+has none. `connect.yaml` does it for you, from a signed-out phone:
 
 ```
-xcrun simctl openurl booted "selfmp3://onboarding"
+maestro test -e SERVER=<the Mac's address, e.g. 192.168.1.20:4600> .maestro/connect.yaml
 ```
+
+By hand it is the same three testIDs: `welcome-address-toggle`, then type into
+`welcome-address`, then `welcome-connect`. A phone already connected opens on
+Home and needs none of this.
 
 | Flow | Also needs | How to run |
 |---|---|---|
+| `connect.yaml` | A signed-out phone, and the Mac's address | `maestro test -e SERVER=<address> .maestro/connect.yaml` |
 | `smoke.yaml` | A library on the Mac | `maestro test .maestro/smoke.yaml` |
 | `devices.yaml` | Another device playing against the same Mac, e.g. the web app open in a browser | `maestro test .maestro/devices.yaml` |
 | `offline.yaml` | At least one song downloaded (`smoke.yaml` downloads a playlist) | `.maestro/offline-run.sh` |

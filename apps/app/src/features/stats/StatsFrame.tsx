@@ -1,50 +1,47 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { useRouter } from 'expo-router'
+import { STATS_RANGE_LABELS } from '@selfmp3/shared'
+import { HIT_TARGET, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackToYou } from '../../ui/components/BackToYou'
+import { ChevronRight } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
+import { Select } from '../../ui/components/Select'
 import { pageTitle } from '../../ui/surfaces'
-import {
-  periodLabel,
-  STATS_PERIODS,
-  STATS_TABS,
-  type StatsPeriod,
-  type StatsTab,
-} from './stats.model'
+import { periodLabel, statsRangeFor, STATS_PERIODS, type StatsPeriod } from './stats.model'
 
-/** What both tabs hand the frame: which tab, which window, and how to change either. */
-export interface StatsFrameProps {
-  tab: StatsTab
-  onTab: (tab: StatsTab) => void
-  period: StatsPeriod
-  onPeriod: (period: StatsPeriod) => void
-}
+/** Where "The month as a page" goes: the Report, a page of its own. */
+const REPORT_HREF = '/stats/report'
 
 /**
- * The page both Stats tabs are drawn in: the title, the tabs, the one range,
- * and whatever the tab puts in the header's corner (Report's share).
+ * The page Stats is drawn in: the title, the window, and the way to the month
+ * as a page (`P32`, `C15`).
  *
- * One header rather than a range control per tab, so the window chosen
- * survives changing tabs.
+ * Drawn the same whether or not there are numbers to put in it, so a cloud
+ * library whose server is away still gets the page, with the reason in its
+ * body (StatsViaServer.tsx).
+ *
+ * A computer has room for every window as a segment and the Report as a pill
+ * beside them. A phone has the window as one control that opens the list, and
+ * the Report as the last line of the page.
  */
 export function StatsFrame({
-  tab,
-  onTab,
   period,
   onPeriod,
-  actions,
   testID,
   children,
-}: StatsFrameProps & {
-  /** Icon buttons at the end of the title row. */
-  actions?: ReactNode
+}: {
+  period: StatsPeriod
+  onPeriod: (period: StatsPeriod) => void
   testID: string
   children: ReactNode
 }): ReactNode {
   const { wide } = useLayout()
+  const options = STATS_PERIODS.map(option => ({ value: option, label: periodLabel(option) }))
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -53,52 +50,90 @@ export function StatsFrame({
         testID={testID}
       >
         <BackToYou />
-        <View style={styles.titleRow}>
-          <Text style={styles.heading} accessibilityRole="header">
-            Stats
-          </Text>
-          {actions ? <View style={styles.actions}>{actions}</View> : null}
-        </View>
-        <View style={[styles.controls, !wide && styles.controlsNarrow]}>
-          <Segmented value={tab} onChange={onTab} label="Stats view" options={STATS_TABS} />
-          <Segmented
-            value={period}
-            onChange={onPeriod}
-            label="Time range"
-            options={STATS_PERIODS.map(option => ({
-              value: option,
-              label: periodLabel(option, wide),
-            }))}
-          />
+        <View style={styles.head}>
+          <View style={styles.titles}>
+            <Text style={styles.heading} accessibilityRole="header">
+              Stats
+            </Text>
+            <Text style={styles.sub}>{STATS_RANGE_LABELS[statsRangeFor(period)]}</Text>
+          </View>
+          {wide ? (
+            <View style={styles.controls}>
+              <Segmented value={period} onChange={onPeriod} label="Time range" options={options} />
+              <ReportLink pill />
+            </View>
+          ) : (
+            <Select
+              value={period}
+              onChange={onPeriod}
+              label="Time range"
+              options={options}
+              size="small"
+              testID="stats-range"
+            />
+          )}
         </View>
         {children}
+        {wide ? null : <ReportLink pill={false} />}
         <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )
 }
 
+/** "The month as a page": a pill in the computer's header, the page's last line on a phone. */
+function ReportLink({ pill }: { pill: boolean }): ReactNode {
+  const router = useRouter()
+  return (
+    <Pressable
+      onPress={() => router.push(REPORT_HREF)}
+      accessibilityRole="link"
+      accessibilityLabel="The month as a page"
+      testID="stats-report"
+      style={({ pressed }) => [
+        pill ? styles.pill : styles.line,
+        pressed && (pill ? styles.pillPressed : styles.linePressed),
+      ]}
+    >
+      <Text style={pill ? styles.pillText : styles.linkText}>The month as a page</Text>
+      {pill ? null : <ChevronRight size={16} tone="textMuted" />}
+    </Pressable>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  titleRow: {
+  content: { paddingBottom: 40, gap: 12 },
+  // `S2`'s gutters: 40 to 48 on a computer's page, 20 on a phone's.
+  contentWide: { paddingTop: 40, paddingHorizontal: 44, gap: 14 },
+  contentNarrow: { paddingTop: 18, paddingHorizontal: 20 },
+  head: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    minHeight: 36,
-  },
-  heading: pageTitle(theme.colors),
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  controls: {
-    flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 8,
   },
-  controlsNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: 8 },
+  titles: { gap: 2, flexShrink: 1 },
+  heading: pageTitle(theme.colors),
+  sub: { color: theme.colors.textSecondary, fontSize: 13 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  pill: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+    justifyContent: 'center',
+  },
+  pillPressed: { backgroundColor: theme.colors.surface3 },
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: HIT_TARGET,
+  },
+  linePressed: { opacity: 0.6 },
+  pillText: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  linkText: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
 }))

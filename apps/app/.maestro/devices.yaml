@@ -4,7 +4,7 @@
 #   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 #
 # Needs two devices on one Mac, which a one-device run cannot fake:
-#   - this phone, connected to the Mac by address (onboarding), not signed in
+#   - this phone, connected to the Mac by address (connect.yaml), not signed in
 #     to the cloud — presence travels through the Mac's event stream, so a
 #     cloud-only phone is alone by design (progress log, question 5);
 #   - another device playing against the same server, e.g. the web app open

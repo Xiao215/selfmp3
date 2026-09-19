@@ -11,11 +11,14 @@ it on a phone, local builds, Android Auto testing with the Desktop Head Unit.
 
 ## Using it
 
-First launch asks you to sign in with Google; the library is then the one in
-your bucket, and the server does not have to be running. There is no address to
-type — a development build keeps the `/onboarding` address screen, because the
-simulator flows cannot sign in to a Google account, and that is the only place
-it survives. The tabs are **Library · Playlists · Import · You**, where You
+First launch opens on Welcome, whose one button is Continue with Google; the
+library is then the one in your bucket, and the server does not have to be
+running. A device's first sign-in is followed, once, by First sync: the library
+arriving, and whether to keep every song on the device (off on a phone, on on a
+computer). Signing out returns to Welcome. There is no address to type — a
+development build keeps a "Connect to a server by address" text action on
+Welcome, because the simulator flows cannot sign in to a Google account, and
+that is the only place it survives. The tabs are **Library · Playlists · Import · You**, where You
 holds Stats & report, Tags and Settings.
 
 Importing works: the Import screen reaches the server directly when it can, by

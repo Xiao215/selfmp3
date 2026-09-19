@@ -24,6 +24,11 @@ const RANGE_SHORT: Record<WrappedRange, string> = {
   all: 'All time',
 }
 
+/** A window's name on the period control: "Week", "3 months". */
+export function rangeShort(range: WrappedRange): string {
+  return RANGE_SHORT[range]
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export function weekdayName(weekday: number): string {
@@ -89,26 +94,6 @@ export function tryLabel(range: WrappedRange): string {
   return `Try ${RANGE_SHORT[range].toLowerCase()}`
 }
 
-/** "On repeat" is a chapter only when there is a record, so Discovered's number moves. */
-export function discoveredChapter(wrapped: Pick<Wrapped, 'mostInOneDay'>): string {
-  return wrapped.mostInOneDay ? '04' : '03'
-}
-
-/**
- * Discovered is worth a chapter only when it says something Top songs has not.
- * In a window where everything played was new — a first week, a fresh library —
- * the two lists were the same songs in the same order, one under the other.
- */
-export function showDiscovered(wrapped: Pick<Wrapped, 'topSongs' | 'discovered'>): boolean {
-  const discovered = wrapped.discovered.slice(0, DISCOVERED_SHOWN).map(song => song.songId)
-  const top = wrapped.topSongs.map(song => song.songId)
-  const same = discovered.length === top.length && discovered.every((id, i) => id === top[i])
-  return !(same && discovered.length > 0)
-}
-
-/** How many discoveries the chapter lists. */
-export const DISCOVERED_SHOWN = 8
-
 /** Each ranked row's share of the first, as a quiet bar behind its name. */
 export function rankShare(plays: number, max: number): number {
   return Math.max(6, (plays / Math.max(max, 1)) * 100)
@@ -118,13 +103,6 @@ export function rankShare(plays: number, max: number): number {
 export function numberOneLine(song: { plays: number; minutes: number }): string {
   const minutes = Math.round(song.minutes)
   return `${playsLabel(song.plays)} · ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
-}
-
-export function repeatNote(wrapped: Pick<Wrapped, 'busiestDate'>): string {
-  const busiest = wrapped.busiestDate
-    ? ` · busiest day overall: ${playsLabel(wrapped.busiestDate.plays)}`
-    : ''
-  return `The most you played one song in a single day${busiest}.`
 }
 
 /** A filename that sorts sensibly and says what it is. */

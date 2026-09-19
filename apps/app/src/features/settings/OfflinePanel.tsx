@@ -19,10 +19,17 @@ import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row, Stats } from '.
 import { type Confirming } from './settings.model'
 import {} from '../metadata/metadata.model'
 
+/**
+ * What this device keeps: whether songs download by themselves, whether one
+ * not here may stream, and the storage they take. Its title names the device
+ * ("On this phone", "On this computer"), so it needs no "on this device" beside it.
+ */
 export function OfflinePanel({
+  title,
   anchor,
   onConfirm,
 }: {
+  title: string
   anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
@@ -79,7 +86,7 @@ export function OfflinePanel({
   const working = downloads.queue.length > 0
 
   return (
-    <Panel title="Offline music" hint="on this device" anchor={anchor}>
+    <Panel title={title} anchor={anchor}>
       <Lead>
         {fromCloud
           ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'

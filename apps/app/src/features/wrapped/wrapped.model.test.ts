@@ -2,7 +2,6 @@ import { WrappedSchema, type Wrapped } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import {
-  discoveredChapter,
   emptyHint,
   emptyTitle,
   eyebrow,
@@ -11,10 +10,9 @@ import {
   figureUnit,
   longerRanges,
   numberOneLine,
+  rangeShort,
   rankShare,
-  repeatNote,
   shareFileName,
-  showDiscovered,
   tryLabel,
   weekdayName,
   WRAPPED_RANGES,
@@ -69,6 +67,7 @@ describe('wrapped', () => {
     expect(WRAPPED_RANGES).toEqual(['week', 'month', 'quarter', 'year', 'all'])
     expect(longerRanges('week')).toEqual(['month', 'quarter', 'year', 'all'])
     expect(longerRanges('all')).toEqual([])
+    expect(rangeShort('quarter')).toBe('3 months')
     expect(tryLabel('year')).toBe('Try year')
     expect(tryLabel('quarter')).toBe('Try 3 months')
     expect(emptyHint('quarter')).toMatch(/last 3 months/)
@@ -77,52 +76,13 @@ describe('wrapped', () => {
     expect(emptyHint('week')).toMatch(/last 7 days/)
   })
 
-  it('numbers Discovered after On repeat, when there is one', () => {
-    expect(discoveredChapter(WRAPPED)).toBe('03')
-    expect(
-      discoveredChapter({
-        mostInOneDay: {
-          songId: 3,
-          title: 'x',
-          artist: '',
-          hasArt: false,
-          date: '2026-09-12',
-          plays: 9,
-        },
-      }),
-    ).toBe('04')
-  })
-
-  it('leaves Discovered out when it would repeat Top songs', () => {
-    const song = (songId: number) => ({
-      songId,
-      title: `Song ${songId}`,
-      artist: '',
-      hasArt: false,
-      plays: 3,
-      minutes: 9,
-    })
-    const top = [song(1), song(2)]
-    expect(showDiscovered({ topSongs: top, discovered: [song(1), song(2)] })).toBe(false)
-    // The same songs in another order, one more, or one fewer: a different list.
-    expect(showDiscovered({ topSongs: top, discovered: [song(2), song(1)] })).toBe(true)
-    expect(showDiscovered({ topSongs: top, discovered: [song(1), song(2), song(3)] })).toBe(true)
-    expect(showDiscovered({ topSongs: top, discovered: [song(1)] })).toBe(true)
-    // Nothing discovered keeps its chapter, which says why.
-    expect(showDiscovered({ topSongs: [], discovered: [] })).toBe(true)
-  })
-
   it('draws a ranked bar for every row, never too thin to see', () => {
     expect(rankShare(182, 182)).toBe(100)
     expect(rankShare(1, 182)).toBe(6)
   })
 
-  it('describes the number one and the day on repeat', () => {
+  it('describes the number one', () => {
     expect(numberOneLine({ plays: 46, minutes: 83.2 })).toBe('46 plays · 83 minutes')
-    expect(repeatNote(WRAPPED)).toBe(
-      'The most you played one song in a single day · busiest day overall: 145 plays.',
-    )
-    expect(repeatNote({ busiestDate: null })).toBe('The most you played one song in a single day.')
   })
 
   it('names the shared image by its window and day', () => {

@@ -24,7 +24,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH
  * 4601 — `npm run dev` starts both — and has to be told where the API is. It
  * keeps that address through the `secrets` port, which in a browser is
  * `localStorage`; a fresh Playwright context has none, so without the seed
- * below the app quite correctly shows its sign-in screen and every flow times
+ * below the app quite correctly shows Welcome and every flow times
  * out waiting for a library.
  *
  * Both can be pointed elsewhere:

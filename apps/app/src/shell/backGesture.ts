@@ -33,10 +33,11 @@ export function swipeBackAllowed(routeName: string): boolean {
  * The way in, which nothing is behind.
  *
  * Both replace the screen they leave rather than push onto it, so there is
- * usually nothing to pop; saying so anyway keeps a stray swipe on the sign-in
- * page from revealing the library it just turned away.
+ * usually nothing to pop; saying so anyway keeps a stray swipe on Welcome from
+ * revealing the library it just turned away, and one on First sync from going
+ * back to a Welcome that has already let the person in.
  */
-const GATES = ['sign-in', 'onboarding']
+const GATES = ['welcome', 'first-sync']
 
 /**
  * The address a route name draws: `index` is `/`, `playlists/index` and

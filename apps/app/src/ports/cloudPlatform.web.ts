@@ -95,12 +95,12 @@ export const cloudPlatform: CloudPlatform = {
   randomBytes: into => crypto.getRandomValues(into),
 
   /**
-   * Back to the sign-in screen, under this build's base. A tab can be returned
+   * Back to Welcome, under this build's base. A tab can be returned
    * to, so the doorman sends Google back here with the code in the fragment,
    * where the screen reads it, rather than showing it to be typed.
    *
    * The installed app is returned to by scheme instead. It uses the phone's
-   * `selfmp3://sign-in`, which the doorman's `safeReturn` already allows and
+   * `selfmp3://welcome`, which the doorman's `safeReturn` already allows and
    * which therefore needs nothing deployed — and the sign-in itself opens in
    * the person's own browser, because Google refuses an embedded window and
    * because a browser that already knows them is one fewer password typed.
@@ -109,7 +109,7 @@ export const cloudPlatform: CloudPlatform = {
    * code on its own page, and the typed-code path still works. That degradation
    * is the phone's and the desktop inherits it.
    */
-  returnUrl: desktop ? 'selfmp3://sign-in' : `${window.location.origin}${appPath('sign-in')}`,
+  returnUrl: desktop ? 'selfmp3://welcome' : `${window.location.origin}${appPath('welcome')}`,
   openSignIn: url => (desktop ? desktop.openExternal(url) : window.location.assign(url)),
 
   deviceKind: (() => {

@@ -12,8 +12,9 @@ import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 
 /**
- * Where the numbers on the Stats page come from: whatever answers this device,
- * or — from a cloud library, with the server within reach — that server directly.
+ * Where the numbers on Stats, the Report and You's month come from: whatever
+ * answers this device, or — from a cloud library, with the server within
+ * reach — that server directly.
  *
  * Stats are the server's and can be nobody else's. Every number here is worked
  * out from `play_events`, which the server keeps and the bucket does not carry:
@@ -22,7 +23,7 @@ import { useServerSongIds } from '../../connection/useServerSongIds'
  *
  * The answers then name songs by the server's ids, which mean nothing here, so
  * every list goes through `useStatsSongs` on the way to the screen. Nothing
- * else in the two tabs has to know which library answered.
+ * else on Stats, the Report or You has to know which library answered.
  */
 const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
 

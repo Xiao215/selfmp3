@@ -28,8 +28,8 @@ describe('the swipe-back gesture', () => {
   })
 
   it('is off on the way in, which has nothing behind it', () => {
-    expect(swipeBackAllowed('sign-in')).toBe(false)
-    expect(swipeBackAllowed('onboarding')).toBe(false)
+    expect(swipeBackAllowed('welcome')).toBe(false)
+    expect(swipeBackAllowed('first-sync')).toBe(false)
   })
 
   it('stays on a page pushed from the one it goes back to', () => {

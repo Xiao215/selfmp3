@@ -12,7 +12,7 @@ import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { signOutOfCloud, signOutWarning } from './signOut'
+import { SIGNED_OUT_ROUTE, signOutOfCloud, signOutWarning } from './signOut'
 import { type Confirming } from './settings.model'
 import {} from '../metadata/metadata.model'
 
@@ -73,7 +73,7 @@ export function Confirmations({
           },
           done: () => {
             signedOutOfCloud()
-            router.replace('/sign-in')
+            router.replace(SIGNED_OUT_ROUTE)
           },
         }),
     },

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  afterCheck,
-  copyFor,
-  FOOTNOTE,
-  LINK_GRACE_MS,
-  TOOK_TOO_LONG,
-  type SignInStage,
-} from './signIn.model'
+import { afterCheck, copyFor, LINK_GRACE_MS, TOOK_TOO_LONG, type SignInStage } from './signIn.model'
 
 /**
  * The sign-in's rules. Worth tests rather than a glance: the grace decides
@@ -57,7 +50,7 @@ describe('copyFor', () => {
     { kind: 'lost' },
     { kind: 'claiming' },
   ]
-  const words = stages.flatMap(stage => Object.values(copyFor(stage))).concat(FOOTNOTE)
+  const words = stages.flatMap(stage => Object.values(copyFor(stage)))
 
   it('never asks for a code', () => {
     expect(words.filter(text => text !== null && /code/i.test(text))).toEqual([])

@@ -1,4 +1,4 @@
-import type { Health, ScanResult } from '@selfmp3/shared'
+import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -23,40 +23,65 @@ export type SectionId =
   | 'about'
 
 /**
- * The index, in page order. `server`: the section acts on the server, so a cloud library has none.
+ * The groups, in page order (`P38`, `C17`): who you are and the look first,
+ * then what this device keeps, then the rest. `server`: the section acts on
+ * the server, so a cloud library has none.
  *
  * Devices is not one of those any more: a cloud library finds its server the way
  * Import does, and with no server in reach it still shows the last list it had.
  */
 export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boolean }[] = [
+  // Which library this is, and signing out of it. Its id is older than its name:
+  // links from elsewhere (`/settings?section=connection`) still land here.
+  { id: 'connection', label: 'Account' },
+  { id: 'appearance', label: 'Appearance' },
+  // Named for the device it is on; see `sectionsFor`.
+  { id: 'offline', label: 'On this phone' },
+  { id: 'devices', label: 'Devices' },
   { id: 'playback', label: 'Playback' },
-  { id: 'offline', label: 'Offline music' },
-  { id: 'importing', label: 'Importing', server: true },
   { id: 'library', label: 'Library', server: true },
+  { id: 'importing', label: 'Importing', server: true },
   { id: 'cloud', label: 'Cloud', server: true },
-  { id: 'connection', label: 'Connection' },
   // Not the server's: romaji is kept with the words in the cloud too, and the switch is this device's.
   { id: 'lyrics', label: 'Lyrics' },
-  { id: 'devices', label: 'Devices' },
   { id: 'desktop', label: 'Desktop app' },
-  { id: 'appearance', label: 'Appearance' },
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'about', label: 'About' },
 ]
 
 /**
- * `installed`: a browser streams and keeps no songs, so it has no Offline music.
+ * What this device is, as the words for it: a phone, or a computer. From the
+ * device port's own answer (`ports/device`), which the Devices list uses too,
+ * so this device is called the same thing in both places. The desktop app
+ * and a browser on a computer are computers; everything native is a phone, an
+ * iPad included, since it keeps songs the same way.
+ */
+export type DevicePlace = 'phone' | 'computer'
+
+export function devicePlace(kind: DeviceKind): DevicePlace {
+  return kind === 'phone' ? 'phone' : 'computer'
+}
+
+/** "On this phone", "On this computer": the group of what this device keeps. */
+export function onThisDevice(place: DevicePlace): string {
+  return `On this ${place}`
+}
+
+/**
+ * `installed`: a browser streams and keeps no songs, so it has nothing on it.
  * `keyboard`: a finger has no keys to press, so a phone has no Keyboard shortcuts.
  * `shell`: only the installed desktop app can open at login, and a section with
  * nothing in it is worse than one that is not there — so it defaults to absent.
  * It is also the only place with keyboard shortcuts to list: its menu has them,
  * and a browser tab has only Space, for play and pause.
+ * `place`: names the group of what this device keeps.
  */
 export function sectionsFor(
   fromCloud: boolean,
   installed = true,
   keyboard = true,
   shell = false,
+  place: DevicePlace = 'phone',
 ): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
@@ -64,6 +89,10 @@ export function sectionsFor(
       (installed || section.id !== 'offline') &&
       ((keyboard && shell) || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop'),
+  ).map(section =>
+    section.id === 'offline'
+      ? { id: section.id, label: onThisDevice(place) }
+      : { id: section.id, label: section.label },
   )
 }
 

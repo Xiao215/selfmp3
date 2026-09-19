@@ -1,6 +1,7 @@
 # Moving the app to the new interface
 
-**Status: built through Phase 11 except the widget, 2026-09-19, on branches not yet merged.** Written 2026-09-18, against the app as it stands on
+**Status: built through Phase 11, 2026-09-19, on branches not yet merged. The widget waits
+on a signed build.** Written 2026-09-18, against the app as it stands on
 `main` that day. The target is the mock in [`docs/ui-mock/`](ui-mock/README.md); screen
 numbers like `P04` and `C11` in this document are files in `docs/ui-mock/boards/`.
 
@@ -600,8 +601,9 @@ Answered by Xiao on 2026-09-18.
 ## Progress
 
 **Phases 1 to 11** on `ui/phase-1` … `ui/phase-11`, each on top of the last (the order is
-1–8, 10, 9, 11), 2026-09-18 and 19. The widget (Phase 11's second half) is not started: it
-needs Xiao's yes. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
+1–8, 10, 9, 11), 2026-09-18 and 19. The widget (Phase 11's second half, `ui/widget`) is built
+and its target compiles for the simulator; it waits on a team id, the App Group and a signed
+build (docs/features/widget.md). Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
 select-all on both projects, which fails on the lane database for data reasons (two songs
 whose files are missing: select-all leaves them out, the API count does not). Maestro was not
 run: no simulator was free with a Metro for this worktree. The dev client has not been

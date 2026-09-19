@@ -36,6 +36,7 @@ import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { AccentProvider } from '../src/ui/accent'
+import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { showToast } from '../src/ui/toast'
 
 /**
@@ -134,6 +135,8 @@ export default function RootLayout(): ReactNode {
                       {/* Around the shell: the sidebar and the library share it. */}
                       <LibraryFilterProvider>
                         <Shell />
+                        {/* The home-screen widget's snapshot, where there is one. */}
+                        <WidgetSync />
                       </LibraryFilterProvider>
                     </CarProvider>
                   </DevicesProvider>

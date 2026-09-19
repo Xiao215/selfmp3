@@ -35,6 +35,11 @@ const config = {
         NSAllowsArbitraryLoads: true,
       },
     },
+    // Shared with the home-screen widget (targets/widget), which reads the
+    // snapshot the app leaves here. Must match the target's own entitlement.
+    entitlements: {
+      'com.apple.security.application-groups': ['group.com.selfmp3.app'],
+    },
   },
 
   android: {
@@ -75,6 +80,8 @@ const config = {
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
+    // The home-screen widget's Xcode target, from targets/widget (docs/ui-mock `P28`).
+    '@bacons/apple-targets',
     // The design's two faces, embedded at build time so a phone never draws a
     // page in the system font first (docs/UI-MIGRATION.md, "Stack").
     [

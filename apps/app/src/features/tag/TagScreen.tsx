@@ -6,7 +6,8 @@ import { useLibrary } from '@selfmp3/client'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
-import { existingTag } from './tag.model'
+import { existingTag, placeSongs } from './tag.model'
+import { usePlayer } from '../../player/PlayerProvider'
 
 /**
  * A tag's page, `/tag/<name>` (docs/ui-mock `P08`, `C06`). The name is found
@@ -15,7 +16,8 @@ import { existingTag } from './tag.model'
  */
 export function TagScreen(): ReactNode {
   const router = useRouter()
-  const { name } = useLocalSearchParams<{ name: string }>()
+  const { name, play } = useLocalSearchParams<{ name: string; play?: string }>()
+  const player = usePlayer()
   const { data: library } = useLibrary()
   const [editing, setEditing] = useState(false)
   const anchor = useRef<View | null>(null)
@@ -29,6 +31,16 @@ export function TagScreen(): ReactNode {
   useEffect(() => {
     if (tag && name && tag.name !== name) router.setParams({ name: tag.name })
   }, [tag, name, router])
+
+  // A tile on the home-screen widget opens `/tag/<name>?play=1`: the tag
+  // starts as the page opens, once, and the address forgets it so going back
+  // and forth does not start it again.
+  useEffect(() => {
+    if (play !== '1' || !tag || !library) return
+    const ids = placeSongs([{ kind: 'tag', tag }], library.songs).map(song => song.id)
+    if (ids.length > 0) player.playFrom(ids, 0)
+    router.setParams({ play: undefined })
+  }, [play, tag, library, player, router])
 
   if (!library) return null
   if (!tag) return <PlaceMissing kind="tag" name={name ?? ''} />

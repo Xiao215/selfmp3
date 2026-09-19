@@ -638,7 +638,10 @@ const styles = StyleSheet.create(theme => ({
   searchDense: { minHeight: 36 },
   directionDense: { width: 34, height: 36 },
   searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },
-  actionsWide: { flex: 1, flexWrap: 'nowrap' },
+  // Never narrower than sort, direction and Shuffle: the search is what gives
+  // up width, and with this shrinking too it held 300 while these ran off the
+  // page's edge (a narrow window, or Up next open beside a long subline).
+  actionsWide: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', flexWrap: 'nowrap' },
   /* Enough for the longest option: "Recentl…" would tell you nothing. */
   sortSlotWide: { flex: 0, minWidth: 152 },
   transportWide: { marginLeft: 'auto' },

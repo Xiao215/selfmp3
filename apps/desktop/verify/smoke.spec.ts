@@ -979,6 +979,8 @@ test.describe('connects and plays', () => {
       }, String(appApi))
       await page.reload()
 
+      // The app opens on Home; the rows are in Library, a row in the sidebar.
+      await page.getByTestId('nav-library').click({ timeout: 30_000 })
       // Rows are `song-row-<index>`; there is no bare `song-row`.
       const row = page.getByTestId(/^song-row-\d+$/).first()
       await expect(row).toBeVisible({ timeout: 30_000 })

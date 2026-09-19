@@ -22,6 +22,8 @@ in the feature's own document under `docs/features/`.
 The phone app runs on an iPad today in portrait only, with the layout its width gives it
 (834 was checked and fixed: safe area, bar, header). Finishing it is independent of
 everything else and can run on its own branch.
+The boards are `T01`–`T09` in [ui-mock](ui-mock/index.html#ipad): portrait, landscape,
+Split View, Slide Over, and every width where the layout gives way (`T09`).
 
 - **Orientation.** The iPhone stays portrait; the iPad gets all four. In `app.config.js`,
   `orientation: 'portrait'` stays, because Expo's plugin writes only

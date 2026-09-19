@@ -29,5 +29,7 @@ describe('the tab bar', () => {
     expect(activeTab('/now-playing')).toBeNull()
     expect(activeTab('/statsomething')).toBeNull()
     expect(activeTab('/libraryish')).toBeNull()
+    // Search is no tab's page; the bar keeps the one it was opened from lit.
+    expect(activeTab('/search')).toBeNull()
   })
 })

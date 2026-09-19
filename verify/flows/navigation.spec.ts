@@ -42,21 +42,6 @@ test.describe('navigation', () => {
     await libraryReady(page)
   })
 
-  test("a phone's search circle opens Library with its search box ready", async ({
-    page,
-  }, info) => {
-    test.skip(
-      info.project.name !== 'phone',
-      "the circle is a phone's; a computer has ⌘K and the rail",
-    )
-    await page.goto('/')
-    await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId('tab-search').click()
-    await expect(page).toHaveURL(/\/library/)
-    await libraryReady(page)
-    await expect(page.getByRole('textbox', { name: 'Search library' })).toBeFocused()
-  })
-
   test('playlists', async ({ page }) => {
     await page.goto('/playlists')
     await expect(page.getByRole('heading', { name: /playlists/i })).toBeVisible({

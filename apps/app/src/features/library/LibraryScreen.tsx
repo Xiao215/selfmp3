@@ -1,7 +1,8 @@
-import { router, useLocalSearchParams } from 'expo-router'
+import { router } from 'expo-router'
+import { setPaletteOpen } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -13,7 +14,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Plus, Search, Shuffle, X } from '../../ui/components/Icons'
+import { Downloaded, Play, Plus, Search, Shuffle } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
@@ -68,17 +69,6 @@ export function LibraryScreen(): ReactNode {
   const pull = usePullToRefresh()
   const { filter, songs, visible, songIds, songTags } = model
 
-  const [searchFocused, setSearchFocused] = useState(false)
-  // Home's field and the search circle open Library with its box ready to type
-  // in, until there is one Search page (docs/UI-MIGRATION.md, Phase 3). The
-  // address says so once; it is taken off again so going back does not re-open it.
-  const searchRef = useRef<TextInput>(null)
-  const { search: searchParam } = useLocalSearchParams<{ search?: string }>()
-  useEffect(() => {
-    if (searchParam !== '1') return
-    searchRef.current?.focus()
-    router.setParams({ search: undefined })
-  }, [searchParam])
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
@@ -384,41 +374,32 @@ export function LibraryScreen(): ReactNode {
         ) : null}
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
-          <View
+          {/*
+            Not a second search: a door to the one Search (docs/ui-mock `P19`,
+            `C05`), which it opens on Songs — the page on a phone, the palette
+            over this page on a computer. The tag strip below stays: that is a
+            filter, not a search.
+          */}
+          <Pressable
+            onPress={() =>
+              wide
+                ? setPaletteOpen(true)
+                : router.navigate({ pathname: '/search', params: { scope: 'songs' } })
+            }
+            accessibilityRole="search"
+            accessibilityLabel="Search songs"
+            testID="library-search"
             style={[
               styles.searchBox,
               headWide && styles.searchWide,
               dense && styles.searchDense,
-              // Focus is the box's border in the accent, and nothing else.
-              searchFocused && { borderColor: accent.accent },
             ]}
           >
-            <Search size={15} color={searchFocused ? accent.accent : theme.colors.textMuted} />
-            <TextInput
-              ref={searchRef}
-              style={styles.search}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              value={filter.query}
-              onChangeText={model.setQuery}
-              placeholder="Search"
-              placeholderTextColor={theme.colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              accessibilityLabel="Search library"
-            />
-            {filter.query ? (
-              <Pressable
-                onPress={model.clearQuery}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
-              >
-                <X size={13} color={theme.colors.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
+            <Search size={15} color={theme.colors.textMuted} />
+            <Text style={styles.searchHint} numberOfLines={1}>
+              Search songs
+            </Text>
+          </Pressable>
 
           {/* A phone's library is the search and the list: order and play live on a computer. */}
           {wide ? (
@@ -697,24 +678,18 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    // A control on the ground. Its edge is there only for the focus ring: at
-    // rest it is the fill's own colour, so nothing outlines the box.
+    // A control on the ground, drawn as a field; pressing it opens Search.
     backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.surface2,
     borderRadius: radius.pill,
     paddingLeft: 10,
     paddingRight: 10,
     minHeight: HIT_TARGET,
   },
-  search: {
+  searchHint: {
     flex: 1,
-    color: theme.colors.textPrimary,
+    color: theme.colors.textMuted,
     fontSize: type.body,
     paddingVertical: 8,
-    // The box's accent border says it has focus. The browser's own ring drew a
-    // second outline inside it, and Chrome draws an `auto` ring at any width.
-    _web: { outlineStyle: 'none' },
   },
   actions: {
     flexDirection: 'row',

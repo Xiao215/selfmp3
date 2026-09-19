@@ -83,6 +83,9 @@ export function Chip({
           count === undefined ? label : `${label}, ${count} ${count === 1 ? 'song' : 'songs'}`
         }
         accessibilityState={{ selected }}
+        // A chip is a toggle; react-native-web does not turn `accessibilityState`
+        // into anything a browser reads, so the state is said here too.
+        aria-pressed={selected}
         style={({ pressed }) => [
           styles.press,
           padding,

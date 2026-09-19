@@ -1,5 +1,8 @@
-import { fuzzyRank, isCjkQuery, type Library } from '@selfmp3/shared'
-import { topSongs } from '@selfmp3/client'
+import { fuzzyRank, type Library } from '@selfmp3/shared'
+import type { Artist } from '@selfmp3/client'
+import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
+
+export type { RecentItem }
 
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
@@ -28,7 +31,7 @@ interface PaletteCommand {
  * from inside one is still somewhere to go.
  */
 const COMMAND_PAGE: Partial<Record<PaletteCommandId, (pathname: string) => boolean>> = {
-  'nav-library': pathname => pathname === '/',
+  'nav-library': pathname => pathname === '/library',
   'nav-playlists': pathname => pathname === '/playlists',
   'nav-import': pathname => pathname === '/import',
   'nav-stats': pathname => pathname === '/stats' || pathname.startsWith('/stats/'),
@@ -68,51 +71,11 @@ type Songs = Library['songs']
 type Playlists = Library['playlists']
 type Tags = Library['tags']
 
-/** Something played lately, offered before anything is typed. */
-export type RecentItem =
-  | { readonly kind: 'song'; readonly song: Songs[number] }
-  | { readonly kind: 'playlist'; readonly playlist: Playlists[number] }
-
-/** How many recent things the empty palette offers: a glance, not a history page. */
-const RECENT_LIMIT = 5
-
-/**
- * What was played lately, newest first: the song loaded now, then songs and
- * playlists by when they were last played.
- *
- * The loaded song leads because it is the one most likely wanted back — a
- * restored session, paused — and its last play may not have counted yet. The
- * rest come from the library's own `lastPlayedAt`, which the server keeps for
- * every device, so a song finished on the phone is recent here too.
- */
-export function recentItems(
-  library: Pick<Library, 'songs' | 'playlists'> | undefined,
-  currentSongId: number | null = null,
-  limit = RECENT_LIMIT,
-): readonly RecentItem[] {
-  if (!library || limit <= 0) return []
-  const current =
-    currentSongId === null ? undefined : library.songs.find(song => song.id === currentSongId)
-  const dated: { at: string; item: RecentItem }[] = []
-  for (const song of library.songs) {
-    if (song.lastPlayedAt && song.id !== currentSongId && !song.missing) {
-      dated.push({ at: song.lastPlayedAt, item: { kind: 'song', song } })
-    }
-  }
-  for (const playlist of library.playlists) {
-    if (playlist.lastPlayedAt)
-      dated.push({ at: playlist.lastPlayedAt, item: { kind: 'playlist', playlist } })
-  }
-  // ISO timestamps sort as text; the newest is the largest.
-  dated.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
-  const items = dated.map(entry => entry.item)
-  return (current ? [{ kind: 'song' as const, song: current }, ...items] : items).slice(0, limit)
-}
-
 export interface PaletteResults {
   /** Only with nothing typed. */
   readonly recent: readonly RecentItem[]
   readonly commands: readonly PaletteCommand[]
+  readonly artists: readonly Artist[]
   readonly songs: Songs
   readonly playlists: Playlists
   readonly tags: Tags
@@ -156,6 +119,7 @@ export function paletteResults(
     return {
       recent: recentItems(library, context.currentSongId ?? null),
       commands: paletteCommands(songs.length, fromCloud, untaggedCount(songs), context.pathname),
+      artists: [],
       songs: [],
       playlists: [],
       tags: [],
@@ -167,25 +131,17 @@ export function paletteResults(
     fuzzyRank(trimmed, items, text)
       .slice(0, count)
       .map(match => match.item)
+  const found = searchLibrary(trimmed, library)
   return {
     recent: [],
     commands: top(commands, command => command.label, 5),
-    // The library's own search, top eight picked without ranking the other
-    // few thousand: this runs on every letter typed.
-    songs: topSongs(trimmed, songs, 8),
+    // Search's own answer (search.model.ts), cut to a palette's few of each:
+    // artists and tags, songs, and the palette's extra, playlists.
+    artists: found.artists.slice(0, 3),
+    songs: found.songs.slice(0, 8),
     playlists: top(library?.playlists ?? [], playlist => playlist.name, 4),
-    tags: top(library?.tags ?? [], tag => tag.name, 4),
+    tags: found.tags.slice(0, 4),
   }
-}
-
-/**
- * The query worth sending to the lyric search, or '' when it is too short to
- * mean anything: two characters is a word in Chinese or Japanese, three is the
- * floor for Latin text.
- */
-export function lyricsQueryFor(query: string): string {
-  const trimmed = query.trim()
-  return trimmed.length >= (isCjkQuery(trimmed) ? 2 : 3) ? trimmed : ''
 }
 
 /** The highlight after an arrow key, wrapping at both ends. */

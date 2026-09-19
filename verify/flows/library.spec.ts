@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import {
-  libraryReady,
-  openLibrary,
-  rowFor,
-  skipIfNoLibrary,
-  songRows,
-  titleOf,
-  topRow,
-} from './helpers.js'
+import { libraryReady, openLibrary, skipIfNoLibrary, songRows, titleOf, topRow } from './helpers.js'
 
 /**
  * The library: the screen that proves `useLibrary` still works.
@@ -28,31 +20,8 @@ test.describe('library', () => {
     await expect(songRows(page).first()).toBeVisible()
   })
 
-  test('search narrows the list, and clearing it restores it', async ({ page }) => {
-    await skipIfNoLibrary(page, 2)
-    // The list draws its rows in batches, so count once the count has settled:
-    // read too early it is 16 of 36, and clearing the search then "restores" more.
-    let before = -1
-    await expect
-      .poll(async () => {
-        const now = await songRows(page).count()
-        const settled = now === before
-        before = now
-        return settled
-      })
-      .toBe(true)
-
-    const title = await titleOf(await topRow(page))
-    const term = title.slice(0, 4).trim()
-    test.skip(term.length < 2, 'the first song title is too short to search for')
-
-    await page.getByLabel('Search library').fill(term)
-    await expect(rowFor(page, title)).toBeVisible()
-    await expect.poll(() => songRows(page).count()).toBeLessThanOrEqual(before)
-
-    await page.getByLabel('Clear search').click()
-    await expect.poll(() => songRows(page).count()).toBe(before)
-  })
+  // Library has no search of its own any more: its field opens the one Search
+  // (docs/UI-MIGRATION.md, Phase 3), which search.spec.ts and palette.spec.ts cover.
 
   test('reversing the sort changes which song is first', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'a phone library has no sort: that is a computer’s')

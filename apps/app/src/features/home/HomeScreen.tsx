@@ -84,11 +84,11 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   const recents = useMemo(() => (library ? recentlyPlayed(library.songs) : []), [library])
   const line = streakLine(stats?.streakDays)
 
-  // Until the one Search page exists (docs/UI-MIGRATION.md, Phase 3) the field
-  // opens what search there is: the palette on a computer, Library's box on a phone.
+  // The one Search, starting on All: the page on a phone, the palette over
+  // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = (): void => {
     if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/library', params: { search: '1' } })
+    else router.navigate({ pathname: '/search', params: { scope: 'all' } })
   }
 
   return (

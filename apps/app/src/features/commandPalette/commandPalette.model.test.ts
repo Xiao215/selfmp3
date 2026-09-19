@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fuzzyRank } from '@selfmp3/shared'
 
-import {
-  lyricsQueryFor,
-  paletteCommands,
-  paletteResults,
-  recentItems,
-  stepIndex,
-  type RecentItem,
-  untaggedCount,
-} from './commandPalette.model'
+import { paletteCommands, paletteResults, stepIndex, untaggedCount } from './commandPalette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
   ({ id, title, artist, album: '', tagIds: [7], missing: false }) as never
@@ -50,14 +42,16 @@ describe('the command palette', () => {
   it('leaves out the page it was opened on, until something is typed', () => {
     const on = (pathname: string) =>
       paletteResults('', library, false, { pathname }).commands.map(command => command.id)
-    expect(on('/')).not.toContain('nav-library')
+    expect(on('/library')).not.toContain('nav-library')
+    // Home is not Library: Library is somewhere to go from it.
+    expect(on('/')).toContain('nav-library')
     expect(on('/stats/report')).not.toContain('nav-stats')
     expect(on('/settings')).not.toContain('nav-settings')
     // A playlist's own page still has the list of playlists to go to.
     expect(on('/playlists/3')).toContain('nav-playlists')
     expect(on('/playlists')).not.toContain('nav-playlists')
     expect(
-      paletteResults('library', library, false, { pathname: '/' }).commands.map(c => c.id),
+      paletteResults('library', library, false, { pathname: '/library' }).commands.map(c => c.id),
     ).toContain('nav-library')
   })
 
@@ -67,27 +61,23 @@ describe('the command palette', () => {
     )
   })
 
-  it('offers what was played lately, the loaded song first', () => {
+  it('offers what was played lately, and only before anything is typed', () => {
     const dated = {
       ...library,
       songs: [
         { ...(song(1, 'アイドル') as object), lastPlayedAt: '2026-09-10T10:00:00Z' },
-        { ...(song(2, 'Racing') as object), lastPlayedAt: '2026-09-12T10:00:00Z' },
         { ...(song(3, 'Monster') as object), lastPlayedAt: null },
-        { ...(song(4, 'Gone') as object), lastPlayedAt: '2026-09-13T10:00:00Z', missing: true },
       ] as never,
       playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
     }
-    const keys = (items: readonly RecentItem[]) =>
-      items.map(item =>
-        item.kind === 'song' ? `song-${item.song.id}` : `playlist-${item.playlist.id}`,
-      )
-    expect(keys(recentItems(dated))).toEqual(['song-2', 'playlist-9', 'song-1'])
-    expect(keys(recentItems(dated, 3))).toEqual(['song-3', 'song-2', 'playlist-9', 'song-1'])
-    expect(keys(recentItems(dated, 1, 2))).toEqual(['song-1', 'song-2'])
-    expect(recentItems(undefined)).toEqual([])
-    expect(paletteResults('', dated, false, { currentSongId: 3 }).recent).toHaveLength(4)
+    expect(paletteResults('', dated, false, { currentSongId: 3 }).recent).toHaveLength(3)
     expect(paletteResults('mon', dated, false, { currentSongId: 3 }).recent).toEqual([])
+  })
+
+  it('finds an artist as well as a tag of the same name', () => {
+    const results = paletteResults('yoasobi', library)
+    expect(results.artists.map(artist => artist.name)).toEqual(['YOASOBI'])
+    expect(results.tags).toHaveLength(1)
   })
 
   it('finds songs, playlists and tags by what is typed', () => {
@@ -125,13 +115,6 @@ describe('the command palette', () => {
     ]
     expect(untaggedCount(songs)).toBe(1)
     expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
-  })
-
-  it('searches lyrics only once the query means something', () => {
-    expect(lyricsQueryFor('ab')).toBe('')
-    expect(lyricsQueryFor(' abc ')).toBe('abc')
-    expect(lyricsQueryFor('無敵')).toBe('無敵')
-    expect(lyricsQueryFor('無')).toBe('')
   })
 
   it('wraps the highlight at both ends', () => {

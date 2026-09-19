@@ -124,8 +124,9 @@ Deleted: `/inbox`, `/sign-in`, `/onboarding`. Up next is a sheet and a rail, not
 
 `bottomNav.model.ts` changes with this. `activeTab()` answers Home for `/`, `/tags`,
 `/tag/*`, `/artist/*`, `/you`, `/stats`, `/settings` and `/import`; Library for `/library`
-and `/song/*` reached from it; Playlists for `/playlists/*`. `/search` lights the circle and
-no tab. `YOU_PAGES` goes.
+and `/song/*` reached from it; Playlists for `/playlists/*`. `/search` is no tab's page: the
+tab it was opened from stays lit and the circle is not (the mock's `P18`, `P19`, which win
+over what this line first said). `YOU_PAGES` goes.
 
 ## Phases
 
@@ -596,8 +597,8 @@ Answered by Xiao on 2026-09-18.
 
 ## Progress
 
-**Phase 1** (`ui/phase-1`) and **Phase 2** (`ui/phase-2`, on top of it), 2026-09-18. Not
-merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
+**Phase 1** (`ui/phase-1`), **Phase 2** (`ui/phase-2`) and **Phase 3** (`ui/phase-3`), each on
+top of the last, 2026-09-18. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
 select-all on both projects, which fails on the lane database for data reasons (two songs
 whose files are missing: select-all leaves them out, the API count does not). Maestro was not
 run: no simulator was free with a Metro for this worktree. The dev client has not been
@@ -609,8 +610,14 @@ Deliberate differences, kept in the commit messages too:
 - Computer Home's second card is "Import a link" rather than the import queue: the queue
   lives on the server and Home does not ask for it yet.
 - A tag tile still opens Library filtered to the tag, until tag pages exist (Phase 4).
-- The search field and the search circle open Library's search box on a phone and the
-  palette on a computer, until the Search page exists (Phase 3).
+- Search (Phase 3): an artist opens Search's Songs scope, searched for its name, and a tag
+  opens Library filtered to it, until both have pages (Phase 4). The artists module
+  (`packages/client/src/artists`) that Phase 4 lists was written here, because Search needed
+  its Artists scope.
+- Search keeps the tab it was opened from lit and leaves the circle plain, as `P18` and `P19`
+  draw it, not "the circle and no tab" as this document first said.
+- The Tags page keeps its own filter field until Phase 4 reworks the page; it is not a door to
+  Search yet.
 - The mini player's queue button opens Now Playing with Up next raised (Phase 6 makes it a
   sheet). Devices left the mini player; it is on Now Playing and in Settings.
 - The sidebar's name row reads the connection line, not a name: the app does not know the

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -36,8 +37,15 @@ export function BottomNav(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
-  const current = activeTab(pathname)
   const bottom = navBottom(insets.bottom)
+  // Search belongs to no tab, and the tab it was opened from stays lit over it
+  // (docs/ui-mock `P18`, `P19`): the bar still says where you were.
+  const [lastTab, setLastTab] = useState<TabHref>('/')
+  const own = activeTab(pathname)
+  // Kept as the page changes, the way React asks a value derived from the
+  // last render to be kept: set during render, only when it has moved.
+  if (own !== null && own !== lastTab) setLastTab(own)
+  const current = own ?? (pathname === '/search' ? lastTab : null)
 
   return (
     <>
@@ -68,16 +76,13 @@ export function BottomNav(): ReactNode {
           )
         })}
       </View>
-      <SearchCircle bottom={bottom} />
+      <SearchCircle bottom={bottom} open={pathname === '/search'} />
     </>
   )
 }
 
-/**
- * Search, on its own beside the tabs. Until the Search page exists
- * (docs/UI-MIGRATION.md, Phase 3) it opens Library with its search box ready.
- */
-function SearchCircle({ bottom }: { bottom: number }): ReactNode {
+/** Search, on its own beside the tabs: the Search page, starting on All. */
+function SearchCircle({ bottom, open }: { bottom: number; open: boolean }): ReactNode {
   const router = useRouter()
   const press = usePressScale()
   return (
@@ -85,7 +90,9 @@ function SearchCircle({ bottom }: { bottom: number }): ReactNode {
       <Pressable
         {...press.handlers}
         testID="tab-search"
-        onPress={() => router.navigate({ pathname: '/library', params: { search: '1' } })}
+        onPress={() => {
+          if (!open) router.navigate({ pathname: '/search', params: { scope: 'all' } })
+        }}
         accessibilityRole="button"
         accessibilityLabel="Search"
         style={styles.circle}

@@ -12,6 +12,7 @@ import {
   oklchToHexAlpha,
   queryKeys,
   radius,
+  tagColors,
   useLibrary,
   useScanLibrary,
 } from '@selfmp3/client'
@@ -34,14 +35,14 @@ import {
   Search,
   Settings,
   Shuffle,
-  Tag,
+  User,
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
 import { useSetLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
+import { lyricsQueryFor } from '../search/search.model'
 import {
-  lyricsQueryFor,
   paletteResults,
   stepIndex,
   type PaletteCommandId,
@@ -155,13 +156,19 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       : `recent-playlist-${recent.playlist.id}`
 
   /** One flat list of everything selectable, so arrow keys work across groups. */
+  /**
+   * One flat list of everything selectable, so arrow keys work across groups,
+   * in the order the groups are drawn (`C05`): what was played lately, then
+   * artists and tags, songs, lines of lyrics, playlists, and the commands last.
+   */
   const entriesFor = (found: PaletteResults): Entry[] => [
     ...found.recent.map(recent => ({ key: recentKey(recent), run: () => runRecent(recent) })),
-    ...found.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
-    ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
-    ...found.playlists.map(playlist => ({
-      key: `playlist-${playlist.id}`,
-      run: () => openPlaylist(playlist.id),
+    ...found.artists.map(artist => ({
+      key: `artist-${artist.key}`,
+      // An artist has no page of its own yet (docs/UI-MIGRATION.md, Phase 4):
+      // until then it is Search's Songs, searched for the name.
+      run: () =>
+        router.navigate({ pathname: '/search', params: { scope: 'songs', q: artist.name } }),
     })),
     ...found.tags.map(tag => ({
       key: `tag-${tag.id}`,
@@ -173,7 +180,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         router.navigate('/library')
       },
     })),
+    ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
     ...lyricHits.map(hit => ({ key: `lyric-${hit.songId}`, run: () => playSong(hit.songId) })),
+    ...found.playlists.map(playlist => ({
+      key: `playlist-${playlist.id}`,
+      run: () => openPlaylist(playlist.id),
+    })),
+    ...found.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
   ]
   const entries = entriesFor(results)
   const active = Math.min(highlighted, Math.max(0, entries.length - 1))
@@ -348,21 +361,43 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             ),
           )}
           {group(
-            'Actions',
-            results.commands.length,
-            results.commands.map(command =>
-              item(
-                <>
-                  {commandIcon[command.id]}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {command.label}
-                  </Text>
-                  {command.hint ? <Text style={styles.hint}>{command.hint}</Text> : null}
-                </>,
-                command.id,
-                command.label,
-              ),
-            ),
+            'Artists and tags',
+            results.artists.length + results.tags.length,
+            <>
+              {results.artists.map(artist =>
+                item(
+                  <>
+                    <View style={styles.figure}>{icon(User)}</View>
+                    <Text style={styles.label} numberOfLines={1}>
+                      {artist.name}
+                    </Text>
+                    <Text style={styles.hint}>
+                      {artist.songIds.length} {artist.songIds.length === 1 ? 'song' : 'songs'} ·
+                      artist
+                    </Text>
+                  </>,
+                  `artist-${artist.key}`,
+                  `${artist.name}, artist`,
+                ),
+              )}
+              {results.tags.map(tag =>
+                item(
+                  <>
+                    <View style={styles.figure}>
+                      <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+                    </View>
+                    <Text style={styles.label} numberOfLines={1}>
+                      {tag.name}
+                    </Text>
+                    <Text style={styles.hint}>
+                      {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'} · tag
+                    </Text>
+                  </>,
+                  `tag-${tag.id}`,
+                  `${tag.name}, tag`,
+                ),
+              )}
+            </>,
           )}
           {group(
             'Songs',
@@ -383,40 +418,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 </>,
                 `song-${song.id}`,
                 `${song.title}, ${song.artist || 'Unknown artist'}`,
-              ),
-            ),
-          )}
-          {group(
-            'Playlists',
-            results.playlists.length,
-            results.playlists.map(playlist =>
-              item(
-                <>
-                  {icon(ListMusic)}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {playlist.name}
-                  </Text>
-                  <Text style={styles.hint}>{playlist.songCount} songs</Text>
-                </>,
-                `playlist-${playlist.id}`,
-                playlist.name,
-              ),
-            ),
-          )}
-          {group(
-            'Tags',
-            results.tags.length,
-            results.tags.map(tag =>
-              item(
-                <>
-                  {icon(Tag)}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {tag.name}
-                  </Text>
-                  <Text style={styles.hint}>{tag.songCount} songs</Text>
-                </>,
-                `tag-${tag.id}`,
-                tag.name,
               ),
             ),
           )}
@@ -443,6 +444,40 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 </>,
                 `lyric-${hit.songId}`,
                 `${hit.title}: ${hit.before}${hit.match}${hit.after}`,
+              ),
+            ),
+          )}
+          {group(
+            'Playlists',
+            results.playlists.length,
+            results.playlists.map(playlist =>
+              item(
+                <>
+                  {icon(ListMusic)}
+                  <Text style={styles.label} numberOfLines={1}>
+                    {playlist.name}
+                  </Text>
+                  <Text style={styles.hint}>{playlist.songCount} songs</Text>
+                </>,
+                `playlist-${playlist.id}`,
+                playlist.name,
+              ),
+            ),
+          )}
+          {group(
+            'Actions',
+            results.commands.length,
+            results.commands.map(command =>
+              item(
+                <>
+                  {commandIcon[command.id]}
+                  <Text style={styles.label} numberOfLines={1}>
+                    {command.label}
+                  </Text>
+                  {command.hint ? <Text style={styles.hint}>{command.hint}</Text> : null}
+                </>,
+                command.id,
+                command.label,
               ),
             ),
           )}
@@ -525,6 +560,16 @@ const styles = StyleSheet.create(theme => ({
   // The highlighted row is a lighter surface; it no longer has an accent bar.
   itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
+  // An artist's figure or a tag's dot, in a round the size of a row's cover.
+  figure: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: 13 },
   mark: { fontWeight: '700' },
   sub: { color: theme.colors.textMuted, fontSize: 11 },

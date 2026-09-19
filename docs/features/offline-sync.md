@@ -119,8 +119,8 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
 - **A disc before the artist means "this song is on this device"** — the same meaning on
   every device, answered differently. A phone answers from what it has downloaded; a ring
   fills as the bytes arrive while one downloads, for a single song asked for by hand as well
-  as during an automatic pass. A song that is not on the device carries no mark; Song details
-  (in the ⋯ menu) says what will happen to it.
+  as during an automatic pass. A song that is not on the device carries no mark; the song's own
+  page (Song details, in the ⋯ menu) says what will happen to it.
 - **A browser tab streams** and keeps nothing — it has no Offline music settings at all; the
   installed desktop app downloads the way a phone does (see [desktop-app.md](desktop-app.md)).
   With the library in the cloud a tab streams from the bucket itself: it asks for

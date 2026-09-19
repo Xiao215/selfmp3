@@ -15,25 +15,38 @@ import { Sheet } from '../../ui/components/Sheet'
 const SHOWN = 60
 
 /**
- * Filling a playlist without leaving it.
+ * Who the picked songs go to: a playlist that exists, which takes each song
+ * as it is pressed, or one being made, which does not exist until its first
+ * songs are confirmed and is made with them by `create`.
+ */
+type AddSongsTarget =
+  | { kind: 'existing'; playlistId: number; inPlaylist: ReadonlySet<number> }
+  | { kind: 'new'; create: (songIds: readonly number[]) => Promise<void> }
+
+const NOTHING: ReadonlySet<number> = new Set()
+
+/**
+ * Filling a playlist without leaving it, or filling a new one before it exists.
  *
- * Search the library and press + on as many songs as you like: each is added
- * as it is pressed and the window stays open. Songs already in the playlist
- * say so instead of offering a second copy. With nothing typed it shows the
- * newest songs first, which is usually what was just imported to add.
+ * Search the library and press + on as many songs as you like. For a playlist
+ * that exists each is added as it is pressed and the window stays open; songs
+ * already in it say so instead of offering a second copy. For a new one the
+ * songs are only picked — pressing Added again puts one back — and the
+ * playlist is made with them when Make playlist is pressed, so closing the
+ * window leaves nothing behind (docs/UI-MIGRATION.md, Phase 5: a playlist
+ * exists once it has a song). With nothing typed it shows the newest songs
+ * first, which is usually what was just imported to add.
  */
 export function AddSongsSheet({
   open,
   onClose,
-  playlistId,
   playlistName,
-  inPlaylist,
+  target,
 }: {
   open: boolean
   onClose: () => void
-  playlistId: number
   playlistName: string
-  inPlaylist: ReadonlySet<number>
+  target: AddSongsTarget
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -43,6 +56,10 @@ export function AddSongsSheet({
   const [query, setQuery] = useState('')
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
   const [focused, setFocused] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const making = target.kind === 'new'
+  const inPlaylist = target.kind === 'existing' ? target.inPlaylist : NOTHING
 
   const results = useMemo(() => {
     const songs = (library?.songs ?? []).filter(song => !song.missing)
@@ -58,11 +75,39 @@ export function AddSongsSheet({
     onClose()
     setQuery('')
     setAdded(new Set())
+    setError(null)
   }
 
   const add = (song: Song): void => {
-    addToPlaylist.mutate({ playlistId, songIds: [song.id] })
+    if (target.kind === 'existing') {
+      addToPlaylist.mutate({ playlistId: target.playlistId, songIds: [song.id] })
+    }
     setAdded(current => new Set(current).add(song.id))
+  }
+
+  /** Only while making one: nothing has been sent, so a pick can be taken back. */
+  const unpick = (song: Song): void =>
+    setAdded(current => {
+      const next = new Set(current)
+      next.delete(song.id)
+      return next
+    })
+
+  const create = async (): Promise<void> => {
+    if (target.kind !== 'new' || added.size === 0 || creating) return
+    setCreating(true)
+    setError(null)
+    try {
+      // In the order they were picked, which is the order a person means.
+      await target.create([...added])
+      setQuery('')
+      setAdded(new Set())
+    } catch (caught) {
+      // The picks stay, so trying again is one press.
+      setError(`Couldn’t make “${playlistName}”: ${(caught as Error).message}`)
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -113,10 +158,18 @@ export function AddSongsSheet({
                   {already ? (
                     <Text style={styles.state}>In this list</Text>
                   ) : justAdded ? (
-                    <View style={styles.addedMark} accessibilityLabel={`${song.title} added`}>
+                    <Pressable
+                      onPress={() => unpick(song)}
+                      disabled={!making}
+                      accessibilityRole={making ? 'button' : undefined}
+                      accessibilityLabel={
+                        making ? `Take ${song.title} back out` : `${song.title} added`
+                      }
+                      style={styles.addedMark}
+                    >
                       <Check size={14} color={accent.accent} />
                       <Text style={[styles.state, { color: accent.accent }]}>Added</Text>
-                    </View>
+                    </Pressable>
                   ) : (
                     <Pressable
                       onPress={() => add(song)}
@@ -133,9 +186,26 @@ export function AddSongsSheet({
           )}
         </ScrollView>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.foot}>
-          <Text style={styles.hint}>{added.size === 0 ? ' ' : `${added.size} added`}</Text>
-          <Button label="Done" onPress={close} testID="add-songs-done" />
+          <Text style={styles.hint}>
+            {added.size > 0 ? `${added.size} added` : making ? 'Pick its first songs' : ' '}
+          </Text>
+          {making ? (
+            <View style={styles.footActions}>
+              <Button label="Cancel" onPress={close} />
+              <Button
+                label="Make playlist"
+                variant="primary"
+                disabled={added.size === 0}
+                busy={creating}
+                onPress={() => void create()}
+                testID="add-songs-create"
+              />
+            </View>
+          ) : (
+            <Button label="Done" onPress={close} testID="add-songs-done" />
+          )}
         </View>
       </View>
     </Sheet>
@@ -197,6 +267,13 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
-  foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.xs },
+  foot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
+  footActions: { flexDirection: 'row', gap: space.sm },
+  error: { color: theme.colors.danger, fontSize: 12, paddingHorizontal: space.xs },
+  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.xs, flexShrink: 1 },
 }))

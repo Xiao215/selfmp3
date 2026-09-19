@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { act, render } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { configureClient, queryKeys, type Api } from '@selfmp3/client'
@@ -159,11 +159,12 @@ const METRICS = {
 }
 
 /**
- * What a tap on a row's heart costs the rest of the app. The pressed
- * highlight on the heart lingered on a phone for as long as the JavaScript
- * thread was busy after the tap, and what kept it busy was a render of every
- * row on screen and of everything that reads the player or the downloads —
- * for one song's `loved`.
+ * What a change to one song costs the rest of the app. A like once lingered
+ * on a phone for as long as the JavaScript thread was busy after the tap, and
+ * what kept it busy was a render of every row on screen and of everything that
+ * reads the player or the downloads — for one song's `loved`. The heart has
+ * left the row for the song's menu and page (`S3`), but a like still lands in
+ * the library the same way, as one song changed.
  */
 describe('a like, at phone width', () => {
   it('re-renders the row that was liked and nothing else', async () => {
@@ -204,14 +205,17 @@ describe('a like, at phone width', () => {
     playerReaders = 0
     downloadsReaders = 0
 
+    // What a like does to the library once the server has answered.
     await act(async () => {
-      await fireEvent.press(screen.getByRole('button', { name: 'Love Song 3' }))
+      client.setQueryData(queryKeys.library, {
+        ...lib,
+        songs: lib.songs.map(song => (song.id === 3 ? { ...song, loved: true } : song)),
+      })
     })
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 50))
     })
 
-    expect(setLoved).toHaveBeenCalledWith(3, true)
     // The optimistic guess and the answer are the same song, so once.
     expect(mockRowRenders).toBe(1)
     expect(mockChanged).toEqual([['song', 'tags']])

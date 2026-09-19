@@ -319,3 +319,38 @@ export function emptyReason({
   if (total === 0) return 'no-library'
   return 'no-matches'
 }
+
+/** How many tags the strip holds before the + that searches every tag. */
+const STRIP_TAGS = 24
+
+/**
+ * The tags in Library's strip (docs/ui-mock `P12`): the ones turned on first,
+ * so a filter is never hidden off the end, then the ones used lately, then
+ * the ones with the most songs. A tag with no songs has nothing to narrow to
+ * and is left for the full search.
+ */
+export function stripTags(
+  tags: readonly Tag[],
+  chosenIds: readonly number[],
+  recentIds: readonly number[],
+  limit: number = STRIP_TAGS,
+): Tag[] {
+  const byId = new Map(tags.map(tag => [tag.id, tag]))
+  const out: Tag[] = []
+  const seen = new Set<number>()
+  const take = (tag: Tag | undefined): void => {
+    if (!tag || seen.has(tag.id)) return
+    seen.add(tag.id)
+    out.push(tag)
+  }
+  for (const id of chosenIds) take(byId.get(id))
+  for (const id of recentIds) {
+    const tag = byId.get(id)
+    if (tag && tag.songCount > 0) take(tag)
+  }
+  const rest = tags
+    .filter(tag => tag.songCount > 0 && !seen.has(tag.id))
+    .sort((a, b) => b.songCount - a.songCount || a.name.localeCompare(b.name))
+  for (const tag of rest) take(tag)
+  return out.slice(0, Math.max(limit, chosenIds.length))
+}

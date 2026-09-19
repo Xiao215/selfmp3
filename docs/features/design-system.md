@@ -72,9 +72,12 @@ What a page adds, it adds as props rather than as a second row:
 | `index` | The position number at desktop width, which becomes a play button on hover |
 | `onLongPress` | What holding it on a phone does. Left out, the ⋯ menu opens; `null` when something outside the row owns the hold, as a playlist's move does |
 
-Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`), which already takes
-a `playlist` and offers **Remove from this playlist** there — so a playlist needs no button
-of its own in the row.
+Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`, docs/ui-mock `P14`),
+which already takes a `playlist` and offers **Remove from this playlist** there — so a playlist
+needs no button of its own in the row. The menu is headed by the song (cover, tags, heart) with
+**Tags** and **Download** under it, then Add to playlist, Add to queue and Play similar songs,
+then **Song details**, which opens the song's own page (`/song/<id>`, `P15`), and Remove from
+library. Play next lives on that page, not in the menu.
 
 The row is memoised, and the list it is in is long, so nothing handed to it may be new on
 every render: hand it the page's own stable handlers (each takes the song, so one function
@@ -96,7 +99,7 @@ const buttonRef = useRef<View>(null)
 </View>
 
 <Popover open={open} anchorRef={buttonRef} onClose={close} title="Song actions">
-  <SheetItem label="Play next" onPress={…} />
+  <SheetItem label="Add to queue" onPress={…} />
 </Popover>
 ```
 

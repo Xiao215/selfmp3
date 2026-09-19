@@ -1,13 +1,23 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { escaped, songRows, titleOf } from './helpers.js'
+import {
+  escaped,
+  libraryReady,
+  openLibrary,
+  skipIfNoLibrary,
+  songRows,
+  titleOf,
+} from './helpers.js'
 
 /**
- * A playlist's songs: the row they are drawn as, and putting them in order.
+ * A playlist's songs: the row they are drawn as, and putting them in order;
+ * and a playlist's life: made with its first songs, never listed empty, and
+ * with no pin or download button on its page (docs/UI-MIGRATION.md, Phase 5).
  *
  * The row is the point of the first test. A playlist used to draw a row of
- * its own, and the difference was everything a row is for — no heart, no ⋯ at
- * a finger's size, no tag chips. There is one song row now, and this is what
+ * its own, and the difference was everything a row is for — no ⋯ at a
+ * finger's size, no colour under the song playing. There is one song row now,
+ * drawn without tag chips as every row inside a place is, and this is what
  * says so from outside the code.
  *
  * The second is reordering, which is two gestures for one thing: at desktop
@@ -66,6 +76,20 @@ async function openOneYouMade(page: Page): Promise<string | null> {
   return null
 }
 
+const API = process.env.SELFMP3_APP_API ?? ''
+
+interface StoredPlaylist {
+  id: number
+  name: string
+  songCount: number
+}
+
+async function playlistNamed(page: Page, name: string): Promise<StoredPlaylist | undefined> {
+  const response = await page.request.get(`${API}/api/library`)
+  const { playlists } = (await response.json()) as { playlists: StoredPlaylist[] }
+  return playlists.find(entry => entry.name === name)
+}
+
 test.describe('a playlist’s songs', () => {
   test('are drawn as the library draws a song', async ({ page }, info) => {
     const name = await openOneYouMade(page)
@@ -75,20 +99,16 @@ test.describe('a playlist’s songs', () => {
     const title = await titleOf(row)
     await row.hover()
 
-    // The heart and the ⋯ a playlist's own row did without, at both widths.
-    // The heart says which way it would go, so a loved song's reads the other way.
-    const heart = new RegExp(`^(Love ${escaped(title)}|Remove ${escaped(title)} from loved)$`)
-    await expect(row.getByRole('button', { name: heart })).toBeAttached()
+    // The ⋯ a playlist's own row did without, at both widths.
     await expect(row.getByRole('button', { name: `More actions for ${title}` })).toBeAttached()
+    // No tags inside a playlist, and so no dashed ＋ to add one (`S3`).
+    await expect(row.getByRole('button', { name: `Edit tags for ${title}` })).toHaveCount(0)
 
     const grip = row.getByRole('button', { name: gripName(title) })
     if (info.project.name === 'phone') {
-      // No grip: the row is the handle, held. The tag column is the library's
-      // at this width too, which is to say there is not one.
+      // No grip: the row is the handle, held.
       await expect(grip).toHaveCount(0)
     } else {
-      // The tags and the dashed ＋, which only a row this wide has room for.
-      await expect(row.getByRole('button', { name: `Edit tags for ${title}` })).toBeAttached()
       await expect(grip).toBeVisible()
     }
   })
@@ -141,5 +161,70 @@ test.describe('a playlist’s songs', () => {
     await expect
       .poll(async () => (await order(page)).join('|'), { timeout: 15_000 })
       .toBe(before.join('|'))
+  })
+})
+
+test.describe('a playlist', () => {
+  test('has no pin or download button; its ⋯ holds the rest', async ({ page }) => {
+    const name = await openOneYouMade(page)
+    test.skip(name === null, 'needs a playlist you made with at least 3 songs')
+
+    await expect(page.getByTestId('playlist-download')).toHaveCount(0)
+    await expect(page.getByTestId('playlist-downloaded')).toHaveCount(0)
+    await page.getByTestId('playlist-more').first().click()
+    const menu = page.getByTestId('playlist-menu')
+    await expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /pin/i })).toHaveCount(0)
+  })
+
+  test('is made with its first songs, and cancelling makes nothing', async ({ page }) => {
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+
+    const name = `Flow — new ${Date.now()}`
+    const start = async (): Promise<void> => {
+      await page.goto('/playlists')
+      await page.getByTestId('playlists-new').click()
+      await page.getByRole('textbox', { name: 'Playlist name' }).fill(name)
+      await page.getByTestId('new-playlist-next').click()
+      await expect(page.getByTestId('add-songs')).toBeVisible()
+    }
+
+    // Named and picking, it does not exist yet; cancelled, it never will.
+    await start()
+    expect(await playlistNamed(page, name)).toBeUndefined()
+    await page.getByTestId('add-songs').getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByTestId('add-songs')).toHaveCount(0)
+    expect(await playlistNamed(page, name)).toBeUndefined()
+
+    await start()
+    await page.getByTestId('add-songs').getByRole('button', { name: /^Add / }).first().click()
+    await page.getByTestId('add-songs-create').click()
+    await expect(page).toHaveURL(/\/playlists\/\d+/)
+    await expect.poll(async () => (await playlistNamed(page, name))?.songCount).toBe(1)
+    const made = await playlistNamed(page, name)
+    if (made) await page.request.delete(`${API}/api/playlists/${made.id}`)
+  })
+
+  test('is not listed while it is empty', async ({ page }) => {
+    const name = `Flow — empty ${Date.now()}`
+    const created = await page.request.post(`${API}/api/playlists`, {
+      data: { name, kind: 'manual' },
+    })
+    expect(created.ok()).toBe(true)
+    const { id } = (await created.json()) as { id: number }
+    try {
+      await page.goto('/playlists')
+      // Loaded: the line under the title has counted them, or found none.
+      await expect(page.getByText(/ playlists? · |None of your own yet/)).toBeVisible({
+        timeout: 30_000,
+      })
+      // The grid's tiles, not the sidebar, which is not this page.
+      const tiles = page.locator('[data-testid^="playlist-row-"]')
+      await expect(tiles.filter({ hasText: name })).toHaveCount(0)
+    } finally {
+      await page.request.delete(`${API}/api/playlists/${id}`)
+    }
   })
 })

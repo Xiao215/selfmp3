@@ -1,14 +1,11 @@
-import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
+import { Linking, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
   formatAddedDate,
   formatName,
   isDownloaded,
-  oklchToHexAlpha,
-  radius,
   sourceName,
   space,
   tempoMark,
@@ -16,20 +13,14 @@ import {
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { useOverlay } from '../../shell/Overlay'
-import { useEscape } from '../../shell/useEscape'
-import { useAccent } from '../accent'
-import { useSongColor } from '../useSongColor'
-import { Button } from './Button'
-import { floating, label as labelText } from '../surfaces'
-import { Cover } from './Cover'
-import { EnergyWave } from './EnergyWave'
-import { IconButton } from './IconButton'
-import { Sparkles, X } from './Icons'
-import { FixMetadata } from '../../features/metadata/FixMetadata'
+import { useSongColor } from '../../ui/useSongColor'
+import { Button } from '../../ui/components/Button'
+import { EnergyWave } from '../../ui/components/EnergyWave'
+import { label as labelText } from '../../ui/surfaces'
 
 /**
- * Everything the app knows about one song, in plain words.
+ * Everything the app knows about one song, in plain words: the quiet end of
+ * the song's own page, and the About tab on a computer's Now Playing page.
  *
  * Grouped by what you would want the fact for: how it sounds, whether it is on
  * this device, your history with it, and the file itself.
@@ -37,70 +28,11 @@ import { FixMetadata } from '../../features/metadata/FixMetadata'
  * "On this device" is the download queue's answer. The file's path and "Show
  * in Finder" belong to the server, and are left out.
  *
- * "Fix metadata…" opens from here rather than from the song menu: it is the
- * place where a wrong title or album is noticed. The lookup runs on the
- * server, against iTunes and MusicBrainz; a cloud library reaches its server to
- * do it, and says so when it cannot (FixMetadata). The fix takes the dialog's
- * place, and closing it comes back to the details.
+ * The song's page says the play count in a sentence of its own above, so it
+ * asks for the facts without it (`plays={false}`); the About tab has no such
+ * sentence and keeps it.
  */
-export function SongDetails({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  const artFor = useArt()
-  const [fixing, setFixing] = useState(false)
-  useEscape(!fixing, onClose, { layer: true })
-
-  const byline = [song.artist || 'Unknown artist', song.album, song.year]
-    .filter(Boolean)
-    .join(' · ')
-
-  useOverlay(
-    <View
-      style={[styles.backdrop, { backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.6) }]}
-    >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      <View
-        style={styles.dialog}
-        role="dialog"
-        aria-modal
-        accessibilityViewIsModal
-        testID="song-details"
-      >
-        <View style={styles.head}>
-          <Cover uri={artFor(song)} title={song.album || song.title} size={64} />
-          <View style={styles.titles}>
-            <Text style={styles.title} accessibilityRole="header">
-              {song.title}
-            </Text>
-            <Text style={styles.byline}>{byline}</Text>
-          </View>
-          <IconButton onPress={onClose} label="Close">
-            <X size={16} color={theme.colors.textSecondary} />
-          </IconButton>
-        </View>
-        <ScrollView>
-          <SongDetailsBody song={song} />
-          <View style={styles.fix}>
-            <Button
-              label="Fix metadata…"
-              icon={<Sparkles size={15} color={theme.colors.textSecondary} />}
-              onPress={() => setFixing(true)}
-            />
-          </View>
-        </ScrollView>
-      </View>
-    </View>,
-    !fixing,
-  )
-
-  return fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null
-}
-
-/**
- * The facts themselves, without the dialog around them: the dialog shows them,
- * and so does the About tab on a computer's Now Playing page.
- */
-export function SongDetailsBody({ song }: { song: Song }): ReactNode {
+export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean }): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   // The energy wave and the source link are drawn in the song's own colour —
@@ -202,18 +134,22 @@ export function SongDetailsBody({ song }: { song: Song }): ReactNode {
       ) : null}
 
       <Group title="History">
-        <Fact label="Played">
-          <Text style={styles.strong}>
-            {song.playCount === 0
-              ? 'Not yet'
-              : `${song.playCount} ${song.playCount === 1 ? 'time' : 'times'} · last ${formatRelative(song.lastPlayedAt)}`}
-          </Text>
-          {song.skipCount > 0 ? (
-            <Text style={styles.note}>
-              Skipped {song.skipCount} {song.skipCount === 1 ? 'time' : 'times'}.
+        {plays ? (
+          <Fact label="Played">
+            <Text style={styles.strong}>
+              {song.playCount === 0
+                ? 'Not yet'
+                : `${song.playCount} ${song.playCount === 1 ? 'time' : 'times'} · last ${formatRelative(song.lastPlayedAt)}`}
             </Text>
-          ) : null}
-        </Fact>
+          </Fact>
+        ) : null}
+        {song.skipCount > 0 ? (
+          <Fact label="Skipped">
+            <Text style={styles.strong}>
+              {song.skipCount} {song.skipCount === 1 ? 'time' : 'times'}
+            </Text>
+          </Fact>
+        ) : null}
         <Fact label="Added">
           <Text style={styles.strong}>{formatAddedDate(song.addedAt)}</Text>
         </Fact>
@@ -275,43 +211,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }): Reac
 }
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.lg,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 460,
-    maxHeight: 720,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingTop: 18,
-    paddingRight: 14,
-    paddingBottom: space.lg,
-    paddingLeft: 18,
-  },
-  titles: { flex: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '600', lineHeight: 21 },
-  byline: { color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 },
-  group: {
-    gap: 10,
-    paddingTop: space.md,
-    paddingHorizontal: 18,
-    paddingBottom: space.lg,
-  },
+  // No side padding: the page it sits in has its own gutter.
+  group: { gap: 10, paddingTop: space.md, paddingBottom: space.lg },
   // The groups are told apart by their labels and the room between them.
   groupTitle: labelText(theme.colors),
   fact: { flexDirection: 'row', gap: space.md },
@@ -326,10 +227,5 @@ const styles = StyleSheet.create(theme => ({
   note: { color: theme.colors.textMuted, fontSize: 12 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
-  fix: {
-    alignItems: 'flex-start',
-    paddingHorizontal: 18,
-    paddingBottom: space.lg,
-  },
   empty: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
 }))

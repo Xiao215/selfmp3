@@ -6,7 +6,8 @@ import { OverlayProvider } from '../../shell/Overlay'
 import { SongMenu } from './SongMenu'
 
 /**
- * A song's ⋯ menu, and what "remove" means on the device it is open on.
+ * A song's ⋯ menu (docs/ui-mock `P14`): what is in it, where Song details goes,
+ * and what "remove" means on the device it is open on.
  *
  * The owner's words: "delete from library means delete from local too". On a
  * phone that is one action behind one confirmation. The second question — keep
@@ -17,9 +18,9 @@ import { SongMenu } from './SongMenu'
  * wish and has to survive both.
  */
 
-// The tag picker's "Create…" can offer an artist's page instead (`P11`), so it
-// holds a router; nothing here navigates, and the real one needs an app round it.
-jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: () => undefined }) }))
+// Song details and a tag chip go to pages; the real router needs an app round it.
+const mockNavigate = jest.fn()
+jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }))
 
 let mockTakesTheCopy = true
 const mockDeleteSong = jest.fn()
@@ -38,6 +39,7 @@ jest.mock('@selfmp3/client', () => ({
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
   useRemoveFromPlaylist: () => ({ mutate: jest.fn() }),
   useDeleteSong: () => ({ mutate: mockDeleteSong }),
+  useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
 }))
 jest.mock('../../offline/DownloadsProvider', () => ({
@@ -50,6 +52,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
   }),
   useDownloadProgress: () => ({ activeSongId: null, bytesWritten: 0, totalBytes: 0 }),
 }))
+jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayer: () => ({ playNext: jest.fn(), addToQueue: jest.fn(), playFrom: jest.fn() }),
 }))
@@ -61,7 +64,9 @@ const SONG = {
   id: 4,
   title: 'Nocturne',
   artist: 'Klara Feld',
+  duration: 224,
   sizeBytes: 4_000_000,
+  loved: false,
   tagIds: [],
 } as unknown as Song
 
@@ -91,6 +96,37 @@ const downloaded = {
     },
   },
 }
+
+describe('what the menu offers', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockTakesTheCopy = true
+    mockIndex = { version: 1, entries: {} }
+  })
+
+  it('names the song and leaves Play next and Select to other places', async () => {
+    await draw()
+
+    expect(screen.getByText('Nocturne')).toBeTruthy()
+    expect(screen.getByText('Klara Feld · 3:44')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tags' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy()
+    // From the start of the name: the › after Add to playlist is part of it.
+    for (const kept of [/^Add to playlist/, /^Add to queue$/, /^Play similar songs$/]) {
+      expect(screen.getByRole('menuitem', { name: kept })).toBeTruthy()
+    }
+    expect(screen.queryByRole('menuitem', { name: 'Play next' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Select' })).toBeNull()
+  })
+
+  it('opens the song’s own page from Song details', async () => {
+    await draw()
+
+    fireEvent.press(screen.getByRole('menuitem', { name: 'Song details' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/song/4')
+  })
+})
 
 describe('removing a song where the copy goes with it', () => {
   beforeEach(() => {
@@ -122,7 +158,7 @@ describe('removing a song where the copy goes with it', () => {
   it('still offers dropping the download on its own', async () => {
     await draw()
 
-    fireEvent.press(screen.getByRole('menuitem', { name: 'Remove download' }))
+    fireEvent.press(screen.getByRole('button', { name: 'Remove download' }))
     expect(mockRemoveByHand).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })

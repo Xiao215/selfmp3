@@ -47,7 +47,7 @@ appId: com.selfmp3.app
     id: 'tab-library'
 - tapOn: 'More actions for .*'
 - extendedWaitUntil:
-    visible: 'Play next'
+    visible: 'Add to queue'
     timeout: 5000
 - runFlow:
     when:
@@ -58,7 +58,7 @@ appId: com.selfmp3.app
     when:
       visible: 'Download'
     commands:
-      - tapOn: 'Play next'
+      - tapOn: 'Add to queue'
 
 - tapOn:
     id: 'song-row-0'

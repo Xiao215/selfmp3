@@ -49,16 +49,17 @@ marks tempo, and a small waveform drawn straight from the 0–1 energy value —
 denser as a song gets more intense, with no steps or level names
 (`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
 `apps/app/src/ui/components/EnergyWave.tsx`). The key stays off the row. It shows in the queue while
-auto-mix is ordering by it, and in **Song details** (the song's ⋯ menu), which spells out
-tempo, energy and key in words alongside download state, play history and the file.
+auto-mix is ordering by it, and on the song's own page (**Song details** in its ⋯ menu),
+which spells out tempo, energy and key in words alongside download state, play history and the
+file, and names the tempo and energy beside "Sounds like".
 
 **Live playlists** gain an "Audio" group in the rule builder: BPM, Key (exactly this
 Camelot code, or "mixes with" — same number in the other letter, or ±1 in the same
 letter), Energy (0–1) and Loudness (LUFS). Songs that have not been analysed never match
 these rules.
 
-**Similar songs**: the song menu has "Play similar" and "Add similar to queue", and Now
-Playing shows a "Similar" strip. Nearest neighbours by a weighted distance over tempo
+**Similar songs**: the song menu has "Play similar songs", the song's own page shows them
+under "Sounds like", and Now Playing shows a "Similar" strip. Nearest neighbours by a weighted distance over tempo
 (±8 %, with double/half time counted as a match), energy, loudness and distance around
 the Camelot wheel, with a bonus for shared tags and a milder one for the same artist.
 

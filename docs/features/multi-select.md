@@ -57,8 +57,8 @@ rather than the only door.
 
 **One exception to the hold.** On a playlist you made, holding a row lifts it to be moved
 instead: the order is yours there, and reordering has nowhere else to live on a touch screen
-(`apps/app/src/ui/components/HoldToReorder.tsx`). Selection is still a tap away from that row's ⋯,
-which is why **Select** is in the song menu on a playlist page at every width. On a playlist
+(`apps/app/src/ui/components/HoldToReorder.tsx`). The song menu no longer offers **Select**
+(docs/ui-mock `P14`), so selecting there does not start from a row's ⋯. On a playlist
 that follows tags there is no order to change, so holding does what it does everywhere else.
 
 "Selection mode" is the explicit state the Select button and the checkbox turn on. It exists

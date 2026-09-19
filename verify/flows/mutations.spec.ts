@@ -20,30 +20,35 @@ test.describe('loving a song', () => {
     await skipIfNoLibrary(page)
 
     const title = await titleOf(songRows(page).first())
-    const row = rowFor(page, title)
+    // The heart lives in the song's menu now (docs/ui-mock `P14`), not on the row.
+    const openMenu = async (): Promise<void> => {
+      await rowFor(page, title)
+        .getByRole('button', { name: `More actions for ${title}` })
+        .click()
+    }
+    const like = page.getByRole('button', { name: 'Like', exact: true })
+    const unlike = page.getByRole('button', { name: 'Unlike', exact: true })
 
-    const love = row.getByRole('button', { name: `Love ${title}` })
-    const unlove = row.getByRole('button', { name: `Remove ${title} from loved` })
-
+    await openMenu()
+    await expect(like.or(unlike)).toBeVisible()
     // Start from not-loved whichever way the library happens to be.
-    if (await unlove.isVisible()) {
-      await unlove.click()
-      await expect(love).toBeVisible()
+    if (await unlike.isVisible()) {
+      await unlike.click()
+      await expect(like).toBeVisible()
     }
 
-    await love.click()
+    await like.click()
     // Optimistic: the heart fills without waiting for the round trip.
-    await expect(unlove).toBeVisible()
+    await expect(unlike).toBeVisible()
 
     await page.reload()
     await libraryReady(page)
     // And it was real: the server has it, and the fresh library says so.
-    await expect(rowFor(page, title).getByRole('button', { name: /from loved$/ })).toBeVisible()
+    await openMenu()
+    await expect(unlike).toBeVisible()
 
     // Put it back, so the flow can run again on the same library.
-    await rowFor(page, title)
-      .getByRole('button', { name: /from loved$/ })
-      .click()
-    await expect(rowFor(page, title).getByRole('button', { name: `Love ${title}` })).toBeVisible()
+    await unlike.click()
+    await expect(like).toBeVisible()
   })
 })

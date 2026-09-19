@@ -599,7 +599,7 @@ Answered by Xiao on 2026-09-18.
 
 ## Progress
 
-**Phases 1 to 4** (`ui/phase-1` … `ui/phase-4`), each on top of the last, 2026-09-18. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
+**Phases 1 to 5** (`ui/phase-1` … `ui/phase-5`), each on top of the last, 2026-09-18. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
 select-all on both projects, which fails on the lane database for data reasons (two songs
 whose files are missing: select-all leaves them out, the API count does not). Maestro was not
 run: no simulator was free with a Metro for this worktree. The dev client has not been
@@ -619,6 +619,14 @@ Deliberate differences, kept in the commit messages too:
   written ヨルシカ": spellings are not merged (Open question 3). A tag page opened with more
   places added is titled with all their names ("night drive + Yorushika"). The nudge is the
   existing confirm dialog, so "Open the artist" is the accent button rather than white.
+- Phase 5: the heart left every row (the menu's head and the song page have it), and so did a
+  wide row's tempo and energy marks (the song page has them). Library keeps its tag filter as
+  a strip ("All", the tags, "More tags"); picking tags no longer retitles it, and a phone still
+  offers Play, Shuffle and Save for the picked set. The phone's Library has no sort or select
+  buttons in its head (`P12` draws two): there is no sort on a phone yet, and holding a row
+  selects. The Playlists page keeps the New tile and Forgotten gems, which `P16` does not draw
+  but earlier decisions kept. On a phone nothing starts selecting inside a playlist (holding a
+  row moves it). A new playlist you fill yourself is made when its first songs are picked.
 - Play-and-tag on a phone raises the tag picker as a sheet whose search field takes focus, so
   the keyboard comes up for every song; on the computer, Stop while the picker is open closes
   the picker first, which counts as a close. Both are small and noted for Phase 6.

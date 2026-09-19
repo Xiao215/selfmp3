@@ -224,10 +224,13 @@ function browsableItem(id: string, title: string, subtitle: string): BrowseItem 
   return { id, title, subtitle, browsable: true, artSongId: null }
 }
 
-/** Pinned first, then alphabetical — the same order as the web sidebar. */
+/**
+ * Played last first, then the never-played by name: the order the app lists
+ * playlists in (docs/UI-MIGRATION.md, Phase 5), where there are no pins.
+ */
 function sortPlaylists(a: Playlist, b: Playlist): number {
-  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-  return a.name.localeCompare(b.name)
+  const played = (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '')
+  return played || a.name.localeCompare(b.name)
 }
 
 export function nodeById(tree: BrowseTree, id: string): BrowseNode | null {

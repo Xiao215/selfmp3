@@ -60,7 +60,6 @@ function playlistRow(
     tags,
     onPress: jest.fn(),
     onMore: jest.fn(),
-    onToggleLoved: jest.fn(),
     onToggleSelect: jest.fn(),
     onToggleTag: jest.fn(),
     onEditTags: jest.fn(),
@@ -74,12 +73,13 @@ function playlistRow(
 }
 
 describe('a playlist row is a library row', () => {
-  it('has the heart, the ⋯ and the length a library row has', async () => {
+  it('has the ⋯ and the length a library row has, and no heart', async () => {
     await render(<SongRow {...playlistRow()} />)
 
-    expect(screen.getByLabelText(`Love ${song.title}`)).toBeTruthy()
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
-    expect(screen.getByText('3:33')).toBeTruthy()
+    expect(screen.getByText(/3:33/)).toBeTruthy()
+    // Loving a song is in its menu and on its page (`S3`), not on every row.
+    expect(screen.queryByLabelText(`Love ${song.title}`)).toBeNull()
   })
 
   it('draws what a playlist adds: the grip, and where a move would land', async () => {

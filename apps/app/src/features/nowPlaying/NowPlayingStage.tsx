@@ -26,8 +26,8 @@ import { Cover } from '../../ui/components/Cover'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, Collapse, Expand, Next, Romanize, TagPlus } from '../../ui/components/Icons'
-import { SongDetailsBody } from '../../ui/components/SongDetails'
 import { TagPicker } from '../../ui/components/TagPicker'
+import { SongFacts } from '../song/SongFacts'
 import { useSongColor } from '../../ui/useSongColor'
 import {
   contextLine,
@@ -436,7 +436,7 @@ function Stage({
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
             <View style={styles.aboutBody}>
-              <SongDetailsBody song={song} />
+              <SongFacts song={song} />
             </View>
           </ScrollView>
         )}
@@ -808,7 +808,7 @@ const styles = StyleSheet.create(theme => ({
   // On the visual's own dark ground, in either theme.
   visualCaptionOnVisual: { color: 'rgba(255, 255, 255, 0.7)' },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600 },
+  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
   tool: {
     flexDirection: 'row',

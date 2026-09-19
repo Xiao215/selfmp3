@@ -22,7 +22,6 @@ import { useLibrary } from '@selfmp3/client'
  * the name the server, the sync log and the bucket have always used for it.
  */
 
-/** What the self-updating kind is called wherever a person reads it. */
 /**
  * What a playlist that follows tags is called, wherever it has to be named in
  * passing: under its title, on its row in a list.
@@ -37,7 +36,7 @@ export const FOLLOWS_LABEL = 'follows tags'
 export type PlaylistSort = 'recent' | 'name' | 'added'
 
 export const PLAYLIST_SORTS: readonly { value: PlaylistSort; label: string }[] = [
-  { value: 'recent', label: 'Recently played' },
+  { value: 'recent', label: 'Last played' },
   { value: 'name', label: 'A–Z' },
   { value: 'added', label: 'Recently added' },
 ]
@@ -50,23 +49,80 @@ export function isLive(playlist: Pick<Playlist, 'kind'>): boolean {
   return playlist.kind === 'live'
 }
 
+const songsWord = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+
 /**
- * The line under a playlist's name: "25 songs · 1 hr 44 min", or "Empty".
+ * The line under a tile's name: "5 songs · yesterday".
  *
- * The same for a live playlist as for any other: the Live badge is already on
- * its cover, and "Live · 25 songs" said it twice while leaving out the length.
- * An empty playlist reads "Empty" rather than "0 songs · 0 min".
+ * The day is when it was last played, or when it was made if it never has
+ * been — the same day the page sorts by, so the line says why a tile is where
+ * it is. A live playlist reads the same: its badge already says what it is.
  */
-export function playlistSubtitle(playlist: Pick<Playlist, 'songCount' | 'totalDuration'>): string {
-  if (playlist.songCount === 0) return 'Empty'
-  const songs = `${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`
-  return `${songs} · ${formatLongDuration(playlist.totalDuration)}`
+export function playlistTileLine(
+  playlist: Pick<Playlist, 'songCount' | 'lastPlayedAt' | 'createdAt'>,
+  now: Date,
+): string {
+  const day = relativeDay(playlist.lastPlayedAt ?? playlist.createdAt, now)
+  return day ? `${songsWord(playlist.songCount)} · ${day}` : songsWord(playlist.songCount)
+}
+
+/**
+ * The line under a playlist's name on its own page: "5 songs · 18 min ·
+ * played yesterday". A playlist never played leaves the last part off rather
+ * than saying "never", which reads as a reproach for a list made a minute ago.
+ */
+export function playlistHeadLine(
+  count: number,
+  seconds: number,
+  lastPlayedAt: string | null,
+  now: Date,
+): string {
+  const day = lastPlayedAt ? relativeDay(lastPlayedAt, now) : null
+  const parts = [songsWord(count), formatLongDuration(seconds)]
+  if (day) parts.push(`played ${day}`)
+  return parts.join(' · ')
+}
+
+/** The line under the page's title: how many, and in what order. */
+export function playlistsSubline(count: number, sort: PlaylistSort): string {
+  const order = { recent: 'last played first', name: 'A–Z', added: 'newest first' }[sort]
+  return `${count} ${count === 1 ? 'playlist' : 'playlists'} · ${order}`
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A stamp as a day a person would say: "today", "yesterday", "Tuesday", "last
+ * week", "3 weeks ago", "last month", "5 months ago", "last year". Null when
+ * the stamp cannot be read.
+ *
+ * Counted in calendar days where the reader is, not in 24-hour spans: a song
+ * played at 23:00 was "yesterday" at 08:00 the next morning, nine hours later.
+ * The server writes UTC without a zone (`2026-09-13 06:17:55`), which is read
+ * as UTC; a bucket's ISO carries its own. A stamp from the future is today.
+ */
+export function relativeDay(value: string, now: Date): string | null {
+  const then = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
+  if (Number.isNaN(then.getTime())) return null
+  const midnight = (date: Date): number =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  // Rounded, because a day that crosses a clock change is 23 or 25 hours long.
+  const days = Math.max(0, Math.round((midnight(now) - midnight(then)) / DAY_MS))
+  if (days === 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return WEEKDAYS[then.getDay()] ?? null
+  if (days < 14) return 'last week'
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+  if (days < 60) return 'last month'
+  if (days < 365) return `${Math.floor(days / 30)} months ago`
+  if (days < 730) return 'last year'
+  return `${Math.floor(days / 365)} years ago`
 }
 
 interface PlaylistsModel {
+  /** The ones the page lists, in the order it lists them: none of them empty. */
   playlists: readonly Playlist[]
-  /** Pinned ones, for the sidebar and the phone's row along the top. */
-  pinned: readonly Playlist[]
   loading: boolean
   /** True when the library answered and there is genuinely nothing to show. */
   empty: boolean
@@ -82,13 +138,11 @@ interface PlaylistsModel {
 export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel {
   const library = useLibrary()
   const all = library.data?.playlists
-  const playlists = useMemo(() => sortPlaylists(all ?? [], sort), [all, sort])
-  const pinned = useMemo(() => pinnedPlaylists(all ?? []), [all])
+  const playlists = useMemo(() => listedPlaylists(all ?? [], sort), [all, sort])
 
   const unreachable = library.isError && all === undefined
   return {
     playlists,
-    pinned,
     loading: library.isPending,
     empty: !library.isPending && !unreachable && playlists.length === 0,
     unreachable,
@@ -107,13 +161,11 @@ function stamp(value: string | null | undefined): string {
 const byName = (a: Playlist, b: Playlist): number => a.name.localeCompare(b.name)
 
 /**
- * The playlists page's order. Pinning does not move a playlist here: pinned
- * lists have their own place (the sidebar, the phone's row), and a list that
- * jumped to the front of the grid when pinned would be in two places at once
- * with nothing to say why.
+ * The playlists page's order.
  *
- * "Recently played" counts making a list as its first play, so a playlist you
- * just made is at the front rather than under everything you have ever played.
+ * "Last played" is by the newest play among a playlist's songs; the ones never
+ * played come after every one that has been, newest made first, so a list made
+ * a minute ago is at the top of the unplayed rather than lost under them.
  * Names compare the way the reader's locale does — this library is mostly
  * Japanese, where `localeCompare` and `<` disagree a lot.
  */
@@ -122,38 +174,48 @@ export function sortPlaylists(
   sort: PlaylistSort,
 ): readonly Playlist[] {
   const list = [...playlists]
+  const newestMade = (a: Playlist, b: Playlist): number =>
+    stamp(b.createdAt).localeCompare(stamp(a.createdAt))
   switch (sort) {
     case 'name':
       return list.sort(byName)
     case 'added':
-      return list.sort(
-        (a, b) => stamp(b.createdAt).localeCompare(stamp(a.createdAt)) || byName(a, b),
-      )
-    case 'recent': {
-      const recency = (playlist: Playlist): string => {
-        const played = stamp(playlist.lastPlayedAt)
-        const made = stamp(playlist.createdAt)
-        return played > made ? played : made
-      }
-      return list.sort((a, b) => recency(b).localeCompare(recency(a)) || byName(a, b))
-    }
+      return list.sort((a, b) => newestMade(a, b) || byName(a, b))
+    case 'recent':
+      return list.sort((a, b) => {
+        const played = stamp(b.lastPlayedAt).localeCompare(stamp(a.lastPlayedAt))
+        // An empty stamp sorts before any real one, so "never" is already last.
+        return played || newestMade(a, b) || byName(a, b)
+      })
   }
 }
 
-/** Pinned playlists in name order: the sidebar should not reshuffle as music plays. */
-export function pinnedPlaylists(playlists: readonly Playlist[]): readonly Playlist[] {
-  return playlists.filter(playlist => playlist.pinned).sort(byName)
+/**
+ * What the playlists page lists: every playlist with a song in it, in the
+ * chosen order. An empty one is never shown — a playlist exists once it has a
+ * song (docs/UI-MIGRATION.md, Phase 5), and one emptied by hand has nothing to
+ * show on a tile but a hole.
+ */
+export function listedPlaylists(
+  playlists: readonly Playlist[],
+  sort: PlaylistSort,
+): readonly Playlist[] {
+  return sortPlaylists(
+    playlists.filter(playlist => playlist.songCount > 0),
+    sort,
+  )
 }
 
 /**
  * The playlists a song can be added to, for every "Add to playlist" list:
- * only the ones you keep (a live playlist's rules decide its songs), pinned
- * first because those are the ones you reach for, then by name.
+ * only the ones you keep (a live playlist's rules decide its songs), the one
+ * played last first, because that is the one you are most likely reaching for.
  */
 export function playlistsToAddTo(playlists: readonly Playlist[]): readonly Playlist[] {
-  return playlists
-    .filter(playlist => !isLive(playlist))
-    .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1) || byName(a, b))
+  return sortPlaylists(
+    playlists.filter(playlist => !isLive(playlist)),
+    'recent',
+  )
 }
 
 /**

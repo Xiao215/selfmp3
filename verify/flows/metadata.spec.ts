@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 import { libraryReady, openLibrary, rowFor, skipIfNoLibrary } from './helpers.js'
 
 /**
- * Fixing a song's metadata: open it from the song's menu, look at the
+ * Fixing a song's metadata: open it from the song's own page (the menu's Song
+ * details), look at the
  * suggestions and the changes one would make, untick them all, and cancel.
  *
  * Nothing is applied. The lookup runs on the Mac against iTunes and
@@ -25,7 +26,8 @@ test.describe('fixing metadata', () => {
     await rowFor(page, SONG)
       .getByRole('button', { name: `More actions for ${SONG}` })
       .click()
-    await page.getByRole('menuitem', { name: 'Song details…', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Song details', exact: true }).click()
+    await expect(page).toHaveURL(/\/song\/\d+$/)
     await page.getByRole('button', { name: /Fix metadata/ }).click()
 
     const dialog = page.getByRole('dialog', { name: 'Fix metadata' })

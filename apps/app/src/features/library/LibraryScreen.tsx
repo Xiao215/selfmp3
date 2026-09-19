@@ -8,7 +8,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song } from '@selfmp3/shared'
 import { useArt } from '../../offline/useArt'
-import { isDownloaded, HIT_TARGET, radius, space, type, useToggleLoved } from '@selfmp3/client'
+import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
@@ -30,13 +30,12 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useContentWidth } from '../../shell/contentWidth'
-import { noMatchesTitle, useLibraryModel } from './library.model'
-import { noteTagUsed } from './recentTags.store'
+import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
+import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
 import { useSaveTagsAsPlaylist } from './saveTags'
 import { usePullToRefresh } from './usePullToRefresh'
 import { pageTitle } from '../../ui/surfaces'
-import { tip } from '../../ui/tip'
 
 /**
  * The library, at every width.
@@ -60,7 +59,6 @@ export function LibraryScreen(): ReactNode {
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayer()
-  const toggleLoved = useToggleLoved()
   const { state: downloads, installed } = useDownloads()
 
   // Everything this screen knows is in the model, which draws nothing and is
@@ -78,6 +76,7 @@ export function LibraryScreen(): ReactNode {
   // puts tags on a song. Open/closed lives in a store, because the sidebar's
   // "All 13 tags…" opens this same panel.
   const choosingTags = useTagSearchOpen()
+  const recentTagIds = useRecentTagIds()
   useEffect(() => closeTagSearch, [])
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
@@ -95,6 +94,15 @@ export function LibraryScreen(): ReactNode {
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
     [downloads.index],
+  )
+  // "31 on this phone", in the line under the title.
+  const hereCount = useMemo(
+    () => (installed ? songs.filter(song => downloaded(song.id)).length : 0),
+    [installed, songs, downloaded],
+  )
+  const strip = useMemo(
+    () => stripTags(model.tags, filter.tagIds, recentTagIds),
+    [model.tags, filter.tagIds, recentTagIds],
   )
 
   const artFor = useArt()
@@ -127,9 +135,9 @@ export function LibraryScreen(): ReactNode {
    * row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, toggleLoved, model })
+  const latest = useRef({ selection, songIds, playFrom, model })
   useEffect(() => {
-    latest.current = { selection, songIds, playFrom, toggleLoved, model }
+    latest.current = { selection, songIds, playFrom, model }
   })
   /*
    * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
@@ -162,10 +170,6 @@ export function LibraryScreen(): ReactNode {
   }, [])
   // Holding a row selects it; the ⋯ opens the menu.
   const onRowLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onRowToggleLoved = useCallback(
-    (song: Song) => latest.current.toggleLoved.mutate({ id: song.id, loved: !song.loved }),
-    [],
-  )
   const onRowToggleSelect = useCallback(
     (song: Song) => latest.current.selection.toggle(song.id),
     [],
@@ -193,7 +197,6 @@ export function LibraryScreen(): ReactNode {
           onMore={onRowMore}
           menuOpen={menuSongId === item.id}
           onLongPress={onRowLongPress}
-          onToggleLoved={onRowToggleLoved}
           selecting={selection.active}
           selected={selection.has(item.id)}
           onToggleSelect={onRowToggleSelect}
@@ -216,7 +219,6 @@ export function LibraryScreen(): ReactNode {
       onRowPress,
       onRowMore,
       onRowLongPress,
-      onRowToggleLoved,
       onRowToggleSelect,
       onRowEditTags,
     ],
@@ -275,61 +277,26 @@ export function LibraryScreen(): ReactNode {
       */}
       <View style={[styles.head, headWide && styles.headWide]}>
         {/*
-          The tags you picked are the title. There is no text heading repeating
-          them: the chips say what this list is, each carries the × that takes
-          it off, and the + beside them adds another.
+          "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
+          many songs, how long, and on an installed app how many are here.
+          The tags picked to narrow it are the strip below, not the title: a
+          tag you want as a place has its own page now.
         */}
         <View style={headWide ? styles.titlesWide : undefined}>
-          <View style={styles.titleTags} accessibilityRole="header">
-            {model.tagFiltered ? (
-              model.chosenTags.map(tag => (
-                <Chip
-                  key={tag.id}
-                  label={tag.name}
-                  hue={tag.hue}
-                  selected
-                  onPress={() => chooseTag(tag.id)}
-                  onRemove={() => chooseTag(tag.id)}
-                />
-              ))
-            ) : (
-              <Text style={styles.heading} numberOfLines={1}>
-                Library
+          <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
+            Library
+          </Text>
+          <View style={styles.subRow}>
+            <Text style={styles.sub} testID="library-subline">
+              {model.subtitle}
+              {installed && !model.loading ? ` · ${hereCount} on this ${wide ? 'computer' : 'phone'}` : ''}
+            </Text>
+            {model.matchNote ? (
+              <Text style={styles.sub} testID="library-match-note">
+                · {model.matchNote}
               </Text>
-            )}
-            {/*
-              The way in, at both states: a dashed + once there are chips to
-              add to, and the words before there are — nobody hunts for a bare
-              plus sign beside a title that does not look like a list of tags.
-            */}
-            <Pressable
-              onPress={choosingTags ? closeTagSearch : openTagSearch}
-              accessibilityRole="button"
-              accessibilityLabel={model.tagFiltered ? 'Add a tag' : 'Pick tags'}
-              accessibilityState={{ expanded: choosingTags }}
-              {...tip(model.tagFiltered ? 'Add a tag' : undefined)}
-              style={({ pressed }) => [
-                styles.addTag,
-                choosingTags && { borderStyle: 'solid', borderColor: accent.accentDim },
-                pressed && styles.addTagPressed,
-              ]}
-              testID="library-add-tag"
-            >
-              <Plus size={14} color={choosingTags ? accent.accent : theme.colors.textMuted} />
-              {model.tagFiltered ? null : <Text style={styles.addTagLabel}>Pick tags</Text>}
-            </Pressable>
+            ) : null}
           </View>
-          {/* How many, how long, and — with two tags or more — what leads. */}
-          {model.tagFiltered ? (
-            <View style={styles.subRow}>
-              <Text style={styles.sub}>{model.subtitle}</Text>
-              {model.matchNote ? (
-                <Text style={styles.sub} testID="library-match-note">
-                  · {model.matchNote}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
         </View>
 
         {/*
@@ -484,35 +451,63 @@ export function LibraryScreen(): ReactNode {
         </View>
       </View>
 
-      {/* At desktop width the sidebar carries the tags. */}
-      {/* On a phone only what is on the phone; tags are not a filter here. */}
-      {!wide && installed && songs.length > 0 ? (
-        <View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.tagStripFrame}
-            contentContainerStyle={styles.tagStrip}
-            keyboardShouldPersistTaps="handled"
-          >
-            {installed ? (
-              <Chip
-                label="On this phone"
-                selected={filter.downloadedOnly}
-                icon={
-                  <Downloaded
-                    size={12}
-                    color={
-                      filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.textSecondary
-                    }
-                    knockout={theme.colors.surface1}
-                  />
-                }
-                onPress={model.toggleDownloadedOnly}
-              />
-            ) : null}
-          </ScrollView>
-        </View>
+      {/*
+        The strip (docs/ui-mock `P12`, `C04`): All, then tags as a filter —
+        every one turned on adds its songs — the chosen ones first, then the
+        ones used lately, then the biggest. The + at its end searches every
+        tag, for a library with more than a strip holds. On an installed
+        phone, "On this phone" narrows to what is here.
+      */}
+      {songs.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tagStripFrame}
+          contentContainerStyle={[styles.tagStrip, headWide && styles.tagStripWide]}
+          keyboardShouldPersistTaps="handled"
+          testID="library-tag-strip"
+        >
+          <Chip
+            testID="library-tag-all"
+            label="All"
+            selected={!model.tagFiltered && !filter.downloadedOnly}
+            onPress={() => {
+              model.clearTags()
+              if (filter.downloadedOnly) model.toggleDownloadedOnly()
+            }}
+          />
+          {!wide && installed ? (
+            <Chip
+              label="On this phone"
+              selected={filter.downloadedOnly}
+              icon={
+                <Downloaded
+                  size={12}
+                  color={filter.downloadedOnly ? theme.colors.onPrimary : theme.colors.textSecondary}
+                  knockout={filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.surface2}
+                />
+              }
+              onPress={model.toggleDownloadedOnly}
+            />
+          ) : null}
+          {strip.map(tag => (
+            <Chip
+              key={tag.id}
+              label={tag.name}
+              hue={tag.hue}
+              selected={filter.tagIds.includes(tag.id)}
+              onPress={() => chooseTag(tag.id)}
+            />
+          ))}
+          <Chip
+            testID="library-add-tag"
+            label={choosingTags ? 'Done' : 'More tags'}
+            icon={<Plus size={13} color={theme.colors.textSecondary} />}
+            selected={false}
+            dashed
+            onPress={choosingTags ? closeTagSearch : openTagSearch}
+          />
+        </ScrollView>
       ) : null}
 
       {/*
@@ -529,18 +524,6 @@ export function LibraryScreen(): ReactNode {
         />
       </View>
 
-      {/*
-        No second "Filtered by" row: the chips in the head are the filter, and
-        drawing them twice made the same list look like two different states.
-        Only the way out of all of them at once is left.
-      */}
-      {model.tagFiltered ? (
-        <View style={styles.activeFilters}>
-          <Pressable onPress={model.clearTags} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.clear, { color: accent.accent }]}>clear tags</Text>
-          </Pressable>
-        </View>
-      ) : null}
 
       {model.tagFiltered || filter.query.trim() ? null : <GemsRow />}
 
@@ -591,7 +574,6 @@ export function LibraryScreen(): ReactNode {
         song={menuSong}
         anchorRef={menuAnchorRef}
         onClose={() => setMenuSong(null)}
-        onStartSelecting={song => selection.enter(song.id)}
       />
     </SafeAreaView>
   )
@@ -611,22 +593,6 @@ const HEAD_ROW_WIDTH = 600
 const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
-  titleTags: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs },
-  addTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    minWidth: 28,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  addTagPressed: { backgroundColor: theme.colors.surface2 },
-  addTagLabel: { color: theme.colors.textMuted, fontSize: type.small },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
@@ -732,6 +698,7 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 0,
     flexShrink: 0,
   },
+  tagStripWide: { paddingTop: 0 },
   tagStrip: {
     flexDirection: 'row',
     gap: 6,
@@ -740,21 +707,9 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.sm,
   },
   /* `.active-filters`: the chips that are filtering, each removable, and clear. */
-  activeFilters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: space.lg,
-    paddingBottom: space.md,
-  },
   filteredBy: {
     color: theme.colors.textMuted,
     fontSize: type.small,
-  },
-  clear: {
-    fontSize: type.small,
-    textDecorationLine: 'underline',
   },
   /* A box over which the selection bar is laid; the list fills it. */
   listArea: {

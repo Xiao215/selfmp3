@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Image, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import { fonts, isDownloaded, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -15,6 +14,7 @@ import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
+import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -90,7 +90,7 @@ export function PlacePage({
 
   const head = (
     <View style={[styles.head, wide && styles.headWide]}>
-      <Light color={light.color} art={artistAlone ? leadArt : null} />
+      <CoverLight color={light.color} art={artistAlone ? leadArt : null} />
       <View style={styles.topBar}>
         <IconButton label="Back" onPress={back} filled>
           <ChevronLeft size={20} tone="textPrimary" />
@@ -241,31 +241,6 @@ function Chips({
 }
 
 /**
- * The page lit by its covers: the lead cover's colour washing down from the
- * top, and on an artist's page the cover itself behind the name, fading into
- * the ground.
- */
-function Light({ color, art }: { color: string; art: string | null }): ReactNode {
-  const { theme } = useUnistyles()
-  const id = `placelight${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  return (
-    <View pointerEvents="none" style={styles.light}>
-      {art ? <Image source={{ uri: art }} style={styles.lightArt} resizeMode="cover" /> : null}
-      <Svg width="100%" height="100%" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={art ? 0.25 : 0.45} />
-            <Stop offset="0.45" stopColor={theme.colors.surface0} stopOpacity={art ? 0.75 : 0.4} />
-            <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={1} />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-      </Svg>
-    </View>
-  )
-}
-
-/**
  * The songs, in a list that only draws what is on screen. On an artist's
  * page each album starts with its own small heading.
  */
@@ -353,8 +328,6 @@ const styles = StyleSheet.create(theme => ({
   // The light stays inside the head, so it never runs on under the rows.
   head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
   headWide: { paddingHorizontal: 40, paddingTop: 16 },
-  light: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  lightArt: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.35 },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',

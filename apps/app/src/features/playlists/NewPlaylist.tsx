@@ -15,6 +15,8 @@ import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../library/saveTags'
+import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
+import { newPlaylist } from './playlists.model'
 
 /**
  * Making a playlist, from wherever it is started: the sidebar's ＋, the
@@ -33,6 +35,12 @@ import { followRules } from '../library/saveTags'
  * them — there is no sensible reading where you pick tags to build a list and
  * then want it to go stale — and if you do want that, **Stop following** on
  * the playlist is one press and keeps every song.
+ *
+ * A playlist you fill yourself goes from its name straight into picking its
+ * songs, and is only made when the first ones are confirmed, with them: a
+ * playlist exists once it has a song (docs/UI-MIGRATION.md, Phase 5), so
+ * cancelling at either step leaves nothing behind. One that follows tags is
+ * made at once, since its tags are its songs.
  */
 export function NewPlaylist({
   open,
@@ -68,6 +76,8 @@ function NewPlaylistDialog({
   const [choosing, setChoosing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Named, and picking its songs: the playlist does not exist yet. */
+  const [picking, setPicking] = useState<string | null>(null)
 
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
@@ -87,24 +97,41 @@ function NewPlaylistDialog({
     setFromTags(false)
     setTagIds([])
     setError(null)
+    setPicking(null)
   }
 
-  const create = async (): Promise<void> => {
+  const finish = (id: number): void => {
+    void client.invalidateQueries({ queryKey: queryKeys.library })
+    reset()
+    onClose()
+    router.push({ pathname: '/playlists/[id]', params: { id: String(id) } })
+  }
+
+  /** Made with its first songs, in one go; a failure is the picker's to show. */
+  const createWith = async (songIds: readonly number[]): Promise<void> => {
+    const input = newPlaylist('manual', picking ?? '')
+    if (!input) return
+    const created = await clientApi().createPlaylist(input)
+    await clientApi().addToPlaylist(created.id, { songIds: [...songIds] })
+    finish(created.id)
+  }
+
+  const next = async (): Promise<void> => {
     const trimmed = name.trim()
     if (!ready || busy) return
+    if (!fromTags) {
+      setPicking(trimmed)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      const created = await clientApi().createPlaylist({
-        name: trimmed,
-        description: '',
-        kind: fromTags ? 'live' : 'manual',
-        rules: fromTags ? followRules({ tagIds, sort: 'addedAt', descending: true }) : null,
+      const input = newPlaylist('live', trimmed, {
+        rules: followRules({ tagIds, sort: 'addedAt', descending: true }),
       })
-      void client.invalidateQueries({ queryKey: queryKeys.library })
-      reset()
-      onClose()
-      router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
+      if (!input) return
+      const created = await clientApi().createPlaylist(input)
+      finish(created.id)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
       setError(`Couldn’t make “${trimmed}”: ${(caught as Error).message}`)
@@ -118,6 +145,22 @@ function NewPlaylistDialog({
       current.includes(tagId) ? current.filter(id => id !== tagId) : [...current, tagId],
     )
 
+  const cancel = (): void => {
+    reset()
+    onClose()
+  }
+
+  if (picking !== null) {
+    return (
+      <AddSongsSheet
+        open={open}
+        onClose={cancel}
+        playlistName={picking}
+        target={{ kind: 'new', create: createWith }}
+      />
+    )
+  }
+
   return (
     <Sheet open={open} onClose={onClose} title="New playlist" testID="new-playlist">
       <View style={styles.body}>
@@ -125,7 +168,7 @@ function NewPlaylistDialog({
           style={[styles.input, focused && { borderColor: accent.accent }]}
           value={name}
           onChangeText={setName}
-          onSubmitEditing={() => void create()}
+          onSubmitEditing={() => void next()}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Name it"
@@ -196,19 +239,15 @@ function NewPlaylistDialog({
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.actions}>
+          <Button label="Cancel" onPress={cancel} />
           <Button
-            label="Cancel"
-            onPress={() => {
-              reset()
-              onClose()
-            }}
-          />
-          <Button
-            label="Create"
+            // A playlist you fill yourself is not made yet: its songs come next.
+            label={fromTags ? 'Create' : 'Add songs'}
             variant="primary"
             disabled={!ready}
             busy={busy}
-            onPress={() => void create()}
+            onPress={() => void next()}
+            testID="new-playlist-next"
           />
         </View>
       </View>

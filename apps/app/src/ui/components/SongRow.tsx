@@ -12,10 +12,7 @@ import {
   radius,
   space,
   tagColors,
-  tempoMark,
   type,
-  describeEnergy,
-  describeTempo,
 } from '@selfmp3/client'
 import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidth } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
@@ -26,9 +23,8 @@ import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
-import { EnergyWave } from './EnergyWave'
 import { Equalizer } from './Equalizer'
-import { Downloaded, Heart, More, NotDownloaded, Play, Plus } from './Icons'
+import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 
 /**
  * Past this width of page the album leaves the second line for a column of its
@@ -39,19 +35,22 @@ const ALBUM_COLUMN_CONTENT_WIDTH = 916
 const SIDEBAR_WIDTH = 244
 
 /**
- * One song in a list.
+ * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
+ * the artist with the on-device mark, the time, ⋯, and in Library, Search and
+ * Up next the song's tags, two and a count. Loving a song, its tempo and its
+ * energy are on the song's own page and in its menu, not on every row.
  *
- * Two shapes. At phone width, with a finger and no hover: a tap plays, the
- * heart and ⋯ are always there at a finger-sized target, and holding the row
- * opens the same menu. At desktop width it is a table row: the
- * position (or the equaliser, for the song that is loaded), the art, the title
- * over the artist with the tempo and energy after it, the album in a column of
- * its own once there is room, the tags, and the heart, length and ⋯.
+ * Two shapes. At phone width, with a finger and no hover: a tap plays, the ⋯
+ * is always there at a finger-sized target, and holding the row selects it
+ * or opens the same menu. At desktop width it is a table row: the checkbox and
+ * the position (or the equaliser, for the song that is loaded), the art, the
+ * title over the artist, the album in a column of its own once there is room,
+ * the tags, the length and ⋯.
  *
  * With a mouse, the controls that are actions rather than information — the
- * play button over the number, the checkbox, the tag button, an unloved heart,
- * the ⋯ — wait for the pointer, so a screen of songs reads as titles and not as
- * a grid of grey icons. Only three things are ever ink: title, artist, length.
+ * checkbox, the play button over the number, the tag button, the ⋯ — wait for
+ * the pointer, so a screen of songs reads as titles and not as a grid of grey
+ * icons. Only three things are ever ink: title, artist, length.
  *
  * Memoised because the list is long — the one place in this app where a render
  * too many actually matters. The memo only holds if nothing handed to a row is
@@ -76,7 +75,6 @@ export const SongRow = memo(function SongRow({
   playing: playingOverride,
   onPress,
   onMore,
-  onToggleLoved,
   selecting = false,
   selected = false,
   onToggleSelect,
@@ -115,7 +113,6 @@ export const SongRow = memo(function SongRow({
    * width the menu can open beside it.
    */
   onMore?: (anchor: View | null, song: Song) => void
-  onToggleLoved?: (song: Song) => void
   /**
    * Selection mode is on, so the checkbox column is showing. On a phone the
    * column is not there until then, rather than spending 34 points of every
@@ -126,7 +123,11 @@ export const SongRow = memo(function SongRow({
   onToggleSelect?: (song: Song) => void
   /** Position in the list, shown at desktop width. */
   index?: number
-  /** The song's tags, drawn as chips at desktop width. */
+  /**
+   * The song's tags, drawn as chips: two and a count. Only Library, Search and
+   * Up next pass them (`S3`); inside a tag, an artist or a playlist they are
+   * left off.
+   */
   tags?: readonly Tag[]
   /** A tag chip filters the library by that tag. */
   onToggleTag?: (tagId: number) => void
@@ -257,18 +258,23 @@ export const SongRow = memo(function SongRow({
                   <NotDownloaded size={13} tone="textMuted" />
                 ) : null}
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {song.artist || 'Unknown artist'}
-                  {song.album ? ` · ${song.album}` : ''}
+                  {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
                 </Text>
               </View>
             </View>
           </Pressable>
 
-          {onToggleLoved ? (
-            <Love song={song} onPress={() => onToggleLoved(song)} size={HIT_TARGET} visible />
+          {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
+          {tags && tags.length > 0 ? (
+            <View style={styles.tagsPhone}>
+              <RowTags
+                tags={tags}
+                hasAddButton={false}
+                onToggleTag={onToggleTag}
+                onShowAll={anchor => onEditTags?.(anchor, song)}
+              />
+            </View>
           ) : null}
-
-          <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
 
           {onMore ? (
             <View ref={moreRef} collapsable={false}>
@@ -293,8 +299,6 @@ export const SongRow = memo(function SongRow({
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered || menuOpen
   const albumColumn = (contentWidth ?? width - SIDEBAR_WIDTH) >= ALBUM_COLUMN_CONTENT_WIDTH
-  const features = song.audioFeatures
-  const badges = features && (features.bpm != null || features.energy != null)
   const controlSize = dense ? 34 : HIT_TARGET
 
   return (
@@ -365,21 +369,6 @@ export const SongRow = memo(function SongRow({
                 {song.album}
               </Text>
             ) : null}
-            {badges ? (
-              <View style={[styles.badges, { opacity: hovered ? 1 : 0.75 }]}>
-                <Text style={styles.subtitle}>·</Text>
-                {features.bpm != null ? (
-                  <Text style={styles.tempo} {...tip(describeTempo(features.bpm))}>
-                    {tempoMark(features.bpm)}
-                  </Text>
-                ) : null}
-                {features.energy != null ? (
-                  <View {...tip(describeEnergy(features.energy))}>
-                    <EnergyWave energy={features.energy} />
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
           </View>
         </View>
       </Pressable>
@@ -415,14 +404,6 @@ export const SongRow = memo(function SongRow({
       </View>
 
       <View style={styles.actions}>
-        {onToggleLoved ? (
-          <Love
-            song={song}
-            onPress={() => onToggleLoved(song)}
-            size={controlSize}
-            visible={revealed || song.loved}
-          />
-        ) : null}
         <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
         {onMore ? (
           <View ref={moreRef} collapsable={false} style={{ opacity: revealed ? 1 : 0 }}>
@@ -453,10 +434,10 @@ export const SongRow = memo(function SongRow({
  * can place rows by arithmetic (`SongList`'s `rowHeight`).
  *
  * Phone: 5 above and below the row, 3 above and below the press target, the
- * 40-point cover. Desktop: 7 above and below, and the heart and ⋯ at 44 with a
+ * 48-point cover. Desktop: 7 above and below, and the heart and ⋯ at 44 with a
  * finger or 34 with a mouse, beside a 40-point cover.
  */
-const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 40
+const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 48
 const TOUCH_WIDE_ROW_HEIGHT = 7 * 2 + HIT_TARGET
 const DENSE_ROW_HEIGHT = 7 * 2 + 40
 
@@ -493,35 +474,6 @@ function SelectBox({
       style={phone ? styles.select : styles.selectWide}
     >
       <Checkbox checked={selected} />
-    </Pressable>
-  )
-}
-
-function Love({
-  song,
-  onPress,
-  size,
-  visible,
-}: {
-  song: Song
-  onPress: () => void
-  size: number
-  visible: boolean
-}): ReactNode {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={song.loved ? `Remove ${song.title} from loved` : `Love ${song.title}`}
-      {...tip(song.loved ? 'Unlike' : 'Like')}
-      accessibilityState={{ selected: song.loved }}
-      style={({ pressed }) => [
-        styles.controlWide,
-        { width: size, height: size, opacity: visible ? 1 : 0 },
-        pressed && styles.controlPressed,
-      ]}
-    >
-      <Heart size={16} filled={song.loved} tone={song.loved ? 'danger' : 'textMuted'} />
     </Pressable>
   )
 }
@@ -778,6 +730,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
+  tagsPhone: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0, maxWidth: 170 },
   tagsColumn: { width: 180, paddingLeft: 20, overflow: 'hidden', flexWrap: 'nowrap' },
   tagAdd: {
     width: 22,

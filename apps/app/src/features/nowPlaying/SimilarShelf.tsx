@@ -16,28 +16,45 @@ import { playSimilarOrder, SIMILAR_SHELF_HEIGHT } from './nowPlaying.model'
  * that song with the rest after it; "Queue all" adds them behind what is queued.
  * The page decides whether there is room (`similarShelfLayout`); this only
  * draws what it is given.
+ *
+ * A song's own page (`P15`) shows the same shelf as "Sounds like", with the
+ * song's tempo and energy in words where "Queue all" would be: there it is
+ * about the song, not about what plays next.
  */
-export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
+export function SimilarShelf({
+  songs,
+  heading = 'Similar songs',
+  aside,
+}: {
+  songs: readonly Song[]
+  heading?: string
+  /** Quiet words on the right in place of "Queue all". */
+  aside?: string
+}): ReactNode {
   const player = usePlayer()
   const artFor = useArt()
   const ids = songs.map(song => song.id)
 
   return (
-    <View style={styles.shelf} accessibilityLabel="Similar songs" testID="similar-shelf">
+    <View style={styles.shelf} accessibilityLabel={heading} testID="similar-shelf">
       <View style={styles.head}>
         <Text style={styles.heading} accessibilityRole="header">
-          Similar songs
+          {heading}
         </Text>
-        {/* A small pill the height of the heading, not a full-size button: it sat on the page as a dark block. */}
-        <Pressable
-          onPress={() => player.addToQueue(ids)}
-          accessibilityRole="button"
-          accessibilityLabel="Queue all"
-          hitSlop={10}
-          style={({ pressed }) => [styles.queueAll, pressed && styles.queueAllPressed]}
-        >
-          <Text style={styles.queueAllText}>Queue all</Text>
-        </Pressable>
+        {aside !== undefined ? (
+          <Text style={styles.aside}>{aside}</Text>
+        ) : (
+          /* A small pill the height of the heading, not a full-size button: it sat on the page as a dark block. */
+          <Pressable
+            onPress={() => player.addToQueue(ids)}
+            accessibilityRole="button"
+            accessibilityLabel="Queue all"
+            hitSlop={10}
+            style={({ pressed }) => [styles.queueAll, pressed && styles.queueAllPressed]}
+          >
+            <Text style={styles.queueAllText}>Queue all</Text>
+          </Pressable>
+        )}
       </View>
       <ScrollView
         horizontal
@@ -84,6 +101,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 6,
   },
   heading: label(theme.colors),
+  aside: { color: theme.colors.textMuted, fontSize: type.small },
   queueAll: {
     paddingVertical: 4,
     paddingHorizontal: 11,

@@ -168,7 +168,9 @@ fetch(document.querySelector('script[src*="index-"]').src).then(r => r.text()).t
 | **Duplicates** | Sort by Recently added, read the top twenty rows | No song appears twice | Two rows with the same title, length and cover: the sync merged two servers |
 | **Tags are what you play** | *Pick tags* → tap two tags | Count and minutes update per tap; several tags *add* songs; Play plays them | A second tag narrowing the list to nothing (that was the old filter) |
 | **Save asks nothing** | With tags picked, *Save as playlist*, then **Undo** in the toast | Playlist count +1 with no dialog; −1 after Undo | A name prompt; an Undo that leaves the playlist behind |
-| **Playlists grid** | Open Playlists | *New playlist* tile first; empties in their own section at the end; "follows tags" badge on the ones that do | |
+| **Playlists grid** | Open Playlists | "N playlists · last played first"; *New playlist* tile first; each tile "5 songs · yesterday"; no empty playlist anywhere; "follows tags" badge on the ones that do | A pin, or a playlist with nothing in it |
+| **A new playlist** | *New* → a name → *Add songs*; pick two → *Make playlist*. Then again, and *Cancel* at the picker | The first lands on its page with the two songs; the cancelled one exists nowhere | A playlist made at the name step, before it had a song |
+| **A playlist's ⋯** | On the phone, open a playlist → ⋯ | *Download* with its size, or *Remove download* once every song is here; no pin | A download button beside Play |
 | **Selection** | Tick the first song in the library | The bar takes a lane above the list; the ticked row is still readable | The bar covering the row you just ticked |
 | **Tag chips on a row** | Find a song with four tags, or one very long one | Chips that fit, then `+2`; nothing cut mid-chip or over the album column | |
 | **Server reach** | Open Import and Stats | The real form and real numbers, not "Your server isn't answering" | In DevTools → Network, which `api/health` answered: localhost at home, the `ts.net` address away |

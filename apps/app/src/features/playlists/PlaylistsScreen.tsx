@@ -1,6 +1,6 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -21,10 +21,10 @@ import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { Live, Pin, Play, Plus } from '../../ui/components/Icons'
+import { Live, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
-import { card, floating, label, pageTitle } from '../../ui/surfaces'
+import { card, floating, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
@@ -33,7 +33,8 @@ import {
   isPlaylistSort,
   FOLLOWS_LABEL,
   PLAYLIST_SORTS,
-  playlistSubtitle,
+  playlistsSubline,
+  playlistTileLine,
   usePlaylistsModel,
   type PlaylistSort,
 } from './playlists.model'
@@ -48,16 +49,17 @@ const FAB = 38
 const SORT_PREF = 'playlists.sort'
 
 /**
- * Every playlist, as tiles wearing their songs' covers.
+ * Every playlist with a song in it, as tiles wearing their songs' covers
+ * (docs/ui-mock `P16`, `C07`).
  *
- * In the order you last played them, by default, so the ones in use are first
- * without pinning anything; A–Z and newest are one choice away, and the
- * choice is remembered. Pinned playlists stay in the grid (with a pin on the
- * tile) as well as having a place of their own — the sidebar at desktop
- * width, a row along the top on a phone — so pinning never makes a playlist
- * look like it has gone.
+ * In the order you last played them, so the ones in use are first without
+ * pinning anything — there are no pins. A computer has A–Z and newest one
+ * choice away, remembered; a phone has only the one order, as `P16` draws, so
+ * a choice made on a computer cannot leave it sorted by a control it lacks.
+ * Each tile says when it was last played, the day the order is by.
  *
- * New makes any of the three: a playlist, a smart playlist, a live one.
+ * An empty playlist is not listed: making one goes straight into picking its
+ * songs, and it exists once it has one (`NewPlaylist`).
  */
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -65,16 +67,13 @@ export function PlaylistsScreen(): ReactNode {
   const router = useRouter()
   const { wide } = useLayout()
   const window = useWindowDimensions()
-  const [sort, setSortState] = useState<PlaylistSort>(() => {
+  const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
   })
+  const sort = wide ? chosenSort : 'recent'
   const model = usePlaylistsModel(sort)
   const [newOpen, setNewOpen] = useState(false)
-  /* The kinds menu opens under whichever of the two New buttons was pressed. */
-  const newRef = useRef<View>(null)
-  const newTileRef = useRef<View>(null)
-  const [newFrom, setNewFrom] = useState<'head' | 'tile'>('head')
   const [gridWidth, setGridWidth] = useState(0)
 
   const setSort = (next: PlaylistSort): void => {
@@ -82,36 +81,16 @@ export function PlaylistsScreen(): ReactNode {
     prefs.set(SORT_PREF, next)
   }
 
-  const { playlists, pinned } = model
-  /*
-   * Empty playlists sort to the end whatever the sort says: they have no cover,
-   * and a gap between two covers reads as a fault rather than as a playlist.
-   */
-  const filled = playlists.filter(playlist => playlist.songCount > 0)
-  const empties = playlists.filter(playlist => playlist.songCount === 0)
+  const { playlists } = model
   const measured = wide ? gridWidth : window.width - space.lg * 2
   const columns = wide
     ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
     : PHONE_COLUMNS
   const tileWidth =
     measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : undefined
-  const totalDuration = playlists.reduce((sum, playlist) => sum + playlist.totalDuration, 0)
+  const now = new Date()
   const open = (playlist: Playlist): void =>
     router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
-  /** An empty playlist's own way to stop being empty: its page, picker open. */
-  const add = (playlist: Playlist): void =>
-    router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id), add: '1' } })
-
-  const sortSelect = (
-    <Select
-      size="small"
-      value={sort}
-      options={PLAYLIST_SORTS}
-      onChange={setSort}
-      label="Sort by"
-      testID="playlists-sort"
-    />
-  )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -128,81 +107,42 @@ export function PlaylistsScreen(): ReactNode {
                   ? 'Not loaded'
                   : playlists.length === 0
                     ? 'None of your own yet'
-                    : `${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'} · ${formatLongDuration(totalDuration)}`}
+                    : playlistsSubline(playlists.length, sort)}
             </Text>
           </View>
           <View style={styles.headActions}>
-            {wide ? sortSelect : null}
-            <View ref={newRef} collapsable={false}>
-              {wide ? (
+            {wide ? (
+              <>
+                <Select
+                  size="small"
+                  value={sort}
+                  options={PLAYLIST_SORTS}
+                  onChange={setSort}
+                  label="Sort by"
+                  testID="playlists-sort"
+                />
+                {/* White, as `C07` draws it: `active` is the pill's white. */}
                 <Button
                   label="New"
-                  icon={<Plus size={15} color={theme.colors.textPrimary} />}
-                  active={newOpen}
-                  onPress={() => {
-                    setNewFrom('head')
-                    setNewOpen(current => !current)
-                  }}
+                  icon={<Plus size={15} color={theme.colors.onPrimary} />}
+                  active
+                  onPress={() => setNewOpen(true)}
                   testID="playlists-new"
                 />
-              ) : (
-                <IconButton
-                  onPress={() => {
-                    setNewFrom('head')
-                    setNewOpen(current => !current)
-                  }}
-                  label="New playlist"
-                  filled
-                  active={newOpen}
-                  testID="playlists-new"
-                >
-                  <Plus size={20} color={theme.colors.textPrimary} />
-                </IconButton>
-              )}
-            </View>
+              </>
+            ) : (
+              <IconButton
+                onPress={() => setNewOpen(true)}
+                label="New playlist"
+                filled
+                active={newOpen}
+                testID="playlists-new"
+              >
+                <Plus size={20} color={theme.colors.textPrimary} />
+              </IconButton>
+            )}
           </View>
         </View>
-
-        {/* The sidebar holds pinned playlists at desktop width; a phone has none. */}
-        {!wide && pinned.length > 0 ? (
-          <>
-            <Text style={styles.section}>PINNED</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.shelves}
-              style={styles.shelfRow}
-            >
-              {pinned.map(playlist => (
-                <Pressable
-                  key={playlist.id}
-                  onPress={() => open(playlist)}
-                  accessibilityRole="button"
-                  accessibilityLabel={playlist.name}
-                  style={({ pressed }) => [styles.shelf, pressed && styles.pressed]}
-                >
-                  <PlaylistCover playlist={playlist} size={40} />
-                  <View style={styles.shelfText}>
-                    <Text style={styles.shelfName} numberOfLines={1}>
-                      {playlist.name}
-                    </Text>
-                    <Text style={styles.tileSub} numberOfLines={1}>
-                      {playlistSubtitle(playlist)}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        ) : null}
-
-        {/* Nothing to sort while the library has not loaded. */}
-        {wide || model.unreachable ? null : (
-          <View style={styles.sectionRow}>
-            <Text style={styles.section}>ALL PLAYLISTS</Text>
-            {sortSelect}
-          </View>
-        )}
 
         {model.loading ? (
           <ActivityIndicator style={styles.spinner} color={accent.accent} />
@@ -214,42 +154,17 @@ export function PlaylistsScreen(): ReactNode {
             style={styles.grid}
             onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
           >
-            <NewTile
-              width={tileWidth}
-              anchorRef={newTileRef}
-              onPress={() => {
-                setNewFrom('tile')
-                setNewOpen(true)
-              }}
-            />
+            <NewTile width={tileWidth} onPress={() => setNewOpen(true)} />
             {/* Built in, and not a playlist: nothing to delete or rename. */}
             <GemsTile width={tileWidth} />
-            {filled.map((playlist, index) => (
+            {playlists.map((playlist, index) => (
               <PlaylistTile
                 key={playlist.id}
                 playlist={playlist}
+                line={playlistTileLine(playlist, now)}
                 index={index}
                 width={tileWidth}
                 onOpen={() => open(playlist)}
-                onAddSongs={() => add(playlist)}
-              />
-            ))}
-            {/*
-             * A playlist with nothing in it yet is ordinary — it is what every
-             * playlist looks like for its first minute — but it has no cover to
-             * show, so it goes after the ones that have.
-             */}
-            {empties.length > 0 ? (
-              <Text style={[styles.section, styles.gridSection]}>NOTHING IN THEM YET</Text>
-            ) : null}
-            {empties.map((playlist, index) => (
-              <PlaylistTile
-                key={playlist.id}
-                playlist={playlist}
-                index={filled.length + index}
-                width={tileWidth}
-                onOpen={() => open(playlist)}
-                onAddSongs={() => add(playlist)}
               />
             ))}
             {playlists.length === 0 ? (
@@ -264,10 +179,7 @@ export function PlaylistsScreen(): ReactNode {
                   <Button
                     label="New playlist"
                     icon={<Plus size={15} color={theme.colors.textPrimary} />}
-                    onPress={() => {
-                      setNewFrom('head')
-                      setNewOpen(true)
-                    }}
+                    onPress={() => setNewOpen(true)}
                   />
                 </View>
               </View>
@@ -277,11 +189,7 @@ export function PlaylistsScreen(): ReactNode {
         <ChromeSpacer />
       </ScrollView>
 
-      <NewPlaylist
-        open={newOpen}
-        onClose={() => setNewOpen(false)}
-        anchorRef={newFrom === 'tile' ? newTileRef : newRef}
-      />
+      <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} />
     </SafeAreaView>
   )
 }
@@ -297,17 +205,15 @@ export function PlaylistsScreen(): ReactNode {
  */
 function NewTile({
   width,
-  anchorRef,
   onPress,
 }: {
   width: number | undefined
-  anchorRef: RefObject<View | null>
   onPress: () => void
 }): ReactNode {
   const accent = useAccent()
 
   return (
-    <View style={[styles.tile, width ? { width } : null]} ref={anchorRef} collapsable={false}>
+    <View style={[styles.tile, width ? { width } : null]}>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
@@ -375,32 +281,25 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
 
 function PlaylistTile({
   playlist,
+  line,
   index,
   width,
   onOpen,
-  onAddSongs,
 }: {
   playlist: Playlist
+  /** "5 songs · yesterday". */
+  line: string
   index: number
   width: number | undefined
   onOpen: () => void
-  /** Empty and not live: the tile's own way to fill it. */
-  onAddSongs: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const playback = usePlaylistPlayback()
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const live = isLive(playlist)
   // With a mouse the play button waits for the pointer; a finger opens the page.
-  const showPlay = finePointer && hovered && playlist.songCount > 0 && width !== undefined
-  /*
-   * Nothing to play in an empty one, so it offers the thing that would help:
-   * its page with the song picker already open. A live playlist fills itself
-   * from its rules, so it is sent to its page instead.
-   */
-  const showAdd = finePointer && hovered && playlist.songCount === 0 && !live && width !== undefined
+  const showPlay = finePointer && hovered && width !== undefined
 
   return (
     <View
@@ -423,17 +322,12 @@ function PlaylistTile({
               <Text style={styles.badgeText}>{FOLLOWS_LABEL}</Text>
             </View>
           ) : null}
-          {playlist.pinned ? (
-            <View style={styles.pinMark} accessibilityLabel="Pinned">
-              <Pin size={11} color={accent.accent} />
-            </View>
-          ) : null}
         </View>
         <Text style={styles.tileName} numberOfLines={1}>
           {playlist.name}
         </Text>
         <Text style={styles.tileSub} numberOfLines={1}>
-          {playlistSubtitle(playlist)}
+          {line}
         </Text>
       </Pressable>
 
@@ -450,24 +344,6 @@ function PlaylistTile({
           ]}
         >
           <Play size={15} color={theme.colors.onPrimary} />
-        </Pressable>
-      ) : null}
-
-      {showAdd ? (
-        <Pressable
-          onPress={onAddSongs}
-          accessibilityRole="button"
-          accessibilityLabel={`Add songs to ${playlist.name}`}
-          style={({ pressed }) => [
-            styles.addSongs,
-            { top: width - 30, width: width - 16 },
-            pressed && styles.fabPressed,
-          ]}
-        >
-          <Plus size={13} color={theme.colors.textPrimary} />
-          <Text style={styles.addSongsText} numberOfLines={1}>
-            Add songs
-          </Text>
         </Pressable>
       ) : null}
     </View>
@@ -489,28 +365,7 @@ const styles = StyleSheet.create(theme => ({
   heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 3 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  section: { ...label(theme.colors), marginBottom: space.sm },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: space.xs,
-  },
-  shelfRow: { marginHorizontal: -space.lg, marginBottom: space.lg },
-  shelves: { gap: space.sm, paddingHorizontal: space.lg },
-  shelf: {
-    width: 176,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: space.sm,
-    ...card(theme.colors),
-  },
-  shelfText: { flex: 1, minWidth: 0 },
-  shelfName: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  /* A heading of its own row, so the tiles after it start a fresh line. */
-  gridSection: { width: '100%', marginTop: space.sm, marginBottom: 0 },
   tile: { width: '100%' },
   newCover: {
     aspectRatio: 1,
@@ -521,24 +376,10 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   newKinds: { color: theme.colors.textSecondary, fontSize: 10.5 },
-  addSongs: {
-    position: 'absolute',
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 26,
-    borderRadius: radius.pill,
-    // A control over artwork: the glass, and it floats.
-    backgroundColor: theme.colors.glass,
-    ...floating(theme.colors),
-  },
-  addSongsText: { color: theme.colors.textPrimary, fontSize: 11.5, fontWeight: '600' },
   pressed: { opacity: 0.75 },
   tileName: {
     color: theme.colors.textPrimary,
-    fontSize: 13.5,
+    fontSize: 15,
     fontWeight: '600',
     marginTop: space.sm,
   },
@@ -554,17 +395,6 @@ const styles = StyleSheet.create(theme => ({
   },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badgeText: { color: theme.colors.textPrimary, fontSize: 10.5, fontWeight: '700' },
-  pinMark: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.glass,
-  },
   fab: {
     position: 'absolute',
     right: 8,

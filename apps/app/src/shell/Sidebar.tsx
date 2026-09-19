@@ -19,7 +19,7 @@ import {
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
-import { isLive, sortPlaylists } from '../features/playlists/playlists.model'
+import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { menuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -63,9 +63,10 @@ import { label as labelText } from '../ui/surfaces'
  * the one way to it in a browser tab, which has no ⌘K of its own.
  *
  * Playlists are a section whose header is itself the way to the playlists
- * page, with the count and a ＋ that makes any of the three kinds; the ones
- * you pinned sit under it. A song dragged from the library drops onto a
- * pinned playlist.
+ * page, with the count and a ＋ that makes any of the three kinds; the few
+ * played last sit under it, and a song dragged from the library drops onto
+ * one. There are no pins (docs/UI-MIGRATION.md, Phase 5), and an empty
+ * playlist is not listed.
  *
  * Below them, the tags reached for last: a click opens the tag's page, the ⋯
  * edits it, and the TAGS header opens all of them. At the foot, a status
@@ -213,7 +214,9 @@ function Playlists(): ReactNode {
   const plusRef = useRef<View>(null)
 
   const all = library?.playlists
-  const recent = useMemo(() => sortPlaylists(all ?? [], 'recent').slice(0, RAIL_PLAYLISTS), [all])
+  // The ones the playlists page lists: an empty playlist is in neither.
+  const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
+  const recent = listed.slice(0, RAIL_PLAYLISTS)
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = pathname === '/playlists' || pathname.startsWith('/playlists/')
 
@@ -236,7 +239,7 @@ function Playlists(): ReactNode {
           style={styles.groupTitleMain}
         >
           <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
-          {all && all.length > 0 ? <Text style={styles.groupAll}>All {all.length}</Text> : null}
+          {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
         </Pressable>
         <View ref={plusRef} collapsable={false}>
           <Pressable

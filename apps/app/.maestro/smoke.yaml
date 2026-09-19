@@ -62,26 +62,29 @@ appId: com.selfmp3.app
 # its container: a sheet is a `Modal`, its own window on iOS, and container
 # views inside it are unreliable for the visibility check. The items are not.
 - extendedWaitUntil:
-    visible: 'Play next'
+    visible: 'Add to queue'
     timeout: 5000
-- tapOn: 'Play next'
+- tapOn: 'Add to queue'
 
 # --- download ----------------------------------------------------------------
+# Keeping one playlist on the phone is in its ⋯ (docs/UI-MIGRATION.md, Open
+# question 5), not a button on the page.
 - tapOn:
     id: 'tab-playlists'
 - tapOn:
     id: 'playlist-row-0'
+- tapOn:
+    id: 'playlist-more'
 # Download only what is not already here. A phone that has had this playlist
-# for a while shows "On this phone" and has nothing to fetch, and a flow that
-# insisted on a download button would fail on the truest state there is.
+# for a while offers "Remove download" instead and has nothing to fetch, and a
+# flow that insisted on Download would fail on the truest state there is.
 - runFlow:
     when:
-      visible:
-        id: 'playlist-download'
+      visible: 'Download'
     commands:
+      - tapOn: 'Download'
       - tapOn:
-          id: 'playlist-download'
+          id: 'playlist-more'
 - extendedWaitUntil:
-    visible:
-      id: 'playlist-downloaded'
+    visible: 'Remove download'
     timeout: 120000

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyReason, matchNote, noMatchesTitle, songTagLookup, unreachableCopy } from './library.model'
+import {
+  emptyReason,
+  matchNote,
+  noMatchesTitle,
+  songTagLookup,
+  stripTags,
+  unreachableCopy,
+} from './library.model'
 
 describe('saying the library cannot be reached', () => {
   it('names the address it tried, without the scheme', () => {
@@ -97,5 +104,24 @@ describe('matchNote', () => {
   it('says nothing when no song carries every tag, or when every song does', () => {
     expect(matchNote(2, 0, 176)).toBeNull()
     expect(matchNote(2, 176, 176)).toBeNull()
+  })
+})
+
+describe('the tag strip', () => {
+  const tag = (id: number, name: string, songCount: number) => ({ id, name, hue: 1, songCount })
+  const tags = [tag(1, 'a', 3), tag(2, 'b', 9), tag(3, 'c', 1), tag(4, 'empty', 0), tag(5, 'd', 5)]
+
+  it('puts the chosen first, then the ones used lately, then the biggest', () => {
+    expect(stripTags(tags, [3], [1]).map(entry => entry.name)).toEqual(['c', 'a', 'b', 'd'])
+  })
+
+  it('leaves out a tag with no songs unless it is chosen', () => {
+    expect(stripTags(tags, [], []).map(entry => entry.name)).not.toContain('empty')
+    expect(stripTags(tags, [4], []).map(entry => entry.name)).toContain('empty')
+  })
+
+  it('stops at its limit, but never hides a chosen tag', () => {
+    expect(stripTags(tags, [], [], 2)).toHaveLength(2)
+    expect(stripTags(tags, [1, 2, 3], [], 2)).toHaveLength(3)
   })
 })

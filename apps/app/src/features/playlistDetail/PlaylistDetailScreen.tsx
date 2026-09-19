@@ -22,20 +22,21 @@ import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { formatBytes, formatLongDuration, type Song, type Tag } from '@selfmp3/shared'
+import { formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
   clientApi,
+  fonts,
   HIT_TARGET,
   isDownloaded,
   queryKeys,
+  radius,
   space,
   useDeletePlaylist,
   useLibrary,
   useManifest,
   usePlaylistSongs,
   useReorderPlaylist,
-  useToggleLoved,
   useUpdatePlaylist,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -48,10 +49,12 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
-import { pageTitle } from '../../ui/surfaces'
+import { label as labelText } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
+import { useSongColor } from '../../ui/useSongColor'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
+import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronLeft,
@@ -63,7 +66,6 @@ import {
   Live,
   More,
   Pencil,
-  Pin,
   Play,
   Plus,
   Queue,
@@ -77,44 +79,49 @@ import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
-import { TagPicker } from '../../ui/components/TagPicker'
-import { tagLink } from '../tag/placeLinks'
-import { songTagLookup } from '../library/library.model'
-import { noteTagUsed } from '../library/recentTags.store'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { copyName, FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
+import {
+  copyName,
+  FOLLOWS_LABEL,
+  isLive,
+  newPlaylist,
+  playlistHeadLine,
+} from '../playlists/playlists.model'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
 import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
 
 /**
- * One playlist.
+ * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
+ * or an artist's (`PlacePage`).
  *
- * The head is the playlist itself: its cover, name, description and length,
- * then one loud button, Play, with Shuffle beside it. Everything else a
- * playlist can have done to it — queueing, pinning, renaming, copying,
- * deleting — waits in its ⋯, so none of it sits a thumb's width from Play.
- * A phone's head is in the computer's order, Play and Shuffle at the start and
- * Download, ＋ and ⋯ at the end; an empty playlist shows none of Play, Shuffle
- * or the head's Add songs, which could only do nothing.
+ * The head is lit by its covers, with the mosaic, a small PLAYLIST over the
+ * name in the display face, and "5 songs · 18 min · played yesterday"; then
+ * one loud button, Play, with Shuffle and Add songs beside it. A phone has a
+ * round back and the ⋯ at the top; a computer has no back (the sidebar is
+ * there) and puts the ⋯ at the end of the buttons, as `C08` draws. Everything
+ * else a playlist can have done to it — queueing, downloading, renaming,
+ * copying, deleting — waits in its ⋯, so none of it sits a thumb's width from
+ * Play. An empty playlist shows none of Play, Shuffle or the head's Add songs,
+ * which could only do nothing.
  *
- * A playlist you made adds Add songs, which searches the library without
- * leaving; its rows move by their grip at desktop width and by holding them on
- * a phone. One that follows tags shows them instead, as a row of chips above
- * the songs, so what it is picking stays what the page shows.
+ * Rows are the library's `SongRow` without tag chips: inside a playlist the
+ * playlist is the context (`S3`). A playlist you made moves its rows by their
+ * grip at desktop width and by holding them on a phone. One that follows tags
+ * shows them instead, as a row of chips above the songs, so what it is
+ * picking stays what the page shows.
  *
  * Arriving with `?rename=1` puts the cursor in the name — where a playlist
- * just saved from a tag pick sends you when you press Rename on the message —
- * and with `?add=1` the song picker (an empty playlist's tile in the grid).
+ * just saved from a tag pick sends you when you press Rename on the message.
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
-  const params = useLocalSearchParams<{ id: string; rename?: string; add?: string }>()
+  const params = useLocalSearchParams<{ id: string; rename?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
   const navigation = useNavigation()
@@ -129,15 +136,10 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
   const reorderPlaylist = useReorderPlaylist()
-  const toggleLoved = useToggleLoved()
-  const { state: downloads, installed, downloadByHand } = useDownloads()
+  const { state: downloads, installed, downloadByHand, removeByHand, removing } = useDownloads()
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   const menuAnchorRef = useRef<View | null>(null)
-  // The dashed ＋ in a row's tag column, and the window it opens — the same
-  // pair the library's rows have.
-  const [taggingSong, setTaggingSong] = useState<Song | null>(null)
-  const tagAnchorRef = useRef<View | null>(null)
   const [headMenuOpen, setHeadMenuOpen] = useState(false)
   const headMenuRef = useRef<View>(null)
   const [renaming, setRenaming] = useState(params.rename === '1')
@@ -145,9 +147,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const [describing, setDescribing] = useState(false)
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  // With `?add=1` the song picker is already open: an empty playlist's tile in
-  // the grid offers Add songs, and it lands here ready to pick.
-  const [adding, setAdding] = useState(params.add === '1')
+  const [adding, setAdding] = useState(false)
   // The row being moved and the row it would land on. Not how far it has
   // travelled: that is `dragY`, which moves the row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
@@ -166,9 +166,10 @@ export function PlaylistDetailScreen(): ReactNode {
   }, [library.data, contents.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
   const inPlaylist = useMemo(() => new Set(songIds), [songIds])
-  // A row's chips, the library's way: looked up once per song and kept, so a
-  // memoised row is not handed a new array on every render.
-  const songTags = useMemo(() => songTagLookup(tags), [tags])
+  // The page is lit by the first cover it has, as a tag's page is.
+  const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
+  const leadArt = lead ? artFor(lead) : null
+  const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
   const selectedSongs = useMemo(
@@ -194,8 +195,6 @@ export function PlaylistDetailScreen(): ReactNode {
     playback,
     playlistId,
     reorderPlaylist,
-    toggleLoved,
-    tags,
   })
   useEffect(() => {
     latest.current = {
@@ -205,8 +204,6 @@ export function PlaylistDetailScreen(): ReactNode {
       playback,
       playlistId,
       reorderPlaylist,
-      toggleLoved,
-      tags,
     }
   })
 
@@ -274,27 +271,13 @@ export function PlaylistDetailScreen(): ReactNode {
         setMenuSong(current => (current?.id === song.id ? null : song))
       },
       toggleSelect: song => latest.current.selection.toggle(song.id),
-      toggleLoved: song => latest.current.toggleLoved.mutate({ id: song.id, loved: !song.loved }),
-      // A chip here is a way out to the tag's own page, not a filter on the
-      // playlist: narrowing a list you arranged by hand is not what a playlist
-      // is for, and "the chill ones" is a question the tag's page answers.
-      toggleTag: tagId => {
-        const tag = latest.current.tags.find(entry => entry.id === tagId)
-        if (!tag) return
-        noteTagUsed(tagId)
-        router.push(tagLink(tag.name))
-      },
-      editTags: (anchor, song) => {
-        tagAnchorRef.current = anchor
-        setTaggingSong(current => (current?.id === song.id ? null : song))
-      },
       // Holding a row is how it is moved, so holding to select is the menu's
       // job here (`SongMenu`). Where there is no order to change, holding
       // selects, exactly as it does in the library.
       longPress: song => latest.current.selection.enter(song.id),
       measure: setRowHeight,
     }),
-    [dragStart, dragMove, dragEnd, router],
+    [dragStart, dragMove, dragEnd],
   )
 
   const liftedFrom = drag?.from ?? null
@@ -326,7 +309,6 @@ export function PlaylistDetailScreen(): ReactNode {
           lifted={drag?.from === index}
           dropTarget={drag !== null && drag.over === index && drag.from !== index}
           menuOpen={menuSongId === item.id}
-          tags={songTags(item)}
           actions={rowActions}
         />
       )
@@ -340,7 +322,6 @@ export function PlaylistDetailScreen(): ReactNode {
       selection,
       drag,
       menuSongId,
-      songTags,
       rowActions,
     ],
   )
@@ -416,21 +397,22 @@ export function PlaylistDetailScreen(): ReactNode {
     <Glyph size={16} color={color} />
   )
 
+  const back = (): void => {
+    // Back when the Playlists page is behind; after a playlist made from a
+    // selection, or a link, Playlists takes this page's place instead.
+    if (cameFrom(navigation.getState(), 'playlists/index')) router.back()
+    else router.replace('/playlists')
+  }
+
   const titles = (
     <View style={styles.titles}>
-      <View style={styles.eyebrow}>
-        {live ? <Live size={13} color={accent.accent} /> : null}
-        <Text style={[styles.eyebrowText, live && { color: accent.accent }]}>
-          {live
-            ? `Playlist · ${FOLLOWS_LABEL}`
-            : playlist?.pinned
-              ? 'Playlist · pinned'
-              : 'Playlist'}
-        </Text>
+      <View style={styles.kind}>
+        {live ? <Live size={12} tone="textSecondary" /> : null}
+        <Text style={styles.kindText}>{live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}</Text>
       </View>
       {renaming ? (
         <TextInput
-          style={[styles.heading, styles.headingInput]}
+          style={[styles.name, wide && styles.nameWide, styles.nameInput]}
           value={draftName ?? playlist?.name ?? ''}
           onChangeText={setDraftName}
           onSubmitEditing={saveName}
@@ -446,7 +428,7 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityRole="header"
           {...(finePointer ? tip('Rename') : {})}
         >
-          <Text style={styles.heading} numberOfLines={2}>
+          <Text style={[styles.name, wide && styles.nameWide]} numberOfLines={2}>
             {name}
           </Text>
         </Pressable>
@@ -468,50 +450,12 @@ export function PlaylistDetailScreen(): ReactNode {
           {playlist.description}
         </Text>
       ) : null}
-      <Text style={styles.meta}>
-        {count} {count === 1 ? 'song' : 'songs'} · {formatLongDuration(seconds)}
+      <Text style={styles.summary}>
+        {playlistHeadLine(count, seconds, playlist?.lastPlayedAt ?? null, new Date())}
       </Text>
     </View>
   )
 
-  // The page's one white Play (`S2`).
-  const playButton = (
-    <PlayButton
-      onPress={() => playback.play(playlistId, songIds)}
-      disabled={nothing}
-      label={`Play ${name}`}
-      testID="playlist-play"
-      icon={<Play size={20} color={theme.colors.onPrimary} />}
-    />
-  )
-  const shuffleButton = (
-    <IconButton
-      onPress={() => playback.shuffle(playlistId, songIds)}
-      label={`Shuffle ${name}`}
-      caption="Shuffle"
-      disabled={nothing}
-      filled
-    >
-      <Shuffle size={20} color={theme.colors.textSecondary} />
-    </IconButton>
-  )
-  // Nothing to download in an empty playlist, and "Downloaded" would be a boast.
-  const offlineButton =
-    installed && !emptyPlaylist ? (
-      <IconButton
-        testID={pendingBytes > 0 ? 'playlist-download' : 'playlist-downloaded'}
-        onPress={() => downloadByHand(songIds)}
-        label={pendingBytes > 0 ? `Download · ${formatBytes(pendingBytes)}` : 'Downloaded'}
-        disabled={pendingBytes === 0}
-        filled
-      >
-        {pendingBytes > 0 ? (
-          <CloudDownload size={19} color={theme.colors.textSecondary} />
-        ) : (
-          <Downloaded size={19} color={accent.accent} knockout={theme.colors.surface0} />
-        )}
-      </IconButton>
-    ) : null
   const moreButton = (
     <View ref={headMenuRef} collapsable={false}>
       <IconButton
@@ -522,7 +466,7 @@ export function PlaylistDetailScreen(): ReactNode {
         testID="playlist-more"
         filled
       >
-        <More size={19} color={theme.colors.textSecondary} />
+        <More size={18} tone="textPrimary" />
       </IconButton>
     </View>
   )
@@ -530,78 +474,67 @@ export function PlaylistDetailScreen(): ReactNode {
   // Above the songs, and scrolled with them: the songs are a virtualised list
   // now — a live playlist with no rules is the whole library — and this is its
   // header rather than the top of a ScrollView drawing every row at once.
-  const header = (
-    <View style={styles.gutter}>
-      {wide ? null : (
-        <Pressable
-          // Back when the Playlists page is behind; after a playlist made from a
-          // selection, or a link, Playlists takes this page's place instead.
-          onPress={() =>
-            cameFrom(navigation.getState(), 'playlists/index')
-              ? router.back()
-              : router.replace('/playlists')
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Back to playlists"
-          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-          style={({ pressed }) => [styles.backRow, pressed && { opacity: 0.6 }]}
-        >
-          <ChevronLeft size={18} color={theme.colors.textSecondary} />
-          <Text style={styles.backLabel}>Playlists</Text>
-        </Pressable>
-      )}
-
-      {playlist ? (
-        wide ? (
-          <View style={styles.head}>
-            <View style={styles.headTop}>
-              <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={132} />
-              {titles}
-            </View>
-            <View style={styles.controls}>
-              {emptyPlaylist ? null : playButton}
-              {emptyPlaylist ? null : shuffleButton}
-              {offlineButton}
-              {moreButton}
-              <View style={styles.spacer} />
-              {manual && !emptyPlaylist ? (
-                <Button
-                  label="Add songs"
-                  icon={<Plus size={15} color={theme.colors.textPrimary} />}
-                  onPress={() => setAdding(true)}
-                  testID="playlist-add-songs"
-                />
-              ) : null}
-            </View>
+  const header = playlist ? (
+    <View>
+      <View style={[styles.head, wide && styles.headWide]}>
+        <CoverLight color={light.color} art={leadArt} />
+        {wide ? null : (
+          <View style={styles.topBar}>
+            <IconButton label="Back to playlists" onPress={back} filled>
+              <ChevronLeft size={20} tone="textPrimary" />
+            </IconButton>
+            {moreButton}
           </View>
-        ) : (
-          <View style={styles.head}>
-            <PlaylistCover playlist={playlist} songIds={contents.data?.songIds} size={148} />
-            {titles}
-            {/* The computer's order: Play and Shuffle first, the rest at the far end. */}
-            <View style={styles.controls}>
-              {emptyPlaylist ? null : playButton}
-              {emptyPlaylist ? null : shuffleButton}
-              <View style={styles.spacer} />
-              {offlineButton}
-              {manual && !emptyPlaylist ? (
-                <IconButton
-                  onPress={() => setAdding(true)}
-                  label="Add songs"
-                  testID="playlist-add-songs"
-                  filled
-                >
-                  <Plus size={20} color={theme.colors.textSecondary} />
-                </IconButton>
-              ) : null}
-              {moreButton}
-            </View>
+        )}
+        <View style={[styles.hero, wide && styles.heroWide]}>
+          <View style={styles.mosaic}>
+            <PlaylistCover
+              playlist={playlist}
+              songIds={contents.data?.songIds}
+              size={wide ? 176 : 168}
+            />
           </View>
-        )
+          {titles}
+          <View style={[styles.actions, wide && styles.actionsWide]}>
+            {emptyPlaylist ? null : (
+              // The page's one white Play (`S2`).
+              <PlayButton
+                onPress={() => playback.play(playlistId, songIds)}
+                disabled={nothing}
+                label={`Play ${name}`}
+                testID="playlist-play"
+                icon={<Play size={24} color={theme.colors.onPrimary} />}
+              />
+            )}
+            {emptyPlaylist ? null : (
+              <Button
+                label="Shuffle"
+                accessibilityLabel={`Shuffle ${name}`}
+                icon={<Shuffle size={16} tone="textPrimary" />}
+                disabled={nothing}
+                onPress={() => playback.shuffle(playlistId, songIds)}
+              />
+            )}
+            {manual && !emptyPlaylist ? (
+              <Button
+                label="Add songs"
+                icon={<Plus size={15} tone="textPrimary" />}
+                onPress={() => setAdding(true)}
+                testID="playlist-add-songs"
+              />
+            ) : null}
+            {wide ? moreButton : null}
+          </View>
+        </View>
+      </View>
+      {live ? (
+        <View style={styles.gutter}>
+          <FollowsRow playlist={playlist} tags={tags} />
+        </View>
       ) : null}
-
-      {live && playlist ? <FollowsRow playlist={playlist} tags={tags} /> : null}
     </View>
+  ) : (
+    <View />
   )
 
   // What stands where the songs would, when there are none (the list shows it
@@ -720,27 +653,29 @@ export function PlaylistDetailScreen(): ReactNode {
             onPress={menuAction(() => void makeCopy('manual'))}
           />
         ) : null}
-        <SheetItem
-          icon={menuIcon(Pin)}
-          // A phone has no sidebar to pin to: there it is the Playlists page's Pinned row.
-          label={
-            wide
-              ? playlist?.pinned
-                ? 'Unpin from sidebar'
-                : 'Pin to sidebar'
-              : playlist?.pinned
-                ? 'Unpin'
-                : 'Pin'
-          }
-          onPress={menuAction(() => {
-            if (!playlist) return
-            updatePlaylist.mutate({ id: playlist.id, patch: { pinned: !playlist.pinned } })
-            showToast(
-              playlist.pinned ? `Unpinned ${playlist.name}` : `Pinned ${playlist.name}`,
-              'good',
-            )
-          })}
-        />
+        {/*
+         * Keeping this one playlist on the phone (Open question 5): here rather
+         * than on the page, where it was a third button beside Play. Once every
+         * song is here the same place takes it back off.
+         */}
+        {installed && !emptyPlaylist ? (
+          pendingBytes > 0 ? (
+            <SheetItem
+              icon={menuIcon(CloudDownload)}
+              label="Download"
+              detail={formatBytes(pendingBytes)}
+              onPress={menuAction(() => downloadByHand(songIds))}
+            />
+          ) : (
+            <SheetItem
+              icon={<Downloaded size={16} color={accent.accent} knockout={theme.colors.surface2} />}
+              label="Remove download"
+              detail="On this phone"
+              disabled={removing}
+              onPress={menuAction(() => void removeByHand(songIds))}
+            />
+          )
+        ) : null}
         <SheetItem
           icon={menuIcon(Pencil)}
           label="Rename"
@@ -769,20 +704,15 @@ export function PlaylistDetailScreen(): ReactNode {
         song={menuSong}
         anchorRef={menuAnchorRef}
         onClose={() => setMenuSong(null)}
-        onStartSelecting={song => selection.enter(song.id)}
         playlist={manual && playlist ? { id: playlist.id, name: playlist.name } : undefined}
       />
-
-      {/* The dashed ＋ on a row, the same window the library's rows open. */}
-      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
 
       {manual && playlist ? (
         <AddSongsSheet
           open={adding}
           onClose={() => setAdding(false)}
-          playlistId={playlist.id}
           playlistName={playlist.name}
-          inPlaylist={inPlaylist}
+          target={{ kind: 'existing', playlistId: playlist.id, inPlaylist }}
         />
       ) : null}
 
@@ -818,9 +748,6 @@ interface RowActions {
   readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
   readonly more: (anchor: View | null, song: Song) => void
   readonly toggleSelect: (song: Song) => void
-  readonly toggleLoved: (song: Song) => void
-  readonly toggleTag: (tagId: number) => void
-  readonly editTags: (anchor: View | null, song: Song) => void
   readonly longPress: (song: Song) => void
   readonly measure: (height: number) => void
 }
@@ -830,8 +757,9 @@ interface RowActions {
  *
  * The row itself is `SongRow`, the same component and the same file the
  * library draws — a song row is a song row, and a playlist that had its own
- * was a playlist whose songs had no hearts, no tags and no colour under the
- * one that was playing. What a playlist adds is a grip to drag by at desktop
+ * was a playlist whose songs had no ⋯ at a finger's size and no colour under
+ * the one that was playing. It is drawn without tag chips, as every row inside
+ * a place is (`S3`). What a playlist adds is a grip to drag by at desktop
  * width, the lifted look while a row is being moved, and the line where it
  * would land; taking a song off the playlist is in the ⋯ menu, where
  * everything else done to a song already is.
@@ -854,7 +782,6 @@ const PlaylistRow = memo(function PlaylistRow({
   lifted,
   dropTarget,
   menuOpen,
-  tags,
   actions,
 }: {
   testID: string
@@ -871,7 +798,6 @@ const PlaylistRow = memo(function PlaylistRow({
   lifted: boolean
   dropTarget: boolean
   menuOpen: boolean
-  tags: readonly Tag[]
   actions: RowActions
 }): ReactNode {
   const { wide } = useLayout()
@@ -919,7 +845,6 @@ const PlaylistRow = memo(function PlaylistRow({
         notDownloadedMark={notDownloadedMark}
         unavailable={unavailable}
         index={index}
-        tags={tags}
         selecting={selecting}
         selected={selected}
         menuOpen={menuOpen}
@@ -928,10 +853,7 @@ const PlaylistRow = memo(function PlaylistRow({
         dropTarget={dropTarget}
         onPress={onPress}
         onMore={actions.more}
-        onToggleLoved={actions.toggleLoved}
         onToggleSelect={actions.toggleSelect}
-        onToggleTag={actions.toggleTag}
-        onEditTags={actions.editTags}
         // `null` while the hold is the move's: see `SongRow`.
         onLongPress={holds ? null : actions.longPress}
       />
@@ -1051,24 +973,35 @@ const styles = StyleSheet.create(theme => ({
   gutter: { paddingHorizontal: space.lg },
   grip: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
   gripTouch: { width: HIT_TARGET, height: HIT_TARGET },
-  backRow: {
+  // The light stays inside the head, so it never runs on under the rows.
+  head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
+  headWide: { paddingHorizontal: 40, paddingTop: 44 },
+  topBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 2,
-    marginLeft: -4,
-    marginTop: space.xs,
-    minHeight: 32,
+    paddingTop: 8,
   },
-  backLabel: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
-  head: { paddingTop: space.md, paddingBottom: space.lg, gap: space.md },
-  headTop: { flexDirection: 'row', alignItems: 'flex-end', gap: 20, paddingTop: space.sm },
-  titles: { flexShrink: 1, minWidth: 0, gap: 3 },
-  eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  eyebrowText: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
-  heading: pageTitle(theme.colors),
+  hero: { gap: 16 },
+  heroWide: { flexDirection: 'row', alignItems: 'flex-end', gap: 24 },
+  mosaic: {
+    alignSelf: 'flex-start',
+    boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35)',
+    borderRadius: radius.card,
+  },
+  titles: { gap: 6, flexShrink: 1, flexGrow: 1, minWidth: 0 },
+  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  kindText: labelText(theme.colors),
+  name: {
+    color: theme.colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 40,
+    lineHeight: 46,
+    letterSpacing: -0.8,
+  },
+  nameWide: { fontSize: 56, lineHeight: 60, letterSpacing: -1.5 },
   // A field in place of the name: the control surface, and no edge.
-  headingInput: {
+  nameInput: {
     paddingVertical: 2,
     paddingHorizontal: space.sm,
     borderRadius: 12,
@@ -1081,9 +1014,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  meta: { color: theme.colors.textMuted, fontSize: 12.5 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  spacer: { flex: 1 },
+  summary: { color: theme.colors.textSecondary, fontSize: 14 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  actionsWide: { paddingBottom: 6 },
   // Room between the menu's groups, where a line used to be.
   divider: { height: space.sm },
   spinner: { marginTop: space.xl },

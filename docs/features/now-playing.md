@@ -21,7 +21,7 @@ where you left them when you close the page. The practice panel opens beside it.
 
 One page, two modes. **Stage** has the artwork, title, tempo, energy, key and tags on the
 left, and on the right one of three tabs: **Lyrics** (or **Visual**), **Up next** (the
-queue) and **About** (the same facts as Song details). **Focus** is the same page when only
+queue) and **About** (the same facts as the end of the song's own page). **Focus** is the same page when only
 the words matter: the cover glides into the header, the title follows it, and the lyrics
 widen and grow around the line being sung. In Focus:
 

@@ -33,7 +33,8 @@ existing cover cache.
 
 ## Using it
 
-**One song.** Open a song's `⋯` menu and choose **Fix metadata…**. The left column shows
+**One song.** Open a song's `⋯` menu, choose **Song details**, and on the song's own page
+press **Fix metadata…**. The left column shows
 what the library has; the right lists candidates with artwork thumbnails, a source badge
 and a match percentage. Pick a candidate, and the diff below it lists only the fields that
 would change — untick anything you do not want, then **Apply**.

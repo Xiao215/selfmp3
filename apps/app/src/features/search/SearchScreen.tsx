@@ -412,8 +412,22 @@ function useSongRows(
 } {
   const player = usePlayer()
   const artFor = useArt()
+  const router = useRouter()
+  const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const [menuSong, setMenuSong] = useState<Song | null>(null)
+  // Search is one of the lists that shows tags on its rows (`S3`); a chip opens the tag.
+  const tagsById = useMemo(
+    () => new Map((library?.tags ?? []).map(tag => [tag.id, tag])),
+    [library],
+  )
+  const onTag = useCallback(
+    (tagId: number) => {
+      const tag = tagsById.get(tagId)
+      if (tag) router.navigate(tagLink(tag.name))
+    },
+    [tagsById, router],
+  )
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // What a row plays from, read when it is pressed, so the handler handed to
@@ -445,11 +459,16 @@ function useSongRows(
         onMore={onMore}
         menuOpen={menuSong?.id === item.id}
         index={index}
+        tags={item.tagIds.flatMap(id => {
+          const tag = tagsById.get(id)
+          return tag ? [tag] : []
+        })}
+        onToggleTag={onTag}
       />
     ),
     // The query is not drawn, but a new one is a new list: rows re-key with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [artFor, downloads.index, onPress, onMore, menuSong, testPrefix, query],
+    [artFor, downloads.index, onPress, onMore, menuSong, testPrefix, query, tagsById, onTag],
   )
 
   return {

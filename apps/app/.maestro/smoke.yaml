@@ -45,6 +45,20 @@ appId: com.selfmp3.app
 - assertVisible:
     id: 'mini-player-playing'
 
+# --- up next -----------------------------------------------------------------
+# The mini player's queue button opens Up next as a sheet over the mini player
+# and the tab bar (docs/ui-mock `P25`). Asserted by its Clear button rather
+# than the `queue-sheet` id on its container, which is unreliable for the
+# visibility check (see the song menu below). The grabber closes it again.
+- tapOn:
+    id: 'mini-player-queue'
+- extendedWaitUntil:
+    visible: 'Clear Up next'
+    timeout: 5000
+- tapOn: 'Close Up next'
+- assertVisible:
+    id: 'mini-player-playing'
+
 # --- selection ---------------------------------------------------------------
 # Holding a row selects it; there is no Select button on a phone.
 - longPressOn:

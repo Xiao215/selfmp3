@@ -53,19 +53,41 @@ export type PoseAt = (m: number) => MovePose
 
 const lerp = (from: number, to: number, m: number): number => from + (to - from) * m
 
+/** Where the cover is laid out on the stage: its left and top edges, and its size. */
+interface CoverBox {
+  readonly left: number
+  readonly top: number
+  readonly size: number
+}
+
+/** How far above the player bar a song with no lyrics puts the foot of its cover (`C10`). */
+const VISUAL_FOOT = 44
+
+/**
+ * Where the stage lays its cover out. A song with lyrics has it at the top
+ * of the left column, over the title; a song with none steps it down to the
+ * window's foot, smaller, so the visual behind has the window (`C10`).
+ * `height` is the page above the player bar.
+ */
+export function stageCover(g: StageGeometry, height: number, visual: boolean): CoverBox {
+  return visual
+    ? { left: g.pad, top: height - VISUAL_FOOT - g.visualCover, size: g.visualCover }
+    : { left: g.pad, top: COVER_TOP, size: g.cover }
+}
+
 /**
  * The cover, laid out at the stage's size and place and shrunk into the
  * header. A scale holds the centre still, so the move is centre to centre;
  * that makes the cover's edges travel exactly as the animated left, top and
  * width did.
  */
-export function coverPose(g: StageGeometry, m: number): MovePose {
-  const half = g.cover / 2
+export function coverPose(at: CoverBox, m: number): MovePose {
+  const half = at.size / 2
   const focusHalf = FOCUS_COVER.size / 2
   return {
-    translateX: (FOCUS_COVER.left + focusHalf - (g.pad + half)) * m,
-    translateY: (FOCUS_COVER.top + focusHalf - (COVER_TOP + half)) * m,
-    scale: lerp(1, FOCUS_COVER.size / g.cover, m),
+    translateX: (FOCUS_COVER.left + focusHalf - (at.left + half)) * m,
+    translateY: (FOCUS_COVER.top + focusHalf - (at.top + half)) * m,
+    scale: lerp(1, FOCUS_COVER.size / at.size, m),
     radius: lerp(COVER_RADIUS.stage, COVER_RADIUS.focus, m),
   }
 }

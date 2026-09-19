@@ -46,9 +46,11 @@ appId: com.selfmp3.app
 - evalScript: ${output.before = maestro.copiedText}
 
 # --- the list ----------------------------------------------------------------
-# Devices is on Now Playing, which the mini player opens.
+# Devices is under Now Playing's ⋯, and the mini player opens Now Playing.
 - tapOn:
     id: 'mini-player'
+- tapOn:
+    id: 'now-playing-more'
 - tapOn: 'Devices'
 - assertVisible:
     id: 'devices-sheet'

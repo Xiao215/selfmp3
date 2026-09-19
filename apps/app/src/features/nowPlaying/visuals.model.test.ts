@@ -5,14 +5,15 @@ import {
   autoVisual,
   beatKick,
   beatPhase,
-  driftReach,
-  driftSpeed,
   groundHue,
+  horizonColors,
   keyedHue,
   KEY_PULL,
   loudnessLevel,
   motionCaption,
   parseVisualChoices,
+  rippleDisc,
+  sunPlace,
   synthLevels,
   visualCaption,
   visualColors,
@@ -33,24 +34,16 @@ const features = (over: Partial<AudioFeatures>): AudioFeatures => ({
 })
 
 describe('which visual a song gets', () => {
-  it('gives Aurora to a song not analysed yet, or with no energy', () => {
-    expect(autoVisual(null)).toBe('aurora')
-    expect(autoVisual(undefined)).toBe('aurora')
-    expect(autoVisual(features({ energy: null }))).toBe('aurora')
+  it('gives Horizon to a song not analysed yet, or with no energy', () => {
+    expect(autoVisual(null)).toBe('horizon')
+    expect(autoVisual(undefined)).toBe('horizon')
+    expect(autoVisual(features({ energy: null }))).toBe('horizon')
   })
 
-  it('gives Aurora to a calm song, whatever its beat', () => {
-    expect(autoVisual(features({ energy: 0.34, danceability: 0.9 }))).toBe('aurora')
-  })
-
-  it('gives Spectrum to a busy song, before looking at the beat', () => {
-    expect(autoVisual(features({ energy: 0.7, danceability: 0.9 }))).toBe('spectrum')
-  })
-
-  it('gives Pulse to a steady beat in the middle, and Drift to the rest', () => {
-    expect(autoVisual(features({ energy: 0.35, danceability: 0.6 }))).toBe('pulse')
-    expect(autoVisual(features({ energy: 0.5, danceability: 0.59 }))).toBe('drift')
-    expect(autoVisual(features({ energy: 0.5, danceability: null }))).toBe('drift')
+  it('gives Horizon to a calm song and Ripples from half energy up, whatever the beat', () => {
+    expect(autoVisual(features({ energy: 0.49, danceability: 0.9 }))).toBe('horizon')
+    expect(autoVisual(features({ energy: 0.5, danceability: 0.1 }))).toBe('ripples')
+    expect(autoVisual(features({ energy: 0.95, danceability: null }))).toBe('ripples')
   })
 })
 
@@ -59,13 +52,17 @@ describe('a choice kept for one song', () => {
     expect(parseVisualChoices(null)).toEqual({})
     expect(parseVisualChoices('not json')).toEqual({})
     expect(parseVisualChoices('[1,2]')).toEqual({})
-    expect(parseVisualChoices('{"4":"pulse","5":"ring","6":3}')).toEqual({ '4': 'pulse' })
+    expect(parseVisualChoices('{"4":"ripples","5":"ring","6":3}')).toEqual({ '4': 'ripples' })
+  })
+
+  it('drops a style that no longer exists, so the song goes back to Auto', () => {
+    expect(parseVisualChoices('{"4":"aurora","5":"horizon"}')).toEqual({ '5': 'horizon' })
   })
 
   it('sets a choice, and clears it back to automatic', () => {
-    const chosen = withVisualChoice({ '4': 'pulse' }, 9, 'drift')
-    expect(chosen).toEqual({ '4': 'pulse', '9': 'drift' })
-    expect(withVisualChoice(chosen, 4, null)).toEqual({ '9': 'drift' })
+    const chosen = withVisualChoice({ '4': 'ripples' }, 9, 'horizon')
+    expect(chosen).toEqual({ '4': 'ripples', '9': 'horizon' })
+    expect(withVisualChoice(chosen, 4, null)).toEqual({ '9': 'horizon' })
   })
 })
 
@@ -141,7 +138,7 @@ describe('colour from the cover’s palette', () => {
     expect(new Set([a, b, c]).size).toBe(3)
   })
 
-  it('gives the Pulse dot the lightest ink, as the eye sees lightness', () => {
+  it('gives the sun and the disc’s middle the lightest ink, as the eye sees lightness', () => {
     // Perceived lightness, not an RGB average: a vivid green ring averages high and looks darker.
     const lightness = ([r, g, b]: readonly number[]): number => rgbToOklch(r ?? 0, g ?? 0, b ?? 0).l
     const colors = visualColors(129, '11B', genshin)
@@ -157,7 +154,7 @@ describe('colour from the cover’s palette', () => {
 
 describe('motion from the song', () => {
   it('fills in a middling feel for what is not analysed, and keeps tempo drawable', () => {
-    expect(visualFeel(null)).toEqual({ bpm: 96, energy: 0.45, danceability: 0.5, loudness: 0.5 })
+    expect(visualFeel(null)).toEqual({ bpm: 96, energy: 0.45, loudness: 0.5 })
     expect(visualFeel(features({ bpm: 260 })).bpm).toBe(200)
     expect(visualFeel(features({ bpm: 30 })).bpm).toBe(50)
   })
@@ -177,12 +174,7 @@ describe('motion from the song', () => {
     expect(beatKick(0.9)).toBeLessThan(0.02)
   })
 
-  it('turns Drift faster with tempo and draws it in with energy', () => {
-    expect(driftSpeed(180)).toBeGreaterThan(driftSpeed(90))
-    expect(driftReach(0.9)).toBeLessThan(driftReach(0.2))
-  })
-
-  it('builds a stand-in spectrum whose bass lands on the beat', () => {
+  it('builds stand-in bands whose bass lands on the beat', () => {
     const onBeat = synthLevels(24, 10, 120, 0.8)
     const offBeat = synthLevels(24, 10.3, 120, 0.8)
     expect(onBeat).toHaveLength(24)
@@ -191,5 +183,32 @@ describe('motion from the song', () => {
       expect(level).toBeLessThanOrEqual(1)
     }
     expect(onBeat[0]!).toBeGreaterThan(offBeat[0]!)
+  })
+})
+
+describe('drawing Horizon and Ripples', () => {
+  const colors = visualColors(210, null)
+  const lightness = ([r, g, b]: readonly number[]): number => rgbToOklch(r ?? 0, g ?? 0, b ?? 0).l
+
+  it('draws Horizon only in colours made from the song’s', () => {
+    const look = horizonColors(colors)
+    expect(look.sun).toEqual(colors.inks[2])
+    expect(look.sky[0]).toEqual(colors.ground[1])
+    expect(look.foot).toEqual(colors.ground[1])
+    // The horizon glows brighter than the sky above it, and the hills darken as they come nearer.
+    expect(lightness(look.sky[2])).toBeGreaterThan(lightness(look.sky[1]))
+    expect(lightness(look.hills[0])).toBeGreaterThan(lightness(look.hills[1]))
+    expect(lightness(look.hills[1])).toBeGreaterThan(lightness(look.hills[2]))
+  })
+
+  it('puts the sun in the middle on a phone and to the right on a wide screen', () => {
+    expect(sunPlace(390, 844).x).toBe(195)
+    expect(sunPlace(1280, 800).x).toBeGreaterThan(640)
+    expect(sunPlace(390, 844).d).toBeLessThan(390 / 2)
+  })
+
+  it('keeps Ripples’ disc inside the shorter side', () => {
+    expect(rippleDisc(390, 500)).toBe(195)
+    expect(rippleDisc(1280, 400)).toBe(200)
   })
 })

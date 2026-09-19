@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { curveSampler, type MotionCurveLike, type MotionSampler } from './motionSource'
 import {
-  AURORA_FLOOR,
-  AURORA_INKS,
-  auroraBrightness,
   createMotionState,
   DEFAULT_REFRACTORY,
+  HILL_LAYERS,
+  hillPoints,
+  hillShare,
+  hillShift,
+  hillX,
   MAX_RINGS,
   motionTuning,
   PlayheadClock,
@@ -24,9 +26,7 @@ const DT = 1 / 60
 function scripted(at: (seconds: number) => { level: number; onset: number }): MotionSampler {
   return {
     source: 'curve',
-    sample(seconds, into) {
-      const { level } = at(seconds)
-      into.fill(level)
+    sample(seconds) {
       return at(seconds)
     },
   }
@@ -34,7 +34,7 @@ function scripted(at: (seconds: number) => { level: number; onset: number }): Mo
 
 /** Steps `seconds` of frames, returning the playheads where a ring left. */
 function run(sampler: MotionSampler, seconds: number, tuning = motionTuning(feel, false)) {
-  const state = createMotionState(16)
+  const state = createMotionState(0.5)
   const fired: number[] = []
   const glow: number[] = []
   for (let frame = 0; frame * DT < seconds; frame++) {
@@ -120,19 +120,6 @@ describe('following the level', () => {
     expect(glow.at(-1)!).toBeGreaterThan(0.95)
   })
 
-  it('stands nearly still in silence and turns in a loud part', () => {
-    const silent = run(
-      scripted(() => ({ level: 0, onset: 0 })),
-      2,
-    ).state
-    const loud = run(
-      scripted(() => ({ level: 1, onset: 0 })),
-      2,
-    ).state
-    expect(silent.spin).toBeLessThan(loud.spin / 10)
-    expect(silent.sway).toBeLessThan(loud.sway / 10)
-  })
-
   it('settles when paused instead of freezing mid-hit', () => {
     const tuning = motionTuning(feel, false)
     const { state } = run(
@@ -149,49 +136,103 @@ describe('following the level', () => {
         tuning,
       )
     expect(state.glow).toBeLessThan(0.01)
-    expect(state.bands[0]!).toBeLessThan(0.01)
+    expect(state.swell).toBeLessThan(0.01)
     expect(state.rings).toEqual([])
-  })
-
-  it('raises bars fast and lets them fall slowly', () => {
-    const tuning = motionTuning(feel, false)
-    const state = createMotionState(4)
-    stepMotion(
-      state,
-      scripted(() => ({ level: 1, onset: 0 })),
-      0,
-      DT * 3,
-      true,
-      tuning,
-    )
-    const risen = state.bands[0]!
-    stepMotion(
-      state,
-      scripted(() => ({ level: 0, onset: 0 })),
-      0,
-      DT * 3,
-      true,
-      tuning,
-    )
-    expect(risen).toBeGreaterThan(0.7)
-    expect(state.bands[0]!).toBeGreaterThan(risen * 0.7)
   })
 })
 
-describe('aurora', () => {
-  it('gives every cover colour a band, and the phone’s three glows one each', () => {
-    expect(new Set(AURORA_INKS)).toEqual(new Set([0, 1, 2]))
-    expect(new Set(AURORA_INKS.slice(0, 3))).toEqual(new Set([0, 1, 2]))
-    // The second colour no longer takes two bands of four.
-    expect(AURORA_INKS.filter(ink => ink === 0)).toHaveLength(1)
+describe('Horizon’s hills', () => {
+  const tuning = motionTuning(feel, false)
+  const front = HILL_LAYERS.length - 1
+
+  it('turns what was heard into points that roll in from the right', () => {
+    const state = createMotionState(0)
+    const trail = state.hills[front]!
+    // Loud for exactly one front slot, then quiet.
+    const loudFor = trail.slot
+    for (let t = 0; t < loudFor + trail.slot * 3; t += DT)
+      stepMotion(
+        state,
+        scripted(s => ({ level: s < loudFor ? 0.9 : 0.1, onset: 0 })),
+        t,
+        DT,
+        true,
+        tuning,
+      )
+    const levels = Array.from(trail.levels)
+    const loudest = levels.indexOf(Math.max(...levels))
+    // Three quiet slots have come in after it, on the right.
+    expect(loudest).toBe(levels.length - 4)
+    expect(levels[loudest]!).toBeGreaterThan(0.8)
+    expect(levels.at(-1)!).toBeCloseTo(0.1, 1)
   })
 
-  it('keeps a floor in silence and brightens with the level and a hit', () => {
-    expect(auroraBrightness(0, 0)).toBe(AURORA_FLOOR)
-    expect(auroraBrightness(0.5, 0)).toBeGreaterThan(AURORA_FLOOR)
-    expect(auroraBrightness(1, 0)).toBeGreaterThan(auroraBrightness(0.5, 0))
-    expect(auroraBrightness(1, 1)).toBe(1)
-    expect(auroraBrightness(2, 2)).toBe(1)
+  it('moves the front line quickest, and a point crosses the width in its time', () => {
+    const slots = HILL_LAYERS.map(layer => layer.seconds / layer.gaps)
+    expect(slots[0]!).toBeGreaterThan(slots[1]!)
+    expect(slots[1]!).toBeGreaterThan(slots[2]!)
+    const layer = HILL_LAYERS[front]!
+    expect(hillX(1, 0, 390, layer.gaps)).toBe(0)
+    expect(hillX(1 + layer.gaps, 0, 390, layer.gaps)).toBeCloseTo(390)
+    // The newest point waits beyond the right edge; the oldest is gone past the left.
+    const last = hillPoints(layer.gaps) - 1
+    expect(hillX(last, 1, 390, layer.gaps)).toBeGreaterThanOrEqual(390)
+    expect(hillX(0, 0, 390, layer.gaps)).toBeLessThan(0)
+  })
+
+  it('slides smoothly: nearly a whole gap along just before a new point comes in', () => {
+    const state = createMotionState(0.5)
+    const trail = state.hills[front]!
+    const steps = Math.round(trail.slot / DT) - 1
+    for (let i = 0; i < steps; i++)
+      stepMotion(
+        state,
+        scripted(() => ({ level: 0.5, onset: 0 })),
+        i * DT,
+        DT,
+        true,
+        tuning,
+      )
+    expect(hillShift(trail)).toBeGreaterThan(0.9)
+    expect(hillShift(trail)).toBeLessThanOrEqual(1)
+  })
+
+  it('stands still while paused, and keeps a floor in silence', () => {
+    const state = createMotionState(0.5)
+    const before = Array.from(state.hills[front]!.levels)
+    for (let i = 0; i < 600; i++)
+      stepMotion(
+        state,
+        scripted(() => ({ level: 1, onset: 0 })),
+        0,
+        DT,
+        false,
+        tuning,
+      )
+    expect(Array.from(state.hills[front]!.levels)).toEqual(before)
+    expect(state.hills[front]!.elapsed).toBe(0)
+    expect(state.travelled).toBe(false)
+    expect(hillShare(0)).toBeGreaterThan(0)
+    expect(hillShare(1)).toBe(1)
+  })
+
+  it('swells the sun on a hit and lets it ease back', () => {
+    const { state } = run(
+      scripted(t => ({ level: 0.8, onset: t < 0.05 ? 1 : 0 })),
+      0.1,
+    )
+    const swollen = state.swell
+    expect(swollen).toBeGreaterThan(0.5)
+    for (let i = 0; i < 60; i++)
+      stepMotion(
+        state,
+        scripted(() => ({ level: 0.8, onset: 0 })),
+        1,
+        DT,
+        true,
+        tuning,
+      )
+    expect(state.swell).toBeLessThan(swollen / 10)
   })
 })
 
@@ -216,8 +257,8 @@ describe('a synthetic curve, end to end', () => {
 describe('the still frame', () => {
   it('is the same every time, with rings out', () => {
     const tuning = motionTuning(feel, false)
-    const a = createMotionState(8)
-    const b = createMotionState(8)
+    const a = createMotionState(0.2)
+    const b = createMotionState(0.9)
     stillMotion(a, tuning, 'curve')
     stillMotion(b, tuning, 'curve')
     expect(a).toEqual(b)

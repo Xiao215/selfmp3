@@ -241,6 +241,41 @@ export function cycleRepeat(mode: QueueState['repeat']): QueueState['repeat'] {
   return mode === 'off' ? 'all' : mode === 'all' ? 'one' : 'off'
 }
 
+/** One place in the queue, as Up next draws it: the song and where it sits in `items`. */
+export interface QueueEntry {
+  readonly id: number
+  /** Its index in `items`, which is what every queue edit is addressed by. */
+  readonly index: number
+}
+
+/**
+ * The queue as Up next shows it (docs/ui-mock `P25`, `S3`): the song playing,
+ * what comes after it, and what has played.
+ *
+ * Played songs sink to the end rather than sitting above the playing one,
+ * because the list is read from the top as "what happens now, then next" and a
+ * greyed history above that pushed the song you came to see off the top. It is
+ * a view and nothing else: `items` keeps its order, and each entry carries its
+ * real index so a tap, a move or a removal still lands on the right place.
+ *
+ * With nothing loaded (`index` of -1) every song is still to come.
+ */
+export function queueSections(state: QueueState): {
+  playing: QueueEntry | null
+  next: QueueEntry[]
+  played: QueueEntry[]
+} {
+  const entries = state.items.map((id, index) => ({ id, index }))
+  if (state.index < 0 || state.index >= entries.length) {
+    return { playing: null, next: entries, played: [] }
+  }
+  return {
+    playing: entries[state.index] ?? null,
+    next: entries.slice(state.index + 1),
+    played: entries.slice(0, state.index),
+  }
+}
+
 /** Resolve queue ids back to song objects, skipping any that vanished. */
 export function resolveQueue(
   state: QueueState,

@@ -15,7 +15,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { fonts, radius, rgba, tagColors, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
@@ -24,10 +24,12 @@ import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { EnergyWave } from '../../ui/components/EnergyWave'
+import { Chip } from '../../ui/components/Chip'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, Collapse, Expand, Next, Romanize, TagPlus } from '../../ui/components/Icons'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
+import { songLink } from '../song/song.model'
 import { useSongColor } from '../../ui/useSongColor'
 import {
   contextLine,
@@ -41,12 +43,11 @@ import {
 } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
-import { COVER_TOP, coverPose, wordsFrame, wordsPose } from './stageMove.model'
-import { StageQueue } from './StageQueue'
+import { coverPose, stageCover, wordsFrame, wordsPose } from './stageMove.model'
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongVisual } from './visualChoice'
-import { motionCaption, VISUAL_NAMES, visualCaption } from './visuals.model'
+import { motionCaption, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
@@ -75,18 +76,18 @@ const LEAVE_MS = 180
  * The page for the song that is playing, on a computer.
  *
  * One page with two modes. **Stage** is what the bar opens: the artwork and
- * what the app knows about the song on the left, and the lyrics, the queue or
- * the song's details on the right. **Focus** is the same page when only the
+ * what the app knows about the song on the left, and the lyrics or the song's
+ * details on the right (`C09`). **Focus** is the same page when only the
  * words matter: the cover glides into the header, the lyrics widen and grow,
- * and after a few still seconds the controls step aside.
+ * and after a few still seconds the controls step aside. Up next is not here:
+ * it is the rail the player bar opens beside whatever page is showing.
  *
- * A song with no lyrics shows its visual where the words would be, and the
- * first tab reads Visual: in a box on the stage, across the whole page in
- * Focus, with "Style ▾" to choose another or to look for lyrics again.
+ * A song with no lyrics is its visual (`C10`): the first tab reads Visual, the
+ * visual fills the window behind the cover and the title, which step down to
+ * its foot, and the look it shows is picked beside the tabs.
  *
  * The page covers the sidebar but not the player bar, so play and pause never
- * move under your hand. Which tab and mode are showing live in the address,
- * so the bar's Queue button can open the page on its queue.
+ * move under your hand. Which tab and mode are showing live in the address.
  */
 export function NowPlayingStage(): ReactNode {
   const player = usePlayer()
@@ -229,14 +230,36 @@ function Stage({
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   const sampler = useMotionSampler(song, noLyrics)
+  // The visual is the window only on its own tab: About is text, and wants the calm ground.
+  const visualStage = noLyrics && shownTab === 'lyrics'
+  const box = stageCover(g, height, visualStage)
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
-    ['queue', 'Queue'],
     ['about', 'About'],
   ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const features = song.audioFeatures
   const chrome = { opacity: idle ? 0 : 1 }
+  // The title is not a row's own tap target, so it opens the song (Phase 5).
+  // Pushed over the page, as a tag or an artist is, so back comes to it again.
+  const openSong = (): void => router.push(songLink(song.id))
+
+  // Beside Visual and About on the stage; in Focus, where the tabs are put
+  // away, at the top right where the romaji switch sits for a song with words.
+  const stylePill = visualStage ? (
+    <Pressable
+      ref={styleButtonRef}
+      onPress={() => setStyleOpen(open => !open)}
+      accessibilityRole="button"
+      accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
+      aria-haspopup="menu"
+      aria-expanded={styleOpen}
+      style={({ pressed }) => [styles.tool, (pressed || styleOpen) && styles.toolPressed]}
+    >
+      <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
+      <ChevronDown size={13} color={theme.colors.textSecondary} />
+    </Pressable>
+  ) : null
 
   return (
     <Animated.View
@@ -269,47 +292,70 @@ function Stage({
           <View style={[styles.glowThree, { backgroundColor: rgba(palette[2], 1) }]} />
         </View>
       </View>
-      {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
-      <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>
-        <Svg width="100%" height="100%">
-          <Defs>
-            <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
-              <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.82} />
-              <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.82} />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
-        </Svg>
-      </Moving>
-      <Moving
-        move={move}
-        pose={m => ({ opacity: m })}
-        pointerEvents="none"
-        style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
-      />
-      {/* Focus with no words: the visual is the page, under the cover and the head. */}
-      {focus && noLyrics ? (
-        <View pointerEvents="none" style={[styles.fill, styles.focusVisual]}>
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} />
-        </View>
-      ) : null}
+      {visualStage ? (
+        <>
+          {/* No words: the visual is the window, under the cover, the title and the head. */}
+          <View pointerEvents="none" style={[styles.fill, styles.visual]}>
+            <SongVisual song={song} kind={visual.kind} sampler={sampler} />
+          </View>
+          {/* The window's foot darkens into the page, so the title reads over any look. */}
+          <View pointerEvents="none" style={[styles.scrim, { height: box.size + 200 + BAR }]}>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="np-scrim" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0} />
+                  <Stop offset="0.6" stopColor={theme.colors.surface0} stopOpacity={0.85} />
+                  <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.95} />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-scrim)" />
+            </Svg>
+          </View>
+        </>
+      ) : (
+        <>
+          {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
+          <Moving
+            move={move}
+            pose={m => ({ opacity: 1 - m })}
+            pointerEvents="none"
+            style={styles.fill}
+          >
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
+                  <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.82} />
+                  <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.82} />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
+            </Svg>
+          </Moving>
+          <Moving
+            move={move}
+            pose={m => ({ opacity: m })}
+            pointerEvents="none"
+            style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
+          />
+        </>
+      )}
 
       {/* Laid out at the stage's size always, and scaled into the header for
           Focus: its artwork and its shadow shrink with it. */}
       <Moving
         move={move}
-        pose={m => coverPose(g, m)}
+        pose={m => coverPose(box, m)}
         style={[
           styles.cover,
           chrome,
-          { left: g.pad, top: COVER_TOP, width: g.cover, height: g.cover },
+          { left: box.left, top: box.top, width: box.size, height: box.size },
         ]}
       >
         {uri ? (
           <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
         ) : (
-          <Cover uri={null} title={song.album || song.title} size={g.cover} />
+          <Cover uri={null} title={song.album || song.title} size={box.size} />
         )}
       </Moving>
 
@@ -317,16 +363,26 @@ function Stage({
         <View
           style={[
             styles.meta,
-            { left: g.pad, top: COVER_TOP + g.cover + 24, width: Math.max(g.cover, 280) },
+            visualStage
+              ? // Beside the stepped-down cover, its foot on the cover's foot.
+                { left: box.left + box.size + 28, right: g.right, bottom: BAR + 44 }
+              : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
           ]}
         >
           <Text
             style={[
               styles.title,
-              { fontSize: g.title, lineHeight: g.title * 1.15, letterSpacing: -0.02 * g.title },
+              {
+                fontSize: visualStage ? g.visualTitle : g.title,
+                lineHeight: (visualStage ? g.visualTitle : g.title) * 1.15,
+                letterSpacing: -0.02 * (visualStage ? g.visualTitle : g.title),
+              },
             ]}
             numberOfLines={2}
-            accessibilityRole="header"
+            onPress={openSong}
+            accessibilityRole="link"
+            accessibilityLabel={`${song.title}: song details`}
+            testID="now-playing-info"
           >
             {song.title}
           </Text>
@@ -360,17 +416,16 @@ function Stage({
             </View>
           ) : null}
           <View style={styles.tags}>
-            {/* Each tag is a place of its own: its name opens its page. */}
+            {/* Each tag is a place of its own: its chip opens its page. */}
             {tags.map(tag => (
-              <Text
+              <Chip
                 key={tag.id}
+                label={tag.name}
+                hue={tag.hue}
+                selected={false}
+                compact
                 onPress={() => router.navigate(tagLink(tag.name))}
-                accessibilityRole="link"
-                accessibilityLabel={`Go to ${tag.name}`}
-                style={[styles.tag, { color: tagColors(tag.hue).ink }]}
-              >
-                {tag.name}
-              </Text>
+              />
             ))}
             <Pressable
               ref={tagsButtonRef}
@@ -418,21 +473,13 @@ function Stage({
               focus={focus}
               fontSize={focus ? g.focusLyric : g.lyric}
             />
-          ) : noLyrics ? (
-            focus ? null : (
-              <View style={styles.visualBox}>
-                <SongVisual song={song} kind={visual.kind} sampler={sampler} rounded />
-              </View>
-            )
-          ) : (
+          ) : noLyrics ? null : (
             <View style={styles.status}>
               <Text style={styles.statusText}>
                 Lyrics need your library — reconnect to look them up
               </Text>
             </View>
           )
-        ) : shownTab === 'queue' ? (
-          <StageQueue onClose={() => onTab('lyrics')} />
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
             <View style={styles.aboutBody}>
@@ -483,9 +530,14 @@ function Stage({
                 </Pressable>
               ))}
             </View>
+            {stylePill}
           </>
         )}
       </View>
+
+      {focus && stylePill ? (
+        <View style={[styles.tools, chrome, { top: 12, right: 66 }]}>{stylePill}</View>
+      ) : null}
 
       {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' ? (
         <View
@@ -509,45 +561,6 @@ function Stage({
             <Text style={[styles.toolText, lyrics.romanizationOn && styles.toolTextOn]}>
               {romanName(lyrics.language)}
             </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {shownTab === 'lyrics' && noLyrics ? (
-        <View
-          style={[
-            styles.visualFoot,
-            chrome,
-            focus
-              ? { left: HEAD_LEFT, right: 20, bottom: BAR + 20 }
-              : { left: frame.left, right: frame.right, top: height - 42 },
-          ]}
-        >
-          <View style={styles.visualCaptions}>
-            <Text
-              style={[styles.visualCaption, focus && styles.visualCaptionOnVisual]}
-              numberOfLines={1}
-            >
-              {visualCaption(song.audioFeatures)}
-            </Text>
-            <Text
-              style={[styles.visualFollowing, focus && styles.visualCaptionOnVisual]}
-              numberOfLines={1}
-            >
-              {motionCaption(sampler.source)}
-            </Text>
-          </View>
-          <Pressable
-            ref={styleButtonRef}
-            onPress={() => setStyleOpen(open => !open)}
-            accessibilityRole="button"
-            accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
-            aria-haspopup="menu"
-            aria-expanded={styleOpen}
-            style={({ pressed }) => [styles.tool, (pressed || styleOpen) && styles.toolPressed]}
-          >
-            <Text style={styles.toolText}>Style</Text>
-            <ChevronDown size={13} color={theme.colors.textSecondary} />
           </Pressable>
         </View>
       ) : null}
@@ -766,7 +779,6 @@ const styles = StyleSheet.create(theme => ({
   },
   keyText: { fontSize: 12, fontWeight: '600' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  tag: { fontSize: 12, fontWeight: '500', paddingHorizontal: 2 },
   tagButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -791,22 +803,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 9,
   },
   statusText: { color: theme.colors.textMuted, fontSize: 13 },
-  // Clear of the tabs' row above and of the caption and Style under it.
-  visualBox: { position: 'absolute', top: 12, left: 0, right: 0, bottom: 52 },
-  focusVisual: { zIndex: 1 },
-  visualFoot: {
-    position: 'absolute',
-    zIndex: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  visualCaptions: { flex: 1, minWidth: 0 },
-  visualCaption: { color: theme.colors.textMuted, fontSize: 12 },
-  // What the visual follows: under the caption, smaller and quieter still.
-  visualFollowing: { color: theme.colors.textMuted, fontSize: 10.5, opacity: 0.8, marginTop: 1 },
-  // On the visual's own dark ground, in either theme.
-  visualCaptionOnVisual: { color: 'rgba(255, 255, 255, 0.7)' },
+  visual: { zIndex: 1 },
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
   aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },

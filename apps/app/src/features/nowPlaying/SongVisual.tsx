@@ -6,7 +6,15 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated'
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -14,9 +22,11 @@ import type { MotionSampler } from './motionSource'
 import { useReducedMotion } from '../../ui/useReducedMotion'
 import { useVisualLook } from './useVisualLook'
 import {
-  AURORA_INKS,
-  auroraBrightness,
   createMotionState,
+  HILL_LAYERS,
+  hillPoints,
+  hillShare,
+  hillShift,
   MAX_RINGS,
   PlayheadClock,
   ringFade,
@@ -26,7 +36,16 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { driftReach, rgbCss, type VisualColors, type VisualKind } from './visuals.model'
+import {
+  horizonColors,
+  RING_FROM,
+  RING_TO,
+  rgbCss,
+  rippleDisc,
+  sunPlace,
+  type VisualColors,
+  type VisualKind,
+} from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
@@ -56,6 +75,13 @@ export interface SongVisualProps {
  * `setNativeProps`, which is a commit of the whole shadow tree — a dozen to
  * twenty of them a frame, on the thread that also has to answer a tap.)
  *
+ * Every moving thing is a transform or an opacity, which the UI thread sets
+ * without a layout. Horizon's hills are the one shape that changes, so they
+ * are not drawn as paths: each point of a line is a view holding the same
+ * rounded cap, raised or lowered to its level, and the caps side by side
+ * make the ridge (their union is the line through the points, with a soft
+ * dip between equal ones and a crease in a valley, as hills have).
+ *
  * Nothing is written once a paused visual has settled. Reduce Motion writes
  * one still frame.
  */
@@ -68,7 +94,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   const ringWidths = useSharedValue<readonly number[]>(NO_RINGS)
   const [drawn] = useState(makeDrawn)
   const [clock] = useState(() => new PlayheadClock())
-  const [middle, edge] = colors.ground
+  const edge = colors.ground[1]
 
   const live = useRef({ player, sampler, tuning })
   useEffect(() => {
@@ -86,18 +112,18 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
 
   useEffect(() => {
     if (!size || !reduced) return
-    const motion = createMotionState(BARS)
+    const motion = createMotionState(tuning.feel.loudness)
     stillMotion(motion, tuning, sampler.source)
     write(kind, motion, drawn, tuning, size, true, frame, ringWidths)
   }, [kind, reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
   useEffect(() => {
     if (!size || reduced) return undefined
-    const motion = createMotionState(BARS)
+    const motion = createMotionState(live.current.tuning.feel.loudness)
     let last = performance.now()
     let handle = 0
-    // The frame outlives a style: a paused Pulse left it settled, and a style
-    // picked then must still write its first frame, or Aurora never draws its floor.
+    // The frame outlives a style: a paused Ripples left it settled, and a style
+    // picked then must still write its first frame, or Horizon never raises its hills.
     let first = true
     const tick = (): void => {
       handle = requestAnimationFrame(tick)
@@ -124,24 +150,11 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
         )
       }}
     >
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="visual-ground" cx="50%" cy="50%" r="70%">
-            <Stop offset="0" stopColor={rgbCss(middle)} stopOpacity={1} />
-            <Stop offset="1" stopColor={rgbCss(edge)} stopOpacity={1} />
-          </RadialGradient>
-        </Defs>
-        <Circle cx="50%" cy="50%" r="80%" fill="url(#visual-ground)" />
-      </Svg>
       {size ? (
-        kind === 'aurora' ? (
-          <Aurora size={size} colors={colors} frame={frame} />
-        ) : kind === 'pulse' ? (
-          <Pulse size={size} colors={colors} frame={frame} ringWidths={ringWidths} />
-        ) : kind === 'spectrum' ? (
-          <Spectrum size={size} colors={colors} frame={frame} />
+        kind === 'horizon' ? (
+          <Horizon size={size} colors={colors} frame={frame} />
         ) : (
-          <Drift size={size} colors={colors} frame={frame} tuning={tuning} />
+          <Ripples size={size} colors={colors} frame={frame} ringWidths={ringWidths} />
         )
       ) : null}
     </View>
@@ -153,29 +166,27 @@ interface Size {
   height: number
 }
 
-const BARS = 20
-const BLOBS = 3
-const DRIFT_RINGS = 3
-const SPECKS_PER_RING = 9
-
 /*
- * Where each moving number sits in a frame. One array holds every style's
+ * Where each moving number sits in a frame. One array holds both styles'
  * numbers, so a frame is one write from the JavaScript thread however many
  * views move; each view's style reads its own few.
  */
-/** Per blob: opacity, x, y, scale. */
-const BLOB_AT = 0
-const BLOB_SIZE = 4
 /** Per ring: scale, opacity. Its width is a layout prop and travels apart (`ringWidths`). */
-const RING_AT = BLOB_AT + BLOBS * BLOB_SIZE
+const RING_AT = 0
 const RING_SIZE = 2
-const DOT_AT = RING_AT + MAX_RINGS * RING_SIZE
-const HALO_AT = DOT_AT + 1
-const BAR_AT = HALO_AT + 1
-/** Per orbit: turn in degrees, scale, opacity. */
-const ORBIT_AT = BAR_AT + BARS
-const ORBIT_SIZE = 3
-const FRAME_LENGTH = ORBIT_AT + DRIFT_RINGS * ORBIT_SIZE
+const DISC_AT = RING_AT + MAX_RINGS * RING_SIZE
+const HALO_AT = DISC_AT + 1
+/** The sun's scale, then its glow's opacity. */
+const SUN_AT = HALO_AT + 1
+/** Per hill line: how far it has moved left, in points, then each point's drop below its peak. */
+const HILL_AT = SUN_AT + 2
+const HILL_OFFSETS: number[] = []
+let hillEnd = HILL_AT
+for (const layer of HILL_LAYERS) {
+  HILL_OFFSETS.push(hillEnd)
+  hillEnd += 1 + hillPoints(layer.gaps)
+}
+const FRAME_LENGTH = hillEnd
 
 const EMPTY_FRAME: readonly number[] = Array.from({ length: FRAME_LENGTH }, () => 0)
 const NO_RINGS: readonly number[] = Array.from({ length: MAX_RINGS }, () => 2)
@@ -203,11 +214,10 @@ function makeDrawn(): Drawn {
   }
 }
 
-function isSettled(m: MotionState): boolean {
-  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.burst > 0.002 || m.rings.length > 0)
-    return false
-  for (const band of m.bands) if (band > 0.002) return false
-  return true
+/** Whether the showing style has anything left to move. Horizon's hills roll on while it plays. */
+function isSettled(kind: VisualKind, m: MotionState): boolean {
+  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.swell > 0.002) return false
+  return kind === 'horizon' ? !m.travelled : m.rings.length === 0
 }
 
 /** Writes this frame into the shared value the showing style reads. */
@@ -221,21 +231,23 @@ function write(
   frame: Frame,
   ringWidths: Frame,
 ): void {
-  const settled = isSettled(m)
+  const settled = isSettled(kind, m)
   if (settled && drawn.settled && !force) return
   drawn.settled = settled
   const out = drawn.out
   const g = m.glow
-  if (kind === 'aurora') {
-    const r = Math.max(size.width, size.height) * 0.42
-    for (let i = 0; i < BLOBS; i++) {
-      const at = BLOB_AT + i * BLOB_SIZE
-      out[at] = auroraBrightness(g, m.flash)
-      out[at + 1] = Math.sin(m.sway * 0.9 + i * 2.1) * r * 0.3 * (0.3 + 0.7 * g)
-      out[at + 2] = Math.cos(m.sway * 0.7 + i * 1.3) * r * 0.12
-      out[at + 3] = 0.75 + 0.35 * g + 0.08 * m.flash
-    }
-  } else if (kind === 'pulse') {
+  if (kind === 'horizon') {
+    out[SUN_AT] = 0.94 + 0.08 * g + 0.14 * m.swell
+    out[SUN_AT + 1] = Math.min(1, 0.35 + 0.4 * g + 0.25 * m.flash)
+    HILL_LAYERS.forEach((layer, index) => {
+      const trail = m.hills[index]!
+      const at = HILL_OFFSETS[index]!
+      const rise = size.height * layer.rise
+      out[at] = -hillShift(trail) * (size.width / layer.gaps)
+      for (let i = 0; i < trail.levels.length; i++)
+        out[at + 1 + i] = rise * (1 - hillShare(trail.levels[i] ?? 0))
+    })
+  } else {
     let widthsChanged = false
     for (let slot = 0; slot < MAX_RINGS; slot++) {
       const at = RING_AT + slot * RING_SIZE
@@ -246,24 +258,15 @@ function write(
       }
       if (drawn.ringIds[slot] !== ring.id) {
         drawn.ringIds[slot] = ring.id
-        drawn.widths[slot] = 1.5 + 5 * ring.strength
+        drawn.widths[slot] = 1.5 + 1.5 * ring.strength
         widthsChanged = true
       }
-      out[at] = 0.02 + 0.98 * ringReach(ring, tu)
-      out[at + 1] = ringFade(ring, tu) * 0.9
+      out[at] = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
+      out[at + 1] = ringFade(ring, tu) * 0.85
     }
     if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
-    out[DOT_AT] = 0.5 + 0.8 * g + 0.7 * m.kick
-    out[HALO_AT] = Math.min(1, 0.08 + 0.35 * g + 0.35 * m.kick)
-  } else if (kind === 'spectrum') {
-    for (let i = 0; i < BARS; i++) out[BAR_AT + i] = Math.max(0.03, m.bands[i] ?? 0)
-  } else {
-    for (let ring = 0; ring < DRIFT_RINGS; ring++) {
-      const at = ORBIT_AT + ring * ORBIT_SIZE
-      out[at] = ((m.spin * (1 + ring * 0.25) * 180) / Math.PI) % 360
-      out[at + 1] = 1 + 0.3 * m.burst * ((ring + 1) / DRIFT_RINGS)
-      out[at + 2] = 0.3 + 0.55 * g
-    }
+    out[DISC_AT] = 1 + 0.06 * m.kick
+    out[HALO_AT] = Math.min(1, 0.15 + 0.45 * g + 0.3 * m.kick)
   }
   // A copy: the shared value is handed to the UI thread after this frame's
   // work, and `out` is filled in again on the next.
@@ -276,24 +279,88 @@ interface StyleProps {
   frame: Frame
 }
 
-/* Soft glows in the cover's colours: bigger, brighter and quicker the louder it is. */
-function Aurora({ size, colors, frame }: StyleProps): ReactNode {
+/*
+ * Horizon (P23): a dusk sky in the song's colours, a sun that swells on each
+ * hit, and three hill lines drawn from the loudness heard, rolling left.
+ */
+function Horizon({ size, colors, frame }: StyleProps): ReactNode {
+  const look = horizonColors(colors)
+  const sun = sunPlace(size.width, size.height)
+  const glow = sun.d * 2.6
+  const sunStyle = useAnimatedStyle(() => ({ transform: [{ scale: frame.value[SUN_AT] ?? 1 }] }))
+  const glowStyle = useAnimatedStyle(() => ({ opacity: frame.value[SUN_AT + 1] ?? 0.5 }))
+  const sunInk = rgbCss(look.sun)
   return (
     <>
-      {AURORA_INKS.slice(0, BLOBS).map((inkIndex, index) => (
-        <Blob
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="horizon-sky" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={rgbCss(look.sky[0])} stopOpacity={1} />
+            <Stop offset="0.42" stopColor={rgbCss(look.sky[1])} stopOpacity={1} />
+            <Stop offset="0.74" stopColor={rgbCss(look.sky[2])} stopOpacity={1} />
+            <Stop offset="1" stopColor={rgbCss(look.sky[3])} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-sky)" />
+      </Svg>
+      <Animated.View
+        style={[
+          styles.at,
+          { left: sun.x - glow / 2, top: sun.y - glow / 2, width: glow, height: glow },
+          glowStyle,
+        ]}
+      >
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id="horizon-glow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0.3" stopColor={sunInk} stopOpacity={0.45} />
+              <Stop offset="1" stopColor={sunInk} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx="50%" cy="50%" r="50%" fill="url(#horizon-glow)" />
+        </Svg>
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.at,
+          {
+            left: sun.x - sun.d / 2,
+            top: sun.y - sun.d / 2,
+            width: sun.d,
+            height: sun.d,
+            borderRadius: sun.d / 2,
+            backgroundColor: sunInk,
+          },
+          sunStyle,
+        ]}
+      />
+      {HILL_LAYERS.map((layer, index) => (
+        <HillLine
           key={index}
           index={index}
           size={size}
-          ink={rgbCss(colors.inks[inkIndex]!)}
+          ink={rgbCss(look.hills[index]!)}
           frame={frame}
         />
       ))}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="horizon-foot" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0.6" stopColor={rgbCss(look.foot)} stopOpacity={0} />
+            <Stop offset="0.86" stopColor={rgbCss(look.foot)} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-foot)" />
+      </Svg>
     </>
   )
 }
 
-function Blob({
+/**
+ * One hill line: a row of caps that moves left by the share of a point the
+ * line has travelled, each cap lowered from its peak by its point's level.
+ */
+function HillLine({
   index,
   size,
   ink,
@@ -304,93 +371,147 @@ function Blob({
   ink: string
   frame: Frame
 }): ReactNode {
-  const r = Math.max(size.width, size.height) * 0.42
-  const id = `aurora-${index}`
-  const at = BLOB_AT + index * BLOB_SIZE
-  const moving = useAnimatedStyle(() => {
-    const f = frame.value
-    return {
-      opacity: f[at] ?? 0,
-      transform: [
-        { translateX: f[at + 1] ?? 0 },
-        { translateY: f[at + 2] ?? 0 },
-        { scale: f[at + 3] ?? 1 },
-      ],
-    }
-  })
+  const layer = HILL_LAYERS[index]!
+  const at = HILL_OFFSETS[index]!
+  const gap = size.width / layer.gaps
+  const rise = size.height * layer.rise
+  const peak = size.height * layer.base - rise
+  // A cap is a parabola four gaps wide with straight sides below it: two
+  // equal neighbours meet a quarter of `bow` down, and its sides are always
+  // hidden, sitting lower than any neighbour can.
+  const bow = rise * 0.35
+  const tall = size.height - peak + rise
+  const cap = `M0 ${4 * bow} Q ${2 * gap} ${-4 * bow} ${4 * gap} ${4 * bow} L ${4 * gap} ${tall} L 0 ${tall} Z`
+  const moving = useAnimatedStyle(() => ({ transform: [{ translateX: frame.value[at] ?? 0 }] }))
   return (
-    <Animated.View
-      style={[
-        styles.blob,
-        {
-          left: size.width * (0.2 + index * 0.3) - r,
-          top: size.height * (0.35 + (index % 2) * 0.25) - r,
-          width: r * 2,
-          height: r * 2,
-        },
-        moving,
-      ]}
-    >
-      <Svg width="100%" height="100%">
-        <Defs>
-          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={ink} stopOpacity={0.9} />
-            <Stop offset="1" stopColor={ink} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Circle cx="50%" cy="50%" r="50%" fill={`url(#${id})`} />
+    <Animated.View style={[styles.line, moving]}>
+      {Array.from({ length: hillPoints(layer.gaps) }, (_, point) => (
+        <HillCap
+          key={point}
+          at={at + 1 + point}
+          left={(point - 1) * gap - 2 * gap}
+          top={peak}
+          width={4 * gap}
+          height={tall}
+          path={cap}
+          ink={ink}
+          frame={frame}
+        />
+      ))}
+    </Animated.View>
+  )
+}
+
+function HillCap({
+  at,
+  left,
+  top,
+  width,
+  height,
+  path,
+  ink,
+  frame,
+}: {
+  at: number
+  left: number
+  top: number
+  width: number
+  height: number
+  path: string
+  ink: string
+  frame: Frame
+}): ReactNode {
+  const moving = useAnimatedStyle(() => ({ transform: [{ translateY: frame.value[at] ?? 0 }] }))
+  return (
+    <Animated.View style={[styles.at, { left, top, width, height }, moving]}>
+      <Svg width={width} height={height}>
+        <Path d={path} fill={ink} />
       </Svg>
     </Animated.View>
   )
 }
 
-/* A ring leaves the centre on each hit; the dot follows the level and kicks. */
-function Pulse({ size, colors, frame, ringWidths }: StyleProps & { ringWidths: Frame }): ReactNode {
-  const reach = Math.min(size.width, size.height) * 0.96
-  const dot = Math.min(size.width, size.height) * 0.09
-  const halo = reach * 0.6
+/*
+ * Ripples (P24): a disc in the cover's colours that kicks on each hit and
+ * sends a ring out from behind it, as strong as the hit; a halo that glows
+ * with the level; the cover's colours washed faintly over the ground.
+ */
+function Ripples({
+  size,
+  colors,
+  frame,
+  ringWidths,
+}: StyleProps & { ringWidths: Frame }): ReactNode {
+  const disc = rippleDisc(size.width, size.height)
+  const halo = disc * 1.9
+  const [middle, edge] = colors.ground
   const haloInk = rgbCss(colors.inks[0])
   const haloStyle = useAnimatedStyle(() => ({ opacity: frame.value[HALO_AT] ?? 0 }))
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: frame.value[DOT_AT] ?? 1 }],
+  const discStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: frame.value[DISC_AT] ?? 1 }],
   }))
   return (
-    <View style={styles.centre}>
-      <Animated.View style={[styles.ring, { width: halo, height: halo }, haloStyle]}>
-        <Svg width="100%" height="100%">
-          <Defs>
-            <RadialGradient id="pulse-halo" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor={haloInk} stopOpacity={0.6} />
-              <Stop offset="1" stopColor={haloInk} stopOpacity={0} />
-            </RadialGradient>
-          </Defs>
-          <Circle cx="50%" cy="50%" r="50%" fill="url(#pulse-halo)" />
-        </Svg>
-      </Animated.View>
-      {Array.from({ length: MAX_RINGS }, (_, slot) => (
-        <Ring
-          key={slot}
-          slot={slot}
-          reach={reach}
-          ink={rgbCss(colors.inks[slot % 2]!)}
-          frame={frame}
-          ringWidths={ringWidths}
-        />
-      ))}
-      <Animated.View
-        style={[
-          {
-            width: dot,
-            height: dot,
-            borderRadius: dot / 2,
-            backgroundColor: rgbCss(colors.inks[2]),
-          },
-          dotStyle,
-        ]}
-      />
-    </View>
+    <>
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <RadialGradient id="ripples-ground" cx="50%" cy="50%" r="70%">
+            <Stop offset="0" stopColor={rgbCss(middle)} stopOpacity={1} />
+            <Stop offset="1" stopColor={rgbCss(edge)} stopOpacity={1} />
+          </RadialGradient>
+          <RadialGradient id="ripples-wash-a" cx="20%" cy="18%" r="60%">
+            <Stop offset="0" stopColor={rgbCss(colors.inks[0])} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={rgbCss(colors.inks[0])} stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="ripples-wash-b" cx="82%" cy="84%" r="60%">
+            <Stop offset="0" stopColor={rgbCss(colors.inks[1])} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={rgbCss(colors.inks[1])} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-ground)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-wash-a)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-wash-b)" />
+      </Svg>
+      <View style={styles.centre}>
+        <Animated.View style={[styles.at, { width: halo, height: halo }, haloStyle]}>
+          <Svg width="100%" height="100%">
+            <Defs>
+              <RadialGradient id="ripples-halo" cx="50%" cy="50%" r="50%">
+                <Stop offset="0.4" stopColor={haloInk} stopOpacity={0.5} />
+                <Stop offset="1" stopColor={haloInk} stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx="50%" cy="50%" r="50%" fill="url(#ripples-halo)" />
+          </Svg>
+        </Animated.View>
+        {Array.from({ length: MAX_RINGS }, (_, slot) => (
+          <Ring
+            key={slot}
+            slot={slot}
+            reach={disc}
+            ink={rgbCss(colors.inks[RING_INKS[slot % RING_INKS.length]!])}
+            frame={frame}
+            ringWidths={ringWidths}
+          />
+        ))}
+        <Animated.View style={[{ width: disc, height: disc }, discStyle]}>
+          <Svg width="100%" height="100%">
+            <Defs>
+              <RadialGradient id="ripples-disc" cx="42%" cy="38%" r="70%">
+                <Stop offset="0" stopColor={rgbCss(colors.inks[2])} stopOpacity={1} />
+                <Stop offset="0.7" stopColor={rgbCss(colors.inks[0])} stopOpacity={1} />
+                <Stop offset="1" stopColor={rgbCss(colors.inks[1])} stopOpacity={1} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx="50%" cy="50%" r="50%" fill="url(#ripples-disc)" />
+          </Svg>
+        </Animated.View>
+      </View>
+    </>
   )
 }
+
+/** Which ink each ring view draws in: the lead, then the other two, as P24's rings take turns. */
+const RING_INKS = [2, 0, 1] as const
 
 function Ring({
   slot,
@@ -408,7 +529,7 @@ function Ring({
   const at = RING_AT + slot * RING_SIZE
   const moving = useAnimatedStyle(() => {
     const f = frame.value
-    return { opacity: f[at + 1] ?? 0, transform: [{ scale: f[at] ?? 0.02 }] }
+    return { opacity: f[at + 1] ?? 0, transform: [{ scale: f[at] ?? RING_FROM }] }
   })
   // Its own style, off its own value: a border width is a layout prop, so a
   // change to it is a shadow-tree commit. Set when a ring takes this view —
@@ -417,7 +538,7 @@ function Ring({
   return (
     <Animated.View
       style={[
-        styles.ring,
+        styles.at,
         { width: reach, height: reach, borderRadius: reach / 2, borderColor: ink },
         width,
         moving,
@@ -426,130 +547,12 @@ function Ring({
   )
 }
 
-/* Bars for the song: its curve's level and hits, low to high. */
-function Spectrum({ size, colors, frame }: StyleProps): ReactNode {
-  const gap = Math.max(3, size.width / BARS / 5)
-  const barWidth = (size.width - gap * (BARS + 1)) / BARS
-  const tall = size.height * 0.62
-  return (
-    <View style={[styles.bars, { gap, paddingHorizontal: gap, bottom: size.height * 0.14 }]}>
-      {Array.from({ length: BARS }, (_, index) => (
-        <Bar
-          key={index}
-          index={index}
-          width={barWidth}
-          height={tall}
-          ink={rgbCss(index < BARS / 2 ? colors.inks[0] : colors.inks[1])}
-          frame={frame}
-        />
-      ))}
-    </View>
-  )
-}
-
-function Bar({
-  index,
-  width,
-  height,
-  ink,
-  frame,
-}: {
-  index: number
-  width: number
-  height: number
-  ink: string
-  frame: Frame
-}): ReactNode {
-  const at = BAR_AT + index
-  const moving = useAnimatedStyle(() => ({ transform: [{ scaleY: frame.value[at] ?? 0.03 }] }))
-  return (
-    <Animated.View
-      style={[
-        {
-          width,
-          height,
-          borderRadius: Math.min(3, width / 2),
-          backgroundColor: ink,
-          transformOrigin: 'bottom',
-        },
-        moving,
-      ]}
-    />
-  )
-}
-
-/* Specks orbiting the centre: faster the louder it is, thrown outward on a hit. */
-function Drift({ size, colors, frame, tuning }: StyleProps & { tuning: MotionTuning }): ReactNode {
-  const base = Math.min(size.width, size.height)
-  const reach = driftReach(tuning.feel.energy)
-  return (
-    <>
-      {Array.from({ length: DRIFT_RINGS }, (_, ring) => (
-        <Orbit
-          key={ring}
-          ring={ring}
-          size={size}
-          radius={base * (0.08 + ((ring + 1) / DRIFT_RINGS) * reach)}
-          ink={rgbCss(colors.inks[ring % 3]!)}
-          frame={frame}
-        />
-      ))}
-    </>
-  )
-}
-
-function Orbit({
-  ring,
-  size,
-  radius,
-  ink,
-  frame,
-}: {
-  ring: number
-  size: Size
-  radius: number
-  ink: string
-  frame: Frame
-}): ReactNode {
-  const at = ORBIT_AT + ring * ORBIT_SIZE
-  const moving = useAnimatedStyle(() => {
-    const f = frame.value
-    return {
-      opacity: f[at + 2] ?? 0.5,
-      transform: [{ rotate: `${f[at] ?? 0}deg` }, { scale: f[at + 1] ?? 1 }],
-    }
-  })
-  const speck = 1.6 + ring * 0.8
-  const offset = ring * 0.7
-  return (
-    <Animated.View style={[styles.fill, moving]}>
-      {Array.from({ length: SPECKS_PER_RING }, (_, index) => {
-        const angle = offset + (index / SPECKS_PER_RING) * Math.PI * 2
-        const r = radius * (0.85 + ((index * 7) % 5) * 0.06)
-        const dot = speck * (1 + (index % 3) * 0.5)
-        return (
-          <View
-            key={index}
-            style={{
-              position: 'absolute',
-              left: size.width / 2 + Math.cos(angle) * r - dot,
-              top: size.height / 2 + Math.sin(angle) * r - dot,
-              width: dot * 2,
-              height: dot * 2,
-              borderRadius: dot,
-              backgroundColor: ink,
-            }}
-          />
-        )
-      })}
-    </Animated.View>
-  )
-}
-
 const styles = StyleSheet.create({
-  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  rounded: { borderRadius: radius.card, overflow: 'hidden' },
-  blob: { position: 'absolute' },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' },
+  rounded: { borderRadius: radius.card },
+  at: { position: 'absolute' },
+  // Unclipped: its caps reach past both edges, and it moves.
+  line: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   centre: {
     position: 'absolute',
     top: 0,
@@ -558,13 +561,5 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  ring: { position: 'absolute' },
-  bars: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
   },
 })

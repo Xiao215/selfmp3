@@ -16,6 +16,7 @@ import {
   space,
 } from '@selfmp3/client'
 import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
+import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
@@ -110,13 +111,8 @@ export function MiniPlayer(): ReactNode {
         </Text>
       </Animated.View>
 
-      {/* Up next. Until it is a sheet of its own (docs/UI-MIGRATION.md, Phase 6)
-          it opens Now Playing with the queue already raised. */}
-      <IconButton
-        testID="mini-player-queue"
-        onPress={() => router.push({ pathname: '/now-playing', params: { panel: 'queue' } })}
-        label="Up next"
-      >
+      {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
+      <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
         <Queue size={20} color={theme.colors.textSecondary} />
       </IconButton>
       {/*

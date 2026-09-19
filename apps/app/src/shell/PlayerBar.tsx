@@ -4,11 +4,11 @@ import { PanResponder, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
-import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
-import { parseMode, parseTab } from '../features/nowPlaying/nowPlaying.model'
+import { usePathname, useRouter } from 'expo-router'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { loopRegionPercent, radius, space, type, withAlpha, useToggleLoved } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
+import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
 import { usePlayer, usePlayerProgress, usePlayerStalled } from '../player/PlayerProvider'
 import { useSongColor } from '../ui/useSongColor'
@@ -47,9 +47,11 @@ import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
- * right, three groups with room between them, because a row of controls
- * reads as a wall of icons and they are three jobs: what is on screen, how it
- * plays, and where it comes out.
+ * right, in the order docs/UI-MIGRATION.md (Phase 6) gives — speed, volume,
+ * Up next, devices — three groups with room between them, because a row of
+ * controls reads as a wall of icons and they are three jobs: how it plays,
+ * how loud, and what is beside the page and where it comes out. Up next
+ * toggles the rail (`QueueRail`) and is lit while it is open.
  *
  * Speed has no button here: it lives in Practice with every other way of
  * changing how a song plays back. While it is not 1× the metronome says so
@@ -97,25 +99,17 @@ export function PlayerBar(): ReactNode {
   const [devicesOpen, setDevicesOpen] = useState(false)
   const devicesRef = useRef<View>(null)
 
-  // Now Playing's tab and mode live in its address, so the bar can read and
-  // change them the same way it changes the page.
   const pathname = usePathname()
-  const pageParams = useGlobalSearchParams<{ tab?: string; mode?: string }>()
   const onPage = pathname === '/now-playing'
-  const pageMode = onPage ? parseMode(pageParams.mode) : null
-  const pageTab = onPage ? parseTab(pageParams.tab) : null
-  const queueOpen = pageMode === 'stage' && pageTab === 'queue'
   const closePage = (): void =>
     leaveStage(() => {
       if (router.canGoBack()) router.back()
       else router.replace('/')
     })
   const togglePage = (): void => (onPage ? closePage() : router.push('/now-playing'))
-  /** With the page open, the queue is one of its tabs. */
-  const openQueue = (): void => {
-    if (onPage) router.setParams({ mode: 'stage', tab: queueOpen ? 'lyrics' : 'queue' })
-    else router.push('/now-playing?tab=queue')
-  }
+  // Up next is the rail beside whatever page is open, Now Playing included
+  // (docs/ui-mock `C11`), so the button toggles the rail and goes nowhere.
+  const queueOpen = useQueueSheetOpen()
 
   return (
     <View
@@ -230,10 +224,7 @@ export function PlayerBar(): ReactNode {
       </View>
 
       <View style={styles.right}>
-        <View style={styles.group} role="group" aria-label="Panels">
-          <IconButton onPress={openQueue} label="Queue" active={queueOpen}>
-            <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
-          </IconButton>
+        <View style={styles.group} role="group" aria-label="Playback">
           {player.rate !== 1 ? (
             <ValuePill
               Icon={Metronome}
@@ -258,17 +249,25 @@ export function PlayerBar(): ReactNode {
               />
             </IconButton>
           )}
-        </View>
-        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Playback">
           <SleepButton />
         </View>
-        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Output">
+        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
+          <VolumeControl compact={width < COMPACT_WIDTH} />
+        </View>
+        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
+          <IconButton
+            testID="player-bar-queue"
+            onPress={toggleQueueSheet}
+            label="Up next"
+            active={queueOpen}
+          >
+            <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
+          </IconButton>
           <View ref={devicesRef} collapsable={false}>
             <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
               <Devices size={17} color={theme.colors.textSecondary} />
             </IconButton>
           </View>
-          <VolumeControl compact={width < COMPACT_WIDTH} />
         </View>
       </View>
 

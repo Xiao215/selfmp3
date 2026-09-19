@@ -1,4 +1,4 @@
-import { formatLongDuration, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
+import type { LyricsLanguage, ParsedLyrics } from '@selfmp3/shared'
 
 /**
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
@@ -7,12 +7,61 @@ import { formatLongDuration, type LyricsLanguage, type ParsedLyrics } from '@sel
  * The numbers follow the page's own width and height rather than the window's.
  */
 
-export type StageTab = 'lyrics' | 'queue' | 'about'
+/*
+ * Up next is not a tab: it is the rail beside the page (`features/queue`), so
+ * the stage keeps the song's words and what is known about it.
+ */
+export type StageTab = 'lyrics' | 'about'
 export type PageMode = 'stage' | 'focus'
 
 /** The tab in the address, or the lyrics when it names nothing we know. */
 export function parseTab(value: unknown): StageTab {
-  return value === 'queue' || value === 'about' ? value : 'lyrics'
+  return value === 'about' ? 'about' : 'lyrics'
+}
+
+/**
+ * The phone page's two views of one route (docs/ui-mock `P21`, `P22`): the
+ * cover, and the words alone. In the address, so a swipe up is a step the
+ * page can be sent back from and a link can open the words directly.
+ */
+export type PhoneView = 'cover' | 'lyrics'
+
+export function parseView(value: unknown): PhoneView {
+  return value === 'lyrics' ? 'lyrics' : 'cover'
+}
+
+/** The cover while paused, as a share of its size playing (`M1`, "The cover breathes"). */
+export const PAUSED_COVER_SCALE = 0.84
+/** How long the cover takes to breathe in or out. */
+export const BREATH_MS = 400
+
+/** How far a pull must travel to count, or how quick a flick. */
+const SWIPE_DISTANCE = 140
+const SWIPE_FLICK_DISTANCE = 48
+const SWIPE_FLICK_VELOCITY = 0.9
+
+/**
+ * What a vertical pull on the phone page does once it is let go.
+ *
+ * On the cover a pull down puts the page away and a pull up opens the words;
+ * on the words a pull down goes back to the cover, and a pull up does nothing
+ * (the lyrics scroll that way). A long pull or a quick flick counts; anything
+ * less springs back.
+ */
+export function swipeOutcome({
+  view,
+  dy,
+  vy,
+}: {
+  view: PhoneView
+  dy: number
+  vy: number
+}): 'close' | 'lyrics' | 'cover' | null {
+  const far = (d: number, v: number): boolean =>
+    d > SWIPE_DISTANCE || (d > SWIPE_FLICK_DISTANCE && v > SWIPE_FLICK_VELOCITY)
+  if (far(dy, vy)) return view === 'cover' ? 'close' : 'cover'
+  if (view === 'cover' && far(-dy, -vy)) return 'lyrics'
+  return null
 }
 
 export function parseMode(value: unknown): PageMode {
@@ -98,6 +147,12 @@ export interface StageGeometry {
   readonly right: number
   readonly cover: number
   readonly title: number
+  /**
+   * A song with no lyrics (`C10`): the visual is the window, and the cover
+   * steps down to its foot, smaller, with the title beside it and larger.
+   */
+  readonly visualCover: number
+  readonly visualTitle: number
   readonly lyric: number
   readonly focusLyric: number
 }
@@ -110,6 +165,8 @@ export function stageGeometry(width: number, height: number): StageGeometry {
     right: clamp(20, width * 0.04, 56),
     cover: Math.max(180, Math.min(400, width * 0.34, height - 290)),
     title: clamp(22, width * 0.022, 30),
+    visualCover: clamp(150, Math.min(width * 0.16, height * 0.28), 220),
+    visualTitle: clamp(28, width * 0.031, 44),
     lyric: clamp(22, width * 0.023, 32),
     focusLyric: clamp(30, width * 0.039, 54),
   }
@@ -144,106 +201,12 @@ export function upNextSeconds({
 }
 
 /**
- * One line of the queue as it is drawn: the fold that holds the songs already
- * played, a song (by its place in the queue), or the "Up next" label between
- * the song that is playing and the ones after it.
- */
-export type QueueLine =
-  | { readonly kind: 'played'; readonly count: number; readonly open: boolean }
-  | { readonly kind: 'song'; readonly index: number }
-  | { readonly kind: 'upNext' }
-
-/**
- * The queue from what is playing onwards.
- *
- * A long session is mostly history, and a queue that opened on its first song
- * put what is coming a scroll away. So the played songs fold into one line
- * above the song that is playing, and opening the fold puts them back for a
- * jump to one of them. The label only shows when something follows.
- */
-export function queueLines(index: number, count: number, playedOpen: boolean): QueueLine[] {
-  if (count === 0) return []
-  const current = Math.max(0, Math.min(index, count - 1))
-  const lines: QueueLine[] = []
-  if (current > 0) {
-    lines.push({ kind: 'played', count: current, open: playedOpen })
-    if (playedOpen) for (let i = 0; i < current; i++) lines.push({ kind: 'song', index: i })
-  }
-  lines.push({ kind: 'song', index: current })
-  if (current < count - 1) {
-    lines.push({ kind: 'upNext' })
-    for (let i = current + 1; i < count; i++) lines.push({ kind: 'song', index: i })
-  }
-  return lines
-}
-
-/** "Up next · 1 song · 4 min": the label over what follows the song that is playing. */
-export function upNextLine(count: number, seconds: number): string {
-  return `Up next · ${count} ${count === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`
-}
-
-/**
- * What auto-mix will do next, beside its switch in the queue. A phone's
- * player cannot crossfade, so there it only orders.
- */
-export function autoMixLine({
-  autoMix,
-  canCrossfade,
-  upcoming,
-  nextCrossfadeSeconds,
-}: {
-  autoMix: boolean
-  canCrossfade: boolean
-  upcoming: number
-  nextCrossfadeSeconds: number
-}): string {
-  if (!autoMix) return 'plays in queue order'
-  if (upcoming === 0) return 'nothing to mix yet'
-  return canCrossfade
-    ? `next crossfade ${nextCrossfadeSeconds}s`
-    : 'ordered by tempo, key and energy'
-}
-
-/**
- * How tall the similar-songs shelf is on a phone: heading, cards and the gap
- * under them. The shelf is drawn into exactly this height (`SimilarShelf`), so
- * the room the cover gives up for it is the room it takes — and an empty slot
- * held while the neighbours are being fetched is the same height as a full one.
+ * How tall the similar-songs shelf is: heading, cards and the gap under them.
+ * The shelf is drawn into exactly this height (`SimilarShelf`), so an empty
+ * slot held while the neighbours are being fetched is the same height as a
+ * full one.
  */
 export const SIMILAR_SHELF_HEIGHT = 144
-
-/** The smallest the cover gets on a phone, shelf or not. */
-export const PHONE_ART_MIN = 180
-
-/**
- * The phone page's cover, and whether the similar-songs shelf fits under the
- * controls. The cover gives up the shelf's height; if that would take it below
- * its floor, the shelf stays out and the page is as it was.
- *
- * `similar` is null while this song's neighbours are still being asked for.
- * Not knowing is not the same as knowing there are none: the page keeps the
- * shelf's place and the cover's size until the answer is in, rather than
- * laying itself out for "no neighbours" and rearranging a frame later — which
- * is what made the whole page jump every time the song changed.
- */
-export function similarShelfLayout({
-  width,
-  height,
-  sidePadding,
-  similar,
-}: {
-  width: number
-  height: number
-  sidePadding: number
-  similar: number | null
-}): { artSize: number; showShelf: boolean } {
-  const room = (reserved: number): number =>
-    Math.min(width - sidePadding * 2, 340, height - reserved)
-  const withShelf = room(500 + SIMILAR_SHELF_HEIGHT)
-  const expected = similar === null || similar > 0
-  if (expected && withShelf >= PHONE_ART_MIN) return { artSize: withShelf, showShelf: true }
-  return { artSize: Math.max(PHONE_ART_MIN, room(500)), showShelf: false }
-}
 
 /** A similar song played from the shelf goes first, with the rest after it in their order. */
 export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {

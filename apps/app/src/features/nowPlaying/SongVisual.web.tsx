@@ -8,10 +8,11 @@ import { useReducedMotion } from '../../ui/useReducedMotion'
 import { useVisualLook } from './useVisualLook'
 import { recordVisualFrame } from './visualDebug'
 import {
-  AURORA_INKS,
-  auroraBrightness,
   createMotionState,
-  resizeBands,
+  HILL_LAYERS,
+  hillShare,
+  hillShift,
+  hillX,
   ringFade,
   ringReach,
   stepMotion,
@@ -19,7 +20,16 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { driftReach, rgbCss, type VisualColors, type VisualKind } from './visuals.model'
+import {
+  horizonColors,
+  RING_FROM,
+  RING_TO,
+  rgbCss,
+  rippleDisc,
+  sunPlace,
+  type VisualColors,
+  type VisualKind,
+} from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
@@ -57,7 +67,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return undefined
 
-    const motion = createMotionState(16)
+    const motion = createMotionState(live.current.tuning.feel.loudness)
     let last = performance.now()
     let stillKey = ''
     let frame = 0
@@ -81,7 +91,6 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-      resizeBands(motion, kind === 'spectrum' ? spectrumBars(width) : 16)
       if (still) {
         stillMotion(motion, tu, s.source)
       } else {
@@ -121,11 +130,6 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   )
 }
 
-/** Spectrum's bar count for a width: about one bar every 18 points, 16 to 48 of them. */
-function spectrumBars(width: number): number {
-  return Math.max(16, Math.min(48, Math.floor(width / 18)))
-}
-
 type Ctx = CanvasRenderingContext2D
 
 type Drawing = (
@@ -146,133 +150,143 @@ function draw(
   tu: MotionTuning,
   m: MotionState,
 ): void {
-  ground(ctx, w, h, c, m.kick * 0.05 * m.glow + m.flash * 0.05)
   DRAWINGS[kind](ctx, w, h, c, tu, m)
 }
 
-function ground(ctx: Ctx, w: number, h: number, colors: VisualColors, lift: number): void {
-  const glow = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
-  const [middle, edge] = colors.ground
-  glow.addColorStop(0, rgbCss(lighten(middle, lift)))
-  glow.addColorStop(1, rgbCss(edge))
-  ctx.fillStyle = glow
-  ctx.fillRect(0, 0, w, h)
-}
-
 const DRAWINGS: Record<VisualKind, Drawing> = {
-  /* Bands in the cover's colours: taller, brighter and quicker the louder it is; a flash on a big hit. */
-  aurora(ctx, w, h, c, tu, m) {
-    const g = m.glow
-    const t = m.sway
-    ctx.globalCompositeOperation = 'lighter'
-    for (let band = 0; band < 4; band++) {
-      const y0 = h * (0.34 + band * 0.12 + (1 - g) * 0.16)
-      const swell = h * (0.025 + 0.085 * g)
-      const ripple = h * (0.01 + 0.03 * g) * (0.5 + tu.feel.danceability)
-      ctx.beginPath()
-      ctx.moveTo(0, h)
-      for (let x = 0; x <= w; x += 8) {
-        const y =
-          y0 +
-          Math.sin((x / w) * 3 + t * 0.9 + band) * swell +
-          Math.sin((x / w) * 7 - t * 1.4 + band * 2) * ripple
-        ctx.lineTo(x, y)
-      }
-      ctx.lineTo(w, h)
-      ctx.closePath()
-      const breath = 0.45 * auroraBrightness(g, m.flash) + 0.03 * Math.sin(t * 2.2 + band)
-      const fill = ctx.createLinearGradient(0, y0 - h * 0.2, 0, h)
-      const ink = c.inks[AURORA_INKS[band]!]
-      fill.addColorStop(0, rgbCss(ink, breath))
-      fill.addColorStop(1, rgbCss(ink, 0))
-      ctx.fillStyle = fill
-      ctx.fill()
-    }
-    ctx.globalCompositeOperation = 'source-over'
-  },
+  /* A dusk sky in the song's colours, a sun that swells on each hit, and three hill lines drawn from the loudness heard, rolling left. */
+  horizon(ctx, w, h, c, _tu, m) {
+    const look = horizonColors(c)
+    const sky = ctx.createLinearGradient(0, 0, 0, h)
+    sky.addColorStop(0, rgbCss(look.sky[0]))
+    sky.addColorStop(0.42, rgbCss(look.sky[1]))
+    sky.addColorStop(0.74, rgbCss(look.sky[2]))
+    sky.addColorStop(1, rgbCss(look.sky[3]))
+    ctx.fillStyle = sky
+    ctx.fillRect(0, 0, w, h)
 
-  /* A ring leaves the centre on each hit, as strong as the hit; the dot follows the level and kicks. */
-  pulse(ctx, w, h, c, tu, m) {
-    const reach = Math.min(w, h) * 0.48
-    const cx = w / 2
-    const cy = h / 2
-    for (const ring of m.rings) {
-      const travelled = ringReach(ring, tu)
-      ctx.beginPath()
-      ctx.arc(cx, cy, Math.max(1, travelled * reach), 0, Math.PI * 2)
-      ctx.strokeStyle = rgbCss(c.inks[ring.id % 2]!, ringFade(ring, tu) * 0.9)
-      ctx.lineWidth = 1 + 7 * ring.strength * (1 - travelled)
-      ctx.stroke()
-    }
-    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach * (0.35 + 0.25 * m.glow))
-    halo.addColorStop(0, rgbCss(c.inks[0], 0.05 + 0.22 * m.glow + 0.25 * m.kick))
-    halo.addColorStop(1, rgbCss(c.inks[0], 0))
-    ctx.fillStyle = halo
+    const sun = sunPlace(w, h)
+    const r = (sun.d / 2) * (0.94 + 0.08 * m.glow + 0.14 * m.swell)
+    const glow = ctx.createRadialGradient(sun.x, sun.y, r * 0.6, sun.x, sun.y, sun.d * 1.3)
+    const shine = Math.min(1, 0.35 + 0.4 * m.glow + 0.25 * m.flash)
+    glow.addColorStop(0, rgbCss(look.sun, 0.45 * shine))
+    glow.addColorStop(1, rgbCss(look.sun, 0))
+    ctx.fillStyle = glow
     ctx.fillRect(0, 0, w, h)
     ctx.beginPath()
-    ctx.arc(cx, cy, Math.min(w, h) * (0.02 + 0.035 * m.glow + 0.03 * m.kick), 0, Math.PI * 2)
-    ctx.fillStyle = rgbCss(c.inks[2], 0.95)
+    ctx.arc(sun.x, sun.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = rgbCss(look.sun)
     ctx.fill()
+
+    HILL_LAYERS.forEach((layer, index) => {
+      const trail = m.hills[index]!
+      const shift = hillShift(trail)
+      const foot = h * layer.base
+      const rise = h * layer.rise
+      const at = (i: number): [number, number] => [
+        hillX(i, shift, w, layer.gaps),
+        foot - rise * hillShare(trail.levels[i] ?? 0),
+      ]
+      // A smooth line through the points: each one a control point, the curve
+      // passing through the midpoints between them.
+      ctx.beginPath()
+      const [x0, y0] = at(0)
+      ctx.moveTo(x0, h)
+      ctx.lineTo(x0, y0)
+      for (let i = 1; i < trail.levels.length; i++) {
+        const [px, py] = at(i - 1)
+        const [x, y] = at(i)
+        ctx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2)
+      }
+      const [xn, yn] = at(trail.levels.length - 1)
+      ctx.lineTo(xn, yn)
+      ctx.lineTo(xn, h)
+      ctx.closePath()
+      ctx.fillStyle = rgbCss(look.hills[index]!)
+      ctx.fill()
+    })
+
+    const fade = ctx.createLinearGradient(0, h * 0.6, 0, h * 0.86)
+    fade.addColorStop(0, rgbCss(look.foot, 0))
+    fade.addColorStop(1, rgbCss(look.foot))
+    ctx.fillStyle = fade
+    ctx.fillRect(0, h * 0.6, w, h * 0.4)
   },
 
-  /* Bars for the sound: heard where it can be, from the song's curve or tempo elsewhere. */
-  spectrum(ctx, w, h, c, _tu, m) {
-    const count = m.bands.length
-    const gap = Math.max(2, w / count / 5)
-    const barWidth = (w - gap * (count + 1)) / count
-    const floor = h * 0.86
-    for (let i = 0; i < count; i++) {
-      const level = m.bands[i] ?? 0
-      const barHeight = Math.max(3, level * h * 0.7)
-      const x = gap + i * (barWidth + gap)
-      const ink = i / count < 0.5 ? c.inks[0] : c.inks[1]
-      const fill = ctx.createLinearGradient(0, floor - barHeight, 0, floor)
-      fill.addColorStop(0, rgbCss(ink, 0.95))
-      fill.addColorStop(1, rgbCss(ink, 0.35))
-      ctx.fillStyle = fill
-      roundedBar(ctx, x, floor - barHeight, barWidth, barHeight, Math.min(3, barWidth / 2))
-      // The reflection, faint, so the bars stand on something.
-      ctx.fillStyle = rgbCss(ink, 0.08)
-      ctx.fillRect(x, floor + 2, barWidth, barHeight * 0.18)
-    }
-  },
+  /* A disc in the cover's colours that kicks on each hit and sends a ring out from behind it, as strong as the hit. */
+  ripples(ctx, w, h, c, tu, m) {
+    const [middle, edge] = c.ground
+    const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
+    ground.addColorStop(0, rgbCss(lighten(middle, m.flash * 0.05)))
+    ground.addColorStop(1, rgbCss(edge))
+    ctx.fillStyle = ground
+    ctx.fillRect(0, 0, w, h)
+    wash(ctx, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
+    wash(ctx, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
 
-  /* Specks orbiting the centre: faster the louder it is, thrown outward on a hit. */
-  drift(ctx, w, h, c, tu, m) {
     const cx = w / 2
     const cy = h / 2
-    const base = Math.min(w, h)
-    const reach = driftReach(tu.feel.energy)
-    const specks = 70
-    for (let i = 0; i < specks; i++) {
-      const along = i / specks
-      const angle = i * 2.39996 + m.spin * (1 + (i % 3) * 0.25)
-      const radius = base * (0.06 + along * reach) * (1 + 0.3 * m.burst * (0.4 + 0.6 * along))
+    const disc = rippleDisc(w, h)
+    const halo = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
+    wash(ctx, cx, cy, disc * 0.95, c.inks[0], 0.5 * halo, 0.4)
+
+    for (const ring of m.rings) {
+      const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
       ctx.beginPath()
-      ctx.arc(
-        cx + Math.cos(angle) * radius * 1.25,
-        cy + Math.sin(angle) * radius * 0.85,
-        (1.2 + (i % 4) * 0.7) * (0.8 + 0.4 * m.glow),
-        0,
-        Math.PI * 2,
+      ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
+      ctx.strokeStyle = rgbCss(
+        c.inks[RING_INKS[ring.id % RING_INKS.length]!],
+        ringFade(ring, tu) * 0.85,
       )
-      ctx.fillStyle = rgbCss(c.inks[i % 3]!, 0.3 + 0.55 * m.glow)
-      ctx.fill()
+      ctx.lineWidth = (1.5 + 1.5 * ring.strength) * scale
+      ctx.stroke()
     }
+
+    const r = (disc / 2) * (1 + 0.06 * m.kick)
+    const fill = ctx.createRadialGradient(
+      cx - r * 0.16,
+      cy - r * 0.24,
+      0,
+      cx - r * 0.16,
+      cy - r * 0.24,
+      r * 1.4,
+    )
+    fill.addColorStop(0, rgbCss(c.inks[2]))
+    fill.addColorStop(0.7, rgbCss(c.inks[0]))
+    fill.addColorStop(1, rgbCss(c.inks[1]))
+    ctx.save()
+    // P24's disc sits above the page on a deep, soft shadow.
+    ctx.shadowColor = rgbCss(edge, 0.6)
+    ctx.shadowBlur = 50
+    ctx.shadowOffsetY = 20
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fillStyle = fill
+    ctx.fill()
+    ctx.restore()
   },
+}
+
+/** Which ink each ring draws in, in turn: the lead, then the other two, as P24's rings take turns. */
+const RING_INKS = [2, 0, 1] as const
+
+/** A soft round glow of one ink, `alpha` at its middle (and out to `solid` of its radius), none at its edge. */
+function wash(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  radius: number,
+  ink: Rgb,
+  alpha: number,
+  solid = 0,
+): void {
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, radius)
+  glow.addColorStop(solid, rgbCss(ink, alpha))
+  glow.addColorStop(1, rgbCss(ink, 0))
+  ctx.fillStyle = glow
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
 }
 
 function lighten([r, g, b]: Rgb, amount: number): Rgb {
   return [r + (255 - r) * amount, g + (255 - g) * amount, b + (255 - b) * amount]
-}
-
-function roundedBar(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.lineTo(x + w, y + h)
-  ctx.lineTo(x, y + h)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-  ctx.fill()
 }

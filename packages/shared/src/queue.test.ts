@@ -9,6 +9,7 @@ import {
   playFrom,
   playNext,
   previous,
+  queueSections,
   removeAt,
   setShuffle,
   shuffleArray,
@@ -284,5 +285,43 @@ describe('cycleRepeat', () => {
     expect(cycleRepeat('off')).toBe('all')
     expect(cycleRepeat('all')).toBe('one')
     expect(cycleRepeat('one')).toBe('off')
+  })
+})
+
+describe('queueSections', () => {
+  it('puts the playing song first, then what is next, then what has played', () => {
+    const sections = queueSections(base({ items: [10, 20, 30, 40, 50], index: 2 }))
+    expect(sections.playing).toEqual({ id: 30, index: 2 })
+    expect(sections.next).toEqual([
+      { id: 40, index: 3 },
+      { id: 50, index: 4 },
+    ])
+    expect(sections.played).toEqual([
+      { id: 10, index: 0 },
+      { id: 20, index: 1 },
+    ])
+  })
+
+  it('has nothing played at the start and nothing next at the end', () => {
+    expect(queueSections(base({ items: [1, 2], index: 0 })).played).toEqual([])
+    expect(queueSections(base({ items: [1, 2], index: 1 })).next).toEqual([])
+  })
+
+  it('treats every song as still to come while nothing is loaded', () => {
+    const sections = queueSections(base({ items: [1, 2], index: -1 }))
+    expect(sections.playing).toBeNull()
+    expect(sections.next.map(entry => entry.id)).toEqual([1, 2])
+    expect(sections.played).toEqual([])
+  })
+
+  it('is empty for an empty queue', () => {
+    expect(queueSections(EMPTY_QUEUE)).toEqual({ playing: null, next: [], played: [] })
+  })
+
+  it('keeps the real index on every entry, so an edit lands where it was aimed', () => {
+    const state = base({ items: [5, 6, 7], index: 1 })
+    const { next, played } = queueSections(state)
+    expect(removeAt(state, next[0]?.index ?? -1).items).toEqual([5, 6])
+    expect(removeAt(state, played[0]?.index ?? -1).items).toEqual([6, 7])
   })
 })

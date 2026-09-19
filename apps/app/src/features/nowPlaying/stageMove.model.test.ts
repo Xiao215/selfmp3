@@ -5,48 +5,72 @@ import {
   coverPose,
   laidOutRadius,
   moveKeyframes,
+  stageCover,
   wordsFrame,
   wordsPose,
   type MovePose,
 } from './stageMove.model'
 
 const WIDTH = 1400
-const g = stageGeometry(WIDTH, 816)
+const HEIGHT = 816
+const g = stageGeometry(WIDTH, HEIGHT)
+const box = stageCover(g, HEIGHT, false)
 
 /** The box a transformed cover is seen in: scaled about its centre, then moved. */
-function seenCover(pose: MovePose): { left: number; top: number; size: number } {
+function seenCover(pose: MovePose, from = box): { left: number; top: number; size: number } {
   const scale = pose.scale ?? 1
-  const size = g.cover * scale
-  const centreX = g.pad + g.cover / 2 + (pose.translateX ?? 0)
-  const centreY = COVER_TOP + g.cover / 2 + (pose.translateY ?? 0)
+  const size = from.size * scale
+  const centreX = from.left + from.size / 2 + (pose.translateX ?? 0)
+  const centreY = from.top + from.size / 2 + (pose.translateY ?? 0)
   return { left: centreX - size / 2, top: centreY - size / 2, size }
 }
 
+describe('stageCover', () => {
+  it('puts the cover at the top of the left column for a song with lyrics', () => {
+    expect(box).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
+  })
+
+  it('steps it down to the window’s foot, smaller, for a song whose visual is the window', () => {
+    const visual = stageCover(g, HEIGHT, true)
+    expect(visual.left).toBe(g.pad)
+    expect(visual.size).toBe(g.visualCover)
+    expect(visual.top + visual.size).toBe(HEIGHT - 44)
+  })
+})
+
 describe('coverPose', () => {
   it('leaves the cover where the stage lays it out', () => {
-    expect(seenCover(coverPose(g, 0))).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
-    expect(coverPose(g, 0).radius).toBe(22)
+    expect(seenCover(coverPose(box, 0))).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
+    expect(coverPose(box, 0).radius).toBe(22)
   })
 
   it('shrinks it into the header in Focus', () => {
-    const seen = seenCover(coverPose(g, 1))
+    const seen = seenCover(coverPose(box, 1))
     expect(seen.left).toBeCloseTo(64)
     expect(seen.top).toBeCloseTo(10)
     expect(seen.size).toBeCloseTo(40)
-    expect(coverPose(g, 1).radius).toBe(10)
+    expect(coverPose(box, 1).radius).toBe(10)
   })
 
   it('moves its edges on the same straight line the animated layout did', () => {
     for (const m of [0.25, 0.5, 0.8]) {
-      const seen = seenCover(coverPose(g, m))
+      const seen = seenCover(coverPose(box, m))
       expect(seen.left).toBeCloseTo(g.pad + (64 - g.pad) * m)
       expect(seen.top).toBeCloseTo(COVER_TOP + (10 - COVER_TOP) * m)
       expect(seen.size).toBeCloseTo(g.cover + (40 - g.cover) * m)
     }
   })
 
+  it('shrinks the visual’s smaller cover into the same place', () => {
+    const visual = stageCover(g, HEIGHT, true)
+    const seen = seenCover(coverPose(visual, 1), visual)
+    expect(seen.left).toBeCloseTo(64)
+    expect(seen.top).toBeCloseTo(10)
+    expect(seen.size).toBeCloseTo(40)
+  })
+
   it('lays out corners that are seen at the right radius once scaled', () => {
-    const pose = coverPose(g, 1)
+    const pose = coverPose(box, 1)
     expect((laidOutRadius(pose) ?? 0) * (pose.scale ?? 1)).toBeCloseTo(10)
     expect(laidOutRadius({ opacity: 1 })).toBeUndefined()
   })
@@ -90,10 +114,10 @@ describe('moveKeyframes', () => {
   })
 
   it('samples a radius under a changing scale, since that is not a straight line', () => {
-    const frames = moveKeyframes(m => coverPose(g, m), 0, 1)
+    const frames = moveKeyframes(m => coverPose(box, m), 0, 1)
     expect(frames.length).toBeGreaterThan(2)
     for (const frame of frames) {
-      const pose = coverPose(g, frame.offset)
+      const pose = coverPose(box, frame.offset)
       expect(frame.borderRadius).toBe(`${laidOutRadius(pose)}px`)
     }
   })

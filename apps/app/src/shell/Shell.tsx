@@ -24,6 +24,9 @@ import { useReducedMotion } from '../ui/useReducedMotion'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
+import { QueueRail } from '../features/queue/QueueRail'
+import { QueueSheet } from '../features/queue/QueueSheet'
+import { useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { ContentWidthContext } from './contentWidth'
 import { setPaletteOpen, usePaletteOpen } from './palette'
 import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
@@ -95,18 +98,31 @@ function frame(
     )
   }
 
-  // One tree with the chrome in it or not, never a different tree. When Now
-  // Playing hid the tab bar by returning a bare view instead, React saw the
-  // screens move to a new parent and remounted every one of them: closing Now
-  // Playing put a page scrolled to its end back at the top.
+  return <CompactFrame chrome={chrome}>{children}</CompactFrame>
+}
+
+/**
+ * The phone's frame: the page, and over its foot the mini player and the tab
+ * bar, and over those Up next when it is open (docs/ui-mock `P25`).
+ *
+ * One tree with the chrome in it or not, never a different tree. When Now
+ * Playing hid the tab bar by returning a bare view instead, React saw the
+ * screens move to a new parent and remounted every one of them: closing Now
+ * Playing put a page scrolled to its end back at the top.
+ *
+ * Up next is there without the chrome too, since Now Playing's foot opens it.
+ * The toasts come after it, so the Undo for a song swiped away is drawn over
+ * the sheet that swiped it rather than under it.
+ */
+function CompactFrame({ chrome, children }: { chrome: boolean; children: ReactNode }): ReactNode {
+  const queueOpen = useQueueSheetOpen()
   return (
     <View style={styles.root} testID={chrome ? 'shell-compact' : undefined}>
-      <View style={styles.content}>
-        {children}
-        {chrome ? <Toasts /> : null}
-      </View>
+      <View style={styles.content}>{children}</View>
       {chrome ? <MiniPlayer /> : null}
       {chrome ? <BottomNav /> : null}
+      <QueueSheet />
+      {chrome || queueOpen ? <Toasts /> : null}
     </View>
   )
 }
@@ -135,6 +151,8 @@ function WideFrame({
           </ContentWidthContext.Provider>
           <Toasts />
         </View>
+        {/* Up next, between the page and the practice panel, across every page. */}
+        <QueueRail />
         <PracticeSide />
       </View>
       <BarSlot hidden={barHidden} />

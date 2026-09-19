@@ -18,44 +18,41 @@ import type { CoverSwatch, AudioFeatures } from '@selfmp3/shared'
  * in the app.
  */
 
-export type VisualKind = 'aurora' | 'pulse' | 'spectrum' | 'drift'
+export type VisualKind = 'horizon' | 'ripples'
 
-export const VISUAL_KINDS: readonly VisualKind[] = ['aurora', 'pulse', 'spectrum', 'drift']
+export const VISUAL_KINDS: readonly VisualKind[] = ['horizon', 'ripples']
 
 export const VISUAL_NAMES: Record<VisualKind, string> = {
-  aurora: 'Aurora',
-  pulse: 'Pulse',
-  spectrum: 'Spectrum',
-  drift: 'Drift',
+  horizon: 'Horizon',
+  ripples: 'Ripples',
 }
 
-/** Below this a song is calm: slow bands suit it better than any beat. */
-const CALM_ENERGY = 0.35
-/** At or above this the sound itself is the show. */
-const BUSY_ENERGY = 0.7
-/** At or above this the beat is steady enough to draw on. */
-const DANCEABLE = 0.6
+/** At or above this a song has enough drive for Ripples; below it Horizon's slow hills suit it. */
+const RIPPLES_ENERGY = 0.5
 
 /**
- * The visual a song gets when nobody has chosen one.
+ * The visual a song gets when nobody has chosen one, by energy alone.
  *
- * A song not analysed yet gets Aurora: it needs nothing but the cover's
- * colour. Energy decides first, because a loud song with a steady beat is
- * still loud; the beat decides between the two in the middle.
+ * Horizon is the calm one: its hills are the loudness heard so far, rolling
+ * past, and its sun swells on the hits — a nocturne gets a landscape. Ripples
+ * is the driven one: a ring leaves the centre on every hit — a chase gets the
+ * beat made visible. A song not analysed yet gets Horizon: it reads well with
+ * any sound, and a ring on every guessed beat would be the tempo pretending.
  */
 export function autoVisual(features: AudioFeatures | null | undefined): VisualKind {
   const energy = features?.energy
-  if (energy == null || energy < CALM_ENERGY) return 'aurora'
-  if (energy >= BUSY_ENERGY) return 'spectrum'
-  if ((features?.danceability ?? 0) >= DANCEABLE) return 'pulse'
-  return 'drift'
+  return energy != null && energy >= RIPPLES_ENERGY ? 'ripples' : 'horizon'
 }
 
 function isVisualKind(value: unknown): value is VisualKind {
   return typeof value === 'string' && (VISUAL_KINDS as readonly string[]).includes(value)
 }
 
-/** The choices kept on this device, by song id. Anything unreadable is no choice. */
+/**
+ * The choices kept on this device, by song id. Anything unreadable is no
+ * choice, so a song kept on a style that no longer exists simply goes back
+ * to Auto.
+ */
 export type VisualChoices = Readonly<Record<string, VisualKind>>
 
 export function parseVisualChoices(raw: string | null): VisualChoices {
@@ -175,8 +172,9 @@ export function groundHue(h: number): number {
  * Up to three distinct vivid colours from the cover become the inks — ranked
  * by how much of the cover they are, how colourful and how light, and kept
  * at least 35° apart — each lifted to the same brightness so they sit together
- * on the dark. The lead colour is the Pulse's dot (`inks[2]`, the lightest);
- * the next two are the halo and rings (`inks[0]`, `inks[1]`). The ground is the
+ * on the dark. The lead colour is Horizon's sun and the middle of Ripples'
+ * disc (`inks[2]`, the lightest); the next two tint the sky, the hills and
+ * the rings (`inks[0]`, `inks[1]`). The ground is the
  * cover's deepest colour, dark and quiet, steered out of the olive band. A
  * cover with fewer than three colours borrows its neighbours on the wheel.
  * The key does not pull the hues here: the cover's own colours already say
@@ -222,6 +220,68 @@ function paletteColors(palette: readonly CoverSwatch[], leadHue: number): Visual
 export const rgbCss = ([r, g, b]: Rgb, alpha = 1): string =>
   `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`
 
+/** `a` moved `t` of the way to `b`, channel by channel. */
+function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+}
+
+/**
+ * Horizon's colours, all from the song's: a sky from the dark ground at the
+ * top, through a cool middle tinted by the first ink, to a glow at the
+ * horizon in the second (P23's dusk, in the cover's colours rather than
+ * blue and amber); a sun in the lead ink; and three hills that darken as
+ * they come nearer, so the front one sits into the ground under the controls.
+ */
+interface HorizonColors {
+  /** Top, middle (42 %), horizon (74 %), foot. */
+  readonly sky: readonly [Rgb, Rgb, Rgb, Rgb]
+  readonly sun: Rgb
+  /** Back to front. */
+  readonly hills: readonly [Rgb, Rgb, Rgb]
+  /** What the foot fades into, under the front hill. */
+  readonly foot: Rgb
+}
+
+export function horizonColors({ inks, ground }: VisualColors): HorizonColors {
+  const [middle, edge] = ground
+  return {
+    sky: [edge, mixRgb(middle, inks[0], 0.3), mixRgb(middle, inks[1], 0.62), edge],
+    sun: inks[2],
+    hills: [
+      mixRgb(middle, inks[0], 0.32),
+      mixRgb(middle, inks[0], 0.16),
+      mixRgb(edge, middle, 0.4),
+    ],
+    foot: edge,
+  }
+}
+
+/**
+ * Where Horizon's sun stands and how big it is. Tall, it is P23's: centred,
+ * a little over a third down. Wide, it is C10's: off to the right, where the
+ * cover and the title in the bottom left leave it room.
+ */
+export function sunPlace(width: number, height: number): { x: number; y: number; d: number } {
+  const wide = width > height * 1.2
+  return {
+    x: width * (wide ? 0.7 : 0.5),
+    y: height * (wide ? 0.42 : 0.37),
+    d: Math.min(width * 0.31, height * 0.21),
+  }
+}
+
+/** Ripples' disc across: P24's 230 on a 390-wide phone, and no more than half the shorter side. */
+export function rippleDisc(width: number, height: number): number {
+  return Math.min(width, height) * 0.5
+}
+
+/**
+ * A ring's size, as a share of the disc, when it leaves (still hidden behind
+ * the disc) and when it has faded at the edge of its reach.
+ */
+export const RING_FROM = 0.55
+export const RING_TO = 2.3
+
 function hexRgb(hex: string): Rgb {
   return [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16)) as unknown as Rgb
 }
@@ -232,7 +292,6 @@ function hexRgb(hex: string): Rgb {
 export interface VisualFeel {
   readonly bpm: number
   readonly energy: number
-  readonly danceability: number
   /** 0–1 from the song's loudness: brightness breathes around it. */
   readonly loudness: number
 }
@@ -243,7 +302,6 @@ export function visualFeel(features: AudioFeatures | null | undefined): VisualFe
     // A tempo detector's half- and double-time answers stay in a drawable range.
     bpm: bpm == null ? 96 : Math.max(50, Math.min(200, bpm)),
     energy: features?.energy ?? 0.45,
-    danceability: features?.danceability ?? 0.5,
     loudness: loudnessLevel(features?.loudnessLufs ?? null),
   }
 }
@@ -269,21 +327,12 @@ export function beatKick(phase: number): number {
   return Math.exp(-phase * 5)
 }
 
-/** Drift's turn, in radians a second: a faster song turns faster. */
-export function driftSpeed(bpm: number): number {
-  return 0.35 * (bpm / 120)
-}
-
-/** Drift's outer reach, as a share of the shorter side: more energy draws the specks in. */
-export function driftReach(energy: number): number {
-  return 0.46 - 0.2 * Math.max(0, Math.min(1, energy))
-}
-
 /**
- * Levels for Spectrum where the sound itself cannot be heard: low to high,
- * 0–1, built from the song's tempo and energy. The bass lands on the beat,
- * the top end on the off-beats, and the rest wanders, so the bars read as
- * music rather than as a sine wave.
+ * Levels by band where the sound itself cannot be heard: low to high, 0–1,
+ * built from the song's tempo and energy. The bass lands on the beat, the top
+ * end on the off-beats, and the rest wanders, so they read as music rather
+ * than as a sine wave. The tempo stand-in (`beatSampler`) fills its bands
+ * from it.
  */
 export function synthLevels(count: number, seconds: number, bpm: number, energy: number): number[] {
   const beats = (seconds * bpm) / 60
@@ -302,15 +351,12 @@ export function synthLevels(count: number, seconds: number, bpm: number, energy:
   return levels
 }
 
-/** The moment a still frame shows, for Reduce Motion: a little after a beat, so rings are out. */
-export const STILL_SECONDS = 2.2
-
 function hash(x: number, y: number): number {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
   return s - Math.floor(s)
 }
 
-/** Smooth value noise, 0–1: the stand-in spectrum's wander, and the curve's per-band wobble. */
+/** Smooth value noise, 0–1: the stand-in bands' wander, the curve's per-band wobble, and Horizon's first hills. */
 export function valueNoise(x: number, y: number): number {
   const xi = Math.floor(x)
   const yi = Math.floor(y)

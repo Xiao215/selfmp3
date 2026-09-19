@@ -3,8 +3,7 @@ import { Animated } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { SongVisual } from './SongVisual'
 import { beatSampler } from './motionSource'
-import { visualFeel } from './visuals.model'
-import type { VisualKind } from './visuals.model'
+import { VISUAL_KINDS, visualFeel } from './visuals.model'
 
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayer: () => ({
@@ -40,7 +39,7 @@ const song = {
   title: 'A',
   artist: 'B',
   album: 'C',
-  audioFeatures: { bpm: 120, energy: 0.8, danceability: 0.7, loudness: -8, camelot: '8A' },
+  audioFeatures: { bpm: 120, energy: 0.8, loudness: -8, camelot: '8A' },
 } as unknown as Song
 
 async function frames(n: number): Promise<void> {
@@ -66,7 +65,7 @@ describe('SongVisual (native) per-frame cost', () => {
     jest.useRealTimers()
   })
 
-  for (const kind of ['aurora', 'pulse', 'spectrum', 'drift'] as VisualKind[]) {
+  for (const kind of VISUAL_KINDS) {
     it(`${kind}: one shared-value write a frame, no Animated.Value at all`, async () => {
       const sampler = beatSampler(visualFeel(song.audioFeatures))
       const setValue = jest.spyOn(Animated.Value.prototype, 'setValue')
@@ -84,7 +83,7 @@ describe('SongVisual (native) per-frame cost', () => {
       const ticks = raf.mock.calls.length
       expect(ticks).toBeGreaterThan(0)
       expect(setValue).not.toHaveBeenCalled()
-      // The frame, and for Pulse a ring's width when a new ring leaves the
+      // The frame, and for Ripples a ring's width when a new ring leaves the
       // centre — a few times a second, never once a frame.
       expect(mockSharedWrites / ticks).toBeGreaterThanOrEqual(1)
       expect(mockSharedWrites / ticks).toBeLessThan(1.1)
@@ -95,7 +94,7 @@ describe('SongVisual (native) per-frame cost', () => {
 
   it('writes nothing once a paused visual has settled', async () => {
     const sampler = beatSampler(visualFeel(song.audioFeatures))
-    const { container } = await render(<SongVisual song={song} kind="pulse" sampler={sampler} />)
+    const { container } = await render(<SongVisual song={song} kind="ripples" sampler={sampler} />)
     const view = container.queryAll(node => typeof node.props['onLayout'] === 'function')[0]!
     await act(async () => {
       view.props['onLayout']({ nativeEvent: { layout: { width: 390, height: 500 } } })

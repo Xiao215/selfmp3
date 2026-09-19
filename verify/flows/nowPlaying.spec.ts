@@ -3,14 +3,16 @@ import { expect, test } from '@playwright/test'
 import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
- * Now Playing on a computer, driven from the player bar.
+ * Now Playing, on both layouts.
  *
- * The bar opens the page on its lyrics. Queue and About are tabs, and the
- * bar's queue button is the same Queue tab, pressed again to go back. The
- * page's own button shows only the words, and its chevron goes back to the full
- * page. Playback carries on through all of it.
+ * On a computer the bar opens the page on its lyrics. Lyrics (or Visual) and
+ * About are the tabs; Up next is not one of them, since it is the rail beside
+ * the page. The page's own button shows only the words, and its chevron goes
+ * back to the full page. The title opens the song's own page. Playback
+ * carries on through all of it.
  *
- * Desktop only: a phone's Now Playing is its own full screen, with no tabs.
+ * On a phone the page has no tabs: ⓘ opens the song, the foot is Lyrics,
+ * Sleep and Up next, and the lyrics are a second view of the same address.
  */
 test.describe('now playing', () => {
   test('the bar opens the page, switches its tabs and focus, and closes it', async ({
@@ -27,25 +29,8 @@ test.describe('now playing', () => {
       'aria-selected',
       'true',
     )
-
-    const closeQueue = page.getByRole('button', { name: 'Close queue' })
-    await page.getByRole('tab', { name: 'Queue' }).click()
-    await expect(closeQueue).toBeVisible()
-
-    // Auto-mix, on its own row: it says what the next handover will be, and
-    // goes back to queue order when it is switched off.
-    const autoMix = page.getByLabel('Auto-mix', { exact: true })
-    await expect(page.getByText('plays in queue order')).toBeVisible()
-    await autoMix.click()
-    await expect(page.getByText(/^(next crossfade \d+s|nothing to mix yet)$/)).toBeVisible()
-    await autoMix.click()
-    await expect(page.getByText('plays in queue order')).toBeVisible()
-
-    const barQueue = page.getByRole('button', { name: 'Queue', exact: true })
-    await barQueue.click()
-    await expect(closeQueue).toBeHidden()
-    await barQueue.click()
-    await expect(closeQueue).toBeVisible()
+    await expect(page.getByRole('tab')).toHaveCount(2)
+    await expect(page.getByRole('tab', { name: 'Queue' })).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'About' }).click()
     await expect(page.getByText(/^sound$/i).first()).toBeVisible()
@@ -55,10 +40,24 @@ test.describe('now playing', () => {
     await page.getByRole('button', { name: 'Show only the words' }).click()
     await expect(page.getByRole('button', { name: 'Back to the full page' }).first()).toBeVisible()
     await page.getByRole('button', { name: 'Back to the full page' }).first().click()
-    await expect(page.getByRole('tab', { name: 'Queue' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'About' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Close now playing' }).first().click()
     await expect(page.getByRole('button', { name: /^Open now playing: / })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Pause' }).last()).toBeVisible()
+  })
+
+  test('the title opens the song’s own page', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone opens it from ⓘ, below')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+    await playSong(page, songRows(page).first())
+
+    await page.getByRole('button', { name: /^Open now playing: / }).click()
+    await page.getByTestId('now-playing-info').click()
+    await expect(page).toHaveURL(/\/song\/\d+$/)
+    await expect(page.getByTestId('song-screen')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Pause' }).last()).toBeVisible()
   })
 
@@ -84,35 +83,43 @@ test.describe('now playing', () => {
     await expect(bar).toBeVisible()
   })
 
-  test('a phone shows similar songs under the controls, and plays one', async ({ page }, info) => {
-    test.skip(
-      info.project.name !== 'phone',
-      'the shelf is the phone page’s; the stage has no room for it',
-    )
+  test('a phone’s page: no tabs, the foot, the words view, and ⓘ to the song', async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'phone', 'the phone page')
     await openLibrary(page)
     await libraryReady(page)
-    await skipIfNoLibrary(page, 3)
+    await skipIfNoLibrary(page)
     await playSong(page, songRows(page).first())
 
     await page.getByRole('button', { name: /^Open now playing: / }).click()
-    const heading = page.getByRole('heading', { name: 'Similar songs' })
-    const shown = await heading
-      .waitFor({ timeout: 10_000 })
-      .then(() => true)
-      .catch(() => false)
-    test.skip(!shown, 'the server found nothing similar: the library has no analysed songs')
-    await expect(page.getByRole('button', { name: /^Play .+ by / }).first()).toBeVisible()
+    await expect(page.getByTestId('now-playing-info')).toBeVisible()
+    await expect(page.getByRole('tab')).toHaveCount(0)
 
-    await expect(page.getByRole('button', { name: 'Queue all' })).toBeVisible()
+    // The foot: Lyrics (Visual for a song with none), Sleep and Up next.
+    const words = page.getByRole('button', { name: /^(Lyrics|Visual)$/ })
+    await expect(words).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toBeVisible()
+    await expect(page.getByTestId('now-playing-queue')).toBeVisible()
 
-    // A card plays its own song first, with the rest of the shelf after it: the
-    // queue is as long as the shelf was, and the new shelf has no card for the
-    // song now playing, since nothing is similar to itself.
-    const cards = page.getByRole('button', { name: /^Play .+ by / })
-    const count = await cards.count()
-    const label = (await cards.first().getAttribute('aria-label')) ?? ''
-    await cards.first().click()
-    await expect(page.getByText(`Playing · 1 of ${count}`, { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0)
+    // The words are a view of the same address, and the chevron goes back to the cover.
+    await words.click()
+    await expect(page).toHaveURL(/now-playing\?(.*&)?view=lyrics/)
+    await expect(page.getByTestId('now-playing-lyrics-view')).toBeVisible()
+    await expect(page.getByLabel('Seek').first()).toBeVisible()
+    await page.getByRole('button', { name: 'Back to the cover' }).click()
+    await expect(page.getByTestId('now-playing-lyrics-view')).toHaveCount(0)
+    await expect(page).not.toHaveURL(/view=lyrics/)
+
+    // Devices are under ⋯, with Practice.
+    await page.getByTestId('now-playing-more').click()
+    await expect(page.getByRole('menuitem', { name: /Devices/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /Practice/ })).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // ⓘ puts the page away and opens the song's own.
+    await page.getByTestId('now-playing-info').click()
+    await expect(page).toHaveURL(/\/song\/\d+$/)
+    await expect(page.getByTestId('song-screen')).toBeVisible()
   })
 })

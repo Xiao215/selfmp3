@@ -252,6 +252,7 @@ function SheetPanel({
               onPress={closeQueueSheet}
               accessibilityRole="button"
               accessibilityLabel="Close Up next"
+              testID="queue-sheet-close"
               hitSlop={12}
               style={styles.grabberHit}
             >

@@ -64,7 +64,13 @@ export function Button({
           : styles.inkPlain
 
   return (
-    <Animated.View style={[grow && styles.grow, press.style]}>
+    <Animated.View
+      style={[
+        grow && styles.grow,
+        grow && (dense ? styles.growDense : styles.growTouch),
+        press.style,
+      ]}
+    >
       <Pressable
         {...press.handlers}
         onPress={onPress}
@@ -193,6 +199,14 @@ const styles = StyleSheet.create(theme => ({
     width: HIT_TARGET,
     paddingHorizontal: 0,
   },
+  /*
+   * `flex: 1` on the wrapper as well as the button, so a row of them shares its
+   * width. In a column — a phone's dialog stacks its buttons — `flex: 1` starts
+   * from nothing and the wrapper had no height of its own, so the buttons fell
+   * on top of one another; it keeps the button's own height at least.
+   */
+  growTouch: { minHeight: HIT_TARGET },
+  growDense: { minHeight: 36 },
   grow: {
     flex: 1,
   },

@@ -37,7 +37,8 @@ appId: com.selfmp3.app
       id: 'song-row-0'
     timeout: 90000
 
-- tapOn: 'On this phone'
+- tapOn:
+    id: 'library-on-this-phone'
 - tapOn:
     id: 'song-row-0'
 - extendedWaitUntil:

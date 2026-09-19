@@ -478,6 +478,7 @@ export function LibraryScreen(): ReactNode {
           />
           {!wide && installed ? (
             <Chip
+              testID="library-on-this-phone"
               label="On this phone"
               selected={filter.downloadedOnly}
               icon={

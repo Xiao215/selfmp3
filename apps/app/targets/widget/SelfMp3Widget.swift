@@ -107,13 +107,15 @@ struct TagsView: View {
         Text("Tap a tag to play it").font(.system(size: 11)).foregroundStyle(inkSecond)
       }
       if let tiles = entry.snapshot?.tiles, !tiles.isEmpty {
-        LazyVGrid(
-          columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
-          spacing: 8
-        ) {
-          ForEach(tiles.prefix(4)) { tile in
-            if let url = URL(string: tile.link) {
-              Link(destination: url) { TileView(tile: tile) }
+        // Always two by two, as P28 draws it: fewer tags leave a slot empty
+        // rather than stretching one tile across the widget.
+        let slots = Array(tiles.prefix(4)).map { Optional($0) } + Array(repeating: nil, count: max(0, 4 - tiles.count))
+        VStack(spacing: 8) {
+          ForEach(0..<2, id: \.self) { row in
+            HStack(spacing: 8) {
+              ForEach(0..<2, id: \.self) { column in
+                slot(slots[row * 2 + column])
+              }
             }
           }
         }
@@ -126,6 +128,18 @@ struct TagsView: View {
       }
     }
     .containerBackground(for: .widget) { Color("$widgetBackground") }
+  }
+}
+
+extension TagsView {
+  @ViewBuilder
+  fileprivate func slot(_ tile: Tile?) -> some View {
+    if let tile, let url = URL(string: tile.link) {
+      Link(destination: url) { TileView(tile: tile) }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    } else {
+      Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
   }
 }
 
@@ -151,6 +165,7 @@ struct TileView: View {
         .lineLimit(1)
         .padding(10)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }
@@ -224,10 +239,9 @@ struct NowPlayingView: View {
     if now.playing {
       let end = Date(timeIntervalSince1970: now.endsAt)
       if end > .now {
-        HStack(spacing: 0) {
-          Text(timerInterval: Date.now...end, countsDown: true)
-          Text(" left")
-        }
+        // One Text: a timer on its own takes all the width it is offered,
+        // which pushed "left" to the far edge.
+        Text(timerInterval: Date.now...end, countsDown: true) + Text(" left")
       } else {
         Text(now.artist)
       }

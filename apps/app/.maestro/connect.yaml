@@ -19,9 +19,22 @@ appId: com.selfmp3.app
     id: 'welcome-address-toggle'
 - tapOn:
     id: 'welcome-address'
+# Whatever an earlier try left in the field goes first.
+- eraseText: 60
 - inputText: ${SERVER}
-- tapOn:
-    id: 'welcome-connect'
+# Submitted from the keyboard, which covers Connect on a phone: Return moves on
+# to the token field, and Return there connects. (Hiding the keyboard instead
+# taps outside it, which can land on Continue with Google.)
+- pressKey: Enter
+- pressKey: Enter
+# If the last Return only put the keyboard away, Connect is in view now.
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-connect'
+    commands:
+      - tapOn:
+          id: 'welcome-connect'
 - extendedWaitUntil:
     visible:
       id: 'home-screen'

@@ -55,7 +55,8 @@ appId: com.selfmp3.app
 - extendedWaitUntil:
     visible: 'Clear Up next'
     timeout: 5000
-- tapOn: 'Close Up next'
+- tapOn:
+    id: 'queue-sheet-close'
 - assertVisible:
     id: 'mini-player-playing'
 
@@ -94,11 +95,11 @@ appId: com.selfmp3.app
 # flow that insisted on Download would fail on the truest state there is.
 - runFlow:
     when:
-      visible: 'Download'
+      visible: 'Download.*'
     commands:
-      - tapOn: 'Download'
+      - tapOn: 'Download.*'
       - tapOn:
           id: 'playlist-more'
 - extendedWaitUntil:
-    visible: 'Remove download'
+    visible: 'Remove download.*'
     timeout: 120000

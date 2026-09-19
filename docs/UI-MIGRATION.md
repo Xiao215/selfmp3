@@ -629,9 +629,8 @@ Deliberate differences, kept in the commit messages too:
 - Phase 5: the heart left every row (the menu's head and the song page have it), and so did a
   wide row's tempo and energy marks (the song page has them). Library keeps its tag filter as
   a strip ("All", the tags, "More tags"); picking tags no longer retitles it, and a phone still
-  offers Play, Shuffle and Save for the picked set. The phone's Library has no sort or select
-  buttons in its head (`P12` draws two): there is no sort on a phone yet, and holding a row
-  selects. The Playlists page keeps the New tile and Forgotten gems, which `P16` does not draw
+  offers Play, Shuffle and Save for the picked set. The phone's Library has `P12`'s two round
+  buttons, Sort (a sheet) and Select, and names its order over the list (added later). The Playlists page keeps the New tile and Forgotten gems, which `P16` does not draw
   but earlier decisions kept. On a phone nothing starts selecting inside a playlist (holding a
   row moves it). A new playlist you fill yourself is made when its first songs are picked.
 - Phase 6: Now Playing's phone foot has a ⋯ as well (Devices, Practice, Download), which `P21`

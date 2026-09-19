@@ -321,6 +321,16 @@ export const Check = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNod
   )
 }
 
+/** Three lines, each shorter: an order (docs/ui-mock `P12`). */
+export const SortLines = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M4 7h16M7 12h10M10 17h4" />
+    </Icon>
+  )
+}
+
 export const Minus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

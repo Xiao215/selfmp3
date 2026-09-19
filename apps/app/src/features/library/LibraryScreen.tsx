@@ -14,7 +14,17 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Plus, Search, Shuffle } from '../../ui/components/Icons'
+import {
+  Check,
+  Downloaded,
+  Play,
+  Plus,
+  Search,
+  Shuffle,
+  SortLines,
+} from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { Select } from '../../ui/components/Select'
@@ -36,7 +46,7 @@ import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
 import { useSaveTagsAsPlaylist } from './saveTags'
 import { usePullToRefresh } from './usePullToRefresh'
-import { pageTitle } from '../../ui/surfaces'
+import { label, pageTitle } from '../../ui/surfaces'
 
 /**
  * The library, at every width.
@@ -69,6 +79,8 @@ export function LibraryScreen(): ReactNode {
   const { filter, songs, visible, songIds, songTags } = model
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
+  // The phone's order, chosen from a sheet.
+  const [sorting, setSorting] = useState(false)
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
@@ -283,10 +295,37 @@ export function LibraryScreen(): ReactNode {
           The tags picked to narrow it are the strip below, not the title: a
           tag you want as a place has its own page now.
         */}
-        <View style={headWide ? styles.titlesWide : undefined}>
-          <Text style={styles.heading} numberOfLines={1} accessibilityRole="header">
+        <View style={headWide ? styles.titlesWide : wide ? undefined : styles.phoneTitles}>
+          <View style={wide ? undefined : styles.phoneTitleRow}>
+          <Text style={[styles.heading, !wide && styles.phoneHeading]} numberOfLines={1} accessibilityRole="header">
             Library
           </Text>
+          {/*
+            A phone's order and choosing, as two round buttons beside the title
+            (docs/ui-mock `P12`); a computer has them in its head row.
+          */}
+          {wide ? null : (
+            <View style={styles.phoneTools}>
+              <IconButton
+                label="Sort"
+                filled
+                onPress={() => setSorting(true)}
+                testID="library-sort-phone"
+              >
+                <SortLines size={18} tone="textPrimary" />
+              </IconButton>
+              <IconButton
+                label="Select songs"
+                filled
+                active={selection.mode}
+                onPress={() => (selection.mode ? selection.clear() : selection.enter())}
+                testID="library-select-phone"
+              >
+                <Check size={18} tone="textPrimary" />
+              </IconButton>
+            </View>
+          )}
+          </View>
           <View style={styles.subRow}>
             <Text style={styles.sub} testID="library-subline">
               {model.subtitle}
@@ -518,6 +557,36 @@ export function LibraryScreen(): ReactNode {
         </ScrollView>
       ) : null}
 
+      {/* On a phone the list is headed by its order: "RECENTLY ADDED" (`P12`). */}
+      {!wide && songs.length > 0 ? (
+        <Text style={styles.orderLabel} testID="library-order-label">
+          {model.sortLabel}
+          {filter.descending ? '' : ' · reversed'}
+        </Text>
+      ) : null}
+      <Sheet open={sorting} onClose={() => setSorting(false)} title="Sort by" testID="library-sort-sheet">
+        {model.sortOptions.map(option => (
+          <SheetItem
+            key={option.field}
+            role="option"
+            label={option.label}
+            active={filter.sort === option.field}
+            onPress={() => {
+              model.setSort(option.field)
+              setSorting(false)
+            }}
+          />
+        ))}
+        <SheetItem
+          label={filter.descending ? 'Reverse the order' : 'Put the order back'}
+          icon={<Text style={styles.directionArrow}>{filter.descending ? '↑' : '↓'}</Text>}
+          onPress={() => {
+            model.toggleDirection()
+            setSorting(false)
+          }}
+        />
+      </Sheet>
+
       {/*
         The picker, in the page rather than over it: the head grows, the songs
         move down, and nothing is drawn across the sidebar.
@@ -617,6 +686,16 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
   },
   heading: pageTitle(theme.colors),
+  phoneTitles: { alignSelf: 'stretch' },
+  phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  phoneHeading: { flex: 1 },
+  phoneTools: { flexDirection: 'row', gap: space.sm },
+  orderLabel: {
+    ...label(theme.colors),
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: 2,
+  },
   sub: {
     color: theme.colors.textMuted,
     fontSize: 13,

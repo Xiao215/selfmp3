@@ -30,6 +30,31 @@ appId: com.selfmp3.app
       id: 'library-screen'
     timeout: 60000
 
+# The order is a sheet from the round button beside the title, and the list is
+# headed by it (docs/ui-mock `P12`); the ✓ beside it starts choosing.
+- tapOn:
+    id: 'library-sort-phone'
+- tapOn: 'Title'
+- extendedWaitUntil:
+    visible:
+      id: 'library-order-label'
+      text: 'Title'
+    timeout: 5000
+- tapOn:
+    id: 'library-sort-phone'
+- tapOn: 'Recently added'
+- extendedWaitUntil:
+    visible:
+      id: 'library-order-label'
+      text: 'Recently added'
+    timeout: 5000
+- tapOn:
+    id: 'library-select-phone'
+- assertVisible: 'Select .*'
+- tapOn:
+    id: 'library-select-phone'
+- assertNotVisible: 'Deselect .*'
+
 # Tap a row: it plays, the row tints, and the mini player picks it up.
 - tapOn:
     id: 'song-row-0'

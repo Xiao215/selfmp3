@@ -76,7 +76,7 @@ async function quickImport(url: string): Promise<void> {
   try {
     const { mode } = await handlers.status({ type: 'status' })
     if (mode === 'bucket') {
-      await handlers.requestImport({ type: 'requestImport', url, tagIds: [], playlistId: null })
+      await handlers.requestImport({ type: 'requestImport', url, tagIds: [] })
       notify({
         title: 'Waiting for your server',
         message: 'Your server downloads it the next time it is awake.',

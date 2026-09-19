@@ -1,6 +1,9 @@
-@import '../ui/theme.css';
+@import '../ui/base.css';
 
-/* The toolbar popup: 360 points wide, as tall as what it holds. */
+/*
+ * The toolbar popup (docs/ui-mock `E1`–`E3`): 360 wide, as tall as what it
+ * holds, on the ground, with cards and controls a tone up.
+ */
 body {
   width: 360px;
 }
@@ -8,42 +11,39 @@ body {
 .popup {
   display: flex;
   flex-direction: column;
+  min-height: 200px;
 }
 
 .head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  padding: 14px 16px 10px;
 }
 
-.head .logo {
-  font-size: 14px;
+.head-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .conn {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
-  max-width: 200px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--surface-2);
   color: var(--text-secondary);
   font-size: 11px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.conn .dot {
+.conn .dot,
+.foot .dot {
   flex: none;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   background: var(--good);
 }
 
@@ -56,19 +56,19 @@ body {
   background: var(--accent);
 }
 
-.icon {
+/* A 28 round control, as the mock's gear. */
+.round {
   display: grid;
   place-items: center;
-  padding: 4px;
-  background: none;
-  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
 }
 
-.logo + .icon {
-  margin-left: auto;
-}
-
-.icon svg {
+.round svg,
+.pencil {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -77,185 +77,184 @@ body {
 }
 
 .body {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 16px 16px;
 }
 
-.card-song {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 12px;
-  align-items: center;
+.card {
+  border-radius: var(--radius-mini);
+  background: var(--surface-1);
+  box-shadow: 0 1px 3px var(--card-shadow);
 }
 
 .cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-cover);
   object-fit: cover;
   background: var(--surface-2);
 }
 
 .cover.blank {
-  background: linear-gradient(135deg, var(--accent-wash), var(--surface-3));
+  background: linear-gradient(135deg, var(--accent-dim), var(--surface-3));
 }
 
 .cover.small {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-cover-sm);
 }
 
-.song-title {
-  font-size: 15px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+/* E1: the song, with its title and artist as fields. */
+.song-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
 }
 
-.song-artist {
-  color: var(--text-secondary);
+.song-fields {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 6px;
+  min-width: 0;
 }
 
-.song-detail {
-  margin-top: 2px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-.note {
-  margin: 0;
-  padding: 7px 9px;
-  border-radius: 8px;
-  background: var(--surface-0);
-  color: var(--text-muted);
-  font-size: 11.5px;
-  overflow-wrap: anywhere;
-}
-
-.note s {
-  text-decoration-color: var(--text-muted);
-}
-
-.two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.name-field {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.name-field:focus-within {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.name-field label {
+  flex: none;
+  width: 44px;
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.name-field input {
+  flex-grow: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+}
+
+.pencil {
+  flex: none;
+  color: var(--text-muted);
 }
 
 .tags {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-
-.tags legend {
-  margin-bottom: 6px;
-  padding: 0;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.chip .swatch {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: oklch(var(--chip-l) 0.14 var(--hue));
-}
-
-.chip[aria-pressed='true'] {
-  background: var(--accent-wash);
-  color: var(--accent-strong);
-}
-
-/* A default tag is on and stays on: drawn as on, not as disabled. */
-.chip:disabled {
-  opacity: 1;
-}
-
-/* A list's songs, to tick through. */
-.picks {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pick {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 5px 4px;
-  border-radius: 8px;
-  font-size: 12.5px;
-}
-
-.pick:hover {
-  background: var(--surface-2);
-}
-
-.pick input {
-  accent-color: var(--accent);
-  margin: 0;
-}
-
-.pick-name {
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
 }
 
-.pick-name .row-title,
-.pick-name .row-sub {
-  display: block;
+.tags-inline {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* E3: a state is a heading, what it means, and what to do. */
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.state h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 19px;
+}
+
+.state p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-secondary);
+}
+
+.state p.error {
+  color: var(--danger);
+}
+
+.state .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.state .actions .tonal,
+.state .actions .primary {
+  flex-grow: 1;
+}
+
+.state .actions .link {
+  padding: 0 8px;
+}
+
+.song-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.song-line .cover.small {
+  width: 36px;
+  height: 36px;
+}
+
+.song-line span {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.tagh {
-  padding: 3px 6px;
-  border-radius: 5px;
-  background: var(--surface-3);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.song-line .skeleton {
+  flex-grow: 1;
 }
 
 .bar {
-  height: 5px;
+  position: relative;
+  height: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-3);
 }
 
 .bar b {
   display: block;
   height: 100%;
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  transition: width 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: width var(--motion-base) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .bar b.busy {
@@ -280,35 +279,128 @@ body {
   }
 }
 
-.step {
-  margin: 0;
+/* E2: a list, every song coming in unless its far end is clicked. */
+.list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.list-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+
+.list-count {
+  flex: none;
   font-size: 12px;
   color: var(--text-secondary);
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+.body > .hint + .rows {
+  margin-top: -6px;
 }
 
-.actions.even {
-  grid-template-columns: 1fr 1fr;
-}
-
-.empty {
-  display: grid;
-  gap: 8px;
-}
-
-.empty h1 {
+.rows {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  font-size: 15px;
+  padding: 4px 12px;
+  list-style: none;
 }
 
-.empty p {
-  margin: 0 0 4px;
+.review-row,
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 3px 0;
+}
+
+.review-row.dim > :not(.row-end) {
+  opacity: 0.38;
+}
+
+.review-row.dim .row-end {
+  opacity: 0.6;
+}
+
+.row-name {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 3px;
+  min-width: 0;
+  text-align: left;
+}
+
+.row-title,
+.row-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.row-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.row-sub {
+  font-size: 11px;
   color: var(--text-secondary);
+}
+
+.row-name.editing input {
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 6px;
+  background: var(--surface-0);
+  outline: none;
+}
+
+.row-name.editing input:focus {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.edit-title {
+  height: 24px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.edit-artist {
+  height: 22px;
+  font-size: 11px;
+}
+
+/* The far end of a row: the length while the song is coming in, "Left out" once it is not. */
+.row-end {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 64px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.row-end.out {
+  font-weight: 600;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .skeleton {
@@ -317,48 +409,20 @@ body {
   background: var(--surface-2);
 }
 
-.recent h2 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.recent ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 10px;
-  align-items: center;
-}
-
-.row-title {
-  font-size: 12.5px;
-}
-
-.row-sub {
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
 .foot {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-0);
+  margin-top: auto;
+  padding: 10px 16px 14px;
   color: var(--text-secondary);
   font-size: 12px;
 }
 
-.foot .link {
-  margin-left: auto;
+.foot .dot {
+  background: var(--accent);
+}
+
+.foot-text {
+  flex-grow: 1;
 }

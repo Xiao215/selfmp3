@@ -89,7 +89,7 @@ export function createPageHandler(handlers: Handlers) {
      */
     if (viaBucket) {
       return stateOfRequest(
-        await handlers.requestImport({ type: 'requestImport', url, tagIds: [], playlistId: null }),
+        await handlers.requestImport({ type: 'requestImport', url, tagIds: [] }),
       )
     }
     const preview = await handlers.preview({ type: 'preview', url })

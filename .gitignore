@@ -50,6 +50,10 @@ playwright-report/
 
 # The extension's zip, built from apps/extension/dist on demand.
 apps/extension/release/
+# The extension's tokens and faces, written from packages/client's tokens by
+# apps/extension/scripts/theme.mjs on every build. A checked-in copy is one that drifts.
+apps/extension/src/ui/theme.css
+apps/extension/src/ui/fonts.css
 # The packaged desktop app: a few hundred MB of Electron, never committed.
 # Nor a signing certificate or an API key, which the list above already covers.
 apps/desktop/release/

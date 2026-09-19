@@ -26,6 +26,19 @@ describe('what the pill says', () => {
     expect(have.busy).toBe(true)
   })
 
+  it('wears E4’s faces: the accent with the note, then a ring, a check or a dot', () => {
+    const face = (patch: Partial<Parameters<typeof pillLabel>[0]>) => {
+      const { className, mark } = state(patch)
+      return [className, mark]
+    }
+    expect(face({})).toEqual(['offer', 'note'])
+    expect(face({ state: 'importing', progress: 62 })).toEqual(['importing', 'spin'])
+    expect(face({ state: 'added' })).toEqual(['added', 'check'])
+    expect(face({ state: 'have' })).toEqual(['have', 'check'])
+    expect(face({ state: 'waiting' })).toEqual(['waiting', 'dot'])
+    expect(face({ state: 'failed' })).toEqual(['failed', 'none'])
+  })
+
   it('shows the server’s own reason for a failure', () => {
     expect(state({ state: 'failed', message: 'Video unavailable' }).text).toBe('Video unavailable')
     expect(state({ state: 'failed' }).text).toBe('Could not import')

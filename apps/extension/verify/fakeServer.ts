@@ -103,6 +103,13 @@ export async function startFakeServer(): Promise<FakeServer> {
         return send(res, 200, library)
       case 'GET /api/settings':
         return send(res, 200, { defaultImportTagIds: [1] })
+      case 'POST /api/tags': {
+        const body = (await readJson(req)) as { name: string }
+        const made = { id: library.tags.length + 1, name: body.name, hue: 200, songCount: 0 }
+        library.tags.push(made)
+        library.version += 1
+        return send(res, 200, made)
+      }
       case 'POST /api/import/preview': {
         const body = (await readJson(req)) as { url: string }
         const answer = previewFor(body.url)

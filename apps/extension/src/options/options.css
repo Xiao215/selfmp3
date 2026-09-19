@@ -1,48 +1,176 @@
-@import '../ui/theme.css';
+@import '../ui/base.css';
 
-body {
-  background: var(--surface-0);
-}
-
+/*
+ * The options page (docs/ui-mock `E5`): what the extension is and who it is
+ * connected as on the left, what an import does and the other way in on the
+ * right. One column when the tab is narrow.
+ */
 .options {
   display: grid;
-  gap: 16px;
-  max-width: 520px;
-  margin: 48px auto;
-  padding-inline: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 44px 56px;
+}
+
+@media (max-width: 760px) {
+  .options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 32px 20px;
+  }
+}
+
+.options-intro,
+.options-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.options-side {
+  padding-top: 6px;
+}
+
+.options-intro > .logo {
+  font-size: 17px;
 }
 
 .options h1 {
   margin: 0;
-  font-size: 22px;
+  font-family: var(--font-serif);
+  font-size: 44px;
+  font-weight: 400;
+  letter-spacing: -0.6px;
+  line-height: 46px;
+}
+
+.options h1 i {
+  font-family: var(--font-serif-italic);
+  font-style: normal;
+  color: var(--accent-strong);
 }
 
 .lede {
   margin: 0;
+  font-size: 15px;
+  line-height: 23px;
   color: var(--text-secondary);
 }
 
 .card {
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--surface-1);
+  box-shadow: 0 1px 3px var(--card-shadow);
 }
 
-.card h2 {
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-dim);
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+}
+
+.account-text {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.account-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.account-in {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.account-in p {
   margin: 0;
   font-size: 13px;
+  line-height: 19px;
+  color: var(--text-secondary);
 }
 
-.card p {
-  margin: 0;
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.options .primary,
-.options .secondary {
-  justify-self: start;
-  width: auto;
-  padding-inline: 18px;
+.setting {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+.setting > span:first-child {
+  flex-grow: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The address and its button in one pill, as `E5` draws the other way in. */
+.address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 7px 0 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  box-shadow: 0 1px 3px var(--card-shadow);
+}
+
+.address:focus-within {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.address input {
+  flex-grow: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-size: 14px;
+  outline: none;
+}
+
+.address .tonal {
+  height: 34px;
+  background: var(--surface-3);
+}
+
+.field input {
+  background: var(--surface-1);
 }

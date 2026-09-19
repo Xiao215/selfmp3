@@ -13,11 +13,16 @@
  *
  * The manifest is copied with the package's version written into it, so the
  * version lives in one place.
+ *
+ * The look is the app's: `theme.mjs` writes the tokens from packages/client
+ * into `src/ui/theme.css` and `fonts.css` before anything is bundled, and
+ * copies the two faces into `dist/fonts/`.
  */
 import { build } from 'esbuild'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { writeTheme } from './theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -36,6 +41,7 @@ for (const pkg of ['shared', 'replica', 'client']) {
 
 rmSync(out, { recursive: true, force: true })
 mkdirSync(join(out, 'icons'), { recursive: true })
+await writeTheme(join(out, 'fonts'))
 
 await build({
   entryPoints: {
@@ -69,6 +75,8 @@ await build({
   bundle: true,
   platform: 'browser',
   format: 'iife',
+  // The tokens, as text for the pill's shadow root (src/ui/css.d.ts).
+  loader: { '.css': 'text' },
   target: 'chrome120',
   sourcemap: true,
   logLevel: 'info',
@@ -81,6 +89,9 @@ await build({
   },
   outdir: out,
   bundle: true,
+  // The faces are copied beside the pages, not inlined: served from the
+  // extension's own folder, as `fonts.css` names them.
+  external: ['/fonts/*'],
   logLevel: 'info',
 })
 

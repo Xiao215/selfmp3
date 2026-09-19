@@ -250,9 +250,19 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       const [snapshot, settings] = await Promise.all([library.get(identity, api), api.settings()])
       return {
         tags: snapshot.tags,
-        playlists: snapshot.playlists.filter(list => list.kind === 'manual'),
         defaultTagIds: settings.defaultImportTagIds,
       }
+    },
+
+    async createTag({ name }) {
+      const { route, api } = await answering()
+      const tag = await api.createTag(name)
+      // Sent now, as a link left in the bucket is: the worker may be stopped
+      // before the replica's own timer fires.
+      if (route.mode === 'bucket') await cloud?.flush().catch(() => undefined)
+      // The kept tags are the old list; the next `choices` reads the new one.
+      await library.forget()
+      return tag
     },
 
     async songFor({ url }) {
@@ -284,9 +294,11 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       return (await direct()).retryImport(id)
     },
 
-    async requestImport({ url, tagIds, playlistId }) {
+    async requestImport({ url, tagIds }) {
       const side = await bucket()
-      const made = await side.api.requestCloudImport({ url, tagIds, playlistId })
+      // An import only ever tags; the bucket's request keeps its playlist field
+      // for the app, and the extension leaves it empty.
+      const made = await side.api.requestCloudImport({ url, tagIds, playlistId: null })
       /*
        * The replica's own flush is on a 1.5 s timer, and Chrome may stop this
        * worker before it fires — which would leave the link sitting in an

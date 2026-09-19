@@ -98,7 +98,7 @@ test('a song page offers the link itself, since only the server could read it', 
   // Nothing was read, so there is nothing to correct.
   await expect(page.getByLabel('Title')).toBeHidden()
 
-  await page.getByRole('button', { name: 'Add when the server wakes' }).click()
+  await page.getByRole('button', { name: 'Keep it for later' }).click()
   await expect(page.getByText(/^Waiting for your server/)).toBeVisible()
   await expect(page.getByText('1 link waiting for your server')).toBeVisible()
   await page.close()
@@ -108,7 +108,7 @@ test('the link is still waiting when the popup is opened again, and can be calle
   const page = await popup(IDOL_URL, IDOL_TAB_TITLE)
   await expect(page.getByText(/^Waiting for your server/)).toBeVisible()
   await page.getByRole('button', { name: 'Don’t bother' }).click()
-  await expect(page.getByRole('button', { name: 'Add when the server wakes' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Keep it for later' })).toBeVisible()
   await expect(page.getByText('Nothing waiting')).toBeVisible()
   await page.close()
 })

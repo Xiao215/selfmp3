@@ -1,4 +1,6 @@
 import { pageKind } from '../pageKind.js'
+// The generated tokens (scripts/theme.mjs), as text for the pill's shadow root.
+import THEME from '../ui/theme.css'
 import { findAnchor, siteOf } from './anchors.js'
 import { askPage } from './ask.js'
 import { createPill, PILL_TAG, type PillHandles } from './pill.js'
@@ -125,7 +127,7 @@ function ensure(): void {
     removePills()
     if (repairs >= REPAIRS) return
     repairs++
-    const next = createPill(document, videoId, clicked)
+    const next = createPill(document, videoId, clicked, THEME)
     if (found.anchor.where === 'prepend') found.element.prepend(next.element)
     else found.element.append(next.element)
     pill = next

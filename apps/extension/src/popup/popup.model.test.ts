@@ -1,18 +1,33 @@
 import type { ImportRequestView } from '@selfmp3/replica'
-import type { ImportJob, ImportPreview } from '@selfmp3/shared'
+import { reviewFrom } from '@selfmp3/client/core'
+import type { ImportJob, ImportPreview, Tag } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { pageKind } from '../pageKind.js'
 import {
   batchProgress,
+  chipState,
   cleanedFrom,
+  comingIn,
+  connectionLabel,
   connectionOf,
+  countLabel,
   hostOf,
+  importLabel,
   jobForLink,
+  listRequest,
+  newTagFrom,
   pageTitle,
   popupView,
   progressLine,
+  renameSong,
   requestForLink,
+  rowState,
   sinceLine,
+  songNote,
+  songRequest,
+  taggedLine,
+  tagIdsFor,
+  toggleLeftOut,
   type PopupInputs,
 } from './popup.model.js'
 
@@ -209,7 +224,7 @@ describe('popupView', () => {
     )
   })
 
-  it('hands a list of songs over whole, to be ticked through', () => {
+  it('hands a list of songs over whole, every one coming in unless left out', () => {
     const list: ImportPreview = {
       kind: 'playlist',
       playlistTitle: 'City pop night drive',
@@ -323,5 +338,125 @@ describe('the words', () => {
   it('writes the server as its host', () => {
     expect(hostOf('https://mac-mini.tail1234.ts.net')).toBe('mac-mini.tail1234.ts.net')
     expect(hostOf('http://localhost:4600')).toBe('localhost:4600')
+  })
+})
+
+describe('the header', () => {
+  it('names the way in, not its address', () => {
+    expect(connectionLabel('ready')).toBe('Your server')
+    expect(connectionLabel('bucket')).toBe('Via your bucket')
+    expect(connectionLabel('away')).toBe('Not answering')
+    expect(connectionLabel('none')).toBeNull()
+    expect(connectionLabel('checking')).toBeNull()
+  })
+})
+
+const tag = (id: number, name: string): Tag => ({ id, name, hue: 150, songCount: 0 })
+const TAGS = [tag(1, 'new'), tag(2, 'j-pop'), tag(3, 'chill')]
+
+describe('tags, and never a playlist', () => {
+  it('keeps a default tag on, and lets the others be picked', () => {
+    expect(chipState(1, [1], new Set())).toBe('fixed')
+    expect(chipState(1, [1], new Set([1]))).toBe('fixed')
+    expect(chipState(2, [1], new Set([2]))).toBe('on')
+    expect(chipState(3, [1], new Set([2]))).toBe('off')
+    expect(chipState(2, undefined, new Set())).toBe('off')
+  })
+
+  it('sends the defaults and the picked together, once each', () => {
+    expect([...tagIdsFor([1], new Set([2, 1]))].sort()).toEqual([1, 2])
+    expect([...tagIdsFor(undefined, new Set([3]))]).toEqual([3])
+  })
+
+  it('makes a new tag only of a name that is not there yet, in any case', () => {
+    expect(newTagFrom('   ', TAGS)).toEqual({ kind: 'empty' })
+    expect(newTagFrom(' J-Pop ', TAGS)).toEqual({ kind: 'existing', tag: TAGS[1] })
+    expect(newTagFrom(' city   pop ', TAGS)).toEqual({ kind: 'new', name: 'city pop' })
+  })
+
+  it('says what an import was tagged with', () => {
+    expect(taggedLine([], TAGS)).toBeNull()
+    expect(taggedLine([2], TAGS)).toBe('Tagged j-pop.')
+    expect(taggedLine([1, 2, 3], TAGS)).toBe('Tagged new, j-pop and chill.')
+    // A tag deleted since is left out rather than named wrongly.
+    expect(taggedLine([9, 3], TAGS)).toBe('Tagged chill.')
+  })
+})
+
+describe('a song', () => {
+  it('says where the words came from, and how long it is', () => {
+    expect(songNote('YOASOBI「アイドル」Official Music Video', 213)).toBe(
+      'Tidied from “YOASOBI「アイドル」Official Music Video”. Change either before it is saved; 3:33.',
+    )
+    expect(songNote(null, 0)).toBe('From the page. Change either before it is saved.')
+  })
+
+  it('imports the song as corrected, with its tags, into no playlist', () => {
+    expect(songRequest(item, { title: ' Idol ', artist: ' YOASOBI ' }, new Set([1, 2]))).toEqual({
+      items: [
+        {
+          url: IDOL,
+          title: 'Idol',
+          artist: 'YOASOBI',
+          album: '',
+          thumbnail: null,
+          duration: 213,
+        },
+      ],
+      tagIds: [1, 2],
+      playlistId: null,
+      createPlaylistName: null,
+    })
+  })
+})
+
+describe('a list', () => {
+  const list: ImportPreview = {
+    kind: 'playlist',
+    playlistTitle: 'THE BOOK',
+    items: [
+      { ...item, url: `${IDOL}&a`, title: 'アイドル', alreadyHave: true },
+      { ...item, url: `${IDOL}&b`, title: 'ハルジオン' },
+      { ...item, url: `${IDOL}&c`, title: '群青' },
+    ],
+  }
+
+  it('has every song coming in except the ones that are yours already', () => {
+    const review = reviewFrom(list)
+    expect([0, 1, 2].map(index => rowState(review, index))).toEqual(['yours', 'in', 'in'])
+    expect(countLabel(review)).toBe('2 of 3 coming in')
+    expect(importLabel(comingIn(review))).toBe('Import 2 songs')
+  })
+
+  it('leaves a song out at the far end of its row, and brings it back the same way', () => {
+    const out = toggleLeftOut(reviewFrom(list), 2)
+    expect(rowState(out, 2)).toBe('out')
+    expect(countLabel(out)).toBe('1 of 3 coming in')
+    expect(importLabel(comingIn(out))).toBe('Import 1 song')
+    expect(rowState(toggleLeftOut(out, 2), 2)).toBe('in')
+  })
+
+  it('cannot bring in a song that is yours already', () => {
+    const review = reviewFrom(list)
+    expect(toggleLeftOut(review, 0)).toBe(review)
+    expect(toggleLeftOut(review, 7)).toBe(review)
+  })
+
+  it('renames a song in place, keeping the link it downloads from', () => {
+    const renamed = renameSong(reviewFrom(list), 2, { title: 'Gunjou' })
+    expect(renamed.items[2]).toMatchObject({ url: `${IDOL}&c`, title: 'Gunjou', artist: 'YOASOBI' })
+    expect(renamed.items[1]?.title).toBe('ハルジオン')
+  })
+
+  it('sends only the songs coming in, as renamed, tagged, and into no playlist', () => {
+    const review = renameSong(toggleLeftOut(reviewFrom(list), 1), 2, {
+      artist: ' YOASOBI feat. 合唱 ',
+    })
+    // Even if the one you have was somehow chosen, it is not sent.
+    const request = listRequest({ ...review, chosen: new Set([0, 2]) }, new Set([1]))
+    expect(request.items.map(each => [each.title, each.artist])).toEqual([
+      ['群青', 'YOASOBI feat. 合唱'],
+    ])
+    expect(request).toMatchObject({ tagIds: [1], playlistId: null, createPlaylistName: null })
   })
 })

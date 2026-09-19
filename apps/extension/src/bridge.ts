@@ -5,7 +5,7 @@ import {
   ImportEnqueueSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
-  PlaylistSchema,
+  TagNameSchema,
   TagSchema,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -34,6 +34,8 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('signOut') }),
   z.object({ type: z.literal('preview'), url: z.string().trim().min(1).max(20_000) }),
   z.object({ type: z.literal('choices') }),
+  /** The popup's "+ new": a tag made before the import that uses it. */
+  z.object({ type: z.literal('createTag'), name: TagNameSchema }),
   z.object({ type: z.literal('songFor'), url: z.string().max(2000) }),
   z.object({
     type: z.literal('enqueue'),
@@ -49,7 +51,6 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
     type: z.literal('requestImport'),
     url: z.string().trim().min(1).max(20_000),
     tagIds: z.array(IdSchema).max(50).default([]),
-    playlistId: IdSchema.nullable().default(null),
   }),
   z.object({ type: z.literal('requests') }),
   z.object({ type: z.literal('cancelRequest'), uid: z.string().min(1).max(100) }),
@@ -76,11 +77,12 @@ export const StatusSchema = z.object({
 })
 export type Status = z.infer<typeof StatusSchema>
 
-/** What the popup offers to put an import in. */
+/**
+ * What the popup offers to tag an import with. Tags only: an import never goes
+ * into a playlist (docs/features/browser-extension.md, "The popup").
+ */
 export const ChoicesSchema = z.object({
   tags: z.array(TagSchema),
-  /** Manual playlists only: an import cannot go into a live one. */
-  playlists: z.array(PlaylistSchema),
   /** Tags the server adds to every import (Settings → Importing). */
   defaultTagIds: z.array(z.number().int()),
 })
@@ -107,6 +109,7 @@ export const REPLIES = {
   signOut: StatusSchema,
   preview: ImportPreviewSchema,
   choices: ChoicesSchema,
+  createTag: TagSchema,
   songFor: SongHitSchema.nullable(),
   enqueue: ImportEnqueueResultSchema,
   queue: ImportQueueSchema,

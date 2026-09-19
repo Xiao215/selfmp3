@@ -60,17 +60,22 @@ web page can read, not even the script it runs inside YouTube.
 ## What it does
 
 **The pill, in the page.** On a YouTube, YouTube Music or m.youtube.com watch
-page there is a **self.mp3** button beside Like. It says *In library* when the
-song is already yours; otherwise pressing it imports the song with your default
-tags, and it follows the download — *Importing 40%* — to *Added*. It finds its
-place from the address, so it follows you from video to video without a reload,
-and it is not drawn where there is no song.
+page there is a **self.mp3** pill beside Like, in the accent with the app's note
+mark. It says *In library* when the song is already yours; otherwise pressing it
+imports the song with your default tags, and it follows the download — a turning
+ring and *Importing 40%* — to a green *Added*. Left in your bucket it says
+*Waiting for your server*. It finds its place from the address, so it follows
+you from video to video without a reload, and it is not drawn where there is no
+song.
 
 **The popup, from the toolbar.** The same song, with everything to decide first:
 the title tidied out of the video's own (see the importing section of the
-[README](../../README.md)), the artist, your tags, and a playlist to drop it
-into. The tags your server adds to every import are shown already on and cannot
-be turned off, because the server adds them whatever the popup sends.
+[README](../../README.md)) and the artist, both fields you can change before it
+is saved, and your tags. **+ new** makes a tag there and then; a name you already
+have picks that tag instead of making a second. The tags your server adds to
+every import are shown already on and cannot be turned off, because the server
+adds them whatever the popup sends. There is no playlist to choose: an import only
+ever tags, and playlists are made in the app from songs you have.
 
 It has a state for each way this goes: the song, one already in your library
 (*In your library since 12 Aug · played 41 times*), an import in progress, one
@@ -78,28 +83,33 @@ that landed, and the server's own words when a link cannot be read — a private
 video, say. On a page with nothing to import it offers a box to paste a link
 into, under the last few songs you imported.
 
-**A playlist, an album or an artist.** The popup lists what the link holds, with
-the songs you already have unticked, and offers to create a playlist of the same
-name. Long lists show the first eight and a link to the full review on the
+**A playlist, an album or an artist.** The popup lists what the link holds, and
+every song is coming in — *4 of 6 coming in* — unless you click the far end of
+its row, which dims it and says *Left out*; click again to bring it back. Songs
+you already have are dimmed and say *Yours already*. Click any name and its title
+and artist become fields. There are no checkboxes, and no playlist is made of
+them. Long lists show the first eight and a link to the full review on the
 Import screen.
 
 **Right-click, anywhere.** *Import link to self.mp3* takes any link — a YouTube
-one, or anything else yt-dlp can read — with your defaults. *Import with tags and
-playlist…* opens the popup on that link instead. Both work on a link, on
-selected text holding one, or on the page you are reading.
+one, or anything else yt-dlp can read — with your defaults. *Import with tags…*
+opens the popup on that link instead. Both work on a link, on selected text
+holding one, or on the page you are reading.
 
 **Importing while your server is asleep.** Signed in, the extension asks your
 server directly whenever one of its addresses answers, and when none does it
 writes the link into your bucket instead — your server downloads it the next
 time it is awake, and it arrives in your library with the sync after that. The
-header says which is happening: your server's address, or *Via your bucket*.
+header says which is happening: *Your server* (its address on hover), or *Via
+your bucket*.
 
 What that costs is the *looking*, not the importing. Only your server can read a
 link at all, so through the bucket there is no title tidied out of the video's,
-no track list to tick through, and no playing a song before it is added: the
-popup takes the link as it is, with your tags and a playlist, and says *Waiting
-for your server* until it has been taken. *Don't bother* calls one off. A
-playlist goes in whole — your server skips what you already have.
+no track list to go through, and no playing a song before it is added: the popup
+says *Your server is asleep*, takes the link as it is with your tags (**Keep it
+for later**), and says *Waiting for your server* until it has been taken.
+*Don't bother* calls one off. A playlist goes in whole — your server skips what
+you already have.
 
 **The toolbar counts.** While imports you started here are going, the button
 carries their number; when they finish, one notification says what landed —
@@ -140,6 +150,7 @@ the badge is only ever about what you did here.
 | The pill: where it goes, what it is, when to look again | `apps/extension/src/content/` |
 | The badge and the notification | `apps/extension/src/background/jobs.model.ts`, `watcher.ts` |
 | Options | `apps/extension/src/options/` |
+| The look: the app's tokens, written into CSS by every build, and the parts both pages share | `apps/extension/scripts/theme.mjs`, `apps/extension/src/ui/` |
 | The end-to-end specs, and the fake server they run against | `apps/extension/verify/` |
 
 Two rules the code keeps, and the reasons:
@@ -156,6 +167,39 @@ Two rules the code keeps, and the reasons:
   or its token.
 
 What is not built yet is in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
+
+## The look
+
+The popup, the options page and the pill are drawn as the app is (docs/ui-mock
+`S2`, `E1`–`E5`): tone on tone with no hairlines, pills, a dot chip per tag that
+turns white when chosen, the accent only on the button that commits something,
+Bricolage Grotesque for the name and a list's title, and Instrument Serif for the
+options page's headline. Dark first, and Paper when the system is light. The
+popup stays 360 wide.
+
+**The tokens are not copied.** `apps/extension/scripts/theme.mjs` reads the
+compiled tokens from `packages/client` (`darkPalette`, `lightPalette`, `radius`,
+`type`, `fonts`…) and writes every one as a custom property into
+`src/ui/theme.css`, and the two faces' `@font-face` rules into `src/ui/fonts.css`.
+`npm run build:extension` runs it before bundling, so the extension is always in
+step with the app it was built beside; both files are git-ignored, as a checked-in
+copy is one that drifts. `node apps/extension/scripts/theme.mjs` writes them
+without a build. `scripts/theme.test.mjs` holds the output against the tokens and
+fails if any stylesheet in the extension names a token the theme does not have,
+or writes a colour of its own.
+
+- **The hue is fixed** at the default, 268. The accent is a setting of each
+  device in the app; the extension has no settings of its own and gets none.
+- **The faces are bundled**, from the same `@expo-google-fonts` files the app
+  embeds, into `dist/fonts/`. Not Google Fonts at run time: the extension talks
+  only to your server and your bucket, and a popup should not wait on a network
+  to draw its title.
+- **The pill** carries the same `theme.css`, as text, into its shadow root — the
+  content script's build loads `.css` as text for that. Its custom properties sit
+  on `:host`, which YouTube's CSS never names. It keeps the system face: a font
+  cannot be declared from inside a shadow root.
+- **A tag's dot** comes from `tagColors()` in `packages/client`, for both schemes,
+  handed to the chip as two custom properties.
 
 ## Shape
 
@@ -229,7 +273,7 @@ The options page offers two ways in:
 
 Before a preview or an import, and each time the popup opens, the background
 probes every candidate address with `reachServer` (`packages/client`) and keeps the answer for 60 seconds. The header pill shows what won:
-"Home server" or "Via your bucket".
+"Your server" or "Via your bucket".
 
 The two paths do not offer the same things, and the popup must not pretend
 they do:
@@ -237,40 +281,43 @@ they do:
 | | Server direct | Via the bucket |
 |---|---|---|
 | Details before importing | Preview; title and artist editable | No preview. The page's own title and channel (YouTube oEmbed) shown read-only, with "Your server will read the details when it fetches this." |
-| Tags and playlists | The server's ids | The replica's ids, mapped to uids by `requestImport` |
-| C: a playlist's tracks | Listed, with ticks | Not listed; one "Request the whole playlist" (the server skips what you have) |
-| C: "Also create playlist" | Yes (`createPlaylistName`) | Hidden: `importRequested` has no name field |
+| Tags | The server's ids; "+ new" is `POST /api/tags` | The replica's ids, mapped to uids by `requestImport`; "+ new" is the replica's own tag route |
+| C: a playlist's tracks | Listed, every one coming in unless left out, names editable | Not listed; the whole list is kept for later (the server skips what you have) |
+| A playlist | Never: an import only tags | Never: `requestImport` sends no playlist |
 | Progress | Job step and percent | Request state from the next snapshot |
 | Cancel | `cancelImport` | `cancelCloudImport` |
 | Already have | Link index + preview `alreadyHave` | Link index from the replica's songs |
 
-Tag and playlist ids from one path are never used with the other: a
-connection object carries its own api, and everything the popup shows is read
-through it.
+Tag ids from one path are never used with the other: a connection object
+carries its own api, and everything the popup shows is read through it.
 
 ## The popup, state by state
 
 `popup.model.ts` turns five inputs into one state: the page kind (from the tab
 URL through shared's `youtubeVideoId`, `youtubePlaylistId`, `youtubeMusicAlbum`,
 `youtubeChannel`), the connection, a hit in the link index, the preview, and a
-job for this link. It is pure and has the most tests.
+job for this link. It is pure and has the most tests. The same file holds what
+the forms decide without drawing: which chip is on, what "+ new" makes of a name,
+a list's rows coming in, left out or yours already, and the request each form
+sends — tags, and never a playlist.
 
 | State | Shown when | Drawn as |
 |---|---|---|
 | Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
 | Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
-| Song | Single, not in the library | Card, "Cleaned from …" when `tidyVideoTitle` changed it, title and artist fields, tag chips with the default tags ticked, manual playlists (pinned first), Import |
+| Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the default tags on, "+ new", Import to your library |
 | Already in your library | Link index hit, or `alreadyHave` | "In your library since … · played N times", Open in self.mp3, Import anyway |
-| Playlist, album, artist (C) | `kind: 'playlist'` | Track rows with ticks, "have" rows unticked, "Also create playlist", tags, "Import N songs", and "Open the full review" past 30 tracks |
+| Playlist, album, artist (C, `E2`) | `kind: 'playlist'` | "4 of 6 coming in"; rows whose name opens title and artist fields and whose far end says "Left out" when clicked; "Yours already" rows dimmed; tags; "Import N songs"; "Open the full review" past eight |
 | Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
-| Added | Job done | Tags and playlist it went to |
+| Added | Job done | The tags it got, and that the phone has it after its next sync |
+| Your server is asleep | Bucket mode, a link not left yet | The link, tags, Keep it for later |
 | Waiting for your server | Bucket request `waiting` | The sentence from the mock |
 | Can't import | Job `error`, or the preview refused | The server's own message, which already names the fix |
 
 Two small corrections to the mock, found in the code:
 
-- The added state shows tags and playlist but not BPM and key: analysis runs
-  after an import finishes, so they are rarely known in time.
+- The added state shows the tags but not BPM and key: analysis runs after an
+  import finishes, so they are rarely known in time.
 - The cleaned title for the example is アイドル, not "Idol". The tidy rule
   takes what is inside 「」; it does not translate.
 
@@ -324,7 +371,9 @@ understands from the share target.
   same watcher as the badge.
 - v1 shows the pill on watch pages only. Playlist pages use the popup (C).
 - **Menus:** "Import link to self.mp3" (the same quick import) and "Import with
-  tags and playlist…", on links on any page and on the page itself on YouTube.
+  tags…", on links on any page and on the page itself on YouTube. `E4` draws the
+  second as "With tags and a playlist…"; the popup it opens has no playlist, so
+  the words say only what it does.
   The second opens `review.html?url=` in a small window, the popup's UI with a
   link given instead of a tab, because a context-menu click cannot open the
   action popup reliably.

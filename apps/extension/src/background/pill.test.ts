@@ -209,7 +209,7 @@ describe('what a page may ask', () => {
     expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
       state: 'waiting',
     })
-    expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [], playlistId: null }])
+    expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [] }])
     expect(enqueued).toHaveLength(0)
   })
 })

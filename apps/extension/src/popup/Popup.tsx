@@ -1,7 +1,7 @@
 import { DEFAULT_APP_URL, IDLE_PACING, type ImportEnqueue, type ImportQueue } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { ask } from '../bridge.js'
+import { ask, type Choices } from '../bridge.js'
 import { pageKind } from '../pageKind.js'
 import { currentPage } from './page.js'
 import {
@@ -14,6 +14,7 @@ import {
   requestForLink,
   shouldLookUp,
   sinceLine,
+  taggedLine,
   type Connection,
   type PreviewState,
 } from './popup.model.js'
@@ -35,6 +36,7 @@ import {
   Requested,
   SongForm,
   Waiting,
+  type Tagging,
 } from './views.js'
 
 /** How often the queue is read while something for this popup is importing. */
@@ -147,8 +149,32 @@ export function Popup(): ReactNode {
   const choices = useQuery({
     queryKey: ['choices'],
     queryFn: () => ask({ type: 'choices' }),
-    enabled: view.name === 'song' || view.name === 'list' || view.name === 'request',
+    enabled:
+      view.name === 'song' ||
+      view.name === 'list' ||
+      view.name === 'request' ||
+      view.name === 'added',
   })
+
+  /*
+   * "+ new": the tag is made first, through whichever side answers, and the
+   * form picks it once it exists — an import can only name tags by their ids.
+   */
+  const createTag = useMutation({
+    mutationFn: (name: string) => ask({ type: 'createTag', name }),
+    onSuccess: tag => {
+      queryClient.setQueryData<Choices>(['choices'], previous =>
+        previous ? { ...previous, tags: [...previous.tags, tag] } : previous,
+      )
+      void queryClient.invalidateQueries({ queryKey: ['choices'] })
+    },
+  })
+  const tagging: Tagging = {
+    choices: choices.data,
+    creating: createTag.isPending,
+    error: createTag.error?.message ?? null,
+    create: name => createTag.mutateAsync(name),
+  }
 
   const enqueue = useMutation({
     mutationFn: ({ request, label }: { request: ImportEnqueue; label: string | null }) =>
@@ -168,7 +194,7 @@ export function Popup(): ReactNode {
   })
 
   const leave = useMutation({
-    mutationFn: (input: { tagIds: number[]; playlistId: number | null }) =>
+    mutationFn: (input: { tagIds: number[] }) =>
       ask({ type: 'requestImport', url: link ?? '', ...input }),
     onSuccess: () => {
       setImportAnyway(false)
@@ -224,7 +250,7 @@ export function Popup(): ReactNode {
             key={view.item.url}
             item={view.item}
             cleanedFrom={cleanedFrom(tabTitle, view.item.title)}
-            choices={choices.data}
+            tagging={tagging}
             pending={enqueue.isPending}
             error={enqueue.error?.message ?? null}
             onImport={(request, label) => enqueue.mutate({ request, label })}
@@ -243,6 +269,7 @@ export function Popup(): ReactNode {
           <Added
             job={view.job}
             {...(batch && batch.total > 1 ? { count: batch.added } : {})}
+            tagged={taggedLine(view.job.tagIds, choices.data?.tags ?? [])}
             onOpen={() => openApp('/import')}
           />
         )
@@ -277,7 +304,7 @@ export function Popup(): ReactNode {
             link={view.link}
             list={view.list}
             title={tabTitle}
-            choices={choices.data}
+            tagging={tagging}
             pending={leave.isPending}
             error={leave.error?.message ?? null}
             onRequest={input => leave.mutate(input)}
@@ -299,7 +326,7 @@ export function Popup(): ReactNode {
           <ListReview
             key={link}
             preview={view.preview}
-            choices={choices.data}
+            tagging={tagging}
             pending={enqueue.isPending}
             error={enqueue.error?.message ?? null}
             onImport={(request, label) => enqueue.mutate({ request, label })}

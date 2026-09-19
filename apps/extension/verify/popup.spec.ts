@@ -44,7 +44,7 @@ async function popup(url: string, title?: string): Promise<Page> {
 test('before a server is connected, the popup asks for one', async () => {
   const page = await popup(IDOL_URL)
   await expect(page.getByRole('heading', { name: 'Connect to your library' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open options' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Set it up' })).toBeVisible()
   await page.close()
 })
 
@@ -59,16 +59,16 @@ test('the options page asks for a token only once the server wants one', async (
   await expect(page.getByLabel('Token')).toBeHidden()
 
   await page.getByLabel('Address').fill(server.url)
-  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Use this address' }).click()
   await expect(page.getByRole('alert')).toHaveText('That server needs its token.')
   await expect(page.getByLabel('Token')).toBeVisible()
 
   await page.getByLabel('Token').fill('wrong')
-  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Use this address' }).click()
   await expect(page.getByRole('alert')).toHaveText('The server refused that token.')
 
   await page.getByLabel('Token').fill(TOKEN)
-  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Use this address' }).click()
   await expect(page.getByText(`Pointed at ${server.url} · 2 songs`)).toBeVisible()
   await page.close()
 })
@@ -77,7 +77,9 @@ test('a song page imports, and the popup follows the job until it is added', asy
   const page = await popup(IDOL_URL, IDOL_TAB_TITLE)
   await expect(page.getByLabel('Title')).toHaveValue('アイドル')
   await expect(page.getByLabel('Artist')).toHaveValue('YOASOBI')
-  await expect(page.getByText('Cleaned from')).toBeVisible()
+  await expect(page.getByText(/^Tidied from/)).toBeVisible()
+  // The title is corrected before it is saved, not after.
+  await page.getByLabel('Artist').fill('YOASOBI (Ayase)')
 
   // The tag every import gets is on and stays on; the others are yours to pick.
   const defaultTag = page.getByRole('button', { name: 'new', exact: true })
@@ -85,21 +87,32 @@ test('a song page imports, and the popup follows the job until it is added', asy
   await expect(defaultTag).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'j-pop', exact: true }).click()
 
-  // A live playlist is not offered: imports cannot go into one.
-  const playlist = page.getByLabel('Add to playlist')
-  await expect(playlist.locator('option')).toHaveText(['No playlist', 'Gym rotation'])
-  await playlist.selectOption({ label: 'Gym rotation' })
+  // A tag that is not there yet is made from here, and picked once it exists.
+  await page.getByRole('button', { name: '+ new' }).click()
+  await page.getByLabel('New tag').fill('city pop')
+  await page.getByLabel('New tag').press('Enter')
+  await expect(page.getByRole('button', { name: 'city pop', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 
-  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  // Never a playlist: an import only ever tags.
+  await expect(page.getByText(/playlist/i)).toHaveCount(0)
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Import to your library' }).click()
   await expect(page.getByText(/^Downloading/)).toBeVisible()
   await expect(page.getByText('Added to your library')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(/^Tagged new, j-pop and city pop\./)).toBeVisible()
 
   expect(server.enqueued).toEqual([
     expect.objectContaining({
-      tagIds: [1, 2],
-      playlistId: 1,
+      tagIds: [1, 2, 3],
+      playlistId: null,
       createPlaylistName: null,
-      items: [expect.objectContaining({ url: IDOL_URL, title: 'アイドル', artist: 'YOASOBI' })],
+      items: [
+        expect.objectContaining({ url: IDOL_URL, title: 'アイドル', artist: 'YOASOBI (Ayase)' }),
+      ],
     }),
   ])
   // The write came from the extension's own origin, the one the server lets through.
@@ -126,7 +139,7 @@ test('a link the server cannot read shows its reason', async () => {
   await page.close()
 })
 
-test('a playlist is ticked through, and the badge and a notice follow the batch', async () => {
+test('a playlist comes in whole unless a song is left out, and the badge and a notice follow it', async () => {
   const worker = await serviceWorker()
   await worker.evaluate(() => {
     // Keep what the worker announces, so the spec can read it back.
@@ -140,21 +153,39 @@ test('a playlist is ticked through, and the badge and a notice follow the batch'
   })
 
   const page = await popup(PLAYLIST_URL)
-  // Exactly: the playlist's name is also inside the "Also create playlist" label.
-  await expect(page.getByText('City pop night drive', { exact: true })).toBeVisible()
-  await expect(page.getByText('3 tracks found · 1 already in your library')).toBeVisible()
-  // The one already in the library starts unticked, the others ticked.
-  const rows = page.locator('.pick input[type=checkbox]')
-  await expect(rows.nth(0)).toBeChecked()
-  await expect(rows.nth(2)).not.toBeChecked()
-  await page.getByText(/^Also create playlist/).click()
+  await expect(page.getByText('City pop night drive')).toBeVisible()
+  // Every song is coming in but the one already yours; there is nothing to tick.
+  await expect(page.getByText('2 of 3 coming in')).toBeVisible()
+  await expect(page.getByText('Yours already')).toBeVisible()
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Import 2 tracks' }).click()
+  // The far end of a row leaves the song out, and brings it back.
+  await page.getByRole('button', { name: 'Leave out Mayonaka no Door' }).click()
+  await expect(page.getByText('Left out')).toBeVisible()
+  await expect(page.getByText('1 of 3 coming in')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import 1 song' })).toBeVisible()
+  await page.getByRole('button', { name: 'Bring back Mayonaka no Door' }).click()
+  await expect(page.getByText('Left out')).toHaveCount(0)
+
+  // A name is a field once it is clicked.
+  await page.getByRole('button', { name: /^Plastic Love/ }).click()
+  await page.getByLabel('Title').fill('Plastic Love (2021 remaster)')
+  await page.getByLabel('Title').press('Enter')
+  await expect(page.getByText('Plastic Love (2021 remaster)')).toBeVisible()
+
+  // Never a playlist made of them.
+  await expect(page.getByText(/create playlist/i)).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Import 2 songs' }).click()
   await expect(page.getByText(/^Downloading|Waiting in queue/)).toBeVisible()
 
   const enqueued = server.enqueued.at(-1)
-  expect(enqueued?.items).toHaveLength(2)
-  expect(enqueued?.createPlaylistName).toBe('City pop night drive')
+  expect(enqueued?.items.map(item => item.title)).toEqual([
+    'Plastic Love (2021 remaster)',
+    'Mayonaka no Door',
+  ])
+  expect(enqueued?.playlistId).toBeNull()
+  expect(enqueued?.createPlaylistName).toBeNull()
 
   // The toolbar badge counts this extension's imports, then clears.
   await expect

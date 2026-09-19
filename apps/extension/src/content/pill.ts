@@ -1,4 +1,5 @@
 import type { PillState } from '../bridge.js'
+import { NOTE_PATH } from '../ui/mark.js'
 
 /**
  * The pill itself: one element, its own shadow root, and nothing of YouTube's
@@ -8,6 +9,13 @@ import type { PillState } from '../bridge.js'
  * content script's world, so `define` is not available. The layout properties
  * are inline on the outer element because YouTube's page CSS beats a `:host`
  * rule (docs/features/browser-extension.md, "What the spike settled", question 4).
+ *
+ * It is drawn as `E4` draws it — the accent pill with the note mark while it
+ * offers itself, and a raised control after — from the same generated tokens
+ * as the popup. Those arrive as the `theme` stylesheet, whose custom properties
+ * sit on `:host`: the page's CSS never sets our names, so they reach the
+ * shadow root intact. The system face, not the display face: a font cannot be
+ * declared from inside a shadow root, and this sits among YouTube's own buttons.
  */
 
 export const PILL_TAG = 'selfmp3-pill'
@@ -17,19 +25,32 @@ const OUTER_STYLE = 'display:inline-flex;flex:0 0 auto;width:auto;align-self:cen
 const SHADOW_CSS = `
   :host { all: initial }
   button {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 0 12px; height: 32px; border: 0; border-radius: 999px;
-    background: color-mix(in oklab, rgb(124 118 232) 22%, transparent);
-    color: rgb(168 164 245);
-    font: 500 12px/1 -apple-system, BlinkMacSystemFont, 'Roboto', system-ui, sans-serif;
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px; padding: 0 14px 0 11px; border: 0; border-radius: var(--radius-pill);
+    background: var(--surface-3); color: var(--text-primary);
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Roboto', system-ui, sans-serif;
     cursor: pointer; white-space: nowrap;
   }
-  button:hover { background: color-mix(in oklab, rgb(124 118 232) 34%, transparent) }
+  button.offer { background: var(--accent); color: var(--on-accent) }
+  button.offer:hover { background: var(--accent-strong) }
+  button.added { color: var(--good) }
+  button.have { color: var(--text-secondary) }
+  button.waiting { color: var(--warning) }
+  button.failed { color: var(--danger) }
   button[disabled] { cursor: default }
-  button.have { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.72) }
-  button.failed { background: rgba(212,80,63,0.18); color: rgb(240 150 140) }
-  .undo { text-decoration: underline }
+  svg { flex: none }
+  .spin {
+    width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%;
+    border: 2px solid var(--accent); border-right-color: transparent;
+    animation: spin 0.9s linear infinite;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none } }
 `
+
+/** What stands before the words: the note, a turning ring, a check, or a dot. */
+type PillMark = 'note' | 'spin' | 'check' | 'dot' | 'none'
 
 export interface PillHandles {
   readonly element: HTMLElement
@@ -38,42 +59,89 @@ export interface PillHandles {
   draw(state: PillState): void
 }
 
-/** What the pill says for each state it can be in. */
-export function pillLabel(state: PillState): { text: string; className: string; busy: boolean } {
+/** What the pill says for each state it can be in: `E4`'s five faces, and a failure. */
+export function pillLabel(state: PillState): {
+  text: string
+  className: string
+  mark: PillMark
+  busy: boolean
+} {
   switch (state.state) {
     case 'have':
-      return { text: 'In library', className: 'have', busy: true }
+      return { text: 'In library', className: 'have', mark: 'check', busy: true }
     case 'importing':
       return {
         text: state.progress === null ? 'Importing' : `Importing ${Math.round(state.progress)}%`,
-        className: '',
+        className: 'importing',
+        mark: 'spin',
         busy: true,
       }
     // Left in the bucket: the server has not taken it yet, and there is no
     // percentage to show because nothing is downloading anywhere.
     case 'waiting':
-      return { text: 'Waiting for your server', className: 'have', busy: true }
+      return { text: 'Waiting for your server', className: 'waiting', mark: 'dot', busy: true }
     // Undo is not built yet, so the pill does not offer it: once the song is
     // in, there is nothing here left to press.
     case 'added':
-      return { text: 'Added', className: 'have', busy: true }
+      return { text: 'Added', className: 'added', mark: 'check', busy: true }
     case 'failed':
-      return { text: state.message ?? 'Could not import', className: 'failed', busy: false }
+      return {
+        text: state.message ?? 'Could not import',
+        className: 'failed',
+        mark: 'none',
+        busy: false,
+      }
     default:
-      return { text: 'self.mp3', className: '', busy: false }
+      return { text: 'self.mp3', className: 'offer', mark: 'note', busy: false }
   }
+}
+
+const SVG = 'http://www.w3.org/2000/svg'
+
+/** The mark, built as elements: the page's Trusted Types policy may refuse `innerHTML`. */
+function markElement(document: Document, mark: PillMark): Element | null {
+  if (mark === 'none') return null
+  if (mark === 'spin' || mark === 'dot') {
+    const span = document.createElement('span')
+    span.className = mark
+    return span
+  }
+  const svg = document.createElementNS(SVG, 'svg')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('width', mark === 'note' ? '15' : '14')
+  svg.setAttribute('height', mark === 'note' ? '15' : '14')
+  svg.setAttribute('aria-hidden', 'true')
+  const path = document.createElementNS(SVG, 'path')
+  if (mark === 'note') {
+    path.setAttribute('d', NOTE_PATH)
+    path.setAttribute('fill', 'currentColor')
+  } else {
+    path.setAttribute('d', 'm5 12 5 5L20 7')
+    const stroke: readonly (readonly [string, string])[] = [
+      ['fill', 'none'],
+      ['stroke', 'currentColor'],
+      ['stroke-width', '3'],
+      ['stroke-linecap', 'round'],
+      ['stroke-linejoin', 'round'],
+    ]
+    for (const [name, value] of stroke) path.setAttribute(name, value)
+  }
+  svg.append(path)
+  return svg
 }
 
 export function createPill(
   document: Document,
   videoId: string,
   onClick: (pill: PillHandles) => void,
+  /** The generated tokens (`src/ui/theme.css`), as text. */
+  theme: string,
 ): PillHandles {
   const element = document.createElement(PILL_TAG)
   element.setAttribute('style', OUTER_STYLE)
   const shadow = element.attachShadow({ mode: 'closed' })
   const style = document.createElement('style')
-  style.textContent = SHADOW_CSS
+  style.textContent = theme + SHADOW_CSS
   const button = document.createElement('button')
   button.type = 'button'
   shadow.append(style, button)
@@ -83,7 +151,8 @@ export function createPill(
     videoId,
     draw(state) {
       const label = pillLabel(state)
-      button.textContent = label.text
+      const mark = markElement(document, label.mark)
+      button.replaceChildren(...(mark ? [mark] : []), label.text)
       button.className = label.className
       // Nothing to press while it is going, or once the song is yours.
       button.disabled = label.busy

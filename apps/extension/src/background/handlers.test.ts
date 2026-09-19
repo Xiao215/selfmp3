@@ -11,6 +11,8 @@ const json = (status: number, body: unknown) =>
 /** A server in a function: health for anyone, everything else for the token. */
 function fakeServer(token: string | null) {
   const calls: string[] = []
+  const tags = [...library.tags]
+  let version = 1
   const fetchImpl = (input: string, init: RequestInit = {}) => {
     const url = new URL(input)
     const route = `${init.method ?? 'GET'} ${url.pathname}`
@@ -33,11 +35,18 @@ function fakeServer(token: string | null) {
       return Promise.resolve(json(401, { error: 'invalid token', code: 'unauthorized' }))
     switch (route) {
       case 'GET /api/library/version':
-        return Promise.resolve(json(200, { version: 1, songCount: library.songs.length }))
+        return Promise.resolve(json(200, { version, songCount: library.songs.length }))
       case 'GET /api/library':
-        return Promise.resolve(json(200, library))
+        return Promise.resolve(json(200, { ...library, tags }))
       case 'GET /api/settings':
         return Promise.resolve(json(200, { defaultImportTagIds: [1] }))
+      case 'POST /api/tags': {
+        const { name } = JSON.parse(String(init.body)) as { name: string }
+        const made = { id: tags.length + 1, name, hue: 200, songCount: 0 }
+        tags.push(made)
+        version += 1
+        return Promise.resolve(json(200, made))
+      }
       default:
         return Promise.resolve(json(404, { error: 'not found', code: 'not_found' }))
     }
@@ -132,12 +141,21 @@ describe('asking about a link', () => {
     expect(calls.filter(call => call === 'GET /api/library')).toHaveLength(1)
   })
 
-  it('offers the manual playlists and the tags every import gets', async () => {
+  it('offers the tags, and the ones every import gets — never a playlist', async () => {
     const { handlers } = await connected()
     const choices = await handlers.choices({ type: 'choices' })
-    expect(choices.playlists.map(list => list.name)).toEqual(['Gym rotation'])
     expect(choices.tags.map(tag => tag.name)).toEqual(['new', 'j-pop'])
     expect(choices.defaultTagIds).toEqual([1])
+    expect(choices).not.toHaveProperty('playlists')
+  })
+
+  it('makes a new tag, and offers it the next time the tags are asked for', async () => {
+    const { handlers } = await connected()
+    await handlers.choices({ type: 'choices' })
+    const made = await handlers.createTag({ type: 'createTag', name: 'city pop' })
+    expect(made).toMatchObject({ id: 3, name: 'city pop' })
+    const choices = await handlers.choices({ type: 'choices' })
+    expect(choices.tags.map(tag => tag.name)).toEqual(['new', 'j-pop', 'city pop'])
   })
 
   it('asks for a server before it looks anything up', async () => {

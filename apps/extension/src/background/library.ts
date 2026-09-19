@@ -1,5 +1,5 @@
 import type { Api, ServerConnection } from '@selfmp3/client/core'
-import { PlaylistSchema, TagSchema, youtubeVideoId, type Song } from '@selfmp3/shared'
+import { TagSchema, youtubeVideoId, type Song } from '@selfmp3/shared'
 import { z } from 'zod'
 import { SongHitSchema, type SongHit } from '../bridge.js'
 import type { KeyValueStore } from './store.js'
@@ -34,15 +34,13 @@ const SnapshotSchema = z.object({
   songCount: z.number(),
   links: z.record(SongHitSchema),
   tags: z.array(TagSchema),
-  playlists: z.array(PlaylistSchema),
 })
 type LibrarySnapshot = z.infer<typeof SnapshotSchema>
 
 const KEY = 'library'
 
 /**
- * The library as the popup needs it — the link index, the tags and the
- * playlists — kept across worker restarts and fetched again only when the
+ * The library as the popup needs it — the link index and the tags — kept across worker restarts and fetched again only when the
  * server says it changed.
  *
  * The server's version is a counter that starts again when the server does, so
@@ -79,7 +77,6 @@ export class LibraryCache {
       songCount,
       links: linkIndex(library.songs),
       tags: library.tags,
-      playlists: library.playlists,
     }
     this.#memory = next
     await this.#store.write(KEY, next)

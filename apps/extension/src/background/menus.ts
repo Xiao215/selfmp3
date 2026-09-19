@@ -4,9 +4,11 @@ import { extractUrls } from '@selfmp3/shared'
  * "Import link to self.mp3", on a right-click anywhere (B2).
  *
  * Two items: one that imports with your defaults and says so through the badge
- * and the notification, and one that opens the popup on that link so tags and a
- * playlist can be picked first. A link is all either needs, so neither asks for
- * permission to read any page.
+ * and the notification, and one that opens the popup on that link so the title
+ * can be corrected and tags picked first. Not a playlist: an import only ever
+ * tags (`E4` still says "and a playlist"; the popup it opens no longer offers
+ * one). A link is all either needs, so neither asks for permission to read any
+ * page.
  */
 
 const QUICK_ID = 'selfmp3-import'
@@ -40,7 +42,7 @@ export function installMenus({ quickImport, openReview }: MenuDeps): void {
       })
       chrome.contextMenus.create({
         id: REVIEW_ID,
-        title: 'Import with tags and playlist…',
+        title: 'Import with tags…',
         contexts: ['link', 'selection', 'page'],
       })
     })

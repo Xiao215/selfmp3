@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
+import { Logo, TagChip } from '../ui/parts.js'
 import { codeFromRedirect, signInFailure } from './signIn.js'
 
 /**
@@ -78,139 +79,181 @@ export function Options(): ReactNode {
   const songCount = status.data?.songCount ?? null
   const mode = status.data?.mode ?? 'none'
 
+  // The tags every import gets, to show under "When you import". They are the
+  // server's setting, so they are shown here and changed in the app.
+  const choices = useQuery({
+    queryKey: ['choices'],
+    queryFn: () => ask({ type: 'choices' }),
+    enabled: mode === 'server' || mode === 'bucket',
+    retry: false,
+  })
+  const defaults = (choices.data?.tags ?? []).filter(tag =>
+    choices.data?.defaultTagIds.includes(tag.id),
+  )
+
   return (
     <main className="options">
-      <h1>
-        <span className="logo">
-          self<i>.</i>mp3
-        </span>{' '}
-        extension
-      </h1>
-      <p className="lede">
-        Importing goes through your self.mp3 server — it is the one that runs yt-dlp. Sign in and
-        the extension finds it by itself, and leaves links in your bucket for it when it is off.
-      </p>
+      <div className="options-intro">
+        <Logo>self.mp3 for your browser</Logo>
+        <h1>
+          Save what you are already looking at<i>.</i>
+        </h1>
+        <p className="lede">
+          It imports the song, playlist, album or artist on the page into your own library. It never
+          plays anything, never reads your history, and only talks to your server or your bucket.
+        </p>
 
-      <section className="card" aria-live="polite">
-        <h2>Your library</h2>
-        {account ? (
-          <>
-            <p>
-              Signed in as <b>{account}</b>
-              {songCount !== null ? ` · ${songCount} songs` : ''}
-            </p>
-            <p className="hint">
-              {mode === 'server'
-                ? `Your server is answering at ${server?.baseUrl ?? 'its own address'}, so links are imported straight away.`
-                : mode === 'bucket'
-                  ? 'Your server isn’t answering, so links wait in your bucket until it is awake.'
-                  : 'Looking for your server.'}
-            </p>
-            <button
-              type="button"
-              className="secondary"
-              disabled={signOut.isPending}
-              onClick={() => signOut.mutate()}
-            >
-              {signOut.isPending ? 'Signing out…' : 'Sign out'}
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="hint">
-              The same Google account as your phone and the app. Nothing is typed, and your server
-              is found by the addresses it writes into every sync.
-            </p>
-            {signIn.error && (
-              <p className="banner bad" role="alert">
-                {signInFailure(signIn.error)}
+        <section className="card account" aria-live="polite">
+          {account ? (
+            <>
+              <span className="avatar" aria-hidden="true">
+                {account.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="account-text">
+                <span className="account-name">Connected as {account}</span>
+                <span className="account-sub">
+                  {accountLine(mode, server?.baseUrl ?? null, songCount)}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="tonal"
+                disabled={signOut.isPending}
+                onClick={() => signOut.mutate()}
+              >
+                {signOut.isPending ? 'Signing out…' : 'Sign out'}
+              </button>
+            </>
+          ) : (
+            <div className="account-in">
+              <p>
+                Sign in with the same Google account as your phone and the app. Nothing is typed:
+                your server is found by the addresses it writes into every sync, and links wait in
+                your bucket while it is off.
               </p>
-            )}
-            <button
-              type="button"
-              className="primary"
-              disabled={signIn.isPending}
-              onClick={() => signIn.mutate()}
-            >
-              {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
-            </button>
-          </>
-        )}
-      </section>
-
-      {server?.typed && (
-        <section className="card">
-          <p>
-            {account ? 'Also pointed at ' : 'Pointed at '}
-            <b>{server.baseUrl}</b>
-            {!account && songCount !== null ? ` · ${songCount} songs` : ''}
-            {mode === 'away' && <span className="hint"> · it isn’t answering right now.</span>}
-          </p>
-          <button
-            type="button"
-            className="secondary"
-            disabled={disconnect.isPending}
-            onClick={() => disconnect.mutate()}
-          >
-            Forget this address
-          </button>
+              {signIn.error && (
+                <p className="error" role="alert">
+                  {signInFailure(signIn.error)}
+                </p>
+              )}
+              <button
+                type="button"
+                className="primary"
+                disabled={signIn.isPending}
+                onClick={() => signIn.mutate()}
+              >
+                {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
+              </button>
+            </div>
+          )}
         </section>
-      )}
+      </div>
 
-      <form
-        className="card"
-        onSubmit={event => {
-          event.preventDefault()
-          connect.mutate()
-        }}
-      >
-        <h2>Or point it at one server</h2>
-        <p className="hint">
-          For a library with no bucket, or a server this computer can reach that your library has
-          not been told about. An address here is tried before the ones from your sync.
-        </p>
-        <label className="field">
-          <span>Address</span>
-          <input
-            id="address"
-            value={address}
-            placeholder="http://localhost:4600"
-            autoComplete="url"
-            onChange={event => setAddress(event.target.value)}
-          />
-        </label>
-        <p className="hint">
-          On this computer, <code>http://localhost:4600</code>. Over Tailscale, your server’s{' '}
-          <code>https://…ts.net</code> address.
-        </p>
-        {wantsToken && (
-          <>
-            <label className="field">
-              <span>Token</span>
-              <input
-                id="token"
-                type="password"
-                value={token}
-                autoComplete="off"
-                autoFocus
-                onChange={event => setToken(event.target.value)}
-              />
-            </label>
+      <div className="options-side">
+        {defaults.length > 0 && (
+          <section className="group">
+            <h2 className="label">When you import</h2>
+            <div className="card setting">
+              <span>Always tag with</span>
+              <span className="chips">
+                {defaults.map(tag => (
+                  <TagChip key={tag.id} tag={tag} state="fixed" />
+                ))}
+              </span>
+            </div>
             <p className="hint">
-              This server was started with <code>SELFMP3_AUTH_TOKEN</code> set. It is the same
-              value; the extension keeps it in its own storage, which no web page can read.
+              Your server adds these; change them in the app, Settings → Importing.
             </p>
-          </>
+          </section>
         )}
-        {connect.error && (
-          <p className="banner bad" role="alert">
-            {connect.error.message}
+
+        {server?.typed && (
+          <section className="group">
+            <h2 className="label">This server</h2>
+            <div className="card setting">
+              <span>
+                {account ? 'Also pointed at ' : 'Pointed at '}
+                <b>{server.baseUrl}</b>
+                {!account && songCount !== null ? ` · ${songCount} songs` : ''}
+                {mode === 'away' && <span className="quiet"> · it isn’t answering right now.</span>}
+              </span>
+              <button
+                type="button"
+                className="tonal"
+                disabled={disconnect.isPending}
+                onClick={() => disconnect.mutate()}
+              >
+                Forget this address
+              </button>
+            </div>
+          </section>
+        )}
+
+        <form
+          className="group"
+          onSubmit={event => {
+            event.preventDefault()
+            connect.mutate()
+          }}
+        >
+          <h2 className="label">Another way to connect</h2>
+          <div className="address">
+            <input
+              id="address"
+              aria-label="Address"
+              value={address}
+              placeholder="https://your-server.ts.net"
+              autoComplete="url"
+              onChange={event => setAddress(event.target.value)}
+            />
+            <button type="submit" className="tonal" disabled={connect.isPending || !address.trim()}>
+              {connect.isPending ? 'Connecting…' : 'Use this address'}
+            </button>
+          </div>
+          <p className="hint">
+            For a library with no bucket, or a server this computer can reach that your library has
+            not been told about; it is tried before the ones from your sync. On this computer,{' '}
+            <code>http://localhost:4600</code>. Over Tailscale, your server’s{' '}
+            <code>https://…ts.net</code> address.
           </p>
-        )}
-        <button type="submit" className="primary" disabled={connect.isPending || !address.trim()}>
-          {connect.isPending ? 'Connecting…' : 'Connect'}
-        </button>
-      </form>
+          {wantsToken && (
+            <>
+              <label className="field">
+                <span className="label">Token</span>
+                <input
+                  id="token"
+                  type="password"
+                  value={token}
+                  autoComplete="off"
+                  autoFocus
+                  onChange={event => setToken(event.target.value)}
+                />
+              </label>
+              <p className="hint">
+                This server was started with <code>SELFMP3_AUTH_TOKEN</code> set. It is the same
+                value; the extension keeps it in its own storage, which no web page can read.
+              </p>
+            </>
+          )}
+          {connect.error && (
+            <p className="error" role="alert">
+              {connect.error.message}
+            </p>
+          )}
+        </form>
+      </div>
     </main>
   )
+}
+
+/** The line under the account: which way in is live, and how big the library is. */
+function accountLine(
+  mode: Status['mode'],
+  baseUrl: string | null,
+  songCount: number | null,
+): string {
+  const songs = songCount !== null ? ` · ${songCount} songs` : ''
+  if (mode === 'server') return `Your server answers at ${baseUrl ?? 'its own address'}${songs}`
+  if (mode === 'bucket') return `Your server isn’t answering, so links wait in your bucket${songs}`
+  return 'Looking for your server.'
 }

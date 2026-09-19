@@ -1,10 +1,13 @@
-import { jobSubtitle } from '@selfmp3/client/core'
+import { enqueueRequest, jobSubtitle, type Review } from '@selfmp3/client/core'
 import type { ImportRequestView } from '@selfmp3/replica'
 import {
+  formatDuration,
   youtubeVideoId,
+  type ImportEnqueue,
   type ImportJob,
   type ImportPreview,
   type ImportPreviewItem,
+  type Tag,
 } from '@selfmp3/shared'
 import type { SongHit, Status } from '../bridge.js'
 import { importable, type PageKind } from '../pageKind.js'
@@ -78,7 +81,7 @@ type PopupView =
       readonly cover: string | null
     }
   | { readonly name: 'song'; readonly item: ImportPreviewItem }
-  /** A playlist, an album or an artist: the whole list, to tick through (C). */
+  /** A playlist, an album or an artist: every song coming in unless it is left out (C). */
   | { readonly name: 'list'; readonly preview: ImportPreview }
   /**
    * Through the bucket: the link, with nothing read from it. A list is the same
@@ -227,7 +230,7 @@ export function jobForLink(
 
 /**
  * An import started here whose songs are not the page's: a playlist's tracks,
- * ticked through and sent from the list (C). Their links are the songs' own, so
+ * sent from the list (C). Their links are the songs’ own, so
  * `jobForLink` never finds them — the popup follows the first that is still
  * going, and says how many landed once they have all finished.
  */
@@ -294,7 +297,179 @@ export function progressLine(job: ImportJob): { text: string; fraction: number |
   return { text: jobSubtitle(job), fraction: null }
 }
 
-/** `http://localhost:4600` as the header pill writes it. */
+/** `http://localhost:4600` as a line under a link writes it, and the header's tooltip. */
 export function hostOf(baseUrl: string): string {
   return baseUrl.replace(/^https?:\/\//, '')
+}
+
+/**
+ * The header's few words for the way in (`E1`): which one, not its address.
+ * The address is one hover away; the words are what tells someone whether an
+ * import happens now or when the server wakes.
+ */
+export function connectionLabel(connection: Connection): string | null {
+  switch (connection) {
+    case 'ready':
+      return 'Your server'
+    case 'bucket':
+      return 'Via your bucket'
+    case 'away':
+      return 'Not answering'
+    default:
+      return null
+  }
+}
+
+/*
+ * Tags. An import only ever tags; it never goes into a playlist (`S3`, Import):
+ * a playlist is something made in the app, from songs already there, and the
+ * popup was the one place offering to file a song before it had been heard.
+ */
+
+export function toggleId(ids: ReadonlySet<number>, id: number): ReadonlySet<number> {
+  const next = new Set(ids)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return next
+}
+
+/** Everything a form sends: the tags always added, and the ones picked. */
+export function tagIdsFor(
+  defaults: readonly number[] | undefined,
+  picked: ReadonlySet<number>,
+): ReadonlySet<number> {
+  return new Set([...(defaults ?? []), ...picked])
+}
+
+/**
+ * A chip's state. A default tag is on and stays on: the server adds it to
+ * every import whatever the popup sends, so offering to turn it off would be
+ * offering something that does not happen.
+ */
+export function chipState(
+  id: number,
+  defaults: readonly number[] | undefined,
+  picked: ReadonlySet<number>,
+): 'fixed' | 'on' | 'off' {
+  if (defaults?.includes(id)) return 'fixed'
+  return picked.has(id) ? 'on' : 'off'
+}
+
+/**
+ * What "+ new" makes of what was typed: nothing, the tag of that name already
+ * there (in any case — the server compares names that way, and a second
+ * "Chill" beside "chill" is the mess tags exist to avoid), or a new one.
+ */
+export function newTagFrom(
+  text: string,
+  tags: readonly Tag[],
+): { kind: 'empty' } | { kind: 'existing'; tag: Tag } | { kind: 'new'; name: string } {
+  const name = text.trim().replace(/\s+/g, ' ')
+  if (!name) return { kind: 'empty' }
+  const same = tags.find(tag => tag.name.toLowerCase() === name.toLowerCase())
+  return same ? { kind: 'existing', tag: same } : { kind: 'new', name }
+}
+
+/** "Tagged yoasobi and chill.", from a job's tags, or nothing when it has none. */
+export function taggedLine(tagIds: readonly number[], tags: readonly Tag[]): string | null {
+  const names = tagIds.flatMap(id => tags.find(tag => tag.id === id)?.name ?? [])
+  if (names.length === 0) return null
+  const last = names.at(-1)
+  const list = names.length === 1 ? last : `${names.slice(0, -1).join(', ')} and ${last}`
+  return `Tagged ${list}.`
+}
+
+/*
+ * The song (`E1`): its title and artist are fields from the start, because
+ * the tidied title is a guess and the moment to correct it is before it is
+ * saved, not after.
+ */
+
+/** The line under the two fields: where the words came from, and the length. */
+export function songNote(cleaned: string | null, duration: number): string {
+  const from = cleaned ? `Tidied from “${cleaned}”.` : 'From the page.'
+  const length = duration > 0 ? `; ${formatDuration(duration)}` : ''
+  return `${from} Change either before it is saved${length}.`
+}
+
+/** One song, as corrected, with its tags and never a playlist. */
+export function songRequest(
+  item: ImportPreviewItem,
+  edits: { title: string; artist: string },
+  tagIds: ReadonlySet<number>,
+): ImportEnqueue {
+  return enqueueRequest(
+    {
+      items: [{ ...item, title: edits.title.trim(), artist: edits.artist.trim() }],
+      chosen: new Set([0]),
+      playlistTitle: null,
+    },
+    { tagIds, playlistId: null, createPlaylist: false },
+  )
+}
+
+/*
+ * A list (`E2`), as the app's review has it (`P30`): every song is coming in
+ * unless it is left out, and there are no checkboxes. The client's `Review`
+ * already holds the songs coming in as `chosen`, so leaving one out takes it
+ * from there and bringing it back puts it back. A song the library already has
+ * is never coming in and cannot be brought back: it is "Yours already".
+ */
+
+/** What a row says at its far end: its length, "Yours already", or "Left out". */
+export type RowState = 'in' | 'yours' | 'out'
+
+export function rowState(review: Review, index: number): RowState {
+  if (review.items[index]?.alreadyHave) return 'yours'
+  return review.chosen.has(index) ? 'in' : 'out'
+}
+
+/** A click on the far end of a row: leave the song out, or bring it back. */
+export function toggleLeftOut(review: Review, index: number): Review {
+  const item = review.items[index]
+  if (!item || item.alreadyHave) return review
+  return { ...review, chosen: toggleId(review.chosen, index) }
+}
+
+/** Correct one song's title or artist; the url, which is what downloads, stays. */
+export function renameSong(
+  review: Review,
+  index: number,
+  rename: Partial<Pick<ImportPreviewItem, 'title' | 'artist'>>,
+): Review {
+  return {
+    ...review,
+    items: review.items.map((item, i) => (i === index ? { ...item, ...rename } : item)),
+  }
+}
+
+/** How many songs the button would bring in. */
+export function comingIn(review: Review): number {
+  return review.items.filter((item, index) => !item.alreadyHave && review.chosen.has(index)).length
+}
+
+/** The head's count: "4 of 6 coming in". */
+export function countLabel(review: Review): string {
+  return `${comingIn(review)} of ${review.items.length} coming in`
+}
+
+const songs = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+
+/** The commit pill: "Import 4 songs". */
+export function importLabel(count: number): string {
+  return `Import ${songs(count)}`
+}
+
+/** What goes to the server: the songs coming in, as renamed, tagged, and no playlist. */
+export function listRequest(review: Review, tagIds: ReadonlySet<number>): ImportEnqueue {
+  const coming: Review = {
+    ...review,
+    items: review.items.map(item => ({
+      ...item,
+      title: item.title.trim(),
+      artist: item.artist.trim(),
+    })),
+    chosen: new Set([...review.chosen].filter(index => !review.items[index]?.alreadyHave)),
+  }
+  return enqueueRequest(coming, { tagIds, playlistId: null, createPlaylist: false })
 }

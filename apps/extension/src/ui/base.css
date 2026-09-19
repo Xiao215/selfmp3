@@ -1,0 +1,249 @@
+/*
+ * What the popup and the options page share: the app's look (docs/ui-mock `S2`)
+ * in the extension's pages.
+ *
+ * The tokens are not written here. `theme.css` and `fonts.css` are generated
+ * from packages/client by every build (scripts/theme.mjs), so this file only
+ * says which token each part wears. No hairlines: parts are told apart by tone,
+ * a control one step up from what it sits on.
+ */
+@import './fonts.css';
+@import './theme.css';
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font:
+    13px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.92em;
+}
+
+/* The note mark and the name, in the display face, as the app's sidebar has them. */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.logo svg {
+  flex: none;
+  fill: var(--accent);
+}
+
+/* `S2`'s label: 11, tracked, uppercase, quiet. */
+.label {
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/*
+ * The buttons: three of `S2`'s four shapes (a page here has nothing to play).
+ * The accent fill is only for the one that commits something — Import, Keep it
+ * for later — a white pill is a page's one primary that does not, and a tonal
+ * pill is everything else.
+ */
+.commit,
+.primary,
+.tonal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.commit {
+  width: 100%;
+  height: 46px;
+  padding: 0 18px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 15px;
+}
+
+.commit svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.primary {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--text-primary);
+  color: var(--on-primary);
+  font-size: 13px;
+}
+
+.tonal {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* The text action: a link that does something here, in the accent. */
+.link {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* A field on the control surface: the paste box, an address, a token. */
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* Tags: a neutral pill with a dot of the tag's hue, and white when chosen. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--dot);
+}
+
+@media (prefers-color-scheme: light) {
+  .chip .dot {
+    background: var(--dot-light);
+  }
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--text-primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+
+/* A default tag is on and stays on: drawn as on, not as disabled. */
+.chip:disabled {
+  opacity: 1;
+}
+
+/*
+ * The dashed add chip. Its dash is the one edge `S2` keeps: it marks a place
+ * to add something, and separates nothing.
+ */
+.chip.add {
+  padding: 0 10px;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.chip.add input {
+  width: 96px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  outline: none;
+}
+
+.hint,
+.quiet {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.quiet {
+  font-size: 12px;
+}
+
+/* A failure, in the server's own words. */
+.error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}

@@ -7,13 +7,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import type { LyricsSearchHit, Song, Tag } from '@selfmp3/shared'
 import {
-  clearTagFilter,
   clientApi,
   isDownloaded,
   queryKeys,
   radius,
   tagColors,
-  toggleTag,
   useLibrary,
   type Artist,
 } from '@selfmp3/client'
@@ -33,7 +31,7 @@ import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useDebounced } from '../../ui/useDebounced'
 import { label as labelText } from '../../ui/surfaces'
-import { useSetLibraryFilter } from '../library/libraryFilter'
+import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
 import {
   ALL_LIMITS,
@@ -89,12 +87,10 @@ export function SearchScreen(): ReactNode {
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []
   const counts = scopeCounts(found, lyricHits.length)
 
-  // An artist has no page of its own yet (docs/UI-MIGRATION.md, Phase 4):
-  // until then it opens Songs, searched for the name.
-  const openArtist = useCallback((artist: Artist) => {
-    setQuery(artist.name)
-    setScope('songs')
-  }, [])
+  const openArtist = useCallback(
+    (artist: Artist) => router.navigate(artistLink(artist.name)),
+    [router],
+  )
 
   const close = (): void => {
     if (router.canGoBack()) router.back()
@@ -305,20 +301,15 @@ function SectionHead({ title, more }: { title: string; more: (() => void) | null
   )
 }
 
-/**
- * A tag opens its songs. Until a tag has a page of its own
- * (docs/UI-MIGRATION.md, Phase 4) that is Library, filtered to it.
- */
+/** A tag opens its page. */
 function useOpenTag(): (tag: Tag) => void {
   const router = useRouter()
-  const setFilter = useSetLibraryFilter()
   return useCallback(
     (tag: Tag) => {
       noteTagUsed(tag.id)
-      setFilter(current => toggleTag(clearTagFilter(current), tag.id))
-      router.navigate('/library')
+      router.navigate(tagLink(tag.name))
     },
-    [router, setFilter],
+    [router],
   )
 }
 

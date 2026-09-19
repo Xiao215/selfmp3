@@ -1,316 +1,397 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { useRouter } from 'expo-router'
 import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
+  fonts,
   HIT_TARGET,
   radius,
   space,
   tagColors,
-  tagSelected,
-  toggleTag,
   type,
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
-import { useRouter } from 'expo-router'
+import { usePlayer } from '../../player/PlayerProvider'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { setPaletteOpen } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { BackToYou } from '../../ui/components/BackToYou'
 import { Button } from '../../ui/components/Button'
-import { Plus, Search, X } from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Plus,
+  Search,
+  Tag as TagIcon,
+  X,
+} from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { TagEditor } from '../../ui/components/TagEditor'
+import { usePressScale } from '../../ui/motion'
 import { card, label, pageTitle } from '../../ui/surfaces'
-import { useLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
-import { openTagSearch } from '../library/tagSearch.store'
-import { existingTag, songCount, tagsHeadline, tagsToManage } from './tags.model'
+import { PlaylistCover } from '../playlists/PlaylistCover'
+import { tagLink } from '../tag/placeLinks'
+import {
+  existingTag,
+  tagLine,
+  tagsMostPlayed,
+  untaggedCardTitle,
+  type TagStanding,
+} from '../tag/tag.model'
+import { useArtistNudge } from '../tag/useArtistNudge'
+import { usePlayAndTag } from '../tag/usePlayAndTag'
+import { tagsHeadline } from './tags.model'
 
 /**
- * Tags, as a page: reached from You on a phone.
+ * All tags (docs/ui-mock `P07`): every tag as a place to go, most played
+ * first.
  *
- * **Housekeeping, not listening.** This page used to be a second tag picker —
- * tap tags, and a bar along the foot said what they came to and played it —
- * and it was the wrong place for it twice over. It was buried under You, two
- * taps from anywhere, for the feature the whole library is browsed by; and
- * picking tags there showed you no songs, only a count you had to tap to be
- * taken somewhere else. The library's picker, which is on the Library screen
- * at both widths, shows the songs under the chips as they are chosen, so that
- * is now the only place tags are picked and this page does the one thing a
- * phone had nowhere else for: naming, colouring, deleting and making tags.
+ * A row opens the tag's page, and its round Play plays the tag where it
+ * stands. The housekeeping that used to be this whole page — renaming,
+ * recolouring, deleting — is what holding a row does now, so the page reads
+ * as the tags you listen to rather than a settings list of them. Picking tags
+ * to combine is not here either: a tag's page has Add for that.
  *
- * Which is also why it is a list of rows rather than a cloud of chips. Chips
- * are the app's word for "tags you are choosing between"; rows say this is a
- * list of things you own and can change, and they have room for a count and
- * the way in to the editor.
+ * At the top, only while some songs have no tag, one card that tags them one
+ * at a time while they play (docs/UI-MIGRATION.md, Open question 1).
  */
 export function TagsScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const { wide } = useLayout()
-  const accent = useAccent()
   const router = useRouter()
+  const player = usePlayer()
   const { data: library } = useLibrary()
-  const [filter, setFilter] = useLibraryFilter()
-  const createTag = useCreateTag()
+  const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
-  const [nameFocused, setNameFocused] = useState(false)
-  const [query, setQuery] = useState('')
-  const [searchFocused, setSearchFocused] = useState(false)
   const [editing, setEditing] = useState<Tag | null>(null)
-  const editorAnchor = useRef<View>(null)
+  // The editor is anchored to the row that was held. One anchor for the page,
+  // pointed at that row as it opens, so the page keeps a single editor.
+  const editorAnchor = useRef<View | null>(null)
+  const rowRefs = useRef(new Map<number, View>())
 
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
-  const listed = useMemo(() => tagsToManage(tags, query), [tags, query])
-  // A search box for nine tags is furniture; for two hundred it is the only
-  // way to find one.
-  const searchable = tags.length > SEARCH_FROM
-
-  /** Listen to a tag: the library is where that happens, so go there. */
-  const listen = useCallback(
-    (tagId: number) => {
-      const turningOn = !tagSelected(filter, tagId)
-      if (turningOn) noteTagUsed(tagId)
-      setFilter(current => toggleTag(current, tagId))
-      if (turningOn) router.navigate('/library')
-    },
-    [filter, setFilter, router],
+  const standings = useMemo(
+    () => (library ? tagsMostPlayed(library.tags, library.songs) : []),
+    [library],
   )
 
-  const trimmed = name.trim()
-  const submit = async (): Promise<void> => {
-    if (!trimmed) return
-    // Choosing the tag that exists beats silently making a twin of it.
-    const already = existingTag(tags, trimmed)
-    if (already) {
-      setName('')
-      setEditing(already)
-      return
-    }
-    if (!(await createTag.mutateAsync(trimmed).catch(() => null))) return
-    // The field stays open and empty: tags arrive in handfuls, and a second
-    // one should not cost another trip to the ＋.
-    setName('')
+  const back = (): void => {
+    if (router.canGoBack()) router.back()
+    else router.replace('/')
   }
-
-  const closeAdding = (): void => {
-    setAdding(false)
-    setName('')
-    createTag.reset()
+  // The one Search, on its Tags scope: the page on a phone, the palette over
+  // this page on a computer (docs/ui-mock `P18`, `C05`).
+  const openSearch = (): void => {
+    if (wide) setPaletteOpen(true)
+    else router.navigate({ pathname: '/search', params: { scope: 'tags' } })
+  }
+  const edit = (tag: Tag): void => {
+    editorAnchor.current = rowRefs.current.get(tag.id) ?? null
+    setEditing(tag)
   }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
-      <View style={[styles.head, wide ? styles.headWide : styles.headNarrow]}>
-        <BackToYou />
-        <View style={styles.headRow}>
+      <ScrollView
+        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <IconButton label="Back" filled onPress={back} testID="tags-back">
+            <ChevronLeft size={18} tone="textPrimary" />
+          </IconButton>
           <View style={styles.titles}>
             <Text style={styles.heading} accessibilityRole="header">
               Tags
             </Text>
-            <Text style={styles.sub}>{tagsHeadline(tags.length)} · rename, recolour, delete</Text>
+            {library ? <Text style={styles.sub}>{tagsHeadline(tags.length)}</Text> : null}
           </View>
-          <Button
+          <IconButton
             label="New tag"
-            icon={<Plus size={14} color={theme.colors.textPrimary} />}
-            accessibilityLabel="New tag"
+            filled
             active={adding}
-            onPress={() => (adding ? closeAdding() : setAdding(true))}
+            onPress={() => setAdding(open => !open)}
             testID="tags-new"
-          />
+          >
+            <Plus size={18} tone="textPrimary" />
+          </IconButton>
+          <IconButton label="Search tags" filled onPress={openSearch} testID="tags-search">
+            <Search size={18} tone="textPrimary" />
+          </IconButton>
         </View>
 
-        {/*
-          Making a tag, in the page. It was a bare field and a blue Add sitting
-          above the picker at a width of their own, lined up with nothing; this
-          is the card the rest of the app makes things in — a label, a field
-          that shows its focus the way every other field does, and the button
-          that does it beside it, disabled until there is a name to give.
-        */}
         {adding ? (
-          <View style={styles.newCard} testID="tags-new-form">
-            <View style={styles.newHeadRow}>
-              <Text style={styles.fieldLabel}>New tag</Text>
-              <Pressable
-                onPress={closeAdding}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Close new tag"
-              >
-                <X size={14} color={theme.colors.textMuted} />
-              </Pressable>
-            </View>
-            <View style={styles.newRow}>
-              <TextInput
-                style={[styles.input, nameFocused && { borderColor: accent.accent }]}
-                value={name}
-                onChangeText={text => {
-                  setName(text)
-                  createTag.reset()
+          <NewTag
+            tags={tags}
+            onExisting={tag => {
+              // Choosing the tag that exists beats silently making a twin of it:
+              // its editor opens, on its row.
+              edit(tag)
+            }}
+            onClose={() => setAdding(false)}
+          />
+        ) : null}
+
+        {playAndTag.count > 0 ? (
+          <UntaggedCard count={playAndTag.count} onPress={playAndTag.start} />
+        ) : null}
+
+        {!library ? (
+          <Text style={styles.hint}>Tags load with your library.</Text>
+        ) : standings.length === 0 ? (
+          <Text style={styles.hint}>
+            No tags yet. Tags are how this library is browsed — make one with the +, or put one on a
+            song from its ⋯ while it plays.
+          </Text>
+        ) : (
+          <View style={styles.rows}>
+            {standings.map((standing, index) => (
+              <TagRow
+                key={standing.tag.id}
+                standing={standing}
+                index={index}
+                rowRef={node => {
+                  if (node) rowRefs.current.set(standing.tag.id, node)
+                  else rowRefs.current.delete(standing.tag.id)
                 }}
-                onFocus={() => setNameFocused(true)}
-                onBlur={() => setNameFocused(false)}
-                onSubmitEditing={() => void submit()}
-                placeholder="chill, 中文, gym…"
-                placeholderTextColor={theme.colors.textMuted}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                // Enter makes the tag and stays in the field: tags arrive in
-                // handfuls, and dismissing the keyboard after each one costs a
-                // tap to get it back.
-                submitBehavior="submit"
-                returnKeyType="done"
-                maxLength={TAG_NAME_MAX}
-                accessibilityLabel="New tag name"
-                testID="tags-new-name"
+                onOpen={() => {
+                  noteTagUsed(standing.tag.id)
+                  router.navigate(tagLink(standing.tag.name))
+                }}
+                onPlay={() => {
+                  const ids = standing.songs.map(song => song.id)
+                  if (ids.length === 0) return
+                  noteTagUsed(standing.tag.id)
+                  player.playFrom(ids, 0)
+                }}
+                onHold={() => edit(standing.tag)}
               />
-              <Button
-                label="Create"
-                variant="primary"
-                disabled={trimmed.length === 0}
-                busy={createTag.isPending}
-                onPress={() => void submit()}
-                testID="tags-create"
-              />
-            </View>
-            {createTag.isError ? (
-              <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
-            ) : (
-              <Text style={styles.newHint}>
-                A tag is a word or two. Put it on songs from a song’s ⋯, or while one is playing.
-              </Text>
-            )}
+            ))}
+            <Text style={styles.footer}>Hold a tag to rename, recolour or delete it.</Text>
           </View>
-        ) : null}
+        )}
+        <ChromeSpacer />
+      </ScrollView>
 
-        {searchable ? (
-          <View style={[styles.searchBox, searchFocused && { borderColor: accent.accent }]}>
-            <Search size={14} color={searchFocused ? accent.accent : theme.colors.textMuted} />
-            <TextInput
-              style={styles.search}
-              value={query}
-              onChangeText={setQuery}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              placeholder={`Search ${tags.length} tags`}
-              placeholderTextColor={theme.colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              accessibilityLabel="Search tags"
-              testID="tags-search"
-            />
-            {query.trim() ? (
-              <Pressable
-                onPress={() => setQuery('')}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Clear tag search"
-              >
-                <X size={13} color={theme.colors.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-
-      {/*
-        The way to the other thing anyone comes here for. Picking tags lives on
-        the Library, so this hands the job over rather than growing a second
-        picker: the library opens with its picker already down.
-      */}
-      <Pressable
-        onPress={() => {
-          openTagSearch()
-          router.navigate('/library')
-        }}
-        accessibilityRole="link"
-        accessibilityLabel="Pick tags to listen to, in your library"
-        style={({ pressed }) => [
-          styles.listenRow,
-          wide ? styles.rowsWide : styles.rowsNarrow,
-          pressed && { backgroundColor: theme.colors.surface2 },
-        ]}
-        testID="tags-pick-to-listen"
-      >
-        <Text style={[styles.listenLabel, { color: accent.accent }]}>Pick tags to listen to</Text>
-        <Text style={styles.chevron}>›</Text>
-      </Pressable>
-
-      {!library ? (
-        <Text style={styles.hint}>Tags load with your library.</Text>
-      ) : tags.length === 0 ? (
-        <Text style={styles.hint}>
-          No tags yet. Tags are how this library is browsed — make one here, or put one on a song
-          from its ⋯ while it plays.
-        </Text>
-      ) : (
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={[styles.listBody, wide ? styles.rowsWide : styles.rowsNarrow]}
-          keyboardShouldPersistTaps="handled"
-        >
-          {listed.length === 0 ? (
-            <Text style={styles.hint}>No tag matches “{query.trim()}”.</Text>
-          ) : (
-            listed.map(tag => (
-              <Pressable
-                key={tag.id}
-                onPress={() => setEditing(tag)}
-                accessibilityRole="button"
-                accessibilityLabel={`Edit ${tag.name}, ${songCount(tag.songCount)}`}
-                style={({ pressed }) => [
-                  styles.row,
-                  pressed && { backgroundColor: theme.colors.surface2 },
-                ]}
-                testID={`tag-row-${tag.id}`}
-              >
-                <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
-                <Text style={styles.rowName} numberOfLines={1}>
-                  {tag.name}
-                </Text>
-                <Text style={styles.rowCount}>{songCount(tag.songCount)}</Text>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            ))
-          )}
-          <ChromeSpacer />
-        </ScrollView>
-      )}
-
-      <View ref={editorAnchor} collapsable={false} style={styles.editorAnchor} />
-      <TagEditor
-        tag={editing}
-        anchorRef={editorAnchor}
-        chosen={editing ? filter.tagIds.includes(editing.id) : false}
-        onChoose={() => editing && listen(editing.id)}
-        onClose={() => setEditing(null)}
-      />
+      <TagEditor tag={editing} anchorRef={editorAnchor} onClose={() => setEditing(null)} />
     </SafeAreaView>
   )
 }
 
-/** Above this many tags the page grows a search box. */
-const SEARCH_FROM = 8
+/**
+ * Making a tag, in the page: the card the rest of the app makes things in — a
+ * label, a field that shows its focus the way every other field does, and the
+ * button that does it beside it, disabled until there is a name to give. A
+ * name that is an artist's asks first (`P11`).
+ */
+function NewTag({
+  tags,
+  onExisting,
+  onClose,
+}: {
+  tags: readonly Tag[]
+  onExisting: (tag: Tag) => void
+  onClose: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const createTag = useCreateTag()
+  const nudge = useArtistNudge()
+  const [name, setName] = useState('')
+  const [focused, setFocused] = useState(false)
+  const trimmed = name.trim()
+
+  const make = async (wanted: string): Promise<void> => {
+    if (!(await createTag.mutateAsync(wanted).catch(() => null))) return
+    // The field stays open and empty: tags arrive in handfuls, and a second
+    // one should not cost another trip to the +.
+    setName('')
+  }
+
+  const submit = (): void => {
+    if (!trimmed) return
+    const already = existingTag(tags, trimmed)
+    if (already) {
+      setName('')
+      onExisting(already)
+      return
+    }
+    nudge.check(trimmed, () => void make(trimmed))
+  }
+
+  const close = (): void => {
+    createTag.reset()
+    onClose()
+  }
+
+  return (
+    <View style={styles.newCard} testID="tags-new-form">
+      <View style={styles.newHeadRow}>
+        <Text style={styles.fieldLabel}>New tag</Text>
+        <Pressable
+          onPress={close}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Close new tag"
+        >
+          <X size={14} color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+      <View style={styles.newRow}>
+        <TextInput
+          style={[styles.input, focused && { borderColor: accent.accent }]}
+          value={name}
+          onChangeText={text => {
+            setName(text)
+            createTag.reset()
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onSubmitEditing={submit}
+          placeholder="chill, 中文, gym…"
+          placeholderTextColor={theme.colors.textMuted}
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect={false}
+          // Enter makes the tag and stays in the field: tags arrive in
+          // handfuls, and dismissing the keyboard after each one costs a tap
+          // to get it back.
+          submitBehavior="submit"
+          returnKeyType="done"
+          maxLength={TAG_NAME_MAX}
+          accessibilityLabel="New tag name"
+          testID="tags-new-name"
+        />
+        <Button
+          label="Create"
+          variant="primary"
+          disabled={trimmed.length === 0}
+          busy={createTag.isPending}
+          onPress={submit}
+          testID="tags-create"
+        />
+      </View>
+      {createTag.isError ? (
+        <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
+      ) : (
+        <Text style={styles.newHint}>
+          A tag is a word or two. Put it on songs from a song’s ⋯, or while one is playing.
+        </Text>
+      )}
+      {nudge.nudge}
+    </View>
+  )
+}
+
+/** "2 songs have no tag yet": tapping it plays them and opens Now Playing to tag them. */
+function UntaggedCard({ count, onPress }: { count: number; onPress: () => void }): ReactNode {
+  const press = usePressScale(0.98)
+  return (
+    <Animated.View style={press.style}>
+      <Pressable
+        {...press.handlers}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${untaggedCardTitle(count)}. Tag them one at a time, while they play`}
+        testID="tags-untagged"
+        style={styles.untagged}
+      >
+        <View style={styles.untaggedIcon}>
+          <TagIcon size={17} tone="textPrimary" />
+        </View>
+        <View style={styles.untaggedText}>
+          <Text style={styles.untaggedTitle} numberOfLines={1}>
+            {untaggedCardTitle(count)}
+          </Text>
+          <Text style={styles.untaggedSub} numberOfLines={1}>
+            Tag them one at a time, while they play
+          </Text>
+        </View>
+        <ChevronRight size={16} tone="textMuted" />
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+/** How long a row is held before its editor opens, as a song row's hold selects. */
+const HOLD_MS = 450
+
+function TagRow({
+  standing,
+  index,
+  rowRef,
+  onOpen,
+  onPlay,
+  onHold,
+}: {
+  standing: TagStanding
+  index: number
+  rowRef: (node: View | null) => void
+  onOpen: () => void
+  onPlay: () => void
+  onHold: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const { tag } = standing
+  const songIds = useMemo(() => standing.songs.map(song => song.id), [standing.songs])
+  const line = tagLine(standing)
+  return (
+    <View ref={rowRef} collapsable={false} style={styles.rowWrap}>
+      <Pressable
+        onPress={onOpen}
+        onLongPress={onHold}
+        delayLongPress={HOLD_MS}
+        accessibilityRole="link"
+        accessibilityLabel={`${tag.name}, ${line}`}
+        accessibilityHint="Hold to rename, recolour or delete"
+        testID={`tags-row-${index}`}
+        style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.colors.surface2 }]}
+      >
+        <PlaylistCover songIds={songIds} size={COVER} />
+        <View style={styles.rowText}>
+          <View style={styles.nameRow}>
+            <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+            <Text style={styles.rowName} numberOfLines={1}>
+              {tag.name}
+            </Text>
+          </View>
+          <Text style={styles.rowLine} numberOfLines={1}>
+            {line}
+          </Text>
+        </View>
+        <IconButton
+          label={`Play ${tag.name}`}
+          filled
+          disabled={songIds.length === 0}
+          onPress={onPlay}
+          testID={`tags-play-${index}`}
+        >
+          <Play size={16} tone="textPrimary" />
+        </IconButton>
+      </Pressable>
+    </View>
+  )
+}
+
+/** The side of a row's cover mosaic. */
+const COVER = 52
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  head: { gap: space.md },
-  headWide: { paddingTop: 28, paddingHorizontal: 32 },
-  headNarrow: { paddingTop: 18, paddingHorizontal: space.lg },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  content: { gap: space.lg },
+  contentNarrow: { paddingTop: 10, paddingHorizontal: 20 },
+  contentWide: { paddingTop: 40, paddingHorizontal: 48, maxWidth: 760, width: '100%' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   titles: { flex: 1, minWidth: 0, gap: 2 },
   heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: type.small },
-  hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18, padding: space.lg },
-  newCard: {
-    gap: space.sm,
-    padding: space.md,
-    ...card(theme.colors),
-  },
+  sub: { color: theme.colors.textSecondary, fontSize: 13 },
+  hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18 },
+  newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
   newRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
@@ -332,54 +413,54 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     _web: { outlineStyle: 'none' },
   },
-  searchBox: {
+  untagged: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: space.md,
-    // A control on the ground; as with the field above, the edge is the
-    // fill's colour until focus turns it into the accent ring.
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.surface2,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    ...card(theme.colors, 16),
+  },
+  untaggedIcon: {
+    width: 36,
+    height: 36,
     borderRadius: radius.pill,
-  },
-  search: {
-    flex: 1,
-    minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    _web: { outlineStyle: 'none' },
-  },
-  listenRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.sm,
-    minHeight: HIT_TARGET,
-    marginTop: space.md,
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface2,
   },
-  listenLabel: { fontSize: type.body, fontWeight: '600' },
-  list: { flex: 1 },
-  listBody: { paddingBottom: space.xl },
-  rowsWide: { paddingHorizontal: 32 },
-  rowsNarrow: { paddingHorizontal: space.lg },
+  untaggedText: { flex: 1, minWidth: 0, gap: 2 },
+  untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.row, fontWeight: '600' },
+  untaggedSub: { color: theme.colors.textSecondary, fontSize: type.rowSub },
+  rows: { gap: 2 },
+  rowWrap: { marginHorizontal: -space.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
-    minHeight: HIT_TARGET + 6,
+    gap: 14,
+    minHeight: 68,
     paddingHorizontal: space.sm,
-    marginHorizontal: -space.sm,
-    borderRadius: 12,
+    borderRadius: 14,
   },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  rowName: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: type.body },
-  rowCount: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
-  chevron: { color: theme.colors.textMuted, fontSize: 18, lineHeight: 20 },
-  // The editor is anchored to the page rather than to a row: a row moves as
-  // the search filters under it, and a popover pinned to one that has gone
-  // draws in the wrong place.
-  editorAnchor: { position: 'absolute', top: 0, left: 0, right: 0 },
+  rowText: { flex: 1, minWidth: 0, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  rowName: {
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 20,
+    letterSpacing: -0.2,
+  },
+  rowLine: {
+    color: theme.colors.textSecondary,
+    fontSize: type.rowSub,
+    fontVariant: ['tabular-nums'],
+  },
+  footer: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    textAlign: 'center',
+    paddingTop: space.lg,
+  },
 }))

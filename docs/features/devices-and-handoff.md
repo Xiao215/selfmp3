@@ -13,8 +13,8 @@ bucket's has nowhere to send its heartbeat: `packages/replica/src/routes.ts`
 answers the library, the playlists and the edits, and has no `/api/devices` at
 all. Every surface now signs in to the bucket, so **none of what follows is
 reachable today.** The server's side is built, tested and running; what is
-missing is a device that talks to it. The same gap holds Stats, the Untagged
-inbox and metadata lookup ([SYNC.md](../SYNC.md), "What this gives up").
+missing is a device that talks to it. The same gap holds Stats and metadata
+lookup ([SYNC.md](../SYNC.md), "What this gives up").
 
 ---
 

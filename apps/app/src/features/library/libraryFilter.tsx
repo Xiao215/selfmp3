@@ -1,19 +1,18 @@
-import { createContext, useContext, useMemo, useState, useSyncExternalStore } from 'react'
+import { createContext, useContext, useState, useSyncExternalStore } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import type { LibraryFilter, TagFilter } from '@selfmp3/client'
+import type { LibraryFilter } from '@selfmp3/client'
 import { createLibraryFilterStore, type LibraryFilterStore } from './libraryFilter.store'
 
 /**
  * The library's filter, held above the library.
  *
- * At desktop width the tags are chosen from the sidebar, which is the shell's,
- * while the list they filter is the library screen's — two places that must
- * agree on one filter. Only React here: the model reads it, and the model may
- * not import anything that draws.
+ * Library's own tag strip and sort, kept above the screen so they are still
+ * there when you come back to it. Nothing else filters Library any more: a tag
+ * opens its own page (docs/UI-MIGRATION.md, Phase 4). Only React here: the
+ * model reads it, and the model may not import anything that draws.
  *
  * The provider hands down a store, not the filter, so the context value never
- * changes and nothing renders just for being below it. Each hook below reads
- * as much of the filter as its caller shows (libraryFilter.store.ts).
+ * changes and nothing renders just for being below it (libraryFilter.store.ts).
  */
 type SetFilter = Dispatch<SetStateAction<LibraryFilter>>
 type FilterState = readonly [LibraryFilter, SetFilter]
@@ -42,20 +41,3 @@ export function useLibraryFilter(): FilterState {
   return [filter, store.set]
 }
 
-/**
- * Only the tag half, which is all the sidebar shows. The array is carried over
- * untouched when the query changes, so typing leaves both snapshots equal and
- * the sidebar is not rendered for it.
- */
-export function useLibraryTagFilter(): readonly [TagFilter, SetFilter] {
-  const store = useStore()
-  const chosen = (): readonly number[] => store.get().tagIds
-  const tagIds = useSyncExternalStore(store.subscribe, chosen, chosen)
-  const tags = useMemo(() => ({ tagIds }), [tagIds])
-  return [tags, store.set]
-}
-
-/** Only the setter, for a caller that changes the filter without showing it: the palette. */
-export function useSetLibraryFilter(): SetFilter {
-  return useStore().set
-}

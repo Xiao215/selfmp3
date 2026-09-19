@@ -78,8 +78,8 @@ import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { TagPicker } from '../../ui/components/TagPicker'
+import { tagLink } from '../tag/placeLinks'
 import { songTagLookup } from '../library/library.model'
-import { useSetLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -130,7 +130,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const deletePlaylist = useDeletePlaylist()
   const reorderPlaylist = useReorderPlaylist()
   const toggleLoved = useToggleLoved()
-  const setFilter = useSetLibraryFilter()
   const { state: downloads, installed, downloadByHand } = useDownloads()
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
@@ -196,7 +195,7 @@ export function PlaylistDetailScreen(): ReactNode {
     playlistId,
     reorderPlaylist,
     toggleLoved,
-    setFilter,
+    tags,
   })
   useEffect(() => {
     latest.current = {
@@ -207,7 +206,7 @@ export function PlaylistDetailScreen(): ReactNode {
       playlistId,
       reorderPlaylist,
       toggleLoved,
-      setFilter,
+      tags,
     }
   })
 
@@ -276,13 +275,14 @@ export function PlaylistDetailScreen(): ReactNode {
       },
       toggleSelect: song => latest.current.selection.toggle(song.id),
       toggleLoved: song => latest.current.toggleLoved.mutate({ id: song.id, loved: !song.loved }),
-      // A chip here is a way out to the library, not a filter on the playlist:
-      // narrowing a list you arranged by hand is not what a playlist is for,
-      // and "the chill ones" is a question the library already answers.
+      // A chip here is a way out to the tag's own page, not a filter on the
+      // playlist: narrowing a list you arranged by hand is not what a playlist
+      // is for, and "the chill ones" is a question the tag's page answers.
       toggleTag: tagId => {
+        const tag = latest.current.tags.find(entry => entry.id === tagId)
+        if (!tag) return
         noteTagUsed(tagId)
-        latest.current.setFilter(filter => ({ ...filter, tagIds: [tagId], query: '' }))
-        router.push('/library')
+        router.push(tagLink(tag.name))
       },
       editTags: (anchor, song) => {
         tagAnchorRef.current = anchor

@@ -6,9 +6,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { formatDuration } from '@selfmp3/shared'
 import {
-  clearTagFilter,
   clientApi,
-  toggleTag,
   oklchToHexAlpha,
   queryKeys,
   radius,
@@ -27,7 +25,6 @@ import { Cover } from '../../ui/components/Cover'
 import {
   BarChart,
   Download,
-  Inbox,
   ListMusic,
   Mic,
   Music,
@@ -35,13 +32,15 @@ import {
   Search,
   Settings,
   Shuffle,
+  Tag,
   User,
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
-import { useSetLibraryFilter } from '../library/libraryFilter'
 import { noteTagUsed } from '../library/recentTags.store'
 import { lyricsQueryFor } from '../search/search.model'
+import { artistLink, tagLink } from '../tag/placeLinks'
+import { usePlayAndTag } from '../tag/usePlayAndTag'
 import {
   paletteResults,
   stepIndex,
@@ -79,7 +78,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const { fromCloud } = useConnection()
   const { finePointer } = useLayout()
   const window = useWindowDimensions()
-  const setFilter = useSetLibraryFilter()
+  const playAndTag = usePlayAndTag()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   useEscape(true, onClose, { layer: true })
@@ -124,8 +123,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       case 'nav-stats':
         router.navigate('/stats')
         return
-      case 'nav-inbox':
-        router.navigate('/inbox')
+      case 'tag-untagged':
+        playAndTag.start()
         return
       case 'nav-settings':
         router.navigate('/settings')
@@ -165,19 +164,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     ...found.recent.map(recent => ({ key: recentKey(recent), run: () => runRecent(recent) })),
     ...found.artists.map(artist => ({
       key: `artist-${artist.key}`,
-      // An artist has no page of its own yet (docs/UI-MIGRATION.md, Phase 4):
-      // until then it is Search's Songs, searched for the name.
-      run: () =>
-        router.navigate({ pathname: '/search', params: { scope: 'songs', q: artist.name } }),
+      run: () => router.navigate(artistLink(artist.name)),
     })),
     ...found.tags.map(tag => ({
       key: `tag-${tag.id}`,
+      // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its
+      // page, and counts as a use so the rail keeps it near the top.
       run: () => {
-        // Only this tag: a palette hit is "show me this", not one more chip on
-        // whatever was already chosen.
         noteTagUsed(tag.id)
-        setFilter(current => toggleTag(clearTagFilter(current), tag.id))
-        router.navigate('/library')
+        router.navigate(tagLink(tag.name))
       },
     })),
     ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
@@ -243,7 +238,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'nav-playlists': icon(ListMusic),
     'nav-import': icon(Download),
     'nav-stats': icon(BarChart),
-    'nav-inbox': icon(Inbox),
+    'tag-untagged': icon(Tag),
     'nav-settings': icon(Settings),
     'shuffle-all': icon(Shuffle),
     'rescan-library': icon(Refresh),

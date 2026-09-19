@@ -18,7 +18,8 @@ Files:
 | Sidebar rows and ⋯ | `apps/app/src/shell/Sidebar.tsx` |
 | The filter itself | `packages/client/src/library/filter.ts`, `apps/app/src/features/library/libraryFilter.tsx` |
 | Tagging what is playing | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/features/nowPlaying/NowPlayingStage.tsx`, `apps/app/src/ui/components/TagPicker.tsx` |
-| Untagged inbox and quick tagging | `apps/app/src/features/inbox/InboxScreen.tsx` |
+| Songs with no tag, tagged while they play | `apps/app/src/features/tag/usePlayAndTag.ts`, `apps/app/src/features/tags/TagsScreen.tsx` |
+| A tag named like an artist | `apps/app/src/features/tag/ArtistNudge.tsx`, `apps/app/src/features/tag/useArtistNudge.tsx` |
 
 ## Picking tags, in the library, at both widths
 
@@ -61,24 +62,24 @@ a while alongside the pages that genuinely do need the server, which was simply 
 
 ## Editing a tag
 
-The **⋯** on a sidebar row — or, on a phone, a tag's row on the **Tags** page — opens one
-editor: listen to this, rename, colour, delete. A tag made before the palette existed keeps
-its own colour as the first swatch. Delete says how many songs carry the tag and that they
-stay in the library.
+The **⋯** on a sidebar row — or holding a tag's row on **All tags** — opens one editor:
+rename, colour, delete. A tag made before the palette existed keeps its own colour as the
+first swatch. Delete says how many songs carry the tag and that they stay in the library.
 
-## The Tags page (You › Tags)
+## All tags
 
-Housekeeping, and only housekeeping: the tags you have, most-used first, as rows with their
-counts — a row opens the editor — plus **New tag**, which is a card in the page with a
-labelled field and a **Create** beside it, not a bare box and a blue button floating above a
-picker. It keeps itself open after each one, because tags arrive in handfuls. Above eight
-tags the page grows a search.
+Every tag as a place to go, most played first (`P07`): a mosaic of its covers, its dot and
+name, its songs and time, and a round **Play**. A row opens the tag's own page
+(`/tag/<name>`); holding it opens the editor, which is all the housekeeping the page used to
+be. The header's **+** opens the new-tag card — a labelled field and a **Create** beside it,
+which stays open after each one because tags arrive in handfuls — and its search button opens
+Search on its Tags scope (the palette, on a computer). The sidebar's tag rows and a tag found
+in the palette open the same page; the library's own tag strip is the one place a tag is
+still a filter.
 
-It is kept rather than deleted because a phone has nowhere else to rename or delete a tag,
-and dropped as a way of *choosing* what to play: two taps under You is the wrong place for
-the verb the whole library rests on, and picking there showed no songs. **Pick tags to listen
-to** at the top of the page hands that job to the library, which opens with its picker
-already down.
+A tag whose name is an artist's asks first (`P11`): **Open the artist**, or **Make the tag
+anyway**. Closing the question any other way makes nothing. It runs wherever a tag is made by
+name — the new-tag card, the sidebar's **+** and the picker's **Create…**.
 
 ## Tagging what is playing
 
@@ -86,25 +87,10 @@ How a song feels is clearest while it is playing. The tag button beside the hear
 bar opens the tag picker for the current song. On a phone, Now Playing shows
 the song's tags under its title with **Add tags** / **Edit tags**.
 
-## Untagged
+## Songs with no tag
 
-The sidebar (and, on a phone, the **You** tab) shows **Untagged** with a count
-whenever any song has no tag. The page lists them newest first.
-
-**Not reachable today.** The inbox is one of the server-only screens, hidden when the
-library is the bucket's, and every surface's now is ([SYNC.md](../SYNC.md), "What this gives
-up"). Putting tags on songs is unaffected — that is an edit, and every device can make one.
-
-**Start tagging** goes through them one at a time:
-
-- the song plays (switch off **Play along** to tag in silence);
-- **1–9** toggle your tags, numbered most-used first and in the same order for the whole
-  session, so "chill" is the same key on the fortieth song as on the first;
-- **→** or Enter moves on, **←** goes back, **N** creates a new tag and puts it on this song,
-  **Esc** stops;
-- when a song ends by itself and the next one starts, the card follows.
-
-The list is fixed when you start, so a song you tag does not vanish from under you, and one you
-skip stays in Untagged for next time. The keys are taken in the capture phase, ahead of
-anything else listening — in the desktop app the ⌘-arrows are the menu's, and Space is play
-and pause wherever you are.
+While any song has no tag, **All tags** leads with one card: "N songs have no tag yet". Tapping
+it plays them as a queue, newest first, and opens Now Playing with its tag editor raised;
+saving a song's tags moves on to the next. The palette's **Tag untagged songs** does the same.
+It works on every kind of library: which songs have no tag is a pass over the library this
+device already holds.

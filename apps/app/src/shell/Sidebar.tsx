@@ -6,23 +6,17 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
-  clearTagFilter,
   downloadTally,
   radius,
   railTags,
   space,
   tagColors,
-  tagFiltered,
-  tagSelected,
-  toggleTag,
   type,
   useAddToPlaylist,
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
-import { useLibraryTagFilter } from '../features/library/libraryFilter'
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
-import { openTagSearch } from '../features/library/tagSearch.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, sortPlaylists } from '../features/playlists/playlists.model'
@@ -33,14 +27,15 @@ import { titleBarInset } from '../ports/titleBarInset'
 import { acceleratorKeys } from '../features/settings/shortcuts.model'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
-import { isUntagged } from '../features/inbox/inbox.model'
+import { tagLink } from '../features/tag/placeLinks'
+import { onTagPage } from '../features/tag/placePath.model'
+import { useArtistNudge } from '../features/tag/useArtistNudge'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
   BarChart,
   Download,
   Home,
-  Inbox,
   Live,
   More,
   Music,
@@ -49,7 +44,6 @@ import {
   Settings,
   Tag as TagIcon,
   User,
-  X,
 } from '../ui/components/Icons'
 import { useAccent } from '../ui/accent'
 import { TagEditor } from '../ui/components/TagEditor'
@@ -73,9 +67,9 @@ import { label as labelText } from '../ui/surfaces'
  * you pinned sit under it. A song dragged from the library drops onto a
  * pinned playlist.
  *
- * Below them, a tag list, which is how a desktop filters the library: a click
- * shows only a tag, the − beside it hides the tag, the ⋯ edits it. At
- * the foot, a status line: reachable or not, and what is offline.
+ * Below them, the tags reached for last: a click opens the tag's page, the ⋯
+ * edits it, and the TAGS header opens all of them. At the foot, a status
+ * line: reachable or not, and what is offline.
  */
 const DESTINATIONS: {
   href: '/' | '/library' | '/import' | '/stats'
@@ -331,10 +325,8 @@ function Tags(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
-  // The tag half only: the search shares this filter, and a letter typed there
-  // changes nothing this list shows.
-  const [filter, setFilter] = useLibraryTagFilter()
   const createTag = useCreateTag()
+  const nudge = useArtistNudge()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
 
@@ -346,38 +338,33 @@ function Tags(): ReactNode {
    * A rail that lists every tag is a scroll nobody reaches the bottom of, and
    * the ones that matter are somewhere in the middle of it. These four are the
    * ones this device reached for last — no pinning, nothing to maintain —
-   * and the rest are one press away in the library's own tag search.
+   * and the rest are one press away on All tags, which the header opens.
    */
   const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
-  // A pass over the whole library; its answer only changes when the library does.
-  const untaggedCount = useMemo(() => (library?.songs ?? []).filter(isUntagged).length, [library])
   const trimmed = name.trim()
   const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
   const exact = suggestions.find(match => match.exact)
 
-  // A tag filters the library, so choosing one from elsewhere goes there.
-  const toLibrary = (): void => {
-    if (pathname !== '/library') router.navigate('/library')
-  }
-  const choose = (tagId: number): void => {
-    if (!tagSelected(filter, tagId)) noteTagUsed(tagId)
-    setFilter(current => toggleTag(current, tagId))
-    toLibrary()
-  }
-  const showOnly = (tagId: number): void => {
-    if (!tagSelected(filter, tagId)) choose(tagId)
+  // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its page.
+  const open = (tag: Tag): void => {
+    noteTagUsed(tag.id)
+    if (!onTagPage(pathname, tag.name)) router.navigate(tagLink(tag.name))
   }
 
-  const submit = async (): Promise<void> => {
+  const closeForm = (): void => {
+    setName('')
+    setAdding(false)
+  }
+
+  const submit = (): void => {
     if (!trimmed) {
       setAdding(false)
       return
     }
-    // Choosing the tag that exists beats silently making a near-duplicate.
-    if (exact) showOnly(exact.item.id)
-    else await createTag.mutateAsync(trimmed).catch(() => undefined)
-    setName('')
-    setAdding(false)
+    // Opening the tag that exists beats silently making a near-duplicate.
+    if (exact) open(exact.item)
+    else nudge.check(trimmed, () => void createTag.mutateAsync(trimmed).catch(() => undefined))
+    closeForm()
   }
 
   return (
@@ -395,28 +382,15 @@ function Tags(): ReactNode {
           </Text>
           {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
         </Pressable>
-        <View style={styles.groupActions}>
-          {tagFiltered(filter) ? (
-            <Pressable
-              style={styles.tinyButton}
-              onPress={() => setFilter(clearTagFilter)}
-              accessibilityRole="button"
-              accessibilityLabel="Clear tag filters"
-              {...tip('Clear filters')}
-            >
-              <X size={13} color={theme.colors.textMuted} />
-            </Pressable>
-          ) : null}
-          <Pressable
-            style={styles.tinyButton}
-            onPress={() => setAdding(open => !open)}
-            accessibilityRole="button"
-            accessibilityLabel="New tag"
-            {...tip('New tag')}
-          >
-            <Plus size={14} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
+        <Pressable
+          style={styles.tinyButton}
+          onPress={() => setAdding(isOpen => !isOpen)}
+          accessibilityRole="button"
+          accessibilityLabel="New tag"
+          {...tip('New tag')}
+        >
+          <Plus size={14} color={theme.colors.textMuted} />
+        </Pressable>
       </View>
 
       {adding ? (
@@ -425,7 +399,7 @@ function Tags(): ReactNode {
             style={styles.tagInput}
             value={name}
             onChangeText={setName}
-            onSubmitEditing={() => void submit()}
+            onSubmitEditing={submit}
             onBlur={() => {
               if (!name) setAdding(false)
             }}
@@ -444,9 +418,8 @@ function Tags(): ReactNode {
                   key={item.id}
                   style={styles.suggestion}
                   onPress={() => {
-                    showOnly(item.id)
-                    setName('')
-                    setAdding(false)
+                    open(item)
+                    closeForm()
                   }}
                   accessibilityRole="button"
                 >
@@ -459,60 +432,14 @@ function Tags(): ReactNode {
       ) : null}
 
       <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
-        {untaggedCount > 0 ? (
-          <Pressable
-            onPress={() => router.navigate('/inbox')}
-            accessibilityRole="link"
-            accessibilityLabel={`Untagged, ${untaggedCount}`}
-            testID="nav-inbox"
-            style={({ pressed }) => [
-              styles.inboxRow,
-              (pressed || pathname === '/inbox') && { backgroundColor: theme.colors.surface2 },
-            ]}
-          >
-            <Inbox size={14} color={theme.colors.textSecondary} />
-            <Text style={[styles.inboxName, pathname === '/inbox' && styles.inboxNameOn]}>
-              Untagged
-            </Text>
-            <Text style={styles.inboxCount}>{untaggedCount}</Text>
-          </Pressable>
-        ) : null}
         {rail.map(tag => (
           <TagRow
             key={tag.id}
             tag={tag}
-            chosen={tagSelected(filter, tag.id)}
-            onChoose={() => choose(tag.id)}
+            active={onTagPage(pathname, tag.name)}
+            onOpen={() => open(tag)}
           />
         ))}
-        {/*
-          Every tag chosen is shown even when it is not one of the four, or a
-          tag turned on from the library's own search would be filtering a list
-          while the rail said nothing was on.
-        */}
-        {tags
-          .filter(tag => tagSelected(filter, tag.id) && !rail.some(shown => shown.id === tag.id))
-          .map(tag => (
-            <TagRow key={tag.id} tag={tag} chosen onChoose={() => choose(tag.id)} />
-          ))}
-        {tags.length > rail.length ? (
-          <Pressable
-            onPress={() => {
-              toLibrary()
-              openTagSearch()
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Search all ${tags.length} tags`}
-            style={({ pressed }) => [
-              styles.allTags,
-              pressed && { backgroundColor: theme.colors.surface2 },
-            ]}
-            testID="sidebar-all-tags"
-          >
-            <Search size={12} color={theme.colors.textMuted} />
-            <Text style={styles.hint}>All {tags.length} tags…</Text>
-          </Pressable>
-        ) : null}
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
@@ -530,24 +457,23 @@ function Tags(): ReactNode {
           </View>
         ) : null}
       </ScrollView>
+      {nudge.nudge}
     </View>
   )
 }
 
 /**
- * One tag in the sidebar: a click puts it in the filter, a second click takes
- * it out, and the ⋯ the pointer reveals edits it. There is no third state —
- * every tag you turn on adds its songs to the list, so "hide these" has
- * nowhere to fit and nothing to mean.
+ * One tag in the sidebar: a click opens its page, which lights the row while
+ * you are on it, and the ⋯ the pointer reveals edits it.
  */
 function TagRow({
   tag,
-  chosen,
-  onChoose,
+  active,
+  onOpen,
 }: {
   tag: Tag
-  chosen: boolean
-  onChoose: () => void
+  active: boolean
+  onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
@@ -560,20 +486,20 @@ function TagRow({
       style={[
         styles.tagRow,
         hovered && { backgroundColor: theme.colors.surface2 },
-        chosen && styles.tagRowChosen,
+        active && styles.itemOn,
       ]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
       <Pressable
         style={styles.tagMain}
-        onPress={onChoose}
-        accessibilityRole="button"
+        onPress={onOpen}
+        accessibilityRole="link"
         accessibilityLabel={tag.name}
-        accessibilityState={{ selected: chosen }}
+        accessibilityState={{ selected: active }}
       >
         <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
-        <Text style={[styles.tagName, chosen && styles.tagNameIncluded]} numberOfLines={1}>
+        <Text style={[styles.tagName, active && styles.labelOn]} numberOfLines={1}>
           {tag.name}
         </Text>
         <Text style={styles.count}>{tag.songCount}</Text>
@@ -582,7 +508,7 @@ function TagRow({
       <View ref={moreRef} collapsable={false}>
         <Pressable
           style={[styles.tagAction, styles.tagActionLast, { opacity: revealed ? 1 : 0 }]}
-          onPress={() => setEditing(open => !open)}
+          onPress={() => setEditing(isOpen => !isOpen)}
           accessibilityRole="button"
           accessibilityLabel={`Edit tag ${tag.name}`}
           {...tip('Rename, recolour or delete')}
@@ -592,16 +518,7 @@ function TagRow({
         </Pressable>
       </View>
 
-      <TagEditor
-        tag={editing ? tag : null}
-        anchorRef={moreRef}
-        chosen={chosen}
-        onChoose={onChoose}
-        onDeleted={() => {
-          if (chosen) onChoose()
-        }}
-        onClose={() => setEditing(false)}
-      />
+      <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
     </View>
   )
 }
@@ -827,7 +744,6 @@ const styles = StyleSheet.create(theme => ({
   groupTitleText: labelText(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
   groupAll: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600' },
-  groupActions: { flexDirection: 'row', gap: 2 },
   tinyButton: {
     width: 24,
     height: 24,
@@ -858,30 +774,9 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   suggestionText: { color: theme.colors.textSecondary, fontSize: 11 },
-  inboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 30,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
-  inboxName: { flex: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  inboxNameOn: { fontWeight: '700' },
-  inboxCount: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
-  allTags: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12 },
-  // A tag in the filter is a lighter surface, as a chosen chip is lit, not tinted.
-  tagRowChosen: { backgroundColor: theme.colors.surface3 },
   tagMain: {
     flex: 1,
     minWidth: 0,
@@ -895,7 +790,6 @@ const styles = StyleSheet.create(theme => ({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
-  tagNameIncluded: { color: theme.colors.textPrimary, fontWeight: '500' },
   not: { color: theme.colors.danger, fontWeight: '600' },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },

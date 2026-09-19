@@ -41,7 +41,6 @@ describe('the swipe-back gesture', () => {
       'settings',
       'stats/index',
       'stats/report',
-      'inbox',
       'tags',
       '+not-found',
     ]) {

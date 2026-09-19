@@ -19,7 +19,8 @@ describe('the tab bar', () => {
       '/stats/report',
       '/import',
       '/import/migrate',
-      '/inbox',
+      '/tag/night%20drive',
+      '/artist/Yorushika',
     ]) {
       expect(activeTab(page)).toBe('/')
     }

@@ -51,6 +51,10 @@ import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
+import { ArtistLinks } from './ArtistLinks'
+import { TaggingLine } from './TaggingLine'
+import { useTagging, type Tagging } from './useTagging'
+import { tagLink } from '../tag/placeLinks'
 import { tip } from '../../ui/tip'
 import { floating, label } from '../../ui/surfaces'
 
@@ -91,6 +95,8 @@ export function NowPlayingStage(): ReactNode {
   const tab = parseTab(params.tab)
   const mode = parseMode(params.mode)
   const song = player.current
+  // Asked here rather than on the stage, so a queue that runs out ends it too.
+  const tagging = useTagging()
 
   const close = (): void =>
     leaveStage(() => {
@@ -105,6 +111,7 @@ export function NowPlayingStage(): ReactNode {
       song={song}
       tab={tab}
       mode={mode}
+      tagging={tagging}
       onClose={close}
       onTab={next => router.setParams({ tab: next })}
       onMode={next => router.setParams({ mode: next })}
@@ -134,6 +141,7 @@ function Stage({
   song,
   tab,
   mode,
+  tagging,
   onClose,
   onTab,
   onMode,
@@ -141,12 +149,14 @@ function Stage({
   song: Song
   tab: StageTab
   mode: PageMode
+  tagging: Tagging
   onClose: () => void
   onTab: (tab: StageTab) => void
   onMode: (mode: PageMode) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
+  const router = useRouter()
   const artFor = useArt()
   const library = useLibrary()
   const lyrics = useSongWords(song)
@@ -162,6 +172,9 @@ function Stage({
   const [tagsOpen, setTagsOpen] = useState(false)
   // The tag window opens over its button, as the song menu's does.
   const tagsButtonRef = useRef<View>(null)
+  // The tag window hangs from its button, so play-and-tag raises it only once
+  // the page has come to rest: measured mid-rise, it sat below its button.
+  const [entered, setEntered] = useState(false)
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -181,7 +194,7 @@ function Stage({
       duration: ENTER_MS,
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
-    }).start()
+    }).start(() => setEntered(true))
     setStageExit(then => {
       Animated.timing(shown, {
         toValue: 0,
@@ -318,7 +331,11 @@ function Stage({
             {song.title}
           </Text>
           <Text style={styles.byline} numberOfLines={1}>
-            {[song.artist || 'Unknown artist', song.album, song.year].filter(Boolean).join(' · ')}
+            <ArtistLinks artist={song.artist} />
+            {[song.album, song.year]
+              .filter(Boolean)
+              .map(part => ` · ${part}`)
+              .join('')}
           </Text>
           {features && (features.bpm != null || features.energy != null || features.camelot) ? (
             <View style={styles.facts}>
@@ -343,14 +360,28 @@ function Stage({
             </View>
           ) : null}
           <View style={styles.tags}>
+            {/* Each tag is a place of its own: its name opens its page. */}
             {tags.map(tag => (
-              <Text key={tag.id} style={[styles.tag, { color: tagColors(tag.hue).ink }]}>
+              <Text
+                key={tag.id}
+                onPress={() => router.navigate(tagLink(tag.name))}
+                accessibilityRole="link"
+                accessibilityLabel={`Go to ${tag.name}`}
+                style={[styles.tag, { color: tagColors(tag.hue).ink }]}
+              >
                 {tag.name}
               </Text>
             ))}
             <Pressable
               ref={tagsButtonRef}
-              onPress={() => setTagsOpen(open => !open)}
+              // In play-and-tag the button is the mode's editor, raised again or put away.
+              onPress={() =>
+                tagging.on
+                  ? tagging.open
+                    ? tagging.close()
+                    : tagging.raise()
+                  : setTagsOpen(open => !open)
+              }
               accessibilityRole="button"
               style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
             >
@@ -358,6 +389,7 @@ function Stage({
               <Text style={styles.tagButtonText}>{tags.length > 0 ? 'Edit tags' : 'Add tags'}</Text>
             </Pressable>
           </View>
+          {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>
       )}
 
@@ -558,9 +590,13 @@ function Stage({
         onLookAgain={lyrics.lookAgain}
       />
 
+      {/* Focus has no tag button to hang it from: play-and-tag waits for the full page. */}
       <TagPicker
-        song={tagsOpen ? song : null}
-        onClose={() => setTagsOpen(false)}
+        song={tagsOpen || (tagging.open && entered && !focus) ? song : null}
+        onClose={() => {
+          setTagsOpen(false)
+          if (tagging.open) tagging.close()
+        }}
         anchorRef={tagsButtonRef}
       />
     </Animated.View>

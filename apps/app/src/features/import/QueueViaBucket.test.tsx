@@ -5,6 +5,10 @@ import { QueueViaBucket } from './QueueViaBucket'
 
 const mockRequest = jest.fn()
 
+// The tag picker's "Create…" can offer an artist's page instead (`P11`), so it
+// holds a router; nothing here navigates, and the real one needs an app round it.
+jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: () => undefined }) }))
+
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({

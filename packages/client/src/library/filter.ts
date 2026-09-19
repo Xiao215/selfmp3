@@ -47,7 +47,7 @@ export const DEFAULT_FILTER: LibraryFilter = {
  * The part of a filter the tags decide. The sidebar reads only this, so it
  * need not hear about every letter typed into the search.
  */
-export type TagFilter = Pick<LibraryFilter, 'tagIds'>
+type TagFilter = Pick<LibraryFilter, 'tagIds'>
 
 export function tagSelected(filter: TagFilter, tagId: number): boolean {
   return filter.tagIds.includes(tagId)

@@ -1,5 +1,6 @@
 import { fuzzyRank, type Library } from '@selfmp3/shared'
 import type { Artist } from '@selfmp3/client'
+import { isUntagged } from '../tag/tag.model'
 import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 
 export type { RecentItem }
@@ -15,7 +16,7 @@ export type PaletteCommandId =
   | 'nav-import'
   | 'nav-stats'
   | 'nav-settings'
-  | 'nav-inbox'
+  | 'tag-untagged'
   | 'shuffle-all'
   | 'rescan-library'
 
@@ -36,14 +37,14 @@ const COMMAND_PAGE: Partial<Record<PaletteCommandId, (pathname: string) => boole
   'nav-import': pathname => pathname === '/import',
   'nav-stats': pathname => pathname === '/stats' || pathname.startsWith('/stats/'),
   'nav-settings': pathname => pathname === '/settings',
-  'nav-inbox': pathname => pathname === '/inbox',
 }
 
 /**
  * `fromCloud`: only for the things a cloud library genuinely cannot do — there
- * is no library folder to rescan. Stats and the tag inbox are offered: the
- * inbox needs no server at all, and the Stats page reaches for one and says so
- * when there is none.
+ * is no library folder to rescan. Stats is offered: its page reaches for the
+ * server and says so when there is none.
+ * `untaggedCount`: tagging the songs without a tag plays them, so with none
+ * there is nothing to offer.
  * `pathname`: the page the palette was opened on, whose own "Go to" is left out.
  */
 export function paletteCommands(
@@ -58,7 +59,15 @@ export function paletteCommands(
     { id: 'nav-import', label: 'Import music' },
     { id: 'nav-stats', label: 'Go to Stats' },
     { id: 'nav-settings', label: 'Settings' },
-    { id: 'nav-inbox', label: 'Tag untagged songs', hint: `${untaggedCount} untagged` },
+    ...(untaggedCount > 0
+      ? [
+          {
+            id: 'tag-untagged' as const,
+            label: 'Tag untagged songs',
+            hint: `${untaggedCount} untagged`,
+          },
+        ]
+      : []),
     { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
     // Not offered on a bucket library: there is no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
@@ -91,7 +100,7 @@ const untaggedCounts = new WeakMap<Songs, number>()
 export function untaggedCount(songs: Songs): number {
   let count = untaggedCounts.get(songs)
   if (count === undefined) {
-    count = songs.filter(song => song.tagIds.length === 0 && !song.missing).length
+    count = songs.filter(isUntagged).length
     untaggedCounts.set(songs, count)
   }
   return count

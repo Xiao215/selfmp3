@@ -12,6 +12,7 @@ import {
   useLibrary,
   useSetSongTags,
 } from '@selfmp3/client'
+import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
@@ -43,7 +44,7 @@ export function TagPicker({
   anchorRef?: RefObject<View | null>
 }): ReactNode {
   const { wide } = useLayout()
-  const picker = song ? <Picker key={song.id} song={song} /> : null
+  const picker = song ? <Picker key={song.id} song={song} onLeave={onClose} /> : null
   if (wide && anchorRef) {
     return (
       <Popover
@@ -70,7 +71,7 @@ export function TagPicker({
   )
 }
 
-function Picker({ song }: { song: Song }): ReactNode {
+function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const setSongTags = useSetSongTags()
   return (
@@ -80,6 +81,7 @@ function Picker({ song }: { song: Song }): ReactNode {
         setSelected(next)
         setSongTags.mutate({ songId: song.id, tagIds: [...next] })
       }}
+      onLeave={onLeave}
       autoFocus
     />
   )
@@ -93,10 +95,13 @@ function Picker({ song }: { song: Song }): ReactNode {
 export function TagSearchList({
   selected,
   onChange,
+  onLeave,
   autoFocus = false,
 }: {
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
+  /** Close whatever this is drawn in, as the nudge's "Open the artist" leaves for the artist. */
+  onLeave?: () => void
   autoFocus?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -109,6 +114,7 @@ export function TagSearchList({
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createTag = useCreateTag()
+  const nudge = useArtistNudge(onLeave)
   // The set as it is now: a tag ticked while a create waited must survive it.
   const latest = useRef(selected)
   useEffect(() => {
@@ -127,19 +133,24 @@ export function TagSearchList({
     onChange(next)
   }
 
-  const create = async (): Promise<void> => {
-    if (!trimmed || createTag.isPending) return
+  const make = async (name: string): Promise<void> => {
     setError(null)
     try {
-      const tag = await createTag.mutateAsync(trimmed)
+      const tag = await createTag.mutateAsync(name)
       setQuery('')
       const next = new Set([...latest.current, tag.id])
       latest.current = next
       onChange(next)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
-      setError(`Couldn’t create “${trimmed}”: ${(caught as Error).message}`)
+      setError(`Couldn’t create “${name}”: ${(caught as Error).message}`)
     }
+  }
+
+  /** A name that is an artist's asks first (`P11`); any other is made at once. */
+  const create = (): void => {
+    if (!trimmed || createTag.isPending) return
+    nudge.check(trimmed, () => void make(trimmed))
   }
 
   const submit = (): void => {
@@ -151,7 +162,7 @@ export function TagSearchList({
       toggle(best.item.id)
       setQuery('')
     } else {
-      void create()
+      create()
     }
   }
 
@@ -215,7 +226,7 @@ export function TagSearchList({
       {trimmed && !hasExact ? (
         <Pressable
           style={({ pressed }) => [styles.item, styles.create, pressed && styles.itemPressed]}
-          onPress={() => void create()}
+          onPress={create}
           accessibilityRole="button"
           accessibilityLabel={`Create ${trimmed}`}
         >
@@ -228,6 +239,7 @@ export function TagSearchList({
       ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {nudge.nudge}
     </View>
   )
 }

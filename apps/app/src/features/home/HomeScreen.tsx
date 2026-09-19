@@ -20,7 +20,7 @@ import { ChevronRight, Download, Plus, Search, User } from '../../ui/components/
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { usePressScale } from '../../ui/motion'
 import { card, label, sectionTitle, serif } from '../../ui/surfaces'
-import { useSetLibraryFilter } from '../library/libraryFilter'
+import { tagLink } from '../tag/placeLinks'
 import { useStatsFor } from '../stats/statsSource'
 import {
   dateLine,
@@ -232,11 +232,7 @@ function SectionHead({
   )
 }
 
-/**
- * The tiles, two across on a phone and three on a computer. A tile opens its
- * tag; until a tag has a page of its own (Phase 4) that is Library, filtered
- * to it, which is where a tag has always opened.
- */
+/** The tiles, two across on a phone and three on a computer. A tile opens its tag's page. */
 function Tiles({
   tiles,
   wide,
@@ -247,7 +243,6 @@ function Tiles({
   loading: boolean
 }): ReactNode {
   const router = useRouter()
-  const setFilter = useSetLibraryFilter()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
   // row on a phone, not the whole of it.
@@ -275,10 +270,7 @@ function Tiles({
           wide={wide}
           width={tileWidth}
           artUri={tile.cover ? art(tile.cover) : null}
-          onPress={() => {
-            setFilter(filter => ({ ...filter, tagIds: [tile.tag.id] }))
-            router.navigate('/library')
-          }}
+          onPress={() => router.navigate(tagLink(tile.tag.name))}
         />
       ))}
     </View>

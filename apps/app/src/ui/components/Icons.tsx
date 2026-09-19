@@ -265,16 +265,6 @@ export const TagPlus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactN
   )
 }
 
-export const Inbox = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
-  const color = useInk(colorGiven, tone)
-  return (
-    <Icon color={color} {...rest}>
-      <Path d="M4 13.5 6.3 5.6A2 2 0 0 1 8.2 4h7.6a2 2 0 0 1 1.9 1.6L20 13.5" />
-      <Path d="M4 13.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5h-4.5l-1.5 2.5h-4l-1.5-2.5z" />
-    </Icon>
-  )
-}
-
 export const Folder = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

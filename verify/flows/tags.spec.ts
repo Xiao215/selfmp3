@@ -3,17 +3,17 @@ import { expect, test, type Page } from '@playwright/test'
 import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
- * Choosing tags to listen to.
+ * Tags as places (docs/UI-MIGRATION.md, Phase 4; docs/ui-mock `P07`).
  *
- * The rule the whole library rests on is that several tags mean *any* of them:
- * every tag you add makes the list longer, so a run of taps can be a mood
- * rather than a search that narrows to nothing. That is the surprising half —
- * it is the opposite of what a filter usually does — so it is what this
- * checks, along with the promise that follows from it: the songs carrying all
- * the chosen tags are still there, and they lead.
+ * A tag is somewhere to go, not a filter the app switches on for you: All
+ * tags lists every one, most played first, and a row opens the tag's own page
+ * at `/tag/<name>`. While songs have no tag the page leads with a card for
+ * them. Nothing is edited here; making and renaming tags is the navigation
+ * flow's and the mutations flow's.
  *
- * Nothing is edited. Choosing tags is client-side, and the playlist the head
- * can save is a separate flow.
+ * The library's own tag strip is the one place a tag is still a filter, and
+ * the second half checks the rule it rests on: several tags mean *any* of
+ * them, so every tag added makes the list longer.
  */
 
 interface LibraryTag {
@@ -23,6 +23,7 @@ interface LibraryTag {
 interface LibrarySong {
   tagIds: number[]
   missing: boolean
+  playCount: number
 }
 
 async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
@@ -30,6 +31,85 @@ async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: Li
   const response = await page.request.get(`${api}/api/library`)
   return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
 }
+
+/**
+ * The tags in All tags' order: by the plays of the songs each carries, then
+ * the biggest, then by name — `tagsMostPlayed` in `features/tag/tag.model.ts`.
+ */
+function mostPlayed(tags: LibraryTag[], songs: LibrarySong[]): LibraryTag[] {
+  const present = songs.filter(song => !song.missing)
+  const standing = (tag: LibraryTag) => {
+    const carrying = present.filter(song => song.tagIds.includes(tag.id))
+    return {
+      tag,
+      plays: carrying.reduce((sum, song) => sum + song.playCount, 0),
+      size: carrying.length,
+    }
+  }
+  return tags
+    .map(standing)
+    .sort((a, b) => b.plays - a.plays || b.size - a.size || a.tag.name.localeCompare(b.tag.name))
+    .map(entry => entry.tag)
+}
+
+async function openAllTags(page: Page): Promise<void> {
+  await page.goto('/tags')
+  await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
+    timeout: 30_000,
+  })
+}
+
+test.describe('tags as places', () => {
+  test('All tags lists every tag, most played first', async ({ page }) => {
+    await openAllTags(page)
+    const { songs, tags } = await libraryData(page)
+    test.skip(tags.length === 0, 'needs a tag in the dev library')
+
+    await expect(
+      page.getByText(`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'} · most played first`),
+    ).toBeVisible()
+    await expect(page.getByTestId(/^tags-row-\d+$/)).toHaveCount(tags.length)
+    const first = mostPlayed(tags, songs)[0]
+    if (first) {
+      await expect(page.getByTestId('tags-row-0')).toHaveAccessibleName(
+        new RegExp(`^${escaped(first.name)}, `),
+      )
+    }
+    // The page's own filter and its way across to the library's picker are
+    // gone: holding a row is where the housekeeping went.
+    await expect(page.getByTestId('tags-pick-to-listen')).toHaveCount(0)
+    await expect(page.getByText('Hold a tag to rename, recolour or delete it.')).toBeVisible()
+  })
+
+  test('a row opens the tag’s own page, not a filtered library', async ({ page }) => {
+    await openAllTags(page)
+    const { songs, tags } = await libraryData(page)
+    const first = mostPlayed(tags, songs)[0]
+    test.skip(!first, 'needs a tag in the dev library')
+    if (!first) return
+
+    await page.getByTestId('tags-row-0').click()
+    await expect(page).toHaveURL(/\/tag\/[^/]+$/)
+    expect(decodeURIComponent(new URL(page.url()).pathname)).toBe(`/tag/${first.name}`)
+  })
+
+  test('the untagged card is there exactly while some songs have no tag', async ({ page }) => {
+    await openAllTags(page)
+    const { songs } = await libraryData(page)
+    const untagged = songs.filter(song => !song.missing && song.tagIds.length === 0).length
+
+    if (untagged === 0) {
+      await expect(page.getByTestId('tags-untagged')).toHaveCount(0)
+      return
+    }
+    const card = page.getByTestId('tags-untagged')
+    await expect(card).toBeVisible()
+    await expect(card).toContainText(
+      `${untagged} ${untagged === 1 ? 'song has' : 'songs have'} no tag yet`,
+    )
+    await expect(card).toContainText('Tag them one at a time, while they play')
+  })
+})
 
 /**
  * Turn a tag on through the head's own picker.
@@ -53,11 +133,11 @@ async function pickTag(page: Page, name: string): Promise<void> {
   await expect(panel).toHaveCount(0)
 }
 
-test.describe('choosing tags', () => {
+test.describe('the library’s tag strip, still a filter', () => {
   test('a second tag adds songs rather than taking them away', async ({ page }, info) => {
     test.skip(
       info.project.name === 'phone',
-      'a phone chooses tags on its own Tags page, not in the library head',
+      'checked on a computer; the test below covers both widths',
     )
     await openLibrary(page)
     await libraryReady(page)
@@ -113,8 +193,7 @@ test.describe('choosing tags', () => {
   /**
    * At both widths, because this is what the phone was missing: it could pick
    * tags and then had nowhere on the page to start them — Play and Save were
-   * drawn only above the breakpoint, and the phone's own Tags page offered a
-   * count you had to tap to be taken to the songs.
+   * drawn only above the breakpoint.
    */
   test('the head offers Play and Save only once a tag is on', async ({ page }) => {
     await openLibrary(page)

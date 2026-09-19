@@ -4,7 +4,7 @@ import { BackRow } from './BackRow'
 
 /**
  * "‹ You", on a phone, above the title of a page the You tab leads to: Stats,
- * Untagged, Tags and Settings.
+ * Tags and Settings.
  *
  * A phone has four tabs, and those four pages share the last one, so each
  * needs a way back to the list it was chosen from. A computer reaches all of

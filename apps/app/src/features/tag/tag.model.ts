@@ -205,7 +205,7 @@ export function togglePlace(chosen: readonly Place[], place: Place): readonly Pl
     : [...chosen, place]
 }
 
-export interface AlbumGroup {
+interface AlbumGroup {
   readonly album: string
   readonly year: number | null
   readonly songs: readonly Song[]

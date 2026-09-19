@@ -60,12 +60,14 @@ import {
 } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
+import { TagPicker } from '../../ui/components/TagPicker'
 import { DevicesSheet } from '../devices/DevicesSheet'
 import { PracticePanel } from '../practice/PracticePanel'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { useArt } from '../../offline/useArt'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
+import { ArtistLinks } from './ArtistLinks'
 import { NowPlayingStage } from './NowPlayingStage'
 import {
   autoMixLine,
@@ -78,8 +80,10 @@ import {
 } from './nowPlaying.model'
 import { SongVisual } from './SongVisual'
 import { StageLyrics } from './StageLyrics'
+import { TaggingLine } from './TaggingLine'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongWords } from './useSongWords'
+import { useTagging } from './useTagging'
 import { useSongVisual } from './visualChoice'
 import { motionCaption, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
@@ -149,6 +153,8 @@ function PhoneNowPlaying(): ReactNode {
   const sleepLeft = useSleepMinutesLeft(player.sleepTimerEndsAt)
   const [practiceOpen, setPracticeOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
+  // Play-and-tag, from All tags' untagged card: the tag editor up for each song in turn.
+  const tagging = useTagging()
 
   const song = player.current
 
@@ -302,10 +308,15 @@ function PhoneNowPlaying(): ReactNode {
           <IconButton onPress={() => router.back()} label="Close now playing" round>
             <ChevronDown size={24} color={theme.colors.textSecondary} />
           </IconButton>
-          <Text style={styles.context} numberOfLines={1}>
-            {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
-            {player.queue.items.length}
-          </Text>
+          {/* Tagging takes the queue's line: at the top, it stays clear of the editor's sheet. */}
+          {tagging.on ? (
+            <TaggingLine line={tagging.line} onStop={tagging.stop} center />
+          ) : (
+            <Text style={styles.context} numberOfLines={1}>
+              {player.queue.shuffle ? 'Shuffling' : 'Playing'} · {player.queue.index + 1} of{' '}
+              {player.queue.items.length}
+            </Text>
+          )}
           <IconButton
             onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
             label={song.loved ? 'Unlike' : 'Like'}
@@ -354,7 +365,7 @@ function PhoneNowPlaying(): ReactNode {
                       {song.title}
                     </Text>
                     <Text style={styles.artist} numberOfLines={1}>
-                      {song.artist || 'Unknown artist'}
+                      <ArtistLinks artist={song.artist} />
                     </Text>
                     {song.album ? (
                       <Text style={styles.album} numberOfLines={1}>
@@ -515,6 +526,12 @@ function PhoneNowPlaying(): ReactNode {
         </Sheet>
         <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
         <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
+        {/*
+          A sheet from the foot of the page, as the picker is on a phone: there
+          is no button of the page's to hang it from, and the cover and the
+          head, with the tagging line in it, stay in sight above it.
+        */}
+        <TagPicker song={tagging.open ? song : null} onClose={tagging.close} />
       </View>
     </Animated.View>
   )

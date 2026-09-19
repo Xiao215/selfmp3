@@ -16,7 +16,7 @@ import {
 } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
-import { Check, Plus, Trash } from './Icons'
+import { Check, Trash } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
@@ -24,11 +24,11 @@ import { label } from '../surfaces'
 /**
  * Everything you can do to a tag itself.
  *
- * Put it in the filter, rename it, recolour it, delete it. Tags are the
- * library's only way of being browsed, so their names and colours are how you
- * find things. It opens from the ⋯ beside a tag: in the sidebar on a
- * computer, and on the Tags page (You › Tags) on a phone, which is the only
- * place a phone can manage tags at all.
+ * Rename it, recolour it, delete it. Tags are how this library is browsed,
+ * so their names and colours are how you find things. It opens from the ⋯
+ * beside a tag in the sidebar, from holding a tag on All tags, and from the ⋯
+ * on a tag's own page. Opening the tag is the tag itself, tapped: this has no
+ * "listen" of its own.
  *
  * A popover beside the control at desktop width and a sheet on a phone — the
  * primitive decides, not this.
@@ -43,17 +43,12 @@ const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as cons
 export function TagEditor({
   tag,
   anchorRef,
-  chosen,
-  onChoose,
   onDeleted,
   onClose,
 }: {
   /** The tag being edited, or null when closed. */
   tag: Tag | null
   anchorRef: RefObject<RNView | null>
-  /** Whether this tag is in the library's filter right now. */
-  chosen: boolean
-  onChoose: () => void
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
@@ -65,30 +60,17 @@ export function TagEditor({
       width={290}
       testID="tag-editor"
     >
-      {tag ? (
-        <Editor
-          key={tag.id}
-          tag={tag}
-          chosen={chosen}
-          onChoose={onChoose}
-          onDeleted={onDeleted}
-          onClose={onClose}
-        />
-      ) : null}
+      {tag ? <Editor key={tag.id} tag={tag} onDeleted={onDeleted} onClose={onClose} /> : null}
     </Popover>
   )
 }
 
 function Editor({
   tag,
-  chosen,
-  onChoose,
   onDeleted,
   onClose,
 }: {
   tag: Tag
-  chosen: boolean
-  onChoose: () => void
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
@@ -121,28 +103,6 @@ function Editor({
         <Text style={styles.hint}>
           {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'}
         </Text>
-      </View>
-
-      <View style={styles.filters} role="group" aria-label="Filter the library">
-        <Pressable
-          // Chosen, it is white, like a chosen chip.
-          style={[styles.filter, chosen && styles.filterOn]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: chosen }}
-          onPress={() => {
-            onChoose()
-            onClose()
-          }}
-        >
-          {chosen ? (
-            <Check size={14} color={theme.colors.onPrimary} />
-          ) : (
-            <Plus size={14} color={theme.colors.textSecondary} />
-          )}
-          <Text style={[styles.filterText, chosen && styles.filterTextOn]}>
-            {chosen ? 'Listening to this' : 'Listen to this'}
-          </Text>
-        </Pressable>
       </View>
 
       <View style={styles.section}>
@@ -244,28 +204,6 @@ const styles = StyleSheet.create(theme => ({
   titleText: { color: theme.colors.textSecondary, fontSize: 13, flexShrink: 1 },
   titleName: { color: theme.colors.textPrimary, fontWeight: '700' },
   hint: { color: theme.colors.textMuted, fontSize: 12 },
-  filters: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingTop: 6,
-    paddingHorizontal: space.xs,
-    paddingBottom: space.sm,
-  },
-  filter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: space.sm,
-    minHeight: 36,
-    // A control one step up from the panel it sits on.
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
-  },
-  filterOn: { backgroundColor: theme.colors.textPrimary },
-  filterText: { color: theme.colors.textSecondary, fontSize: 12 },
-  filterTextOn: { color: theme.colors.onPrimary },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
   fieldLabel: { ...label(theme.colors), marginBottom: 5 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

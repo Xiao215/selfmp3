@@ -17,6 +17,10 @@ import { SongMenu } from './SongMenu'
  * wish and has to survive both.
  */
 
+// The tag picker's "Create…" can offer an artist's page instead (`P11`), so it
+// holds a router; nothing here navigates, and the real one needs an app round it.
+jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: () => undefined }) }))
+
 let mockTakesTheCopy = true
 const mockDeleteSong = jest.fn()
 const mockRemoveByHand = jest.fn(() => Promise.resolve())

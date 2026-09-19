@@ -79,9 +79,12 @@ test.describe('navigation', () => {
     // You is the avatar in Home's header.
     await page.getByTestId('home-you').click()
     await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
+    // Stats, Tags and Settings: songs without a tag are a card on All tags now,
+    // not a row of their own.
+    await expect(page.getByTestId('you-inbox')).toHaveCount(0)
     await page.getByRole('link', { name: /^Tags/ }).click()
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Back to You' }).click()
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'You', exact: true })).toBeVisible()
 
     await page.getByRole('link', { name: /^Settings/ }).click()
@@ -96,43 +99,33 @@ test.describe('navigation', () => {
   })
 
   /**
-   * The Tags page is housekeeping now, not a second picker.
-   *
-   * It used to be where a phone picked what to listen to, which put the
-   * library's main verb two taps under You and then showed no songs when you
-   * used it. Picking moved to the library's own picker at both widths; what is
-   * left here is naming, colouring and deleting, and a way across to the
-   * picker for anyone who came looking for the old page.
+   * All tags keeps the housekeeping the page used to be, behind a hold: the
+   * new-tag card from the + in its header, and the editor on a held row. The
+   * way across to the library's picker is gone; a row opens the tag's page.
    */
-  test('a phone manages tags on the Tags page, and is sent to the library to pick', async ({
-    page,
-  }, info) => {
-    test.skip(info.project.name !== 'phone', 'a computer edits tags from its sidebar')
+  test('All tags makes a tag from its +, and edits one held', async ({ page }) => {
     await page.goto('/tags')
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
       timeout: 30_000,
     })
-    // Making a tag is a card in the page, not a bare field over the picker.
+    // Making a tag is a card in the page, not a bare field over the rows.
     await page.getByTestId('tags-new').click()
     await expect(page.getByTestId('tags-new-name')).toBeVisible()
     // Nothing typed, nothing to create.
     await expect(page.getByTestId('tags-create')).toBeDisabled()
     await page.getByRole('button', { name: 'Close new tag' }).click()
 
-    // A tag is a row that opens the editor, not a chip that starts music.
-    const row = page.getByRole('button', { name: /^Edit .+, [\d,]+ songs?$/ }).first()
+    const row = page.getByTestId('tags-row-0')
     await expect(row.or(page.getByText(/No tags yet/))).toBeVisible({ timeout: 30_000 })
     if (await row.isVisible()) {
-      await row.click()
+      // Held, not tapped: a tap opens the tag's page.
+      await row.hover()
+      await page.mouse.down()
+      await page.waitForTimeout(700)
+      await page.mouse.up()
       await expect(page.getByTestId('tag-editor')).toBeVisible()
       await page.keyboard.press('Escape')
     }
-
-    await page.getByTestId('tags-pick-to-listen').click()
-    await expect(page).toHaveURL(/\/library$/)
-    await libraryReady(page)
-    // The library arrives with its picker already down, where the songs are.
-    await expect(page.getByTestId('listen-tags')).toBeVisible()
   })
 
   test('the library is still there afterwards', async ({ page }) => {

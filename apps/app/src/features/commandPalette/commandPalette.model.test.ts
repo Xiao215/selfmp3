@@ -21,21 +21,25 @@ describe('the command palette', () => {
       'nav-import',
       'nav-stats',
       'nav-settings',
-      'nav-inbox',
       'shuffle-all',
       'rescan-library',
     ])
     expect(results.songs).toEqual([])
     expect(results.recent).toEqual([])
-    expect(paletteCommands(13)[6]?.hint).toBe('13 songs')
-    expect(paletteCommands(13, false, 2)[5]?.hint).toBe('2 untagged')
+    expect(paletteCommands(13)[5]?.hint).toBe('13 songs')
+    // Tagging the untagged songs plays them, so it is offered only when there are some.
+    expect(paletteCommands(13, false, 2)[5]).toEqual({
+      id: 'tag-untagged',
+      label: 'Tag untagged songs',
+      hint: '2 untagged',
+    })
     // A cloud library keeps every command but the one it truly cannot run:
     // there is no library folder to rescan. Import and Stats reach for the
-    // server themselves, and the inbox needs none.
-    const cloud = paletteCommands(13, true).map(command => command.id)
+    // server themselves, and tagging needs none.
+    const cloud = paletteCommands(13, true, 2).map(command => command.id)
     expect(cloud).toContain('nav-import')
     expect(cloud).toContain('nav-stats')
-    expect(cloud).toContain('nav-inbox')
+    expect(cloud).toContain('tag-untagged')
     expect(cloud).not.toContain('rescan-library')
   })
 

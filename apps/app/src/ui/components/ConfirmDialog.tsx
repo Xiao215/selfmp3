@@ -26,6 +26,7 @@ export function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
+  onDismiss = onCancel,
 }: {
   open: boolean
   title: string
@@ -36,6 +37,11 @@ export function ConfirmDialog({
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
+  /**
+   * Closing without choosing — the backdrop, Escape. Cancel, unless the second
+   * button is a choice of its own (the artist nudge's "Make the tag anyway").
+   */
+  onDismiss?: () => void
 }): ReactNode {
   return open ? (
     <Dialog
@@ -46,6 +52,7 @@ export function ConfirmDialog({
       danger={danger}
       onConfirm={onConfirm}
       onCancel={onCancel}
+      onDismiss={onDismiss}
     />
   ) : null
 }
@@ -58,6 +65,7 @@ function Dialog({
   danger,
   onConfirm,
   onCancel,
+  onDismiss,
 }: {
   title: string
   body?: string
@@ -66,16 +74,17 @@ function Dialog({
   danger: boolean
   onConfirm: () => void
   onCancel: () => void
+  onDismiss: () => void
 }): ReactNode {
   const accent = useAccent()
   const { wide } = useLayout()
-  useEscape(true, onCancel, { layer: true })
+  useEscape(true, onDismiss, { layer: true })
 
   useOverlay(
     <View
       style={[styles.backdrop, { backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.62) }]}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityLabel="Cancel" />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} accessibilityLabel="Cancel" />
       <View
         style={styles.dialog}
         role="alertdialog"

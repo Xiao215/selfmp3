@@ -16,11 +16,11 @@ your bucket, and the server does not have to be running. There is no address to
 type — a development build keeps the `/onboarding` address screen, because the
 simulator flows cannot sign in to a Google account, and that is the only place
 it survives. The tabs are **Library · Playlists · Import · You**, where You
-holds Stats & report, Untagged, Tags and Settings.
+holds Stats & report, Tags and Settings.
 
 Importing works: the Import screen reaches the server directly when it can, by
 the addresses in the bucket's snapshot, and leaves the request in the bucket when
-it cannot. The other things that need the server itself — Stats, the tag inbox,
+it cannot. The other things that need the server itself — Stats and
 looking metadata up — are hidden from a cloud library, and since every surface is
 now a cloud library, they are not reachable anywhere today. The server's own page
 does not draw them either; it is setup and status. That is a gap, and it is

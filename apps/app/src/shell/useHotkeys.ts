@@ -23,7 +23,7 @@ export interface HotkeyOptions {
  *
  * Not for app-wide shortcuts: those come through `useCommands` — the installed
  * app's from its menu, and a browser tab's single one, Space for play and pause
- * (`playbackKeys`). What is left is in context, such as the Untagged page's
- * triage keys.
+ * (`playbackKeys`). What is left is in context: keys that mean something
+ * only on the page that listens for them.
  */
 export function useHotkeys(_hotkeys: Hotkeys, _options?: HotkeyOptions): void {}

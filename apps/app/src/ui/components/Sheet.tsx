@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
@@ -9,6 +9,8 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { floating } from '../surfaces'
+import { ease, timing } from '../motion'
+import { MOVE_MS, overshootRange } from '../motion.model'
 
 /**
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
@@ -53,6 +55,11 @@ export function Sheet({
 }): ReactNode {
   const insets = useSafeAreaInsets()
   const { wide, dense } = useLayout()
+  // How far the panel travels: its own height once it has laid out, and the
+  // window's until then, which is below the foot either way.
+  const window = useWindowDimensions()
+  const [panelHeight, setPanelHeight] = useState(0)
+  const travel = panelHeight > 0 ? panelHeight : window.height
   // Mounted from the moment it is asked for until its exit has played out.
   // Adjusted during render rather than in an effect, so opening never costs
   // a frame drawn without the sheet.
@@ -65,24 +72,23 @@ export function Sheet({
   useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
+    // A computer's window only fades and settles; a phone's sheet overshoots.
     if (open) {
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: motion.slow,
-        easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-        useNativeDriver: true,
-      }).start()
+      if (wide) timing(progress, 1, motion.slow, undefined, { easing: ease.out })
+      else timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
       return
     }
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: motion.base,
-      easing: Easing.bezier(0.4, 0, 1, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setMounted(false)
+    timing(progress, 0, wide ? motion.base : MOVE_MS.sheetDown, () => setMounted(false), {
+      easing: ease.in,
     })
-  }, [open, progress])
+  }, [open, progress, wide])
+
+  // The curve runs past 1 on the way up; nothing that fades goes past opaque.
+  const shown = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  })
 
   const head = title ? (
     <View style={styles.head}>
@@ -115,7 +121,7 @@ export function Sheet({
   // See src/shell/Overlay.tsx for why there are no windows any more.
   useOverlay(
     <>
-      <Animated.View style={[styles.backdrop, { opacity: progress }]}>
+      <Animated.View style={[styles.backdrop, { opacity: shown }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       </Animated.View>
       {wide ? (
@@ -125,10 +131,10 @@ export function Sheet({
               styles.dialog,
               width !== undefined && { maxWidth: width },
               {
-                opacity: progress,
+                opacity: shown,
                 transform: [
                   {
-                    translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+                    translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
                   },
                 ],
               },
@@ -141,16 +147,13 @@ export function Sheet({
         </View>
       ) : (
         <Animated.View
+          onLayout={event => setPanelHeight(event.nativeEvent.layout.height)}
           style={[
             styles.panel,
             {
               paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
-              transform: [
-                {
-                  translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }),
-                },
-              ],
-              opacity: progress,
+              // Up from below the foot, four points past its place, and back.
+              transform: [{ translateY: progress.interpolate(overshootRange(travel, 4)) }],
             },
           ]}
         >

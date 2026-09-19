@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -22,6 +22,7 @@ import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongColor } from '../../ui/useSongColor'
+import { useEntrance } from '../../ui/motion'
 import { label as labelText } from '../../ui/surfaces'
 import { useSaveTagsAsPlaylist } from '../library/saveTags'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -88,6 +89,19 @@ export function PlacePage({
     else router.replace('/')
   }
 
+  // On a phone the board has the tapped tile stretching into this head
+  // (docs/ui-mock `M2`, 2). Without shared elements the head grows into place
+  // instead, on the spring, as the stack crossfades to the page; a computer's
+  // page steps in with the rest of its pages (`Shell`).
+  const entrance = useEntrance()
+  const [grow] = useState(() => ({
+    opacity: entrance,
+    transform: [
+      { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+      { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+    ],
+  }))
+
   const head = (
     <View style={[styles.head, wide && styles.headWide]}>
       <CoverLight color={light.color} art={artistAlone ? leadArt : null} />
@@ -109,7 +123,7 @@ export function PlacePage({
         ) : null}
       </View>
 
-      <View style={[styles.hero, wide && styles.heroWide]}>
+      <Animated.View style={[styles.hero, wide ? styles.heroWide : grow]}>
         {artistAlone ? null : (
           <View style={styles.mosaic}>
             <PlaylistCover songIds={ids} size={wide ? 176 : 196} />
@@ -183,7 +197,7 @@ export function PlacePage({
             />
           ) : null}
         </View>
-      </View>
+      </Animated.View>
     </View>
   )
 

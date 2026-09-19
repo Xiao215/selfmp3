@@ -8,9 +8,11 @@ import { NAV_HEIGHT, radius } from '@selfmp3/client'
 import { glassBlur } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
 import { usePressScale } from '../motion'
+import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
 import { activeTab, type TabHref } from './bottomNav.model'
 import { Home, ListMusic, Music, Search } from './Icons'
+import { useSlidingHighlight } from './SlidingHighlight'
 
 /**
  * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
@@ -22,7 +24,8 @@ import { Home, ListMusic, Music, Search } from './Icons'
  * Everything that is not a tab is reached from Home — the tags, You behind the
  * avatar, Import behind the + — so three tabs are enough. The current tab is a
  * white pill with dark ink, as a chosen chip is; neither is the accent, which
- * is kept for the button that commits.
+ * is kept for the button that commits. The pill slides to the tab you chose,
+ * 200 ms (docs/ui-mock `M2`, 4), while the page steps in beside it (`Shell`).
  *
  * Both float, on glass: a translucent fill that a browser also blurs. The page
  * runs on under them, so every list keeps room at its end (`useBottomInset`).
@@ -46,16 +49,20 @@ export function BottomNav(): ReactNode {
   // last render to be kept: set during render, only when it has moved.
   if (own !== null && own !== lastTab) setLastTab(own)
   const current = own ?? (pathname === '/search' ? lastTab : null)
+  const pill = useSlidingHighlight(current, MOVE_MS.tab, styles.pill)
 
   return (
     <>
       <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
+        {pill.highlight}
         {TABS.map(tab => {
           const active = tab.href === current
           return (
             <Pressable
               key={tab.href}
-              style={[styles.tab, active && styles.tabOn]}
+              onLayout={pill.measure(tab.href)}
+              // Its own fill only until the sliding pill has somewhere to be.
+              style={[styles.tab, active && !pill.placed && styles.tabOn]}
               onPress={() => {
                 // A lit tab still goes to its own first page: Home from
                 // Settings, Playlists from a playlist, as a phone's tab bar does.
@@ -132,6 +139,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // The tab you are on: the white primary fill, as a chosen chip is.
   tabOn: { backgroundColor: theme.colors.textPrimary },
+  pill: { borderRadius: radius.pill, backgroundColor: theme.colors.textPrimary },
   label: {
     color: theme.colors.textSecondary,
     fontSize: 10,

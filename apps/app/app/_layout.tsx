@@ -27,6 +27,7 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { swipeBackAllowed } from '../src/shell/backGesture'
+import { stackAnimation } from '../src/shell/pageStep'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
@@ -92,7 +93,11 @@ const queryClient = new QueryClient({
 const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
 
 /**
- * Now Playing comes up from the foot of the display and goes back down.
+ * Now Playing comes up from the foot of the display and goes back down, over
+ * 380 ms (docs/ui-mock `M2`, 1). The board has the mini player's card growing
+ * into the page with the cover travelling in it; that needs shared elements
+ * the app does not have, so the page rises and its cover grows into place as
+ * it comes (`NowPlayingScreen`).
  *
  * A `fullScreenModal` has no sideways pop to inherit — the gesture a modal is
  * offered is a downward one — and pulling this one down to close is
@@ -101,6 +106,7 @@ const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
 const NOW_PLAYING_OPTIONS = {
   presentation: 'fullScreenModal',
   animation: 'slide_from_bottom',
+  animationDuration: 380,
 } as const
 
 export default function RootLayout(): ReactNode {
@@ -202,13 +208,15 @@ function Shell(): ReactNode {
       ({ route }: { route: { name: string } }) => ({
         headerShown: false,
         contentStyle: { backgroundColor: surface },
-        animation: 'fade' as const,
+        // The shell steps a tab's page in; the stack crossfades the pages a
+        // phone pushes (`src/shell/pageStep.ts`).
+        ...stackAnimation(route.name, wide),
         // Per screen, because the tab bar navigates inside this one stack:
         // without it iOS popped back to the tab underneath on a swipe.
         // `src/shell/backGesture.ts` has the rule and the reason.
         gestureEnabled: swipeBackAllowed(route.name),
       }),
-    [surface],
+    [surface, wide],
   )
 
   return (

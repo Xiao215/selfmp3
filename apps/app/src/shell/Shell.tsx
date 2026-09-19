@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { router } from 'expo-router'
-import { Animated, Easing, View } from 'react-native'
+import { router, usePathname } from 'expo-router'
+import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
@@ -20,7 +20,9 @@ import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout } from './useLayout'
-import { useReducedMotion } from '../ui/useReducedMotion'
+import { ease, timing } from '../ui/motion'
+import { MOVE_MS } from '../ui/motion.model'
+import { pageKey, stepSide } from './pageStep'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
@@ -118,7 +120,9 @@ function CompactFrame({ chrome, children }: { chrome: boolean; children: ReactNo
   const queueOpen = useQueueSheetOpen()
   return (
     <View style={styles.root} testID={chrome ? 'shell-compact' : undefined}>
-      <View style={styles.content}>{children}</View>
+      <View style={styles.content}>
+        <PageStep wide={false}>{children}</PageStep>
+      </View>
       {chrome ? <MiniPlayer /> : null}
       {chrome ? <BottomNav /> : null}
       <QueueSheet />
@@ -147,7 +151,7 @@ function WideFrame({
           onLayout={event => setContentWidth(Math.round(event.nativeEvent.layout.width))}
         >
           <ContentWidthContext.Provider value={contentWidth}>
-            {children}
+            <PageStep wide>{children}</PageStep>
           </ContentWidthContext.Provider>
           <Toasts />
         </View>
@@ -178,18 +182,13 @@ function WideFrame({
 function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
   const player = usePlayer()
   const insets = useSafeAreaInsets()
-  const reduced = useReducedMotion()
   const loaded = player.current !== null
   const [rise] = useState(() => new Animated.Value(loaded ? 1 : 0))
   useEffect(() => {
-    Animated.timing(rise, {
-      toValue: loaded ? 1 : 0,
-      duration: loaded && !reduced ? 200 : 0,
-      easing: Easing.out(Easing.cubic),
-      // Height, which the native driver cannot animate; it runs once per session.
-      useNativeDriver: false,
-    }).start()
-  }, [loaded, reduced, rise])
+    // Height, which the native driver cannot animate; it runs once per session.
+    if (loaded) timing(rise, 1, 200, undefined, { easing: ease.out, native: false })
+    else rise.setValue(0)
+  }, [loaded, rise])
 
   if (!loaded) return null
   const full = PLAYER_BAR_HEIGHT + insets.bottom
@@ -207,6 +206,55 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
       <View style={[styles.barInSlot, { height: full }]}>
         <PlayerBar />
       </View>
+    </Animated.View>
+  )
+}
+
+/**
+ * The page, stepping in as it changes (docs/ui-mock `M2`, 4 and `M3`, 5): on a
+ * phone a few points from the side of the tab it belongs to, 200 ms; on a
+ * computer from a few points below, 180, while the sidebar and the bar hold
+ * still. `pageStep.ts` says which changes count.
+ *
+ * The one view around every screen rather than a move in each, so no page can
+ * forget it, and the same on a phone, in a browser and in the desktop app —
+ * a browser's stack has no transitions of its own. The phone's stack plays
+ * none for its tabs (`app/_layout.tsx`), so the two never run together.
+ *
+ * Only the page that arrives moves; the one it replaces has already gone.
+ */
+function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): ReactNode {
+  const pathname = usePathname()
+  const key = pageKey(pathname, wide)
+  const [shown, setShown] = useState(key)
+  const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1 })
+  if (key !== null && key !== shown) {
+    setShown(key)
+    if (shown !== null) setStep({ count: step.count + 1, side: stepSide(shown, key) })
+  }
+  const [value] = useState(() => new Animated.Value(1))
+  // Before the paint, so the new page's first frame is already stepped aside.
+  useLayoutEffect(() => {
+    if (step.count === 0) return
+    value.setValue(0)
+    timing(value, 1, wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
+  }, [step, value, wide])
+
+  const offset = value.interpolate({
+    inputRange: [0, 1],
+    outputRange: [wide ? 6 : 8 * step.side, 0],
+  })
+  return (
+    <Animated.View
+      style={[
+        styles.content,
+        {
+          opacity: value,
+          transform: wide ? [{ translateY: offset }] : [{ translateX: offset }],
+        },
+      ]}
+    >
+      {children}
     </Animated.View>
   )
 }

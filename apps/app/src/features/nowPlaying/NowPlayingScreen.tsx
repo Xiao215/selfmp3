@@ -28,7 +28,8 @@ import {
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
-import { spring, timing } from '../../ui/motion'
+import { spring, timing, useEntrance } from '../../ui/motion'
+import { modalCoversScreen } from '../../ports/modalCoversScreen'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -235,6 +236,17 @@ function PhonePage({ song }: { song: Song }): ReactNode {
     outputRange: [-150, 0, 150],
     extrapolate: 'clamp',
   })
+  // Opening (docs/ui-mock `M2`, 1): on a phone the native modal slides the page
+  // up. In a browser the route is a page in the content area with no move of
+  // its own, so it rises from the foot itself, on the spring.
+  const window = useWindowDimensions()
+  const arrival = useEntrance()
+  const lift = modalCoversScreen
+    ? give
+    : Animated.add(
+        give,
+        arrival.interpolate({ inputRange: [0, 1], outputRange: [window.height, 0] }),
+      )
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
@@ -260,7 +272,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
       {...pan.panHandlers}
       style={[
         styles.shell,
-        { backgroundColor: songColor.color, transform: [{ translateY: give }] },
+        { backgroundColor: songColor.color, transform: [{ translateY: lift }] },
       ]}
     >
       {/* The frame the page slides in: the song's colour too, so a pull shows no white above it. */}
@@ -302,6 +314,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
             onTags={() => (tagging.on ? tagging.raise() : setTagsOpen(true))}
             onSleep={() => setSleepOpen(true)}
             onMore={() => setMoreOpen(true)}
+            opening={arrival}
           />
         ) : (
           <WordsView
@@ -358,11 +371,14 @@ function CoverView({
   onTags,
   onSleep,
   onMore,
+  opening,
 }: {
   song: Song
   uri: string | null
   color: string
   noLyrics: boolean
+  /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
+  opening: Animated.Value
   tagging: { line: string; stop: () => void } | null
   onClose: () => void
   onOpenSong: () => void
@@ -399,7 +415,7 @@ function CoverView({
         </IconButton>
       </View>
 
-      <BreathingCover song={song} uri={uri} onPress={onLyrics} />
+      <BreathingCover song={song} uri={uri} onPress={onLyrics} opening={opening} />
 
       <View style={styles.titleRow}>
         <View style={styles.titles}>
@@ -521,6 +537,9 @@ function CoverView({
   )
 }
 
+/** How small the cover starts as the page opens, before it grows into place. */
+const COVER_OPENS_AT = 0.6
+
 /**
  * The cover, which breathes (`M1`, move 5): smaller while paused and full size
  * playing, so the page says which it is without a glyph being read. Tapping
@@ -533,10 +552,12 @@ function BreathingCover({
   song,
   uri,
   onPress,
+  opening,
 }: {
   song: Song
   uri: string | null
   onPress: () => void
+  opening: Animated.Value
 }): ReactNode {
   const player = usePlayer()
   const { width } = useWindowDimensions()
@@ -550,6 +571,17 @@ function BreathingCover({
   useEffect(() => {
     timing(breath, player.isPlaying ? 1 : PAUSED_COVER_SCALE, BREATH_MS)
   }, [player.isPlaying, breath])
+  // As the page opens the cover grows into its place (`M2`, 1): the nearest
+  // this app comes to the board's cover travelling up from the mini player,
+  // which would need shared elements it does not have.
+  const scale = useMemo(
+    () =>
+      Animated.multiply(
+        breath,
+        opening.interpolate({ inputRange: [0, 1], outputRange: [COVER_OPENS_AT, 1] }),
+      ),
+    [breath, opening],
+  )
 
   return (
     <View
@@ -561,7 +593,7 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View style={[styles.artShadow, { transform: [{ scale: breath }] }]}>
+      <Animated.View style={[styles.artShadow, { transform: [{ scale }] }]}>
         <Pressable
           onPress={onPress}
           accessibilityRole="button"

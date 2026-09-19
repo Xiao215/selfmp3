@@ -48,6 +48,8 @@ import {
 import { useAccent } from '../ui/accent'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
+import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
+import { MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 
@@ -101,6 +103,14 @@ export function Sidebar(): ReactNode {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const pathname = usePathname()
+  // The lit destination's fill slides to the next one, 180 ms, as the page
+  // changes beside it (docs/ui-mock `M3`, 5). Within these four rows only: a
+  // playlist or a tag further down is lit in place.
+  const lit =
+    DESTINATIONS.find(destination =>
+      destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href),
+    )?.href ?? null
+  const slide = useSlidingHighlight(lit, MOVE_MS.page, styles.itemOn)
 
   return (
     <View
@@ -126,13 +136,14 @@ export function Sidebar(): ReactNode {
       <SearchRow />
 
       <View accessibilityRole="tablist" style={styles.nav}>
+        {slide.highlight}
         {DESTINATIONS.map(destination => {
-          const active =
-            destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href)
+          const active = destination.href === lit
           return (
             <Pressable
               key={destination.href}
-              style={[styles.item, active && styles.itemOn]}
+              onLayout={slide.measure(destination.href)}
+              style={[styles.item, active && !slide.placed && styles.itemOn]}
               onPress={() => {
                 if (!active) router.navigate(destination.href)
               }}

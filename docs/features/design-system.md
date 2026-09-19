@@ -209,10 +209,37 @@ inventing a number:
 Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog has to sit
 above it.
 
-**Motion.** Transitions are 100–220ms (`motion` in `tokens.ts`) and ease out. With Reduce
-Motion on (`ui/useReducedMotion.ts`) the one-shot movements are instant. Looping
-indicators — the spinner, the equalizer — are left alone, because they are saying that
-something is still happening.
+**Motion.** Every move goes through `apps/app/src/ui/motion.ts` (`spring`, `timing`,
+`useEntrance`, `useArrival`, `useFade`, and the curves in `ease`), which answers Reduce Motion
+once: under it each move lands where it was going with no time in between. The fades are
+100–220 ms (`motion` in `tokens.ts`) and ease out; anything that moves in space takes the one
+spring (`motion.spring`) or a length the boards give (`MOVE_MS` in `ui/motion.model.ts`,
+which also holds the overshoot curve, the stagger and what a session remembers). What moves
+(docs/ui-mock `M1`–`M3`):
+
+- Pressables sink to 0.96 on the spring; play and pause turn through each other.
+- The mini player rises from under the tab bar with a few points of overshoot, 320 ms, on
+  the first song of a session (again only after the queue has emptied); later songs
+  crossfade its words. Home's tiles fade up 60 ms apart on their first paint of a session
+  and never on a tab switch.
+- Sheets (`Sheet`, Up next) come up from the foot with a four-point overshoot in 300 ms and
+  go down in 220; the dim fades with them. A computer's dialog fades and settles instead.
+- A phone's tab pill slides to the new tab and the page steps in 8 points from that side,
+  200 ms; a computer's sidebar highlight slides and the page settles from 6 points below,
+  180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`). The phone's stack
+  crossfades the pages it pushes; a tag's or an artist's page does so over 340 ms while its
+  head grows into place.
+- Now Playing slides up over 380 ms on a phone (and rises on the spring in a browser) while
+  its cover grows into place; the cover breathes to 0.84 while paused.
+- A row that starts playing washes in its colour from the left, 260 ms, and its equaliser
+  wakes behind it. With a mouse a row's controls fade in over 100 ms and out over 140.
+- Moving a song in Up next lifts the held row to 1.04 in 120 ms and the rows it passes step
+  aside, 180 ms each. On a computer Up next slides in from the right on the spring.
+
+Not built: the cover travelling from a row or the mini player into Now Playing, and a tile
+stretching into its page — both need shared elements. Looping indicators — the spinner, the
+equalizer — are left alone under Reduce Motion, because they are saying that something is
+still happening.
 
 ## Focus and interaction
 

@@ -9,7 +9,7 @@ import { useArt } from '../../offline/useArt'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { dragCursor } from '../../ports/dragCursor'
-import { spring } from '../../ui/motion'
+import { spring, useEntrance } from '../../ui/motion'
 import { label, sectionTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { useSongColor } from '../../ui/useSongColor'
@@ -212,8 +212,23 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
 
   const playing = rows.playing
 
+  // In from the window's right edge on the spring as Up next opens
+  // (docs/ui-mock `M3`, 6). The board draws it over a page that stays live;
+  // here it is a column beside the page, which makes its room at once.
+  const entrance = useEntrance()
+  const [slide] = useState(() => ({
+    transform: [
+      { translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
+    ],
+  }))
+
   return (
-    <View ref={railRef} style={styles.rail} testID="queue-rail" role="complementary">
+    <Animated.View
+      ref={railRef}
+      style={[styles.rail, slide]}
+      testID="queue-rail"
+      role="complementary"
+    >
       <View style={styles.head}>
         <Text style={styles.title} accessibilityRole="header">
           Up next
@@ -307,7 +322,7 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
           }}
         />
       </Popover>
-    </View>
+    </Animated.View>
   )
 }
 

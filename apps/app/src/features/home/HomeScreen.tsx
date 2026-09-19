@@ -18,7 +18,7 @@ import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Download, Plus, Search, User } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { usePressScale } from '../../ui/motion'
+import { session, useArrival, usePressScale } from '../../ui/motion'
 import { card, label, sectionTitle, serif } from '../../ui/surfaces'
 import { tagLink } from '../tag/placeLinks'
 import { useStatsFor } from '../stats/statsSource'
@@ -261,16 +261,48 @@ function Tiles({
     )
   }
   return (
+    <TileGrid
+      tiles={tiles}
+      wide={wide}
+      width={tileWidth}
+      artFor={tile => (tile.cover ? art(tile.cover) : null)}
+      onOpen={tile => router.navigate(tagLink(tile.tag.name))}
+    />
+  )
+}
+
+/**
+ * The grid itself, mounted the first time there are tiles to draw. That
+ * mount, once a session, is when they fade up 60 ms apart (`M1`, 4); a tab
+ * switch or coming back to Home finds them already there, so the welcome
+ * never turns into a wait.
+ */
+function TileGrid({
+  tiles,
+  wide,
+  width,
+  artFor,
+  onOpen,
+}: {
+  tiles: readonly HomeTile[]
+  wide: boolean
+  width: number | undefined
+  artFor: (tile: HomeTile) => string | null
+  onOpen: (tile: HomeTile) => void
+}): ReactNode {
+  const [arrive] = useState(() => session.first('home-tiles'))
+  return (
     <View style={styles.tiles}>
       {tiles.map((tile, index) => (
         <Tile
           key={tile.tag.id}
           tile={tile}
           index={index}
+          arrive={arrive}
           wide={wide}
-          width={tileWidth}
-          artUri={tile.cover ? art(tile.cover) : null}
-          onPress={() => router.navigate(tagLink(tile.tag.name))}
+          width={width}
+          artUri={artFor(tile)}
+          onPress={() => onOpen(tile)}
         />
       ))}
     </View>
@@ -280,6 +312,7 @@ function Tiles({
 function Tile({
   tile,
   index,
+  arrive,
   wide,
   width,
   artUri,
@@ -287,6 +320,8 @@ function Tile({
 }: {
   tile: HomeTile
   index: number
+  /** Whether this paint is the one the tiles fade up in. */
+  arrive: boolean
   wide: boolean
   /** Unknown for the first frame, before the row has been measured. */
   width: number | undefined
@@ -294,34 +329,38 @@ function Tile({
   onPress: () => void
 }): ReactNode {
   const press = usePressScale()
+  const arrival = useArrival(index, arrive)
   const colours = tagColors(tile.tag.hue)
   return (
-    <Animated.View style={[{ width }, width === undefined && styles.tileUnmeasured, press.style]}>
-      <Pressable
-        testID={`home-tile-${index}`}
-        onPress={onPress}
-        {...press.handlers}
-        accessibilityRole="button"
-        accessibilityLabel={`${tile.tag.name}, ${tile.songs} ${tile.songs === 1 ? 'song' : 'songs'}`}
-        style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
-      >
-        <Text style={[styles.tileName, { color: colours.tileInk }]} numberOfLines={1}>
-          {tile.tag.name}
-        </Text>
-        <Text style={[styles.tileCount, { color: colours.tileInk }]}>
-          {tile.songs} {tile.songs === 1 ? 'song' : 'songs'}
-        </Text>
-        {tile.cover ? (
-          <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
-            <Cover
-              uri={artUri}
-              title={tile.cover.album || tile.cover.title}
-              size={wide ? 64 : 58}
-              radius={12}
-            />
-          </View>
-        ) : null}
-      </Pressable>
+    // Two views, because the arrival and the press each carry a transform.
+    <Animated.View style={arrival}>
+      <Animated.View style={[{ width }, width === undefined && styles.tileUnmeasured, press.style]}>
+        <Pressable
+          testID={`home-tile-${index}`}
+          onPress={onPress}
+          {...press.handlers}
+          accessibilityRole="button"
+          accessibilityLabel={`${tile.tag.name}, ${tile.songs} ${tile.songs === 1 ? 'song' : 'songs'}`}
+          style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
+        >
+          <Text style={[styles.tileName, { color: colours.tileInk }]} numberOfLines={1}>
+            {tile.tag.name}
+          </Text>
+          <Text style={[styles.tileCount, { color: colours.tileInk }]}>
+            {tile.songs} {tile.songs === 1 ? 'song' : 'songs'}
+          </Text>
+          {tile.cover ? (
+            <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
+              <Cover
+                uri={artUri}
+                title={tile.cover.album || tile.cover.title}
+                size={wide ? 64 : 58}
+                radius={12}
+              />
+            </View>
+          ) : null}
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   )
 }

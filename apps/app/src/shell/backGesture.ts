@@ -44,7 +44,7 @@ const GATES = ['welcome', 'first-sync']
  * `playlists` are both `/playlists`. Router state spells a folder's route
  * either way, which is why both are folded here.
  */
-function addressOf(routeName: string): string {
+export function addressOf(routeName: string): string {
   const path = routeName.replace(/\/index$/, '')
   return path === 'index' ? '/' : `/${path}`
 }

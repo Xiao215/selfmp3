@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -12,7 +13,8 @@ import { useArt } from '../../offline/useArt'
 import { usePlayerProgress } from '../../player/PlayerProvider'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
-import { spring, timing } from '../../ui/motion'
+import { ease, spring, timing } from '../../ui/motion'
+import { MOVE_MS, overshootRange, roomShift } from '../../ui/motion.model'
 import { label } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
@@ -100,12 +102,14 @@ function SheetPanel({
   useEscape(shown, closeQueueSheet, { layer: true })
 
   useEffect(() => {
+    // Up from the foot with a small overshoot, 300 ms, and down in 220, as
+    // every sheet does (docs/ui-mock `M2`, 3).
     if (shown) {
       pull.setValue(0)
-      timing(progress, 1, motion.slow)
+      timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
       return
     }
-    timing(progress, 0, motion.base, onGone)
+    timing(progress, 0, MOVE_MS.sheetDown, onGone, { easing: ease.in })
   }, [shown, progress, pull, onGone])
 
   /*
@@ -130,7 +134,12 @@ function SheetPanel({
   // which moves the lifted row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
-  const rowHeight = useRef(0)
+  // The held row lifts a little towards the finger (`M2`, 6); the rows it
+  // passes step aside for it (`MakeRoom`), so where it will land is a gap
+  // rather than a line.
+  const [lift] = useState(() => new Animated.Value(1))
+  // State rather than a ref: the rows making room read it while rendering.
+  const [rowHeight, setRowHeight] = useState(0)
   const first = rows.next[0]?.index ?? 0
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
@@ -144,34 +153,37 @@ function SheetPanel({
     const here = isDownloaded(downloads.index, entry.song.id)
     const lifted = drag?.from === entry.index
     return (
-      <Animated.View
+      <MakeRoom
         key={entry.song.id}
-        style={lifted ? [styles.liftedCell, { transform: [{ translateY: dragY }] }] : null}
+        shift={drag && movable ? roomShift(entry.index, drag.from, drag.over) : 0}
+        step={rowHeight}
+        carrying={drag !== null}
+        style={
+          lifted
+            ? [styles.liftedCell, { transform: [{ translateY: dragY }, { scale: lift }] }]
+            : null
+        }
       >
         <SwipeToRemove enabled={drag === null} onRemove={() => remove(entry.index)}>
           <HoldToReorder
             enabled={movable}
             onStart={() => {
               dragY.setValue(0)
+              lift.setValue(1)
+              timing(lift, LIFTED_SCALE, MOVE_MS.lift, undefined, { easing: ease.out })
               setDrag({ from: entry.index, over: entry.index })
             }}
             onMove={dy => {
               dragY.setValue(dy)
-              const over = dragTarget(entry.index, dy, rowHeight.current, { first, last })
+              const over = dragTarget(entry.index, dy, rowHeight, { first, last })
               setDrag(now => (now && now.over === over ? now : { from: entry.index, over }))
             }}
             onEnd={dy => {
               setDrag(null)
-              const to = dragTarget(entry.index, dy, rowHeight.current, { first, last })
+              const to = dragTarget(entry.index, dy, rowHeight, { first, last })
               if (to !== entry.index) player.reorderQueue(entry.index, to)
             }}
-            onLayoutHeight={
-              entry.index === first
-                ? h => {
-                    rowHeight.current = h
-                  }
-                : undefined
-            }
+            onLayoutHeight={entry.index === first ? h => setRowHeight(h) : undefined}
           >
             <View style={!movable && styles.played}>
               <SongRow
@@ -187,18 +199,29 @@ function SheetPanel({
                 // The hold is the move's, not a menu's.
                 onLongPress={null}
                 lifted={lifted}
-                dropTarget={drag !== null && drag.over === entry.index && drag.from !== entry.index}
               />
             </View>
           </HoldToReorder>
         </SwipeToRemove>
-      </Animated.View>
+      </MakeRoom>
     )
   }
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[styles.backdrop, { opacity: progress }]}>
+      <Animated.View
+        style={[
+          styles.backdrop,
+          {
+            // The curve runs past 1 on the way up; the dim does not.
+            opacity: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 1],
+              extrapolate: 'clamp',
+            }),
+          },
+        ]}
+      >
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={closeQueueSheet}
@@ -216,10 +239,7 @@ function SheetPanel({
             paddingBottom: insets.bottom + space.md,
             transform: [
               {
-                translateY: Animated.add(
-                  progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }),
-                  pull,
-                ),
+                translateY: Animated.add(progress.interpolate(overshootRange(height, 4)), pull),
               },
             ],
           },
@@ -313,6 +333,44 @@ function SheetPanel({
         </ScrollView>
       </Animated.View>
     </View>
+  )
+}
+
+/** How much a held row grows as it lifts off the list (`M2`, 6). */
+const LIFTED_SCALE = 1.04
+
+/**
+ * A row of the queue, stepping one row up or down while a held row is carried
+ * past it, 180 ms each, so the neighbours make room one at a time (`M2`, 6).
+ *
+ * When the move ends the step is taken off at once rather than played back:
+ * the list is redrawn in its new order in the same moment, and a row sliding
+ * home from where it had stepped to would travel twice.
+ */
+function MakeRoom({
+  shift,
+  step,
+  carrying,
+  style,
+  children,
+}: {
+  shift: -1 | 0 | 1
+  step: number
+  /** A row is being carried; when it is let go every step comes off at once. */
+  carrying: boolean
+  /** The held row's own style, which follows the finger instead. */
+  style: StyleProp<ViewStyle> | null
+  children: ReactNode
+}): ReactNode {
+  const [y] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (carrying) timing(y, shift * step, MOVE_MS.room, undefined, { easing: ease.out })
+    else y.setValue(0)
+  }, [carrying, shift, step, y])
+  // Always the animated value, never a plain style in its place: swapping one
+  // for the other after mount leaves react-native-web drawing the plain one.
+  return (
+    <Animated.View style={style ?? { transform: [{ translateY: y }] }}>{children}</Animated.View>
   )
 }
 

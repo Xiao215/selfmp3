@@ -1,6 +1,7 @@
-import { useState, useSyncExternalStore } from 'react'
-import { AccessibilityInfo, Animated } from 'react-native'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { AccessibilityInfo, Animated, Easing } from 'react-native'
 import { motion } from '@selfmp3/client'
+import { backOut, MOVE_MS, OVERSHOOT_S, sessionMemory, staggerDelay } from './motion.model'
 
 /**
  * Every move in the app goes through here (docs/ui-mock `M1`, and
@@ -69,6 +70,30 @@ export function spring(value: Animated.Value, toValue: number): Animated.Composi
 }
 
 /**
+ * The curves a timed move can take. `out` is the app's ease-out, the one the
+ * web's CSS has always used (`cubic-bezier(.2, .8, .2, 1)` on the boards);
+ * `in` is for leaving; `overshoot` runs a little past the end and settles
+ * back, for the mini player's rise and a sheet's (`motion.model.ts`).
+ */
+export const ease = {
+  out: Easing.bezier(0.2, 0.8, 0.2, 1),
+  in: Easing.bezier(0.4, 0, 1, 1),
+  overshoot: backOut(OVERSHOOT_S),
+} as const
+
+interface TimingOptions {
+  /** Left out, React Native's own ease-in-out, which the first callers were written against. */
+  readonly easing?: (t: number) => number
+  /** Milliseconds before it starts: a stagger. */
+  readonly delay?: number
+  /**
+   * False for what the native driver cannot move — a height, a width, a
+   * position — which then runs on the JavaScript side.
+   */
+  readonly native?: boolean
+}
+
+/**
  * A timed move, or a jump to the end under Reduce Motion. `onDone` runs when
  * it lands — at once, when there is no move — and not if it is interrupted.
  */
@@ -77,17 +102,85 @@ export function timing(
   toValue: number,
   duration: number,
   onDone?: () => void,
+  { easing, delay, native = nativeDriver }: TimingOptions = {},
 ): Animated.CompositeAnimation | null {
   if (reduced) {
     value.setValue(toValue)
     onDone?.()
     return null
   }
-  const animation = Animated.timing(value, { toValue, duration, useNativeDriver: nativeDriver })
+  const animation = Animated.timing(value, {
+    toValue,
+    duration,
+    useNativeDriver: native,
+    ...(easing ? { easing } : {}),
+    ...(delay ? { delay } : {}),
+  })
   animation.start(({ finished }) => {
     if (finished) onDone?.()
   })
   return animation
+}
+
+/**
+ * What this session has already shown once, for the moves that are a welcome
+ * rather than a response: Home's tiles, the mini player's first rise. Module
+ * level, so a tab switch or a remount never plays them again.
+ */
+export const session = sessionMemory()
+
+/**
+ * A value that comes to 1 once, as whatever uses it mounts: the spring, from
+ * 0. Already at 1 under Reduce Motion, so there is no frame of the start.
+ */
+export function useEntrance(): Animated.Value {
+  const [value] = useState(() => new Animated.Value(reduced ? 1 : 0))
+  useEffect(() => {
+    spring(value, 1)
+  }, [value])
+  return value
+}
+
+/**
+ * One of a row of things arriving (`M1`, 4): it fades up from a few points
+ * below, `STAGGER_MS` after the one before it. With `play` false it is simply
+ * there; the caller decides, once, whether this paint is the one that plays.
+ */
+export function useArrival(
+  index: number,
+  play: boolean,
+): {
+  opacity: Animated.Value
+  transform: { translateY: Animated.AnimatedInterpolation<number> }[]
+} {
+  const [value] = useState(() => new Animated.Value(play && !reduced ? 0 : 1))
+  useEffect(() => {
+    if (play)
+      timing(value, 1, MOVE_MS.arrive, undefined, { easing: ease.out, delay: staggerDelay(index) })
+  }, [play, index, value])
+  const [style] = useState(() => ({
+    opacity: value,
+    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+  }))
+  return style
+}
+
+/**
+ * A value that follows `shown` between 0 and 1: `inMs` on the way in and
+ * `outMs` on the way out. It starts where `shown` says, so a first render
+ * draws the resting state and nothing moves until `shown` changes.
+ */
+export function useFade(shown: boolean, inMs: number, outMs: number): Animated.Value {
+  const [value] = useState(() => new Animated.Value(shown ? 1 : 0))
+  // Where it was last sent, so mounting — a row scrolled into a long list —
+  // starts nothing: most of the rows that use this never move at all.
+  const sent = useRef(shown)
+  useEffect(() => {
+    if (sent.current === shown) return
+    sent.current = shown
+    timing(value, shown ? 1 : 0, shown ? inMs : outMs, undefined, { easing: ease.out })
+  }, [shown, inMs, outMs, value])
+  return value
 }
 
 /** How far a pressed thing sinks (`M1`, "Press"). */

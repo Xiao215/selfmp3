@@ -1,8 +1,8 @@
-import { memo, useId, useRef, useState } from 'react'
+import { memo, useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import type { GestureResponderEvent } from 'react-native'
+import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import {
@@ -24,6 +24,8 @@ import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { ease, timing, useFade } from '../motion'
+import { MOVE_MS } from '../motion.model'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 
 /**
@@ -176,12 +178,16 @@ export const SongRow = memo(function SongRow({
   // The held-finger state: the row gives a little under the
   // finger so something is visibly happening while the menu is on its way.
   const [scale] = useState(() => new Animated.Value(1))
-  const press = (down: boolean): void => {
-    Animated.timing(scale, {
-      toValue: down ? 0.985 : 1,
-      duration: motion.base,
-      useNativeDriver: true,
-    }).start()
+  const press = (down: boolean): void => void timing(scale, down ? 0.985 : 1, motion.base)
+  // Whether this row became the playing one while on screen (`M2`, 5): then
+  // its wash comes in from the left and the equaliser wakes. A row that
+  // scrolls into view already playing is simply drawn playing. Adjusted
+  // during render, the way React asks for state that follows a prop.
+  const [wasActive, setWasActive] = useState(active)
+  const [woke, setWoke] = useState(false)
+  if (active !== wasActive) {
+    setWasActive(active)
+    setWoke(active)
   }
 
   const tint = [
@@ -204,7 +210,7 @@ export const SongRow = memo(function SongRow({
           siblings.
         */}
         <View testID={testID} role="row" style={[styles.row, ...tint]}>
-          {active ? <RowWash color={songColor.color} /> : null}
+          {active ? <RowWash color={songColor.color} play={woke} /> : null}
           {dropLine}
           {leading}
           {selecting && onToggleSelect ? (
@@ -240,9 +246,9 @@ export const SongRow = memo(function SongRow({
             <View style={styles.art}>
               <Cover uri={artUri} title={song.album || song.title} size={48} />
               {active ? (
-                <View style={styles.playingOverlay}>
+                <Waking play={woke} style={styles.playingOverlay}>
                   <Equalizer paused={!playing} size={12} color={songColor.tint} />
-                </View>
+                </Waking>
               ) : null}
             </View>
 
@@ -310,18 +316,20 @@ export const SongRow = memo(function SongRow({
       onPointerEnter={dense ? () => setHovered(true) : undefined}
       onPointerLeave={dense ? () => setHovered(false) : undefined}
     >
-      {active ? <RowWash color={songColor.color} /> : null}
+      {active ? <RowWash color={songColor.color} play={woke} /> : null}
       {dropLine}
       {leading}
       {onToggleSelect ? (
-        <View style={{ opacity: selecting || selected || revealed ? 1 : 0 }}>
+        <Reveal shown={selecting || selected || revealed}>
           <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
-        </View>
+        </Reveal>
       ) : null}
 
       <View style={styles.index}>
         {active ? (
-          <Equalizer paused={!playing} size={14} color={songColor.tint} />
+          <Waking play={woke}>
+            <Equalizer paused={!playing} size={14} color={songColor.tint} />
+          </Waking>
         ) : revealed && dense ? (
           <Pressable
             onPress={event => onPress(event, song)}
@@ -390,37 +398,41 @@ export const SongRow = memo(function SongRow({
           />
         ) : null}
         {onEditTags ? (
-          <Pressable
-            ref={tagAddRef}
-            onPress={() => onEditTags(tagAddRef.current, song)}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit tags for ${song.title}`}
-            {...tip('Edit tags')}
-            style={[styles.tagAdd, { opacity: revealed ? 1 : 0 }]}
-          >
-            <Plus size={13} tone="textMuted" />
-          </Pressable>
+          <Reveal shown={revealed}>
+            <Pressable
+              ref={tagAddRef}
+              onPress={() => onEditTags(tagAddRef.current, song)}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit tags for ${song.title}`}
+              {...tip('Edit tags')}
+              style={styles.tagAdd}
+            >
+              <Plus size={13} tone="textMuted" />
+            </Pressable>
+          </Reveal>
         ) : null}
       </View>
 
       <View style={styles.actions}>
         <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
         {onMore ? (
-          <View ref={moreRef} collapsable={false} style={{ opacity: revealed ? 1 : 0 }}>
-            <Pressable
-              onPress={() => onMore?.(moreRef.current, song)}
-              accessibilityRole="button"
-              accessibilityLabel={`More actions for ${song.title}`}
-              {...tip('More')}
-              style={({ pressed }) => [
-                styles.controlWide,
-                { width: controlSize, height: controlSize },
-                pressed && styles.controlPressed,
-              ]}
-            >
-              <More size={16} tone="textMuted" />
-            </Pressable>
-          </View>
+          <Reveal shown={revealed}>
+            <View ref={moreRef} collapsable={false}>
+              <Pressable
+                onPress={() => onMore?.(moreRef.current, song)}
+                accessibilityRole="button"
+                accessibilityLabel={`More actions for ${song.title}`}
+                {...tip('More')}
+                style={({ pressed }) => [
+                  styles.controlWide,
+                  { width: controlSize, height: controlSize },
+                  pressed && styles.controlPressed,
+                ]}
+              >
+                <More size={16} tone="textMuted" />
+              </Pressable>
+            </View>
+          </Reveal>
         ) : null}
       </View>
     </View>
@@ -554,17 +566,58 @@ function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode 
 }
 
 /**
+ * A row's controls with a mouse (`M3`, 3): they fade in over 100 ms as the
+ * pointer arrives and out over 140 as it leaves. Only the desktop's rows draw
+ * these, so a phone's list carries no animated value per row.
+ */
+function Reveal({ shown, children }: { shown: boolean; children: ReactNode }): ReactNode {
+  const opacity = useFade(shown, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
+  return <Animated.View style={{ opacity }}>{children}</Animated.View>
+}
+
+/**
+ * The equaliser over a row's cover, waking as the row starts playing: it
+ * fades in just behind the wash (`M2`, 5). With `play` false it is simply there.
+ */
+function Waking({
+  play,
+  style,
+  children,
+}: {
+  play: boolean
+  style?: StyleProp<ViewStyle>
+  children: ReactNode
+}): ReactNode {
+  const [shown] = useState(() => new Animated.Value(play ? 0 : 1))
+  useEffect(() => {
+    if (play)
+      timing(shown, 1, MOVE_MS.wash, undefined, { easing: ease.out, delay: MOVE_MS.wash / 3 })
+  }, [play, shown])
+  return <Animated.View style={[style, { opacity: shown }]}>{children}</Animated.View>
+}
+
+/**
  * Now playing: a wash that comes in from the right, where the row is empty —
  * the cover already fills the left. It stays while the song is paused, so
  * the row still says "this is the one".
+ *
+ * As the row starts playing it washes in from the left edge, 260 ms, the way
+ * the mini player's progress fills (`M2`, 5), so the two read as one thing.
  */
-function RowWash({ color }: { color: string }): ReactNode {
+function RowWash({ color, play }: { color: string; play: boolean }): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a
   // playlist listing the same song) holds a wash too; with one shared id, the
   // visible row's url() landed on the hidden, zero-size gradient and drew nothing.
   const id = `rowwash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const [grown] = useState(() => new Animated.Value(play ? 0 : 1))
+  useEffect(() => {
+    if (play) timing(grown, 1, MOVE_MS.wash, undefined, { easing: ease.out })
+  }, [play, grown])
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, styles.washFrom, { transform: [{ scaleX: grown }] }]}
+    >
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
@@ -575,7 +628,7 @@ function RowWash({ color }: { color: string }): ReactNode {
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
       </Svg>
-    </View>
+    </Animated.View>
   )
 }
 
@@ -685,6 +738,8 @@ const styles = StyleSheet.create(theme => ({
   albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
   badges: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
   tempo: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
+  // The wash grows from the row's left edge.
+  washFrom: { transformOrigin: 'left' },
   playingOverlay: {
     position: 'absolute',
     top: 0,

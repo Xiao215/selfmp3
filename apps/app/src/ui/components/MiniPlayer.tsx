@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -23,6 +23,8 @@ import { ProgressWash } from './ProgressWash'
 import { Next, Queue } from './Icons'
 import { floating } from '../surfaces'
 import { PlayPauseIcon } from './PlayPauseIcon'
+import { ease, session, timing } from '../motion'
+import { MOVE_MS, overshootRange } from '../motion.model'
 
 /**
  * The mini player: a card floating over the page, above the tab bar
@@ -44,27 +46,30 @@ export function MiniPlayer(): ReactNode {
   const insets = useSafeAreaInsets()
   const songColor = useSongColor(song, song ? artFor(song) : null)
 
-  // Slides up when a song first appears; the words fade over when it changes.
-  const [rise] = useState(() => new Animated.Value(0))
+  // The first song of a session: the card rises from under the tab bar and
+  // runs a few points past its place before settling (`M1`, 3). After that the
+  // card is simply there — coming back from Now Playing remounts it, and it
+  // should not arrive twice — and a new song only crossfades the words.
+  const [rise] = useState(() => new Animated.Value(song && session.seen(RISE_KEY) ? 1 : 0))
   const [words] = useState(() => new Animated.Value(1))
   const shownId = useRef<number | null>(null)
 
   useEffect(() => {
     if (!song) {
+      // The queue has emptied and the card has gone: the next song is a new
+      // arrival, and rises again rather than appearing from nowhere.
       rise.setValue(0)
       shownId.current = null
+      session.forget(RISE_KEY)
       return
     }
     if (shownId.current === null) {
-      Animated.timing(rise, {
-        toValue: 1,
-        duration: motion.slow,
-        easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-        useNativeDriver: true,
-      }).start()
+      if (session.first(RISE_KEY))
+        timing(rise, 1, MOVE_MS.rise, undefined, { easing: ease.overshoot })
+      else rise.setValue(1)
     } else if (shownId.current !== song.id) {
       words.setValue(0)
-      Animated.timing(words, { toValue: 1, duration: motion.slow, useNativeDriver: true }).start()
+      timing(words, 1, motion.slow, undefined, { easing: ease.out })
     }
     shownId.current = song.id
   }, [song, rise, words])
@@ -78,15 +83,13 @@ export function MiniPlayer(): ReactNode {
         styles.bar,
         { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
         {
-          opacity: rise,
-          transform: [
-            {
-              translateY: rise.interpolate({
-                inputRange: [0, 1],
-                outputRange: [MINI_PLAYER_HEIGHT, 0],
-              }),
-            },
-          ],
+          // The overshoot is a curve past 1; the card is never more than opaque.
+          opacity: rise.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          }),
+          transform: [{ translateY: rise.interpolate(RISE_RANGE) }],
         },
       ]}
     >
@@ -135,6 +138,12 @@ export function MiniPlayer(): ReactNode {
     </Animated.View>
   )
 }
+
+/** What the session remembers once the card has risen. */
+const RISE_KEY = 'mini-player-rise'
+
+/** From under the bar to its place, and five points past it on the way (`M1`). */
+const RISE_RANGE = overshootRange(MINI_PLAYER_HEIGHT, 5)
 
 /**
  * The wash, on its own: the one part of the strip that moves with the song.

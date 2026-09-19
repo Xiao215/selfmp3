@@ -61,7 +61,8 @@ export const removingTakesTheCopy = deviceKind() === 'phone'
 
 /** "iPhone" rather than a user agent: this app knows what it is running on. */
 function defaultName(): string {
-  if (Platform.OS === 'ios') return 'iPhone'
+  // In another device's list an iPad is an iPad (docs/ui-mock `T09`: "except the words").
+  if (Platform.OS === 'ios') return Platform.isPad ? 'iPad' : 'iPhone'
   if (Platform.OS === 'android') return 'Android'
   return 'self.mp3'
 }

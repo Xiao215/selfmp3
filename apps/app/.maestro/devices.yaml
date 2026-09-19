@@ -8,7 +8,8 @@
 #     to the cloud — presence travels through the Mac's event stream, so a
 #     cloud-only phone is alone by design (progress log, question 5);
 #   - another device playing against the same server, e.g. the web app open
-#     in a browser with a song going.
+#     in a browser with a song going, or a second simulator (an iPad) playing
+#     a song other than this phone's first row.
 #
 # The sheet opens from the mini player, so the phone has to have a song loaded
 # first. It is paused again before the handoff, because the sheet only offers
@@ -70,6 +71,9 @@ appId: com.selfmp3.app
 # that this phone started near the position the other one had reached rather
 # than at the top of the song.
 - tapOn: '.*Playing now.*'
+# Devices is opened from Now Playing, which stays open under the sheet; the
+# mini player is behind it.
+- tapOn: 'Close now playing'
 - extendedWaitUntil:
     visible:
       id: 'mini-player-playing'

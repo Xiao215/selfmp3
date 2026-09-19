@@ -25,7 +25,13 @@ import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { floating, sectionTitle, serif } from '../../ui/surfaces'
-import { afterCheck, copyFor, TOOK_TOO_LONG, type SignInStage } from '../signIn/signIn.model'
+import {
+  afterCheck,
+  copyFor,
+  signInFailure,
+  TOOK_TOO_LONG,
+  type SignInStage,
+} from '../signIn/signIn.model'
 import { ServerAddress } from './ServerAddress'
 import { WhitePill } from './WhitePill'
 import {
@@ -56,6 +62,11 @@ import {
  * and every other to Home, so that decision is made in one place.
  */
 
+/** The page's own address in a browser; a phone has none. */
+function pageOrigin(): string | null {
+  return (globalThis as { location?: { origin?: string } }).location?.origin ?? null
+}
+
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
 
@@ -84,10 +95,7 @@ export function WelcomeScreen(): ReactNode {
   const begin = useCallback((): void => {
     setStage({ kind: 'waiting', googleDoneAt: null })
     void cloud.beginSignIn().catch((error: unknown) => {
-      setStage({
-        kind: 'idle',
-        message: error instanceof Error ? error.message : 'Could not open Google.',
-      })
+      setStage({ kind: 'idle', message: signInFailure(error, pageOrigin()) })
     })
   }, [])
 
@@ -145,9 +153,7 @@ export function WelcomeScreen(): ReactNode {
           message:
             error instanceof DoormanError && error.code === 'wrong_code'
               ? 'That sign-in didn’t go through. Try again.'
-              : error instanceof Error
-                ? error.message
-                : 'Could not sign in.',
+              : signInFailure(error, pageOrigin()),
         })
       }
     },

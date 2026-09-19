@@ -31,6 +31,38 @@ type AttemptState = 'gone' | 'pending' | 'done'
 
 export const TOOK_TOO_LONG = 'That took too long. Try again.'
 
+/**
+ * Why a sign-in could not go on, in words, for an error thrown while asking
+ * the doorman.
+ *
+ * A request the browser refused to hand back says only "Failed to fetch". From a page on this computer's own address
+ * that is almost always the doorman declining it: it answers only the web
+ * app's published address, the desktop app and the extension, and a local
+ * address is let in only by a doorman run on this computer
+ * (apps/doorman/README.md). Anywhere else it is the connection.
+ */
+export function signInFailure(error: unknown, pageOrigin: string | null): string {
+  if (unanswered(error)) {
+    const local =
+      pageOrigin !== null && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(pageOrigin)
+    return local
+      ? 'Google sign-in doesn’t work from this computer’s own address. Use the web app’s published address or the desktop app, or run the sign-in service here.'
+      : 'Couldn’t reach the sign-in service. Check your connection and try again.'
+  }
+  return error instanceof Error ? error.message : 'Could not sign in.'
+}
+
+/**
+ * No answer came back: the bare TypeError, or the doorman client's wrapping of
+ * it (`DoormanError` with status 0), but not its "no doorman configured".
+ */
+function unanswered(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  if (typeof error !== 'object' || error === null) return false
+  const { status, code } = error as { status?: unknown; code?: unknown }
+  return status === 0 && code !== 'no-doorman'
+}
+
 /** The stage after asking the doorman how the attempt stands. Only a wait is moved on. */
 export function afterCheck(stage: SignInStage, attempt: AttemptState, now: number): SignInStage {
   if (stage.kind !== 'waiting') return stage

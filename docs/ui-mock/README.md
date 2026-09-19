@@ -1,7 +1,8 @@
 # The UI mock
 
-The interface agreed in September 2026, as 73 screens you can open in a browser: phone,
-computer and web, the browser extension, motion, and a page of ideas that are not scheduled.
+The interface agreed in September 2026, as 82 screens you can open in a browser: phone,
+computer and web, the iPad, the browser extension, motion, and a page of ideas that are not
+scheduled.
 It is the target of [`docs/UI-MIGRATION.md`](../UI-MIGRATION.md).
 
 Open [`index.html`](index.html). Nothing to install or build; fonts come from Google Fonts,
@@ -12,12 +13,12 @@ so the serif and the display face need a connection the first time.
 | What | Where |
 |---|---|
 | Every screen, in rows by flow, each row with its written spec | `index.html` |
-| One file per screen, at its real size (390 × 844 phone, 1280 × 800 computer) | `boards/` |
+| One file per screen, at its real size (390 × 844 phone, 1280 × 800 computer, 834 × 1194 or 1194 × 834 iPad) | `boards/` |
 | The twelve covers the screens use, 240 px, from the development library | `covers/` |
 | Where each screen sat on the design canvas, its title, and every row's spec text | `canvas.json` |
 
 Screens are numbered so a ticket or a commit can point at one: `P01`–`P38` phone, `C01`–`C17`
-computer and web, `E1`–`E5` extension, `M1`–`M3` motion, `S1`–`S3` the three "start here"
+computer and web, `T01`–`T09` iPad (tablet), `E1`–`E5` extension, `M1`–`M3` motion, `S1`–`S3` the three "start here"
 pages, `L1`–`L7` later. The number is the start of the file name
 (`boards/P21-now-playing.html`).
 
@@ -43,6 +44,10 @@ once the design was agreed:
 <https://claude.ai/artifact/RneWGXzpAkxLovnY6Q1RfJ>. `canvas.json`'s `files` maps each
 canvas board to its file here. The export inlines each board as plain HTML, points the
 covers at `covers/`, and rewrites the links between boards; nothing else is changed.
+
+The iPad page (`T01`–`T09`) was never on the canvas: it was drawn here, in September 2026,
+after the app first ran on an iPad, from the computer and phone boards' own parts, so it has
+no entry in `canvas.json`. It draws the iPad Pro 11-inch; the widths it names are in `T09`.
 
 This folder is a record, not a source of truth that the app reads. When the design changes,
 change the canvas and export again, or edit the board's HTML directly and say so in the

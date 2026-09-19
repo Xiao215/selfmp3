@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -9,8 +9,7 @@ import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
-import { canShareCard, shareWrappedCard } from '../../ports/shareCard'
-import type { CardPalette } from '../../ports/shareCard.types'
+import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -41,31 +40,12 @@ import {
   rangeShort,
   tryLabel,
   WRAPPED_RANGES,
+  shareFileName,
 } from './wrapped.model'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480
 const FRONT_PAGE_MAX = 1120
-
-/**
- * The colours the saved image is drawn in. The card is the share port's own
- * drawing, not the look (see `share` below), so it borrows the chosen look's
- * inks: saving the Words page gives a blue card, the receipt a white one.
- */
-function cardPaletteFor(look: LookId, hue: number): CardPalette {
-  const ink = lookInk(look, hue)
-  return {
-    background: ink.ground,
-    surface: ink.tone,
-    border: ink.tone,
-    accent: ink.accent,
-    accentDim: ink.tone,
-    bar: ink.accent,
-    text: ink.ink,
-    secondary: ink.second,
-    muted: ink.quiet,
-  }
-}
 
 /**
  * The month as a page (docs/ui-mock `P33`–`P37`, `C16`): the period as one
@@ -148,17 +128,16 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const topArt = top ? art(top.songId) : null
 
   /*
-   * The saved image is the share port's own card, drawn on a canvas, not the
-   * look on screen: the port draws, it cannot photograph a view, and a phone
-   * has no port yet at all. It borrows the chosen look's inks (cardPaletteFor)
-   * so a blue Words page saves as a blue card.
+   * The saved image is the look on screen, photographed where it is drawn
+   * (ports/saveLook): the Words page saves as the Words page.
    */
+  const page = useRef<View>(null)
   const share = async (): Promise<void> => {
     if (!wrapped) return
     setSharing(true)
     setShareError(null)
     try {
-      await shareWrappedCard(wrapped, cardPaletteFor(frame.look, accent.hue), topArt)
+      await saveLook(page.current, shareFileName(wrapped), LOOK_VIEWS[frame.look].size.width * 2)
     } catch (error) {
       setShareError(error instanceof Error ? error.message : 'could not make the image')
     } finally {
@@ -166,10 +145,9 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     }
   }
 
-  // Only where an image can be made and handed on: a browser and the Mac app.
-  const canShare = canShareCard && !!wrapped && wrapped.totals.plays > 0
+  const canShare = canSaveLook && !!wrapped && wrapped.totals.plays > 0
   const shareLabel = sharing ? 'Making the image…' : 'Save as image'
-  const shareControl = !canShareCard ? null : wide ? (
+  const shareControl = !canSaveLook ? null : wide ? (
     <Button
       label={shareLabel}
       icon={<Download size={15} color={theme.colors.textPrimary} />}
@@ -240,6 +218,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
         </View>
       ) : null}
       <LookStage
+        pageRef={page}
         look={frame.look}
         input={{ wrapped, daily: stats?.daily ?? [] }}
         hue={accent.hue}
@@ -371,12 +350,15 @@ function ReportFrame({
  * as the page up to a broadsheet's width.
  */
 function LookStage({
+  pageRef,
   look,
   input,
   hue,
   art,
   tagHue,
 }: {
+  /** The drawn page, for saving it as an image. */
+  pageRef: RefObject<View | null>
   look: LookId
   input: LookInput
   hue: number
@@ -399,7 +381,7 @@ function LookStage({
           testID={`report-page-${look}`}
           accessibilityLabel={`${LOOK_LABELS[look]}: ${input.wrapped.personality.line || 'your listening'}`}
         >
-          <View style={[styles.clip, corner]}>
+          <View ref={pageRef} collapsable={false} style={[styles.clip, corner]}>
             <Scaled width={view.size.width} height={view.size.height} display={display}>
               <Look input={input} hue={hue} art={art} tagHue={tagHue} />
             </Scaled>

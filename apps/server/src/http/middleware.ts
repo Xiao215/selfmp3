@@ -192,9 +192,16 @@ export function cors(config: Config): RequestHandler {
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.headers.origin
+    /*
+     * On every answer, not only the ones with CORS headers. A cover the page
+     * shows with a plain <img> is asked for without an Origin; without Vary the
+     * browser kept that answer and gave it back to a later CORS request for
+     * the same cover (saving the month as an image), which then had no
+     * Access-Control-Allow-Origin and was refused.
+     */
+    res.setHeader('Vary', 'Origin')
     if (origin && allowed.has(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
-      res.setHeader('Vary', 'Origin')
       /*
        * An audio element that plays a song from here asks with credentials —
        * `crossOrigin = 'use-credentials'`, which the player sets because the

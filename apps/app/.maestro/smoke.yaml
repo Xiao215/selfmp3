@@ -50,10 +50,14 @@ appId: com.selfmp3.app
     timeout: 5000
 - tapOn:
     id: 'library-select-phone'
-- assertVisible: 'Select .*'
+- assertVisible:
+    id: 'selection-done'
 - tapOn:
     id: 'library-select-phone'
-- assertNotVisible: 'Deselect .*'
+- extendedWaitUntil:
+    notVisible:
+      id: 'selection-done'
+    timeout: 5000
 
 # Tap a row: it plays, the row tints, and the mini player picks it up.
 - tapOn:

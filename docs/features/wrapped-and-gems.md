@@ -70,16 +70,16 @@ Under ten plays it says *Casual listener* and stops, because no pattern is worth
 from eight data points. Nothing here is a model or a guess — it is arithmetic you could do
 yourself, which is the only kind of "personality" worth putting a name to.
 
-### Share as image
+### Save as image
 
-**Share as image** renders a 1080×1350 PNG on a canvas and downloads it; the file name
-comes from `shareFileName` in `apps/app/src/features/wrapped/wrapped.model.ts`. It is offered
-in a browser and the desktop app only (`canShareCard`).
-
-It is drawn rather than screenshotted, so it has no app chrome in it. The colours are the
-theme on screen, passed in already resolved, so a card made with a different accent hue
-matches the app it came from. It is `fillText` calls on a canvas in
-`apps/app/src/ports/shareCard.web.ts` — no image library.
+**Save as image** saves the look on screen, as it is drawn: the Words page saves as the
+Words page. `apps/app/src/ports/saveLook.ts` photographs the page on a phone with
+`react-native-view-shot`, at the screen's own density, and hands the PNG to the share sheet
+(`expo-sharing`), where Save Image puts it in Photos. `saveLook.web.ts` draws the page's
+markup into a canvas with `html2canvas`, at least twice the look's own width, and downloads
+it, in a browser and the desktop app. The file name comes from `shareFileName` in
+`apps/app/src/features/wrapped/wrapped.model.ts`. Only the page is saved, never the chrome
+around it.
 
 ### API
 

@@ -89,6 +89,8 @@ const config = {
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
+    // The month as a page, saved as an image, goes out through the share sheet.
+    'expo-sharing',
     // The home-screen widget's Xcode target, from targets/widget (docs/ui-mock `P28`).
     '@bacons/apple-targets',
     // The design's two faces, embedded at build time so a phone never draws a

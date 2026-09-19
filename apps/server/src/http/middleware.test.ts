@@ -3,7 +3,7 @@ import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { HttpError } from './errors.js'
-import { APP_SITE_ORIGIN, sameOriginWrites } from './middleware.js'
+import { APP_SITE_ORIGIN, cors, sameOriginWrites } from './middleware.js'
 
 /**
  * The guard that keeps another website from writing to your library.
@@ -130,5 +130,32 @@ describe('sameOriginWrites', () => {
       'https://music.example.com',
     )
     expect(error?.status).toBe(403)
+  })
+})
+
+describe('cors', () => {
+  function headersFor(origin: string | undefined): Record<string, string> {
+    const set: Record<string, string> = {}
+    const req = { method: 'GET', headers: origin ? { origin } : {} } as unknown as Request
+    const res = {
+      setHeader: (name: string, value: string) => {
+        set[name] = value
+      },
+    } as unknown as Response
+    cors(config(['http://localhost:4621']))(req, res, (() => {}) as NextFunction)
+    return set
+  }
+
+  it('names an allowed origin back', () => {
+    expect(headersFor('http://localhost:4621')['Access-Control-Allow-Origin']).toBe(
+      'http://localhost:4621',
+    )
+  })
+
+  // A cover fetched plainly, then again with CORS, must not share a cached answer.
+  it('varies on Origin even when there is none to answer', () => {
+    expect(headersFor(undefined)['Vary']).toBe('Origin')
+    expect(headersFor('https://elsewhere.example')['Vary']).toBe('Origin')
+    expect(headersFor('https://elsewhere.example')['Access-Control-Allow-Origin']).toBeUndefined()
   })
 })

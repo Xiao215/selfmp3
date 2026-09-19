@@ -641,7 +641,7 @@ Deliberate differences, kept in the commit messages too:
 - Phase 8: a development build connects by address from Welcome (the onboarding page is
   gone); Google returns to `/welcome`. The stats are rolling windows, so pages say "Last 30
   days" and leave out comparisons with the last period, which the API does not give. Saving
-  the month as an image still draws the share port's own card, in the chosen look's colours.
+  the month as an image saves the look on screen, on a phone as well (added later).
 - Phase 9: no shared elements; Popover, ToastHost, the equaliser and the stage's Stage/Focus
   move still use Animated directly (reasons in the files), with their durations passed
   through `motionMs` so Reduce Motion stills them.

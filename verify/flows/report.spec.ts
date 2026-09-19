@@ -55,5 +55,18 @@ test.describe('report', () => {
     await page.getByRole('button', { name: 'Receipt', exact: true }).click()
     await expect(page.getByTestId('report-page-receipt')).toBeVisible()
     await expect(page.getByText('THANK YOU FOR LISTENING')).toBeVisible()
+
+    // Save as image saves the page drawn: a PNG named after the window, at
+    // least twice the look's own width, whatever size it is shown at.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('report-share').click(),
+    ])
+    expect(download.suggestedFilename()).toMatch(/^selfmp3-wrapped-\w+-\d{4}-\d{2}-\d{2}\.png$/)
+    const bytes = await (await download.createReadStream()).toArray()
+    const png = Buffer.concat(bytes as Buffer[])
+    expect(png.subarray(1, 4).toString()).toBe('PNG')
+    // The PNG header's width, big-endian at byte 16.
+    expect(png.readUInt32BE(16)).toBeGreaterThan(500)
   })
 })

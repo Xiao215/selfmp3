@@ -30,6 +30,7 @@ import {
   homeTiles,
   recentlyPlayed,
   streakLine,
+  sundayCard,
   type HomeTile,
 } from './home.model'
 
@@ -83,6 +84,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   )
   const recents = useMemo(() => (library ? recentlyPlayed(library.songs) : []), [library])
   const line = streakLine(stats?.streakDays)
+  const sunday = sundayCard(now, stats)
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
@@ -110,6 +112,26 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           </Text>
           {line === null ? null : <Text style={styles.subline}>{line}</Text>}
         </View>
+
+        {sunday ? (
+          <Pressable
+            testID="home-sunday"
+            onPress={() =>
+              router.navigate({ pathname: '/stats/report', params: { range: 'week' } })
+            }
+            accessibilityRole="link"
+            accessibilityLabel={`${sunday.title}. ${sunday.line}`}
+            style={({ pressed }) => [styles.sunday, pressed && styles.sundayPressed]}
+          >
+            <View style={styles.sundayText}>
+              <Text style={styles.sundayTitle}>{sunday.title}</Text>
+              <Text style={styles.sundayLine} numberOfLines={1}>
+                {sunday.line}
+              </Text>
+            </View>
+            <ChevronRight size={16} tone="textSecondary" />
+          </Pressable>
+        ) : null}
 
         <SearchField wide={wide} onPress={openSearch} />
 
@@ -529,6 +551,19 @@ const styles = StyleSheet.create(theme => ({
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   subline: { color: theme.colors.textSecondary, fontSize: 15 },
+  // The Sunday card (`P06`): the week, as a card, under the greeting.
+  sunday: {
+    ...card(theme.colors),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  sundayPressed: { backgroundColor: theme.colors.surface2 },
+  sundayText: { flex: 1, minWidth: 0, gap: 2 },
+  sundayTitle: sectionTitle(theme.colors),
+  sundayLine: { color: theme.colors.textSecondary, fontSize: 13 },
   search: {
     height: 54,
     borderRadius: radius.pill,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { dateLine, greeting, homeTiles, recentlyPlayed, streakLine } from './home.model'
+import { dateLine, greeting, homeTiles, recentlyPlayed, streakLine, sundayCard } from './home.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song => ({
   id,
@@ -128,5 +128,35 @@ describe('homeTiles on a computer', () => {
     const songs = tags.map(entry => song(entry.id, { tagIds: [entry.id] }))
     expect(homeTiles(tags, songs, 6)).toHaveLength(6)
     expect(homeTiles(tags, songs)).toHaveLength(4)
+  })
+})
+
+describe('the Sunday card', () => {
+  const week = {
+    totals: { plays: 40, minutes: 134 } as never,
+    topArtists: [{ key: 'Yorushika feat. suis', plays: 20, minutes: 80 }],
+    streakDays: 3,
+  }
+  const sunday = new Date(2026, 8, 20, 10, 15)
+  const monday = new Date(2026, 8, 21, 10, 15)
+
+  it('says what the week held, on a Sunday', () => {
+    expect(sundayCard(sunday, week)).toEqual({
+      title: 'Your week is ready',
+      line: '2 hr 14 min · Yorushika, mostly · 3-day streak',
+    })
+  })
+
+  it('is not there on any other day', () => {
+    expect(sundayCard(monday, week)).toBeNull()
+  })
+
+  it('is not there for a quiet week, or before the numbers arrive', () => {
+    expect(sundayCard(sunday, { ...week, totals: { plays: 0, minutes: 0 } as never })).toBeNull()
+    expect(sundayCard(sunday, undefined)).toBeNull()
+  })
+
+  it('leaves out a streak of one day, and an artist it does not know', () => {
+    expect(sundayCard(sunday, { ...week, streakDays: 1, topArtists: [] })?.line).toBe('2 hr 14 min')
   })
 })

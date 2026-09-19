@@ -1,4 +1,5 @@
-import type { Song, Tag } from '@selfmp3/shared'
+import { formatLongDuration, type Song, type Stats, type Tag } from '@selfmp3/shared'
+import { splitArtists } from '@selfmp3/client'
 import { tagsMostPlayed } from '../tag/tag.model'
 
 /**
@@ -95,4 +96,24 @@ export function recentlyPlayed(songs: readonly Song[], limit: number = HOME_RECE
     .sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
     .filter(song => (seen.has(song.id) ? false : (seen.add(song.id), true)))
     .slice(0, limit)
+}
+
+/**
+ * The Sunday card (docs/ui-mock `P06`): on a Sunday, and only then, one card
+ * under the greeting says the week is ready and opens it as a page. It says
+ * what the week held — how long, whose, the streak — and is not drawn for a
+ * week with nothing in it, or before the week's numbers have arrived. No
+ * notification: it is there when Home is opened, and gone on Monday.
+ */
+export function sundayCard(
+  now: Date,
+  week: Pick<Stats, 'totals' | 'topArtists' | 'streakDays'> | undefined,
+): { readonly title: string; readonly line: string } | null {
+  if (now.getDay() !== 0 || !week || week.totals.plays === 0) return null
+  const parts = [formatLongDuration(week.totals.minutes * 60)]
+  const top = week.topArtists[0]
+  const artist = top ? splitArtists(top.key)[0] : undefined
+  if (artist) parts.push(`${artist}, mostly`)
+  if (week.streakDays >= 2) parts.push(`${week.streakDays}-day streak`)
+  return { title: 'Your week is ready', line: parts.join(' · ') }
 }

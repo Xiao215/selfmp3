@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
 import { lightPalette, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
@@ -81,7 +81,12 @@ function cardPaletteFor(look: LookId, hue: number): CardPalette {
 export function ReportScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { wide } = useLayout()
-  const [range, setRange] = useState<WrappedRange>('month')
+  // The window it opens on: the address's, when it names one — Home's Sunday
+  // card opens the week (`P06`) — and otherwise the month.
+  const { range: asked } = useLocalSearchParams<{ range?: string }>()
+  const [range, setRange] = useState<WrappedRange>(() =>
+    (WRAPPED_RANGES as readonly string[]).includes(asked ?? '') ? (asked as WrappedRange) : 'month',
+  )
   // Null until a look is picked, so the default follows the width it is drawn at.
   const [chosen, setChosen] = useState<LookId | null>(null)
   const frame: FrameState = {

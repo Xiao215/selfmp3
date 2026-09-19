@@ -603,11 +603,12 @@ Answered by Xiao on 2026-09-18.
 **Phases 1 to 11** on `ui/phase-1` … `ui/phase-11`, each on top of the last (the order is
 1–8, 10, 9, 11), 2026-09-18 and 19. The widget (Phase 11's second half, `ui/widget`) is built
 and its target compiles for the simulator; it waits on a team id, the App Group and a signed
-build (docs/features/widget.md). Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
-select-all on both projects, which fails on the lane database for data reasons (two songs
-whose files are missing: select-all leaves them out, the API count does not). Maestro was not
-run: no simulator was free with a Metro for this worktree. The dev client has not been
-rebuilt, so the phone loads the two faces at runtime until it is.
+build (docs/features/widget.md); on the simulator it shows the tags and Now playing faces and
+a tile opens its tag. Leftovers are on `ui/finish`. Not merged to `main`. Gates: `npm run
+check` green; `verify:flows` green (select-all counts only songs whose files are there);
+Maestro `connect`, `smoke`, `downloads` and `offline` green on the iPhone 17 with a dev client
+rebuilt from this branch. `devices.yaml` needs a second device and was not run. Not yet looked
+at: the iPad, the packaged desktop app, and Android.
 
 Deliberate differences, kept in the commit messages too:
 
@@ -641,7 +642,8 @@ Deliberate differences, kept in the commit messages too:
   days" and leave out comparisons with the last period, which the API does not give. Saving
   the month as an image still draws the share port's own card, in the chosen look's colours.
 - Phase 9: no shared elements; Popover, ToastHost, the equaliser and the stage's Stage/Focus
-  move still use Animated directly (reasons in the files), so they ignore Reduce Motion.
+  move still use Animated directly (reasons in the files), with their durations passed
+  through `motionMs` so Reduce Motion stills them.
 - Phase 10: the extension's theme is generated from the tokens and git-ignored.
 - Play-and-tag on a phone raises the tag picker as a sheet whose search field takes focus, so
   the keyboard comes up for every song; on the computer, Stop while the picker is open closes

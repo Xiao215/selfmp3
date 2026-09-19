@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  barPattern,
   canListen,
   followAudio,
   listenDetail,
   listenLabel,
   listeningLeftReview,
+  playedRatio,
+  seekAt,
   startListening,
 } from './listen.model'
 
@@ -65,5 +68,34 @@ describe('listening before importing', () => {
       'Unknown artist',
     )
     expect(listenDetail({ track, status: 'error' })).toBe('Couldn’t play this one from YouTube')
+  })
+
+  it('draws the same bars for the same song, and different ones for another', () => {
+    const one = barPattern(track.url, 44)
+    expect(one).toHaveLength(44)
+    expect(barPattern(track.url, 44)).toEqual(one)
+    expect(barPattern('https://www.youtube.com/watch?v=other', 44)).not.toEqual(one)
+    for (const height of one) {
+      expect(height).toBeGreaterThanOrEqual(0.25)
+      expect(height).toBeLessThanOrEqual(0.95)
+    }
+    // Not one flat line: a seek bar that looks like a waveform has some shape.
+    expect(new Set(one).size).toBeGreaterThan(10)
+    expect(barPattern(track.url, 0)).toEqual([])
+  })
+
+  it('fills the bar to where the song is, and nothing before its length is known', () => {
+    expect(playedRatio(62, 248)).toBeCloseTo(0.25)
+    expect(playedRatio(300, 248)).toBe(1)
+    expect(playedRatio(-1, 248)).toBe(0)
+    expect(playedRatio(10, 0)).toBe(0)
+    expect(playedRatio(10, NaN)).toBe(0)
+  })
+
+  it('seeks to where the bar is dragged, kept within the song', () => {
+    expect(seekAt(50, 200, 248)).toBe(62)
+    expect(seekAt(-20, 200, 248)).toBe(0)
+    expect(seekAt(260, 200, 248)).toBe(248)
+    expect(seekAt(50, 0, 248)).toBe(0)
   })
 })

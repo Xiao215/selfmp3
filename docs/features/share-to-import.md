@@ -11,10 +11,15 @@ appears in the system share sheet. Share a link (or text containing one) from Yo
 YouTube Music or a browser and Chrome opens `/import?url=…&text=…&title=…`.
 
 The Import page reads those parameters, pulls every `http(s)` link out of them (the
-YouTube app puts the link in `text`, after the title), prefills the box and immediately
-fetches metadata. You land on the review screen, untick anything you already have, and hit
-Import. The query string is stripped from the address afterwards so a reload does not fetch
-it twice.
+YouTube app puts the link in `text`, after the title), prefills the field and immediately
+looks it up. You land on the review (`/import/review`), where every song is coming in
+unless you leave it out: a song you already have says *Yours already* and is skipped, a
+swipe left (on a phone) or *Leave out* at the row's end (on a computer) leaves one out and
+the same again brings it back, and a song's title and artist can be fixed before *Import N
+songs*. The songs arrive with the tags chosen under *Tag it … as it arrives* on the Import
+page, plus any added under *Tag them* on the review. Importing only ever tags; it never
+offers a playlist. The query string is stripped from the address afterwards so a reload
+does not look it up twice.
 
 Nothing is downloaded without your confirmation on this path.
 
@@ -77,6 +82,14 @@ Shortcut.
   server for the import box and share endpoint and by the client for the share target.
 - `apps/app/public/manifest.webmanifest` — declares the share target.
 - `sharedLinks` in `packages/client/src/import/model.ts` — reads `url` / `text` /
-  `title` from the query; `ImportScreen.tsx` prefills the box and clears them.
+  `title` from the query; `ImportScreen.tsx` prefills the field, clears them, and opens
+  the review once the lookup answers.
+- The review is `apps/app/src/features/import/ImportReview.tsx`, a page of its own
+  (`app/import/review.tsx`) that reads the looked-up link from the import draft
+  (`importDraft.ts`), so Back keeps it and Import offers it again. What it does without
+  the screen — leaving out, renaming, the counts, "Yours already", the request with no
+  playlist — is `review.model.ts`. The bar a song is heard with before importing is drawn
+  from a fixed pattern of the song's url (`barPattern` in `listen.model.ts`), not from its
+  audio, which is not downloaded yet.
 - `apps/server/src/services/importPreview.ts` — the probe step, shared by
   `/import/preview` and `/import/share` so both resolve links identically.

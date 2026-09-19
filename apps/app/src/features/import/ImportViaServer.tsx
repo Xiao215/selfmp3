@@ -7,6 +7,7 @@ import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { pageTitle } from '../../ui/surfaces'
+import { ImportReview } from './ImportReview'
 import { ImportScreen } from './ImportScreen'
 import { QueueViaBucket } from './QueueViaBucket'
 
@@ -25,12 +26,22 @@ import { QueueViaBucket } from './QueueViaBucket'
  * requirement for adding music — and a device is hardly ever near its server.
  * So the away card now says what is lost, which is the *looking* rather than
  * the importing, and the form beneath it adds the song anyway.
+ *
+ * `page` is which of Import's two pages this is: the link and the queue, or
+ * the review of a link (`/import/review`). Away from the server both are the
+ * away screen, since a review cannot be looked at without it either.
  */
-export function ImportViaServer(): ReactNode {
+export function ImportViaServer({
+  page = 'import',
+}: { page?: 'import' | 'review' } = {}): ReactNode {
   const { wide } = useLayout()
   const reach = useServerDirect()
   if (reach.state === 'reachable') {
-    return <ImportScreen via={reach.connection} onUnreachable={reach.lookAgain} />
+    return page === 'review' ? (
+      <ImportReview via={reach.connection} onUnreachable={reach.lookAgain} />
+    ) : (
+      <ImportScreen via={reach.connection} onUnreachable={reach.lookAgain} />
+    )
   }
 
   return (

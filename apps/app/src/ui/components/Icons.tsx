@@ -274,16 +274,6 @@ export const Folder = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNo
   )
 }
 
-export const CheckCircle = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
-  const color = useInk(colorGiven, tone)
-  return (
-    <Icon color={color} {...rest}>
-      <Circle cx="12" cy="12" r="9" />
-      <Path d="m8.5 12 2.5 2.5 4.5-5" />
-    </Icon>
-  )
-}
-
 export const Plus = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

@@ -1,86 +1,56 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { formatDuration, type ImportJob, type ImportPreviewItem } from '@selfmp3/shared'
+import type { ImportJob, Tag } from '@selfmp3/shared'
 import {
   ApiError,
-  chooseAll,
-  chosenItems,
-  enqueueRequest,
   finishedLabel,
   foldQueue,
   hasLink,
-  importButtonLabel,
-  isSquareCover,
   jobAction,
-  jobLabel,
   jobSubtitle,
   jobTone,
   linkHint,
   matchingTag,
-  patchItem,
-  queueActivity,
   radius,
   reviewFrom,
-  reviewHeading,
-  selectedCount,
   sharedLinks,
-  toggleChosen,
-  type Review,
   type ServerConnection,
 } from '@selfmp3/client'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { card, label as groupLabel, pageTitle, sectionTitle } from '../../ui/surfaces'
-import { useAccent } from '../../ui/accent'
+import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import {
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  Download,
-  ListMusic,
-  Refresh,
-  X,
-} from '../../ui/components/Icons'
+import { ChevronRight, ListMusic, Refresh, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { Select } from '../../ui/components/Select'
-import { TagChooser } from '../../ui/components/TagChooser'
-import { Toggle } from '../../ui/components/Toggle'
-import { ListenBar, ListenButton, useListen } from './ImportListen'
-import { useImportDraft } from './importDraft'
+import { TagItPill } from './ImportTags'
+import { draftFor, useImportDraft } from './importDraft'
 import { useImportSource } from './importSource'
-import { canListen, listeningLeftReview, type Listening } from './listen.model'
-import { canListenHere } from '../../ports/listen'
+import { countLabel, reviewName } from './review.model'
 
-/** "Don't add to a playlist": the playlist select holds numbers, and no playlist is 0. */
-const NO_PLAYLIST = 0
+/** How many of today's finished imports are listed before "Show all". */
+const FINISHED_SHOWN = 5
 
 /**
- * Importing.
+ * Importing (docs/ui-mock `P29`, `C13`).
  *
- * Paste links, fetch their details, review and correct them, then import. The
- * queue takes the review's place once it is sent, and the YouTube library
- * panel sits under both.
+ * Paste a link and look it up; what it holds opens on its own page to review
+ * (`/import/review`, ImportReview.tsx), and from there into the queue, which
+ * this page shows as Now and Earlier today. The tags chosen here — "Tag it …
+ * as it arrives" — are the review's too. On a phone this page is Home's + and
+ * a row under You, and "Done" goes back; on a computer it is in the sidebar,
+ * the form on the left and the queue on the right.
  *
  * Links shared to the app arrive as `/import?url=…&text=…`, which is the web's
- * Web Share Target; they are fetched straight away and cleared from the URL.
+ * Web Share Target; they are looked up straight away and cleared from the URL.
  *
  * `via` is a server reached directly from a cloud library (ImportViaServer): every
- * request here goes to it, and its tags and playlists are the ones offered.
+ * request here goes to it, and its tags are the ones offered.
  */
 export function ImportScreen({
   via,
@@ -95,7 +65,6 @@ export function ImportScreen({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const { wide } = useLayout()
   const source = useImportSource(via)
@@ -104,13 +73,9 @@ export function ImportScreen({
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
   // The draft outlives this screen (importDraft.ts); only the error is the screen's.
-  const [draft, patchDraft] = useImportDraft(via?.baseUrl ?? 'own')
-  const { links, review, tagIds, playlistId, createPlaylist } = draft
-  const setLinks = (next: string): void => patchDraft({ links: next })
-  const setReview = (next: Review | null): void => patchDraft({ review: next })
-  const setTagIds = (next: ReadonlySet<number>): void => patchDraft({ tagIds: next })
-  const setPlaylistId = (next: number): void => patchDraft({ playlistId: next })
-  const setCreatePlaylist = (next: boolean): void => patchDraft({ createPlaylist: next })
+  const key = via?.baseUrl ?? 'own'
+  const [draft, patchDraft] = useImportDraft(key)
+  const { links, review, tagIds } = draft
   const [error, setError] = useState<string | null>(null)
   /*
    * A request that never reached the server is not an import that failed. The
@@ -128,66 +93,38 @@ export function ImportScreen({
     }
     setError(err.message)
   }
-  /** Whether the folded "13 added today" row is open. */
-  const [showFinished, setShowFinished] = useState(false)
-  const scrollRef = useRef<ScrollView>(null)
-  const listen = useListen(via)
-  const queueTop = useRef(0)
 
   const tags = library?.tags ?? []
-  const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
 
   const preview = useMutation({
     mutationFn: (input: string) => api.importPreview(input),
     onSuccess: result => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
-      // for them — is tagged that way without asking.
+      // for them — is tagged that way without asking, on top of the tags
+      // chosen here for whatever arrives.
       const match = matchingTag(tags, next.playlistTitle)
-      patchDraft({
-        review: next,
-        createPlaylist: false,
-        tagIds: match === null ? new Set() : new Set([match]),
-      })
+      const chosen = new Set(draftFor(key).tagIds)
+      if (match !== null) chosen.add(match)
+      patchDraft({ review: next, tagIds: chosen })
       setError(null)
+      router.push('/import/review')
     },
     onError: failed,
   })
 
-  const enqueue = useMutation({
-    mutationFn: (current: Review) =>
-      api.importEnqueue(
-        enqueueRequest(current, {
-          tagIds,
-          playlistId: playlistId === NO_PLAYLIST ? null : playlistId,
-          createPlaylist,
-        }),
-      ),
-    onSuccess: result => {
-      patchDraft({ review: null, links: '' })
-      // The review just collapsed; bring the new jobs into view once they are drawn.
-      void source.invalidateQueue().then(() => {
-        requestAnimationFrame(() =>
-          scrollRef.current?.scrollTo({ y: Math.max(0, queueTop.current - 16), animated: true }),
-        )
-      })
-      if (result.playlistId !== null) void source.invalidateLibrary()
-    },
-    onError: failed,
-  })
-
-  const fetchLinks = (input: string): void => {
+  const lookUp = (input: string): void => {
     patchDraft({ links: input, review: null })
     preview.mutate(input)
   }
 
-  // Read a share once, fetch it, and clear it so coming back does not fetch it again.
+  // Read a share once, look it up, and clear it so coming back does not do it again.
   const shared = sharedLinks(params)
   const sharedOnce = useRef(false)
   useEffect(() => {
     if (!shared || sharedOnce.current) return
     sharedOnce.current = true
-    fetchLinks(shared)
+    lookUp(shared)
     router.setParams({ url: undefined, text: undefined, title: undefined })
     // Only `shared` matters here; the ref guards against a second run anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,440 +134,278 @@ export function ImportScreen({
     void promise.then(() => source.invalidateQueue())
   }
 
-  // A preview whose track has left the review (cancelled, imported, or a new
-  // link fetched) stops with it, and what played before it stays paused: you
-  // did not ask for music, you asked for songs. Editing a row keeps its url.
-  const leftReview = listeningLeftReview(listen.listening, review?.items ?? null)
-  useEffect(() => {
-    if (leftReview) listen.close({ resume: false })
-    // Only whether it left matters; `close` is a new function every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftReview])
-
-  const activity = queue ? queueActivity(queue) : null
-  const heading = review ? reviewHeading(review) : null
-  const chosenCount = review ? chosenItems(review).length : 0
   const hint = linkHint(links)
   const folded = queue ? foldQueue(queue.jobs) : null
+  const ready = hasLink(links) && !preview.isPending && tools?.ytdlp !== false
+
+  const form = (
+    <View style={styles.form}>
+      <Text style={styles.explain}>
+        Paste a YouTube or YouTube Music link. A playlist link brings the whole playlist, and an
+        artist’s page their top songs.
+        {viaServer
+          ? ' This goes through your server, which downloads the songs and syncs them to every device.'
+          : ''}
+      </Text>
+      {/*
+       * One field with its button inside it (`P29`). It still takes several
+       * links, one per line, and grows to hold them; a field of several lines
+       * is rounded as a card is rather than a pill.
+       */}
+      <View style={[styles.field, links.includes('\n') && styles.fieldTall]}>
+        <TextInput
+          style={styles.linksInput}
+          value={links}
+          onChangeText={next => patchDraft({ links: next })}
+          placeholder="https://music.youtube.com/watch?v=…"
+          placeholderTextColor={theme.colors.textMuted}
+          multiline
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          accessibilityLabel="Links to import"
+        />
+        <Button
+          label={preview.isPending ? 'Looking…' : 'Look it up'}
+          variant="primary"
+          disabled={!ready}
+          onPress={() => {
+            if (hasLink(links)) lookUp(links.trim())
+          }}
+          testID="import-look-up"
+        />
+      </View>
+      {hint ? (
+        <Text style={styles.linkHint} accessibilityRole="alert">
+          {hint}
+        </Text>
+      ) : null}
+      <TagItPill tags={tags} selected={tagIds} onChange={next => patchDraft({ tagIds: next })} />
+    </View>
+  )
+
+  const notices = (
+    <>
+      {tools && !tools.ytdlp ? (
+        <View style={styles.notice}>
+          <View style={styles.noticeBody}>
+            <Text style={styles.noticeText}>
+              <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
+              Importing needs it. Install both tools with:
+            </Text>
+            <Text style={styles.code} selectable>
+              brew install yt-dlp ffmpeg
+            </Text>
+          </View>
+          <Button
+            label="Check again"
+            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+            onPress={() => void refetchTools()}
+          />
+        </View>
+      ) : null}
+      {tools?.ytdlp && !tools.ffmpeg ? (
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
+            <Text style={styles.strong}>ffmpeg isn’t installed.</Text> Downloads still work, but
+            cover art and tags won’t be embedded. brew install ffmpeg
+          </Text>
+        </View>
+      ) : null}
+      {error ? (
+        <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
+          <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
+          <IconButton onPress={() => setError(null)} label="Dismiss">
+            <X size={15} color={theme.colors.textMuted} />
+          </IconButton>
+        </View>
+      ) : null}
+      {/* A review left with Back is still in the draft, one tap from where it was. */}
+      {review && review.items.length > 0 && !preview.isPending ? (
+        <Pressable
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
+          onPress={() => router.push('/import/review')}
+          accessibilityRole="link"
+          accessibilityLabel={`Go on reviewing ${reviewName(review)}`}
+          testID="import-resume-review"
+        >
+          <View style={styles.linkCardText}>
+            <Text style={styles.linkCardTitle} numberOfLines={1}>
+              {reviewName(review)}
+            </Text>
+            <Text style={styles.linkCardSub}>{countLabel(review, true)} · not imported yet</Text>
+          </View>
+          <ChevronRight size={16} color={theme.colors.textMuted} />
+        </Pressable>
+      ) : null}
+    </>
+  )
+
+  // Migrating asks whatever answers this device, which through a server is still the bucket.
+  const migrate = viaServer ? null : (
+    <Pressable
+      style={({ pressed }) => [styles.migrate, pressed && styles.migratePressed]}
+      onPress={() => router.push('/import/migrate')}
+      accessibilityRole="link"
+      accessibilityLabel="Migrate a playlist from another app"
+    >
+      <ListMusic size={18} tone="accent" />
+      <View style={styles.linkCardText}>
+        <Text style={styles.linkCardTitle}>Migrate a playlist from another app</Text>
+        <Text style={styles.linkCardSub}>
+          A Spotify link, a CSV export or a list of songs, each matched to a YouTube upload for you
+          to check first.
+        </Text>
+      </View>
+      <ChevronRight size={16} color={theme.colors.textMuted} />
+    </Pressable>
+  )
+
+  /*
+   * What is happening, then what arrived. What needs you — running, waiting,
+   * failed — is always first; the day's arrivals come after it, a few at a
+   * time, since a morning's imports were a screen of rows pushing the one that
+   * failed out of sight.
+   */
+  const jobs =
+    queue && folded && queue.jobs.length > 0 ? (
+      <View style={styles.jobs} testID="import-queue">
+        {folded.open.length > 0 ? (
+          <View style={styles.group} aria-live="polite">
+            <Text style={styles.groupLabel} accessibilityRole="header">
+              Now
+            </Text>
+            {folded.open.map(job => (
+              <JobRow
+                key={job.id}
+                job={job}
+                tags={tags}
+                onCancel={() => afterJob(api.cancelImport(job.id))}
+                onRetry={() => afterJob(api.retryImport(job.id))}
+              />
+            ))}
+          </View>
+        ) : null}
+        {folded.finished.length > 0 ? (
+          <Finished
+            jobs={folded.finished}
+            tags={tags}
+            onClear={() => afterJob(api.clearImports())}
+          />
+        ) : null}
+      </View>
+    ) : null
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
+        contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         keyboardShouldPersistTaps="handled"
         testID="import-screen"
       >
-        <Text style={styles.heading} accessibilityRole="header">
-          Import
-        </Text>
-        <Text style={styles.sub}>
-          Paste one or more links, one per line. A playlist expands into its tracks, and an artist’s
-          page into their top songs.
-          {viaServer
-            ? ' This goes through your server, which downloads the songs and syncs them to every device.'
-            : ''}
-        </Text>
-
-        {tools && !tools.ytdlp ? (
-          <View style={styles.notice}>
-            <View style={styles.noticeBody}>
-              <Text style={styles.noticeText}>
-                <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
-                Importing needs it. Install both tools with:
-              </Text>
-              <Text style={styles.code} selectable>
-                brew install yt-dlp ffmpeg
-              </Text>
-            </View>
-            <Button
-              label="Check again"
-              icon={<Refresh size={13} color={theme.colors.textPrimary} />}
-              onPress={() => void refetchTools()}
-            />
-          </View>
-        ) : null}
-
-        {tools?.ytdlp && !tools.ffmpeg ? (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              <Text style={styles.strong}>ffmpeg isn’t installed.</Text> Downloads still work, but
-              cover art and tags won’t be embedded. brew install ffmpeg
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={[styles.form, !wide && styles.formNarrow]}>
-          <TextInput
-            style={[styles.linksInput, wide && styles.linksInputWide]}
-            value={links}
-            onChangeText={setLinks}
-            placeholder={
-              'https://music.youtube.com/watch?v=…\nhttps://music.youtube.com/playlist?list=…\nhttps://music.youtube.com/@artist'
-            }
-            placeholderTextColor={theme.colors.textMuted}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-            spellCheck={false}
-            accessibilityLabel="Links to import"
-          />
-          <Button
-            label={preview.isPending ? 'Reading…' : 'Fetch details'}
-            variant="primary"
-            grow={!wide}
-            disabled={preview.isPending || !hasLink(links) || tools?.ytdlp === false}
-            onPress={() => {
-              if (hasLink(links)) preview.mutate(links.trim())
-            }}
-          />
+        <View style={styles.head}>
+          <Text style={styles.heading} accessibilityRole="header">
+            Import
+          </Text>
+          {/* On a phone Import is a page over Home or You, and Done goes back to it. */}
+          {wide ? null : (
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+              accessibilityRole="button"
+              hitSlop={12}
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={styles.done}>Done</Text>
+            </Pressable>
+          )}
         </View>
 
-        {hint ? (
-          <Text style={styles.linkHint} accessibilityRole="alert">
-            {hint}
-          </Text>
-        ) : null}
-
-        <Text style={styles.hint}>
-          Links from <Text style={styles.strong}>music.youtube.com</Text> carry proper track, artist
-          and album metadata. Regular youtube.com links usually just have a video title.
-        </Text>
-
-        {/* Migrating asks whatever answers this device, which through a server is still the bucket. */}
-        {viaServer ? null : (
-          <Pressable
-            style={({ pressed }) => [styles.migrateCard, pressed && styles.migrateCardPressed]}
-            onPress={() => router.push('/import/migrate')}
-            accessibilityRole="link"
-            accessibilityLabel="Migrate a playlist from another app"
-          >
-            <ListMusic size={18} color={accent.accent} />
-            <View style={styles.migrateText}>
-              <Text style={styles.migrateTitle}>Migrate a playlist from another app</Text>
-              <Text style={styles.migrateSub}>
-                Paste a Spotify link, a CSV export or a list of songs; each one is matched to a
-                YouTube upload for you to check before importing.
-              </Text>
+        {wide ? (
+          <View style={styles.columns}>
+            <View style={styles.left}>
+              {form}
+              {notices}
+              <View style={styles.otherWays}>
+                <Text style={styles.otherTitle}>Other ways in</Text>
+                <Text style={styles.otherBody}>
+                  Share a link from the browser extension, or to self.mp3 from YouTube itself. It
+                  lands here.
+                </Text>
+                {migrate}
+              </View>
             </View>
-            <ChevronRight size={16} color={theme.colors.textMuted} />
-          </Pressable>
+            <View style={styles.right}>{jobs}</View>
+          </View>
+        ) : (
+          <View style={styles.stack}>
+            {form}
+            {notices}
+            {jobs}
+            {migrate}
+            <Text style={styles.shareHint}>
+              You can also share a link to self.mp3 from YouTube itself. It lands here.
+            </Text>
+          </View>
         )}
-
-        {error ? (
-          <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-            <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} color={theme.colors.textMuted} />
-            </IconButton>
-          </View>
-        ) : null}
-
-        {review && heading && review.items.length > 0 ? (
-          <View style={styles.review} testID="import-review">
-            <View style={styles.reviewHead}>
-              <Text style={styles.reviewTitle} accessibilityRole="header">
-                {heading.found}
-                {heading.duplicates ? (
-                  <Text style={styles.hint}> · {heading.duplicates}</Text>
-                ) : null}
-              </Text>
-              <View style={styles.reviewActions}>
-                <Text style={styles.hint}>{selectedCount(review)}</Text>
-                <Text
-                  style={[styles.linkText, { color: accent.accent }]}
-                  onPress={() => setReview({ ...review, chosen: chooseAll(review.items) })}
-                  accessibilityRole="button"
-                >
-                  select all
-                </Text>
-                <Text
-                  style={[styles.linkText, { color: accent.accent }]}
-                  onPress={() => setReview({ ...review, chosen: new Set() })}
-                  accessibilityRole="button"
-                >
-                  select none
-                </Text>
-              </View>
-            </View>
-
-            <View accessibilityRole="list" accessibilityLabel="Tracks to import">
-              {wide ? (
-                <View style={[styles.itemRow, styles.itemHead]} aria-hidden>
-                  <View style={styles.colCheck} />
-                  <View style={styles.colThumb} />
-                  <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
-                  <Text style={[styles.headLabel, styles.colOther]}>Artist</Text>
-                  <Text style={[styles.headLabel, styles.colOther]}>Album</Text>
-                  <Text style={[styles.headLabel, styles.colSide]}>Length</Text>
-                </View>
-              ) : null}
-              {review.items.map((item, index) => {
-                const playing = listen.listening
-                return (
-                  <Fragment key={`${item.url}-${index}`}>
-                    <ReviewRow
-                      item={item}
-                      index={index}
-                      wide={wide}
-                      chosen={review.chosen.has(index)}
-                      onToggle={() =>
-                        setReview({ ...review, chosen: toggleChosen(review.chosen, index) })
-                      }
-                      onPatch={patch =>
-                        setReview({ ...review, items: patchItem(review.items, index, patch) })
-                      }
-                      listening={playing}
-                      onListen={() => listen.toggle(item)}
-                    />
-                    {/* The playhead sits right under the song it plays, not under the whole list. */}
-                    {playing && playing.track.url === item.url ? (
-                      <ListenBar
-                        listening={playing}
-                        onToggle={() => listen.toggle(playing.track)}
-                        onSeek={listen.seek}
-                        onClose={() => listen.close()}
-                      />
-                    ) : null}
-                  </Fragment>
-                )
-              })}
-            </View>
-
-            <View style={styles.options}>
-              <View style={styles.option}>
-                <Text style={styles.fieldLabel}>Tag these as</Text>
-                <TagChooser tags={tags} selected={tagIds} onChange={setTagIds} />
-              </View>
-
-              {review.playlistTitle && playlistId === NO_PLAYLIST ? (
-                <View style={styles.optionCheck}>
-                  <Toggle
-                    value={createPlaylist}
-                    onChange={setCreatePlaylist}
-                    label={`Also create playlist ${review.playlistTitle}`}
-                  />
-                  <Text style={styles.fieldLabel}>
-                    Also create playlist <Text style={styles.strong}>“{review.playlistTitle}”</Text>
-                  </Text>
-                </View>
-              ) : null}
-
-              {manualPlaylists.length > 0 ? (
-                <View style={styles.option}>
-                  <Text style={styles.fieldLabel}>Add to playlist</Text>
-                  <View style={styles.selectWrap}>
-                    <Select<number>
-                      value={playlistId}
-                      onChange={setPlaylistId}
-                      options={[
-                        { value: NO_PLAYLIST, label: 'Don’t add to a playlist' },
-                        ...manualPlaylists.map(list => ({ value: list.id, label: list.name })),
-                      ]}
-                      label="Add to playlist"
-                    />
-                  </View>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.submit}>
-              <Button
-                label={importButtonLabel(chosenCount)}
-                icon={<Download size={16} color={accent.onAccent} />}
-                variant="primary"
-                disabled={chosenCount === 0 || enqueue.isPending}
-                onPress={() => enqueue.mutate(review)}
-              />
-              <Button label="Cancel" onPress={() => setReview(null)} />
-            </View>
-          </View>
-        ) : null}
-
-        {/*
-         * The queue takes the review's place, above the library panel: below
-         * it, a just-started import landed off-screen and looked like the
-         * button had done nothing.
-         */}
-        {queue && folded && queue.jobs.length > 0 ? (
-          <View
-            style={styles.queue}
-            onLayout={event => {
-              queueTop.current = event.nativeEvent.layout.y
-            }}
-            testID="import-queue"
-          >
-            <View style={styles.queueHead}>
-              <Text style={styles.reviewTitle} accessibilityRole="header">
-                Queue
-                {activity ? <Text style={styles.hint}> · {activity}</Text> : null}
-              </Text>
-            </View>
-            <View style={styles.jobs} aria-live="polite">
-              {folded.open.map(job => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  onCancel={() => afterJob(api.cancelImport(job.id))}
-                  onRetry={() => afterJob(api.retryImport(job.id))}
-                />
-              ))}
-              {/*
-               * Finished jobs fold into one row: each added a song the library
-               * already shows, and a morning's imports were a screen of green
-               * ticks pushing the one that failed out of sight.
-               */}
-              {folded.finished.length > 0 ? (
-                <View style={styles.job} testID="import-finished">
-                  <View style={styles.jobStatus}>
-                    <CheckCircle size={16} color={theme.colors.good} />
-                  </View>
-                  <Text style={[styles.jobTitle, styles.jobMeta]} numberOfLines={1}>
-                    {finishedLabel(folded.finished)}
-                  </Text>
-                  <FoldAction
-                    label={showFinished ? 'Hide' : 'Show'}
-                    accessibilityLabel={
-                      showFinished ? 'Hide finished imports' : 'Show finished imports'
-                    }
-                    expanded={showFinished}
-                    onPress={() => setShowFinished(open => !open)}
-                  />
-                  <FoldAction
-                    label="Clear"
-                    accessibilityLabel="Clear finished imports"
-                    onPress={() => {
-                      setShowFinished(false)
-                      afterJob(api.clearImports())
-                    }}
-                  />
-                </View>
-              ) : null}
-              {showFinished
-                ? folded.finished.map(job => (
-                    <JobRow
-                      key={job.id}
-                      job={job}
-                      onCancel={() => afterJob(api.cancelImport(job.id))}
-                      onRetry={() => afterJob(api.retryImport(job.id))}
-                    />
-                  ))
-                : null}
-            </View>
-          </View>
-        ) : null}
         <ChromeSpacer />
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-/** One track in the review. Three inputs on a line when there is room. */
-function ReviewRow({
-  item,
-  index,
-  wide,
-  chosen,
-  onToggle,
-  onPatch,
-  listening,
-  onListen,
+/** "In your library · tagged night drive": where a finished song went, and how. */
+function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
+  const names = tags.filter(tag => job.tagIds.includes(tag.id)).map(tag => tag.name)
+  return names.length > 0 ? `In your library · tagged ${names.join(', ')}` : 'In your library'
+}
+
+/** Earlier today: the songs that arrived, a few at once, and a way to clear them. */
+function Finished({
+  jobs,
+  tags,
+  onClear,
 }: {
-  item: ImportPreviewItem
-  index: number
-  wide: boolean
-  chosen: boolean
-  onToggle: () => void
-  onPatch: (patch: Partial<Pick<ImportPreviewItem, 'title' | 'artist' | 'album'>>) => void
-  listening: Listening | null
-  onListen: () => void
+  jobs: readonly ImportJob[]
+  tags: readonly Tag[]
+  onClear: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-
-  const field = (key: 'title' | 'artist' | 'album', label: string, style: object): ReactNode => (
-    <TextInput
-      style={[styles.itemInput, style]}
-      value={item[key]}
-      onChangeText={value => onPatch({ [key]: value })}
-      placeholder={label}
-      placeholderTextColor={theme.colors.textMuted}
-      autoCorrect={false}
-      accessibilityLabel={`${label} of track ${index + 1}`}
-    />
-  )
-
-  const side = item.alreadyHave ? (
-    <View style={styles.dup}>
-      <CheckCircle size={12} color={theme.colors.textSecondary} />
-      <Text style={styles.dupText}>Have it</Text>
-    </View>
-  ) : item.duration > 0 ? (
-    <Text style={styles.hint}>{formatDuration(item.duration)}</Text>
-  ) : null
-
-  const check = (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: chosen }}
-      accessibilityLabel={`Import ${item.title}`}
-      hitSlop={8}
-      style={[styles.colCheck, item.alreadyHave && styles.faded]}
-    >
-      <Checkbox checked={chosen} />
-    </Pressable>
-  )
-
-  const thumb =
-    canListenHere && canListen(item) ? (
-      <ListenButton item={item} listening={listening} onToggle={onListen} />
-    ) : item.thumbnail ? (
-      <Image
-        source={{ uri: item.thumbnail }}
-        style={[
-          styles.thumb,
-          isSquareCover(item.thumbnail) && styles.thumbSquare,
-          item.alreadyHave && styles.faded,
-        ]}
-      />
-    ) : (
-      <View style={[styles.thumb, styles.thumbEmpty]} />
-    )
-
-  const rowStyle = [styles.itemRow, chosen && styles.itemChosen]
-
-  if (wide) {
-    return (
-      <View style={rowStyle} accessibilityRole="none">
-        {check}
-        {thumb}
-        {field('title', 'Title', styles.colTitle)}
-        {field('artist', 'Artist', styles.colOther)}
-        {field('album', 'Album', styles.colOther)}
-        <View style={[styles.colSide, styles.sideCell]}>{side}</View>
-      </View>
-    )
-  }
-
-  // At a narrow width the three stack: the title with its length beside it,
-  // then artist and album each on a line of their own, so neither is cut off.
+  const [all, setAll] = useState(false)
+  const today = finishedLabel(jobs).endsWith('today')
+  const shown = all ? jobs : jobs.slice(0, FINISHED_SHOWN)
   return (
-    <View style={[rowStyle, styles.itemRowNarrow]}>
-      {check}
-      {thumb}
-      <View style={styles.narrowFields}>
-        <View style={styles.narrowTitle}>
-          {field('title', 'Title', styles.half)}
-          {side}
-        </View>
-        {field('artist', 'Artist', styles.fullWidth)}
-        {field('album', 'Album', styles.fullWidth)}
+    <View style={styles.group} testID="import-finished">
+      <View style={styles.groupHead}>
+        <Text style={styles.groupLabel} accessibilityRole="header">
+          {today ? 'Earlier today' : 'Earlier'}
+        </Text>
+        <FoldAction label="Clear" accessibilityLabel="Clear finished imports" onPress={onClear} />
       </View>
+      {shown.map(job => (
+        <View key={job.id} style={styles.job}>
+          <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+          <View style={styles.jobMeta}>
+            <Text style={styles.jobTitle} numberOfLines={1}>
+              {job.title || job.url}
+            </Text>
+            <Text style={[styles.jobSub, styles.good]} numberOfLines={1}>
+              {arrivedLine(job, tags)}
+            </Text>
+          </View>
+        </View>
+      ))}
+      {jobs.length > FINISHED_SHOWN ? (
+        <FoldAction
+          label={all ? 'Show fewer' : `Show all ${jobs.length}`}
+          accessibilityLabel={all ? 'Hide finished imports' : 'Show finished imports'}
+          expanded={all}
+          onPress={() => setAll(open => !open)}
+        />
+      ) : null}
     </View>
   )
 }
 
-/** "Show" and "Clear" on the folded row: quiet, in the accent, a finger's height. */
+/** "Clear" and "Show all": quiet, in the accent, a finger's height. */
 function FoldAction({
   label,
   accessibilityLabel,
@@ -642,7 +417,6 @@ function FoldAction({
   expanded?: boolean
   onPress: () => void
 }): ReactNode {
-  const accent = useAccent()
   return (
     <Pressable
       onPress={onPress}
@@ -650,98 +424,87 @@ function FoldAction({
       accessibilityLabel={accessibilityLabel}
       accessibilityState={expanded === undefined ? undefined : { expanded }}
       hitSlop={{ top: 8, bottom: 8 }}
-      style={({ pressed }) => [styles.foldAction, pressed && { opacity: 0.6 }]}
+      style={({ pressed }) => [styles.foldAction, pressed && styles.pressed]}
     >
-      <Text style={[styles.foldActionText, { color: accent.accent }]}>{label}</Text>
+      <Text style={styles.foldActionText}>{label}</Text>
     </Pressable>
   )
 }
 
-/** One download. */
+/** One download under Now: its cover, how it is going, and a thin line while it downloads. */
 function JobRow({
   job,
+  tags,
   onCancel,
   onRetry,
 }: {
   job: ImportJob
+  tags: readonly Tag[]
   onCancel: () => void
   onRetry: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const tone = jobTone(job)
   const action = jobAction(job)
-  const label = jobLabel(job)
-  const muted = tone === 'done' || tone === 'cancelled'
-  const toneColor =
-    tone === 'error' ? theme.colors.danger : tone === 'waiting' ? theme.colors.warning : null
-
-  const icon =
-    tone === 'running' ? (
-      <ActivityIndicator size="small" color={accent.accent} />
-    ) : tone === 'done' ? (
-      <CheckCircle size={16} color={theme.colors.good} />
-    ) : tone === 'waiting' ? (
-      <Clock size={16} color={theme.colors.warning} />
-    ) : tone === 'error' || tone === 'cancelled' ? (
-      <X size={16} color={tone === 'error' ? theme.colors.danger : theme.colors.textMuted} />
-    ) : (
-      <View style={styles.jobDot} />
-    )
+  const toneStyle =
+    tone === 'running'
+      ? styles.running
+      : tone === 'error'
+        ? styles.failed
+        : tone === 'waiting'
+          ? styles.waiting
+          : tone === 'done'
+            ? styles.good
+            : null
+  const status =
+    tone === 'done'
+      ? arrivedLine(job, tags)
+      : tone === 'running' && job.step === 'downloading' && job.progress !== null
+        ? `Downloading · ${Math.round(job.progress)} %`
+        : jobSubtitle(job)
 
   return (
-    <View style={styles.job}>
-      <View style={styles.jobStatus} accessibilityLabel={label} accessible>
-        {icon}
+    <View>
+      <View style={styles.job}>
+        <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+        <View style={styles.jobMeta}>
+          <Text
+            style={[styles.jobTitle, tone === 'cancelled' && styles.mutedText]}
+            numberOfLines={1}
+          >
+            {job.title || job.url}
+          </Text>
+          <Text style={[styles.jobSub, toneStyle]} numberOfLines={2}>
+            {status}
+          </Text>
+        </View>
+        {action === 'cancel' ? (
+          <IconButton onPress={onCancel} label={`Cancel ${job.title || 'this import'}`}>
+            <X size={15} color={theme.colors.textMuted} />
+          </IconButton>
+        ) : action === 'retry' || action === 'try-now' ? (
+          <Button
+            label={action === 'try-now' ? 'Try now' : 'Retry'}
+            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+            onPress={onRetry}
+            accessibilityLabel={`Retry ${job.title || 'this import'}`}
+          />
+        ) : null}
       </View>
-      <View style={styles.jobMeta}>
-        <Text style={[styles.jobTitle, muted && styles.mutedText]} numberOfLines={1}>
-          {job.title || job.url}
-        </Text>
-        <Text style={[styles.jobSub, toneColor ? { color: toneColor } : null]} numberOfLines={2}>
-          {jobSubtitle(job)}
-        </Text>
-      </View>
-
       {/*
-       * Only the download reports a percentage, so only it draws a bar; the
+       * Only the download reports a percentage, so only it draws a line; the
        * steps around it (resolving, converting, saving, uploading) are named
-       * in the line under the title, with the spinner on the left. A dim bar
-       * at a made-up width stood in for them once, and read as a second kind
-       * of progress. The space is kept, so the row does not change width.
+       * in the words under the title instead.
        */}
       {tone === 'running' && job.progress !== null ? (
-        <>
-          <View
-            style={styles.progress}
-            accessibilityRole="progressbar"
-            accessibilityLabel={`${job.title || 'Track'} progress`}
-            accessibilityValue={{ min: 0, max: 100, now: job.progress }}
-          >
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: accent.accent, width: `${job.progress}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.percent}>{Math.round(job.progress)}%</Text>
-        </>
-      ) : tone === 'running' ? (
-        <View style={styles.progressPlace} />
-      ) : null}
-
-      {action === 'cancel' ? (
-        <IconButton onPress={onCancel} label={`Cancel ${job.title || 'this import'}`}>
-          <X size={15} color={theme.colors.textMuted} />
-        </IconButton>
-      ) : action === 'retry' || action === 'try-now' ? (
-        <Button
-          label={action === 'try-now' ? 'Try now' : 'Retry'}
-          icon={<Refresh size={13} color={theme.colors.textPrimary} />}
-          onPress={onRetry}
-          accessibilityLabel={`Retry ${job.title || 'this import'}`}
-        />
+        <View
+          style={styles.progress}
+          accessibilityRole="progressbar"
+          accessibilityLabel={`${job.title || 'Track'} progress`}
+          accessibilityValue={{ min: 0, max: 100, now: job.progress }}
+        >
+          <View style={[styles.progressFill, { width: `${job.progress}%` }]} />
+        </View>
       ) : null}
     </View>
   )
@@ -750,21 +513,49 @@ function JobRow({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: pageTitle(theme.colors),
-  sub: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    marginTop: 6,
+  contentWide: { paddingTop: 40, paddingHorizontal: 48 },
+  contentPhone: { paddingTop: 6, paddingHorizontal: 20 },
+  pressed: { opacity: 0.6 },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
-    lineHeight: 19,
   },
+  heading: pageTitle(theme.colors),
+  done: { color: theme.colors.accent, fontSize: 15, fontWeight: '600' },
+  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 48 },
+  left: { width: 560, flexShrink: 1, gap: 22 },
+  right: { flex: 1, minWidth: 0, paddingTop: 8 },
+  stack: { gap: 24 },
+  form: { gap: 10 },
+  explain: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  // A control on the ground: the control's fill and no edge, the commit pill inside it.
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 52,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+  },
+  fieldTall: { alignItems: 'flex-end', borderRadius: radius.card },
+  linksInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 8,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    lineHeight: 20,
+    _web: { outlineStyle: 'none' },
+  },
+  linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17 },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   // With no edge around the notice, its first words carry the warning's colour.
   strongWarn: { color: theme.colors.warning },
-  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
-  linkText: { fontSize: 12, textDecorationLine: 'underline' },
   // On the notice's card, so one step up from it.
   code: {
     marginTop: 6,
@@ -781,165 +572,63 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  noticeError: { marginTop: 14, paddingRight: 4 },
+  noticeError: { paddingRight: 4 },
   noticeBody: { flex: 1 },
   noticeText: { flex: 1, color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
   noticeTextError: { color: theme.colors.danger },
-  form: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
-  formNarrow: { flexDirection: 'column', alignItems: 'stretch' },
-  /*
-   * A control on the ground: a control's fill and no edge. It holds several
-   * lines, so it is rounded as a card is rather than a pill; a link it cannot
-   * read is said in red underneath it.
-   */
-  linksInput: {
-    minHeight: 74,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: theme.colors.textPrimary,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlignVertical: 'top',
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.card,
-  },
-  linksInputWide: { flex: 1 },
-  linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17, marginBottom: 8 },
-  migrateCard: {
+  linkCard: {
     ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    marginTop: 18,
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
-  migrateCardPressed: { backgroundColor: theme.colors.surface2 },
-  migrateText: { flex: 1, minWidth: 0, gap: 3 },
-  migrateTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  migrateSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
-  review: {
-    ...card(theme.colors),
-    marginTop: 26,
-    padding: 18,
-  },
-  reviewHead: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 14,
-  },
-  reviewTitle: sectionTitle(theme.colors),
-  reviewActions: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    marginBottom: 2,
-  },
-  itemRowNarrow: { alignItems: 'flex-start' },
-  itemHead: { paddingBottom: 7 },
-  // A chosen row is one step up from the review's card.
-  itemChosen: { backgroundColor: theme.colors.surface2 },
-  headLabel: groupLabel(theme.colors),
-  colCheck: { width: 18, alignItems: 'center' },
-  colThumb: { width: 56 },
-  colTitle: { flex: 1.5, minWidth: 0 },
-  colOther: { flex: 1, minWidth: 0 },
-  colSide: { width: 78, textAlign: 'right' },
-  sideCell: { alignItems: 'flex-end' },
-  thumb: { width: 56, height: 34, borderRadius: radius.coverSm },
-  // Album art is square; a video's still is not. The column stays 56 wide either way.
-  thumbSquare: { width: 40, height: 40, marginHorizontal: 8, borderRadius: radius.cover },
-  thumbEmpty: { backgroundColor: theme.colors.surface2 },
-  faded: { opacity: 0.55 },
-  // A field on a row that may itself be a step up, so the highest step: no edge.
-  itemInput: {
-    minHeight: 30,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    color: theme.colors.textPrimary,
-    fontSize: 13,
-    backgroundColor: theme.colors.surface3,
-    borderRadius: radius.pill,
-  },
-  narrowFields: { flex: 1, minWidth: 0, gap: 6 },
-  narrowTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fullWidth: { alignSelf: 'stretch' },
-  half: { flex: 1, minWidth: 0 },
-  dup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingLeft: 6,
-    paddingRight: 8,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
-  },
-  dupText: { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '600' },
-  // Space, not a rule, sets the options apart from the tracks.
-  options: { gap: 14, marginTop: 24 },
-  option: { gap: 7 },
-  optionCheck: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  fieldLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
-  selectWrap: { alignSelf: 'stretch' },
-  submit: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  queue: { marginTop: 30 },
-  queueHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
-  },
-  jobs: { gap: 6 },
-  foldAction: { paddingVertical: 4, paddingHorizontal: 6 },
-  foldActionText: { fontSize: 13, fontWeight: '600' },
-  /*
-   * Each download is a small card. How it is going — running, waiting, failed —
-   * is its icon and the coloured line under its title, not an edge.
-   */
-  job: {
+  linkCardPressed: { backgroundColor: theme.colors.surface2 },
+  linkCardText: { flex: 1, minWidth: 0, gap: 3 },
+  linkCardTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  linkCardSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  migrate: {
     ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minHeight: 46,
-    paddingVertical: 9,
-    paddingLeft: 14,
-    paddingRight: 10,
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  jobStatus: { width: 20, alignItems: 'center' },
-  jobDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.textMuted },
-  jobMeta: { flex: 1, minWidth: 0 },
-  jobTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  migratePressed: { backgroundColor: theme.colors.surface2 },
+  // `C13`'s card: the other ways a song gets here, and the migration among them.
+  otherWays: { ...card(theme.colors), gap: 6, paddingVertical: 16, paddingHorizontal: 18 },
+  otherTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  otherBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  shareHint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18 },
+  jobs: { gap: 18 },
+  group: { gap: 6 },
+  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  groupLabel: groupLabel(theme.colors),
+  foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
+  foldActionText: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
+  job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },
+  jobMeta: { flex: 1, minWidth: 0, gap: 3 },
+  jobTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
   mutedText: { color: theme.colors.textMuted },
-  jobSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 1 },
+  jobSub: { color: theme.colors.textSecondary, fontSize: 13 },
+  running: { color: theme.colors.accent },
+  failed: { color: theme.colors.danger },
+  waiting: { color: theme.colors.warning },
+  good: { color: theme.colors.good },
+  // Under the downloading song's words, starting where they start.
   progress: {
-    width: 120,
-    height: 4,
-    borderRadius: 2,
+    height: 3,
+    marginTop: -2,
+    marginBottom: 6,
+    marginLeft: 58,
+    borderRadius: radius.pill,
     overflow: 'hidden',
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: theme.colors.surface2,
   },
-  progressBar: { height: 4, borderRadius: 2 },
-  /** The bar's and the number's width together, plus the gap between them. */
-  progressPlace: { width: 120 + 12 + 36 },
-  percent: {
-    width: 36,
-    textAlign: 'right',
-    color: theme.colors.textMuted,
-    fontSize: 11,
-    fontVariant: ['tabular-nums'],
-  },
+  progressFill: { height: 3, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
 }))

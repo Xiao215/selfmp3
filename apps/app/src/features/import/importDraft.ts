@@ -1,25 +1,23 @@
 import { useSyncExternalStore } from 'react'
 import type { Review } from '@selfmp3/client'
+import { renameSong, toggleLeftOut, type Rename } from './review.model'
 
 /**
- * What the Import screen holds between a link being fetched and imported:
- * the links typed, the review, and how it is to be tagged and filed.
+ * What Import holds between a link being looked up and imported: the links
+ * typed, the review, and the tags it will arrive with.
  *
- * Kept outside the screen, because the screen does not stay: a look at the
- * library from the sidebar unmounts it, and a forty-track review chosen and
- * corrected by hand was gone on the way back. One draft, for the app's life;
- * a draft made against one server is not shown for another, since tag and
- * playlist ids are that server's.
+ * Kept outside the screens, because they do not stay: the review is a page of
+ * its own (`/import/review`), a look at the library from the sidebar unmounts
+ * either, and a forty-track review thinned and corrected by hand was gone on
+ * the way back. One draft, for the app's life; a draft made against one server
+ * is not shown for another, since tag ids are that server's.
  */
 interface ImportDraft {
-  /** Whose ids the draft's tags and playlists are: a server's address, or this device's own. */
+  /** Whose ids the draft's tags are: a server's address, or this device's own. */
   readonly source: string
   readonly links: string
   readonly review: Review | null
   readonly tagIds: ReadonlySet<number>
-  /** `0` for "don't add to a playlist". */
-  readonly playlistId: number
-  readonly createPlaylist: boolean
 }
 
 type DraftChanges = Partial<Omit<ImportDraft, 'source'>>
@@ -28,8 +26,6 @@ const EMPTY: Omit<ImportDraft, 'source'> = {
   links: '',
   review: null,
   tagIds: new Set<number>(),
-  playlistId: 0,
-  createPlaylist: false,
 }
 
 let draft: ImportDraft = { source: '', ...EMPTY }
@@ -51,6 +47,18 @@ function subscribe(listener: () => void): () => void {
   return () => {
     listeners.delete(listener)
   }
+}
+
+/** Leave one song of the review out, or bring it back. Nothing, with no review. */
+export function leaveOutIn(source: string, index: number): void {
+  const { review } = draftFor(source)
+  if (review) patchDraft(source, { review: toggleLeftOut(review, index) })
+}
+
+/** Rename one song of the review: its title, its artist, or both. */
+export function renameIn(source: string, index: number, rename: Rename): void {
+  const { review } = draftFor(source)
+  if (review) patchDraft(source, { review: renameSong(review, index, rename) })
 }
 
 /** The draft for one source, and a way to change part of it. */

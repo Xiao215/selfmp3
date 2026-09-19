@@ -26,7 +26,7 @@ jest.mock('@selfmp3/client', () => ({
 }))
 
 /*
- * The tag chooser and the playlist select each open a sheet, and a sheet reads
+ * The tag chooser opens a sheet, and a sheet reads
  * the insets a device would give it. Nothing here is about insets, so it is
  * handed a phone's frame and left alone.
  */
@@ -61,7 +61,7 @@ const submit = async (): Promise<void> => {
  *
  * The point of this form is that it is never a dead end, so what is worth
  * pinning down is that it asks for nothing but the link, and that what it sends
- * carries the tags and the playlist the import screen would have.
+ * carries the tags the import screen would have, and never a playlist.
  */
 describe('QueueViaBucket', () => {
   beforeEach(() => {
@@ -75,8 +75,10 @@ describe('QueueViaBucket', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
-  it('sends the link, trimmed, with no tag and no playlist chosen', async () => {
+  it('sends the link, trimmed, with no tag chosen and never a playlist', async () => {
     await draw()
+    // The library has a playlist, and still none is offered.
+    expect(screen.queryByLabelText('Add to playlist')).toBeNull()
     await type('  https://youtu.be/ZRtdQ81jPUQ  ')
     await submit()
 

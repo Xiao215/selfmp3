@@ -7,11 +7,7 @@ import { useAccent } from '../../ui/accent'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { CloudUpload } from '../../ui/components/Icons'
-import { Select } from '../../ui/components/Select'
 import { TagChooser } from '../../ui/components/TagChooser'
-
-/** "Don't add to a playlist": the playlist select holds numbers, and no playlist is 0. */
-const NO_PLAYLIST = 0
 
 /**
  * Adding a link without the server.
@@ -22,10 +18,10 @@ const NO_PLAYLIST = 0
  * device is not usually beside its server, and "come back when you are" is not
  * an answer to "I have found a song".
  *
- * So the link is written to the bucket instead, with the tags and the playlist
- * that would have gone with it, and the server picks it up the next time it is
- * awake (SYNC.md, rule 6: work a device cannot do waits in the bucket until one
- * that can takes it). It arrives here with the sync after that, and until then
+ * So the link is written to the bucket instead, with the tags that would have
+ * gone with it (an import only ever tags; it never offers a playlist), and the
+ * server picks it up the next time it is awake (SYNC.md, rule 6: work a device
+ * cannot do waits in the bucket until one that can takes it). It arrives here with the sync after that, and until then
  * it is a row in the library's pending imports.
  *
  * What is lost is the looking, not the importing: nothing here can say what a
@@ -39,11 +35,9 @@ export function QueueViaBucket(): ReactNode {
 
   const [url, setUrl] = useState('')
   const [tagIds, setTagIds] = useState<ReadonlySet<number>>(new Set())
-  const [playlistId, setPlaylistId] = useState(NO_PLAYLIST)
   const [added, setAdded] = useState<string | null>(null)
 
   const tags = library?.tags ?? []
-  const manualPlaylists = (library?.playlists ?? []).filter(list => list.kind === 'manual')
   const ready = url.trim().length > 0 && !queue.isPending
 
   const submit = (): void => {
@@ -52,14 +46,13 @@ export function QueueViaBucket(): ReactNode {
       {
         url: url.trim(),
         tagIds: [...tagIds],
-        playlistId: playlistId === NO_PLAYLIST ? null : playlistId,
+        playlistId: null,
       },
       {
         onSuccess: () => {
           setAdded(url.trim())
           setUrl('')
           setTagIds(new Set())
-          setPlaylistId(NO_PLAYLIST)
         },
       },
     )
@@ -95,20 +88,6 @@ export function QueueViaBucket(): ReactNode {
       {tags.length > 0 ? (
         <View style={styles.field}>
           <TagChooser tags={tags} selected={tagIds} onChange={setTagIds} />
-        </View>
-      ) : null}
-
-      {manualPlaylists.length > 0 ? (
-        <View style={styles.field}>
-          <Select<number>
-            value={playlistId}
-            onChange={setPlaylistId}
-            options={[
-              { value: NO_PLAYLIST, label: 'Don’t add to a playlist' },
-              ...manualPlaylists.map(list => ({ value: list.id, label: list.name })),
-            ]}
-            label="Add to playlist"
-          />
         </View>
       ) : null}
 

@@ -4,7 +4,7 @@ Liked Music (`list=LM`) and your own private playlists only resolve when YouTube
 signed-in session. yt-dlp can borrow the login from a browser on the server
 (`--cookies-from-browser`) or read a Netscape-format `cookies.txt`. self.mp3 wires that up
 as settings and applies it to **every probe and download**, so once configured, private
-links just work everywhere — the import box, the share endpoint, and the panel below.
+links just work everywhere — the import box, the share endpoint and the extension.
 
 ## Settings (Settings → Importing)
 
@@ -30,22 +30,21 @@ Changes apply to the next yt-dlp call — no restart.
 - **cookies.txt**: export with a "Get cookies.txt LOCALLY"-style extension while logged in
   to music.youtube.com, save it somewhere the server can read, and paste the path.
 
-## The Import page panel
+## What to paste
 
-*Import → Import my YouTube Music library*:
+The Import page's one field takes all of these (docs/ui-mock `P29`, `C13`); **Look it up**
+opens the review list, where every song is coming in unless it is left out:
 
-- A status line saying whether cookies are configured and from where, with a link to
-  Settings and a **Test** button. Test probes `https://music.youtube.com/playlist?list=LM`
-  and reports "Signed in. Liked Music has N tracks" or the reason it failed.
-- **Liked Music** — one tap pushes `list=LM` through the normal probe → review → enqueue
-  flow, so you still see and untick tracks before anything downloads.
-- **A playlist of yours** — paste one or more YouTube Music playlist links.
-- **An artist** — paste their page, `music.youtube.com/@YOASOBI_Official` or the same
-  channel on youtube.com (`/@handle` or `/channel/UC…`). You get their **Top songs → See
-  all** list from YouTube Music (71 songs for YOASOBI), named after the artist.
-- On the review screen, tick **Also create playlist "<name>"** to get a manual playlist
-  with the same name here. Importing the same playlist again reuses it rather than making
-  "Liked Music (2)".
+- **Liked Music** — `https://music.youtube.com/playlist?list=LM`, with cookies configured in
+  Settings (the section above).
+- **A playlist of yours** — one or more YouTube Music playlist links.
+- **An artist** — their page, `music.youtube.com/@YOASOBI_Official` or the same channel on
+  youtube.com (`/@handle` or `/channel/UC…`). You get their **Top songs → See all** list
+  from YouTube Music (71 songs for YOASOBI), named after the artist.
+
+Importing only ever tags: the review offers "Tag them", never a playlist
+(docs/UI-MIGRATION.md, Phase 7). A playlist of the imported songs is one step away on the
+Playlists page, from their tag.
 
 ## Artist links
 
@@ -57,8 +56,8 @@ goes to yt-dlp as it is (`apps/server/src/services/youtubeMusicArtist.ts`):
    asked as a music.youtube.com link — the only form it resolves.
 2. The channel's YouTube Music page is fetched (`browse`). Its songs are the page's one
    list (`musicShelfRenderer`); its "See all" is a playlist, `VL` + the playlist id.
-3. That playlist goes through yt-dlp like any other, so the review screen, duplicates and
-   "Also create playlist" all work as usual. An artist with too few songs for a See all
+3. That playlist goes through yt-dlp like any other, so the review list and duplicates work
+   as usual. An artist with too few songs for a See all
    gets the rows on the page itself, without lengths until they download.
 
 YouTube calls almost every channel an artist, so the test is the songs list, not the page

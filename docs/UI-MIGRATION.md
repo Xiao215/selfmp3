@@ -1,6 +1,6 @@
 # Moving the app to the new interface
 
-**Status: a plan. Open questions answered 2026-09-18; Phases 1 and 2 under way.** Written 2026-09-18, against the app as it stands on
+**Status: built through Phase 11 except the widget, 2026-09-19, on branches not yet merged.** Written 2026-09-18, against the app as it stands on
 `main` that day. The target is the mock in [`docs/ui-mock/`](ui-mock/README.md); screen
 numbers like `P04` and `C11` in this document are files in `docs/ui-mock/boards/`.
 
@@ -599,7 +599,9 @@ Answered by Xiao on 2026-09-18.
 
 ## Progress
 
-**Phases 1 to 5** (`ui/phase-1` … `ui/phase-5`), each on top of the last, 2026-09-18. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
+**Phases 1 to 11** on `ui/phase-1` … `ui/phase-11`, each on top of the last (the order is
+1–8, 10, 9, 11), 2026-09-18 and 19. The widget (Phase 11's second half) is not started: it
+needs Xiao's yes. Not merged to `main`. Gates: `npm run check` green; `verify:flows` green except selection's
 select-all on both projects, which fails on the lane database for data reasons (two songs
 whose files are missing: select-all leaves them out, the API count does not). Maestro was not
 run: no simulator was free with a Metro for this worktree. The dev client has not been
@@ -627,6 +629,18 @@ Deliberate differences, kept in the commit messages too:
   selects. The Playlists page keeps the New tile and Forgotten gems, which `P16` does not draw
   but earlier decisions kept. On a phone nothing starts selecting inside a playlist (holding a
   row moves it). A new playlist you fill yourself is made when its first songs are picked.
+- Phase 6: Now Playing's phone foot has a ⋯ as well (Devices, Practice, Download), which `P21`
+  has no other place for; the player bar keeps Like, Tags and Sleep beside what this plan
+  lists. The swipe in Up next is decided by distance, and removes on a timer, because a
+  browser does not always report the end of a gesture-driven slide.
+- Phase 7: review is a route, `/import/review`; "N of M in" counts only what is coming in.
+- Phase 8: a development build connects by address from Welcome (the onboarding page is
+  gone); Google returns to `/welcome`. The stats are rolling windows, so pages say "Last 30
+  days" and leave out comparisons with the last period, which the API does not give. Saving
+  the month as an image still draws the share port's own card, in the chosen look's colours.
+- Phase 9: no shared elements; Popover, ToastHost, the equaliser and the stage's Stage/Focus
+  move still use Animated directly (reasons in the files), so they ignore Reduce Motion.
+- Phase 10: the extension's theme is generated from the tokens and git-ignored.
 - Play-and-tag on a phone raises the tag picker as a sheet whose search field takes focus, so
   the keyboard comes up for every song; on the computer, Stop while the picker is open closes
   the picker first, which counts as a close. Both are small and noted for Phase 6.

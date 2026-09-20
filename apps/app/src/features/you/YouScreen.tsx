@@ -4,23 +4,17 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import {
-  fonts,
-  radius,
-  tagColors,
-  useCloudStatus,
-  useLibrary,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { fonts, radius, useCloudStatus, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { BackRow } from '../../ui/components/BackRow'
 import { Cover } from '../../ui/components/Cover'
-import { ChevronRight, Download, Settings, Sparkles, User } from '../../ui/components/Icons'
+import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { Avatar } from '../../ui/components/Avatar'
+import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
 import { card, label, serif } from '../../ui/surfaces'
 import { devicePlace } from '../settings/settings.model'
@@ -125,13 +119,15 @@ function YouPage({
   )
 }
 
+/** How big the round mark is on the page's head. */
+const AVATAR = 64
+
 /** The avatar, the name, and one line of what this device has. */
 function Person({ accountName }: { accountName: string | null }): ReactNode {
-  const accent = useAccent()
-  const avatar = tagColors(accent.hue)
+  const account = useAccount()
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const { name, initial } = youName(accountName)
+  const { name } = youName(accountName)
   const line = youLine({
     songs: library.data?.songs.length,
     tags: library.data?.tags.length,
@@ -143,13 +139,7 @@ function Person({ accountName }: { accountName: string | null }): ReactNode {
 
   return (
     <View style={styles.person}>
-      <View style={[styles.avatar, { backgroundColor: avatar.tile }]}>
-        {initial ? (
-          <Text style={[styles.initial, { color: avatar.tileInk }]}>{initial}</Text>
-        ) : (
-          <User size={28} color={avatar.tileInk} />
-        )}
-      </View>
+      <Avatar account={account} size={AVATAR} />
       <View style={styles.personWords}>
         <Text style={styles.name} accessibilityRole="header" numberOfLines={1}>
           {name}
@@ -292,13 +282,6 @@ const styles = StyleSheet.create(theme => ({
   contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
   contentNarrow: { paddingTop: 16, paddingHorizontal: 20 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   // The initial is the serif, like every name on a page (`S2`); its ink is the tile's.
   initial: { fontFamily: fonts.serif, fontSize: 30 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },

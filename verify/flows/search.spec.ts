@@ -20,10 +20,12 @@ test.describe('search', () => {
     test.skip(info.project.name !== 'phone', 'a computer opens the palette instead')
   })
 
-  test('the circle opens it on All, with your tags and what you played', async ({ page }) => {
+  test('Home’s field opens it on All, with your tags and what you played', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId('tab-search').click()
+    // The tab bar has no search circle: Home and Library carry the way in.
+    await expect(page.getByTestId('tab-search')).toHaveCount(0)
+    await page.getByTestId('home-search').click()
     await expect(page).toHaveURL(/\/search\?scope=all/)
     await expect(page.getByTestId('search-field')).toBeFocused()
     await expect(page.getByTestId('search-scope-all').getByRole('button')).toHaveAttribute(

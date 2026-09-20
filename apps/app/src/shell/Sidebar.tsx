@@ -41,13 +41,12 @@ import {
   Music,
   Plus,
   Search,
-  Settings,
   Tag as TagIcon,
-  User,
 } from '../ui/components/Icons'
-import { useAccent } from '../ui/accent'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
+import { Avatar } from '../ui/components/Avatar'
+import { useAccount } from '../features/you/useAccount'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
@@ -164,7 +163,6 @@ export function Sidebar(): ReactNode {
       <Playlists />
       <Tags />
       <Foot />
-      <SettingsRow />
     </View>
   )
 }
@@ -547,8 +545,7 @@ function Foot(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const pathname = usePathname()
-  const accent = useAccent()
-  const avatar = tagColors(accent.hue)
+  const account = useAccount()
   const library = useLibrary()
   const { state } = useDownloads()
   const { fromCloud } = useConnection()
@@ -584,10 +581,9 @@ function Foot(): ReactNode {
         testID="sidebar-status"
         {...tip('You, your connection and offline songs')}
       >
-        <View style={[styles.avatar, { backgroundColor: avatar.tile }]}>
-          <User size={15} color={avatar.tileInk} />
+        <Avatar account={account} size={AVATAR}>
           <View style={[styles.statusDot, { backgroundColor: dot }]} />
-        </View>
+        </Avatar>
         <View style={styles.statusText}>
           <Text style={styles.footLabel} numberOfLines={1}>
             {label}
@@ -603,33 +599,8 @@ function Foot(): ReactNode {
   )
 }
 
-/** Settings, last in the rail (`C03`). */
-function SettingsRow(): ReactNode {
-  const router = useRouter()
-  const pathname = usePathname()
-  const active = pathname === '/settings'
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.item,
-        active && styles.itemOn,
-        pressed && !active && styles.rowPressed,
-      ]}
-      onPress={() => {
-        if (!active) router.navigate('/settings')
-      }}
-      accessibilityRole="tab"
-      accessibilityLabel="Settings"
-      accessibilityState={{ selected: active }}
-      testID="nav-settings"
-    >
-      <Settings size={18} tone={active ? 'textPrimary' : 'textMuted'} />
-      <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-        Settings
-      </Text>
-    </Pressable>
-  )
-}
+/** The round mark on the rail's own row. */
+const AVATAR = 30
 
 const styles = StyleSheet.create(theme => ({
   titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
@@ -829,13 +800,6 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 12,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // Whether the library can be reached, as a dot on the avatar's shoulder.
   statusDot: {

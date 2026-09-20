@@ -111,6 +111,17 @@ const NOW_PLAYING_OPTIONS = {
   animationDuration: 380,
 } as const
 
+/**
+ * At desktop width the page covers the library and not the player bar
+ * (docs/ui-mock `C09`), so it cannot be a modal: on an iPad a fullScreenModal
+ * covered the shell, and the stage was left with no transport at all.
+ */
+const NOW_PLAYING_WIDE = {
+  presentation: 'card',
+  animation: 'slide_from_bottom',
+  animationDuration: 380,
+} as const
+
 export default function RootLayout(): ReactNode {
   return (
     // Outermost of all: gesture handler installs the root it arbitrates
@@ -205,7 +216,7 @@ function Shell(): ReactNode {
   // On a phone Now Playing is a native modal over the tab bar already. Taking
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
-  const covered = pathname === '/now-playing' && modalCoversScreen
+  const covered = pathname === '/now-playing' && modalCoversScreen && !wide
   const chrome = (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
 
   // Kept, not rebuilt: a new function here is new options for every screen in
@@ -230,7 +241,7 @@ function Shell(): ReactNode {
   return (
     <Frame chrome={chrome} sidebar={!stage}>
       <Stack screenOptions={screenOptions}>
-        <Stack.Screen name="now-playing" options={NOW_PLAYING_OPTIONS} />
+        <Stack.Screen name="now-playing" options={wide ? NOW_PLAYING_WIDE : NOW_PLAYING_OPTIONS} />
       </Stack>
       {/*
        * Nothing shows until it is decided where the library comes from — the

@@ -1,22 +1,24 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { NAV_HEIGHT, radius } from '@selfmp3/client'
 import { glassBlur } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
-import { usePressScale } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
 import { activeTab, type TabHref } from './bottomNav.model'
-import { Home, ListMusic, Music, Search } from './Icons'
+import { Home, ListMusic, Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
 
 /**
  * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
- * with Home, Library and Playlists, and a separate search circle beside it.
+ * with Home, Library and Playlists, the three of them sharing its width.
+ *
+ * No search circle beside it: Home and Library each carry a search field of
+ * their own, and a third way in took the room the tabs needed (Xiao, 2026-09-20).
  *
  * Hand-rolled rather than expo-router's Tabs: the mini player floats directly
  * above it, and a custom bar is less code besides.
@@ -98,41 +100,18 @@ export function BottomNav(): ReactNode {
           })}
         </ScrollView>
       </View>
-      <SearchCircle bottom={bottom} open={pathname === '/search'} />
     </>
   )
 }
 
-/** Search, on its own beside the tabs: the Search page, starting on All. */
-function SearchCircle({ bottom, open }: { bottom: number; open: boolean }): ReactNode {
-  const router = useRouter()
-  const press = usePressScale()
-  return (
-    <Animated.View style={[styles.circleSlot, { bottom }, press.style]}>
-      <Pressable
-        {...press.handlers}
-        testID="tab-search"
-        onPress={() => {
-          if (!open) router.navigate({ pathname: '/search', params: { scope: 'all' } })
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Search"
-        style={styles.circle}
-      >
-        <Search size={20} tone="textPrimary" />
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-/** Room between the bar and the search circle, and from each edge. */
+/** Room from each edge of the display. */
 const EDGE = 16
 
 const styles = StyleSheet.create(theme => ({
   bar: {
     position: 'absolute',
     left: EDGE,
-    right: EDGE + NAV_HEIGHT + EDGE,
+    right: EDGE,
     height: NAV_HEIGHT,
     borderRadius: radius.pill,
     flexDirection: 'row',
@@ -171,20 +150,4 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
   },
   labelOn: { color: theme.colors.onPrimary },
-  circleSlot: {
-    position: 'absolute',
-    right: EDGE,
-    width: NAV_HEIGHT,
-    height: NAV_HEIGHT,
-  },
-  circle: {
-    width: NAV_HEIGHT,
-    height: NAV_HEIGHT,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.glass,
-    ...glassBlur,
-    ...floating(theme.colors),
-  },
 }))

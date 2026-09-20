@@ -10,15 +10,16 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
+import { Avatar } from '../../ui/components/Avatar'
+import { useAccount } from '../you/useAccount'
 import { usePlayer } from '../../player/PlayerProvider'
 import { setPaletteOpen } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Download, Plus, Search, User } from '../../ui/components/Icons'
+import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { card, label, sectionTitle, serif } from '../../ui/surfaces'
@@ -140,31 +141,21 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
-            {wide ? (
-              <SectionHead
-                title="Your tags"
-                action={
-                  library && library.tags.length > 0
-                    ? {
-                        label: `All ${library.tags.length}`,
-                        onPress: () => router.navigate('/tags'),
-                      }
-                    : null
-                }
-              />
-            ) : null}
+            {/* The count is the head's own action, as Recently played's Library
+                is, rather than a link under the tiles (Xiao, 2026-09-20). */}
+            <SectionHead
+              testID="home-all-tags"
+              title="Your tags"
+              action={
+                library && library.tags.length > 0
+                  ? {
+                      label: `All ${library.tags.length}`,
+                      onPress: () => router.navigate('/tags'),
+                    }
+                  : null
+              }
+            />
             <Tiles tiles={tiles} wide={wide} loading={library === undefined} />
-            {!wide && library && library.tags.length > 0 ? (
-              <Pressable
-                testID="home-all-tags"
-                onPress={() => router.navigate('/tags')}
-                accessibilityRole="link"
-                style={styles.allTags}
-              >
-                <Text style={styles.link}>All {library.tags.length} tags</Text>
-                <ChevronRight size={14} tone="accent" />
-              </Pressable>
-            ) : null}
           </View>
           {wide ? <ThisWeek stats={stats} beside={beside} /> : null}
         </View>
@@ -186,8 +177,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 /** The phone's header: the date, the + that opens Import, and the avatar that opens You. */
 function PhoneHeader({ now }: { now: Date }): ReactNode {
   const router = useRouter()
-  const accent = useAccent()
-  const avatar = tagColors(accent.hue)
+  const account = useAccount()
   return (
     <View style={styles.header}>
       <Text style={styles.date}>{dateLine(now)}</Text>
@@ -205,9 +195,8 @@ function PhoneHeader({ now }: { now: Date }): ReactNode {
           onPress={() => router.navigate('/you')}
           accessibilityRole="button"
           accessibilityLabel="You"
-          style={[styles.avatar, { backgroundColor: avatar.tile }]}
         >
-          <User size={18} color={avatar.tileInk} />
+          <Avatar account={account} size={AVATAR} />
         </Pressable>
       </View>
     </View>
@@ -239,9 +228,11 @@ function SearchField({ wide, onPress }: { wide: boolean; onPress: () => void }):
 function SectionHead({
   title,
   action,
+  testID,
 }: {
   title: string
   action: { label: string; onPress: () => void } | null
+  testID?: string
 }): ReactNode {
   return (
     <View style={styles.sectionHead}>
@@ -249,7 +240,7 @@ function SectionHead({
         {title}
       </Text>
       {action ? (
-        <Pressable onPress={action.onPress} accessibilityRole="link" hitSlop={8}>
+        <Pressable onPress={action.onPress} accessibilityRole="link" hitSlop={8} testID={testID}>
           <Text style={styles.linkSmall}>{action.label}</Text>
         </Pressable>
       ) : null}
@@ -463,7 +454,12 @@ function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean
           <View style={styles.weekNumbers}>
             <Figure value={time.big} unit={time.small} caption="listened" />
             <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
-            <Figure value={String(stats.streakDays)} unit="d" caption="streak" />
+            {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
+            <Figure
+              value={String(stats.streakDays)}
+              unit={stats.streakDays === 1 ? 'day' : 'days'}
+              caption="streak"
+            />
           </View>
           <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
             <Text style={styles.linkSmall}>Stats and report</Text>
@@ -514,6 +510,9 @@ function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
     </Pressable>
   )
 }
+
+/** The round mark that opens You, in the phone's header. */
+const AVATAR = 36
 
 /** Between two tiles, across and down. */
 const TILE_GAP = 10
@@ -579,13 +578,6 @@ const styles = StyleSheet.create(theme => ({
   },
   date: { ...label(theme.colors), fontSize: 12, letterSpacing: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   greetingBlock: { gap: 4, paddingTop: 14 },
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
@@ -622,7 +614,6 @@ const styles = StyleSheet.create(theme => ({
   sectionTitle: sectionTitle(theme.colors),
   link: { color: theme.colors.accent, fontSize: 14, fontWeight: '600' },
   linkSmall: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
-  allTags: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
   tileUnmeasured: { opacity: 0 },
   tile: {

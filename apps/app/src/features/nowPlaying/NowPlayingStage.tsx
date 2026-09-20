@@ -42,6 +42,7 @@ import {
   type PageMode,
   type StageTab,
 } from './nowPlaying.model'
+import { useLayout } from '../../shell/useLayout'
 import { motionMs } from '../../ui/motion'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
@@ -161,6 +162,7 @@ function Stage({
   const { theme } = useUnistyles()
   // Under an iPad's status bar, not behind it; a computer's window has none.
   const { top } = useSafeAreaInsets()
+  const { finePointer } = useLayout()
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()
@@ -184,7 +186,9 @@ function Stage({
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
-  const idle = useIdle(focus)
+  // Only where a pointer can say it is still there: on a touch screen nothing
+  // reports activity (`ports/activity`), so the bar went away and stayed away.
+  const idle = useIdle(focus && finePointer)
   // The player bar steps aside too, and comes back when anything moves.
   useEffect(() => {
     setStageIdle(idle)

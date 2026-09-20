@@ -28,17 +28,16 @@ crossing 820 keeps the page (`Shell.tsx` is one tree at every width;
 iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678, 507 and
 320 in a browser. What is left:
 
-- **Split View on the simulator, by hand, once.** Landscape was checked on the iPad Pro
-  11-inch on 2026-09-19 (Home as `T06`, a tag page, Now Playing) and is right; Split View
-  needs a second app dragged in, which nothing here can do. Note for whoever does it:
-  Maestro cannot turn an iPad and its taps land in the wrong place while one is in
-  landscape (relaunch the app afterwards), so drive it by hand or by deep link
-  (`xcrun simctl openurl <udid> selfmp3://tag/<name>`), and `simctl io … screenshot` keeps
-  the buffer portrait — rotate the file to read it. One known hazard: React Native's
-  `Dimensions` change event has failed to fire on the first entry into Split View
-  (facebook/react-native #28935; its state under Fabric is unconfirmed). If the simulator
-  shows it, `useLayout` takes its width from an `onLayout` on the root view as well, and
-  the larger of the two wins.
+- **Split View on the simulator, by hand, once more.** Landscape was checked on the iPad
+  Pro 11-inch on 2026-09-19 (Home as `T06`, a tag page, Now Playing). Split View on
+  2026-09-20 showed the hazard below for real — at about 600 points the app went on
+  drawing the sidebar and the stage — so `useLayout` now prefers the root view's measured
+  width (`shell/rootWidth.ts`); that wants confirming in Split View itself, which nothing
+  here can enter. Notes for whoever does it: Maestro cannot turn an iPad and its taps land
+  in the wrong place while one is turned (relaunch the app afterwards), so drive it by hand
+  or by deep link (`xcrun simctl openurl <udid> selfmp3://tag/<name>` — which also pulls
+  the app back to full screen), and `simctl io … screenshot` keeps the buffer portrait, so
+  rotate the file to read it.
 - **Trackpad hover.** `Pressable` on iPadOS reports `onHoverIn`. `finePointer` stays false
   for now, so controls stay finger-sized and always visible, the right default for a tablet.
 - **Hardware keyboard shortcuts.** Deferred by Xiao on 2026-09-14. React Native core

@@ -31,6 +31,7 @@ import { stackAnimation } from '../src/shell/pageStep'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
+import { setRootWidth } from '../src/shell/rootWidth'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
@@ -116,7 +117,11 @@ export default function RootLayout(): ReactNode {
     // gestures under, and a handler mounted outside one never fires. The one
     // gesture in the app is holding a playlist's row to move it
     // (`ui/components/HoldToReorder`), and it is the page furthest from here.
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView
+      style={styles.root}
+      // The width every screen lays out by, measured here (`shell/rootWidth`).
+      onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
+    >
       <SafeAreaProvider>
         <ThemedStatusBar />
         {/* Outermost of the app's own providers: everything below draws with it. */}

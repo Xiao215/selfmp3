@@ -2,6 +2,7 @@ import { useWindowDimensions } from 'react-native'
 import { BREAKPOINT } from '@selfmp3/client'
 
 import { finePointer } from '../ports/pointer'
+import { useRootWidth } from './rootWidth'
 
 /**
  * Which layout the app is wearing, and the width it was decided from.
@@ -13,8 +14,8 @@ import { finePointer } from '../ports/pointer'
  * desktop version.
  *
  * It is a width and not a platform on purpose. A phone in landscape, an iPad,
- * and a browser window dragged narrow all get the layout that fits the room
- * they actually have.
+ * an iPad given half the screen in Split View, and a browser window dragged
+ * narrow all get the layout that fits the room they actually have.
  */
 interface Layout {
   /** At or above the 820-point breakpoint: sidebar, player bar, popovers. */
@@ -37,7 +38,11 @@ interface Layout {
 }
 
 export function useLayout(): Layout {
-  const { width } = useWindowDimensions()
+  const window = useWindowDimensions()
+  // The app's own root, where it has been measured: an iPad in Split View is
+  // given half the screen, and the window it is told about can still be the
+  // whole of it (`rootWidth.ts`).
+  const width = useRootWidth() ?? window.width
   const wide = width >= BREAKPOINT
   return { wide, compact: !wide, dense: wide && finePointer, finePointer, width }
 }

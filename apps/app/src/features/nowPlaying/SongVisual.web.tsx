@@ -38,6 +38,8 @@ export interface SongVisualProps {
   sampler: MotionSampler
   /** Round the corners, for a visual in a box rather than one filling the screen. */
   rounded?: boolean
+  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
+  cover?: string | null
 }
 
 /**
@@ -51,15 +53,22 @@ export interface SongVisualProps {
  * per style; the browser pauses it with the tab. Reduce Motion draws a single
  * still frame, again only when the song, the style or the size changes.
  */
-export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualProps): ReactNode {
+export function SongVisual({
+  song,
+  kind,
+  sampler,
+  rounded = false,
+  cover: coverUri = null,
+}: SongVisualProps): ReactNode {
   const player = usePlayer()
   const reduced = useReducedMotion()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { colors, tuning } = useVisualLook(song)
+  const cover = useCoverImage(coverUri)
 
-  const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id })
+  const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id, cover })
   useEffect(() => {
-    live.current = { player, colors, tuning, reduced, sampler, songId: song.id }
+    live.current = { player, colors, tuning, reduced, sampler, songId: song.id, cover }
   })
 
   useEffect(() => {
@@ -108,7 +117,7 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
           ...(s as { trace?: object }).trace,
         })
       }
-      draw(kind, ctx, width, height, c, tu, motion)
+      draw(kind, ctx, width, height, c, tu, motion, live.current.cover.current)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
@@ -130,6 +139,31 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
   )
 }
 
+/**
+ * The song's cover as an image a canvas can draw, or null until it is there.
+ * Asked for with CORS, because a canvas that has drawn an image from another
+ * address without it cannot be read back (saving the month as an image).
+ */
+function useCoverImage(uri: string | null): { current: HTMLImageElement | null } {
+  const held = useRef<HTMLImageElement | null>(null)
+  useEffect(() => {
+    held.current = null
+    if (!uri) return undefined
+    const image = new window.Image()
+    image.crossOrigin = 'anonymous'
+    image.src = uri
+    const ready = (): void => {
+      held.current = image
+    }
+    image.addEventListener('load', ready)
+    return () => {
+      image.removeEventListener('load', ready)
+      held.current = null
+    }
+  }, [uri])
+  return held
+}
+
 type Ctx = CanvasRenderingContext2D
 
 type Drawing = (
@@ -139,6 +173,8 @@ type Drawing = (
   c: VisualColors,
   tu: MotionTuning,
   m: MotionState,
+  /** The song's cover, once it has loaded: Ripples' disc is the cover itself. */
+  cover: HTMLImageElement | null,
 ) => void
 
 function draw(
@@ -149,8 +185,9 @@ function draw(
   c: VisualColors,
   tu: MotionTuning,
   m: MotionState,
+  cover: HTMLImageElement | null,
 ): void {
-  DRAWINGS[kind](ctx, w, h, c, tu, m)
+  DRAWINGS[kind](ctx, w, h, c, tu, m, cover)
 }
 
 const DRAWINGS: Record<VisualKind, Drawing> = {
@@ -213,8 +250,8 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
     ctx.fillRect(0, h * 0.6, w, h * 0.4)
   },
 
-  /* A disc in the cover's colours that kicks on each hit and sends a ring out from behind it, as strong as the hit. */
-  ripples(ctx, w, h, c, tu, m) {
+  /* The cover as a disc that kicks on each hit and sends a ring out from behind it, as strong as the hit. */
+  ripples(ctx, w, h, c, tu, m, cover) {
     const [middle, edge] = c.ground
     const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
     ground.addColorStop(0, rgbCss(lighten(middle, m.flash * 0.05)))
@@ -264,6 +301,28 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
     ctx.fillStyle = fill
     ctx.fill()
     ctx.restore()
+
+    // The cover itself inside that circle (`P24`); the colours above stand in
+    // until it has loaded, and for a song that has no cover.
+    if (cover?.complete && cover.naturalWidth > 0) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.clip()
+      const side = Math.min(cover.naturalWidth, cover.naturalHeight)
+      ctx.drawImage(
+        cover,
+        (cover.naturalWidth - side) / 2,
+        (cover.naturalHeight - side) / 2,
+        side,
+        side,
+        cx - r,
+        cy - r,
+        r * 2,
+        r * 2,
+      )
+      ctx.restore()
+    }
   },
 }
 

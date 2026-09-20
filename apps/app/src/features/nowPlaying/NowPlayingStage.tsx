@@ -324,7 +324,7 @@ function Stage({
         <>
           {/* No words: the visual is the window, under the cover, the title and the head. */}
           <View pointerEvents="none" style={[styles.fill, styles.visual]}>
-            <SongVisual song={song} kind={visual.kind} sampler={sampler} />
+            <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
           </View>
           {/* The window's foot darkens into the page, so the title reads over any look. */}
           <View pointerEvents="none" style={[styles.scrim, { height: box.size + 200 + BAR }]}>

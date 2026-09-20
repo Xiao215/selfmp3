@@ -296,7 +296,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
       {/* No words: the visual is the page, edge to edge behind the head and the controls. */}
       {showVisual ? (
         <View pointerEvents="none" style={styles.fill}>
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} />
+          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
         </View>
       ) : null}
 

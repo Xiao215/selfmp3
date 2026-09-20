@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, Image } from 'react-native'
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -54,6 +54,8 @@ export interface SongVisualProps {
   sampler: MotionSampler
   /** Round the corners, for a visual in a box rather than one filling the screen. */
   rounded?: boolean
+  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
+  cover?: string | null
 }
 
 /**
@@ -85,7 +87,13 @@ export interface SongVisualProps {
  * Nothing is written once a paused visual has settled. Reduce Motion writes
  * one still frame.
  */
-export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualProps): ReactNode {
+export function SongVisual({
+  song,
+  kind,
+  sampler,
+  rounded = false,
+  cover = null,
+}: SongVisualProps): ReactNode {
   const player = usePlayer()
   const reduced = useReducedMotion()
   const [size, setSize] = useState<Size | null>(null)
@@ -154,7 +162,13 @@ export function SongVisual({ song, kind, sampler, rounded = false }: SongVisualP
         kind === 'horizon' ? (
           <Horizon size={size} colors={colors} frame={frame} />
         ) : (
-          <Ripples size={size} colors={colors} frame={frame} ringWidths={ringWidths} />
+          <Ripples
+            size={size}
+            colors={colors}
+            frame={frame}
+            ringWidths={ringWidths}
+            cover={cover}
+          />
         )
       ) : null}
     </View>
@@ -432,7 +446,7 @@ function HillCap({
 }
 
 /*
- * Ripples (P24): a disc in the cover's colours that kicks on each hit and
+ * Ripples (P24): the cover as a disc that kicks on each hit and
  * sends a ring out from behind it, as strong as the hit; a halo that glows
  * with the level; the cover's colours washed faintly over the ground.
  */
@@ -441,7 +455,8 @@ function Ripples({
   colors,
   frame,
   ringWidths,
-}: StyleProps & { ringWidths: Frame }): ReactNode {
+  cover,
+}: StyleProps & { ringWidths: Frame; cover: string | null }): ReactNode {
   const disc = rippleDisc(size.width, size.height)
   const halo = disc * 1.9
   const [middle, edge] = colors.ground
@@ -494,7 +509,9 @@ function Ripples({
           />
         ))}
         <Animated.View style={[{ width: disc, height: disc }, discStyle]}>
-          <Svg width="100%" height="100%">
+          {/* The cover itself, cut to a circle (`P24`); its colours stand in
+              for a song that has no cover. */}
+          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
               <RadialGradient id="ripples-disc" cx="42%" cy="38%" r="70%">
                 <Stop offset="0" stopColor={rgbCss(colors.inks[2])} stopOpacity={1} />
@@ -504,6 +521,13 @@ function Ripples({
             </Defs>
             <Circle cx="50%" cy="50%" r="50%" fill="url(#ripples-disc)" />
           </Svg>
+          {cover ? (
+            <Image
+              source={{ uri: cover }}
+              resizeMode="cover"
+              style={{ width: disc, height: disc, borderRadius: disc / 2 }}
+            />
+          ) : null}
         </Animated.View>
       </View>
     </>

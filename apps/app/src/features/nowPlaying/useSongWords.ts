@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
 import { ApiError, useLyrics, usePatchSong } from '@selfmp3/client'
+import { forgetNoWords, rememberNoWords, useNoWords } from './noWords'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
@@ -32,6 +33,8 @@ export function useSongWords(song: Song): {
   const lyrics = useLyrics(song.id)
   const patchSong = usePatchSong()
   const [looking, setLooking] = useState(false)
+  // Asked once a session, not on every play (`noWords.ts`).
+  const askedAndNone = useNoWords(song.id)
 
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
   const language: LyricsLanguage = useMemo(() => {
@@ -50,13 +53,21 @@ export function useSongWords(song: Song): {
     parsed,
     // Asking again by hand is a fresh question, and it shows as one: the flag
     // is on its way off and "Looking for lyrics…" belongs on screen meanwhile.
-    instrumental: song.instrumental && !looking,
+    instrumental: (song.instrumental || askedAndNone) && !looking,
     romanizationOn,
     romanized,
     offline: error instanceof ApiError && error.isOffline,
   })
 
+  // A lookup that found nothing is remembered for the session, whether the
+  // library wrote it down (`instrumental`) or nobody has published any.
+  const none = words.status === 'missing' && !words.offline
+  useEffect(() => {
+    if (none) rememberNoWords(song.id)
+  }, [none, song.id])
+
   const lookAgain = (): void => {
+    forgetNoWords(song.id)
     setLooking(true)
     // A library that cannot take the change (a cloud one) still asks again.
     const cleared = song.instrumental

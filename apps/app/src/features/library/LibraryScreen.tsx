@@ -40,6 +40,7 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
+import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
@@ -81,6 +82,8 @@ export function LibraryScreen(): ReactNode {
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
+  // A mouse drags the tag strip along; a finger already flicks it.
+  const stripDrag = useDragScroll()
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
   const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
@@ -512,6 +515,7 @@ export function LibraryScreen(): ReactNode {
           contentContainerStyle={[styles.tagStrip, headWide && styles.tagStripWide]}
           keyboardShouldPersistTaps="handled"
           testID="library-tag-strip"
+          {...stripDrag}
         >
           <Chip
             testID="library-tag-all"

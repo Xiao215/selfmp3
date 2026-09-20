@@ -9,6 +9,7 @@ import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } fro
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
+import { useDragScroll } from '../../ports/dragScroll'
 import { usePlayer } from '../../player/PlayerProvider'
 import { setPaletteOpen } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
@@ -402,12 +403,14 @@ function Recents({ songs, wide }: { songs: readonly Song[]; wide: boolean }): Re
   const art = useArt()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const size = wide ? 132 : 92
+  const drag = useDragScroll()
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.recents}
       testID="home-recents"
+      {...drag}
     >
       {songs.map((song, index) => (
         <Pressable

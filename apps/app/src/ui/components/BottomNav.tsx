@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -54,34 +54,49 @@ export function BottomNav(): ReactNode {
   return (
     <>
       <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
-        {pill.highlight}
-        {TABS.map(tab => {
-          const active = tab.href === current
-          return (
-            <Pressable
-              key={tab.href}
-              onLayout={pill.measure(tab.href)}
-              // Its own fill only until the sliding pill has somewhere to be.
-              style={[styles.tab, active && !pill.placed && styles.tabOn]}
-              onPress={() => {
-                // A lit tab still goes to its own first page: Home from
-                // Settings, Playlists from a playlist, as a phone's tab bar does.
-                if (pathname !== tab.href) router.navigate(tab.href)
-              }}
-              testID={`tab-${tab.id}`}
-              accessibilityRole="tab"
-              accessibilityLabel={tab.label}
-              accessibilityState={{ selected: active }}
-              // react-native-web does not turn `accessibilityState` into aria-selected.
-              aria-selected={active}
-            >
-              <tab.Icon size={20} tone={active ? 'onPrimary' : 'textSecondary'} />
-              <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          )
-        })}
+        {/*
+          The tabs share the bar's width, so each one's width changes when the
+          bar's does and the pill is measured again (a position that moves
+          without a size that changes is not always reported). Narrower than
+          the three of them together — an iPad in Slide Over — the bar scrolls
+          sideways, as Home's recents do, rather than squeezing them to
+          nothing.
+        */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabs}
+          keyboardShouldPersistTaps="handled"
+        >
+          {pill.highlight}
+          {TABS.map(tab => {
+            const active = tab.href === current
+            return (
+              <Pressable
+                key={tab.href}
+                onLayout={pill.measure(tab.href)}
+                // Its own fill only until the sliding pill has somewhere to be.
+                style={[styles.tab, active && !pill.placed && styles.tabOn]}
+                onPress={() => {
+                  // A lit tab still goes to its own first page: Home from
+                  // Settings, Playlists from a playlist, as a phone's tab bar does.
+                  if (pathname !== tab.href) router.navigate(tab.href)
+                }}
+                testID={`tab-${tab.id}`}
+                accessibilityRole="tab"
+                accessibilityLabel={tab.label}
+                accessibilityState={{ selected: active }}
+                // react-native-web does not turn `accessibilityState` into aria-selected.
+                aria-selected={active}
+              >
+                <tab.Icon size={20} tone={active ? 'onPrimary' : 'textSecondary'} />
+                <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </ScrollView>
       </View>
       <SearchCircle bottom={bottom} open={pathname === '/search'} />
     </>
@@ -122,16 +137,26 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
+    overflow: 'hidden',
     backgroundColor: theme.colors.glass,
     ...glassBlur,
     ...floating(theme.colors),
   },
+  tabs: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 6,
+  },
   tab: {
     height: 48,
-    minWidth: 64,
-    paddingHorizontal: 12,
+    // A share of the bar each, and never narrower than a finger.
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 0,
+    minWidth: 72,
+    paddingHorizontal: 8,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

@@ -11,6 +11,13 @@ describe('what counts as a page change', () => {
     expect(pageKey('/search', false)).toBe('/search')
   })
 
+  it('is the page itself in a browser, whose stack moves nothing', () => {
+    // Profile over Home, and Settings over Profile, are page changes there.
+    expect(pageKey('/profile', false, false)).toBe('/profile')
+    expect(pageKey('/settings', false, false)).toBe('/settings')
+    expect(pageKey('/library', false, false)).toBe('/library')
+  })
+
   it('is the page itself on a computer', () => {
     expect(pageKey('/tag/rain', true)).toBe('/tag/rain')
     expect(pageKey('/stats/report', true)).toBe('/stats/report')
@@ -28,6 +35,12 @@ describe('the side a phone page steps in from', () => {
     expect(stepSide('/', '/library')).toBe(1)
     expect(stepSide('/playlists', '/library')).toBe(-1)
     expect(stepSide('/library', '/search')).toBe(1)
+  })
+
+  it('is the right for a page that is not a tab, as a push comes from there', () => {
+    expect(stepSide('/', '/profile')).toBe(1)
+    expect(stepSide('/profile', '/settings')).toBe(1)
+    expect(stepSide('/settings', '/')).toBe(1)
   })
 })
 

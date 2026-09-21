@@ -26,13 +26,13 @@ appId: com.selfmp3.app
     timeout: 60000
 
 # --- both settings off ---------------------------------------------------------
-# Settings is under You, which is the avatar on Home.
+# Settings is under Profile, which is the avatar on Home.
 - tapOn:
     id: 'tab-home'
 - tapOn:
     id: 'home-you'
 - tapOn:
-    id: 'you-settings'
+    id: 'profile-settings'
 - scrollUntilVisible:
     element:
       id: 'setting-stream'
@@ -74,7 +74,7 @@ appId: com.selfmp3.app
 - tapOn:
     id: 'home-you'
 - tapOn:
-    id: 'you-settings'
+    id: 'profile-settings'
 - scrollUntilVisible:
     element:
       id: 'setting-stream'

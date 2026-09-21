@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router'
 import { STATS_RANGE_LABELS } from '@selfmp3/shared'
 import { HIT_TARGET, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { BackToYou } from '../../ui/components/BackToYou'
+import { BackButton } from '../../ui/components/BackButton'
 import { ChevronRight } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
@@ -49,7 +49,7 @@ export function StatsFrame({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID={testID}
       >
-        <BackToYou />
+        <BackButton to="/profile" label="Profile" testID="stats-back" />
         <View style={styles.head}>
           <View style={styles.titles}>
             <Text style={styles.heading} accessibilityRole="header">

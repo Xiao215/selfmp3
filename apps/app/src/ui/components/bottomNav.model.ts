@@ -4,7 +4,7 @@
  *
  * A phone has three tabs — Home, Library, Playlists — and a search circle
  * beside them. Everything that is not a tab of its own is reached from Home:
- * the tags from its tiles (and a tag's or an artist's own page), You from its avatar and, through You, Stats and
+ * the tags from its tiles (and a tag's or an artist's own page), Profile from its avatar and, through it, Stats and
  * Settings; Import from its +. So those pages light Home: the bar says where
  * you are in the app, not only which page answered the address.
  */
@@ -12,7 +12,15 @@
 export type TabHref = '/' | '/library' | '/playlists'
 
 /** The pages reached from Home, and Home itself. */
-const HOME_PAGES = ['/tags', '/tag', '/artist', '/you', '/stats', '/settings', '/import'] as const
+const HOME_PAGES = [
+  '/tags',
+  '/tag',
+  '/artist',
+  '/profile',
+  '/stats',
+  '/settings',
+  '/import',
+] as const
 
 /** `/stats` and `/stats/report`, but not `/statsomething`. */
 function under(pathname: string, base: string): boolean {

@@ -22,6 +22,7 @@ import {
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
+import { BackButton } from '../../ui/components/BackButton'
 import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -304,20 +305,12 @@ export function ImportScreen({
         testID="import-screen"
       >
         <View style={styles.head}>
+          {/* On a phone Import is a page over Home or Profile, and the ‹ goes
+              back to it, drawn as every other way back is (`BackButton`). */}
+          <BackButton to="/profile" label="Profile" testID="import-back" />
           <Text style={styles.heading} accessibilityRole="header">
             Import
           </Text>
-          {/* On a phone Import is a page over Home or You, and Done goes back to it. */}
-          {wide ? null : (
-            <Pressable
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-              accessibilityRole="button"
-              hitSlop={12}
-              style={({ pressed }) => pressed && styles.pressed}
-            >
-              <Text style={styles.done}>Done</Text>
-            </Pressable>
-          )}
         </View>
 
         {wide ? (

@@ -22,7 +22,7 @@ import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
-import { BackToYou } from '../../ui/components/BackToYou'
+import { BackButton } from '../../ui/components/BackButton'
 import { Toggle } from '../../ui/components/Toggle'
 import { label, pageTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -298,7 +298,7 @@ export function SettingsScreen(): ReactNode {
         ]}
       >
         <View ref={headRef} style={styles.head}>
-          <BackToYou />
+          <BackButton to="/profile" label="Profile" testID="settings-back" />
           <Text style={styles.title} accessibilityRole="header">
             Settings
           </Text>

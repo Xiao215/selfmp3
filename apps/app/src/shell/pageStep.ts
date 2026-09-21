@@ -17,17 +17,29 @@ const PHONE_ORDER = ['/', '/library', '/playlists', '/search'] as const
 
 const OWN_ENTRANCE = ['/now-playing', '/welcome', '/first-sync']
 
-/** What a page change is counted by, or null for a page that does not count. */
-export function pageKey(pathname: string, wide: boolean): string | null {
+/**
+ * What a page change is counted by, or null for a page that does not count.
+ *
+ * On a phone it is the tab, because the stack moves a page pushed within one
+ * itself — unless it does not (`stackMoves`, false in a browser), and then
+ * every page is its own change or nothing would move at all: Profile opened
+ * from Home, and Settings from Profile, arrived instantly.
+ */
+export function pageKey(pathname: string, wide: boolean, stackMoves = true): string | null {
   if (OWN_ENTRANCE.includes(pathname)) return null
-  if (wide) return pathname
+  if (wide || !stackMoves) return pathname
   return activeTab(pathname) ?? (pathname === '/search' ? '/search' : null)
 }
 
-/** Which side the new page comes from on a phone: 1 from the right, -1 from the left. */
+/**
+ * Which side the new page comes from on a phone: 1 from the right, -1 from
+ * the left. Only the tabs have sides; a page pushed over one — Profile,
+ * Settings — comes from the right, the way a push does.
+ */
 export function stepSide(from: string, to: string): -1 | 1 {
   const was = PHONE_ORDER.indexOf(from as (typeof PHONE_ORDER)[number])
   const now = PHONE_ORDER.indexOf(to as (typeof PHONE_ORDER)[number])
+  if (was === -1 || now === -1) return 1
   return now < was ? -1 : 1
 }
 

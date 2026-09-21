@@ -13,7 +13,7 @@ describe('the tab bar', () => {
   it('lights Home on every page that is reached from Home', () => {
     for (const page of [
       '/tags',
-      '/you',
+      '/profile',
       '/settings',
       '/stats',
       '/stats/report',

@@ -33,7 +33,7 @@ export function BackRow({
   href,
   testID,
 }: {
-  /** The page it returns to, as that page names itself: "You", "Import". */
+  /** The page it returns to, as that page names itself: "Profile", "Import". */
   label: string
   href: string
   testID?: string

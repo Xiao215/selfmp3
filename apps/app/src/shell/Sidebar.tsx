@@ -46,7 +46,7 @@ import {
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { Avatar } from '../ui/components/Avatar'
-import { useAccount } from '../features/you/useAccount'
+import { useAccount } from '../features/profile/useAccount'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
@@ -538,7 +538,7 @@ function TagRow({
 /**
  * The foot: you (`C03`), with one line under that answers the glance down —
  * can this app reach its library, and how much of it is kept offline. It
- * opens You. Rescanning the folder lives in Settings and in ⌘K; a task needed
+ * opens Profile. Rescanning the folder lives in Settings and in ⌘K; a task needed
  * once in a while does not want a permanent place under the tags.
  */
 function Foot(): ReactNode {
@@ -572,14 +572,14 @@ function Foot(): ReactNode {
       <Pressable
         style={({ pressed }) => [
           styles.status,
-          pathname === '/you' && styles.itemOn,
+          pathname === '/profile' && styles.itemOn,
           pressed && { backgroundColor: theme.colors.surface2 },
         ]}
-        onPress={() => router.navigate('/you')}
+        onPress={() => router.navigate('/profile')}
         accessibilityRole="button"
-        accessibilityLabel={library.data ? `You. ${label}, ${detail}` : `You. ${label}`}
+        accessibilityLabel={library.data ? `Profile. ${label}, ${detail}` : `Profile. ${label}`}
         testID="sidebar-status"
-        {...tip('You, your connection and offline songs')}
+        {...tip('Profile, your connection and offline songs')}
       >
         <Avatar account={account} size={AVATAR}>
           <View style={[styles.statusDot, { backgroundColor: dot }]} />

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
 import { lightPalette, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
@@ -14,9 +14,10 @@ import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { useBackTo } from '../../ui/components/BackRow'
+import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Download, Play } from '../../ui/components/Icons'
+import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
@@ -251,7 +252,6 @@ function ReportFrame({
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const router = useRouter()
   const backTo = useBackTo()
   const picker = (
     <LookPicker
@@ -313,14 +313,7 @@ function ReportFrame({
       <SafeAreaView style={styles.fill} edges={['top']}>
         <ScrollView contentContainerStyle={styles.contentNarrow} testID="report-screen">
           <View style={styles.header}>
-            <IconButton
-              label="Back"
-              filled
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/stats'))}
-              testID="report-back"
-            >
-              <ChevronLeft size={22} color={theme.colors.textPrimary} />
-            </IconButton>
+            <BackButton to="/stats" label="Stats" testID="report-back" always />
             <View style={styles.headerEnd}>
               <Select
                 value={range}

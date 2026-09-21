@@ -15,7 +15,6 @@ import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import {
-  Check,
   Downloaded,
   Play,
   Plus,
@@ -304,8 +303,9 @@ export function LibraryScreen(): ReactNode {
             Library
           </Text>
           {/*
-            A phone's order and choosing, as two round buttons beside the title
-            (docs/ui-mock `P12`); a computer has them in its head row.
+            A phone's order, as a round button beside the title (docs/ui-mock
+            `P12`); a computer has it in its head row. No button for choosing:
+            holding a row starts it, everywhere (Xiao, 2026-09-20).
           */}
           {wide ? null : (
             <View style={styles.phoneTools}>
@@ -316,15 +316,6 @@ export function LibraryScreen(): ReactNode {
                 testID="library-sort-phone"
               >
                 <SortLines size={18} tone="textPrimary" />
-              </IconButton>
-              <IconButton
-                label="Select songs"
-                filled
-                active={selection.mode}
-                onPress={() => (selection.mode ? selection.clear() : selection.enter())}
-                testID="library-select-phone"
-              >
-                <Check size={18} tone="textPrimary" />
               </IconButton>
             </View>
           )}

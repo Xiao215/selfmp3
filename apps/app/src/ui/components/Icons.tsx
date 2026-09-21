@@ -411,7 +411,7 @@ export const Settings = ({ color: colorGiven, tone, ...rest }: IconProps): React
   )
 }
 
-/** A person in a circle: the You tab. */
+/** A person in a circle: Profile. */
 export const User = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

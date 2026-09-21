@@ -23,6 +23,7 @@ import { useLayout } from './useLayout'
 import { ease, timing } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
 import { pageKey, stepSide } from './pageStep'
+import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { PracticePanel } from '../features/practice/PracticePanel'
@@ -217,7 +218,7 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
  */
 function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): ReactNode {
   const pathname = usePathname()
-  const key = pageKey(pathname, wide)
+  const key = pageKey(pathname, wide, stackMoves)
   const [shown, setShown] = useState(key)
   const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1 })
   if (key !== null && key !== shown) {

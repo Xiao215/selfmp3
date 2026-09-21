@@ -11,7 +11,7 @@ import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
-import { useAccount } from '../you/useAccount'
+import { useAccount } from '../profile/useAccount'
 import { usePlayer } from '../../player/PlayerProvider'
 import { setPaletteOpen } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
@@ -22,11 +22,10 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
-import { card, label, sectionTitle, serif } from '../../ui/surfaces'
+import { card, sectionTitle, serif } from '../../ui/surfaces'
 import { tagLink } from '../tag/placeLinks'
 import { useStatsFor } from '../stats/statsSource'
 import {
-  dateLine,
   greeting,
   HOME_TILES,
   HOME_TILES_WIDE,
@@ -41,9 +40,10 @@ import {
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
  *
  * A greeting and one quiet line, one search field, the tags you play most as
- * tiles, and what you played last. On a phone the header carries the date, the
- * + that opens Import and the avatar that opens You; a computer has those in
- * its sidebar, and adds this week's numbers beside the tiles.
+ * tiles, and what you played last. On a phone the header carries the + that
+ * opens Import and the avatar that opens You; a computer has those in its
+ * sidebar, and adds this week's numbers beside the tiles. No date line: the
+ * greeting under it already says what time of day it is (Xiao, 2026-09-20).
  *
  * Stats come from the server, as they do on the Stats page: a cloud library has
  * a streak to show only while its server is within reach, and shows none
@@ -64,7 +64,7 @@ function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
   return <HomePage stats={stats} />
 }
 
-/** The clock, to the minute, for the greeting and the date line. */
+/** The clock, to the minute, for the greeting. */
 function useNow(): Date {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -107,7 +107,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           { paddingBottom: bottom + 24 },
         ]}
       >
-        {wide ? null : <PhoneHeader now={now} />}
+        {wide ? null : <PhoneHeader />}
 
         <View style={styles.greetingBlock}>
           <Text style={styles.greeting} accessibilityRole="header">
@@ -174,13 +174,12 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   )
 }
 
-/** The phone's header: the date, the + that opens Import, and the avatar that opens You. */
-function PhoneHeader({ now }: { now: Date }): ReactNode {
+/** The phone's header: the + that opens Import, and the avatar that opens Profile. */
+function PhoneHeader(): ReactNode {
   const router = useRouter()
   const account = useAccount()
   return (
     <View style={styles.header}>
-      <Text style={styles.date}>{dateLine(now)}</Text>
       <View style={styles.headerActions}>
         <IconButton
           testID="home-import"
@@ -192,9 +191,9 @@ function PhoneHeader({ now }: { now: Date }): ReactNode {
         </IconButton>
         <Pressable
           testID="home-you"
-          onPress={() => router.navigate('/you')}
+          onPress={() => router.navigate('/profile')}
           accessibilityRole="button"
-          accessibilityLabel="You"
+          accessibilityLabel="Profile"
         >
           <Avatar account={account} size={AVATAR} />
         </Pressable>
@@ -511,7 +510,7 @@ function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
   )
 }
 
-/** The round mark that opens You, in the phone's header. */
+/** The round mark that opens Profile, in the phone's header. */
 const AVATAR = 36
 
 /** Between two tiles, across and down. */
@@ -574,9 +573,8 @@ const styles = StyleSheet.create(theme => ({
     height: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
   },
-  date: { ...label(theme.colors), fontSize: 12, letterSpacing: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   greetingBlock: { gap: 4, paddingTop: 14 },
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },

@@ -11,7 +11,10 @@ jest.mock('expo-router', () => ({
     back: () => undefined,
     replace: () => undefined,
     setParams: () => undefined,
+    canGoBack: () => false,
   }),
+  // The head's way back asks the stack what is behind this page.
+  useNavigation: () => ({ getState: () => undefined }),
   useLocalSearchParams: () => ({}),
 }))
 

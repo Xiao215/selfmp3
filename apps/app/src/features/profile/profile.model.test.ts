@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 
-import { accountInitials, monthCard, monthCardSpoken, youLine, youName, youRows } from './you.model'
+import {
+  accountInitials,
+  monthCard,
+  monthCardSpoken,
+  profileLine,
+  profileName,
+  profileRows,
+} from './profile.model'
 
 const stats: Stats = {
   range: '30d',
@@ -27,38 +34,40 @@ const stats: Stats = {
   ],
 }
 
-describe('the You page', () => {
+describe('the Profile page', () => {
   it('lists Import, Report and Settings, and nothing else', () => {
-    const rows = youRows({ place: 'phone' })
+    const rows = profileRows({ place: 'phone' })
     expect(rows.map(row => [row.id, row.label, row.href])).toEqual([
       ['import', 'Import', '/import'],
       ['report', 'Report', '/stats/report'],
       ['settings', 'Settings', '/settings'],
     ])
     expect(rows[2]?.hint).toBe('Account, look, on this phone, devices')
-    expect(youRows({ place: 'computer' })[2]?.hint).toBe('Account, look, on this computer, devices')
+    expect(profileRows({ place: 'computer' })[2]?.hint).toBe(
+      'Account, look, on this computer, devices',
+    )
   })
 
-  it('uses the account’s first name when there is one, and "You" when not', () => {
-    expect(youName('Xiao Zhang')).toEqual({ name: 'Xiao', initial: 'X' })
-    expect(youName('  ')).toEqual({ name: 'You', initial: null })
-    expect(youName(null)).toEqual({ name: 'You', initial: null })
+  it('uses the account’s first name when there is one, and the page’s when not', () => {
+    expect(profileName('Xiao Zhang')).toEqual({ name: 'Xiao', initial: 'X' })
+    expect(profileName('  ')).toEqual({ name: 'Profile', initial: null })
+    expect(profileName(null)).toEqual({ name: 'Profile', initial: null })
   })
 
   it('says what the library holds, then whether this device is in step with it', () => {
     const now = new Date('2026-09-14T12:00:00Z')
     const base = { songs: 45, tags: 8, pending: false, error: false, fromCloud: false, now }
-    expect(youLine({ ...base, syncedAt: now.getTime() - 4 * 60_000 })).toBe(
+    expect(profileLine({ ...base, syncedAt: now.getTime() - 4 * 60_000 })).toBe(
       '45 songs · 8 tags · synced 4m ago',
     )
-    expect(youLine({ ...base, songs: 1, tags: 1, syncedAt: now.getTime() })).toBe(
+    expect(profileLine({ ...base, songs: 1, tags: 1, syncedAt: now.getTime() })).toBe(
       '1 song · 1 tag · synced just now',
     )
     expect(
-      youLine({ ...base, songs: undefined, tags: undefined, pending: true, syncedAt: 0 }),
+      profileLine({ ...base, songs: undefined, tags: undefined, pending: true, syncedAt: 0 }),
     ).toBe('connecting…')
     // A failed refetch keeps the cached library, so the error wins over the time.
-    expect(youLine({ ...base, error: true, fromCloud: true, syncedAt: now.getTime() })).toBe(
+    expect(profileLine({ ...base, error: true, fromCloud: true, syncedAt: now.getTime() })).toBe(
       '45 songs · 8 tags · can’t reach the cloud',
     )
   })

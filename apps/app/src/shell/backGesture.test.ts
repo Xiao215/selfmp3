@@ -37,7 +37,7 @@ describe('the swipe-back gesture', () => {
       'playlists/[id]',
       'import/index',
       'import/migrate',
-      'you',
+      'profile',
       'settings',
       'stats/index',
       'stats/report',

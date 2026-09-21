@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
 import { fonts, radius, useCloudStatus, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { BackRow } from '../../ui/components/BackRow'
+import { BackButton } from '../../ui/components/BackButton'
 import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -23,28 +23,28 @@ import {
   MONTH_CARD_TITLE,
   monthCard,
   monthCardSpoken,
-  youLine,
-  youName,
-  youRows,
+  profileLine,
+  profileName,
+  profileRows,
   type MonthCard,
-  type YouRow,
-  type YouRowId,
-} from './you.model'
+  type ProfileRow,
+  type ProfileRowId,
+} from './profile.model'
 
-const ICONS: Record<YouRowId, typeof Settings> = {
+const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
   report: Sparkles,
   settings: Settings,
 }
 
 /**
- * You (`P31`): the person and whether this device is in step, this month as one
+ * Profile (`P31`): the person and whether this device is in step, this month as one
  * card that opens Stats, then Import, Report and Settings (you.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
  * at the foot of its sidebar, and draws the same page at its own width.
  */
-export function YouScreen(): ReactNode {
+export function ProfileScreen(): ReactNode {
   const { fromCloud } = useConnection()
   return fromCloud ? <FromCloud /> : <FromServer />
 }
@@ -82,10 +82,10 @@ function WithStats({
   accountName: string | null
 }): ReactNode {
   const { data: stats, isLoading } = useStatsFor(via, '30d')
-  return <YouPage stats={stats} loading={isLoading} via={via} accountName={accountName} />
+  return <ProfilePage stats={stats} loading={isLoading} via={via} accountName={accountName} />
 }
 
-function YouPage({
+function ProfilePage({
   stats,
   loading,
   via,
@@ -97,15 +97,15 @@ function YouPage({
   accountName: string | null
 }): ReactNode {
   const { wide } = useLayout()
-  const rows = youRows({ place: devicePlace(deviceKind()) })
+  const rows = profileRows({ place: devicePlace(deviceKind()) })
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        testID="you-screen"
+        testID="profile-screen"
       >
-        {wide ? null : <BackRow label="Home" href="/" testID="you-back" />}
+        <BackButton to="/" label="Home" testID="profile-back" />
         <Person accountName={accountName} />
         <Month card={monthCard(stats)} loading={loading} via={via} />
         <View>
@@ -127,8 +127,8 @@ function Person({ accountName }: { accountName: string | null }): ReactNode {
   const account = useAccount()
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const { name } = youName(accountName)
-  const line = youLine({
+  const { name } = profileName(accountName)
+  const line = profileLine({
     songs: library.data?.songs.length,
     tags: library.data?.tags.length,
     syncedAt: library.dataUpdatedAt,
@@ -144,7 +144,7 @@ function Person({ accountName }: { accountName: string | null }): ReactNode {
         <Text style={styles.name} accessibilityRole="header" numberOfLines={1}>
           {name}
         </Text>
-        <Text style={styles.line} testID="you-sync">
+        <Text style={styles.line} testID="profile-sync">
           {line}
         </Text>
       </View>
@@ -172,7 +172,7 @@ function Month({
       onPress={() => router.push('/stats')}
       accessibilityRole="link"
       accessibilityLabel={monthCardSpoken(month)}
-      testID="you-stats"
+      testID="profile-stats"
       style={({ pressed }) => [styles.month, pressed && styles.monthPressed]}
     >
       <View style={styles.monthHead}>
@@ -247,7 +247,7 @@ function OnRepeat({
   )
 }
 
-function Row({ row }: { row: YouRow }): ReactNode {
+function Row({ row }: { row: ProfileRow }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const Icon = ICONS[row.id]
@@ -257,7 +257,7 @@ function Row({ row }: { row: YouRow }): ReactNode {
       onPress={() => router.push(row.href as never)}
       accessibilityRole="link"
       accessibilityLabel={`${row.label}, ${row.hint}`}
-      testID={`you-${row.id}`}
+      testID={`profile-${row.id}`}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.rowIcon}>

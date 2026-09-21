@@ -3,7 +3,7 @@ import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
 /**
- * The You page, without the screen (`P31`): who you are and whether this device
+ * The Profile page, without the screen (`P31`): who you are and whether this device
  * is in step, this month as one card that opens Stats, then three rows.
  *
  * On a phone You is behind the avatar on Home, and Stats lives under it (Open
@@ -11,10 +11,10 @@ import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/sta
  * sidebar, and keeps Stats as a sidebar row as well.
  */
 
-export type YouRowId = 'import' | 'report' | 'settings'
+export type ProfileRowId = 'import' | 'report' | 'settings'
 
-export interface YouRow {
-  readonly id: YouRowId
+export interface ProfileRow {
+  readonly id: ProfileRowId
   readonly label: string
   readonly href: string
   /** The quiet line under the label: what is behind the row. */
@@ -25,7 +25,7 @@ export interface YouRow {
  * Import, Report and Settings. Tags left this list when Home's tiles and
  * "All N tags" became the way to them; Stats left it for the card above.
  */
-export function youRows({ place }: { place: DevicePlace }): readonly YouRow[] {
+export function profileRows({ place }: { place: DevicePlace }): readonly ProfileRow[] {
   return [
     {
       id: 'import',
@@ -51,15 +51,16 @@ export function youRows({ place }: { place: DevicePlace }): readonly YouRow[] {
 /**
  * The name at the top. Not every kind of library knows one: a server signed in
  * to Google does, a device reading the bucket does not, and a server with no
- * cloud has nobody to ask. Without one the page is just "You", and the avatar
+ * cloud has nobody to ask. Without one the page is just "You", and the mark
  * shows the figure rather than a letter.
  */
-export function youName(accountName: string | null | undefined): {
+export function profileName(accountName: string | null | undefined): {
   name: string
   initial: string | null
 } {
   const name = accountName?.trim()
-  if (!name) return { name: 'You', initial: null }
+  // The page's own name when nobody is signed in: it is Profile, not "You".
+  if (!name) return { name: 'Profile', initial: null }
   // The first name, as the board has it; the whole name when it is one word.
   const first = name.split(/\s+/)[0] ?? name
   return { name: first, initial: Array.from(first)[0]?.toUpperCase() ?? null }
@@ -72,7 +73,7 @@ export function youName(accountName: string | null | undefined): {
  * While the library is first asked for it says so; when it cannot be reached
  * it says that, which is what the line is for.
  */
-export function youLine({
+export function profileLine({
   songs,
   tags,
   syncedAt,

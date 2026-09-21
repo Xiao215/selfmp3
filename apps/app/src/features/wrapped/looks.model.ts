@@ -85,7 +85,7 @@ export function statsRangeOf(range: WrappedRange): StatsRange {
 /**
  * What the period is called on the page. The windows are rolling — the month
  * is the last thirty days, not September — so a calendar month's name would be
- * wrong for most of it. "This month" is what the You page says of the same
+ * wrong for most of it. "This month" is what Profile says of the same
  * thirty days.
  */
 const PERIOD_TITLES: Record<WrappedRange, string> = {

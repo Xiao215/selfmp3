@@ -68,35 +68,37 @@ test.describe('navigation', () => {
     ).toBeVisible({ timeout: 30_000 })
   })
 
-  test('a phone reaches Stats and Settings from You, and comes back', async ({ page }, info) => {
+  test('a phone reaches Stats and Settings from Profile, and comes back', async ({
+    page,
+  }, info) => {
     test.skip(
       info.project.name !== 'phone',
-      'You is behind a phone’s avatar; a computer has the sidebar',
+      'Profile is behind a phone’s avatar; a computer has the sidebar',
     )
     await page.goto('/')
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
 
-    // You is the avatar in Home's header (`P31`): the person, this month as one
+    // Profile is the avatar in Home's header (`P31`): the person, this month as one
     // card that opens Stats, then Import, Report and Settings.
     await page.getByTestId('home-you').click()
-    await expect(page.getByTestId('you-screen')).toBeVisible()
-    await expect(page.getByTestId('you-import')).toBeVisible()
-    await expect(page.getByTestId('you-report')).toBeVisible()
+    await expect(page.getByTestId('profile-screen')).toBeVisible()
+    await expect(page.getByTestId('profile-import')).toBeVisible()
+    await expect(page.getByTestId('profile-report')).toBeVisible()
     // Tags is Home's, through its tiles and "All N tags"; not a row here.
-    await expect(page.getByTestId('you-tags')).toHaveCount(0)
+    await expect(page.getByTestId('profile-tags')).toHaveCount(0)
 
-    await page.getByTestId('you-stats').click()
+    await page.getByTestId('profile-stats').click()
     await expect(page.getByRole('heading', { name: 'Stats', exact: true })).toBeVisible({
       timeout: 30_000,
     })
-    await page.getByRole('button', { name: 'Back to You', exact: true }).click()
-    await expect(page.getByTestId('you-screen')).toBeVisible()
+    await page.getByRole('button', { name: 'Back to Profile', exact: true }).click()
+    await expect(page.getByTestId('profile-screen')).toBeVisible()
 
-    await page.getByTestId('you-settings').click()
+    await page.getByTestId('profile-settings').click()
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
-    // Settings is reached from Home, through You, so Home stays lit.
+    // Settings is reached from Home, through Profile, so Home stays lit.
     await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',

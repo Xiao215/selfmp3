@@ -25,7 +25,7 @@ export function swipeBackAllowed(routeName: string): boolean {
   if (GATES.includes(routeName)) return false
   const address = addressOf(routeName)
   // A tab's own page is the one its tab points at; every other page a tab
-  // lights — Settings under You, a playlist under Playlists — was pushed onto it.
+  // lights — Settings under Profile, a playlist under Playlists — was pushed onto it.
   return activeTab(address) !== address
 }
 

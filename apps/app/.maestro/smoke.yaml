@@ -31,7 +31,7 @@ appId: com.selfmp3.app
     timeout: 60000
 
 # The order is a sheet from the round button beside the title, and the list is
-# headed by it (docs/ui-mock `P12`); the ✓ beside it starts choosing.
+# headed by it (docs/ui-mock `P12`).
 - tapOn:
     id: 'library-sort-phone'
 - tapOn: 'Title'
@@ -48,12 +48,13 @@ appId: com.selfmp3.app
       id: 'library-order-label'
       text: 'Recently added'
     timeout: 5000
-- tapOn:
-    id: 'library-select-phone'
+# Choosing starts by holding a row, here as on every other list.
+- longPressOn:
+    id: 'song-row-1'
 - assertVisible:
     id: 'selection-done'
 - tapOn:
-    id: 'library-select-phone'
+    id: 'selection-done'
 - extendedWaitUntil:
     notVisible:
       id: 'selection-done'

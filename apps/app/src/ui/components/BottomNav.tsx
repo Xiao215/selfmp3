@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { NAV_HEIGHT, radius } from '@selfmp3/client'
-import { glassBlur } from '../../ports/glassBlur'
+import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
 import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
@@ -117,7 +117,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
-    backgroundColor: theme.colors.glass,
+    backgroundColor: glassFill(theme.colors),
     ...glassBlur,
     ...floating(theme.colors),
   },

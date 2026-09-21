@@ -10,6 +10,7 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { glassBlur } from '../../ports/glassBlur'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
@@ -17,7 +18,6 @@ import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
@@ -61,6 +61,9 @@ export function PlacePage({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
+  // The head's light runs up behind the status bar rather than stopping at
+  // it, so the page is lit to its own top edge; only what is read sits under.
+  const { top } = useSafeAreaInsets()
   const player = usePlayer()
   const artFor = useArt()
   const { data: library } = useLibrary()
@@ -103,7 +106,7 @@ export function PlacePage({
   }))
 
   const head = (
-    <View style={[styles.head, wide && styles.headWide]}>
+    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
       <CoverLight color={light.color} art={artistAlone ? leadArt : null} />
       <View style={styles.topBar}>
         <IconButton label="Back" onPress={back} filled>
@@ -202,7 +205,7 @@ export function PlacePage({
   )
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <View style={styles.screen}>
       <PlaceSongs songs={songs} byAlbum={artistAlone} head={head} label={`${title} songs`} />
       <AddSheet
         open={adding}
@@ -213,7 +216,7 @@ export function PlacePage({
           if (places.length > 0) setChosen(places)
         }}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

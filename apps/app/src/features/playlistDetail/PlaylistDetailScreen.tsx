@@ -73,6 +73,7 @@ import {
   Trash,
 } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
@@ -118,6 +119,9 @@ import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
+  // The head's light runs up behind the status bar rather than stopping at
+  // it, so the page is lit to its own top edge; only what is read sits under.
+  const { top } = useSafeAreaInsets()
   const artFor = useArt()
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
@@ -476,7 +480,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // header rather than the top of a ScrollView drawing every row at once.
   const header = playlist ? (
     <View>
-      <View style={[styles.head, wide && styles.headWide]}>
+      <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
         <CoverLight color={light.color} art={leadArt} />
         {wide ? null : (
           <View style={styles.topBar}>
@@ -580,7 +584,7 @@ export function PlaylistDetailScreen(): ReactNode {
   )
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <View style={styles.screen}>
       <View style={styles.split}>
         {/* The selection bar takes a lane above the songs, so it covers none of them. */}
         <View style={styles.listArea}>
@@ -730,7 +734,7 @@ export function PlaylistDetailScreen(): ReactNode {
           router.replace('/playlists')
         }}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

@@ -164,9 +164,15 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     onPrimary: DARK.surface0,
     /**
      * The floating bar, the search circle and controls over artwork: a
-     * translucent fill (no blur on native; the web adds `backdrop-filter`).
+     * translucent fill the web blurs with `backdrop-filter`.
      */
     glass: '#1f222ceb',
+    /**
+     * The same fill where nothing blurs behind it (`ports/glass`). Eight per
+     * cent of what scrolls under a bar is a wash once it is blurred and the
+     * page's own words, still legible, once it is not.
+     */
+    glassSolid: '#1f222c',
     /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
     cardShadow: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
@@ -205,6 +211,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     borderStrong: '#cfc6b4',
     onPrimary: '#f6f2ea',
     glass: '#ffffffe6',
+    glassSolid: '#ffffff',
     cardShadow: '#1b1a170f',
     floatShadow: '#1b1a1724',
     chartSeries: oklchToHex(0.55, 0.16, hue),

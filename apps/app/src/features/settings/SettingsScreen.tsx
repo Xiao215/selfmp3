@@ -297,18 +297,26 @@ export function SettingsScreen(): ReactNode {
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        <View ref={headRef} style={styles.head}>
+        {/* On a phone the way back and the page's name share a line, the name
+            at the far end of it, as Import has them (`P30`). A computer has no
+            way back here — the sidebar is always there — so the name leads. */}
+        <View ref={headRef} style={[styles.head, wide ? null : styles.headPhone]}>
           <BackButton to="/profile" label="Profile" testID="settings-back" />
-          <Text style={styles.title} accessibilityRole="header">
-            Settings
-          </Text>
-          <Text style={styles.sub}>
-            {healthLine(health.data, {
-              loading: health.isPending,
-              error: health.isError,
-              fromCloud,
-            })}
-          </Text>
+          <View style={wide ? null : styles.titles}>
+            <Text
+              style={[styles.title, wide ? null : styles.titleRight]}
+              accessibilityRole="header"
+            >
+              Settings
+            </Text>
+            <Text style={[styles.sub, wide ? null : styles.titleRight]}>
+              {healthLine(health.data, {
+                loading: health.isPending,
+                error: health.isError,
+                fromCloud,
+              })}
+            </Text>
+          </View>
         </View>
 
         {column ? null : (
@@ -517,6 +525,9 @@ const styles = StyleSheet.create(theme => ({
   // `S2`'s phone gutter.
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
   head: { marginBottom: 20 },
+  headPhone: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  titles: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
+  titleRight: { textAlign: 'right' },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   panels: { gap: 20, maxWidth: 780 },

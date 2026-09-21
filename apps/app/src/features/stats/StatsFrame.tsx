@@ -49,20 +49,13 @@ export function StatsFrame({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID={testID}
       >
-        <BackButton to="/profile" label="Profile" testID="stats-back" />
-        <View style={styles.head}>
-          <View style={styles.titles}>
-            <Text style={styles.heading} accessibilityRole="header">
-              Stats
-            </Text>
-            <Text style={styles.sub}>{STATS_RANGE_LABELS[statsRangeFor(period)]}</Text>
-          </View>
-          {wide ? (
-            <View style={styles.controls}>
-              <Segmented value={period} onChange={onPeriod} label="Time range" options={options} />
-              <ReportLink pill />
-            </View>
-          ) : (
+        {/* On a phone the way back, the window and the page's name share a
+            line, the name at the far end of it, as Import has it (`P32`). A
+            computer has no way back here, so the name leads and the windows
+            and the Report follow it. */}
+        <View style={[styles.head, wide ? null : styles.headPhone]}>
+          <BackButton to="/profile" label="Profile" testID="stats-back" />
+          {wide ? null : (
             <Select
               value={period}
               onChange={onPeriod}
@@ -72,6 +65,23 @@ export function StatsFrame({
               testID="stats-range"
             />
           )}
+          <View style={[styles.titles, wide ? null : styles.titlesRight]}>
+            <Text
+              style={[styles.heading, wide ? null : styles.titleRight]}
+              accessibilityRole="header"
+            >
+              Stats
+            </Text>
+            <Text style={[styles.sub, wide ? null : styles.titleRight]}>
+              {STATS_RANGE_LABELS[statsRangeFor(period)]}
+            </Text>
+          </View>
+          {wide ? (
+            <View style={styles.controls}>
+              <Segmented value={period} onChange={onPeriod} label="Time range" options={options} />
+              <ReportLink pill />
+            </View>
+          ) : null}
         </View>
         {children}
         {wide ? null : <ReportLink pill={false} />}
@@ -115,7 +125,10 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 8,
   },
+  headPhone: { justifyContent: 'flex-start', alignItems: 'flex-start' },
   titles: { gap: 2, flexShrink: 1 },
+  titlesRight: { marginLeft: 'auto', minWidth: 0, alignItems: 'flex-end' },
+  titleRight: { textAlign: 'right' },
   heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textSecondary, fontSize: 13 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },

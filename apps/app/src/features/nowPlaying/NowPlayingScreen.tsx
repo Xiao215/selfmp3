@@ -77,6 +77,7 @@ import {
   type PhoneView,
 } from './nowPlaying.model'
 import { SongVisual } from './SongVisual'
+import type { MotionSampler } from './motionSource'
 import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useMotionSampler } from './useMotionSampler'
@@ -293,13 +294,6 @@ function PhonePage({ song }: { song: Song }): ReactNode {
           ]}
         />
       </View>
-      {/* No words: the visual is the page, edge to edge behind the head and the controls. */}
-      {showVisual ? (
-        <View pointerEvents="none" style={styles.fill}>
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
-        </View>
-      ) : null}
-
       <Animated.View style={[styles.screen, styles.overBackdrop, edges, viewStyle]}>
         {view === 'cover' ? (
           <CoverView
@@ -323,6 +317,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
             lyrics={lyrics}
             noLyrics={noLyrics}
             visual={visual}
+            sampler={sampler}
             following={motionCaption(sampler.source)}
             onBack={() => setView('cover')}
           />
@@ -609,9 +604,10 @@ function BreathingCover({
 /**
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
- * the transport under them. A song with no lyrics is its visual (`P23`,
- * `P24`), drawn behind the whole page by `PhonePage`, and the switch's place
- * is its look, which opens the same choices as the computer's.
+ * the transport under them. A song with no lyrics puts its visual (`P23`,
+ * `P24`) in the same place the words would have had, so the page reads the
+ * same either way, and the switch's place is its look, which opens the same
+ * choices as the computer's.
  */
 function WordsView({
   song,
@@ -619,6 +615,7 @@ function WordsView({
   lyrics,
   noLyrics,
   visual,
+  sampler,
   following,
   onBack,
 }: {
@@ -627,6 +624,7 @@ function WordsView({
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
   visual: SongVisualChoice
+  sampler: MotionSampler
   following: string
   onBack: () => void
 }): ReactNode {
@@ -643,14 +641,14 @@ function WordsView({
     <View style={styles.wordsView} testID="now-playing-lyrics-view">
       <View style={styles.wordsHead}>
         <IconButton onPress={onBack} label="Back to the cover" filled>
-          <ChevronDown size={22} color={noLyrics ? ON_VISUAL : theme.colors.textPrimary} />
+          <ChevronDown size={22} color={theme.colors.textPrimary} />
         </IconButton>
-        {noLyrics ? null : <Cover uri={uri} title={song.album || song.title} size={40} />}
+        <Cover uri={uri} title={song.album || song.title} size={40} />
         <View style={styles.wordsTitles}>
-          <Text style={[styles.wordsTitle, noLyrics && styles.onVisual]} numberOfLines={1}>
+          <Text style={styles.wordsTitle} numberOfLines={1}>
             {song.title}
           </Text>
-          <Text style={[styles.wordsArtist, noLyrics && styles.onVisualQuiet]} numberOfLines={1}>
+          <Text style={styles.wordsArtist} numberOfLines={1}>
             {song.artist || 'Unknown artist'}
           </Text>
         </View>
@@ -672,10 +670,10 @@ function WordsView({
             onPress={() => setStyleOpen(true)}
             accessibilityRole="button"
             accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
-            style={[styles.tool, styles.toolOnVisual]}
+            style={styles.tool}
           >
-            <Text style={[styles.toolText, styles.onVisual]}>{VISUAL_NAMES[visual.kind]}</Text>
-            <ChevronDown size={14} color={ON_VISUAL} />
+            <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
+            <ChevronDown size={14} color={theme.colors.textSecondary} />
           </Pressable>
         ) : null}
       </View>
@@ -688,29 +686,35 @@ function WordsView({
         onLookAgain={lyrics.lookAgain}
       />
 
-      <View style={styles.words}>
-        {words.status === 'lyrics' ? (
-          <StageLyrics
-            parsed={words.parsed}
-            roman={words.roman}
-            focus={false}
-            fontSize={fontSize}
-          />
-        ) : noLyrics ? null : (
-          <Text style={styles.wordsStatus}>
-            {words.status === 'loading'
-              ? 'Looking for lyrics…'
-              : 'Lyrics need your library — they’ll show once it’s reachable.'}
-          </Text>
-        )}
-      </View>
+      {noLyrics ? (
+        <View pointerEvents="none" style={styles.visualPanel}>
+          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} rounded />
+        </View>
+      ) : (
+        <View style={styles.words}>
+          {words.status === 'lyrics' ? (
+            <StageLyrics
+              parsed={words.parsed}
+              roman={words.roman}
+              focus={false}
+              fontSize={fontSize}
+            />
+          ) : (
+            <Text style={styles.wordsStatus}>
+              {words.status === 'loading'
+                ? 'Looking for lyrics…'
+                : 'Lyrics need your library — they’ll show once it’s reachable.'}
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.progress}>
         <PhoneSeek color={theme.colors.textPrimary} />
       </View>
       <View style={styles.wordsControls}>
         <IconButton onPress={player.previous} label="Previous">
-          <Prev size={28} color={noLyrics ? ON_VISUAL : theme.colors.textPrimary} />
+          <Prev size={28} color={theme.colors.textPrimary} />
         </IconButton>
         <PlayButton
           onPress={player.toggle}
@@ -721,7 +725,7 @@ function WordsView({
           }
         />
         <IconButton onPress={player.next} label="Next">
-          <Next size={28} color={noLyrics ? ON_VISUAL : theme.colors.textPrimary} />
+          <Next size={28} color={theme.colors.textPrimary} />
         </IconButton>
       </View>
     </View>
@@ -815,9 +819,6 @@ const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
   all: 'Repeat all',
   one: 'Repeat this song',
 }
-
-/** Light on the visual's dark ground, in either theme. */
-const ON_VISUAL = '#ffffff'
 
 const styles = StyleSheet.create(theme => ({
   shell: { flex: 1 },
@@ -957,6 +958,14 @@ const styles = StyleSheet.create(theme => ({
     marginHorizontal: -space.lg,
     paddingHorizontal: space.lg - 6,
   },
+  visualPanel: {
+    flex: 1,
+    minHeight: 0,
+    marginTop: space.md,
+    marginBottom: space.md,
+    borderRadius: radius.cardLg,
+    overflow: 'hidden',
+  },
   wordsStatus: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
   wordsControls: {
     flexDirection: 'row',
@@ -965,9 +974,6 @@ const styles = StyleSheet.create(theme => ({
     gap: 26,
     paddingBottom: space.sm,
   },
-  onVisual: { color: ON_VISUAL },
-  onVisualQuiet: { color: withAlpha(ON_VISUAL, 0.72) },
-  toolOnVisual: { backgroundColor: withAlpha(ON_VISUAL, 0.16) },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',

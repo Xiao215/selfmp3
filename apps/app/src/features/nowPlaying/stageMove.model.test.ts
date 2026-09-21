@@ -15,7 +15,7 @@ import {
 const WIDTH = 1400
 const HEIGHT = 816
 const g = stageGeometry(WIDTH, HEIGHT)
-const box = stageCover(g, HEIGHT, false)
+const box = stageCover(g)
 
 /** The box a transformed cover is seen in: scaled about its centre, then moved. */
 function seenCover(pose: MovePose, from = box): { left: number; top: number; size: number } {
@@ -27,15 +27,8 @@ function seenCover(pose: MovePose, from = box): { left: number; top: number; siz
 }
 
 describe('stageCover', () => {
-  it('puts the cover at the top of the left column for a song with lyrics', () => {
+  it('puts the cover at the top of the left column, lyrics or none', () => {
     expect(box).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
-  })
-
-  it('steps it down to the window’s foot, smaller, for a song whose visual is the window', () => {
-    const visual = stageCover(g, HEIGHT, true)
-    expect(visual.left).toBe(g.pad)
-    expect(visual.size).toBe(g.visualCover)
-    expect(visual.top + visual.size).toBe(HEIGHT - 44)
   })
 })
 
@@ -60,14 +53,6 @@ describe('coverPose', () => {
       expect(seen.top).toBeCloseTo(COVER_TOP + (10 - COVER_TOP) * m)
       expect(seen.size).toBeCloseTo(g.cover + (40 - g.cover) * m)
     }
-  })
-
-  it('shrinks the visual’s smaller cover into the same place', () => {
-    const visual = stageCover(g, HEIGHT, true)
-    const seen = seenCover(coverPose(visual, 1), visual)
-    expect(seen.left).toBeCloseTo(64)
-    expect(seen.top).toBeCloseTo(10)
-    expect(seen.size).toBeCloseTo(40)
   })
 
   it('lays out corners that are seen at the right radius once scaled', () => {
@@ -128,14 +113,14 @@ describe('a stacked page (T05)', () => {
   const tall = stageGeometry(834, 1110, 24)
 
   it('starts the cover under the status bar, and the words under the row of tabs', () => {
-    expect(stageCover(tall, 1110, false).top).toBe(COVER_TOP + 24)
+    expect(stageCover(tall).top).toBe(COVER_TOP + 24)
     const words = wordsFrame(834, tall, 0)
     expect(words.left).toBe(tall.pad)
     expect(words.top).toBeGreaterThan(stackedTabsTop(tall))
   })
 
   it('moves the cover into the header under the status bar in Focus', () => {
-    const cover = stageCover(tall, 1110, false)
+    const cover = stageCover(tall)
     expect(seenCover(coverPose(cover, 1, 24), cover).top).toBeCloseTo(10 + 24)
   })
 })

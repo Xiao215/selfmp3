@@ -73,6 +73,8 @@ const BAR = 84
 const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
 /** Opening and putting the page away: quick enough never to be waited for. */
 const ENTER_MS = 260
+/** The visual finding its new place: it fades in there rather than gliding. */
+const VISUAL_FADE_MS = 240
 const LEAVE_MS = 180
 
 /**
@@ -85,9 +87,11 @@ const LEAVE_MS = 180
  * and after a few still seconds the controls step aside. Up next is not here:
  * it is the rail the player bar opens beside whatever page is showing.
  *
- * A song with no lyrics is its visual (`C10`): the first tab reads Visual, the
- * visual fills the window behind the cover and the title, which step down to
- * its foot, and the look it shows is picked beside the tabs.
+ * A song with no lyrics is its visual (`C10`): the first tab reads Visual and
+ * the visual takes the column the words would have had, so the page is laid
+ * out exactly as a song with words lays it out. The look it shows is picked
+ * beside the tabs, and Focus gives the visual the window as it gives the
+ * words the page.
  *
  * The page covers the sidebar but not the player bar, so play and pause never
  * move under your hand. Which tab and mode are showing live in the address.
@@ -239,9 +243,28 @@ function Stage({
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   const sampler = useMotionSampler(song, noLyrics)
-  // The visual is the window only on its own tab: About is text, and wants the calm ground.
-  const visualStage = noLyrics && shownTab === 'lyrics'
-  const box = stageCover(g, height, visualStage)
+  // Only on its own tab: About is text, and wants the calm ground.
+  const showVisual = noLyrics && shownTab === 'lyrics'
+  const box = stageCover(g)
+  /*
+   * The visual does not glide between the column and the window: a canvas
+   * stretched from one to the other is a smear, and one resized every frame
+   * is a redraw at a new size every frame. It is laid out where the mode puts
+   * it and fades in there, over the half-second the cover takes to travel.
+   */
+  const [visualFade] = useState(() => new Animated.Value(1))
+  useEffect(() => {
+    if (!showVisual) return undefined
+    visualFade.setValue(0)
+    const run = Animated.timing(visualFade, {
+      toValue: 1,
+      duration: motionMs(VISUAL_FADE_MS),
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    })
+    run.start()
+    return () => run.stop()
+  }, [focus, showVisual, visualFade])
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
     ['about', 'About'],
@@ -255,7 +278,7 @@ function Stage({
 
   // Beside Visual and About on the stage; in Focus, where the tabs are put
   // away, at the top right where the romaji switch sits for a song with words.
-  const stylePill = visualStage ? (
+  const stylePill = showVisual ? (
     <Pressable
       ref={styleButtonRef}
       onPress={() => setStyleOpen(open => !open)}
@@ -324,54 +347,25 @@ function Stage({
           <View style={[styles.glowThree, { backgroundColor: rgba(palette[2], 1) }]} />
         </View>
       </View>
-      {visualStage ? (
-        <>
-          {/* No words: the visual is the window, under the cover, the title and the head. */}
-          <View pointerEvents="none" style={[styles.fill, styles.visual]}>
-            <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
-          </View>
-          {/* The window's foot darkens into the page, so the title reads over any look. */}
-          <View pointerEvents="none" style={[styles.scrim, { height: box.size + 200 + BAR }]}>
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id="np-scrim" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0} />
-                  <Stop offset="0.6" stopColor={theme.colors.surface0} stopOpacity={0.85} />
-                  <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.95} />
-                </LinearGradient>
-              </Defs>
-              <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-scrim)" />
-            </Svg>
-          </View>
-        </>
-      ) : (
-        <>
-          {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
-          <Moving
-            move={move}
-            pose={m => ({ opacity: 1 - m })}
-            pointerEvents="none"
-            style={styles.fill}
-          >
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
-                  <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.82} />
-                  <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.82} />
-                </LinearGradient>
-              </Defs>
-              <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
-            </Svg>
-          </Moving>
-          <Moving
-            move={move}
-            pose={m => ({ opacity: m })}
-            pointerEvents="none"
-            style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
-          />
-        </>
-      )}
+      {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
+      <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
+              <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.82} />
+              <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.82} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#np-shade)" />
+        </Svg>
+      </Moving>
+      <Moving
+        move={move}
+        pose={m => ({ opacity: m })}
+        pointerEvents="none"
+        style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, 0.55) }]}
+      />
 
       {/* Laid out at the stage's size always, and scaled into the header for
           Focus: its artwork and its shadow shrink with it. */}
@@ -395,22 +389,19 @@ function Stage({
         <View
           style={[
             styles.meta,
-            visualStage
-              ? // Beside the stepped-down cover, its foot on the cover's foot.
-                { left: box.left + box.size + 28, right: g.right, bottom: BAR + 44 }
-              : g.stacked
-                ? // Beside the cover, as a tag page's name is.
-                  { left: box.left + box.size + g.gutter, top: box.top + 16, right: g.right }
-                : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
+            g.stacked
+              ? // Beside the cover, as a tag page's name is.
+                { left: box.left + box.size + g.gutter, top: box.top + 16, right: g.right }
+              : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
           ]}
         >
           <Text
             style={[
               styles.title,
               {
-                fontSize: visualStage ? g.visualTitle : g.title,
-                lineHeight: (visualStage ? g.visualTitle : g.title) * 1.15,
-                letterSpacing: -0.02 * (visualStage ? g.visualTitle : g.title),
+                fontSize: g.title,
+                lineHeight: g.title * 1.15,
+                letterSpacing: -0.02 * g.title,
               },
             ]}
             numberOfLines={2}
@@ -482,6 +473,29 @@ function Stage({
           {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>
       )}
+
+      {/* No words: the visual takes the words' column, and Focus gives it the
+          window — the two places the words themselves have. */}
+      {showVisual ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.visual,
+            focus
+              ? styles.visualFull
+              : {
+                  left: frame.left,
+                  right: frame.right,
+                  top: frame.top,
+                  bottom: BAR,
+                  borderRadius: radius.cardLg,
+                },
+            { opacity: visualFade },
+          ]}
+        >
+          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
+        </Animated.View>
+      ) : null}
 
       {/* At the mode's own width from the first frame, slid from where the
           other mode had it. In Focus it runs to the foot of the window, under
@@ -601,8 +615,14 @@ function Stage({
         <Pressable
           onPress={() => onMode(focus ? 'stage' : 'focus')}
           accessibilityRole="button"
-          accessibilityLabel={focus ? 'Back to the full page' : 'Show only the words'}
-          {...tip(focus ? 'Back to the full page' : 'Lyrics')}
+          accessibilityLabel={
+            focus
+              ? 'Back to the full page'
+              : showVisual
+                ? 'Show only the visual'
+                : 'Show only the words'
+          }
+          {...tip(focus ? 'Back to the full page' : showVisual ? 'Visual' : 'Lyrics')}
           style={({ pressed }) => [
             styles.expand,
             chrome,
@@ -835,8 +855,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 9,
   },
   statusText: { color: theme.colors.textMuted, fontSize: 13 },
-  visual: { zIndex: 1 },
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1 },
+  visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
+  visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
   aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },

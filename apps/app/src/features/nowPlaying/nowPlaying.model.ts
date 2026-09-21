@@ -147,12 +147,6 @@ export interface StageGeometry {
   readonly right: number
   readonly cover: number
   readonly title: number
-  /**
-   * A song with no lyrics (`C10`): the visual is the window, and the cover
-   * steps down to its foot, smaller, with the title beside it and larger.
-   */
-  readonly visualCover: number
-  readonly visualTitle: number
   readonly lyric: number
   readonly focusLyric: number
   /**
@@ -180,8 +174,6 @@ export function stageGeometry(width: number, height: number, inset = 0): StageGe
       ? clamp(200, width * 0.36, 320)
       : Math.max(180, Math.min(400, width * 0.34, height - 290)),
     title: clamp(22, width * 0.022, 30),
-    visualCover: clamp(150, Math.min(width * 0.16, height * 0.28), 220),
-    visualTitle: clamp(28, width * 0.031, 44),
     lyric: clamp(22, width * 0.023, 32),
     focusLyric: clamp(30, width * 0.039, 54),
   }

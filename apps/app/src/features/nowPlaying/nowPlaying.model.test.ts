@@ -98,14 +98,6 @@ describe('now playing', () => {
     expect(g.lyric).toBeCloseTo(29.44)
   })
 
-  it('steps the cover down for a song whose visual is the window', () => {
-    const g = stageGeometry(1280, 732)
-    expect(g.visualCover).toBeCloseTo(204.8)
-    expect(g.visualCover).toBeLessThan(g.cover)
-    expect(g.visualTitle).toBeGreaterThan(g.title)
-    expect(stageGeometry(900, 400).visualCover).toBe(150)
-  })
-
   it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {
     const portrait = stageGeometry(834, 1110, 24)
     expect(portrait.stacked).toBe(true)

@@ -77,8 +77,15 @@ Two visuals (docs/ui-mock `P23`, `P24`, `C10`), drawn on a canvas each frame in 
 Which one a song gets is picked from how it sounds (`autoVisual`): from 0.5 energy
 **Ripples**, below it or not analysed yet **Horizon**. The look picker chooses the other for
 that song, and the choice is kept on this device; a choice saved for one of the four older
-visuals goes back to Auto. On a computer the visual fills the window behind the cover and
-the title.
+visuals goes back to Auto.
+
+The page is laid out the same way whether a song has words or not: the visual takes the
+column the lyrics would have run in, rounded like a card, and the cover, the title and the
+tabs keep the places they have on a song with words. Expanding gives the visual the whole
+window, as it gives the words the whole page; it fades into its new place rather than
+gliding, because a canvas cannot be stretched between the two. On a phone the visual sits
+in the words' own area on the second view, with the header and the transport on the page's
+usual ground.
 
 **What moves them** (`motionSource.ts`), in this order. Where the browser can listen
 (`ports/liveAudio`: Chrome, Edge, Firefox, the desktop app) the engine's Web Audio analyser

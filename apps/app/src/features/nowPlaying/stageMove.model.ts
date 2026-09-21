@@ -60,19 +60,14 @@ interface CoverBox {
   readonly size: number
 }
 
-/** How far above the player bar a song with no lyrics puts the foot of its cover (`C10`). */
-const VISUAL_FOOT = 44
-
 /**
- * Where the stage lays its cover out. A song with lyrics has it at the top
- * of the left column, over the title; a song with none steps it down to the
- * window's foot, smaller, so the visual behind has the window (`C10`).
- * `height` is the page above the player bar.
+ * Where the stage lays its cover out: the top of the left column, over the
+ * title. A song with no lyrics keeps that place, because its visual takes the
+ * words' column rather than the window (`C10`) — so a song turning out to
+ * have no words moves nothing on the page.
  */
-export function stageCover(g: StageGeometry, height: number, visual: boolean): CoverBox {
-  return visual
-    ? { left: g.pad, top: height - VISUAL_FOOT - g.visualCover, size: g.visualCover }
-    : { left: g.pad, top: COVER_TOP + g.inset, size: g.cover }
+export function stageCover(g: StageGeometry): CoverBox {
+  return { left: g.pad, top: COVER_TOP + g.inset, size: g.cover }
 }
 
 /**

@@ -15,7 +15,7 @@ import { OverlayProvider } from './Overlay'
 import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
-import { Sidebar } from './Sidebar'
+import { Sidebar, SIDEBAR_WIDTH } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
@@ -58,7 +58,8 @@ export function Shell({
   chrome: boolean
   /**
    * False while a desktop screen covers the sidebar but not the player bar:
-   * Now Playing, which keeps play and pause where your hand already is.
+   * Now Playing, which keeps play and pause where your hand already is. The
+   * sidebar fades away over it; nothing is laid out again (`SidebarSlot`).
    */
   sidebar?: boolean
 }): ReactNode {
@@ -98,9 +99,19 @@ export function Shell({
  * Phone: the page, and over its foot the mini player and the tab bar, and over
  * those Up next when it is open (`P25`); Up next is there without the chrome
  * too, since Now Playing's foot opens it, and the toasts come after it so an
- * Undo is drawn over the sheet that asked for it. Computer: the sidebar, the
- * page (measured, for the screens that lay out by its width), Up next's rail
- * and the practice panel beside it, and the player bar across the foot.
+ * Undo is drawn over the sheet that asked for it. Computer: the page
+ * (measured, for the screens that lay out by its width), Up next's rail and
+ * the practice panel beside it, the sidebar lying over the page's left edge,
+ * and the player bar across the foot.
+ *
+ * The sidebar is over the page's column rather than beside it, and each page
+ * keeps clear of it with its own padding (`app/_layout.tsx`). Beside it, the
+ * column grew by the sidebar's width whenever Now Playing took the sidebar
+ * away, and everything in the column was laid out again: Home reflowed in
+ * plain view under the rising page, and on an iPad the native stack was
+ * resized in the middle of its own slide, which left a white strip down the
+ * side until the slide ended (Xiao's recording, 2026-09-21). Now the column
+ * is one width always, and Now Playing is simply the page with no padding.
  */
 function frame(
   wide: boolean,
@@ -134,15 +145,20 @@ function Frame({
   return (
     <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
       <View style={styles.columns}>
-        {wide && sidebar ? <Sidebar /> : null}
+        {/* First, so a keyboard and a screen reader still come to it before the
+            page; drawn over the page by its `zIndex`, not by coming after it. */}
+        {wide ? <SidebarSlot shown={sidebar} /> : null}
         <View
           style={styles.content}
           onLayout={event => setContentWidth(Math.round(event.nativeEvent.layout.width))}
         >
-          <ContentWidthContext.Provider value={wide ? contentWidth : null}>
+          {/* What a page has to lay out in: the column less the sidebar over it. */}
+          <ContentWidthContext.Provider
+            value={wide && contentWidth !== null ? contentWidth - SIDEBAR_WIDTH : null}
+          >
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
-          {wide ? <Toasts /> : null}
+          {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
         </View>
         {/* Up next, between the page and the practice panel, across every page. */}
         {wide ? <QueueRail /> : null}
@@ -154,6 +170,53 @@ function Frame({
       {wide ? null : <QueueSheet />}
       {!wide && (chrome || queueOpen) ? <Toasts /> : null}
     </View>
+  )
+}
+
+/**
+ * The sidebar going as Now Playing comes up over it, and coming back. Quick,
+ * and started by the page's own move rather than by the address
+ * (`stageArrival.ts`): an iPad's slide covers most of the window in its first
+ * sixth of a second, and the sidebar is opaque, so one that took as long as
+ * the slide lay across the rising cover as a dim panel for most of the way.
+ */
+const SIDEBAR_FADE_MS = 160
+/**
+ * How long the sidebar waits before it comes back where the navigator slides
+ * Now Playing away itself: the sidebar is over the page, so back at once it
+ * cut across the cover on its way down. A browser's page has already faded
+ * out by the time the address changes, so nothing is waited for there.
+ */
+const SIDEBAR_RETURN_DELAY_MS = stackMoves ? 300 : 0
+
+/**
+ * The sidebar, over the left edge of the page's column.
+ *
+ * Kept mounted while Now Playing covers it, and faded rather than taken out:
+ * taken out, it was built again each time the page closed, and its playlists'
+ * covers came in a moment after the rest of it. Once it has faded it is out
+ * of the way of a pointer, a keyboard and a screen reader.
+ */
+function SidebarSlot({ shown }: { shown: boolean }): ReactNode {
+  const [opacity] = useState(() => new Animated.Value(shown ? 1 : 0))
+  const [gone, setGone] = useState(!shown)
+  if (shown && gone) setGone(false)
+  useEffect(() => {
+    // `timing` leaves an interrupted fade's end alone, so closing the page
+    // halfway through cannot put away a sidebar that is on its way back.
+    timing(opacity, shown ? 1 : 0, SIDEBAR_FADE_MS, shown ? undefined : () => setGone(true), {
+      easing: ease.out,
+      delay: shown ? SIDEBAR_RETURN_DELAY_MS : 0,
+    })
+  }, [shown, opacity])
+  return (
+    <Animated.View
+      style={[styles.sidebarSlot, { opacity }, gone && styles.sidebarGone]}
+      pointerEvents={shown ? 'auto' : 'none'}
+      aria-hidden={!shown}
+    >
+      <Sidebar />
+    </Animated.View>
   )
 }
 
@@ -339,14 +402,15 @@ function PaletteHost(): ReactNode {
  * The toast row: at the foot of the content column, above the player bar or
  * the mini player, so a message never covers the transport.
  */
-function Toasts(): ReactNode {
+function Toasts({ left = 0 }: { left?: number }): ReactNode {
   // Above a phone's floating tab bar and mini player, and above its floating
   // selection bar rather than over its buttons.
   const lifted = useSelectionBarFloating()
   const chrome = useFloatingChrome()
   return (
     <View
-      style={[styles.toasts, { bottom: 10 + chrome + (lifted ? SELECTION_BAR_SPACE : 0) }]}
+      // Centred in the page, which starts where the sidebar over it ends.
+      style={[styles.toasts, { left, bottom: 10 + chrome + (lifted ? SELECTION_BAR_SPACE : 0) }]}
       pointerEvents="box-none"
     >
       <ResumeToast />
@@ -379,6 +443,17 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     minHeight: 0,
   },
+  // A row, so the rail stretches to the slot's height as it did beside the page.
+  sidebarSlot: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: SIDEBAR_WIDTH,
+    flexDirection: 'row',
+    zIndex: 1,
+  },
+  sidebarGone: { display: 'none' },
   barHidden: {
     opacity: 0,
   },

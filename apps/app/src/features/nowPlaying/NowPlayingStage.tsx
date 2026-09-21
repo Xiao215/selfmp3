@@ -12,7 +12,8 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
+import type { NativeStackNavigationProp } from 'expo-router'
 import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
@@ -20,7 +21,8 @@ import { fonts, radius, tempoMark, useLibrary, withAlpha } from '@selfmp3/client
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
-import { setStageCovers } from '../../shell/stageCovers'
+import { setStageArriving } from '../../shell/stageArrival'
+import { stackMoves } from '../../ports/stackMoves'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
@@ -246,25 +248,45 @@ function Stage({
   }, [idle])
   useEffect(() => () => setStageIdle(false), [])
 
-  // The page comes up over the library and goes back down before the route
-  // changes, rather than the router cutting between them.
-  const [shown] = useState(() => new Animated.Value(0))
+  // Where the navigator plays nothing (`stackMoves`: a browser, the desktop
+  // app) the page comes up over the library itself and goes back down before
+  // the route changes, rather than the router cutting between them. On an
+  // iPad the native stack slides it up and down, and that is the whole move:
+  // with both running, closing faded the page away over its own dark ground
+  // and then slid that empty ground down off the library like a blind, which
+  // looked like Home being drawn again from the top (Xiao's recording,
+  // 2026-09-21).
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
+  const [shown] = useState(() => new Animated.Value(stackMoves ? 1 : 0))
   useEffect(() => {
+    if (stackMoves) {
+      // The navigator says when its slide starts and when it is over. Only it
+      // knows: the slide begins when the native side is ready and runs on its
+      // own clock, and a timer counted from here was a quarter of a second
+      // early on an iPad. The end counts as a start too, should the start
+      // have come before this was listening.
+      const offStart = navigation.addListener('transitionStart', event => {
+        if (!event.data.closing) setStageArriving(true)
+      })
+      const offEnd = navigation.addListener('transitionEnd', event => {
+        if (event.data.closing) return
+        setStageArriving(true)
+        setEntered(true)
+      })
+      return () => {
+        offStart()
+        offEnd()
+        setStageArriving(false)
+      }
+    }
+    setStageArriving(true)
     Animated.timing(shown, {
       toValue: 1,
       duration: motionMs(ENTER_MS),
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
-    }).start(() => {
-      setEntered(true)
-      // Up: the shell may take the sidebar away now, behind this page
-      // (`stageCovers.ts`).
-      setStageCovers(true)
-    })
+    }).start(() => setEntered(true))
     setStageExit(then => {
-      // Before the fall, so the page under this one is laid out with the
-      // sidebar back while it is still covered.
-      setStageCovers(false)
       Animated.timing(shown, {
         toValue: 0,
         duration: motionMs(LEAVE_MS),
@@ -274,9 +296,9 @@ function Stage({
     })
     return () => {
       setStageExit(null)
-      setStageCovers(false)
+      setStageArriving(false)
     }
-  }, [shown])
+  }, [shown, navigation])
   const width = size?.width ?? window.width
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.

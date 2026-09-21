@@ -26,14 +26,15 @@ import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
-import { swipeBackAllowed } from '../src/shell/backGesture'
+import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
 import { stackAnimation } from '../src/shell/pageStep'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
-import { useStageCovers } from '../src/shell/stageCovers'
+import { SIDEBAR_WIDTH } from '../src/shell/Sidebar'
+import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
@@ -212,10 +213,9 @@ function Shell(): ReactNode {
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'
-  // Only once it has actually risen over it: taken away as the address
-  // changes, the page underneath reflowed to the full width in plain view
-  // (`shell/stageCovers.ts`).
-  const covers = useStageCovers()
+  // The sidebar goes as the page starts up over it, which is later than the
+  // address changes (`shell/stageArrival.ts`).
+  const arriving = useStageArriving()
   // On a phone Now Playing is a native modal over the tab bar already. Taking
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
@@ -230,11 +230,20 @@ function Shell(): ReactNode {
   // Kept, not rebuilt: a new function here is new options for every screen in
   // the stack each time the shell renders.
   const surface = theme.colors.surface0
+  const ready = status === 'ready'
   const screenOptions = useMemo(
     () =>
       ({ route }: { route: { name: string } }) => ({
         headerShown: false,
-        contentStyle: { backgroundColor: surface },
+        contentStyle: {
+          backgroundColor: surface,
+          // The sidebar lies over the page's column (`shell/Shell.tsx`), and a
+          // page keeps clear of it here. Now Playing, which covers it, and the
+          // pages with no sidebar at all do not — so taking the sidebar away
+          // never changes the width of anything.
+          paddingLeft:
+            wide && ready && !pageOwnsScreen(addressOf(route.name), wide) ? SIDEBAR_WIDTH : 0,
+        },
         // The shell steps a tab's page in; the stack crossfades the pages a
         // phone pushes (`src/shell/pageStep.ts`).
         ...stackAnimation(route.name, wide),
@@ -243,11 +252,11 @@ function Shell(): ReactNode {
         // `src/shell/backGesture.ts` has the rule and the reason.
         gestureEnabled: swipeBackAllowed(route.name),
       }),
-    [surface, wide],
+    [surface, wide, ready],
   )
 
   return (
-    <Frame chrome={chrome} sidebar={!(stage && covers)}>
+    <Frame chrome={chrome} sidebar={!(stage && arriving)}>
       <Stack screenOptions={screenOptions}>
         <Stack.Screen name="now-playing" options={wide ? NOW_PLAYING_WIDE : NOW_PLAYING_OPTIONS} />
       </Stack>

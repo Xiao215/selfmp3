@@ -118,13 +118,24 @@ export function NowPlayingScreen(): ReactNode {
   )
 }
 
+/**
+ * Putting the phone's page away. The address names the song, so the page can
+ * be the first one there is — a refresh, a copied link — and then there is
+ * nothing to go back to: Home is where closing it lands, as it is on a
+ * computer (`NowPlayingStage`). Going back regardless did nothing at all, and
+ * the router said so.
+ */
+function putAway(router: ReturnType<typeof useRouter>): void {
+  if (router.canGoBack()) router.back()
+  else router.replace('/')
+}
+
 function PhoneNowPlaying(): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const song = player.current
-
   if (song === null) {
     return (
       <View
@@ -132,7 +143,7 @@ function PhoneNowPlaying(): ReactNode {
         accessibilityLabel="Now playing"
       >
         <View style={styles.head}>
-          <IconButton onPress={() => router.back()} label="Close now playing" filled>
+          <IconButton onPress={() => putAway(router)} label="Close now playing" filled>
             <ChevronDown size={22} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
@@ -194,7 +205,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
   const setView = (next: PhoneView): void => {
     router.setParams({ view: next === 'lyrics' ? 'lyrics' : undefined })
   }
-  const close = (): void => router.back()
+  const close = (): void => putAway(router)
   // The song's own page is a page of the app, not of this modal: the modal
   // goes down first, so back from the song lands where Now Playing was opened.
   const openSong = (): void => {
@@ -269,7 +280,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
       onPanResponderRelease: (_event, gesture) => {
         const outcome = swipeOutcome({ view, dy: gesture.dy, vy: gesture.vy })
         settle()
-        if (outcome === 'close') router.back()
+        if (outcome === 'close') putAway(router)
         else if (outcome === 'lyrics') router.setParams({ view: 'lyrics' })
         else if (outcome === 'cover') router.setParams({ view: undefined })
       },

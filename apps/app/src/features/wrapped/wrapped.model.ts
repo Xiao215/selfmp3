@@ -1,4 +1,5 @@
 import {
+  plural,
   formatLongDuration,
   WRAPPED_RANGE_LABELS,
   type Wrapped,
@@ -35,11 +36,6 @@ export function weekdayName(weekday: number): string {
   return WEEKDAYS[weekday] ?? '—'
 }
 
-/** "Last 30 days · you listened for". */
-export function eyebrow(range: WrappedRange): string {
-  return `${WRAPPED_RANGE_LABELS[range]} · you listened for`
-}
-
 export function figure(minutes: number): string {
   return Math.round(minutes).toLocaleString()
 }
@@ -61,7 +57,7 @@ export function facts(wrapped: Wrapped): readonly Fact[] {
     { label: 'Plays', value: wrapped.totals.plays.toLocaleString() },
     { label: 'Songs', value: wrapped.totals.songsPlayed.toLocaleString() },
     { label: 'Days with music', value: wrapped.totals.activeDays.toLocaleString() },
-    { label: 'Longest streak', value: `${streak} ${streak === 1 ? 'day' : 'days'}` },
+    { label: 'Longest streak', value: `${plural(streak, 'day', 'days')}` },
     {
       label: 'Peak hour',
       value: wrapped.peakHour ? formatHour(wrapped.peakHour.hour) : '—',
@@ -92,17 +88,6 @@ export function emptyHint(range: WrappedRange): string {
 
 export function tryLabel(range: WrappedRange): string {
   return `Try ${RANGE_SHORT[range].toLowerCase()}`
-}
-
-/** Each ranked row's share of the first, as a quiet bar behind its name. */
-export function rankShare(plays: number, max: number): number {
-  return Math.max(6, (plays / Math.max(max, 1)) * 100)
-}
-
-/** "46 plays · 83 minutes" ("1 play · 1 minute"). */
-export function numberOneLine(song: { plays: number; minutes: number }): string {
-  const minutes = Math.round(song.minutes)
-  return `${playsLabel(song.plays)} · ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
 }
 
 /** A filename that sorts sensibly and says what it is. */

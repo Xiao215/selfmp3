@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import {
+  plural,
   EMPTY_SMART_RULES,
   formatLongDuration,
   type CreatePlaylist,
@@ -49,7 +50,7 @@ export function isLive(playlist: Pick<Playlist, 'kind'>): boolean {
   return playlist.kind === 'live'
 }
 
-const songsWord = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+const songsWord = (count: number): string => `${plural(count, 'song', 'songs')}`
 
 /**
  * The line under a tile's name: "5 songs · yesterday".
@@ -86,7 +87,7 @@ export function playlistHeadLine(
 /** The line under the page's title: how many, and in what order. */
 export function playlistsSubline(count: number, sort: PlaylistSort): string {
   const order = { recent: 'last played first', name: 'A–Z', added: 'newest first' }[sort]
-  return `${count} ${count === 1 ? 'playlist' : 'playlists'} · ${order}`
+  return `${plural(count, 'playlist', 'playlists')} · ${order}`
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -238,16 +239,6 @@ export function newPlaylist(
     kind,
     rules: kind === 'live' ? (options.rules ?? EMPTY_SMART_RULES) : null,
   }
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/**
- * A smart playlist's description: how it was made, so a fixed list that a
- * template filled never later passes for one that updates itself.
- */
-export function madeFrom(templateName: string, when: Date): string {
-  return `Made from ${templateName} · ${when.getDate()} ${MONTHS[when.getMonth()]}`
 }
 
 /**

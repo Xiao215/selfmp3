@@ -143,8 +143,6 @@ export function activeSection<T extends string>(
 
 export const crossfadeLabel = (seconds: number): string => (seconds === 0 ? 'off' : `${seconds}s`)
 
-export const percentLabel = (fraction: number): string => `${Math.round(fraction * 100)}%`
-
 /** The accent's name when it is a preset, else its hue. */
 export function accentName(hue: number, presets: readonly { hue: number; name: string }[]): string {
   return presets.find(preset => preset.hue === hue)?.name ?? `Hue ${hue}°`

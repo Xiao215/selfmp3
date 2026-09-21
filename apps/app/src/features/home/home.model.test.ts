@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { dateLine, greeting, homeTiles, recentlyPlayed, streakLine, sundayCard } from './home.model'
+import { greeting, homeTiles, recentlyPlayed, streakLine, sundayCard } from './home.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song => ({
   id,
@@ -45,13 +45,7 @@ describe('greeting', () => {
   })
 })
 
-describe('dateLine', () => {
-  it('says the day and a twelve-hour time', () => {
-    expect(dateLine(new Date(2026, 8, 18, 21, 42))).toBe('Friday · 9:42 PM')
-    expect(dateLine(new Date(2026, 8, 20, 0, 5))).toBe('Sunday · 12:05 AM')
-    expect(dateLine(new Date(2026, 8, 19, 12, 0))).toBe('Saturday · 12:00 PM')
-  })
-})
+describe('dateLine', () => {})
 
 describe('streakLine', () => {
   it('says a streak once there is one, and nothing otherwise', () => {

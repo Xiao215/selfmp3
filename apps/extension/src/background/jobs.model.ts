@@ -1,3 +1,4 @@
+import { plural } from '@selfmp3/shared'
 import type { ImportJob, ImportQueue } from '@selfmp3/shared'
 
 /**
@@ -70,7 +71,7 @@ export function finished(queue: ImportQueue, batches: readonly Batch[]): Finishe
   return done
 }
 
-const songs = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
 
 /**
  * What a finished batch is announced as: one song by name, several by count,

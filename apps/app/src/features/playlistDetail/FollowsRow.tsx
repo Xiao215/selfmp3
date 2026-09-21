@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { plural } from '@selfmp3/shared'
 import type { Playlist, Tag } from '@selfmp3/shared'
 import { radius, space, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
@@ -128,7 +129,7 @@ export function FollowsRow({
             onClose={() => setChoosing(false)}
             selected={tagIds}
             onToggle={toggle}
-            summary={`${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`}
+            summary={`${plural(playlist.songCount, 'song', 'songs')}`}
           />
         </View>
       ) : null}

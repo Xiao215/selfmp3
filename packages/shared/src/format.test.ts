@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  plural,
   formatBytes,
   formatDuration,
   formatLongDuration,
@@ -94,5 +95,18 @@ describe('hueFromString', () => {
     expect(hue).toBe(hueFromString('chill'))
     expect(hue).toBeGreaterThanOrEqual(0)
     expect(hue).toBeLessThan(360)
+  })
+})
+
+describe('plural', () => {
+  it('uses the singular for one and the plural for everything else', () => {
+    expect(plural(1, 'song', 'songs')).toBe('1 song')
+    expect(plural(0, 'song', 'songs')).toBe('0 songs')
+    expect(plural(13, 'song', 'songs')).toBe('13 songs')
+  })
+
+  it('takes both words, for the ones English does not make by adding an s', () => {
+    expect(plural(1, 'is', 'are')).toBe('1 is')
+    expect(plural(2, 'is', 'are')).toBe('2 are')
   })
 })

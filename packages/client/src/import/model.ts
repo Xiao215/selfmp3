@@ -1,7 +1,6 @@
 import {
   extractUrls,
   IMPORT_STEP_LABELS,
-  isSquareCoverUrl,
   type ImportEnqueue,
   type ImportEnqueueItem,
   type ImportJob,
@@ -17,25 +16,12 @@ import {
  * is about to download, and to untick the six tracks you already have.
  */
 
-/** What each queue state is called, for the icon's label and screen readers. */
-const JOB_STATUS_LABELS: Record<ImportJob['status'], string> = {
-  queued: 'Waiting',
-  running: 'Downloading',
-  done: 'Done',
-  error: 'Failed',
-  cancelled: 'Cancelled',
-}
-
 /**
  * In the library on the server but not yet in the cloud bucket: not a failure,
  * and the cloud sync finishes the job by itself (docs/SYNC.md).
  */
 function waitingToUpload(job: Pick<ImportJob, 'status' | 'step'>): boolean {
   return job.status === 'error' && job.step === 'uploading'
-}
-
-export function jobLabel(job: Pick<ImportJob, 'status' | 'step'>): string {
-  return waitingToUpload(job) ? 'Waiting to upload' : JOB_STATUS_LABELS[job.status]
 }
 
 /** The line under a job's title. */
@@ -92,29 +78,6 @@ export function reviewFrom(preview: ImportPreview): Review {
   }
 }
 
-export function toggleChosen(chosen: ReadonlySet<number>, index: number): ReadonlySet<number> {
-  const next = new Set(chosen)
-  if (next.has(index)) next.delete(index)
-  else next.add(index)
-  return next
-}
-
-export function chooseAll(items: readonly unknown[]): ReadonlySet<number> {
-  return new Set(items.map((_, index) => index))
-}
-
-/** Correct one row's details; the url, which is what plays and downloads, stays. */
-export function patchItem(
-  items: readonly ImportPreviewItem[],
-  index: number,
-  patch: Partial<Pick<ImportPreviewItem, 'title' | 'artist' | 'album'>>,
-): readonly ImportPreviewItem[] {
-  return items.map((item, i) => (i === index ? { ...item, ...patch } : item))
-}
-
-/** A square picture is drawn square rather than cropped to the video shape. */
-export const isSquareCover = isSquareCoverUrl
-
 /**
  * The tag a link is named after, if you already have one: an artist's page
  * or a search for "yoasobi" with a `yoasobi` tag in the library. Pre-ticked,
@@ -131,26 +94,6 @@ export function matchingTag(
 
 export function chosenItems(review: Review): readonly ImportPreviewItem[] {
   return review.items.filter((_, index) => review.chosen.has(index))
-}
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
-
-/** "40 tracks found", and how many are already here. */
-export function reviewHeading(review: Review): { found: string; duplicates: string | null } {
-  const duplicates = review.items.filter(item => item.alreadyHave).length
-  return {
-    found: `${plural(review.items.length, 'track', 'tracks')} found`,
-    duplicates: duplicates > 0 ? `${duplicates} already in your library` : null,
-  }
-}
-
-export function selectedCount(review: Review): string {
-  return `${chosenItems(review).length} of ${review.items.length} selected`
-}
-
-export function importButtonLabel(count: number): string {
-  return `Import ${plural(count, 'track', 'tracks')}`
 }
 
 /**

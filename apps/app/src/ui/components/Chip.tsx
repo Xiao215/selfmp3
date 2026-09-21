@@ -4,6 +4,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
 import { radius, tagColors, type } from '@selfmp3/client'
 import { Check } from './Icons'
+import { plural } from '@selfmp3/shared'
 
 /**
  * A chip (docs/ui-mock `S2`, "Parts, as drawn"): a neutral pill. A tag carries
@@ -80,7 +81,7 @@ export function Chip({
         delayLongPress={450}
         accessibilityRole="button"
         accessibilityLabel={
-          count === undefined ? label : `${label}, ${count} ${count === 1 ? 'song' : 'songs'}`
+          count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`
         }
         accessibilityState={{ selected }}
         // A chip is a toggle; react-native-web does not turn `accessibilityState`

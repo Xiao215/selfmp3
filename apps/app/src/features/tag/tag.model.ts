@@ -1,4 +1,4 @@
-import { formatLongDuration, fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
+import { plural, formatLongDuration, fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
 import { artistKey, libraryArtists, songArtistKeys, type Artist } from '@selfmp3/client'
 
 /**
@@ -248,5 +248,5 @@ export function albumsOf(songs: readonly Song[]): AlbumGroup[] {
 export function artistSummary(songs: readonly Song[]): string {
   const albums = new Set(songs.map(song => song.album.trim()).filter(Boolean)).size
   const count = `${songs.length.toLocaleString()} ${songs.length === 1 ? 'song' : 'songs'}`
-  return albums > 0 ? `${count} · ${albums} ${albums === 1 ? 'album' : 'albums'}` : count
+  return albums > 0 ? `${count} · ${plural(albums, 'album', 'albums')}` : count
 }

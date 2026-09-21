@@ -1,3 +1,4 @@
+import { plural } from '@selfmp3/shared'
 import type { ApplyMetadata, FixCoversStatus, MetadataCandidate, Song } from '@selfmp3/shared'
 
 /**
@@ -108,7 +109,7 @@ export function appliedCount(diffs: readonly Diff[], ticked: ReadonlySet<Field>)
 export function applyLabel(count: number, pending: boolean): string {
   if (pending) return 'Applying…'
   if (count === 0) return 'Apply'
-  return `Apply ${count} ${count === 1 ? 'change' : 'changes'}`
+  return `Apply ${plural(count, 'change', 'changes')}`
 }
 
 /** What a screen reader hears for a change row. */
@@ -146,7 +147,7 @@ export function missingArtCount(songs: readonly Pick<Song, 'hasArt' | 'missing'>
 export function coverArtHint(missing: number): string {
   return missing === 0
     ? 'Every song has artwork.'
-    : `${missing} ${missing === 1 ? 'song has' : 'songs have'} none. Looks each one up on iTunes and MusicBrainz and keeps confident matches only.`
+    : `${plural(missing, 'song has', 'songs have')} none. Looks each one up on iTunes and MusicBrainz and keeps confident matches only.`
 }
 
 /** "Checking 3 of 12 — アイドル · 2 found", while the pass runs. */
@@ -162,5 +163,5 @@ export function coverResult(status: FixCoversStatus): string | null {
   if (status.status !== 'done' && status.status !== 'cancelled') return null
   const stopped = status.status === 'cancelled' ? 'Stopped. ' : ''
   const unchecked = status.done < status.total ? ` (${status.total - status.done} not checked)` : ''
-  return `${stopped}Found artwork for ${status.found} of ${status.done} ${status.done === 1 ? 'song' : 'songs'}${unchecked}.`
+  return `${stopped}Found artwork for ${status.found} of ${plural(status.done, 'song', 'songs')}${unchecked}.`
 }

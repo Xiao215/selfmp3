@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { plural } from '@selfmp3/shared'
 import type { Song, Tag } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -384,7 +385,7 @@ export function SelectionBar({
                 label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
                 onPress={act(
                   () => bulkLoved.mutate({ songIds: ids, loved: true }),
-                  `Loved ${count - lovedCount} ${count - lovedCount === 1 ? 'song' : 'songs'}`,
+                  `Loved ${plural(count - lovedCount, 'song', 'songs')}`,
                 )}
               />
             ) : null}
@@ -496,10 +497,7 @@ export function SelectionBar({
                   void downloadQueue
                     .remove(held.map(song => song.id))
                     .then(() =>
-                      showToast(
-                        `Removed ${removing} ${removing === 1 ? 'download' : 'downloads'}`,
-                        'good',
-                      ),
+                      showToast(`Removed ${plural(removing, 'download', 'downloads')}`, 'good'),
                     )
                 })}
               />
@@ -541,13 +539,9 @@ export function SelectionBar({
                   setConfirming(false)
                   onDone()
                   // The summary: what went, what was deleted, what did not.
-                  const parts = [
-                    `Removed ${result.removed} ${result.removed === 1 ? 'song' : 'songs'}`,
-                  ]
+                  const parts = [`Removed ${plural(result.removed, 'song', 'songs')}`]
                   if (result.filesDeleted > 0) {
-                    parts.push(
-                      `deleted ${result.filesDeleted} ${result.filesDeleted === 1 ? 'file' : 'files'}`,
-                    )
+                    parts.push(`deleted ${plural(result.filesDeleted, 'file', 'files')}`)
                   }
                   const trouble = result.failed.length
                   if (trouble > 0) parts.push(`${trouble} needed attention`)

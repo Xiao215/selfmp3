@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { formatBytes } from '@selfmp3/shared'
+import { plural, formatBytes } from '@selfmp3/shared'
 import {
   downloadTally,
   staleDownloads,
@@ -233,7 +233,7 @@ export function OfflinePanel({
  * happened, in numbers large enough to be alarming.
  */
 function staleHint(stale: StaleDownloads): string {
-  const files = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`
+  const files = (count: number): string => `${plural(count, 'file', 'files')}`
   const gone = stale.gone.length
   const changed = stale.changed.length
   const room = `, using ${formatBytes(stale.bytes)}`

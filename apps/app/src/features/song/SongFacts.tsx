@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Linking, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
+import { plural, formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
   formatAddedDate,
   formatName,
@@ -146,7 +146,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
             <Text style={styles.strong}>
               {song.playCount === 0
                 ? 'Not yet'
-                : `${song.playCount} ${song.playCount === 1 ? 'time' : 'times'} · last ${formatRelative(song.lastPlayedAt)}`}
+                : `${plural(song.playCount, 'time', 'times')} · last ${formatRelative(song.lastPlayedAt)}`}
             </Text>
           </Fact>
         ) : null}

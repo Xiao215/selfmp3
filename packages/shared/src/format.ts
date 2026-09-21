@@ -81,3 +81,15 @@ export function hueFromString(input: string): number {
   }
   return Math.abs(hash) % 360
 }
+
+/**
+ * "1 song", "13 songs" — a count with the word that goes with it.
+ *
+ * Written out at the call site 83 times before this had a home, which is two
+ * ways to do one thing and a coin flip on which the next author picks. It
+ * lives beside `formatDuration` for the same reason that does: a formatting
+ * bug is visible to the user everywhere at once.
+ */
+export function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
+}

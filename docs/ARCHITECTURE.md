@@ -279,8 +279,9 @@ breakpoint and the caller does not know.
 
 **6. Interaction follows the input, not the device.** Hover reveals, right-click
 menus and keyboard shortcuts exist wherever there is a pointer or a keyboard;
-long-press and swipe exist wherever there is a finger. A `useInput()` hook
-reports which are present. An iPad with a keyboard gets both.
+long-press and swipe exist wherever there is a finger. `ports/pointer.ts` and
+`ports/keyboard.ts` report which are present, and `useLayout()` passes the
+pointer's answer on as `finePointer`. An iPad with a keyboard gets both.
 
 **7. Features declare their platforms.** Each note in `docs/features/` gets a
 "Where" line: which platforms carry the feature and, when one does not, why
@@ -308,7 +309,7 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
 | Offline, native | files + JSON index | Existing code behind the same port. |
 | Icons | `react-native-svg` | Already ported. One file for all three platforms. |
-| Canvas work | Expo DOM components (`'use dom'`) on native | The song visual, the wrapped card and the energy wave are canvas drawings. On web they run as they do now; on the phone the same React DOM component renders in a webview. Reserved for genuinely DOM-only pieces — never for ordinary UI. |
+| Canvas work | A port twin per platform, sharing its model | The song visual is a canvas in a browser (`SongVisual.web.tsx`) and views moved by Reanimated on a phone (`SongVisual.tsx`), and both step the same `visualMotion.model.ts`. Expo DOM components (`'use dom'`) were the plan; a webview turned out to cost more than a second drawing, and nothing in the app uses one. |
 | Errors | `@sentry/react-native` with its Expo plugin | A phone away from the server fails silently otherwise. One day of work; opt-in via an env var so the personal build can leave it off. |
 | Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
 | Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |
@@ -372,9 +373,10 @@ each.
 - **Pitch lock.** Web and iOS. Android's player has no pitch-preserving rate
   change; the practice panel shows speed without the lock there.
 - **Reveal in Finder.** On the server itself only. Declared unavailable elsewhere.
-- **Canvas drawings.** The song visual, wrapped card and energy wave run as
-  `'use dom'` components on native. They are self-contained today, which is
-  what makes this cheap; keep them that way.
+- **Canvas drawings.** The song visual is drawn twice — a canvas in a browser,
+  Reanimated views on a phone — from one shared model of the motion. Written as
+  a `'use dom'` webview first, it was cheaper to draw than to embed. The wrapped
+  card and the energy wave are plain views and SVG at every width.
 - **Hover reveals in rows.** `Pressable` on web reports hover; rows show their
   controls on hover where there is a pointer and always where there is not,
   exactly the trade the CSS makes now.

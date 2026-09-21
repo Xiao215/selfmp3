@@ -1,4 +1,5 @@
 import {
+  plural,
   formatLongDuration,
   playNext,
   queueSections,
@@ -46,14 +47,14 @@ export function queueRows(
 export function nextSummary(next: readonly QueueRow[]): string {
   if (next.length === 0) return 'Nothing after this one'
   const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `${next.length} ${next.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`
+  return `${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
 }
 
 /** "Next · 6 songs, 24 min": the label over the sheet's next rows. */
 export function nextLabel(next: readonly QueueRow[]): string {
   if (next.length === 0) return 'Nothing next'
   const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `Next · ${next.length} ${next.length === 1 ? 'song' : 'songs'}, ${formatLongDuration(seconds)}`
+  return `Next · ${plural(next.length, 'song', 'songs')}, ${formatLongDuration(seconds)}`
 }
 
 /**

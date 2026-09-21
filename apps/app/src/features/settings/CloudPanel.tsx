@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
+  plural,
   formatBytes,
   formatRelative,
   newUid,
@@ -290,7 +291,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
               ? `Fetching ${Math.min(restoring.done + 1, restoring.total)} of ${restoring.total} from the cloud${
                   restoring.current ? ` — ${restoring.current}` : ''
                 }`
-              : `${waiting} ${waiting === 1 ? 'song' : 'songs'} from the cloud still to download`}
+              : `${plural(waiting, 'song', 'songs')} from the cloud still to download`}
           </Text>
           {restoring && restoring.total > 0 ? (
             <Meter fraction={restoring.done / restoring.total} />

@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { fonts, radius, useCloudStatus, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { radius, useCloudStatus, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Cover } from '../../ui/components/Cover'
@@ -282,8 +282,6 @@ const styles = StyleSheet.create(theme => ({
   contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
   contentNarrow: { paddingTop: 16, paddingHorizontal: 20 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  // The initial is the serif, like every name on a page (`S2`); its ink is the tile's.
-  initial: { fontFamily: fonts.serif, fontSize: 30 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
   name: { ...serif(theme.colors, 30), lineHeight: 34 },
   line: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 17 },

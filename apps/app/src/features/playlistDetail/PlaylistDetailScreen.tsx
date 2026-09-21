@@ -22,7 +22,7 @@ import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { formatBytes, type Song } from '@selfmp3/shared'
+import { plural, formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
   clientApi,
@@ -550,9 +550,7 @@ export function PlaylistDetailScreen(): ReactNode {
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>Can’t reach your library</Text>
       <Text style={styles.emptyHint}>
-        {playlist
-          ? `${playlist.songCount} ${playlist.songCount === 1 ? 'song is' : 'songs are'} in here, `
-          : ''}
+        {playlist ? `${plural(playlist.songCount, 'song is', 'songs are')} in here, ` : ''}
         but the list lives on your server and it isn’t answering right now.
       </Text>
       <Button label="Try again" onPress={() => void contents.refetch()} />

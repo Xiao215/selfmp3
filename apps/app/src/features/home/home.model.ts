@@ -28,16 +28,6 @@ export function greeting(hour: number): string {
   return 'Good night'
 }
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-/** "FRIDAY · 9:42 PM", the line over the greeting. Drawn uppercase by the label style. */
-export function dateLine(now: Date): string {
-  const hours = now.getHours()
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  const twelve = hours % 12 === 0 ? 12 : hours % 12
-  return `${DAYS[now.getDay()]} · ${twelve}:${minutes} ${hours < 12 ? 'AM' : 'PM'}`
-}
-
 /**
  * The one quiet line under the greeting: the streak, when there is one worth
  * saying ("3 days in a row."), and otherwise nothing. No invented cheer.

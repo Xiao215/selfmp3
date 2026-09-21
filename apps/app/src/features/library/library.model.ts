@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { plural } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
 import {
   bothTagsCount,
@@ -148,7 +149,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       chosenTags,
       subtitle: isPending
         ? 'Loading…'
-        : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'}`,
+        : `${plural(visible.length, 'song', 'songs')}`,
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,

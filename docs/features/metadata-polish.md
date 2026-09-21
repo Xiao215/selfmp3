@@ -80,8 +80,9 @@ closes — the dialog says so.
 - `apps/server/src/services/fixCovers.ts` — the background pass
 - `apps/server/src/routes/metadata.ts` — the routes above
 - `apps/app/src/features/metadata/` — the UI: `FixMetadata.tsx` (which library answers),
-  `MetadataDialog.tsx`, `metadataSource.ts`, `metadata.model.ts`; and `FixCoversPanel` in
-  `apps/app/src/features/settings/SettingsScreen.tsx`
+  `MetadataDialog.tsx`, `metadataSource.ts`, `metadata.model.ts`; and the cover-fixing
+  controls in `apps/app/src/features/settings/LibraryPanel.tsx` (`useFixCovers`,
+  `useFixCoversStatus`)
 
 Tests cover scoring, the rate limiter, the parsers (against fixture JSON in
 `services/fixtures/`) and the service's failure modes with a fake `fetch`. A live iTunes

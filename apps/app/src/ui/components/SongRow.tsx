@@ -767,8 +767,6 @@ const styles = StyleSheet.create(theme => ({
   /* The artist is what is scanned for, so it never shrinks; the album does. */
   artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
-  badges: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
-  tempo: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   // The wash grows from the row's left edge.
   washFrom: { transformOrigin: 'left' },
   playingOverlay: {

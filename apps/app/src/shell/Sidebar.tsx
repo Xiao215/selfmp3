@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayout } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
-import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
+import { plural, fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   downloadTally,
   radius,
@@ -298,10 +298,7 @@ function RailPlaylist({
     enabled: !live,
     onDrop: songIds => {
       addToPlaylist.mutate({ playlistId: playlist.id, songIds })
-      showToast(
-        `Added ${songIds.length} ${songIds.length === 1 ? 'song' : 'songs'} to ${playlist.name}`,
-        'good',
-      )
+      showToast(`Added ${plural(songIds.length, 'song', 'songs')} to ${playlist.name}`, 'good')
     },
   })
 
@@ -565,7 +562,7 @@ function Foot(): ReactNode {
     : library.isPending
       ? [theme.colors.warning, 'Connecting…']
       : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your server']
-  const detail = `${songs} ${songs === 1 ? 'song' : 'songs'} · ${
+  const detail = `${plural(songs, 'song', 'songs')} · ${
     saved > 0 ? `${saved} saved offline` : 'none saved offline'
   }`
 
@@ -668,23 +665,6 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   section: { gap: 1 },
-  playlistsHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 4,
-    borderRadius: 12,
-  },
-  playlistsHeadMain: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.sm,
-    borderRadius: 12,
-  },
-  playlistsHeadLabel: { flex: 1 },
   playlistRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -777,7 +757,6 @@ const styles = StyleSheet.create(theme => ({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
-  not: { color: theme.colors.danger, fontWeight: '600' },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
   tagActionLast: { paddingRight: space.sm },

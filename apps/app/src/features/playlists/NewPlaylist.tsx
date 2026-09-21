@@ -5,7 +5,7 @@ import type { View as RNView } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { formatLongDuration, type Tag } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
 import { clientApi, queryKeys, radius, space, useLibrary } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -232,7 +232,7 @@ function NewPlaylistDialog({
             <Text style={styles.hint}>
               {tagIds.length === 0
                 ? 'Songs carrying any of the tags you pick go in, and new ones join as you tag them.'
-                : `${matching.length} ${matching.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`}
+                : `${plural(matching.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`}
             </Text>
           </View>
         ) : null}

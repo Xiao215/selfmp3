@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { formatBytes } from '@selfmp3/shared'
+import { plural, formatBytes } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
@@ -41,7 +41,7 @@ function wordsFor(
 ): { title: string; body: string; confirm: string; cancel: string | null } {
   if (question.kind === 'download') {
     const count = question.songIds.length
-    const songs = `${count} ${count === 1 ? 'song' : 'songs'}`
+    const songs = `${plural(count, 'song', 'songs')}`
     const size = formatBytes(question.bytes)
     switch (question.ask) {
       case 'data':

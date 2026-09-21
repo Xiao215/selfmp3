@@ -4,14 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyHint,
   emptyTitle,
-  eyebrow,
   facts,
   figure,
   figureUnit,
   longerRanges,
-  numberOneLine,
   rangeShort,
-  rankShare,
   shareFileName,
   tryLabel,
   weekdayName,
@@ -39,7 +36,6 @@ const WRAPPED: Wrapped = WrappedSchema.parse({
 
 describe('wrapped', () => {
   it('leads with the minutes, and the hours once there are some', () => {
-    expect(eyebrow('month')).toBe('Last 30 days · you listened for')
     expect(figure(330.4)).toBe('330')
     expect(figureUnit(330.4)).toBe('minutes · 5 hr 30 min')
     expect(figureUnit(42)).toBe('minutes')
@@ -74,15 +70,6 @@ describe('wrapped', () => {
     expect(emptyTitle('all')).toBe('Nothing in your history yet')
     expect(emptyTitle('week')).toBe('Nothing in this window yet')
     expect(emptyHint('week')).toMatch(/last 7 days/)
-  })
-
-  it('draws a ranked bar for every row, never too thin to see', () => {
-    expect(rankShare(182, 182)).toBe(100)
-    expect(rankShare(1, 182)).toBe(6)
-  })
-
-  it('describes the number one', () => {
-    expect(numberOneLine({ plays: 46, minutes: 83.2 })).toBe('46 plays · 83 minutes')
   })
 
   it('names the shared image by its window and day', () => {

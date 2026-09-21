@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { fuzzyRank, type Tag } from '@selfmp3/shared'
+import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, radius, space, type, useLibrary } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
@@ -126,7 +126,7 @@ function Panel({
             onBlur={() => setFocused(false)}
             value={query}
             onChangeText={setQuery}
-            placeholder={`Search ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
+            placeholder={`Search ${plural(tags.length, 'tag', 'tags')}`}
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}

@@ -1,6 +1,7 @@
 import { enqueueRequest, jobSubtitle, type Review } from '@selfmp3/client/core'
 import type { ImportRequestView } from '@selfmp3/replica'
 import {
+  plural,
   formatDuration,
   youtubeVideoId,
   type ImportEnqueue,
@@ -453,7 +454,7 @@ export function countLabel(review: Review): string {
   return `${comingIn(review)} of ${review.items.length} coming in`
 }
 
-const songs = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
 
 /** The commit pill: "Import 4 songs". */
 export function importLabel(count: number): string {

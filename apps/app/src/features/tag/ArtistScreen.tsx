@@ -11,6 +11,7 @@ import { tagLink } from './placeLinks'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag } from './tag.model'
+import { plural } from '@selfmp3/shared'
 
 /**
  * An artist's page, `/artist/<name>` (docs/ui-mock `P10`): the tag page with
@@ -68,10 +69,7 @@ function MakeTag({ artist, onDone }: { artist: Artist; onDone: () => void }): Re
       const tag = await createTag.mutateAsync(artist.name)
       await bulkTag.mutateAsync({ songIds: [...artist.songIds], tagId: tag.id, action: 'add' })
       const count = artist.songIds.length
-      showToast(
-        `Made the tag “${tag.name}” from ${count} ${count === 1 ? 'song' : 'songs'}`,
-        'good',
-      )
+      showToast(`Made the tag “${tag.name}” from ${plural(count, 'song', 'songs')}`, 'good')
       onDone()
       router.navigate(tagLink(tag.name))
     } catch {

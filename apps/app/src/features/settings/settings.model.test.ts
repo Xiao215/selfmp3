@@ -8,7 +8,6 @@ import {
   devicePlace,
   healthLine,
   landingOffset,
-  percentLabel,
   RECENT_DEVICE_WINDOW_MS,
   scanHint,
   sectionsFor,
@@ -101,7 +100,6 @@ describe('settings', () => {
   it('words the rows', () => {
     expect(crossfadeLabel(0)).toBe('off')
     expect(crossfadeLabel(4)).toBe('4s')
-    expect(percentLabel(0.55)).toBe('55%')
     expect(accentName(330, [{ hue: 330, name: 'Pink' }])).toBe('Pink')
     expect(accentName(30, [{ hue: 330, name: 'Pink' }])).toBe('Hue 30°')
   })

@@ -4,7 +4,6 @@ import { EMPTY_SMART_RULES, type Playlist, type SmartRules } from '@selfmp3/shar
 import {
   copyName,
   listedPlaylists,
-  madeFrom,
   newPlaylist,
   playlistHeadLine,
   playlistsSubline,
@@ -198,10 +197,6 @@ describe('making a playlist', () => {
   it('trims the name, and makes nothing of a name that is only space', () => {
     expect(newPlaylist('manual', '  Road trip  ')?.name).toBe('Road trip')
     expect(newPlaylist('manual', '   ')).toBeNull()
-  })
-
-  it('says how a smart playlist was made', () => {
-    expect(madeFrom('Most played', new Date(2026, 8, 13))).toBe('Made from Most played · 13 Sep')
   })
 
   it('names a copy so it never takes an existing name', () => {

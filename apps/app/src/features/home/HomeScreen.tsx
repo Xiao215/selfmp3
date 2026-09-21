@@ -4,6 +4,7 @@ import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
+import { plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -355,7 +356,7 @@ function Tile({
           onPress={onPress}
           {...press.handlers}
           accessibilityRole="button"
-          accessibilityLabel={`${tile.tag.name}, ${tile.songs} ${tile.songs === 1 ? 'song' : 'songs'}`}
+          accessibilityLabel={`${tile.tag.name}, ${plural(tile.songs, 'song', 'songs')}`}
           style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
         >
           <Text

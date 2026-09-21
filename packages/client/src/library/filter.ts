@@ -49,10 +49,6 @@ export const DEFAULT_FILTER: LibraryFilter = {
  */
 type TagFilter = Pick<LibraryFilter, 'tagIds'>
 
-export function tagSelected(filter: TagFilter, tagId: number): boolean {
-  return filter.tagIds.includes(tagId)
-}
-
 /** Whether any tag is narrowing the library. */
 export function tagFiltered(filter: TagFilter): boolean {
   return filter.tagIds.length > 0

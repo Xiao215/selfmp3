@@ -1,3 +1,4 @@
+import { plural } from '@selfmp3/shared'
 import type { ImportEnqueue, ImportPreviewItem } from '@selfmp3/shared'
 import { enqueueRequest, type Review } from '@selfmp3/client'
 
@@ -57,7 +58,7 @@ export function countLabel(review: Review, wide: boolean): string {
   return `${comingIn(review)} of ${review.items.length} ${wide ? 'coming in' : 'in'}`
 }
 
-const songs = (count: number): string => `${count} ${count === 1 ? 'song' : 'songs'}`
+const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
 
 /** The commit pill: "Import 5 songs". */
 export function importLabel(count: number): string {

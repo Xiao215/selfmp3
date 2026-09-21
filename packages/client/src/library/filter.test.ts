@@ -10,7 +10,6 @@ import {
   searchSongs,
   tagFiltered,
   tagMatchCount,
-  tagSelected,
   toggleTag,
   topSongs,
   type LibraryFilter,
@@ -80,12 +79,6 @@ describe('tag filtering', () => {
     const chill = toggleTag(byTitle, CHILL)
     const andInstrumental = toggleTag(chill, INSTRUMENTAL)
     expect(titles(andInstrumental).length).toBeGreaterThanOrEqual(titles(chill).length)
-  })
-
-  it('toggles a tag off again', () => {
-    expect(toggleTag(toggleTag(byTitle, CHILL), CHILL).tagIds).toEqual([])
-    expect(tagSelected(toggleTag(byTitle, CHILL), CHILL)).toBe(true)
-    expect(tagSelected(byTitle, CHILL)).toBe(false)
   })
 
   it('counts how many of the chosen tags a song carries', () => {

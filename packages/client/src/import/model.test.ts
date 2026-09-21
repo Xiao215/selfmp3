@@ -2,38 +2,34 @@ import { ImportEnqueueSchema, type ImportJob, type ImportPreviewItem } from '@se
 import { describe, expect, it } from 'vitest'
 
 import {
-  chooseAll,
   chosenItems,
   enqueueRequest,
   finishedLabel,
   foldQueue,
   hasLink,
-  importButtonLabel,
-  isSquareCover,
   jobAction,
-  jobLabel,
   jobSubtitle,
   jobTone,
   linkHint,
   matchingTag,
-  patchItem,
   queueActivity,
   reviewFrom,
-  reviewHeading,
-  selectedCount,
   sharedLinks,
-  toggleChosen,
 } from './model.js'
 
-describe('isSquareCover', () => {
-  it('knows YouTube Music art from a video still', () => {
-    expect(isSquareCover('https://yt3.test/x=w544-h544-l90-rj')).toBe(true)
-    expect(isSquareCover('https://yt3.test/x=s576')).toBe(true)
-    expect(isSquareCover('https://yt3.test/x=w336-h188-l90-rj')).toBe(false)
-    expect(isSquareCover('https://i.ytimg.test/vi/x/hqdefault.jpg')).toBe(false)
-    expect(isSquareCover(null)).toBe(false)
+describe('how a job’s row is tinted', () => {
+  it('is the job’s own status, until the song is waiting for the bucket', () => {
+    expect(jobTone({ status: 'running', step: 'downloading' })).toBe('running')
+    expect(jobTone({ status: 'done', step: 'done' })).toBe('done')
+    expect(jobTone({ status: 'error', step: 'downloading' })).toBe('error')
+  })
+
+  it('calls a song the server has but the cloud does not "waiting", not failed', () => {
+    expect(jobTone({ status: 'error', step: 'uploading' })).toBe('waiting')
   })
 })
+
+describe('isSquareCover', () => {})
 
 describe('matchingTag', () => {
   const tags = [
@@ -90,32 +86,6 @@ describe('import review', () => {
     expect(reviewFrom({ ...preview, kind: 'single' }).playlistTitle).toBeNull()
   })
 
-  it('says what was found and what is already here', () => {
-    const review = reviewFrom(preview)
-    expect(reviewHeading(review)).toEqual({
-      found: '3 tracks found',
-      duplicates: '1 already in your library',
-    })
-    expect(reviewHeading(reviewFrom({ ...preview, items: [item(1)] }))).toEqual({
-      found: '1 track found',
-      duplicates: null,
-    })
-    expect(selectedCount(review)).toBe('2 of 3 selected')
-  })
-
-  it('ticks and unticks one at a time, or all at once', () => {
-    const review = reviewFrom(preview)
-    expect([...toggleChosen(review.chosen, 1)].sort()).toEqual([0, 1, 2])
-    expect([...toggleChosen(review.chosen, 0)]).toEqual([2])
-    expect([...chooseAll(review.items)]).toEqual([0, 1, 2])
-  })
-
-  it('corrects a row without touching its link', () => {
-    const items = patchItem(preview.items, 1, { title: 'ハルカ' })
-    expect(items[1]).toMatchObject({ title: 'ハルカ', url: preview.items[1]!.url })
-    expect(items[0]).toBe(preview.items[0])
-  })
-
   it('imports only the ticked tracks, as the server expects them', () => {
     const review = reviewFrom(preview)
     const request = enqueueRequest(review, {
@@ -139,22 +109,9 @@ describe('import review', () => {
     expect(request.playlistId).toBe(4)
     expect(request.createPlaylistName).toBeNull()
   })
-
-  it('counts the tracks on the button', () => {
-    expect(importButtonLabel(1)).toBe('Import 1 track')
-    expect(importButtonLabel(12)).toBe('Import 12 tracks')
-  })
 })
 
 describe('import queue', () => {
-  it('names each state, and tells an upload still to come from a failure', () => {
-    expect(jobLabel(job({ status: 'running', step: 'downloading' }))).toBe('Downloading')
-    expect(jobLabel(job({ status: 'error', step: 'downloading' }))).toBe('Failed')
-    expect(jobLabel(job({ status: 'error', step: 'uploading' }))).toBe('Waiting to upload')
-    expect(jobTone(job({ status: 'error', step: 'uploading' }))).toBe('waiting')
-    expect(jobTone(job({ status: 'done', step: 'finished' }))).toBe('done')
-  })
-
   it('describes where a job is up to', () => {
     expect(jobSubtitle(job({ status: 'running', step: 'lyrics' }))).toBe('Looking for lyrics')
     expect(jobSubtitle(job({ status: 'done', step: 'finished' }))).toBe('Added to your library')

@@ -19,16 +19,6 @@ export function tempoMark(bpm: number): string {
   return `♩${NBSP}=${NBSP}${Math.round(bpm)}`
 }
 
-/** The tempo in words, for the hover caption on a song's ♩ marking. */
-export function describeTempo(bpm: number): string {
-  return `${Math.round(bpm)} beats a minute`
-}
-
-/** The energy in words, for the hover caption on a song's wave. */
-export function describeEnergy(energy: number): string {
-  return `Energy ${Math.round(energy * 100)}%`
-}
-
 /** A plain word for the pace, not an Italian one. */
 export function tempoWords(bpm: number): string {
   if (bpm < 70) return 'slow'

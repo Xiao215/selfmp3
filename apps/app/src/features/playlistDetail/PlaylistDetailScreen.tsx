@@ -92,7 +92,7 @@ import {
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
+import { cameFrom, dropIndex, dropSide, movedTo, type DropSide } from './playlistDetail.model'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -311,7 +311,7 @@ export function PlaylistDetailScreen(): ReactNode {
           selecting={selection.active}
           selected={selection.has(item.id)}
           lifted={drag?.from === index}
-          dropTarget={drag !== null && drag.over === index && drag.from !== index}
+          dropTarget={dropSide(drag, index)}
           menuOpen={menuSongId === item.id}
           actions={rowActions}
         />
@@ -800,7 +800,7 @@ const PlaylistRow = memo(function PlaylistRow({
   selecting: boolean
   selected: boolean
   lifted: boolean
-  dropTarget: boolean
+  dropTarget: DropSide | null
   menuOpen: boolean
   actions: RowActions
 }): ReactNode {

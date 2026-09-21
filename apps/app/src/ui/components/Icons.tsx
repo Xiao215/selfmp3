@@ -201,6 +201,22 @@ export const CloudDownload = ({ color: colorGiven, tone, ...rest }: IconProps): 
   )
 }
 
+/**
+ * Taking a song off this device: the same cloud, with the arrow replaced by a
+ * cross rather than a different shape altogether — undownloading is the
+ * download undone, and the mock draws it as the cloud either way (`S5`).
+ */
+export const CloudRemove = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M7 17a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 17" />
+      <Path d="m9.5 15.5 5 5" />
+      <Path d="m14.5 15.5-5 5" />
+    </Icon>
+  )
+}
+
 export const CloudUpload = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

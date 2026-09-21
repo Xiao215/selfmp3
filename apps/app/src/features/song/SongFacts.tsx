@@ -15,6 +15,7 @@ import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvid
 import { useArt } from '../../offline/useArt'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
+import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
 
@@ -111,7 +112,13 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
                 <Text style={styles.strong}>Downloaded · {formatBytes(song.sizeBytes)}</Text>
                 <Text style={styles.note}>Plays with no connection.</Text>
                 <View style={styles.action}>
-                  <Button label="Remove download" onPress={() => void queue.remove([song.id])} />
+                  {/* The cloud, not a bare word: this undoes the download, and
+                      the icon says which of the two it is at a glance. */}
+                  <Button
+                    label="Remove download"
+                    icon={<CloudRemove size={15} tone="textPrimary" />}
+                    onPress={() => void queue.remove([song.id])}
+                  />
                 </View>
               </>
             ) : (

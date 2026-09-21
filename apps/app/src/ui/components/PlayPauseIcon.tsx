@@ -8,9 +8,13 @@ import { timing } from '../motion'
 const SWAP_MS = 180
 
 /**
- * Play or Pause, turning and shrinking through the swap: the old glyph turns a
- * quarter and shrinks to nothing, the new one grows back from the other side,
- * 180 ms in all. Under Reduce Motion it simply changes.
+ * Play or Pause, shrinking away and back through the swap: the old glyph
+ * fades and shrinks, the new one grows back in its place, 180 ms in all.
+ * Under Reduce Motion it simply changes.
+ *
+ * It used to turn a quarter as it went, which on a triangle and two bars read
+ * as a spin rather than a swap (Xiao, 2026-09-21): they are the same control
+ * saying two things, not two things changing places.
  *
  * Only the glyph; the button around it is the caller's.
  */
@@ -51,10 +55,7 @@ export function PlayPauseIcon({
   }, [playing, shown, turn])
 
   const style = {
-    transform: [
-      { scale: turn.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
-      { rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ['-90deg', '0deg'] }) },
-    ],
+    transform: [{ scale: turn.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }],
     opacity: turn,
   }
 

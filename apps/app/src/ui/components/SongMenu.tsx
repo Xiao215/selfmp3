@@ -30,6 +30,7 @@ import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import {
   CloudDownload,
+  CloudRemove,
   Heart,
   Info,
   ListMusic,
@@ -233,7 +234,7 @@ function Items({
         {!installed ? null : held ? (
           <Button
             label="Remove download"
-            icon={<X size={16} tone="textPrimary" />}
+            icon={<CloudRemove size={16} tone="textPrimary" />}
             onPress={then(() => void removeByHand([song.id]))}
           />
         ) : (

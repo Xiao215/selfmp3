@@ -34,6 +34,13 @@ import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
  * the page itself, it stays right when the practice panel narrows the page.
  */
 const ALBUM_COLUMN_CONTENT_WIDTH = 916
+/**
+ * And past this much, a row has room for its tags as chips — well below the
+ * album's column, because an iPad in portrait has 590 points of page and a
+ * tag added to a song there never appeared on its row at all (Xiao,
+ * 2026-09-21). `RowTags` fits what it can into the room and counts the rest.
+ */
+const TAG_CHIPS_CONTENT_WIDTH = 520
 const SIDEBAR_WIDTH = 244
 
 /**
@@ -89,7 +96,7 @@ export const SongRow = memo(function SongRow({
   unavailable = false,
   leading,
   lifted = false,
-  dropTarget = false,
+  dropTarget = null,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -160,7 +167,8 @@ export const SongRow = memo(function SongRow({
   /** This row is the one being moved, so it rides above its neighbours. */
   lifted?: boolean
   /** A move would land here: a line in the accent on the row's top edge. */
-  dropTarget?: boolean
+  /** Which edge the drop line falls on while a row is dragged over this one. */
+  dropTarget?: 'above' | 'below' | null
 }): ReactNode {
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
@@ -197,7 +205,15 @@ export const SongRow = memo(function SongRow({
     // Held and moving: off the page, over the rows it is passing.
     lifted && styles.lifted,
   ]
-  const dropLine = dropTarget ? <View style={styles.dropLine} /> : null
+  const dropLine =
+    dropTarget === null ? null : (
+      <View
+        style={[
+          styles.dropLine,
+          dropTarget === 'below' ? styles.dropLineBelow : styles.dropLineAbove,
+        ]}
+      />
+    )
 
   if (!wide) {
     return (
@@ -304,7 +320,9 @@ export const SongRow = memo(function SongRow({
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered || menuOpen
-  const albumColumn = (contentWidth ?? width - SIDEBAR_WIDTH) >= ALBUM_COLUMN_CONTENT_WIDTH
+  const page = contentWidth ?? width - SIDEBAR_WIDTH
+  const albumColumn = page >= ALBUM_COLUMN_CONTENT_WIDTH
+  const tagChips = page >= TAG_CHIPS_CONTENT_WIDTH
   const controlSize = dense ? 34 : HIT_TARGET
 
   return (
@@ -400,8 +418,8 @@ export const SongRow = memo(function SongRow({
       ) : null}
 
       <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
-        {/* Below the album column's width the chips go; the button stays. */}
-        {albumColumn && tags ? (
+        {/* Below the width for chips they go; the button stays. */}
+        {tagChips && tags ? (
           <RowTags
             tags={tags}
             hasAddButton={onEditTags !== undefined}
@@ -703,11 +721,12 @@ const styles = StyleSheet.create(theme => ({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 0,
     height: 2,
     borderRadius: 1,
     backgroundColor: theme.colors.accent,
   },
+  dropLineAbove: { top: 0 },
+  dropLineBelow: { bottom: 0 },
   art: {
     position: 'relative',
   },

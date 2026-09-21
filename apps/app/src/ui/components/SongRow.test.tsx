@@ -88,7 +88,7 @@ describe('a playlist row is a library row', () => {
 
     // Lifted and a drop target are drawing, not behaviour; what matters is
     // that asking for them changes nothing else about the row.
-    plain.rerender(<SongRow {...playlistRow({ lifted: true, dropTarget: true })} />)
+    plain.rerender(<SongRow {...playlistRow({ lifted: true, dropTarget: 'below' })} />)
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
   })
 

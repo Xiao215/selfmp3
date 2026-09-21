@@ -1,17 +1,47 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { HIT_TARGET, radius } from '@selfmp3/client'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { ChevronRight } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
+import { ease, timing } from '../../ui/motion'
+import { MOVE_MS } from '../../ui/motion.model'
 import { pageTitle } from '../../ui/surfaces'
 import { periodLabel, STATS_PERIODS, type StatsPeriod } from './stats.model'
+
+/**
+ * The page's numbers, when the window changes: they come up from a little way
+ * down rather than one set snapping into another (Xiao, 2026-09-21). Keyed on
+ * the window, so every change starts it again; the numbers themselves arrive
+ * a moment later, part-way through, which is what makes it read as the page
+ * catching up rather than as a flash.
+ */
+function Arriving({ token, children }: { token: string; children: ReactNode }): ReactNode {
+  const [value] = useState(() => new Animated.Value(1))
+  useEffect(() => {
+    value.setValue(0)
+    timing(value, 1, MOVE_MS.arrive, undefined, { easing: ease.out })
+  }, [token, value])
+  return (
+    <Animated.View
+      style={{
+        opacity: value,
+        transform: [
+          { translateY: value.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  )
+}
 
 /** Where "View Report" goes: the month as a page, a page of its own. */
 const REPORT_HREF = '/stats/report'
@@ -80,7 +110,7 @@ export function StatsFrame({
             </View>
           ) : null}
         </View>
-        {children}
+        <Arriving token={period}>{children}</Arriving>
         {wide ? null : <ReportLink pill={false} />}
         <ChromeSpacer />
       </ScrollView>

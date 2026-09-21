@@ -46,6 +46,25 @@ export function dropIndex(from: number, dy: number, rowHeight: number, count: nu
   return Math.max(0, Math.min(count - 1, from + rows))
 }
 
+/** Which edge of a row the drop line falls on, or none for a row it is not over. */
+export type DropSide = 'above' | 'below'
+
+/**
+ * A row dragged downwards lands *after* the row it is over, because it was
+ * lifted out of the list before being put back: `moveTo(0, 3)` on four songs
+ * makes the first song the last. A line above that row promised a place one
+ * higher than the song would take — dragged to the foot of a playlist it drew
+ * the line above the last song and then put the song below it (Xiao,
+ * 2026-09-21). Downwards the line belongs under the row; upwards, over it.
+ */
+export function dropSide(
+  drag: { readonly from: number; readonly over: number } | null,
+  index: number,
+): DropSide | null {
+  if (drag === null || drag.over !== index || drag.from === index) return null
+  return drag.over > drag.from ? 'below' : 'above'
+}
+
 /**
  * What a finished move means: where the row landed, and the whole new order to
  * send. Null when it landed where it started — a hold let go without moving,

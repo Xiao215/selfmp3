@@ -13,6 +13,10 @@ import { withAlpha } from '@selfmp3/client'
  * out over `fade` points instead of stopping at a hard line, so it reads as
  * light rather than as a block. The line along the foot, where there is one,
  * fades with it.
+ *
+ * The fade is centred on where the song has got to rather than ending there:
+ * half of it before, half after. Ending there, the wash always looked to be
+ * running behind the scrubber's own handle (Xiao, 2026-09-21).
  */
 export function ProgressWash({
   fraction,
@@ -33,15 +37,24 @@ export function ProgressWash({
 }): ReactNode {
   // Gradient ids are document ids on the web: two bars must not share one.
   const id = `wash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  const width = `${Math.min(1, Math.max(0, fraction)) * 100}%` as const
+  const at = `${Math.min(1, Math.max(0, fraction)) * 100}%` as const
+  const half = fade / 2
 
   return (
-    <View pointerEvents="none" style={[styles.wash, { width }]}>
-      <View style={styles.played}>
-        <View style={[styles.fill, { backgroundColor: withAlpha(color, alpha) }]} />
-        {footLine ? <View style={[styles.line, { backgroundColor: color }]} /> : null}
+    <View pointerEvents="none" style={styles.wash}>
+      {/* Solid up to half a fade before the playhead. The parent carries the
+          share of the bar, the child the points, so neither needs the other's
+          units. */}
+      <View style={[styles.played, { width: at }]}>
+        <View
+          style={[styles.fill, { marginRight: half, backgroundColor: withAlpha(color, alpha) }]}
+        />
+        {footLine ? (
+          <View style={[styles.line, { marginRight: half, backgroundColor: color }]} />
+        ) : null}
       </View>
-      <View style={[styles.edge, { width: fade }]}>
+      {/* And out again half a fade after it. */}
+      <View style={[styles.edge, { left: at, width: fade, marginLeft: -half }]}>
         <Fade id={`${id}fill`} color={color} opacity={alpha} style={styles.fill} />
         {footLine ? <Fade id={`${id}line`} color={color} opacity={1} style={styles.line} /> : null}
       </View>
@@ -82,13 +95,14 @@ const styles = StyleSheet.create({
   wash: {
     position: 'absolute',
     left: 0,
+    right: 0,
     top: 0,
     bottom: 0,
-    flexDirection: 'row',
+    // Early in a song the fade's first half reaches past the left edge.
     overflow: 'hidden',
   },
-  played: { flex: 1 },
-  edge: { flexShrink: 0 },
+  played: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  edge: { position: 'absolute', top: 0, bottom: 0 },
   fill: { flex: 1 },
   line: { height: 2 },
 })

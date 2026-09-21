@@ -42,6 +42,10 @@ export function sectionTitle(colors: ThemePalette) {
     fontFamily: fonts.display,
     fontSize: type.section,
     letterSpacing: -0.2,
+    // The display face's last glyph leans past its own advance width, and
+    // tracked tighter still it was cut off by the text's own box: "Your tags"
+    // lost the tail of its s on a phone. A point of room, which no eye sees.
+    paddingRight: 2,
   } as const
 }
 

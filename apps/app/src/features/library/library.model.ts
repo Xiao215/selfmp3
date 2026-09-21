@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { formatLongDuration, type Song, type SongSortField, type Tag } from '@selfmp3/shared'
+import type { Song, SongSortField, Tag } from '@selfmp3/shared'
 import {
   bothTagsCount,
   clearTagFilter,
@@ -57,7 +57,7 @@ interface LibraryModel {
   tagFiltered: boolean
   /** The chosen tags, in the order they were chosen — the head's chips. */
   chosenTags: readonly Tag[]
-  /** "13 songs · 48 min", or "Loading…" before the first answer. */
+  /** "13 songs", or "Loading…" before the first answer. */
   subtitle: string
   /**
    * "62 have both tags, and come first" — only with two or more tags on, and
@@ -99,11 +99,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     useMemo(() => filterSongs(songs, filter, downloaded), [songs, filter, downloaded]),
   )
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
-
-  const seconds = useMemo(
-    () => visible.reduce((total, song) => total + song.duration, 0),
-    [visible],
-  )
 
   const songTags = useMemo(() => songTagLookup(allTags), [allTags])
   const chosenTags = useMemo(() => tagsFor(allTags, filter.tagIds), [allTags, filter.tagIds])
@@ -153,7 +148,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       chosenTags,
       subtitle: isPending
         ? 'Loading…'
-        : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'} · ${formatLongDuration(seconds)}`,
+        : `${visible.length} ${visible.length === 1 ? 'song' : 'songs'}`,
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,
@@ -182,7 +177,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       allMatched,
       isPending,
       isError,
-      seconds,
       setQuery,
       clearQuery,
       setSort,

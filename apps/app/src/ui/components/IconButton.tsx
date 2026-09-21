@@ -47,7 +47,14 @@ export function IconButton({
   const press = usePressScale()
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
   return (
-    <Animated.View style={press.style}>
+    /*
+     * The press's scale wants the button's own size, not whatever a parent
+     * gives it. Left to stretch — a direct child of a page's column, as the
+     * way back from Profile is — the wrapper was as wide as the page, and
+     * scaling that about its centre walked the button ten points to the
+     * right every time it was pressed.
+     */
+    <Animated.View style={[press.style, { width: size, height: size }]}>
       <Pressable
         {...press.handlers}
         onPress={onPress}

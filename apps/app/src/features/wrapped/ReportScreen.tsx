@@ -328,8 +328,10 @@ function ReportFrame({
               {share}
             </View>
           </View>
-          {children}
+          {/* The looks first, as a computer has them (`C16`): what the page can
+              be is a choice made before reading it, not after. */}
           {picker}
+          {children}
           <ChromeSpacer />
         </ScrollView>
       </SafeAreaView>

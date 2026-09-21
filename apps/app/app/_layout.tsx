@@ -33,6 +33,7 @@ import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
+import { useStageCovers } from '../src/shell/stageCovers'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
@@ -211,6 +212,10 @@ function Shell(): ReactNode {
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'
+  // Only once it has actually risen over it: taken away as the address
+  // changes, the page underneath reflowed to the full width in plain view
+  // (`shell/stageCovers.ts`).
+  const covers = useStageCovers()
   // On a phone Now Playing is a native modal over the tab bar already. Taking
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
@@ -242,7 +247,7 @@ function Shell(): ReactNode {
   )
 
   return (
-    <Frame chrome={chrome} sidebar={!stage}>
+    <Frame chrome={chrome} sidebar={!(stage && covers)}>
       <Stack screenOptions={screenOptions}>
         <Stack.Screen name="now-playing" options={wide ? NOW_PLAYING_WIDE : NOW_PLAYING_OPTIONS} />
       </Stack>

@@ -19,6 +19,7 @@ import { fonts, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
+import { setStageCovers } from '../../shell/stageCovers'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
@@ -208,8 +209,16 @@ function Stage({
       duration: motionMs(ENTER_MS),
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
-    }).start(() => setEntered(true))
+    }).start(() => {
+      setEntered(true)
+      // Up: the shell may take the sidebar away now, behind this page
+      // (`stageCovers.ts`).
+      setStageCovers(true)
+    })
     setStageExit(then => {
+      // Before the fall, so the page under this one is laid out with the
+      // sidebar back while it is still covered.
+      setStageCovers(false)
       Animated.timing(shown, {
         toValue: 0,
         duration: motionMs(LEAVE_MS),
@@ -217,7 +226,10 @@ function Stage({
         useNativeDriver: true,
       }).start(() => then())
     })
-    return () => setStageExit(null)
+    return () => {
+      setStageExit(null)
+      setStageCovers(false)
+    }
   }, [shown])
   const width = size?.width ?? window.width
   // The page runs on under the player bar (`stagePage`), so what it lays out

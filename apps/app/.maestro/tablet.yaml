@@ -14,7 +14,11 @@ appId: com.selfmp3.app
 - assertVisible:
     id: 'sidebar'
 
-# A tile on Home opens its tag as a page.
+# A tile on Home opens its tag as a page. Home settles first: the week's card
+# arrives after its numbers do and pushes the tiles down the page, and a tap
+# aimed where a tile was lands under it.
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn:
     id: 'home-tile-0'
 - extendedWaitUntil:

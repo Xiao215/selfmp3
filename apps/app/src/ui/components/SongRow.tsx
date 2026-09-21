@@ -319,9 +319,12 @@ export const SongRow = memo(function SongRow({
       {active ? <RowWash color={songColor.color} play={woke} /> : null}
       {dropLine}
       {leading}
-      {onToggleSelect ? (
+      {onToggleSelect && (dense || selecting || selected) ? (
         // A finger gets no circle waiting in every row (docs/ui-mock `T09`): it
-        // holds a row to start choosing, as on a phone, and the circles come then.
+        // holds a row to start choosing, as on a phone, and the circles come
+        // then. Nor does it get the lane one would sit in — a hidden circle
+        // still takes its width, which on a touch screen is a gap down the
+        // left of every row that nothing ever fills.
         <Reveal shown={selecting || selected || (dense && revealed)}>
           <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
         </Reveal>

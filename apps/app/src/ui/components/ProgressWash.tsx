@@ -62,14 +62,17 @@ function Fade({
 }): ReactNode {
   return (
     <View style={style}>
-      <Svg width="100%" height="100%" preserveAspectRatio="none">
+      {/* A box of one unit stretched over the view, rather than a width and a
+          height given as percentages: on a phone those measure nothing and the
+          gradient is never drawn, which left the wash ending at a hard line. */}
+      <Svg style={styles.fill} viewBox="0 0 1 1" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0" stopColor={color} stopOpacity={opacity} />
             <Stop offset="1" stopColor={color} stopOpacity={0} />
           </LinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+        <Rect x="0" y="0" width="1" height="1" fill={`url(#${id})`} />
       </Svg>
     </View>
   )

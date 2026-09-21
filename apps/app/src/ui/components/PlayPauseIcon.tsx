@@ -40,7 +40,13 @@ export function PlayPauseIcon({
       timing(turn, 1, SWAP_MS / 2)
     })
     return () => {
-      if (!landed) out?.stop()
+      // Turned round before the glyph had swapped: it is part-way out, small
+      // and nearly transparent, and nothing is coming to finish the job — the
+      // state it was leaving is the one showing again, so the effect that runs
+      // next does nothing. Bring it back, or the button is left empty.
+      if (landed) return
+      out?.stop()
+      timing(turn, 1, SWAP_MS / 2)
     }
   }, [playing, shown, turn])
 

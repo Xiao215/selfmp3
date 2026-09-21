@@ -13,7 +13,7 @@ import type { PlaybackEngine } from '@selfmp3/client'
  *
  * Lifted out of `PlayerProvider`, which held it among a dozen other concerns.
  */
-export interface SleepTimer {
+interface SleepTimer {
   /** When playback stops, or null when nothing is set. */
   readonly endsAt: number | null
   /** Whether it waits for the song playing to end rather than a clock. */

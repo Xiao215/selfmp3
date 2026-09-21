@@ -21,13 +21,13 @@ const STATS_KEY = ['stats'] as const
  *
  * Lifted out of `PlayerProvider`, whose seams were banner comments.
  */
-export interface PlayTracking {
+interface PlayTracking {
   songId: number | null
   listenedSeconds: number
   counted: boolean
 }
 
-export interface PlayReporting {
+interface PlayReporting {
   /**
    * What has been heard of the song playing. The engine's own callbacks write
    * to it as the song runs — a new song, a second gone by, a seek — which is

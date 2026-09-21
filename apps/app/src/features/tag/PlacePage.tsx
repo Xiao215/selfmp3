@@ -373,7 +373,7 @@ const styles = StyleSheet.create(theme => ({
     lineHeight: 46,
     letterSpacing: -0.8,
   },
-  nameSerif: { fontFamily: fonts.serif, fontSize: 52, lineHeight: 56, letterSpacing: -0.5 },
+  nameSerif: { fontFamily: fonts.serif, fontSize: 52, lineHeight: 60, letterSpacing: -0.5 },
   summary: { color: theme.colors.textSecondary, fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   plus: { color: theme.colors.textSecondary, fontSize: 14 },

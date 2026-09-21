@@ -37,7 +37,13 @@ export function ProgressWash({
 }): ReactNode {
   // Gradient ids are document ids on the web: two bars must not share one.
   const id = `wash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  const at = `${Math.min(1, Math.max(0, fraction)) * 100}%` as const
+  /*
+   * Rounded, because on the web every distinct percentage becomes its own
+   * atomic CSS rule that will never be reused — four new rules a second while
+   * a song plays, for a difference no eye can see on a bar 300 points wide
+   * (`nowPlaying/stageMove.model.ts` explains the mechanism at length).
+   */
+  const at = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%` as const
   const half = fade / 2
 
   return (

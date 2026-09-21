@@ -23,6 +23,19 @@ const DownloadEntrySchema = z.object({
   sizeBytes: z.number().int().nonnegative(),
   /** The manifest etag at download time, so a re-encoded file is noticed. */
   etag: z.string(),
+  /**
+   * The song's `rev` at download time — which changes whenever its audio or
+   * its cover does, and which the library carries on every song.
+   *
+   * The file is named after the song's id, and a server's ids are only stable
+   * while its database is. Rebuild it and every id is handed out again: the
+   * file called `2.m4a` then holds whatever used to be song 2, and the app
+   * played it happily under the new song's name (Xiao's iPad, 2026-09-20 —
+   * 42 of 45 kept songs were somebody else's audio). Optional because an
+   * index written before this existed has none, and a copy we cannot vouch
+   * for is not played.
+   */
+  rev: z.string().optional(),
   downloadedAt: z.string(),
 })
 export type DownloadEntry = z.infer<typeof DownloadEntrySchema>
@@ -76,6 +89,18 @@ export function entryFor(index: DownloadIndex, songId: number): DownloadEntry | 
 
 export function isDownloaded(index: DownloadIndex, songId: number): boolean {
   return entryFor(index, songId) !== null
+}
+
+/**
+ * Whether the file kept for a song is still that song's.
+ *
+ * True only when the entry remembers the same `rev` the library reports now.
+ * An entry from before revs were written down (`rev` absent) cannot be
+ * vouched for, so it is not played either: the song streams instead, and the
+ * catch-up pass fetches it again with a rev attached.
+ */
+export function entryIsCurrent(entry: DownloadEntry | null, rev: string | undefined): boolean {
+  return entry !== null && rev !== undefined && entry.rev === rev
 }
 
 export function addEntry(index: DownloadIndex, entry: DownloadEntry): DownloadIndex {

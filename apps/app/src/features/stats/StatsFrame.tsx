@@ -16,25 +16,43 @@ import { MOVE_MS } from '../../ui/motion.model'
 import { pageTitle } from '../../ui/surfaces'
 import { periodLabel, STATS_PERIODS, type StatsPeriod } from './stats.model'
 
+/** How far a set of numbers comes in from. */
+const SWAP_TRAVEL = 26
+
 /**
- * The page's numbers, when the window changes: they come up from a little way
- * down rather than one set snapping into another (Xiao, 2026-09-21). Keyed on
- * the window, so every change starts it again; the numbers themselves arrive
- * a moment later, part-way through, which is what makes it read as the page
- * catching up rather than as a flash.
+ * The page's numbers, when the window changes: the new set slides in from the
+ * side the change came from — a longer window from the right, a shorter one
+ * from the left — and fades up as it arrives (Xiao, 2026-09-21). A plain fade
+ * said that something had changed; the direction says which way.
+ *
+ * `order` is the window's place in the row of them, which is what gives the
+ * direction. Where it came from is held in state rather than a ref, because
+ * the interpolation is built during render; the numbers themselves arrive
+ * part-way through the move, which is what makes it read as the page catching
+ * up rather than as a flash.
  */
-function Arriving({ token, children }: { token: string; children: ReactNode }): ReactNode {
+function Arriving({ order, children }: { order: number; children: ReactNode }): ReactNode {
   const [value] = useState(() => new Animated.Value(1))
+  // Which window is showing and which side the last change came from, settled
+  // during render as `SlidingHighlight` settles its pair: the interpolation
+  // below is built here, so the direction has to be known by now.
+  const [swap, setSwap] = useState({ order, from: 0 })
+  if (swap.order !== order) {
+    setSwap({ order, from: order > swap.order ? SWAP_TRAVEL : -SWAP_TRAVEL })
+  }
+  const from = swap.from
   useEffect(() => {
+    // Nothing to play on the first showing; `from` is only zero there.
+    if (swap.from === 0) return
     value.setValue(0)
     timing(value, 1, MOVE_MS.arrive, undefined, { easing: ease.out })
-  }, [token, value])
+  }, [swap, value])
   return (
     <Animated.View
       style={{
         opacity: value,
         transform: [
-          { translateY: value.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+          { translateX: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) },
         ],
       }}
     >
@@ -110,7 +128,7 @@ export function StatsFrame({
             </View>
           ) : null}
         </View>
-        <Arriving token={period}>{children}</Arriving>
+        <Arriving order={STATS_PERIODS.indexOf(period)}>{children}</Arriving>
         {wide ? null : <ReportLink pill={false} />}
         <ChromeSpacer />
       </ScrollView>

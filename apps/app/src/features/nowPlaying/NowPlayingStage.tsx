@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -13,9 +13,10 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
+import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { fonts, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import type { Rgb } from '@selfmp3/client'
+import { fonts, radius, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
@@ -51,7 +52,7 @@ import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongVisual } from './visualChoice'
-import { motionCaption, VISUAL_NAMES } from './visuals.model'
+import { motionCaption, rgbCss, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
@@ -144,6 +145,51 @@ function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
         <Text style={styles.emptyText}>Start a song and it turns up here, with its lyrics.</Text>
       </View>
     </View>
+  )
+}
+
+/**
+ * Three soft blooms of the cover's own colours, drawn as radial gradients.
+ *
+ * They were three round views under `filter: 'blur(80px)'`, which is a
+ * browser's filter and nothing at all on a phone: on an iPad the same three
+ * views drew as hard-edged discs crossing the page (Xiao, 2026-09-21). A
+ * gradient with no hard stop is the blur, in one element, on both — and the
+ * same shape in both places, which the CSS filter never was.
+ *
+ * Each bloom keeps the place and the size the views had, as a share of the
+ * page, and the reach past its edges that let the light run on under the bar.
+ */
+function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
+  const id = `glow${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const ink = (index: number): Rgb => palette[index] ?? palette[0] ?? [0, 0, 0]
+  const blooms = [
+    { at: [0.23, 0.4], size: [0.34, 0.42], ink: ink(0), alpha: 0.5 },
+    { at: [0.58, 0.8], size: [0.34, 0.36], ink: ink(1), alpha: 0.35 },
+    { at: [0.93, 0.18], size: [0.28, 0.33], ink: ink(2), alpha: 0.5 },
+  ] as const
+  return (
+    <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1">
+      <Defs>
+        {blooms.map((bloom, index) => (
+          <RadialGradient key={index} id={`${id}${index}`} cx="0.5" cy="0.5" r="0.5">
+            <Stop offset="0" stopColor={rgbCss(bloom.ink)} stopOpacity={bloom.alpha} />
+            <Stop offset="0.55" stopColor={rgbCss(bloom.ink)} stopOpacity={bloom.alpha * 0.55} />
+            <Stop offset="1" stopColor={rgbCss(bloom.ink)} stopOpacity={0} />
+          </RadialGradient>
+        ))}
+      </Defs>
+      {blooms.map((bloom, index) => (
+        <Ellipse
+          key={index}
+          cx={bloom.at[0]}
+          cy={bloom.at[1]}
+          rx={bloom.size[0]}
+          ry={bloom.size[1]}
+          fill={`url(#${id}${index})`}
+        />
+      ))}
+    </Svg>
   )
 }
 
@@ -349,15 +395,11 @@ function Stage({
         )
       }}
     >
-      {/* The cover's own colours, blurred into light behind everything. Sized
-          by the page above the bar, as it always was; its blur and its reach
-          past the edges run on under the bar for when Focus puts it away. */}
+      {/* The cover's own colours as light behind everything. Sized by the page
+          above the bar, as it always was; the light reaches past the edges so
+          it runs on under the bar for when Focus puts it away. */}
       <View pointerEvents="none" style={[styles.fill, { bottom: BAR }]}>
-        <View pointerEvents="none" style={[styles.glow, { filter: 'blur(80px)' }]}>
-          <View style={[styles.glowOne, { backgroundColor: rgba(palette[0], 1) }]} />
-          <View style={[styles.glowTwo, { backgroundColor: rgba(palette[1], 1) }]} />
-          <View style={[styles.glowThree, { backgroundColor: rgba(palette[2], 1) }]} />
-        </View>
+        <CoverGlow palette={palette} />
       </View>
       {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
       <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>

@@ -430,7 +430,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // A file here wins whenever there is one — a download first, then a copy
       // kept because it was played. It is the only thing that plays with no
       // signal, and it is the same song either way.
-      local: downloadQueue.localUri(songId) ?? recentUri(songId),
+      // With the song's own rev, so a file kept under a reused id is not
+      // played as the song that id now names (`entryIsCurrent`).
+      local: downloadQueue.localUri(songId, songsRef.current.get(songId)?.rev) ?? recentUri(songId),
       ...mediaSources(connectionRef.current, fromCloudRef.current),
     }),
     [downloadQueue],

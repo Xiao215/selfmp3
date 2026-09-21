@@ -54,6 +54,7 @@ function entry(songId: number): Parameters<typeof addEntry>[1] {
     fileName: `${songId}.m4a`,
     sizeBytes: 1,
     etag: '',
+    rev: 'r1',
     downloadedAt: '2026-09-01T00:00:00.000Z',
   }
 }
@@ -549,8 +550,12 @@ describe('keeping songs on this device', () => {
   it('answers where a kept song is, and null for one it does not have', async () => {
     const { queue } = setup({ index: addEntry(EMPTY_INDEX, entry(1)) })
     await queue.load()
-    expect(queue.localUri(1)).toBe('file:///songs/1.m4a')
-    expect(queue.localUri(2)).toBeNull()
+    expect(queue.localUri(1, FIRST.rev)).toBe('file:///songs/1.m4a')
+    expect(queue.localUri(2, SECOND.rev)).toBeNull()
+    // The same file under a rev the library does not report any more: the id
+    // was handed out again, and what is on disk is another song's audio.
+    expect(queue.localUri(1, 'some-other-rev')).toBeNull()
+    expect(queue.localUri(1, undefined)).toBeNull()
   })
 
   it('tells the storage where downloads come from, and the songs they belong to', () => {

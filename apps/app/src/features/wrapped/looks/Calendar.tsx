@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: 12,
   },
-  title: { flexShrink: 1, fontFamily: fonts.serifItalic, fontSize: 54, lineHeight: 58 },
+  title: { flexShrink: 1, fontFamily: fonts.serifItalic, fontSize: 54, lineHeight: 62 },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
   row: { flexDirection: 'row', gap: GAP },
   grid: { flexWrap: 'wrap', rowGap: GAP, marginTop: GAP },
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   footFigure: { flexShrink: 1 },
-  figure: { fontFamily: fonts.serif, fontSize: 88, lineHeight: 84, letterSpacing: -3 },
+  figure: { fontFamily: fonts.serif, fontSize: 88, lineHeight: 101, letterSpacing: -3 },
   figureLine: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 26 },
   traits: { fontFamily: fonts.serifItalic, fontSize: 18, lineHeight: 22, textAlign: 'right' },
 })

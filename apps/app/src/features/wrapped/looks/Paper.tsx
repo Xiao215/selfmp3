@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   figureLine: { fontFamily: fonts.serifItalic, fontSize: 26, lineHeight: 30 },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   repeatText: { flex: 1, minWidth: 0, gap: 3 },
-  repeatTitle: { fontFamily: fonts.serif, fontSize: 24, lineHeight: 26 },
+  repeatTitle: { fontFamily: fonts.serif, fontSize: 24, lineHeight: 28 },
   repeatLine: { fontSize: 13, lineHeight: 17 },
   figures: { flexDirection: 'row', gap: 10 },
   figureCell: { flex: 1, minWidth: 0, gap: 1 },

@@ -1,7 +1,8 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useLayout } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
@@ -93,9 +94,6 @@ const DESTINATIONS: {
 const RAIL_PLAYLISTS = 4
 
 export const SIDEBAR_WIDTH = 244
-
-/** A pointer can hover here, so a row's controls wait for it. A tablet shows them. */
-const HOVERS = Platform.OS === 'web'
 
 function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
@@ -488,10 +486,14 @@ function TagRow({
   onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
+  // A pointer can hover, so the row's controls wait for it; a finger cannot,
+  // so they are simply there. Asked of the pointer and not of the platform —
+  // a touch-screen browser never hovers, and an iPad with a trackpad does.
+  const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const moreRef = useRef<View>(null)
-  const revealed = !HOVERS || hovered || editing
+  const revealed = !finePointer || hovered || editing
 
   return (
     <View

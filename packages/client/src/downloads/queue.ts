@@ -2,6 +2,7 @@ import type { Song, SyncManifest } from '@selfmp3/shared'
 
 import type { DownloadStorage, DownloadTransfer, TransferProgress } from '../ports/offline.js'
 import {
+  entryIsCurrent,
   addEntry,
   EMPTY_INDEX,
   entryFor,
@@ -147,9 +148,20 @@ export class DownloadQueue {
     this.#patch({ index: index ?? EMPTY_INDEX })
   }
 
-  /** Where a kept song is, for a player that takes a URL; null when it is not kept. */
-  localUri(songId: number): string | null {
+  /**
+   * Where a kept song is, for a player that takes a URL; null when it is not
+   * kept — or when the file on disk is not this song's any more.
+   *
+   * `rev` is what the library says the song is now. A file whose entry
+   * remembers a different one is the right name over the wrong audio
+   * (`entryIsCurrent`), so it is not offered: the song streams, and the
+   * catch-up pass replaces the copy. The bytes are left alone, because on a
+   * plane a stale copy is still better than none and only playback can tell
+   * the difference.
+   */
+  localUri(songId: number, rev?: string): string | null {
     const entry = entryFor(this.#state.index, songId)
+    if (!entryIsCurrent(entry, rev)) return null
     return entry ? this.#storage.localUri(entry) : null
   }
 
@@ -313,6 +325,7 @@ export class DownloadQueue {
           fileName: fileNameFor(song),
           sizeBytes: written,
           etag: listed?.etag ?? '',
+          rev: song.rev,
           downloadedAt: this.#now().toISOString(),
         }),
       )

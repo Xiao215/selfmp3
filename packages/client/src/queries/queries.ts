@@ -681,7 +681,13 @@ export function usePlaylistSongIds(playlistId: number | null) {
       return fetchPlaylistSongs(client, playlistId)
     },
     enabled: playlistId !== null,
-    staleTime: 15_000,
+    /*
+     * A cover mosaic asks for this, and there is one mosaic per playlist tile
+     * and per tag row — so a short stale time means every tile refetches on
+     * every visit to the tab. The mutations invalidate `['playlist']`
+     * themselves, so freshness does not depend on this number at all.
+     */
+    staleTime: 5 * 60_000,
   })
 }
 

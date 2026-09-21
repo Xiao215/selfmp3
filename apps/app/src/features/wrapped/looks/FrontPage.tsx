@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   masthead: {
     fontFamily: fonts.serif,
     fontSize: 58,
-    lineHeight: 62,
+    lineHeight: 67,
     letterSpacing: -1,
     textAlign: 'center',
     paddingTop: 4,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   },
   columns: { flex: 1, minHeight: 0, flexDirection: 'row', gap: COLUMN_GAP },
   column: { gap: 10, minHeight: 0 },
-  headline: { fontFamily: fonts.serif, fontSize: 40, lineHeight: 42, letterSpacing: -0.6 },
+  headline: { fontFamily: fonts.serif, fontSize: 40, lineHeight: 46, letterSpacing: -0.6 },
   deck: { fontSize: 13, lineHeight: 20 },
   photo: { flex: 1, minHeight: 0, overflow: 'hidden', justifyContent: 'flex-end' },
   photoImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   chartValue: { fontFamily: mono, fontSize: 12, lineHeight: 22 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   forecast: { gap: 2, paddingVertical: 10, paddingHorizontal: 12, marginTop: 4 },
-  forecastTitle: { fontFamily: fonts.serif, fontSize: 26, lineHeight: 28 },
+  forecastTitle: { fontFamily: fonts.serif, fontSize: 26, lineHeight: 30 },
   forecastLine: { fontSize: 12 },
   imprint: { marginTop: 'auto', textAlign: 'right' },
 })

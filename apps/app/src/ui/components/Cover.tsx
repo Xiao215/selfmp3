@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -31,13 +31,18 @@ export function Cover({
   const [failedUri, setFailedUri] = useState<string | null>(null)
   const failed = uri !== null && failedUri === uri
 
-  const dimensions = {
-    width: size,
-    height: size,
-    // `S2`: a big cover is a card, a row's cover 10, a small one 8.
-    borderRadius:
-      cornerRadius ?? (size >= 120 ? radius.card : size >= 40 ? radius.cover : radius.coverSm),
-  }
+  // Held, rather than a new object on every render of every cover in a list:
+  // for a given call site these three numbers never change.
+  const dimensions = useMemo(
+    () => ({
+      width: size,
+      height: size,
+      // `S2`: a big cover is a card, a row's cover 10, a small one 8.
+      borderRadius:
+        cornerRadius ?? (size >= 120 ? radius.card : size >= 40 ? radius.cover : radius.coverSm),
+    }),
+    [size, cornerRadius],
+  )
 
   if (uri && !failed) {
     return (

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -68,6 +68,30 @@ export function TagsScreen(): ReactNode {
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
+  /*
+   * The row handlers are made once and take the row they act on. As arrows in
+   * the list below they were new on every render, so every tag row — and the
+   * four covers in each one's mosaic — redrew whenever the screen did, which
+   * on this page is every play, pause and skip (`usePlayer` above).
+   */
+  const latest = useRef({ player, router })
+  useEffect(() => {
+    latest.current = { player, router }
+  })
+  const holdRowRef = useCallback((tagId: number, node: View | null) => {
+    if (node) rowRefs.current.set(tagId, node)
+    else rowRefs.current.delete(tagId)
+  }, [])
+  const openTag = useCallback((standing: TagStanding) => {
+    noteTagUsed(standing.tag.id)
+    latest.current.router.navigate(tagLink(standing.tag.name))
+  }, [])
+  const playTag = useCallback((standing: TagStanding) => {
+    const ids = standing.songs.map(song => song.id)
+    if (ids.length === 0) return
+    noteTagUsed(standing.tag.id)
+    latest.current.player.playFrom(ids, 0)
+  }, [])
   const [editing, setEditing] = useState<Tag | null>(null)
   // The editor is anchored to the row that was held. One anchor for the page,
   // pointed at that row as it opens, so the page keeps a single editor.
@@ -94,6 +118,10 @@ export function TagsScreen(): ReactNode {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null
     setEditing(tag)
   }
+  const editTag = useCallback((standing: TagStanding) => {
+    editorAnchor.current = rowRefs.current.get(standing.tag.id) ?? null
+    setEditing(standing.tag)
+  }, [])
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
@@ -155,21 +183,10 @@ export function TagsScreen(): ReactNode {
                 key={standing.tag.id}
                 standing={standing}
                 index={index}
-                rowRef={node => {
-                  if (node) rowRefs.current.set(standing.tag.id, node)
-                  else rowRefs.current.delete(standing.tag.id)
-                }}
-                onOpen={() => {
-                  noteTagUsed(standing.tag.id)
-                  router.navigate(tagLink(standing.tag.name))
-                }}
-                onPlay={() => {
-                  const ids = standing.songs.map(song => song.id)
-                  if (ids.length === 0) return
-                  noteTagUsed(standing.tag.id)
-                  player.playFrom(ids, 0)
-                }}
-                onHold={() => edit(standing.tag)}
+                rowRef={holdRowRef}
+                onOpen={openTag}
+                onPlay={playTag}
+                onHold={editTag}
               />
             ))}
             <Text style={styles.footer}>Hold a tag to rename, recolour or delete it.</Text>
@@ -321,7 +338,12 @@ function UntaggedCard({ count, onPress }: { count: number; onPress: () => void }
 /** How long a row is held before its editor opens, as a song row's hold selects. */
 const HOLD_MS = 450
 
-function TagRow({
+/**
+ * One tag's row. Memoised, and handed handlers that take the row they act on
+ * rather than closing over it: this page reads the player, so without both of
+ * those every row and every cover in its mosaic redrew on every pause.
+ */
+const TagRow = memo(function TagRow({
   standing,
   index,
   rowRef,
@@ -331,20 +353,20 @@ function TagRow({
 }: {
   standing: TagStanding
   index: number
-  rowRef: (node: View | null) => void
-  onOpen: () => void
-  onPlay: () => void
-  onHold: () => void
+  rowRef: (tagId: number, node: View | null) => void
+  onOpen: (standing: TagStanding) => void
+  onPlay: (standing: TagStanding) => void
+  onHold: (standing: TagStanding) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const { tag } = standing
   const songIds = useMemo(() => standing.songs.map(song => song.id), [standing.songs])
   const line = tagLine(standing)
   return (
-    <View ref={rowRef} collapsable={false} style={styles.rowWrap}>
+    <View ref={node => rowRef(tag.id, node)} collapsable={false} style={styles.rowWrap}>
       <Pressable
-        onPress={onOpen}
-        onLongPress={onHold}
+        onPress={() => onOpen(standing)}
+        onLongPress={() => onHold(standing)}
         delayLongPress={HOLD_MS}
         accessibilityRole="link"
         accessibilityLabel={`${tag.name}, ${line}`}
@@ -368,7 +390,7 @@ function TagRow({
           label={`Play ${tag.name}`}
           filled
           disabled={songIds.length === 0}
-          onPress={onPlay}
+          onPress={() => onPlay(standing)}
           testID={`tags-play-${index}`}
         >
           <Play size={16} tone="textPrimary" />
@@ -376,7 +398,7 @@ function TagRow({
       </Pressable>
     </View>
   )
-}
+})
 
 /** The side of a row's cover mosaic. */
 const COVER = 52

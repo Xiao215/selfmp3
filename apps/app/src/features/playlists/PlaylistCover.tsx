@@ -50,11 +50,16 @@ export function PlaylistCover({
     return withArt.slice(0, 1).length > 0 ? withArt.slice(0, 1) : songs.slice(0, 1)
   }, [library?.songs, songIds, artFor])
 
-  const frame = [
-    styles.frame,
-    size === undefined ? styles.fill : { width: size, height: size },
-    { borderRadius: coverRadius(size) },
-  ]
+  // Held, not rebuilt: a tag list or a playlist grid draws one of these per
+  // row, and these numbers only depend on the size asked for.
+  const frame = useMemo(
+    () => [
+      styles.frame,
+      size === undefined ? styles.fill : { width: size, height: size },
+      { borderRadius: coverRadius(size) },
+    ],
+    [size],
+  )
 
   if (covers.length === 0) {
     const Glyph = playlist && isLive(playlist) ? Live : ListMusic

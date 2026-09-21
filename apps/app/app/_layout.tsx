@@ -32,6 +32,7 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
+import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
@@ -90,9 +91,6 @@ const queryClient = new QueryClient({
     },
   },
 })
-
-/** Screens that own the whole display: no tab bar, no mini player. */
-const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
 
 /**
  * Now Playing comes up from the foot of the display and goes back down, over
@@ -217,7 +215,12 @@ function Shell(): ReactNode {
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
   const covered = pathname === '/now-playing' && modalCoversScreen && !wide
-  const chrome = (stage || covered || !FULL_SCREEN_ROUTES.includes(pathname)) && status === 'ready'
+  const chrome = (stage || covered || !pageOwnsScreen(pathname, wide)) && status === 'ready'
+  // Every scrolling page leaves room at its foot for the chrome; the pages
+  // that own the display must not keep a hole where the bar would have been.
+  useEffect(() => {
+    setPageChrome(chrome)
+  }, [chrome])
 
   // Kept, not rebuilt: a new function here is new options for every screen in
   // the stack each time the shell renders.

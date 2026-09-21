@@ -98,11 +98,12 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible({
       timeout: 30_000,
     })
-    // Settings is reached from Home, through Profile, so Home stays lit.
-    await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    // Every page under Profile owns the display: no tab bar, no mini player,
+    // and its own way back is the way back.
+    await expect(page.getByTestId('tab-library')).toHaveCount(0)
+    await expect(page.getByTestId('mini-player')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Back to Profile', exact: true }).click()
+    await expect(page.getByTestId('profile-screen')).toBeVisible()
   })
 
   /**
@@ -163,7 +164,10 @@ test.describe('navigation', () => {
     await expect(page.getByTestId('shell-wide')).toBeVisible()
 
     await page.setViewportSize({ width: 507, height: 834 })
-    await expect(page.getByTestId('shell-compact')).toBeVisible()
+    // Search owns a phone's display, so there is no compact shell to look for:
+    // that the wide one has gone is how this width is told apart.
+    await expect(page.getByTestId('shell-wide')).toHaveCount(0)
+    await expect(page.getByTestId('tab-library')).toHaveCount(0)
     await expect(field).toHaveValue('yoas')
     await expect(field).toHaveAttribute('data-kept', 'yes')
 

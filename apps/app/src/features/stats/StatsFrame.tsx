@@ -61,7 +61,6 @@ export function StatsFrame({
               onChange={onPeriod}
               label="Time range"
               options={options}
-              size="small"
               testID="stats-range"
             />
           )}

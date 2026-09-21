@@ -32,11 +32,10 @@ test.describe('search', () => {
       'aria-pressed',
       'true',
     )
-    // The tab it was opened from stays lit.
-    await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    // Searching owns the display: the tab bar and the mini player step aside
+    // for it, and Cancel is the way back.
+    await expect(page.getByTestId('tab-library')).toHaveCount(0)
+    await expect(page.getByTestId('mini-player')).toHaveCount(0)
   })
 
   test('Library opens it on Songs, and a song plays from it', async ({ page }) => {
@@ -58,6 +57,10 @@ test.describe('search', () => {
     const row = page.getByRole('button', { name: new RegExp(`^${escaped(title)}, `) }).first()
     await expect(row).toBeVisible()
     await row.click()
+    // Nothing floats over the search page, so the mini player is there again
+    // once the field is closed — with the song it was told to play.
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByTestId('mini-player')).toContainText(title)
     await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible()
     await page.getByRole('button', { name: 'Pause' }).first().click()
   })

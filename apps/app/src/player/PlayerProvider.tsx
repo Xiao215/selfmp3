@@ -38,7 +38,6 @@ import {
   queryKeys,
   recoverPlayback,
   secondsToCount,
-  tapLoop,
   useLibrary,
   useSameArray,
   useServerSettings,
@@ -65,6 +64,7 @@ import {
 import { useDownloads } from '../offline/DownloadsProvider'
 import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
+import { usePracticeControls } from './usePracticeControls'
 import { useConnection } from '../connection/ConnectionProvider'
 import { showToast } from '../ui/toast'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
@@ -206,10 +206,7 @@ export interface PlayerApi {
 }
 
 /** Where this device keeps its volume. */
-const VOLUME_KEY = 'volume'
 /** Practice preferences, kept on this device. */
-const PITCH_LOCK_KEY = 'pitchlock'
-const COUNT_IN_KEY = 'countin'
 const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
@@ -255,7 +252,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
   const [sleepAtSongEnd, setSleepAtSongEnd] = useState(false)
-  const [countIn, setCountInState] = useState(() => prefs.get(COUNT_IN_KEY) === '1')
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
   const [stores] = useState<PlayerStores>(() => ({
     progress: createProgressStore(),
@@ -355,15 +351,17 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [engine, stores],
   )
 
-  // Restore the saved volume once. An unguarded Number(null) is 0, which would
-  // start every fresh install silent with no hint why.
-  useEffect(() => {
-    const raw = prefs.get(VOLUME_KEY)
-    if (raw === null) return
-    const stored = Number(raw)
-    if (Number.isFinite(stored) && stored >= 0 && stored <= 1) engine.setVolume(stored)
-  }, [engine])
   useEffect(() => () => engine.destroy(), [engine])
+
+  /*
+   * Practice, volume and speed: a line or two each over the engine, with the
+   * preference this device remembers them by. The seams below — reporting a
+   * play, wiring the engine, the commands — stay here, because each holds a
+   * dozen refs the others read; pulled apart they would take a dozen
+   * arguments, which is a worse seam than a long function.
+   */
+  const practice = usePracticeControls(engine)
+  const { countIn } = practice
 
   // --- play reporting ------------------------------------------------------
 
@@ -788,47 +786,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
-  // --- volume, speed, sleep ---------------------------------------------------
-
-  const setVolume = useCallback(
-    (volume: number) => {
-      engine.setVolume(volume)
-      prefs.set(VOLUME_KEY, String(volume))
-    },
-    [engine],
-  )
-  const toggleMute = useCallback(() => engine.setMuted(!engine.state.muted), [engine])
-  const setRate = useCallback((rate: number) => engine.setRate(rate), [engine])
-
-  // --- practice ---------------------------------------------------------------
-
-  const tapLoopPoint = useCallback(
-    (which: 'A' | 'B') => {
-      const { a, b } = tapLoop(which, engine.state.currentTime, {
-        a: engine.state.loopA,
-        b: engine.state.loopB,
-      })
-      engine.setLoop(a, b)
-    },
-    [engine],
-  )
-  const clearLoop = useCallback(() => engine.clearLoop(), [engine])
-  const setPreservesPitch = useCallback(
-    (on: boolean) => {
-      engine.setPreservesPitch(on)
-      prefs.set(PITCH_LOCK_KEY, on ? '1' : '0')
-    },
-    [engine],
-  )
-  const setCountIn = useCallback((on: boolean) => {
-    setCountInState(on)
-    prefs.set(COUNT_IN_KEY, on ? '1' : '0')
-  }, [])
-
-  // Pitch lock is on unless this device was told otherwise.
-  useEffect(() => {
-    if (prefs.get(PITCH_LOCK_KEY) === '0') engine.setPreservesPitch(false)
-  }, [engine])
+  // --- sleep ------------------------------------------------------------------
 
   const setSleepTimer = useCallback((choice: number | 'song-end' | null) => {
     const atSongEnd = choice === 'song-end'
@@ -938,9 +896,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       rate: engineState.rate,
       sleepTimerEndsAt,
       sleepAtSongEnd,
-      setVolume,
-      toggleMute,
-      setRate,
       setSleepTimer,
       autoMix,
       canCrossfade: engine.capabilities.crossfade,
@@ -951,11 +906,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       loopB: engineState.loopB,
       countingIn: engineState.countingIn,
       preservesPitch: engineState.preservesPitch,
-      countIn,
-      tapLoopPoint,
-      clearLoop,
-      setPreservesPitch,
-      setCountIn,
+      ...practice,
     }),
     [
       engineState.volume,
@@ -964,9 +915,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       stores,
       sleepTimerEndsAt,
       sleepAtSongEnd,
-      setVolume,
-      toggleMute,
-      setRate,
       setSleepTimer,
       engine,
       autoMix,
@@ -976,11 +924,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engineState.loopB,
       engineState.countingIn,
       engineState.preservesPitch,
-      countIn,
-      tapLoopPoint,
-      clearLoop,
-      setPreservesPitch,
-      setCountIn,
+      practice,
       queue,
       resolved,
       engineState.playing,

@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
 import { radius, space, useAddToPlaylist, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -50,7 +51,7 @@ export function AddSongsSheet({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
   const [query, setQuery] = useState('')

@@ -26,6 +26,18 @@ import { createCoverChanges } from './coverChanges'
  */
 export const KEPT_COVER_SIZE = 640
 
+/**
+ * The size a cover drawn in a row or a mosaic tile is asked for.
+ *
+ * Only where nothing is kept — an ordinary browser tab, which keeps no files
+ * (offline/covers.web.ts) and draws the server's own address. There a library
+ * row at 44 points and a tag's four-cover mosaic at 26 were each pulling the
+ * full 640, which is about 40 KB a song of pixels nobody can see. A device
+ * that keeps copies keeps them at `KEPT_COVER_SIZE` and draws those, so this
+ * changes nothing for it and must not: one file, sharp enough for the page.
+ */
+export const ROW_COVER_SIZE = 128
+
 /** How long a cover whose fetch failed is left alone before being asked for again. */
 const RETRY_FAILED_MS = 30_000
 

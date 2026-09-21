@@ -59,6 +59,7 @@ import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { label } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
@@ -161,10 +162,18 @@ function PhoneNowPlaying(): ReactNode {
 function PhonePage({ song }: { song: Song }): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   const router = useRouter()
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>()
   const view = parseView(viewParam)
   const uri = artFor(song)
+  /*
+   * The blurred page behind everything is drawn from a small cover on purpose.
+   * `blurRadius` on iOS is a blur of the decoded image, so blurring the full
+   * 640 costs the most of anything on this page — and a 60-point blur of a
+   * 128-pixel source, stretched to fill, looks the same.
+   */
+  const backdropUri = backdropFor(song)
   const songColor = useSongColor(song, uri)
   const lyrics = useSongWords(song)
   const words = lyrics.words
@@ -285,7 +294,12 @@ function PhonePage({ song }: { song: Song }): ReactNode {
       */}
       <View pointerEvents="none" style={styles.fill}>
         {uri ? (
-          <Image source={{ uri }} blurRadius={60} resizeMode="cover" style={styles.backdropImage} />
+          <Image
+            source={{ uri: backdropUri ?? uri }}
+            blurRadius={60}
+            resizeMode="cover"
+            style={styles.backdropImage}
+          />
         ) : null}
         <View
           style={[

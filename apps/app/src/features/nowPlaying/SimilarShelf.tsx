@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
 import { label } from '../../ui/surfaces'
@@ -32,7 +33,7 @@ export function SimilarShelf({
   aside?: string
 }): ReactNode {
   const player = usePlayer()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const ids = songs.map(song => song.id)
 
   return (

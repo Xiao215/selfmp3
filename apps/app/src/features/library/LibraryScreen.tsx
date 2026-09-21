@@ -8,6 +8,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song } from '@selfmp3/shared'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -120,7 +121,7 @@ export function LibraryScreen(): ReactNode {
     [model.tags, filter.tagIds, recentTagIds],
   )
 
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const rowHeight = useSongRowHeight()
 
   const saved = useSaveTagsAsPlaylist()

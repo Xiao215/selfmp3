@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router'
 import { formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { dragCursor } from '../../ports/dragCursor'
@@ -92,7 +93,7 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
   const { width } = useLayout()
   const { theme } = useUnistyles()
   const router = useRouter()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const { player, rows, remove } = edits
   const railRef = useRef<View>(null)
   const [drag, setDrag] = useState<Drag | null>(null)

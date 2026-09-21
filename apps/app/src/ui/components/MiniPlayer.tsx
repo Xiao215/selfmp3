@@ -6,6 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
 import {
   currentColorScheme,
@@ -39,7 +40,7 @@ import { MOVE_MS, overshootRange } from '../motion.model'
  */
 function MiniPlayerInner(): ReactNode {
   const { theme } = useUnistyles()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const player = usePlayer()
   const router = useRouter()
   const song = player.current

@@ -41,6 +41,7 @@ import {
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayer } from '../../player/PlayerProvider'
 import { HoldToReorder } from '../../ui/components/HoldToReorder'
 import { dragCursor } from '../../ports/dragCursor'
@@ -122,7 +123,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // The head's light runs up behind the status bar rather than stopping at
   // it, so the page is lit to its own top edge; only what is read sits under.
   const { top } = useSafeAreaInsets()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
   const params = useLocalSearchParams<{ id: string; rename?: string }>()

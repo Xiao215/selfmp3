@@ -32,7 +32,7 @@ import {
  * whenever any cover arrives, which would render the library, the player bar
  * and every open sheet for one playlist tile's picture.
  */
-export function useArt(): (song: Song) => string | null {
+export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => string | null {
   const { connection, fromCloud } = useConnection()
   const [watch] = useState(() =>
     watchCovers({ subscribe: subscribeCovers, version: coversVersion }),
@@ -57,12 +57,25 @@ export function useArt(): (song: Song) => string | null {
       // the same picture when it is. A tab keeps none, and draws the address.
       if (fromCloud) void ensureCover(song.id)
       else if (address) void ensureServerCover(song.id, song.rev, address)
-      return coverFor(song.id) ?? address
+      const kept = coverFor(song.id)
+      if (kept) return kept
+      /*
+       * Nothing kept — a browser tab — so what is drawn is the server's own
+       * address, and it can be asked for the size actually being drawn.
+       * The kept copy above is always `KEPT_COVER_SIZE`: a device that keeps
+       * one keeps it sharp, and draws that rather than this.
+       */
+      if (drawnAt === KEPT_COVER_SIZE) return address
+      return artAddress(song.id, song.rev, {
+        bucket: bucketMedia,
+        server: connection ? serverRoutes(mediaUrlFor(connection), drawnAt) : null,
+        fromCloud,
+      })
     },
     // `seen` is not read, but it is why this is a new function when one of
     // this screen's covers changes: a screen that memoizes on it (a
     // playlist's mosaic) must look again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [connection, fromCloud, watch, seen],
+    [connection, fromCloud, watch, seen, drawnAt],
   )
 }

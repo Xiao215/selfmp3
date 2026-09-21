@@ -9,6 +9,7 @@ import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
@@ -108,6 +109,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   // this is the same song as this device knows it (statsSource.ts).
   const songFor = useStatsSongs(via)
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   const { data: library } = useLibrary()
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState<string | null>(null)
@@ -126,7 +128,14 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const tagHue = useCallback((name: string) => hues.get(name), [hues])
 
   const top = wrapped?.topSongs[0]
-  const topArt = top ? art(top.songId) : null
+  /*
+   * The page behind the card is this cover blurred to nothing, so it is asked
+   * for small: `blurRadius` on iOS blurs the decoded image, and blurring the
+   * full 640 is the most expensive thing on the page for a wash no one can
+   * make out. The card itself uses `art`, which is sharp.
+   */
+  const topSong = top ? songFor(top.songId) : null
+  const topArt = topSong ? backdropFor(topSong) : null
 
   /*
    * The saved image is the look on screen, photographed where it is drawn

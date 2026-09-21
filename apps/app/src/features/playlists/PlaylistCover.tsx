@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Playlist, Song } from '@selfmp3/shared'
 import { radius, useLibrary, usePlaylistSongIds } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
 import { isLive } from './playlists.model'
@@ -32,7 +33,7 @@ export function PlaylistCover({
   size?: number
 }): ReactNode {
   const { theme } = useUnistyles()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const { data: library } = useLibrary()
   const { data } = usePlaylistSongIds(
     given || !playlist || playlist.songCount === 0 ? null : playlist.id,

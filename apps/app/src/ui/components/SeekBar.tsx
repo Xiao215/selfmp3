@@ -267,7 +267,9 @@ const styles = StyleSheet.create(theme => ({
   hit: {
     paddingVertical: space.md,
     justifyContent: 'center',
-    // A pointing hand where there is a mouse: the bar is a control, not a picture.
+    // A pointing hand where there is a mouse: the bar is a control, not a
+    // picture. React Native types `cursor` as `auto | pointer`, so this needs
+    // no port — only `grab`/`grabbing` do (`ports/dragCursor`).
     cursor: 'pointer',
   },
   track: {

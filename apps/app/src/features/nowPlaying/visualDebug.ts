@@ -1,4 +1,4 @@
-import type { MotionCurveLike } from './motionSource'
+import type { MotionCurveLike } from './motionSource.model'
 
 /**
  * A way to watch the visuals follow the music from a test, and to force the

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -544,9 +544,11 @@ function useCardsBeside(wide: boolean): boolean {
  * computer, less the gutters and, there, the card column.
  */
 function useTilesRowWidth(wide: boolean): number {
-  const window = useWindowDimensions()
+  // The app's own width, not the window's: an iPad in Split View is handed
+  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
+  const { width } = useLayout()
   const column = useContentWidth()
-  if (!wide) return Math.floor(window.width - GUTTER_NARROW * 2)
+  if (!wide) return Math.floor(width - GUTTER_NARROW * 2)
   if (column === null) return 0
   const page = Math.min(column, PAGE_MAX)
   const cards = page >= BESIDE_MIN ? SIDE_COLUMN + COLUMN_GAP : 0

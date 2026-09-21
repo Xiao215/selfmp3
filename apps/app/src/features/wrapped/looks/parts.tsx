@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { Platform, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
 import { radius, tagColors, withAlpha, type ColorScheme } from '@selfmp3/client'
 import type { LookInput } from '../looks.model'
+import { monoFont } from '../../../ports/monoFont'
 
 /** What every look is drawn from: the facts, and the two lookups a picture needs. */
 export interface LookProps {
@@ -20,11 +21,7 @@ export interface LookProps {
  * The receipt's and the front page's type: a till's monospace. The app ships
  * no monospace face, so each platform's own.
  */
-export const mono = Platform.select({
-  ios: 'Menlo',
-  android: 'monospace',
-  default: 'ui-monospace, Menlo, monospace',
-})
+export const mono = monoFont
 
 /**
  * A tag on a printed page, as `P33` and `P37` draw it: a pill with a dot of

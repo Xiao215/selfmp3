@@ -131,6 +131,40 @@ module.exports = [
           message:
             'Screens do not read the platform. Put the difference behind a port in src/ports, or a width in src/shell.',
         },
+        {
+          object: 'Platform',
+          property: 'select',
+          message:
+            'Same rule: `Platform.select` is `Platform.OS` with a nicer face. Put the difference behind a port in src/ports.',
+        },
+      ],
+    },
+  },
+  {
+    /*
+     * The three style properties that are a browser's alone and do nothing at
+     * all on a phone — silently, which is how each of them has already cost a
+     * visible bug here: a progress wash with no fade, a tab bar you could read
+     * the page through, and a cover glow that drew as three hard discs.
+     *
+     * `boxShadow`, `transformOrigin` and `cursor` are deliberately not on this
+     * list. React Native implements the first two, and `cursor` is inert
+     * rather than wrong; the design system uses `boxShadow` on purpose
+     * (docs/features/design-system.md).
+     */
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['**/*.web.ts', '**/*.web.tsx', '*.config.js', '*.config.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          // A CSS filter is always a string; the library's own `filter` field
+          // never is, which is why the value is part of the test.
+          selector:
+            "Property[key.name='filter'][value.type=/^(Literal|TemplateLiteral)$/], Property[key.name=/^(backdropFilter|WebkitBackdropFilter|WebkitFilter)$/]",
+          message:
+            "A CSS filter is a browser's and does nothing on a phone. Put it behind a port (src/ports/blurLayer.ts), or draw the effect rather than filtering it.",
+        },
       ],
     },
   },

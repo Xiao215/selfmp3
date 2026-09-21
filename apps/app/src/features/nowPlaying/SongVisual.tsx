@@ -18,7 +18,7 @@ import Svg, {
 import type { Song } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import type { MotionSampler } from './motionSource'
+import type { MotionSampler } from './motionSource.model'
 import { useReducedMotion } from '../../ui/useReducedMotion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -134,18 +134,23 @@ export function SongVisual({
     // picked then must still write its first frame, or Horizon never raises its hills.
     let first = true
     const tick = (): void => {
-      handle = requestAnimationFrame(tick)
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       const { player: p, sampler: s, tuning: tu } = live.current
       stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
-      write(kind, motion, drawn, tu, size, first, frame, ringWidths)
+      const settled = write(kind, motion, drawn, tu, size, first, frame, ringWidths)
       first = false
+      /*
+       * A paused visual that has come to rest asks for no more frames. It used
+       * to step three hill trails sixty times a second behind a page nobody
+       * was looking at; `isPlaying` in the dependencies starts it again.
+       */
+      handle = settled && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [kind, reduced, size, drawn, clock, frame, ringWidths])
+  }, [kind, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
 
   return (
     <View
@@ -244,9 +249,9 @@ function write(
   force: boolean,
   frame: Frame,
   ringWidths: Frame,
-): void {
+): boolean {
   const settled = isSettled(kind, m)
-  if (settled && drawn.settled && !force) return
+  if (settled && drawn.settled && !force) return true
   drawn.settled = settled
   const out = drawn.out
   const g = m.glow
@@ -285,6 +290,7 @@ function write(
   // A copy: the shared value is handed to the UI thread after this frame's
   // work, and `out` is filled in again on the next.
   frame.value = out.slice()
+  return settled
 }
 
 interface StyleProps {

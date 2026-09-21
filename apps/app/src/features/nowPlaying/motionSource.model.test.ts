@@ -10,7 +10,7 @@ import {
   liveSampler,
   sampleCurve,
   type MotionCurveLike,
-} from './motionSource'
+} from './motionSource.model'
 import { visualFeel } from './visuals.model'
 
 const feel = visualFeel(null)

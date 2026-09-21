@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter } from 'expo-router'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { plural, formatDuration, type Song } from '@selfmp3/shared'
 import { fonts, isDownloaded, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
@@ -140,6 +140,14 @@ function SheetPanel({
   const [lift] = useState(() => new Animated.Value(1))
   // State rather than a ref: the rows making room read it while rendering.
   const [rowHeight, setRowHeight] = useState(0)
+  /*
+   * Shuffling a library makes the queue the whole library, and every row here
+   * carries two pan gestures and a cover: drawn in full, opening this sheet
+   * mounted one per song. Nobody scrolls three thousand rows in a sheet, and
+   * the ones that matter are the next few and the few just played.
+   */
+  const shownNext = rows.next.slice(0, SHOWN_NEXT)
+  const shownPlayed = rows.played.slice(-SHOWN_PLAYED)
   const first = rows.next[0]?.index ?? 0
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
@@ -305,11 +313,16 @@ function SheetPanel({
           scrollEnabled={drag === null}
         >
           <Text style={styles.label}>{nextLabel(rows.next)}</Text>
-          {rows.next.map(entry => row(entry, true))}
+          {shownNext.map(entry => row(entry, true))}
+          {rows.next.length > shownNext.length ? (
+            <Text style={styles.more}>
+              and {plural(rows.next.length - shownNext.length, 'song', 'songs')} after that
+            </Text>
+          ) : null}
           {rows.played.length > 0 ? (
             <>
               <Text style={[styles.label, styles.playedLabel]}>Played</Text>
-              {rows.played.map(entry => row(entry, false))}
+              {shownPlayed.map(entry => row(entry, false))}
             </>
           ) : null}
 
@@ -512,6 +525,10 @@ function SwipeToRemove({
   )
 }
 
+/** How much of a long queue the sheet draws: what is coming, and what just went. */
+const SHOWN_NEXT = 60
+const SHOWN_PLAYED = 10
+
 const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
@@ -605,6 +622,7 @@ const styles = StyleSheet.create(theme => ({
   listContent: { paddingBottom: space.lg },
   label: { ...label(theme.colors), paddingHorizontal: 18, paddingBottom: space.xs },
   playedLabel: { paddingTop: space.md },
+  more: { color: theme.colors.textMuted, fontSize: 13, paddingVertical: 10 },
   played: { opacity: 0.42 },
   liftedCell: { zIndex: 2 },
   swipe: { overflow: 'hidden' },

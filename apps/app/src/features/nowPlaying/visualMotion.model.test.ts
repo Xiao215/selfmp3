@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { curveSampler, type MotionCurveLike, type MotionSampler } from './motionSource'
+import { curveSampler, type MotionCurveLike, type MotionSampler } from './motionSource.model'
 import {
   createMotionState,
   DEFAULT_REFRACTORY,

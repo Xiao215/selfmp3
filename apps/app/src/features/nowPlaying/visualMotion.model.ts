@@ -1,4 +1,4 @@
-import type { MotionSampler, MotionSourceKind } from './motionSource'
+import type { MotionSampler, MotionSourceKind } from './motionSource.model'
 import { valueNoise, type VisualFeel } from './visuals.model'
 
 /**
@@ -18,7 +18,7 @@ import { valueNoise, type VisualFeel } from './visuals.model'
  *   follows `glow`.
  *
  * Both follow the sound itself, the song's stored curve or its tempo, in that
- * order (`motionSource.ts`): nothing here keeps time on its own. Silence is
+ * order (`motionSource.model.ts`): nothing here keeps time on its own. Silence is
  * nearly still: no level, no rings, a flat trail. A paused song steps as
  * silence, so it settles rather than freezing mid-hit, and its hills stop
  * where they are. Pure: vitest runs it.

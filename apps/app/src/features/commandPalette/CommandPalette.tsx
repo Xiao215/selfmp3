@@ -76,7 +76,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const scan = useScanLibrary()
   const artFor = useArt()
   const { fromCloud } = useConnection()
-  const { finePointer } = useLayout()
+  // The app's own width for the box; the window's height, which no split lies about.
+  const { finePointer, width } = useLayout()
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const [query, setQuery] = useState('')
@@ -263,7 +264,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         aria-label="Command palette"
         style={[
           styles.panel,
-          { width: Math.min(620, window.width * 0.92), maxHeight: window.height * 0.66 },
+          { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 },
         ]}
       >
         <View style={styles.inputRow}>

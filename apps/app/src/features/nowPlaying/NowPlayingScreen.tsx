@@ -77,7 +77,7 @@ import {
   type PhoneView,
 } from './nowPlaying.model'
 import { SongVisual } from './SongVisual'
-import type { MotionSampler } from './motionSource'
+import type { MotionSampler } from './motionSource.model'
 import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useMotionSampler } from './useMotionSampler'
@@ -555,7 +555,8 @@ function BreathingCover({
   opening: Animated.Value
 }): ReactNode {
   const player = usePlayer()
-  const { width } = useWindowDimensions()
+  // The app's own width, not the window's (`shell/rootWidth.ts`).
+  const { width } = useLayout()
   const [room, setRoom] = useState<{ width: number; height: number } | null>(null)
   const size = Math.max(
     120,
@@ -630,7 +631,8 @@ function WordsView({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const { width } = useWindowDimensions()
+  // The app's own width, not the window's (`shell/rootWidth.ts`).
+  const { width } = useLayout()
   const [styleOpen, setStyleOpen] = useState(false)
   const styleButtonRef = useRef<View>(null)
   const words = lyrics.words

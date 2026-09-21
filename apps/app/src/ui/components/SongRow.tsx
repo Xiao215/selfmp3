@@ -26,6 +26,7 @@ import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { ease, timing, useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
+import { floating } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 
 /**
@@ -712,9 +713,12 @@ const styles = StyleSheet.create(theme => ({
   },
   /* A row held and moving. The cell around it does the raising (`LiftedCell`);
      this is only what the row itself wears while it is off the page. */
+  // The same shadow everything floating wears, from the palette: written out
+  // here it was black at 0.45 whatever the theme, so in the light one a held
+  // row cast a shadow the design system does not have.
   lifted: {
     backgroundColor: theme.colors.surface2,
-    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
+    ...floating(theme.colors),
   },
   /* Where a held row would land, on the top edge of the row it is over. */
   dropLine: {

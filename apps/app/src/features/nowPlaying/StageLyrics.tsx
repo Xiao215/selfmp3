@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { blurLayer } from '../../ports/blurLayer'
 import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
 import { radius, withAlpha } from '@selfmp3/client'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
@@ -284,11 +285,7 @@ const LyricLine = memo(function LyricLine({
       ) : null}
     </>
   )
-  const lineStyle = [
-    styles.line,
-    { paddingVertical: fontSize * 0.28 },
-    blur > 0 ? { filter: `blur(${blur}px)` } : null,
-  ]
+  const lineStyle = [styles.line, { paddingVertical: fontSize * 0.28 }, blurLayer(blur)]
 
   if (time === undefined) {
     return (

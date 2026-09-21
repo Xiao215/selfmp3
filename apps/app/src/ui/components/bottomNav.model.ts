@@ -27,6 +27,20 @@ function under(pathname: string, base: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`)
 }
 
+/**
+ * Which of a set of destinations a page belongs to: the rail's four (`/`,
+ * `/library`, `/import`, `/stats`), where a computer reaches Import and Stats
+ * from the rail itself rather than through Profile.
+ *
+ * The longest match wins, so `/stats/report` lights Stats. `under` rather
+ * than a bare `startsWith`, so `/statsomething` lights nothing — the sidebar
+ * derived this inline and had that bug.
+ */
+export function activeDestination(pathname: string, hrefs: readonly string[]): string | null {
+  const matches = hrefs.filter(href => (href === '/' ? pathname === '/' : under(pathname, href)))
+  return [...matches].sort((a, b) => b.length - a.length)[0] ?? null
+}
+
 /** The tab to light for a page, or none for a page no tab leads to. */
 export function activeTab(pathname: string): TabHref | null {
   if (pathname === '/') return '/'

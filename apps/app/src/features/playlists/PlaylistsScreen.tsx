@@ -1,14 +1,7 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -65,8 +58,9 @@ export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
-  const { wide } = useLayout()
-  const window = useWindowDimensions()
+  // The app's own width, not the window's: an iPad in Split View is handed
+  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
+  const { wide, width } = useLayout()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
@@ -82,15 +76,26 @@ export function PlaylistsScreen(): ReactNode {
   }
 
   const { playlists } = model
-  const measured = wide ? gridWidth : window.width - space.lg * 2
+  const measured = wide ? gridWidth : width - space.lg * 2
   const columns = wide
     ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
     : PHONE_COLUMNS
   const tileWidth =
     measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : undefined
-  const now = new Date()
-  const open = (playlist: Playlist): void =>
-    router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
+  /*
+   * One reading of the clock and one playback hook for the whole page. Called
+   * in each tile, `usePlaylistPlayback` subscribed every tile to the player,
+   * so a pause redrew all of them and the four covers in each mosaic; and a
+   * fresh `new Date()` made every tile's line a new string besides. One
+   * reading per mount is enough: the line it feeds is grained in days.
+   */
+  const now = useMemo(() => new Date(), [])
+  const playback = usePlaylistPlayback()
+  const openPlaylist = useCallback(
+    (playlist: Playlist) =>
+      router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } }),
+    [router],
+  )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -164,7 +169,8 @@ export function PlaylistsScreen(): ReactNode {
                 line={playlistTileLine(playlist, now)}
                 index={index}
                 width={tileWidth}
-                onOpen={() => open(playlist)}
+                onOpen={openPlaylist}
+                onPlay={playback.playById}
               />
             ))}
             {playlists.length === 0 ? (
@@ -279,22 +285,28 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
   )
 }
 
-function PlaylistTile({
+/**
+ * One playlist's tile. Memoised, and handed the page's own playback rather
+ * than subscribing to the player itself: a tile that reads the player redraws
+ * on every pause, and it draws a four-cover mosaic.
+ */
+const PlaylistTile = memo(function PlaylistTile({
   playlist,
   line,
   index,
   width,
   onOpen,
+  onPlay,
 }: {
   playlist: Playlist
   /** "5 songs · yesterday". */
   line: string
   index: number
   width: number | undefined
-  onOpen: () => void
+  onOpen: (playlist: Playlist) => void
+  onPlay: (playlistId: number) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const playback = usePlaylistPlayback()
   const { finePointer } = useLayout()
   const [hovered, setHovered] = useState(false)
   const live = isLive(playlist)
@@ -309,7 +321,7 @@ function PlaylistTile({
     >
       <Pressable
         testID={`playlist-row-${index}`}
-        onPress={onOpen}
+        onPress={() => onOpen(playlist)}
         accessibilityRole="button"
         accessibilityLabel={playlist.name}
         style={({ pressed }) => pressed && styles.pressed}
@@ -333,7 +345,7 @@ function PlaylistTile({
 
       {showPlay ? (
         <Pressable
-          onPress={() => playback.playById(playlist.id)}
+          onPress={() => onPlay(playlist.id)}
           accessibilityRole="button"
           accessibilityLabel={`Play ${playlist.name}`}
           {...tip('Play')}
@@ -348,7 +360,7 @@ function PlaylistTile({
       ) : null}
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },

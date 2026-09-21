@@ -87,7 +87,7 @@ gliding, because a canvas cannot be stretched between the two. On a phone the vi
 in the words' own area on the second view, with the header and the transport on the page's
 usual ground.
 
-**What moves them** (`motionSource.ts`), in this order. Where the browser can listen
+**What moves them** (`motionSource.model.ts`), in this order. Where the browser can listen
 (`ports/liveAudio`: Chrome, Edge, Firefox, the desktop app) the engine's Web Audio analyser
 (`analyser()` in `ports/engine.web.ts`) is the sound itself. Everywhere else — a phone,
 Safari, a touch browser, a cloud library, offline — the song's motion curve, worked out by
@@ -112,6 +112,6 @@ lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back
 | Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`), `VisualStyleMenu.tsx` |
 | Lyrics state, cover colours, Stage ↔ Focus | `nowPlaying/useSongWords.ts`, `useCoverPalette.ts`, `stageMove.model.ts` |
 | Up next | `apps/app/src/features/queue/` (`QueueSheet.tsx`, `QueueRail.tsx`, `queue.model.ts`) |
-| Visual choice, motion, palettes | `apps/app/src/features/nowPlaying/visuals.model.ts`, `visualChoice.ts`, `motionSource.ts` (+ tests) |
+| Visual choice, motion, palettes | `apps/app/src/features/nowPlaying/visuals.model.ts`, `visualChoice.ts`, `motionSource.model.ts` (+ tests) |
 | Playhead and analyser | `apps/app/src/ports/engine.web.ts`, exposed by `apps/app/src/player/PlayerProvider.tsx` |
 | Shell, keys, the bar | `apps/app/src/shell/Shell.tsx`, `useHotkeys.web.ts`, `PlayerBar.tsx` |

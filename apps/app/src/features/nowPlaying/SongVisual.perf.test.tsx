@@ -2,7 +2,7 @@ import { act, render } from '@testing-library/react-native'
 import { Animated } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { SongVisual } from './SongVisual'
-import { beatSampler } from './motionSource'
+import { beatSampler } from './motionSource.model'
 import { VISUAL_KINDS, visualFeel } from './visuals.model'
 
 jest.mock('../../player/PlayerProvider', () => ({

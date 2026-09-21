@@ -48,6 +48,7 @@ import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { Avatar } from '../ui/components/Avatar'
 import { useAccount } from '../features/profile/useAccount'
+import { activeDestination } from '../ui/components/bottomNav.model'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
@@ -56,10 +57,11 @@ import { label as labelText } from '../ui/surfaces'
 /**
  * The desktop's left rail.
  *
- * The same destinations the tab bar carries, in the same order, from the same
- * route files — `docs/ARCHITECTURE.md` foundation 5. Only the arrangement differs,
- * which is what a breakpoint is for: a row of icons along the bottom under 820,
- * a column with words beside them above it.
+ * The tab bar's destinations and two more: a computer reaches Import and Stats
+ * from the rail, where a phone reaches them through Profile (docs/UI-MIGRATION.md,
+ * Open question 7). Which one a page belongs to is `activeDestination`, the
+ * same tested function the tab bar asks — the rail used to derive it inline
+ * with a `startsWith`, which lit Stats for any page whose name began that way.
  *
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
@@ -103,10 +105,10 @@ function SidebarInner(): ReactNode {
   // The lit destination's fill slides to the next one, 180 ms, as the page
   // changes beside it (docs/ui-mock `M3`, 5). Within these four rows only: a
   // playlist or a tag further down is lit in place.
-  const lit =
-    DESTINATIONS.find(destination =>
-      destination.href === '/' ? pathname === '/' : pathname.startsWith(destination.href),
-    )?.href ?? null
+  const lit = activeDestination(
+    pathname,
+    DESTINATIONS.map(destination => destination.href),
+  )
   const slide = useSlidingHighlight(lit, MOVE_MS.page, styles.itemOn)
 
   return (

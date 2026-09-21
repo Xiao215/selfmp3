@@ -184,7 +184,9 @@ test.describe('the library’s tag strip, still a filter', () => {
     // list is virtualised, so what is rendered is whatever fits, and the panel
     // opening and closing changes that. What is checked is that the view is no
     // longer a tag pick at all.
-    await page.getByRole('button', { name: 'clear tags', exact: true }).click()
+    // "All" is how the strip is cleared; there has never been a button by that
+    // name, and this test only skipped until a library had two overlapping tags.
+    await page.getByTestId('library-tag-all').click()
     await expect(page.getByTestId('library-play-tags')).toHaveCount(0)
     await expect(page.getByTestId('library-match-note')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: /^Library/ })).toBeVisible()

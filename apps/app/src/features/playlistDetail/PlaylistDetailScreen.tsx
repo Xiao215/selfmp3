@@ -804,7 +804,7 @@ const PlaylistRow = memo(function PlaylistRow({
   menuOpen: boolean
   actions: RowActions
 }): ReactNode {
-  const { wide } = useLayout()
+  const { dense } = useLayout()
   const songId = song.id
   const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
   const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
@@ -814,12 +814,13 @@ const PlaylistRow = memo(function PlaylistRow({
     [actions, songId, index],
   )
 
-  // The grip belongs to a pointer: at desktop width it is the thing a mouse
-  // aims at. On a phone the row is the handle and a 44-point grip would only
-  // take the title's room, so there is none — holding the row is the gesture.
+  // The grip belongs to a pointer: where there is a mouse it is the thing to
+  // aim at. A finger has nothing to aim at — an iPad is as wide as a computer
+  // and still has only fingers — so there the row itself is the handle and
+  // holding it is the gesture (`dense`, and Xiao, 2026-09-20).
   const grip = useMemo(
     () =>
-      wide && reorderable ? (
+      dense && reorderable ? (
         <ReorderGrip
           song={song}
           onStart={onDragStart}
@@ -828,10 +829,10 @@ const PlaylistRow = memo(function PlaylistRow({
           dragging={lifted}
         />
       ) : null,
-    [wide, reorderable, song, onDragStart, onDragMove, onDragEnd, lifted],
+    [dense, reorderable, song, onDragStart, onDragMove, onDragEnd, lifted],
   )
 
-  const holds = !wide && reorderable
+  const holds = !dense && reorderable
 
   return (
     <HoldToReorder

@@ -228,25 +228,18 @@ function Items({
       </View>
 
       <View style={styles.buttons}>
-        <Button
-          label="Tags"
-          icon={<TagIcon size={16} tone="textPrimary" />}
-          grow
-          onPress={onTags}
-        />
+        <Button label="Tags" icon={<TagIcon size={16} tone="textPrimary" />} onPress={onTags} />
         {/* A browser streams; only an installed app keeps songs. */}
         {!installed ? null : held ? (
           <Button
             label="Remove download"
             icon={<X size={16} tone="textPrimary" />}
-            grow
             onPress={then(() => void removeByHand([song.id]))}
           />
         ) : (
           <Button
             label="Download"
             icon={<CloudDownload size={16} tone="textPrimary" />}
-            grow
             onPress={then(() => downloadByHand([song.id]))}
           />
         )}
@@ -364,7 +357,17 @@ const styles = StyleSheet.create(theme => ({
   title: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
   byline: { color: theme.colors.textSecondary, fontSize: type.rowSub },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
-  buttons: { flexDirection: 'row', gap: space.sm, paddingBottom: space.sm },
+  /*
+   * Two abreast while both labels fit, and one under the other when they do
+   * not: side by side, "Remove download" was clipped to "Remove dow…", which
+   * names nothing. Each takes the whole row once it wraps.
+   */
+  buttons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    paddingBottom: space.sm,
+  },
   gap: { height: space.sm },
   nested: { paddingLeft: space.lg },
   hint: {

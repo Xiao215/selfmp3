@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { STATS_RANGE_LABELS } from '@selfmp3/shared'
 import { HIT_TARGET, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
@@ -12,9 +11,9 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { pageTitle } from '../../ui/surfaces'
-import { periodLabel, statsRangeFor, STATS_PERIODS, type StatsPeriod } from './stats.model'
+import { periodLabel, STATS_PERIODS, type StatsPeriod } from './stats.model'
 
-/** Where "The month as a page" goes: the Report, a page of its own. */
+/** Where "View Report" goes: the month as a page, a page of its own. */
 const REPORT_HREF = '/stats/report'
 
 /**
@@ -65,14 +64,13 @@ export function StatsFrame({
             />
           )}
           <View style={[styles.titles, wide ? null : styles.titlesRight]}>
+            {/* No caption under the name: the window's own control says which
+                window this is, and said it twice. */}
             <Text
               style={[styles.heading, wide ? null : styles.titleRight]}
               accessibilityRole="header"
             >
               Stats
-            </Text>
-            <Text style={[styles.sub, wide ? null : styles.titleRight]}>
-              {STATS_RANGE_LABELS[statsRangeFor(period)]}
             </Text>
           </View>
           {wide ? (
@@ -90,21 +88,21 @@ export function StatsFrame({
   )
 }
 
-/** "The month as a page": a pill in the computer's header, the page's last line on a phone. */
+/** "View Report": a pill in the computer's header, the page's last line on a phone. */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()
   return (
     <Pressable
       onPress={() => router.push(REPORT_HREF)}
       accessibilityRole="link"
-      accessibilityLabel="The month as a page"
+      accessibilityLabel="View Report"
       testID="stats-report"
       style={({ pressed }) => [
         pill ? styles.pill : styles.line,
         pressed && (pill ? styles.pillPressed : styles.linePressed),
       ]}
     >
-      <Text style={pill ? styles.pillText : styles.linkText}>The month as a page</Text>
+      <Text style={pill ? styles.pillText : styles.linkText}>View Report</Text>
       {pill ? null : <ChevronRight size={16} tone="textMuted" />}
     </Pressable>
   )
@@ -129,7 +127,6 @@ const styles = StyleSheet.create(theme => ({
   titlesRight: { marginLeft: 'auto', minWidth: 0, alignItems: 'flex-end' },
   titleRight: { textAlign: 'right' },
   heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textSecondary, fontSize: 13 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   pill: {
     height: 36,

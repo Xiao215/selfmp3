@@ -15,7 +15,7 @@ import { useSyncExternalStore } from 'react'
  */
 
 /** Screens that own the whole display at every width: no tab bar, no mini player. */
-export const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
+const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
 
 /**
  * And, on a phone only, the pages it opens over its tabs rather than as one:
@@ -24,7 +24,7 @@ export const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
  * is theirs (Xiao, 2026-09-20). A computer keeps its sidebar and its player
  * bar on all of them, because the sidebar is how it reaches them at all.
  */
-export const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/search']
+const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/search']
 
 /** Does this page take the whole display, leaving no room for the chrome? */
 export function pageOwnsScreen(pathname: string, wide: boolean): boolean {

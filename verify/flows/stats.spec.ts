@@ -70,7 +70,9 @@ test.describe('stats', () => {
 
     // The window is said under the title.
     await pickWindow(page, phone, 'Week')
-    await expect(page.getByText('Last 7 days').first()).toBeVisible()
+    // The window's own control says which window it is; the caption under the
+    // page's name that said it a second time is gone.
+    await expect(page.getByText('Week', { exact: true }).first()).toBeVisible()
 
     // The first song opens its own page — when this device has it: a song the
     // library no longer holds is listed but is not a link.

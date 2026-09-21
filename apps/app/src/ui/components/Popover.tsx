@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Easing, Pressable, ScrollView, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import type { View as RNView } from 'react-native'
 import { motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
@@ -115,6 +116,9 @@ function AnchoredPopover({
 }): ReactNode {
   const { width: screenWidth, dense } = useLayout()
   const { height: screenHeight } = useWindowDimensions()
+  // The context rather than the hook, which throws outside a provider: a
+  // control drawn alone in a test has no insets, and none to keep clear of.
+  const safeTop = useContext(SafeAreaInsetsContext)?.top ?? 0
   const [anchor, setAnchor] = useState<Anchor | null>(null)
   // Which side it opens on needs the panel's own height, which is only known
   // once it has laid out; until then it is drawn transparent, off screen.
@@ -158,7 +162,10 @@ function AnchoredPopover({
       : Math.min(rightAligned, screenWidth - width - space.sm)
     : 0
   const roomBelow = anchor ? screenHeight - (anchor.y + anchor.height) - space.sm * 2 : 0
-  const roomAbove = anchor ? anchor.y - space.sm * 2 : 0
+  // From under the status bar, not from the top of the window: measured from
+  // the window, a control near the top had room that is not there and its
+  // panel opened across the clock.
+  const roomAbove = anchor ? anchor.y - safeTop - space.sm * 2 : 0
   // Below when it fits; above when it fits there instead; otherwise whichever
   // side has more room, where it scrolls — without a bar, which on a menu of
   // ten actions read as a broken window rather than a list.
@@ -232,7 +239,8 @@ function AnchoredPopover({
                 panelHeight === 0
                   ? -10000
                   : side === 'above'
-                    ? anchor.y - shownHeight - space.xs
+                    ? // Never past the top of the page, however short the room.
+                      Math.max(safeTop + space.xs, anchor.y - shownHeight - space.xs)
                     : anchor.y + anchor.height + space.xs,
               opacity: progress,
               // Grows out of the corner nearest its control, so the panel reads

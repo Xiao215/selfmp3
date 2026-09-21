@@ -371,11 +371,17 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
     gap: 12,
   },
-  listenedWords: { gap: 4, flexShrink: 1 },
+  // The words take the card's room before the spark does: squeezed, the number
+  // was ellipsised to "2…", which is not a number.
+  listenedWords: { gap: 4, flex: 1, minWidth: 0 },
   cardLabel: label(theme.colors),
   // Big numbers are the serif, which has one weight (`S2`).
-  bigNumber: { ...serif(theme.colors, 52), lineHeight: 54 },
-  bigNumberWide: { fontSize: 60, lineHeight: 60 },
+  /*
+   * The serif's figures stand taller than their own line, so a line box the
+   * size of the type cut the top off "20". A fifth again is room for the ink.
+   */
+  bigNumber: { ...serif(theme.colors, 52), lineHeight: 62 },
+  bigNumberWide: { fontSize: 60, lineHeight: 72 },
   cardLine: { color: theme.colors.textSecondary, fontSize: 13 },
   small: { height: 150, padding: 16, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },

@@ -19,7 +19,7 @@ export const MOVE_MS = {
   sheetUp: 300,
   sheetDown: 220,
   /** The tab bar's pill, and the page stepping in (`M2`, 4). */
-  tab: 200,
+  tab: 160,
   /** A playing row's wash coming in from the left (`M2`, 5). */
   wash: 260,
   /** A held queue row lifting, and its neighbours making room (`M2`, 6). */

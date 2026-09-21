@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -97,7 +97,7 @@ export const SIDEBAR_WIDTH = 244
 /** A pointer can hover here, so a row's controls wait for it. A tablet shows them. */
 const HOVERS = Platform.OS === 'web'
 
-export function Sidebar(): ReactNode {
+function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -816,3 +816,10 @@ const styles = StyleSheet.create(theme => ({
   statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   footLabel: { color: theme.colors.textSecondary, fontSize: 13 },
 }))
+
+/**
+ * The rail is the same on every page, and the frame around it is rebuilt
+ * several times on a single step between pages: without this the playlists,
+ * the tags and the status row were reconciled every one of those times.
+ */
+export const Sidebar = memo(SidebarInner)

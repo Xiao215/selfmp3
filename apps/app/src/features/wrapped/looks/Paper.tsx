@@ -103,7 +103,9 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
   figureBlock: { gap: 2 },
-  figure: { fontFamily: fonts.serif, fontSize: 92, lineHeight: 90, letterSpacing: -3 },
+  // The serif's figures stand taller than their own type: at a line of 90 the
+  // top of "23" was cut off by the text's own box.
+  figure: { fontFamily: fonts.serif, fontSize: 92, lineHeight: 106, letterSpacing: -3 },
   figureLine: { fontFamily: fonts.serifItalic, fontSize: 26, lineHeight: 30 },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   repeatText: { flex: 1, minWidth: 0, gap: 3 },
@@ -111,7 +113,7 @@ const styles = StyleSheet.create({
   repeatLine: { fontSize: 13, lineHeight: 17 },
   figures: { flexDirection: 'row', gap: 10 },
   figureCell: { flex: 1, minWidth: 0, gap: 1 },
-  smallFigure: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30 },
+  smallFigure: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 33 },
   smallLabel: { fontSize: 11 },
   tagsBlock: { gap: 6 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

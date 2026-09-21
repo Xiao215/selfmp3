@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   name: { flex: 1, minWidth: 0 },
   total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontFamily: mono, fontSize: 14, fontWeight: '600' },
-  totalFigure: { fontFamily: fonts.serif, fontSize: 44, lineHeight: 46 },
+  totalFigure: { fontFamily: fonts.serif, fontSize: 44, lineHeight: 51 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 40, marginTop: 4 },
   bar: { flex: 1 },
   // The thanks sit at the foot of the slip however few the items were.

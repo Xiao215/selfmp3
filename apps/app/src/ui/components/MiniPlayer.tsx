@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -37,7 +37,7 @@ import { MOVE_MS, overshootRange } from '../motion.model'
  * but the buttons opens Now Playing. The buttons are Up next, play and next,
  * each a full touch target; Devices lives on Now Playing and in Settings.
  */
-export function MiniPlayer(): ReactNode {
+function MiniPlayerInner(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const player = usePlayer()
@@ -213,3 +213,9 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12,
   },
 }))
+
+/**
+ * Nothing is passed in — the song, the position and the colour are read
+ * from their own stores — so the frame's own renders must not reach it.
+ */
+export const MiniPlayer = memo(MiniPlayerInner)

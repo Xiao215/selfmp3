@@ -248,6 +248,9 @@ const styles = StyleSheet.create(theme => ({
   input: {
     minHeight: HIT_TARGET,
     marginHorizontal: space.md,
+    // The same room at the top as at the sides: against the panel's own edge
+    // the field read as something that had slipped out of the box.
+    marginTop: space.md,
     marginBottom: space.xs,
     paddingHorizontal: 10,
     color: theme.colors.textPrimary,

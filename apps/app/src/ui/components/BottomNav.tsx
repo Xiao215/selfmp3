@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -38,7 +38,7 @@ const TABS: { href: TabHref; label: string; Icon: typeof Music; id: string }[] =
   { href: '/playlists', label: 'Playlists', Icon: ListMusic, id: 'playlists' },
 ]
 
-export function BottomNav(): ReactNode {
+function BottomNavInner(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
@@ -151,3 +151,9 @@ const styles = StyleSheet.create(theme => ({
   },
   labelOn: { color: theme.colors.onPrimary },
 }))
+
+/**
+ * The bar is the same on every page (it reads the address itself), so the
+ * frame rebuilding around it must not rebuild the bar.
+ */
+export const BottomNav = memo(BottomNavInner)

@@ -31,7 +31,7 @@ import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { FixMetadata } from '../metadata/FixMetadata'
@@ -363,7 +363,7 @@ const styles = StyleSheet.create(theme => ({
   heroWide: { gap: 28 },
   cover: {
     borderRadius: radius.card,
-    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.45)',
+    ...artShadow(theme.colors),
   },
   titles: { flex: 1, minWidth: 0, gap: 6 },
   title: {

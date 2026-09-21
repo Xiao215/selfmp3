@@ -7,9 +7,9 @@
  * platforms — a phone's sign-in returns are read in `ports/signInReturn`.
  */
 
-/** Where a link asks the app to go. Sign-in returns are not one of these. */
-export type DeepLinkRoute =
-  { readonly kind: 'now-playing' } | { readonly kind: 'playlist'; readonly id: string }
+import type { DeepLinkRoute } from './deepLinkRoute.model'
+
+export type { DeepLinkRoute }
 
 /**
  * Each `selfmp3://…#signin-code=…` link, whole, for `ports/signInReturn` to sort

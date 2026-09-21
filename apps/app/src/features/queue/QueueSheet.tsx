@@ -599,7 +599,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     borderRadius: radius.cover,
     // The shade a playing row lays over its cover (`SongRow`).
-    backgroundColor: 'rgba(10, 8, 16, 0.55)',
+    backgroundColor: theme.colors.coverShade,
   },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
   cardLabel: label(theme.colors),

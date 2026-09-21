@@ -17,7 +17,7 @@ const VOLUME_KEY = 'volume'
 const PITCH_LOCK_KEY = 'pitchlock'
 const COUNT_IN_KEY = 'countin'
 
-export interface PracticeControls {
+interface PracticeControls {
   readonly countIn: boolean
   readonly setVolume: (volume: number) => void
   readonly toggleMute: () => void

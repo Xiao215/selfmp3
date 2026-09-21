@@ -781,7 +781,7 @@ const styles = StyleSheet.create(theme => ({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(10, 8, 16, 0.55)',
+    backgroundColor: theme.colors.coverShade,
     borderRadius: radius.cover,
   },
   /* `.song-list.is-selecting .song-select` at phone width. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { routeFor } from './deepLinks.web'
+import {} from './deepLinks.web'
+import { routeFor } from './deepLinkRoute.model'
 
 /**
  * What a `selfmp3://` link means. Worth a test rather than a glance: these

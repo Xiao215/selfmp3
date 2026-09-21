@@ -9,8 +9,6 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { ReactNode } from 'react'
-import { AppState } from 'react-native'
-import { useQueryClient } from '@tanstack/react-query'
 import {
   cycleRepeat,
   EMPTY_QUEUE,
@@ -35,9 +33,7 @@ import {
   type FrequencyAnalyser,
   listenedDelta,
   peekPlayable,
-  queryKeys,
   recoverPlayback,
-  secondsToCount,
   useLibrary,
   useSameArray,
   useServerSettings,
@@ -62,9 +58,10 @@ import {
   subscribeCovers,
 } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
-import { flushListens, recordListen } from '../offline/listenOutbox'
 import { createEngine } from '../ports/engine'
 import { usePracticeControls } from './usePracticeControls'
+import { useSleepTimer } from './useSleepTimer'
+import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
 import { showToast } from '../ui/toast'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
@@ -228,15 +225,6 @@ interface PlayerStores {
 
 const PlayerStoresContext = createContext<PlayerStores | null>(null)
 
-/** Plays, as far as caches go: the library's counts and the stats drawn from them. */
-const STATS_KEY = ['stats'] as const
-
-interface PlayTracking {
-  songId: number | null
-  listenedSeconds: number
-  counted: boolean
-}
-
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
@@ -250,8 +238,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [engine] = useState(createEngine)
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
-  const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null)
-  const [sleepAtSongEnd, setSleepAtSongEnd] = useState(false)
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
   const [stores] = useState<PlayerStores>(() => ({
     progress: createProgressStore(),
@@ -271,11 +257,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const songsRef = useRef(songsById)
   const connectionRef = useRef(connection)
   const fromCloudRef = useRef(fromCloud)
-  const trackingRef = useRef<PlayTracking>({ songId: null, listenedSeconds: 0, counted: false })
   const lastPositionRef = useRef(0)
   const autoMixRef = useRef(autoMix)
   // Read by the engine's end-of-track callback, which is wired once.
-  const sleepAtSongEndRef = useRef(false)
   // Told every engine state; set once the commands it needs exist, below.
   const playbackErrorRef = useRef<(state: EngineState) => void>(() => undefined)
 
@@ -362,46 +346,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    */
   const practice = usePracticeControls(engine)
   const { countIn } = practice
+  const sleep = useSleepTimer(engine)
 
-  // --- play reporting ------------------------------------------------------
-
-  const flushPlay = useCallback(
-    (completed: boolean) => {
-      const tracking = trackingRef.current
-      const songId = tracking.songId
-      if (songId === null || tracking.counted) return
-
-      const song = songsRef.current.get(songId)
-      const needed = secondsToCount(song?.duration ?? 0)
-      if (!completed && tracking.listenedSeconds < needed) return
-
-      tracking.counted = true
-      // Kept on the phone first: with the server asleep it goes when the server wakes.
-      recordListen(songId, Math.round(tracking.listenedSeconds * 1000), completed)
-      // A song listened to is one worth having here, where songs stream from the bucket.
-      keepPlayed(songId)
-    },
-    [keepPlayed],
-  )
-
-  const queryClient = useQueryClient()
-  useEffect(() => {
-    const flush = (): void => {
-      void flushListens().then(sent => {
-        // Only what a play changes. Invalidating everything refetched every
-        // query on the page — lyrics, playlists, settings — for a play count.
-        if (sent > 0) {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.library })
-          void queryClient.invalidateQueries({ queryKey: STATS_KEY })
-        }
-      })
-    }
-    flush()
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') flush()
-    })
-    return () => subscription.remove()
-  }, [connection, queryClient])
+  /*
+   * Counting a play and sending what this device kept: `usePlayReporting`.
+   * The tracking ref stays here, because the engine's callbacks below write
+   * to it as the song runs.
+   */
+  const { tracking: trackingRef, flushPlay } = usePlayReporting({
+    songs: songsRef,
+    keepPlayed,
+    connection,
+  })
 
   // --- engine wiring -------------------------------------------------------
 
@@ -419,7 +375,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       stores.progress.follow(songId, startAt)
       void engine.load(songId, startAt ? { autoplay, startAt } : { autoplay })
     },
-    [engine, stores],
+    [engine, stores, trackingRef],
   )
 
   // Everywhere a song's bytes might come from, on this device, right now.
@@ -482,11 +438,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // "End of this song": used up by the first song to end after it was
         // chosen, whichever that is — skipping ahead meanwhile moves the stop
         // with you rather than cancelling it.
-        const sleeping = sleepAtSongEndRef.current
-        if (sleeping) {
-          sleepAtSongEndRef.current = false
-          setSleepAtSongEnd(false)
-        }
+        const sleeping = sleep.atSongEndRef.current
+        if (sleeping) sleep.songEnded()
 
         // Past songs that cannot play here: one not on this device, offline,
         // would otherwise load and sit paused with no word.
@@ -526,7 +479,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         }
       },
     })
-  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor, stores])
+  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor, stores, sleep, trackingRef])
 
   // --- commands ------------------------------------------------------------
 
@@ -786,43 +739,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
-  // --- sleep ------------------------------------------------------------------
-
-  const setSleepTimer = useCallback((choice: number | 'song-end' | null) => {
-    const atSongEnd = choice === 'song-end'
-    sleepAtSongEndRef.current = atSongEnd
-    setSleepAtSongEnd(atSongEnd)
-    setSleepTimerEndsAt(typeof choice === 'number' ? Date.now() + choice * 60_000 : null)
-  }, [])
-
-  useEffect(() => {
-    if (sleepTimerEndsAt === null) return undefined
-    let fade: ReturnType<typeof setInterval> | undefined
-    const timer = setInterval(() => {
-      if (Date.now() < sleepTimerEndsAt) return
-      clearInterval(timer)
-      setSleepTimerEndsAt(null)
-      // Fade out over four seconds rather than cutting off, which is much
-      // gentler if you are actually falling asleep to it.
-      const startVolume = engine.state.volume
-      const steps = 40
-      let step = 0
-      fade = setInterval(() => {
-        step++
-        engine.setVolume(startVolume * (1 - step / steps))
-        if (step >= steps) {
-          clearInterval(fade)
-          engine.pause()
-          engine.setVolume(startVolume)
-        }
-      }, 100)
-    }, 1_000)
-    return () => {
-      clearInterval(timer)
-      if (fade !== undefined) clearInterval(fade)
-    }
-  }, [sleepTimerEndsAt, engine])
-
   // Renamed on the way out: `resolveQueue` returns `{ songs, current }`, and a
   // `.current` read during render is indistinguishable from a ref access to
   // the React Compiler, which then gives up on memoising this component.
@@ -857,8 +773,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     // No fade into a song that is about to be stopped: with one, the next song
     // would already be playing when this one "ends".
-    engine.configure({ crossfadeSeconds: sleepAtSongEnd ? 0 : nextCrossfadeSeconds, gapless })
-  }, [engine, nextCrossfadeSeconds, gapless, sleepAtSongEnd])
+    engine.configure({ crossfadeSeconds: sleep.atSongEnd ? 0 : nextCrossfadeSeconds, gapless })
+  }, [engine, nextCrossfadeSeconds, gapless, sleep.atSongEnd])
 
   const currentBpm = resolved.currentSong?.audioFeatures?.bpm ?? null
   useEffect(() => {
@@ -894,9 +810,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       volume: engineState.volume,
       muted: engineState.muted,
       rate: engineState.rate,
-      sleepTimerEndsAt,
-      sleepAtSongEnd,
-      setSleepTimer,
+      sleepTimerEndsAt: sleep.endsAt,
+      sleepAtSongEnd: sleep.atSongEnd,
+      setSleepTimer: sleep.set,
       autoMix,
       canCrossfade: engine.capabilities.crossfade,
       nextCrossfadeSeconds,
@@ -913,9 +829,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engineState.muted,
       engineState.rate,
       stores,
-      sleepTimerEndsAt,
-      sleepAtSongEnd,
-      setSleepTimer,
+      sleep,
       engine,
       autoMix,
       nextCrossfadeSeconds,

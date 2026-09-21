@@ -23,7 +23,7 @@ import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongColor } from '../../ui/useSongColor'
 import { useEntrance } from '../../ui/motion'
-import { label as labelText } from '../../ui/surfaces'
+import { artShadow, label as labelText } from '../../ui/surfaces'
 import { useSaveTagsAsPlaylist } from '../library/saveTags'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
@@ -358,7 +358,7 @@ const styles = StyleSheet.create(theme => ({
   heroWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 28 },
   mosaic: {
     alignSelf: 'flex-start',
-    boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35)',
+    ...artShadow(theme.colors),
     borderRadius: radius.card,
   },
   titles: { gap: 6, flexShrink: 1, minWidth: 0 },

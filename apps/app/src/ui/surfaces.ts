@@ -25,6 +25,18 @@ export function floating(colors: ThemePalette) {
   return { boxShadow: `0 10px 28px ${colors.floatShadow}` } as const
 }
 
+/**
+ * What a piece of artwork casts: a cover, a mosaic, the card leaning out of a
+ * tag's tile. Deeper than `floating`, because a picture sits on the page
+ * rather than over it — and from the palette, which is the point: written out
+ * at each site it was black at a third whatever the theme, so the light one
+ * got a shadow the design system does not have.
+ */
+export function artShadow(colors: ThemePalette, depth: 'lean' | 'stand' = 'stand') {
+  const geometry = depth === 'lean' ? '0 6px 14px' : '0 14px 34px'
+  return { boxShadow: `${geometry} ${colors.floatShadow}` } as const
+}
+
 /** A page's title: the display face at 30, on a phone and a computer alike. */
 export function pageTitle(colors: ThemePalette) {
   return {

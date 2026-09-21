@@ -50,7 +50,7 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
-import { label as labelText } from '../../ui/surfaces'
+import { artShadow, label as labelText } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -990,7 +990,7 @@ const styles = StyleSheet.create(theme => ({
   heroWide: { flexDirection: 'row', alignItems: 'flex-end', gap: 24 },
   mosaic: {
     alignSelf: 'flex-start',
-    boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35)',
+    ...artShadow(theme.colors),
     borderRadius: radius.card,
   },
   titles: { gap: 6, flexShrink: 1, flexGrow: 1, minWidth: 0 },

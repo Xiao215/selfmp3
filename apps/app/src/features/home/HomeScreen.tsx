@@ -23,7 +23,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
-import { card, sectionTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
 import { tagLink } from '../tag/placeLinks'
 import { useStatsFor } from '../stats/statsSource'
 import {
@@ -156,7 +156,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
                   : null
               }
             />
-            <Tiles tiles={tiles} wide={wide} loading={library === undefined} />
+            <Tiles tiles={tiles} loading={library === undefined} />
           </View>
           {wide ? <ThisWeek stats={stats} beside={beside} /> : null}
         </View>
@@ -249,15 +249,11 @@ function SectionHead({
 }
 
 /** The tiles, two across on a phone and three on a computer. A tile opens its tag's page. */
-function Tiles({
-  tiles,
-  wide,
-  loading,
-}: {
-  tiles: readonly HomeTile[]
-  wide: boolean
-  loading: boolean
-}): ReactNode {
+function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolean }): ReactNode {
+  // The width is the layout's to answer, not something to hand down three
+  // components; `artFor` stays a prop on purpose, so the grid keeps one
+  // watcher for its covers rather than one per tile.
+  const { wide } = useLayout()
   const router = useRouter()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
@@ -279,7 +275,6 @@ function Tiles({
   return (
     <TileGrid
       tiles={tiles}
-      wide={wide}
       width={tileWidth}
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
       onOpen={tile => router.navigate(tagLink(tile.tag.name))}
@@ -295,13 +290,11 @@ function Tiles({
  */
 function TileGrid({
   tiles,
-  wide,
   width,
   artFor,
   onOpen,
 }: {
   tiles: readonly HomeTile[]
-  wide: boolean
   width: number | undefined
   artFor: (tile: HomeTile) => string | null
   onOpen: (tile: HomeTile) => void
@@ -315,7 +308,6 @@ function TileGrid({
           tile={tile}
           index={index}
           arrive={arrive}
-          wide={wide}
           width={width}
           artUri={artFor(tile)}
           onPress={() => onOpen(tile)}
@@ -329,7 +321,6 @@ function Tile({
   tile,
   index,
   arrive,
-  wide,
   width,
   artUri,
   onPress,
@@ -338,12 +329,12 @@ function Tile({
   index: number
   /** Whether this paint is the one the tiles fade up in. */
   arrive: boolean
-  wide: boolean
   /** Unknown for the first frame, before the row has been measured. */
   width: number | undefined
   artUri: string | null
   onPress: () => void
 }): ReactNode {
+  const { wide } = useLayout()
   const press = usePressScale()
   const arrival = useArrival(index, arrive)
   const colours = tagColors(tile.tag.hue)
@@ -638,7 +629,7 @@ const styles = StyleSheet.create(theme => ({
     right: -8,
     bottom: -10,
     transform: [{ rotate: '8deg' }],
-    boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35)',
+    ...artShadow(theme.colors, 'lean'),
     borderRadius: 12,
   },
   tileCoverWide: { right: -6, bottom: -8 },

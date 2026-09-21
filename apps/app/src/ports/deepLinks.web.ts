@@ -1,5 +1,5 @@
-import type { DeepLinkRoute } from './deepLinks'
 import { desktop } from './desktop/bridge'
+import { routeFor, type DeepLinkRoute } from './deepLinkRoute.model'
 
 export type { DeepLinkRoute }
 
@@ -24,21 +24,6 @@ const signIns: string[] = []
 const signInListeners = new Set<(url: string) => void>()
 const pending: DeepLinkRoute[] = []
 const listeners = new Set<(route: DeepLinkRoute) => void>()
-
-/** `selfmp3://playlist/12` → the playlist; `selfmp3://now-playing` → the stage. */
-export function routeFor(url: string): DeepLinkRoute | null {
-  const match = /^selfmp3:\/\/([A-Za-z-]+)(?:\/([^?#]*))?/.exec(url)
-  if (!match) return null
-  const [, host, rest] = match
-  if (host === 'now-playing') return { kind: 'now-playing' }
-  if (host === 'playlist') {
-    const id = decodeURIComponent(rest ?? '').replace(/\/$/, '')
-    // A playlist id is a number in this app. Anything else is a link from
-    // somewhere that guessed, and going nowhere is better than a broken screen.
-    return /^\d+$/.test(id) ? { kind: 'playlist', id } : null
-  }
-  return null
-}
 
 function arrived(url: string): void {
   if (SIGN_IN.test(url)) {

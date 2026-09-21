@@ -177,6 +177,12 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     cardShadow: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
     floatShadow: '#00000073',
+    /**
+     * The shade laid over a cover so what is drawn on it reads: a playing
+     * row's equaliser, the queue's. Dark in both themes, because it darkens
+     * artwork rather than a surface.
+     */
+    coverShade: '#0a08108c',
     // One series colour in the accent's hue, so a green theme draws green bars,
     // and recessive gridlines tinted by the hue.
     chartSeries: oklchToHex(0.62, 0.15, hue),
@@ -214,6 +220,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     glassSolid: '#ffffff',
     cardShadow: '#1b1a170f',
     floatShadow: '#1b1a1724',
+    coverShade: '#0a08108c',
     chartSeries: oklchToHex(0.55, 0.16, hue),
     chartGrid: '#ebe5d9',
   }

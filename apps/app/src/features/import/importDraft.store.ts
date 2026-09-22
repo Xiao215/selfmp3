@@ -28,7 +28,7 @@ import { chooseAll, renameSong, toggleChosen, type Rename } from './review.model
  * A factory over the port rather than the port itself, so the store can be
  * tested against a store in memory — the port reads a file on a phone.
  */
-export interface ImportDraftStore {
+interface ImportDraftStore {
   /** The draft as one source sees it: its own, or nothing yet. */
   draftFor(source: DraftSource): ImportDraft
   /** Change part of one source's draft; another source's is replaced, not mixed with. */

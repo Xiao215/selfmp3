@@ -125,6 +125,13 @@ export class DownloadQueue {
 
   configure(connection: Connection, songs: readonly Song[]): void {
     this.#storage.configure?.(connection, songs)
+    // A song that has left the library while it waited is no longer wanted,
+    // and not a failure to report: "Cannot download song 47" over an empty
+    // Library was forty-three songs removed with one of them still queued.
+    // Forgotten before the map is replaced, so its half-written file is still
+    // one this queue knows how to throw away.
+    const listed = new Set(songs.map(song => song.id))
+    this.#forget(this.#state.queue.filter(id => !listed.has(id)))
     this.#songsById = new Map(songs.map(song => [song.id, song]))
   }
 
@@ -198,6 +205,13 @@ export class DownloadQueue {
   }
 
   cancelAll(): void {
+    this.#callOff()
+    this.#resumedWhileRunning = false
+    this.#patch({ queue: [], activeSongId: null, bytesWritten: 0, totalBytes: 0, paused: false })
+  }
+
+  /** Stop whatever is being fetched, and throw its half-written file away. */
+  #callOff(): void {
     this.#discardPartial()
     const transfer = this.#transfer
     // Only a transfer in flight rejects when called off. A paused one has
@@ -211,8 +225,25 @@ export class DownloadQueue {
     }
     this.#transfer = null
     this.#pausedSongId = null
-    this.#resumedWhileRunning = false
-    this.#patch({ queue: [], activeSongId: null, bytesWritten: 0, totalBytes: 0, paused: false })
+  }
+
+  /**
+   * Take these songs out of the queue, calling off the one in flight if it is
+   * among them. The rest of the queue carries on: the loop skips a cancelled
+   * song the way it skips a finished one.
+   */
+  #forget(songIds: readonly number[]): void {
+    if (songIds.length === 0) return
+    const gone = new Set(songIds)
+    const queue = this.#state.queue.filter(id => !gone.has(id))
+    if (queue.length === this.#state.queue.length) return
+    const active = this.#state.activeSongId
+    if (active !== null && gone.has(active)) {
+      this.#callOff()
+      this.#patch({ queue, activeSongId: null, bytesWritten: 0, totalBytes: 0 })
+      return
+    }
+    this.#patch({ queue })
   }
 
   /**
@@ -233,6 +264,8 @@ export class DownloadQueue {
    * file with no entry, which nothing could see and "Remove all" did not tally.
    */
   async remove(songIds: readonly number[]): Promise<void> {
+    // Not wanted on this device any more, so not to be fetched either.
+    this.#forget(songIds)
     const kept = songIds
       .map(songId => entryFor(this.#state.index, songId))
       .filter(entry => entry !== null)

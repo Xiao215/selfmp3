@@ -552,6 +552,45 @@ describe('keeping songs on this device', () => {
     expect(entryFor(queue.getState().index, 3)).toBeTruthy()
   })
 
+  it('stops fetching a song that is removed from this device, and carries on with the rest', async () => {
+    const { storage, queue } = setup()
+    queue.enqueue([1, 2, 3])
+    await settle()
+    expect(queue.getState().activeSongId).toBe(1)
+
+    await queue.remove([1, 2])
+    await settle()
+    // The one in flight was called off and its half-written file thrown away;
+    // the one still waiting simply never started. Neither is a failure.
+    expect(storage.last(1).cancelled).toBe(true)
+    expect(storage.discarded).toContain(1)
+    expect(storage.discarded).not.toContain(2)
+    expect(queue.getState().error).toBeNull()
+    expect(queue.getState().activeSongId).toBe(3)
+    expect(queue.getState().queue).toEqual([3])
+    expect(storage.transfers.map(transfer => transfer.songId)).toEqual([1, 3])
+  })
+
+  it('drops a queued song the library no longer has, without a word (a phone bug)', async () => {
+    // Forty-three songs removed from the library with one of them still queued
+    // put "Cannot download song 47: it is not in the library" over an empty page.
+    const { storage, queue } = setup()
+    queue.enqueue([1, 2, 3])
+    await settle()
+
+    queue.configure(null, [THIRD])
+    await settle()
+    expect(storage.last(1).cancelled).toBe(true)
+    expect(queue.getState().error).toBeNull()
+    expect(queue.getState().queue).toEqual([3])
+    expect(queue.getState().activeSongId).toBe(3)
+
+    storage.last(3).finish(3000)
+    await settle()
+    expect(queue.getState()).toMatchObject({ queue: [], activeSongId: null, error: null })
+    expect(entryFor(queue.getState().index, 3)).toBeTruthy()
+  })
+
   it('loads the index it has, and starts empty when there is none or it cannot be read', async () => {
     const kept = addEntry(EMPTY_INDEX, entry(1))
 

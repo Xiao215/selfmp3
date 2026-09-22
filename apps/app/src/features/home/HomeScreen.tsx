@@ -21,6 +21,7 @@ import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
+import { useAccent } from '../../ui/accent'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
@@ -49,6 +50,11 @@ import {
  * Stats come from the server, as they do on the Stats page: a cloud library has
  * a streak to show only while its server is within reach, and shows none
  * otherwise rather than a zero.
+ *
+ * A library with no songs at all gets one card in place of the tags and the
+ * search: the way to the first song, and what the page turns into once there
+ * is one. "Hold a song in Library and choose Tags" over no songs was a puzzle
+ * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -90,6 +96,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   const recents = useMemo(() => (library ? recentlyPlayed(library.songs) : []), [library])
   const line = streakLine(stats?.streakDays)
   const sunday = sundayCard(now, stats)
+  // Known to be empty, as opposed to not loaded yet.
+  const empty = library !== undefined && library.songs.length === 0
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
@@ -138,25 +146,31 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           </Pressable>
         ) : null}
 
-        <SearchField wide={wide} onPress={openSearch} />
+        {empty ? null : <SearchField wide={wide} onPress={openSearch} />}
 
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
-            {/* The count is the head's own action, as Recently played's Library
-                is, rather than a link under the tiles (Xiao, 2026-09-20). */}
-            <SectionHead
-              testID="home-all-tags"
-              title="Your tags"
-              action={
-                library && library.tags.length > 0
-                  ? {
-                      label: `All ${library.tags.length}`,
-                      onPress: () => router.navigate('/tags'),
-                    }
-                  : null
-              }
-            />
-            <Tiles tiles={tiles} loading={library === undefined} />
+            {empty ? (
+              <FirstSong onPress={() => router.navigate('/import')} />
+            ) : (
+              <>
+                {/* The count is the head's own action, as Recently played's Library
+                    is, rather than a link under the tiles (Xiao, 2026-09-20). */}
+                <SectionHead
+                  testID="home-all-tags"
+                  title="Your tags"
+                  action={
+                    library && library.tags.length > 0
+                      ? {
+                          label: `All ${library.tags.length}`,
+                          onPress: () => router.navigate('/tags'),
+                        }
+                      : null
+                  }
+                />
+                <Tiles tiles={tiles} loading={library === undefined} />
+              </>
+            )}
           </View>
           {wide ? <ThisWeek stats={stats} beside={beside} /> : null}
         </View>
@@ -172,6 +186,44 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+/**
+ * The first thing on an empty library's Home: one card washed with the
+ * accent, the way the New playlist tile is, that opens Import. It says what
+ * Home becomes once a song is in, so the space is a promise rather than a gap.
+ */
+function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
+  const accent = useAccent()
+  const press = usePressScale(0.98)
+  return (
+    <Animated.View style={press.style}>
+      <Pressable
+        testID="home-first-song"
+        onPress={onPress}
+        {...press.handlers}
+        accessibilityRole="button"
+        accessibilityLabel="Import a link. Silence, for now: paste a YouTube link and your library starts here."
+        style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
+      >
+        <View style={styles.firstMark}>
+          <Plus size={22} color={accent.accent} />
+        </View>
+        <Text style={styles.firstTitle}>
+          Silence, for now
+          <Text style={styles.greetingDot}>.</Text>
+        </Text>
+        <Text style={styles.firstBody}>
+          Paste a YouTube link and your library starts here. The tags you play most, what you played
+          last and your week in numbers all follow from the first song.
+        </Text>
+        <View style={styles.firstAction}>
+          <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
+          <ChevronRight size={16} color={accent.accent} />
+        </View>
+      </Pressable>
+    </Animated.View>
   )
 }
 
@@ -644,6 +696,25 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
   },
   emptyBody: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  firstCard: {
+    borderRadius: radius.cardLg,
+    padding: 22,
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  firstMark: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  firstTitle: { ...serif(theme.colors, 28), lineHeight: 34, letterSpacing: -0.3 },
+  firstBody: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 440 },
+  firstAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  firstActionLabel: { fontSize: 14, fontWeight: '600' },
   recents: { gap: 10, paddingRight: 20 },
   recentTitle: {
     color: theme.colors.textPrimary,

@@ -17,7 +17,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Live, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
-import { card, floating, pageTitle } from '../../ui/surfaces'
+import { floating, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
@@ -173,23 +173,6 @@ export function PlaylistsScreen(): ReactNode {
                 onPlay={playback.playById}
               />
             ))}
-            {playlists.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>Nothing of your own yet</Text>
-                <Text style={styles.emptyHint}>
-                  Make a <Text style={styles.emptyStrong}>playlist</Text> and pick the songs
-                  yourself, or fill one <Text style={styles.emptyStrong}>from tags</Text> — it keeps
-                  itself filled as you tag more.
-                </Text>
-                <View style={styles.emptyAction}>
-                  <Button
-                    label="New playlist"
-                    icon={<Plus size={15} color={theme.colors.textPrimary} />}
-                    onPress={() => setNewOpen(true)}
-                  />
-                </View>
-              </View>
-            ) : null}
           </View>
         )}
         <ChromeSpacer />
@@ -421,14 +404,4 @@ const styles = StyleSheet.create(theme => ({
   },
   fabPressed: { transform: [{ scale: 0.95 }] },
   spinner: { marginTop: space.xl },
-  emptyCard: {
-    width: '100%',
-    padding: 18,
-    gap: space.sm,
-    ...card(theme.colors),
-  },
-  emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  emptyHint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, maxWidth: 520 },
-  emptyStrong: { color: theme.colors.textSecondary, fontWeight: '700' },
-  emptyAction: { alignItems: 'flex-start', marginTop: 4 },
 }))

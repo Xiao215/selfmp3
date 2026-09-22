@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { DEFAULT_APP_URL } from '@selfmp3/shared'
+import { PRIVACY_POLICY_URL } from '@selfmp3/shared'
 import { DoormanError } from '@selfmp3/replica'
 import { fonts, radius, space, tagColors, type } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
@@ -232,7 +232,7 @@ export function WelcomeScreen(): ReactNode {
             </Text>
             {/* What signing in with Google keeps, on the page the app is published from. */}
             <Pressable
-              onPress={() => void Linking.openURL(`${DEFAULT_APP_URL}/privacy.html`)}
+              onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
               accessibilityRole="link"
               accessibilityLabel="Privacy policy"
               hitSlop={8}

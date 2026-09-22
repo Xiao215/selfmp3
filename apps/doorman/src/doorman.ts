@@ -1,4 +1,4 @@
-import type { DoormanHealth } from '@selfmp3/shared'
+import { PRIVACY_POLICY_URL, type DoormanHealth } from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
@@ -129,9 +129,20 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   }
 }
 
+/**
+ * The privacy policy, outside /v1: a person reads it, no device calls it. It
+ * is published beside the web app, where Google's consent screen points, so
+ * the doorman sends whoever asks there rather than keeping a second copy.
+ */
+const PRIVACY = '/privacy'
+
 async function route(ctx: Context): Promise<Response> {
   const { request } = ctx
   const path = ctx.url.pathname
+  if (path === PRIVACY) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return methodNotAllowed(['GET'])
+    return new Response(null, { status: 308, headers: { Location: PRIVACY_POLICY_URL } })
+  }
   if (!path.startsWith('/v1/')) throw notFound()
   if (request.method === 'OPTIONS') return preflight(request, ctx.origins)
   if (isForeignWrite(request, ctx.origins)) throw forbidden('this address may not use the doorman')

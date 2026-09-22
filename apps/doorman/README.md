@@ -82,8 +82,11 @@ The doorman signs people in with an OAuth client that you own, in the
    search for it). If it offers **Get started**, that walks you through the
    same questions as the next two steps.
 3. **Branding**: set the app name to `self.mp3`, and choose your own address
-   as the user support email and the developer contact. Nothing else is
-   needed.
+   as the user support email and the developer contact. If you ever take the
+   app out of Testing, Google asks for a home page and a privacy policy on a
+   domain of your own: the web app's address and `…/privacy.html` beside it,
+   whose words are `packages/shared/src/privacy.ts`. The doorman's own
+   `/privacy` only redirects there.
 4. **Audience**: choose **External**, and leave the app in **Testing**. Under
    test users, add your own Google address and the address of anyone else
    who will use this self.mp3. While the app is in Testing, only the test

@@ -16,6 +16,9 @@ dist-pages/
 # The service worker, bundled from sw/sw.ts by `npm run build:sw`.
 public/sw.js
 
+# The privacy policy, written from packages/shared/src/privacy.ts by `npm run build:privacy`.
+public/privacy.html
+
 # The widget's asset catalog, written by `expo prebuild` from the colours in
 # targets/widget/expo-target.config.js (@bacons/apple-targets).
 /targets/*/Assets.xcassets

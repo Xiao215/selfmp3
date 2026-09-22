@@ -36,6 +36,15 @@ describe('routing', () => {
     }
   })
 
+  it('sends whoever asks for the privacy policy to where it is published', async () => {
+    const h = harness()
+    const response = await h.call('/privacy')
+    expect(response.status).toBe(308)
+    expect(response.headers.get('location')).toBe('https://xiao215.github.io/selfmp3/privacy.html')
+    const post = await h.call('/privacy', { method: 'POST', json: {} })
+    expect(post.status).toBe(405)
+  })
+
   it('says which methods a route takes', async () => {
     const h = harness()
     const response = await h.call('/v1/storage', { method: 'POST', json: {} })

@@ -45,7 +45,7 @@ export function buildAccent(
   accentPill: string
   /** The progress wash behind the mini player: a 26% wash of the song colour. */
   accentWash: string
-  /** A selected row: `oklch(0.36 0.08 h / 0.4)`. */
+  /** A selected row: `oklch(0.34 0.07 h / 0.28)`. */
   accentSelected: string
 } {
   if (scheme === 'light') {
@@ -67,7 +67,11 @@ export function buildAccent(
     onAccent: oklchToHex(0.15, 0.02, hue),
     accentPill: oklchToHexAlpha(0.45, 0.13, hue, 0.26),
     accentWash: oklchToHexAlpha(0.72, 0.16, hue, 0.26),
-    accentSelected: oklchToHexAlpha(0.36, 0.08, hue, 0.4),
+    // A tint, not a slab. At 0.4 alpha a screen of ticked rows was a wall of
+    // colour with the artwork fighting through it, and the tick on each row —
+    // which is what actually says "selected" — had nothing to stand against
+    // (Xiao, 2026-09-22).
+    accentSelected: oklchToHexAlpha(0.34, 0.07, hue, 0.28),
   }
 }
 

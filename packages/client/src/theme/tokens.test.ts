@@ -36,12 +36,12 @@ describe('oklchToHex', () => {
   })
 
   it('carries the tints the web draws with an alpha as #rrggbbaa', () => {
-    // 26% of the accent behind the tab pill and the mini player's wash, 40%
+    // 26% of the accent behind the tab pill and the mini player's wash, 28%
     // behind a selected row: the alpha byte is what React Native reads.
     const built = buildAccent(268)
     expect(built.accentWash).toBe(`${built.accent}42`)
     expect(built.accentPill).toMatch(/^#[0-9a-f]{6}42$/)
-    expect(built.accentSelected).toMatch(/^#[0-9a-f]{6}66$/)
+    expect(built.accentSelected).toMatch(/^#[0-9a-f]{6}47$/)
   })
 
   it('leaves the palette exactly where it was written by hand', () => {

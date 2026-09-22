@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import {
   escaped,
@@ -21,6 +21,15 @@ import {
  * the song count is checked afterwards, because a flow that could delete the
  * library it runs against should prove on every run that it did not.
  */
+/**
+ * The count, however the bar draws it: one line of text at desktop width, and
+ * on a phone the figure in a pill beside the word — which is one phrase to a
+ * screen reader either way, so that is what this asks for.
+ */
+function selectionCount(page: Page, n: number) {
+  return page.getByLabel(`${n} selected`, { exact: true }).first()
+}
+
 test.describe('selecting songs', () => {
   test('select two, see the count, select all, and get out again', async ({ page }, info) => {
     await openLibrary(page)
@@ -52,13 +61,13 @@ test.describe('selecting songs', () => {
       await page.mouse.down()
       await page.waitForTimeout(700)
       await page.mouse.up()
-      await expect(page.getByText('1 selected', { exact: true })).toBeVisible()
+      await expect(selectionCount(page, 1)).toBeVisible()
     } else {
       await rows.nth(0).hover()
       await page.getByRole('checkbox', { name: `Select ${first}` }).click()
     }
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
-    await expect(page.getByText('2 selected', { exact: true })).toBeVisible()
+    await expect(selectionCount(page, 2)).toBeVisible()
 
     // Select-all spells out what "all" is. A phone's bar is one line of icons,
     // and select-all is the first thing in its More.
@@ -70,14 +79,14 @@ test.describe('selecting songs', () => {
       })
       total = await stated(selectAll)
       await selectAll.click()
-      await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
+      await expect(selectionCount(page, total)).toBeVisible()
     } else {
       const selectAll = page.getByRole('checkbox', {
         name: /^Select all \d+ songs? in your library$/,
       })
       total = await stated(selectAll)
       await selectAll.click()
-      await expect(page.getByText(`${total} selected`, { exact: true })).toBeVisible()
+      await expect(selectionCount(page, total)).toBeVisible()
       await expect(page.getByText('everything in your library')).toBeVisible()
     }
     expect(total).toBeGreaterThanOrEqual(drawn)

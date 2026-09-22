@@ -227,10 +227,46 @@ export function SelectionBar({
       <X size={16} color={theme.colors.textSecondary} />
     </IconButton>
   )
+  const countWords = count === 0 ? 'None selected' : `${count} selected`
   const countText = (
-    <Text style={styles.count} accessibilityLiveRegion="polite" numberOfLines={1}>
-      {count === 0 ? 'None selected' : `${count} selected`}
+    <Text
+      style={styles.count}
+      accessibilityLiveRegion="polite"
+      numberOfLines={1}
+      aria-label={countWords}
+    >
+      {countWords}
     </Text>
+  )
+  /*
+   * The same count on a phone, where the bar is icons and the number is the
+   * only word in it: the figure in an accent pill with "selected" beside it,
+   * rather than one small grey line adrift in the bar's left half. It is what
+   * you check before pressing anything, so it is what the bar is anchored by
+   * (Xiao, 2026-09-22).
+   */
+  const countBadge = (
+    // One phrase to anything that reads or looks for it — a screen reader, and
+    // the flow that checks the count — while the eye gets the figure and the
+    // word as two things.
+    <View
+      style={styles.countRow}
+      accessibilityLiveRegion="polite"
+      accessible
+      accessibilityLabel={countWords}
+      aria-label={countWords}
+    >
+      {count === 0 ? (
+        <Text style={styles.countWord}>None selected</Text>
+      ) : (
+        <>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{count}</Text>
+          </View>
+          <Text style={styles.countWord}>selected</Text>
+        </>
+      )}
+    </View>
   )
 
   const bar = wide ? (
@@ -308,8 +344,13 @@ export function SelectionBar({
         aria-label="Selection actions"
         testID="selection-bar"
       >
-        <View style={styles.countCompact}>{countText}</View>
-        <IconButton onPress={() => player.playFrom(ids, 0)} label="Play" disabled={count === 0}>
+        <View style={styles.countCompact}>{countBadge}</View>
+        <IconButton
+          onPress={() => player.playFrom(ids, 0)}
+          label="Play"
+          disabled={count === 0}
+          filled
+        >
           <Play size={18} color={theme.colors.textPrimary} />
         </IconButton>
         <IconButton onPress={() => player.addToQueue(ids)} label="Queue" disabled={count === 0}>
@@ -325,6 +366,8 @@ export function SelectionBar({
             <More size={18} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
+        {/* Done is leaving, not another thing to do to the songs. */}
+        <View style={styles.leave} />
         {done}
       </View>
     </View>
@@ -588,7 +631,33 @@ const styles = StyleSheet.create(theme => ({
     // Lifted off the rows it covers, so it reads as over them rather than one of them.
     ...floating(theme.colors),
   },
-  barCompact: { gap: 2, paddingVertical: 6, paddingLeft: space.md, paddingRight: 4 },
+  // Room between the icons, and a tone of its own: at `surface2` the bar and
+  // the mini player under it were two identical slabs.
+  barCompact: {
+    gap: 6,
+    paddingVertical: 7,
+    paddingLeft: space.sm,
+    paddingRight: 6,
+    backgroundColor: theme.colors.surface3,
+  },
+  countRow: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
+  countPill: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countPillText: {
+    color: theme.colors.onAccent,
+    fontSize: 12.5,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  countWord: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '500' },
+  leave: { width: 1, height: 20, backgroundColor: theme.colors.border, marginHorizontal: 1 },
   anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 },
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   counts: { minWidth: 0 },

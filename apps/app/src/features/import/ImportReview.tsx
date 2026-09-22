@@ -1,28 +1,36 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatDuration, type ImportPreviewItem } from '@selfmp3/shared'
-import { ApiError, fonts, radius, type Review, type ServerConnection } from '@selfmp3/client'
+import {
+  ApiError,
+  fonts,
+  HIT_TARGET,
+  radius,
+  type Review,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { spring } from '../../ui/motion'
 import { label as groupLabel, serif } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/components/BackRow'
+import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { ListenCover, PatternBar, useListen } from './ImportListen'
+import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
-import { leaveOutIn, renameIn, useImportDraft } from './importDraft'
+import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importDraft'
 import { useImportSource } from './importSource'
 import { canListen, listenDetail, listeningLeftReview, type Listening } from './listen.model'
 import {
+  chosenState,
   comingIn,
   countLabel,
   importLabel,
@@ -35,19 +43,17 @@ import {
   type RowState,
 } from './review.model'
 
-/** How far a row is swiped left before letting go leaves it out (or brings it back). */
-const SWIPE_TO_LEAVE = 88
-
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
  * docs/ui-mock `P30` and `C14`).
  *
- * Every song is coming in unless it is left out; there are no checkboxes. A
- * song the library already has says "Yours already" and is skipped. On a phone
- * a swipe left leaves a song out and a second brings it back, and a tap opens
- * the row in place to hear it and fix its name. On a computer every row sits
- * on one grid; play and "Leave out" wait under the pointer, and the playing
- * row turns its title and artist into fields with its bar opening under it.
+ * Every song starts ticked, and only ticked songs are imported: the box at the
+ * left of a row takes it out and puts it back, and the one in the head does
+ * that for every row. A song the library already has says "Yours already",
+ * has no box, and is skipped. On a phone a tap opens the row in place to hear
+ * it and fix its name. On a computer every row sits on one grid; play waits
+ * under the pointer, and the playing row turns its title, artist and album
+ * into fields with its bar opening under it.
  *
  * A page of its own rather than a state of Import, because the review lives in
  * the draft (importDraft.ts), which outlives either page: Back keeps it, and
@@ -129,9 +135,14 @@ export function ImportReview({
     setOpen(null)
     listen.close()
   }
-  const leaveOut = (index: number): void => {
+  // An open row unticked closes: what is not coming in is not worth hearing.
+  const toggleChosen = (index: number): void => {
     if (open === index) closeRow()
-    leaveOutIn(key, index)
+    toggleChosenIn(key, index)
+  }
+  const chooseAll = (on: boolean): void => {
+    if (!on && open !== null) closeRow()
+    chooseAllIn(key, on)
   }
   const rename = (index: number, change: Rename): void => renameIn(key, index, change)
 
@@ -144,7 +155,7 @@ export function ImportReview({
       open: open === index,
       listening: playing(item),
       canPlay: canListenHere && canListen(item),
-      onLeaveOut: () => leaveOut(index),
+      onToggleChosen: () => toggleChosen(index),
       onRename: (change: Rename) => rename(index, change),
       onSeek: listen.seek,
     }
@@ -165,7 +176,6 @@ export function ImportReview({
         {...shared}
         onOpen={() => openRow(index, item)}
         onClose={closeRow}
-        draftKey={key}
       />
     )
   })
@@ -226,21 +236,27 @@ export function ImportReview({
         keyboardShouldPersistTaps="handled"
         testID="import-review"
       >
-        {wide ? null : (
-          <Text style={styles.hint}>
-            {anyToHear
-              ? 'Everything is in unless you swipe it left. Tap a song to hear it and to fix its name.'
-              : 'Everything is in unless you swipe it left. Tap a song to fix its name.'}
-          </Text>
-        )}
         {wide ? (
-          <View style={[styles.grid, styles.gridHead]} aria-hidden>
-            <View style={styles.colCover} />
-            <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
-            <Text style={[styles.headLabel, styles.colArtist]}>Artist</Text>
-            <Text style={[styles.headLabel, styles.colEnd, styles.endText]}>Time</Text>
+          <View style={[styles.grid, styles.gridHead]}>
+            <AllBox review={review} onChange={chooseAll} wide />
+            <View style={styles.cells} aria-hidden>
+              <View style={styles.colCover} />
+              <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
+              <Text style={[styles.headLabel, styles.colArtist]}>Artist</Text>
+              <Text style={[styles.headLabel, styles.colAlbum]}>Album</Text>
+              <Text style={[styles.headLabel, styles.colEnd, styles.endText]}>Time</Text>
+            </View>
           </View>
-        ) : null}
+        ) : (
+          <>
+            <Text style={styles.hint}>
+              {anyToHear
+                ? 'Untick a song to leave it out. Tap a song to hear it and to fix its name.'
+                : 'Untick a song to leave it out. Tap a song to fix its name.'}
+            </Text>
+            <AllBox review={review} onChange={chooseAll} wide={false} />
+          </>
+        )}
         <View accessibilityRole="list" accessibilityLabel="Songs to import">
           {rows}
         </View>
@@ -300,6 +316,67 @@ function Mosaic({ review }: { review: Review }): ReactNode {
   )
 }
 
+/** A row's box: ticked, the song is coming in. The same mark the library's rows use. */
+function SelectBox({
+  item,
+  checked,
+  onToggle,
+  wide,
+}: {
+  item: ImportPreviewItem
+  checked: boolean
+  onToggle: () => void
+  wide: boolean
+}): ReactNode {
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
+      style={wide ? styles.selectWide : styles.select}
+    >
+      <Checkbox checked={checked} />
+    </Pressable>
+  )
+}
+
+/**
+ * The head's box, over the rows' boxes: ticked when every song that can come
+ * in is, dashed when only some are, and empty when none. Pressing it ticks
+ * everything, or unticks everything once everything is ticked. On a phone it
+ * says what it is, since there is no column of boxes under it yet.
+ */
+function AllBox({
+  review,
+  onChange,
+  wide,
+}: {
+  review: Review
+  onChange: (on: boolean) => void
+  wide: boolean
+}): ReactNode {
+  const state = chosenState(review)
+  const all = state === 'all'
+  return (
+    <Pressable
+      onPress={() => onChange(!all)}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: all ? true : state === 'some' ? 'mixed' : false }}
+      accessibilityLabel={all ? 'Deselect all' : 'Select all'}
+      style={({ pressed }) => [
+        wide ? styles.selectWide : styles.allPhone,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={wide ? null : styles.select}>
+        <Checkbox checked={all} mixed={state === 'some'} />
+      </View>
+      {wide ? null : <Text style={styles.allWords}>All songs</Text>}
+    </Pressable>
+  )
+}
+
 interface RowProps {
   readonly item: ImportPreviewItem
   readonly index: number
@@ -308,15 +385,14 @@ interface RowProps {
   /** This row's preview, when it is the one playing. */
   readonly listening: Listening | null
   readonly canPlay: boolean
-  readonly onLeaveOut: () => void
+  readonly onToggleChosen: () => void
   readonly onRename: (change: Rename) => void
   readonly onSeek: (seconds: number) => void
 }
 
-/** What a row says at its end when nothing is asked of it. */
+/** What a row says at its end: "Yours already", or how long the song is. */
 function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState }): ReactNode {
   if (state === 'yours') return <Text style={styles.endQuiet}>Yours already</Text>
-  if (state === 'out') return <Text style={styles.endOut}>Left out</Text>
   return item.duration > 0 ? (
     <Text style={styles.endTime}>{formatDuration(item.duration)}</Text>
   ) : null
@@ -330,7 +406,7 @@ function NameField({
   index,
   wide,
 }: {
-  label: 'Title' | 'Artist'
+  label: 'Title' | 'Artist' | 'Album'
   value: string
   onChange: (value: string) => void
   index: number
@@ -342,7 +418,11 @@ function NameField({
     <TextInput
       style={[
         styles.input,
-        label === 'Title' ? styles.inputTitle : styles.inputArtist,
+        label === 'Title'
+          ? styles.inputTitle
+          : label === 'Artist'
+            ? styles.inputArtist
+            : styles.inputAlbum,
         wide ? styles.fieldWide : styles.inputPhone,
         wide && focused && styles.fieldFocused,
       ]}
@@ -375,9 +455,9 @@ function barTimes(item: ImportPreviewItem, listening: Listening | null) {
 }
 
 /**
- * A row on a phone (`P30`). Closed, it is a song; a swipe left leaves it out
- * or brings it back, over the `remove` ground. Open, it is a card with Title
- * and Artist and the bar to drag; the cover closes it again.
+ * A row on a phone (`P30`). Closed, it is a song with its box at the left.
+ * Open, it is a card with Title and Artist and the bar to drag; the cover
+ * closes it again.
  */
 function PhoneRow({
   item,
@@ -386,43 +466,12 @@ function PhoneRow({
   open,
   listening,
   canPlay,
-  onLeaveOut,
+  onToggleChosen,
   onRename,
   onSeek,
   onOpen,
   onClose,
-  draftKey,
-}: RowProps & {
-  onOpen: () => void
-  onClose: () => void
-  /** Whose draft the row is in, so a swipe changes it without a callback that changes as it goes. */
-  draftKey: string
-}): ReactNode {
-  const [offset] = useState(() => new Animated.Value(0))
-  const swipeable = state !== 'yours'
-
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        // Claimed only for a sideways drag, before the row's press or the
-        // list's scroll can take it: a drag down the list stays a scroll.
-        onMoveShouldSetPanResponderCapture: (_event, gesture) =>
-          swipeable &&
-          Math.abs(gesture.dx) > 12 &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_event, gesture) => offset.setValue(Math.min(0, gesture.dx)),
-        onPanResponderRelease: (_event, gesture) => {
-          if (gesture.dx <= -SWIPE_TO_LEAVE) leaveOutIn(draftKey, index)
-          spring(offset, 0)
-        },
-        onPanResponderTerminate: () => void spring(offset, 0),
-      }),
-    // Nothing here changes as a preview ticks, so a swipe keeps one responder
-    // from start to end: one made afresh mid-swipe would forget how far it came.
-    [swipeable, offset, draftKey, index],
-  )
-
+}: RowProps & { onOpen: () => void; onClose: () => void }): ReactNode {
   if (open) {
     const times = barTimes(item, listening)
     return (
@@ -452,12 +501,18 @@ function PhoneRow({
               index={index}
               wide={false}
             />
+            <NameField
+              label="Album"
+              value={item.album}
+              onChange={album => onRename({ album })}
+              index={index}
+              wide={false}
+            />
           </View>
         </View>
         {canPlay ? (
           <View style={styles.barBlock}>
-            <PatternBar
-              seed={item.url}
+            <ListenBar
               position={listening?.currentTime ?? 0}
               duration={listening?.duration || item.duration}
               onSeek={onSeek}
@@ -465,7 +520,7 @@ function PhoneRow({
             <View style={styles.times}>
               <Text style={styles.time}>{times.at}</Text>
               <Text style={[styles.time, times.trouble ? styles.trouble : null]} numberOfLines={1}>
-                {times.trouble ?? 'Drag to move · tap the song again to close'}
+                {times.trouble ?? 'Drag to move · tap the cover to close'}
               </Text>
               <Text style={styles.time}>{times.length}</Text>
             </View>
@@ -477,54 +532,46 @@ function PhoneRow({
 
   const out = state === 'out'
   return (
-    <View style={styles.swipeGround} testID={`import-row-${index}`}>
-      {swipeable ? (
-        <View style={styles.swipeUnder} pointerEvents="none">
-          <Text style={styles.swipeWords}>{out ? 'Bring back' : 'Leave out'}</Text>
-        </View>
-      ) : null}
-      <Animated.View
-        style={[styles.phoneRowSlide, { transform: [{ translateX: offset }] }]}
-        {...responder.panHandlers}
+    <View style={styles.phoneRow} testID={`import-row-${index}`}>
+      {state === 'yours' ? (
+        <View style={styles.select} />
+      ) : (
+        <SelectBox item={item} checked={!out} onToggle={onToggleChosen} wide={false} />
+      )}
+      <Pressable
+        onPress={state === 'in' ? onOpen : undefined}
+        disabled={state !== 'in'}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
+        accessibilityHint={state === 'in' ? 'Opens it to hear it and fix its name' : undefined}
+        accessibilityState={{ disabled: state !== 'in' }}
+        style={({ pressed }) => [
+          styles.phoneRowBody,
+          state !== 'in' && styles.dim,
+          pressed && styles.pressed,
+        ]}
       >
-        <Pressable
-          // A left-out row stays reachable, for the action that brings it back.
-          onPress={state === 'in' ? onOpen : undefined}
-          disabled={!swipeable}
-          accessibilityRole="button"
-          accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
-          accessibilityHint={state === 'in' ? 'Opens it to hear it and fix its name' : undefined}
-          accessibilityState={{ disabled: !swipeable }}
-          accessibilityActions={
-            swipeable ? [{ name: 'leaveOut', label: out ? 'Bring back' : 'Leave out' }] : []
-          }
-          onAccessibilityAction={onLeaveOut}
-          style={({ pressed }) => [styles.phoneRow, pressed && styles.pressed]}
-        >
-          <View style={[styles.phoneRowBody, state !== 'in' && styles.dim]}>
-            <Cover uri={item.thumbnail} title={item.title} size={44} />
-            <View style={styles.texts}>
-              <Text style={[styles.title, out && styles.struck]} numberOfLines={1}>
-                {item.title || 'Untitled'}
-              </Text>
-              <Text style={styles.artist} numberOfLines={1}>
-                {item.artist || 'Unknown artist'}
-              </Text>
-            </View>
-            <EndWords item={item} state={state} />
-          </View>
-        </Pressable>
-      </Animated.View>
+        <Cover uri={item.thumbnail} title={item.title} size={44} />
+        <View style={styles.texts}>
+          <Text style={[styles.title, out && styles.struck]} numberOfLines={1}>
+            {item.title || 'Untitled'}
+          </Text>
+          <Text style={styles.artist} numberOfLines={1}>
+            {item.artist || 'Unknown artist'}
+          </Text>
+        </View>
+        <EndWords item={item} state={state} />
+      </Pressable>
     </View>
   )
 }
 
 /**
  * A row on a computer (`C14`), on the one grid every row shares so nothing
- * ever moves sideways: cover, title, artist, and a fixed end. Under the
- * pointer the cover shows play and the end says "Leave out"; both are always
- * there for a keyboard, only unseen. The playing row's title and artist are
- * fields, and its bar opens under it across those two columns.
+ * ever moves sideways: box, cover, title, artist, and a fixed end. Under the
+ * pointer the cover shows play; it is there for a keyboard either way, only
+ * unseen. The open row's title, artist and album are fields, and its bar opens
+ * under it across those three columns.
  */
 function GridRow({
   item,
@@ -534,123 +581,128 @@ function GridRow({
   listening,
   canPlay,
   finePointer,
-  onLeaveOut,
+  onToggleChosen,
   onRename,
   onSeek,
   onPlay,
   onOpen,
 }: RowProps & { finePointer: boolean; onPlay: () => void; onOpen: () => void }): ReactNode {
   const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
   // With no pointer to wait for (a tablet at this width), what hover shows is always shown.
-  const reveal = hovered || focused || !finePointer
+  const reveal = hovered || !finePointer
   const out = state === 'out'
   const lit = open || (hovered && state !== 'yours')
   const times = barTimes(item, listening)
   const showBar = open && canPlay && listening !== null
 
   return (
-    // A Pressable for its hover only: the row is lit while the pointer is in it,
-    // and pressing is left to the cover, the names and "Leave out" inside it.
-    <Pressable
+    // Pointer enter and leave on a View, not a Pressable's hover: react-native-web
+    // ends a Pressable's hover the moment the pointer reaches a Pressable inside
+    // it, so the row went dark as soon as the pointer crossed its cover or names.
+    <View
       testID={`import-row-${index}`}
-      accessible={false}
-      focusable={false}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
       style={[styles.gridRowWrap, lit && styles.lit]}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
     >
-      <View style={[styles.grid, styles.gridRow, state !== 'in' && !open && styles.dim]}>
-        <View style={styles.colCover}>
-          {canPlay && state === 'in' ? (
-            <ListenCover item={item} listening={listening} onPress={onPlay} shown={reveal} />
-          ) : (
-            <Cover uri={item.thumbnail} title={item.title} size={40} />
-          )}
-        </View>
-        {open ? (
-          <>
-            <View style={styles.colTitle}>
-              <NameField
-                label="Title"
-                value={item.title}
-                onChange={title => onRename({ title })}
-                index={index}
-                wide
-              />
-            </View>
-            <View style={styles.colArtist}>
-              <NameField
-                label="Artist"
-                value={item.artist}
-                onChange={artist => onRename({ artist })}
-                index={index}
-                wide
-              />
-            </View>
-          </>
+      <View style={[styles.grid, styles.gridRow]}>
+        {state === 'yours' ? (
+          <View style={styles.selectWide} />
         ) : (
-          <Pressable
-            onPress={state === 'in' ? onOpen : undefined}
-            disabled={state !== 'in'}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${item.title || 'this song'}`}
-            style={styles.names2}
-          >
-            <Text style={[styles.title, styles.colTitle, out && styles.struck]} numberOfLines={1}>
-              {item.title || 'Untitled'}
-            </Text>
-            <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
-              {item.artist || 'Unknown artist'}
-            </Text>
-          </Pressable>
+          <SelectBox item={item} checked={!out} onToggle={onToggleChosen} wide />
         )}
-        <View style={styles.colEnd}>
-          {state === 'yours' ? (
-            <EndWords item={item} state={state} />
-          ) : (
+        {/* The box keeps its full colour: dimmed, an empty ring would all but vanish. */}
+        <View style={[styles.cells, state !== 'in' && !open && styles.dim]}>
+          <View style={styles.colCover}>
+            {canPlay && state === 'in' ? (
+              <ListenCover item={item} listening={listening} onPress={onPlay} shown={reveal} />
+            ) : (
+              <Cover uri={item.thumbnail} title={item.title} size={40} />
+            )}
+          </View>
+          {open ? (
             <>
-              {reveal ? null : <EndWords item={item} state={state} />}
-              <Pressable
-                onPress={onLeaveOut}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                accessibilityRole="button"
-                accessibilityLabel={`${out ? 'Bring back' : 'Leave out'} ${item.title}`}
-                style={[styles.leave, !reveal && styles.unseen]}
-              >
-                <Text style={out ? styles.endOut : styles.leaveText}>
-                  {out ? 'Bring back' : 'Leave out'}
-                </Text>
-              </Pressable>
+              <View style={styles.colTitle}>
+                <NameField
+                  label="Title"
+                  value={item.title}
+                  onChange={title => onRename({ title })}
+                  index={index}
+                  wide
+                />
+              </View>
+              <View style={styles.colArtist}>
+                <NameField
+                  label="Artist"
+                  value={item.artist}
+                  onChange={artist => onRename({ artist })}
+                  index={index}
+                  wide
+                />
+              </View>
+              <View style={styles.colAlbum}>
+                <NameField
+                  label="Album"
+                  value={item.album}
+                  onChange={album => onRename({ album })}
+                  index={index}
+                  wide
+                />
+              </View>
             </>
+          ) : (
+            <Pressable
+              onPress={state === 'in' ? onOpen : undefined}
+              disabled={state !== 'in'}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${item.title || 'this song'}`}
+              style={styles.names2}
+            >
+              <Text style={[styles.title, styles.colTitle, out && styles.struck]} numberOfLines={1}>
+                {item.title || 'Untitled'}
+              </Text>
+              <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
+                {item.artist || 'Unknown artist'}
+              </Text>
+              <Text style={[styles.album, styles.colAlbum]} numberOfLines={1}>
+                {item.album}
+              </Text>
+            </Pressable>
           )}
+          <View style={styles.colEnd}>
+            <EndWords item={item} state={state} />
+          </View>
         </View>
       </View>
       {showBar ? (
         <View style={[styles.grid, styles.barRow]}>
-          <View style={styles.colCover} />
-          <View style={styles.colSpan}>
-            <PatternBar
-              seed={item.url}
-              position={listening.currentTime}
-              duration={listening.duration || item.duration}
-              onSeek={onSeek}
-              height={30}
-            />
-          </View>
-          <View style={styles.colEnd}>
-            <Text style={[styles.endTime, times.trouble ? styles.trouble : null]} numberOfLines={2}>
-              {times.trouble ?? `${times.at} / ${times.length}`}
-            </Text>
+          <View style={styles.selectWide} />
+          <View style={styles.cells}>
+            <View style={styles.colCover} />
+            <View style={styles.colSpan}>
+              <ListenBar
+                position={listening.currentTime}
+                duration={listening.duration || item.duration}
+                onSeek={onSeek}
+                height={30}
+              />
+            </View>
+            <View style={styles.colEnd}>
+              <Text
+                style={[styles.endTime, times.trouble ? styles.trouble : null]}
+                numberOfLines={2}
+              >
+                {times.trouble ?? `${times.at} / ${times.length}`}
+              </Text>
+            </View>
           </View>
         </View>
       ) : null}
-    </Pressable>
+    </View>
   )
 }
 
-/** The grid's columns (`C14`: `40px minmax(0,1.2fr) minmax(0,1fr) 90px`), as flex. */
+/** The grid's columns (`C14` with a box before and an album after: `24px 40px 1.2fr 1fr 1fr 90px`), as flex. */
 const GAP = 14
 
 const styles = StyleSheet.create(theme => ({
@@ -700,28 +752,49 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 13,
     lineHeight: 18,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   listPhone: { paddingHorizontal: 20 },
   listWide: { paddingHorizontal: 28 },
+  // The box, then the cells: the cells dim together when the song is not coming in.
   grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: 12 },
+  cells: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridHead: { paddingBottom: 6 },
   headLabel: groupLabel(theme.colors),
   colCover: { width: 40 },
   colTitle: { flex: 1.2, minWidth: 0 },
   colArtist: { flex: 1, minWidth: 0 },
-  // Title and artist together, and the gap between them: where the bar goes.
-  colSpan: { flex: 2.2, minWidth: 0 },
+  colAlbum: { flex: 1, minWidth: 0 },
+  // Title, artist and album together, and the gaps between them: where the bar goes.
+  colSpan: { flex: 3.2, minWidth: 0 },
   colEnd: { width: 90, alignItems: 'flex-end', justifyContent: 'center' },
   endText: { textAlign: 'right' },
-  names2: { flex: 2.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
+  names2: { flex: 3.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridRowWrap: { borderRadius: 10, marginBottom: 2 },
   gridRow: { height: 52 },
   lit: { backgroundColor: theme.colors.surface1 },
   barRow: { paddingTop: 4, paddingBottom: 14 },
   dim: { opacity: 0.38 },
+  // The boxes, sized as the library's rows size theirs (`SongRow`).
+  select: {
+    width: 34,
+    height: HIT_TARGET,
+    marginLeft: -6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectWide: {
+    width: 24,
+    height: 24,
+    marginLeft: -4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allPhone: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
+  allWords: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
   title: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
   artist: { color: theme.colors.textSecondary, fontSize: 13 },
+  album: { color: theme.colors.textMuted, fontSize: 12 },
   struck: { textDecorationLine: 'line-through' },
   endTime: {
     color: theme.colors.textMuted,
@@ -730,29 +803,10 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   endQuiet: { color: theme.colors.textSecondary, fontSize: 12, textAlign: 'right' },
-  endOut: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  leave: { position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'center' },
-  leaveText: { color: theme.colors.accent, fontSize: 12, fontWeight: '600' },
-  unseen: { opacity: 0 },
   trouble: { color: theme.colors.danger },
   texts: { flex: 1, minWidth: 0, gap: 2 },
-  // Behind a row being swiped: the `remove` ground, saying what letting go does.
-  swipeGround: { borderRadius: radius.cover, overflow: 'hidden' },
-  swipeUnder: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingRight: 16,
-    backgroundColor: theme.colors.remove,
-  },
-  swipeWords: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  phoneRowSlide: { backgroundColor: theme.colors.surface0 },
-  phoneRow: { height: 60, justifyContent: 'center' },
-  phoneRowBody: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 60 },
+  phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   // The open row: a card a step up, reaching a little past the list's edges.
   openCard: {
     gap: 10,
@@ -790,6 +844,7 @@ const styles = StyleSheet.create(theme => ({
   inputPhone: { flex: 1, minWidth: 0 },
   inputTitle: { fontSize: 14, fontWeight: '600' },
   inputArtist: { fontSize: 14 },
+  inputAlbum: { fontSize: 14 },
   barBlock: { gap: 4 },
   times: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   time: { color: theme.colors.textSecondary, fontSize: 11, fontVariant: ['tabular-nums'] },

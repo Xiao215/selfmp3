@@ -74,9 +74,9 @@ const draw = async (): Promise<void> => {
 }
 
 /**
- * The review on a phone (`P30`): everything is coming in, a song can be left
- * out and brought back — the swipe's twin for a screen reader is the row's
- * action — and a tapped row opens to rename the song.
+ * The review on a phone (`P30`): everything starts ticked, a song's box
+ * unticks it and ticks it back, the head's box does that for every song, and
+ * a tapped row opens to rename the song.
  */
 describe('Import review, on a phone', () => {
   beforeEach(() => {
@@ -98,30 +98,51 @@ describe('Import review, on a phone', () => {
     expect(screen.getByText('Yours already')).toBeTruthy()
     expect(screen.getByTestId('import-count').props['children']).toBe('2 of 3 in')
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
-    // No checkbox anywhere: coming in is the default, not a tick.
-    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    // A box for each song that can come in, ticked, and the head's over them;
+    // none for the song that is yours already.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    expect(screen.getByLabelText('Deselect 群青')).toBeTruthy()
+    expect(screen.queryByLabelText(/アイドル$/)).toBeNull()
+    expect(screen.getByLabelText('Deselect all')).toBeTruthy()
   })
 
-  it('leaves a song out, keeps it listed, and brings it back', async () => {
+  it('unticks a song, keeps it listed, and ticks it back', async () => {
     await draw()
-    const row = screen.getByLabelText('怪物, YOASOBI')
     await act(async () => {
-      fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'leaveOut' } })
+      fireEvent.press(screen.getByLabelText('Deselect 怪物'))
     })
-    expect(screen.getByText('Left out')).toBeTruthy()
+    expect(screen.getByLabelText('Select 怪物')).toBeTruthy()
     expect(screen.getByText('怪物')).toBeTruthy()
+    expect(screen.getByTestId('import-count').props['children']).toBe('1 of 3 in')
     expect(screen.getByText('Import 1 song')).toBeTruthy()
+    // One unticked: the head's box is neither ticked nor empty.
+    expect(screen.getByLabelText('Select all').props['accessibilityState'].checked).toBe('mixed')
 
     await act(async () => {
-      fireEvent(screen.getByLabelText('怪物, YOASOBI'), 'accessibilityAction', {
-        nativeEvent: { actionName: 'leaveOut' },
-      })
+      fireEvent.press(screen.getByLabelText('Select 怪物'))
     })
-    expect(screen.queryByText('Left out')).toBeNull()
+    expect(screen.getByLabelText('Deselect 怪物')).toBeTruthy()
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
   })
 
-  it('opens a song to rename it, and sends the new name with no playlist', async () => {
+  it('unticks every song from the head, and ticks them all back', async () => {
+    await draw()
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Deselect all'))
+    })
+    expect(screen.getByTestId('import-count').props['children']).toBe('0 of 3 in')
+    expect(screen.getByText('Import 0 songs')).toBeTruthy()
+    expect(screen.getByLabelText('Select 群青')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Select all'))
+    })
+    expect(screen.getByText('Import 2 songs')).toBeTruthy()
+    // Still nothing for the song that is yours already.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+  })
+
+  it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {
     await draw()
     await act(async () => {
       fireEvent.press(screen.getByLabelText('群青, YOASOBI'))
@@ -129,8 +150,9 @@ describe('Import review, on a phone', () => {
     await act(async () => {
       fireEvent.changeText(screen.getByLabelText('Artist of track 2'), 'YOASOBI feat. 合唱')
     })
-    // No album field: a title and an artist are what a song is named by.
-    expect(screen.queryByLabelText('Album of track 2')).toBeNull()
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText('Album of track 2'), 'THE BOOK')
+    })
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('import-commit'))
@@ -139,6 +161,7 @@ describe('Import review, on a phone', () => {
     const request = mockEnqueue.mock.calls[0][0]
     expect(request.items.map((song: { title: string }) => song.title)).toEqual(['群青', '怪物'])
     expect(request.items[0].artist).toBe('YOASOBI feat. 合唱')
+    expect(request.items[0].album).toBe('THE BOOK')
     expect(request.playlistId).toBeNull()
     expect(request.createPlaylistName).toBeNull()
   })

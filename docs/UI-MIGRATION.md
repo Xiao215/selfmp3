@@ -362,17 +362,20 @@ shells, and the stage no longer has an Up next tab.
 
 - Import is not a tab on a phone. It is the + on Home and a row under You. On a computer it
   stays in the sidebar.
-- **Review** (`/import/review`): every song is coming in unless it is left out. No
-  checkboxes. A song already in the library says "Yours already" and is skipped.
+- **Review** (`/import/review`): every song starts ticked, and only ticked songs are
+  imported. A box at the left of each row, and one in the head for all of them. A song
+  already in the library says "Yours already", has no box, and is skipped. An unticked song
+  stays in the list, dimmed and struck through.
   - Phone: tap a song and its row opens in place with Title and Artist fields and a bar to
-    drag; tap again to close. Swipe left to leave it out; it stays in the list, dimmed and
-    struck through, and swiping again brings it back.
-  - Computer: one grid for every row (`40px minmax(0,1.2fr) minmax(0,1fr) 90px`). Under the
-    pointer a row shows play over its cover and "Leave out" at its end. The playing row
-    turns its title and artist into fields, and the bar opens **under that row**, spanning
-    the title and artist columns. Rows never shift sideways.
-  - There is no album field. Importing can add tags ("Tag them"); it never offers a
-    playlist.
+    drag; tap the cover to close.
+  - Computer: one grid for every row (`24px 40px 1.2fr 1fr 1fr 90px`: box, cover, title,
+    artist, album, time). Under the pointer a row's cover dims with a plain play glyph on
+    it, and the playing one carries the library's equaliser. The open row turns its title,
+    artist and album into fields, and the bar opens **under that row**, spanning those
+    three columns. Rows never shift sideways.
+  - The bar is a plain track with a knob, not a waveform: the audio is not downloaded yet.
+  - Title, artist and album can all be fixed. Importing can add tags ("Tag them"); it
+    never offers a playlist.
 - `ImportListen.tsx` and `listen.model.ts` already preview a track; the change is where the
   bar is drawn. The bar in the mock looks like a waveform. Peaks for a song that has not
   been imported do not exist, so it is a seek bar drawn as bars of a fixed pattern, filled to

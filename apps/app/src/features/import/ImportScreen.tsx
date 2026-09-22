@@ -45,7 +45,7 @@ const FINISHED_SHOWN = 5
  * this page shows as Now and Earlier today. The tags chosen here — "Tag it …
  * as it arrives" — are the review's too. On a phone this page is Home's + and
  * a row under You, and "Done" goes back; on a computer it is in the sidebar,
- * the form on the left and the queue on the right.
+ * the form across the page and the queue under it, at the foot of the page.
  *
  * Links shared to the app arrive as `/import?url=…&text=…`, which is the web's
  * Web Share Target; they are looked up straight away and cleared from the URL.
@@ -78,6 +78,9 @@ export function ImportScreen({
   const [draft, patchDraft] = useImportDraft(key)
   const { links, review, tagIds } = draft
   const [error, setError] = useState<string | null>(null)
+  const [linksFocused, setLinksFocused] = useState(false)
+  /** What the pasted links take up, so the box grows with them. */
+  const [linksHeight, setLinksHeight] = useState(0)
   /*
    * A request that never reached the server is not an import that failed. The
    * browser's words for it are "Failed to fetch", which tell a person nothing
@@ -149,16 +152,20 @@ export function ImportScreen({
           : ''}
       </Text>
       {/*
-       * One field with its button inside it (`P29`). It still takes several
-       * links, one per line, and grows to hold them; a field of several lines
-       * is rounded as a card is rather than a pill.
+       * A compose card: room for several links, one per line, with what
+       * happens to them along its foot — the tag they arrive with on the left,
+       * the commit on the right. It grows with what is pasted, and the whole
+       * card carries the focus ring, since the whole card is the control.
        */}
-      <View style={[styles.field, links.includes('\n') && styles.fieldTall]}>
+      <View style={[styles.compose, linksFocused && styles.composeFocused]}>
         <TextInput
-          style={styles.linksInput}
+          style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
           value={links}
           onChangeText={next => patchDraft({ links: next })}
-          placeholder="https://music.youtube.com/watch?v=…"
+          onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
+          onFocus={() => setLinksFocused(true)}
+          onBlur={() => setLinksFocused(false)}
+          placeholder="Paste links here, one per line"
           placeholderTextColor={theme.colors.textMuted}
           multiline
           autoCapitalize="none"
@@ -166,22 +173,28 @@ export function ImportScreen({
           spellCheck={false}
           accessibilityLabel="Links to import"
         />
-        <Button
-          label={preview.isPending ? 'Looking…' : 'Look it up'}
-          variant="primary"
-          disabled={!ready}
-          onPress={() => {
-            if (hasLink(links)) lookUp(links.trim())
-          }}
-          testID="import-look-up"
-        />
+        {hint ? (
+          <Text style={styles.linkHint} accessibilityRole="alert">
+            {hint}
+          </Text>
+        ) : null}
+        <View style={styles.composeFoot}>
+          <TagItPill
+            tags={tags}
+            selected={tagIds}
+            onChange={next => patchDraft({ tagIds: next })}
+          />
+          <Button
+            label={preview.isPending ? 'Looking…' : 'Look it up'}
+            variant="primary"
+            disabled={!ready}
+            onPress={() => {
+              if (hasLink(links)) lookUp(links.trim())
+            }}
+            testID="import-look-up"
+          />
+        </View>
       </View>
-      {hint ? (
-        <Text style={styles.linkHint} accessibilityRole="alert">
-          {hint}
-        </Text>
-      ) : null}
-      <TagItPill tags={tags} selected={tagIds} onChange={next => patchDraft({ tagIds: next })} />
     </View>
   )
 
@@ -314,8 +327,11 @@ export function ImportScreen({
         </View>
 
         {wide ? (
-          <View style={styles.columns}>
-            <View style={styles.left}>
+          // One column, the page's width, and what arrived under it at the foot
+          // of the page: a second column beside the form was squeezed to a
+          // strip of covers wherever the window was not wide enough for both.
+          <View style={styles.stack}>
+            <View style={styles.formColumn}>
               {form}
               {notices}
               <View style={styles.otherWays}>
@@ -327,7 +343,7 @@ export function ImportScreen({
                 {migrate}
               </View>
             </View>
-            <View style={styles.right}>{jobs}</View>
+            {jobs}
           </View>
         ) : (
           <View style={styles.stack}>
@@ -345,6 +361,9 @@ export function ImportScreen({
     </SafeAreaView>
   )
 }
+
+/** Three lines of links before the box starts growing. */
+const LINKS_MIN_HEIGHT = 66
 
 /** "In your library · tagged night drive": where a finished song went, and how. */
 function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
@@ -516,33 +535,34 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 20,
   },
   heading: pageTitle(theme.colors),
-  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 48 },
-  left: { width: 560, flexShrink: 1, gap: 22 },
-  right: { flex: 1, minWidth: 0, paddingTop: 8 },
+  formColumn: { gap: 22 },
   stack: { gap: 24 },
   form: { gap: 10 },
   explain: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20 },
-  // A control on the ground: the control's fill and no edge, the commit pill inside it.
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: 52,
-    paddingLeft: 18,
-    paddingRight: 6,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
+  // The compose card: the links' room, then its foot. Focused, the card wears the accent ring.
+  compose: {
+    ...card(theme.colors),
+    gap: 8,
+    paddingTop: 14,
+    paddingBottom: 10,
+    paddingHorizontal: 18,
   },
-  fieldTall: { alignItems: 'flex-end', borderRadius: radius.card },
+  composeFocused: {
+    boxShadow: `0 0 0 1.5px ${theme.colors.accent}, 0 1px 2px ${theme.colors.cardShadow}, 0 8px 24px ${theme.colors.cardShadow}`,
+  },
   linksInput: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 8,
     color: theme.colors.textPrimary,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
     _web: { outlineStyle: 'none' },
+  },
+  composeFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginLeft: -4,
   },
   linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17 },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },

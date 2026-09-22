@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { Review } from '@selfmp3/client'
-import { renameSong, toggleLeftOut, type Rename } from './review.model'
+import { chooseAll, renameSong, toggleChosen, type Rename } from './review.model'
 
 /**
  * What Import holds between a link being looked up and imported: the links
@@ -49,13 +49,19 @@ function subscribe(listener: () => void): () => void {
   }
 }
 
-/** Leave one song of the review out, or bring it back. Nothing, with no review. */
-export function leaveOutIn(source: string, index: number): void {
+/** Tick one song of the review, or untick it. Nothing, with no review. */
+export function toggleChosenIn(source: string, index: number): void {
   const { review } = draftFor(source)
-  if (review) patchDraft(source, { review: toggleLeftOut(review, index) })
+  if (review) patchDraft(source, { review: toggleChosen(review, index) })
 }
 
-/** Rename one song of the review: its title, its artist, or both. */
+/** Tick every song of the review that can be, or untick them all. */
+export function chooseAllIn(source: string, on: boolean): void {
+  const { review } = draftFor(source)
+  if (review) patchDraft(source, { review: chooseAll(review, on) })
+}
+
+/** Rename one song of the review: its title, its artist, its album, or any of them. */
 export function renameIn(source: string, index: number, rename: Rename): void {
   const { review } = draftFor(source)
   if (review) patchDraft(source, { review: renameSong(review, index, rename) })

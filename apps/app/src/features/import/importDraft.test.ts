@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ImportPreviewItem } from '@selfmp3/shared'
 import { reviewFrom } from '@selfmp3/client'
-import { draftFor, leaveOutIn, patchDraft, renameIn, resetImportDraft } from './importDraft'
+import {
+  chooseAllIn,
+  draftFor,
+  patchDraft,
+  renameIn,
+  resetImportDraft,
+  toggleChosenIn,
+} from './importDraft'
 import { comingIn, rowState } from './review.model'
 
 afterEach(resetImportDraft)
@@ -42,21 +49,26 @@ describe('the import draft', () => {
     expect(draftFor('own').links).toBe('')
   })
 
-  it('leaves a song out and brings it back, and the review page finds it so', () => {
+  it('unticks a song and ticks it back, and the review page finds it so', () => {
     patchDraft('own', { review: aReview() })
-    leaveOutIn('own', 2)
+    toggleChosenIn('own', 2)
     const review = draftFor('own').review!
     expect(rowState(review, 2)).toBe('out')
     expect(comingIn(review)).toBe(1)
 
-    leaveOutIn('own', 2)
+    toggleChosenIn('own', 2)
     expect(rowState(draftFor('own').review!, 2)).toBe('in')
+    expect(comingIn(draftFor('own').review!)).toBe(2)
+
+    chooseAllIn('own', false)
+    expect(comingIn(draftFor('own').review!)).toBe(0)
+    chooseAllIn('own', true)
     expect(comingIn(draftFor('own').review!)).toBe(2)
   })
 
   it('cannot bring in a song that is yours already', () => {
     patchDraft('own', { review: aReview() })
-    leaveOutIn('own', 0)
+    toggleChosenIn('own', 0)
     expect(rowState(draftFor('own').review!, 0)).toBe('yours')
     expect(comingIn(draftFor('own').review!)).toBe(2)
   })
@@ -75,7 +87,8 @@ describe('the import draft', () => {
   })
 
   it('does nothing to a draft with no review', () => {
-    leaveOutIn('own', 0)
+    toggleChosenIn('own', 0)
+    chooseAllIn('own', false)
     renameIn('own', 0, { title: 'x' })
     expect(draftFor('own').review).toBeNull()
   })

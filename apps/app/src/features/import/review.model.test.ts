@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { ImportPreviewItem } from '@selfmp3/shared'
 import { reviewFrom } from '@selfmp3/client'
 import {
+  chooseAll,
+  chosenState,
   comingIn,
   countLabel,
   importLabel,
@@ -11,7 +13,7 @@ import {
   reviewKicker,
   reviewName,
   rowState,
-  toggleLeftOut,
+  toggleChosen,
 } from './review.model'
 
 const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewItem => ({
@@ -43,18 +45,31 @@ describe('reviewing a link', () => {
     expect(countLabel(review, false)).toBe('6 of 7 in')
   })
 
-  it('leaves a song out, keeps it listed, and brings it back', () => {
-    const out = toggleLeftOut(theBook(), 4)
+  it('unticks a song, keeps it listed, and ticks it back', () => {
+    const out = toggleChosen(theBook(), 4)
     expect(out.items).toHaveLength(7)
     expect(rowState(out, 4)).toBe('out')
     expect(countLabel(out, true)).toBe('5 of 7 coming in')
     expect(importLabel(comingIn(out))).toBe('Import 5 songs')
-    expect(rowState(toggleLeftOut(out, 4), 4)).toBe('in')
+    expect(rowState(toggleChosen(out, 4), 4)).toBe('in')
+  })
+
+  it('ticks and unticks every song from the head, never the one that is yours', () => {
+    const review = theBook()
+    expect(chosenState(review)).toBe('all')
+    expect(chosenState(toggleChosen(review, 4))).toBe('some')
+    const none = chooseAll(review, false)
+    expect(chosenState(none)).toBe('none')
+    expect(comingIn(none)).toBe(0)
+    const all = chooseAll(none, true)
+    expect(chosenState(all)).toBe('all')
+    expect(comingIn(all)).toBe(6)
+    expect(rowState(all, 0)).toBe('yours')
   })
 
   it('never brings in a song that is yours already', () => {
     const review = theBook()
-    expect(toggleLeftOut(review, 0)).toBe(review)
+    expect(toggleChosen(review, 0)).toBe(review)
     // Nor one the server said was yours after the review was chosen by hand.
     const forced = { ...review, chosen: new Set([0, 1]) }
     expect(comingIn(forced)).toBe(1)
@@ -63,14 +78,16 @@ describe('reviewing a link', () => {
     ])
   })
 
-  it('renames a title or an artist, and nothing else', () => {
+  it('renames a title, an artist or an album, and nothing else', () => {
     const review = renameSong(theBook(), 2, { title: '群青' })
     expect(review.items[2]).toMatchObject({ title: '群青', artist: 'YOASOBI' })
     const both = renameSong(review, 2, { artist: 'YOASOBI feat. 合唱' })
     expect(both.items[2]).toMatchObject({ title: '群青', artist: 'YOASOBI feat. 合唱' })
+    const named = renameSong(both, 2, { album: 'THE BOOK' })
+    expect(named.items[2]!.album).toBe('THE BOOK')
     // A patch carrying more than a rename is only a rename.
-    const sneaky = renameSong(both, 2, { title: 'x', album: 'y' } as never)
-    expect(sneaky.items[2]!.album).toBe('')
+    const sneaky = renameSong(named, 2, { title: 'x', url: 'y' } as never)
+    expect(sneaky.items[2]!.url).toBe('https://www.youtube.com/watch?v=3')
   })
 
   it('says one song, and several', () => {
@@ -104,7 +121,7 @@ describe('reviewing a link', () => {
   })
 
   it('asks for tags and never for a playlist', () => {
-    const request = importRequest(toggleLeftOut(theBook(), 6), new Set([3]))
+    const request = importRequest(toggleChosen(theBook(), 6), new Set([3]))
     expect(request.items).toHaveLength(5)
     expect(request.tagIds).toEqual([3])
     expect(request.playlistId).toBeNull()

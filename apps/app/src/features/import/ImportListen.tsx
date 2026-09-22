@@ -15,9 +15,9 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
-import { Pause, Play } from '../../ui/components/Icons'
+import { Equalizer } from '../../ui/components/Equalizer'
+import { Play } from '../../ui/components/Icons'
 import {
-  barPattern,
   followAudio,
   listenLabel,
   playedRatio,
@@ -112,11 +112,14 @@ export function useListen(via?: ServerConnection) {
 }
 
 /**
- * A review row's cover, which is also its play button (`C14`): play over the
- * cover under the pointer, and the accent over it while it plays. `shown` is
- * whether the play is drawn when nothing is playing — under the pointer, or
- * always where there is no pointer to wait for. The button is there either
- * way, so a keyboard reaches it.
+ * A review row's cover, which is also its play button (`C14`). Under the
+ * pointer the cover dims a little and a plain play glyph sits on it, no chip
+ * and no wash. While it plays, the library's own mark for a playing song, the
+ * equaliser, sits there in the accent instead; paused, the glyph is back and
+ * stays, so the row you were hearing is still the one with a glyph on it.
+ * `shown` is whether the glyph is drawn when nothing is playing — under the
+ * pointer, or always where there is no pointer to wait for. The button is
+ * there either way, so a keyboard reaches it.
  */
 export function ListenCover({
   item,
@@ -138,6 +141,7 @@ export function ListenCover({
   const { theme } = useUnistyles()
   const status = listening?.status ?? null
   const on = status !== null
+  const glyph = size >= 56 ? 22 : 18
   return (
     <Pressable
       onPress={onPress}
@@ -150,43 +154,39 @@ export function ListenCover({
       ]}
     >
       <Cover uri={item.thumbnail} title={item.title} size={size} />
-      <View
-        pointerEvents="none"
-        style={[styles.over, on ? styles.overOn : styles.overIdle, !on && !shown && styles.hidden]}
-      >
+      <View pointerEvents="none" style={[styles.over, !on && !shown && styles.hidden]}>
         {status === 'loading' ? (
-          <ActivityIndicator size="small" color={theme.colors.onAccent} />
+          <ActivityIndicator size="small" color={theme.colors.textPrimary} />
         ) : status === 'playing' ? (
-          <Pause size={14} color={theme.colors.onAccent} />
+          <Equalizer size={glyph - 2} />
         ) : (
-          <Play size={14} color={on ? theme.colors.onAccent : theme.colors.textPrimary} />
+          <Play size={glyph} tone="textPrimary" />
         )}
       </View>
     </Pressable>
   )
 }
 
-/** How many bars the seek bar is drawn with, whatever its width. */
-const BARS = 48
+/** How thick the track is, and how wide the knob that rides it. */
+const TRACK = 4
+const KNOB = 14
 
 /**
- * The seek bar of a song not yet imported: bars of a fixed pattern
- * (`barPattern`), filled in the accent to where it is, with a playhead to drag.
+ * The seek bar of a song not yet imported: a thin track filled in the accent
+ * to where the song is, with a round knob to drag.
  *
- * It looks like a waveform in the mocks and it is not one; see `barPattern`.
- * Hand-built on PanResponder for the reason `SeekBar` is: it keeps showing the
- * dragged place while the finger is down instead of fighting the audio's own
- * reports of where it is.
+ * A plain bar, not a waveform: the audio is not downloaded yet, so there are
+ * no peaks to draw, and a made-up shape only pretended to be one. Hand-built
+ * on PanResponder for the reason `SeekBar` is: it keeps showing the dragged
+ * place while the finger is down instead of fighting the audio's own reports
+ * of where it is. `height` is the hit area, taller than the track it holds.
  */
-export function PatternBar({
-  seed,
+export function ListenBar({
   position,
   duration,
   onSeek,
   height = 34,
 }: {
-  /** The song's url: the same song draws the same bars. */
-  seed: string
   position: number
   duration: number
   onSeek: (seconds: number) => void
@@ -194,7 +194,6 @@ export function PatternBar({
 }): ReactNode {
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
-  const pattern = useMemo(() => barPattern(seed, BARS), [seed])
 
   const responder = useMemo(
     () =>
@@ -220,7 +219,6 @@ export function PatternBar({
 
   const shown = dragging ?? position
   const ratio = playedRatio(shown, duration)
-  const filled = Math.round(ratio * BARS)
 
   return (
     <View
@@ -242,19 +240,13 @@ export function PatternBar({
       {...responder.panHandlers}
     >
       {/* Draws only: every touch belongs to the bar, so locationX is always along it. */}
-      <View pointerEvents="none" style={styles.bars}>
-        {pattern.map((level, index) => (
-          <View
-            key={index}
-            style={[
-              styles.one,
-              { height: `${level * 100}%` },
-              index < filled ? styles.played : styles.ahead,
-            ]}
-          />
-        ))}
-        <View style={[styles.head, { left: width * ratio - 1.5 }]} />
+      <View pointerEvents="none" style={styles.track}>
+        <View style={[styles.played, { width: `${ratio * 100}%` }]} />
       </View>
+      <View
+        pointerEvents="none"
+        style={[styles.knob, { left: width * ratio - KNOB / 2 }, dragging !== null && styles.held]}
+      />
     </View>
   )
 }
@@ -270,23 +262,29 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    // The cover dims just enough for a glyph to read on it, whatever the art.
+    backgroundColor: withAlpha(theme.colors.surface0, 0.55),
   },
-  overIdle: { backgroundColor: withAlpha(theme.colors.surface0, 0.5) },
-  overOn: { backgroundColor: withAlpha(theme.colors.accent, 0.85) },
   hidden: { opacity: 0 },
-  bar: { justifyContent: 'center', alignSelf: 'stretch' },
-  bars: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  one: { flex: 1, borderRadius: 2 },
-  played: { backgroundColor: theme.colors.accent },
-  ahead: { backgroundColor: theme.colors.surfaceSelected },
-  // The playhead stands a little past the bars, with a soft ring to find it by.
-  head: {
+  // A pointing hand where there is a mouse: the bar is a control, not a picture.
+  bar: { justifyContent: 'center', alignSelf: 'stretch', cursor: 'pointer' },
+  track: {
+    height: TRACK,
+    borderRadius: TRACK / 2,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.surfaceSelected,
+  },
+  played: { height: '100%', backgroundColor: theme.colors.accent },
+  // The knob rides the track, with a soft ring to find it by; it grows a little under a drag.
+  knob: {
     position: 'absolute',
-    top: -3,
-    bottom: -3,
-    width: 3,
-    borderRadius: 2,
+    top: '50%',
+    marginTop: -KNOB / 2,
+    width: KNOB,
+    height: KNOB,
+    borderRadius: KNOB / 2,
     backgroundColor: theme.colors.textPrimary,
     boxShadow: `0 0 0 4px ${withAlpha(theme.colors.textPrimary, 0.18)}`,
   },
+  held: { transform: [{ scale: 1.15 }] },
 }))

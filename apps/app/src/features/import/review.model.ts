@@ -5,14 +5,13 @@ import { enqueueRequest, type Review } from '@selfmp3/client'
 /**
  * The review of a link, without the screen (docs/ui-mock `P30`, `C14`).
  *
- * Every song is coming in unless it is left out: there are no checkboxes. The
- * client's `Review` already holds the songs coming in as `chosen`, so leaving
- * one out takes it from there and bringing it back puts it back; the words
- * change, the shape does not. A song the library already has is never coming
- * in and cannot be brought back — it is "Yours already", and skipped.
+ * Every song starts ticked, and only ticked songs are imported. The client's
+ * `Review` already holds the songs coming in as `chosen`, so a row's checkbox
+ * takes one from there and puts it back. A song the library already has is
+ * never coming in and has no box — it is "Yours already", and skipped.
  */
 
-/** What a row says at its end: its length, "Yours already", or "Left out". */
+/** Whether a row is ticked, unticked, or "Yours already" with no box at all. */
 export type RowState = 'in' | 'yours' | 'out'
 
 export function rowState(review: Review, index: number): RowState {
@@ -21,11 +20,10 @@ export function rowState(review: Review, index: number): RowState {
 }
 
 /**
- * Leave a song out, or bring a left-out one back: a swipe on a phone, the
- * row's "Leave out" on a computer. A song that is yours already stays as it
- * is, since there is nothing to bring back.
+ * Tick a song's box, or untick it. A song that is yours already stays as it
+ * is, since there is nothing to tick.
  */
-export function toggleLeftOut(review: Review, index: number): Review {
+export function toggleChosen(review: Review, index: number): Review {
   const item = review.items[index]
   if (!item || item.alreadyHave) return review
   const chosen = new Set(review.chosen)
@@ -34,14 +32,32 @@ export function toggleLeftOut(review: Review, index: number): Review {
   return { ...review, chosen }
 }
 
-/** What a song can be renamed to. There is no album field (`S3`, Import). */
-export type Rename = Partial<Pick<ImportPreviewItem, 'title' | 'artist'>>
+/** The head's box: tick every song that can be ticked, or untick them all. */
+export function chooseAll(review: Review, on: boolean): Review {
+  return {
+    ...review,
+    chosen: new Set(
+      on ? review.items.flatMap((item, index) => (item.alreadyHave ? [] : [index])) : [],
+    ),
+  }
+}
 
-/** Correct one song's title or artist; the url, which is what plays and downloads, stays. */
+/** What the head's box shows: every song ticked, some of them, or none. */
+export function chosenState(review: Review): 'all' | 'some' | 'none' {
+  const coming = comingIn(review)
+  if (coming === 0) return 'none'
+  return coming === review.items.filter(item => !item.alreadyHave).length ? 'all' : 'some'
+}
+
+/** What a song can be renamed to: its title, artist and album. The url is not a name. */
+export type Rename = Partial<Pick<ImportPreviewItem, 'title' | 'artist' | 'album'>>
+
+/** Correct one song's title, artist or album; the url, which is what plays and downloads, stays. */
 export function renameSong(review: Review, index: number, rename: Rename): Review {
   const patch: Rename = {}
   if (rename.title !== undefined) patch.title = rename.title
   if (rename.artist !== undefined) patch.artist = rename.artist
+  if (rename.album !== undefined) patch.album = rename.album
   return {
     ...review,
     items: review.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),

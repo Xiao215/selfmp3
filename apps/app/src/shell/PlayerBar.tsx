@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, PanResponder, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -94,6 +94,22 @@ export function PlayerBar(): ReactNode {
   useEffect(() => {
     if (song) void warmCoverPalette(song, artFor(song))
   }, [song, artFor])
+  /*
+   * Where the scrubber's track is within this bar, so the wash can fill to
+   * where the thumb is. Measured rather than derived: the track sits three
+   * containers down with two time labels beside it, and nothing up here knows
+   * its offset. Null until the first measurement, when the wash falls back to
+   * a share of the whole bar for one frame.
+   */
+  const barRef = useRef<View>(null)
+  const [track, setTrack] = useState<{ offset: number; span: number } | null>(null)
+  const onTrackWindow = useCallback((x: number, span: number) => {
+    barRef.current?.measureInWindow(barX =>
+      setTrack(now =>
+        now && now.offset === x - barX && now.span === span ? now : { offset: x - barX, span },
+      ),
+    )
+  }, [])
   const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -113,6 +129,7 @@ export function PlayerBar(): ReactNode {
 
   return (
     <View
+      ref={barRef}
       style={[
         styles.bar,
         insets.bottom > 0 && {
@@ -122,7 +139,7 @@ export function PlayerBar(): ReactNode {
       ]}
       testID="player-bar"
     >
-      {song ? <PlayedWash color={songColor.color} /> : null}
+      {song ? <PlayedWash color={songColor.color} track={track} /> : null}
 
       <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
@@ -225,6 +242,7 @@ export function PlayerBar(): ReactNode {
             loopB={player.loopB}
             onSeek={player.seekTo}
             color={songColor.color}
+            onTrackWindow={onTrackWindow}
           />
         </View>
       </View>
@@ -293,12 +311,27 @@ export function PlayerBar(): ReactNode {
 }
 
 /** The bar filling with the song's colour, and the bright line along its top. */
-function PlayedWash({ color }: { color: string }): ReactNode {
+function PlayedWash({
+  color,
+  track,
+}: {
+  color: string
+  track: { offset: number; span: number } | null
+}): ReactNode {
   const { position, duration } = usePlayerProgress()
   // Whole points: a new percentage is a new CSS rule in a browser, and this
   // one moves four times a second for as long as the music plays.
   const percent = duration > 0 ? Math.round(Math.min(100, (position / duration) * 100)) : 0
-  return <ProgressWash fraction={percent / 100} color={color} alpha={0.2} fade={40} line="top" />
+  return (
+    <ProgressWash
+      fraction={percent / 100}
+      color={color}
+      alpha={0.2}
+      fade={40}
+      line="top"
+      track={track}
+    />
+  )
 }
 
 /** The scrubber with its two times, the other part of the bar that moves each tick. */
@@ -307,11 +340,13 @@ function BarSeek({
   loopB,
   onSeek,
   color,
+  onTrackWindow,
 }: {
   loopA: number | null
   loopB: number | null
   onSeek: (seconds: number) => void
   color: string
+  onTrackWindow: (x: number, width: number) => void
 }): ReactNode {
   const { position, duration } = usePlayerProgress()
   return (
@@ -322,6 +357,7 @@ function BarSeek({
       duration={duration}
       onSeek={onSeek}
       color={color}
+      onTrackWindow={onTrackWindow}
     />
   )
 }

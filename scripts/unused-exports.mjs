@@ -54,6 +54,7 @@ const ALLOWED = new Map([
   ['DownloadsFolder', 'the downloadsFolder port'],
   ['LoginItem', 'the loginItem port'],
   ['MediaSessionActions', 'the mediaSession port'],
+  ['PointerHold', 'the pointerHold port, implemented by both twins'],
   ['MediaSessionPort', 'the mediaSession port'],
   ['NowPlaying', 'the mediaSession port'],
   ['PrefStore', 'the prefs port'],

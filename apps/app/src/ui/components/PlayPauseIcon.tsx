@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated } from 'react-native'
+import { ActivityIndicator, Animated } from 'react-native'
 import { Pause, Play } from './Icons'
 import { timing } from '../motion'
 
@@ -16,22 +16,31 @@ const SWAP_MS = 180
  * as a spin rather than a swap (Xiao, 2026-09-21): they are the same control
  * saying two things, not two things changing places.
  *
+ * Waiting on the track, it is a spinner instead — the same answer in every
+ * play button there is, so the bar, the mini player and a song's page cannot
+ * drift apart (Xiao, 2026-09-27). Nothing swaps while it waits: the spinner is
+ * already motion, and a glyph turning over behind it was the second animation
+ * for one press.
+ *
  * Only the glyph; the button around it is the caller's.
  */
 export function PlayPauseIcon({
   playing,
   size,
   color,
+  busy = false,
 }: {
   playing: boolean
   size: number
   color: string
+  /** Waiting on the track: `usePlayerStalled`, which is already patient. */
+  busy?: boolean
 }): ReactNode {
   const [shown, setShown] = useState(playing)
   const [turn] = useState(() => new Animated.Value(1))
 
   useEffect(() => {
-    if (playing === shown) return
+    if (playing === shown || busy) return
     // Out to nothing, swap the glyph at the bottom of the dip, and back in.
     // Under Reduce Motion both halves land at once and the glyph just changes.
     // Stopped only if it is still on its way out: `stop()` stops the value
@@ -52,12 +61,14 @@ export function PlayPauseIcon({
       out?.stop()
       timing(turn, 1, SWAP_MS / 2)
     }
-  }, [playing, shown, turn])
+  }, [playing, shown, busy, turn])
 
   const style = {
     transform: [{ scale: turn.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }],
     opacity: turn,
   }
+
+  if (busy) return <ActivityIndicator size={size > 20 ? 'large' : 'small'} color={color} />
 
   return (
     <Animated.View style={style}>

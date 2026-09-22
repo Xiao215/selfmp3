@@ -17,7 +17,8 @@ import {
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerStalled } from '../../player/PlayerProvider'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -75,7 +76,9 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const router = useRouter()
   const { wide } = useLayout()
   const bottom = useBottomInset()
+  const { top } = useSafeAreaInsets()
   const player = usePlayer()
+  const stalled = usePlayerStalled()
   const artFor = useArt()
   const { data: library } = useLibrary()
   const art = artFor(song)
@@ -98,13 +101,17 @@ function SongPage({ song }: { song: Song }): ReactNode {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <View style={styles.screen}>
       <ScrollView
         testID="song-screen"
         contentContainerStyle={[
           styles.content,
           wide && styles.contentWide,
-          { paddingBottom: bottom + space.xl },
+          // The inset is the content's, not the screen's: a safe area around
+          // the whole page would push the light down with everything else and
+          // leave a black band above it, where a place's page runs its light
+          // right up under the status bar (Xiao, 2026-09-27).
+          { paddingTop: top + space.sm, paddingBottom: bottom + space.xl },
         ]}
       >
         <View style={styles.light}>
@@ -195,6 +202,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
             icon={
               <PlayPauseIcon
                 playing={isCurrent && player.isPlaying}
+                busy={isCurrent && stalled}
                 size={24}
                 color={theme.colors.onPrimary}
               />
@@ -258,7 +266,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
         onClose={() => setTagging(false)}
       />
       {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -347,7 +355,7 @@ function SongMissing(): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingHorizontal: 20, gap: 18 },
-  contentWide: { paddingHorizontal: 40, paddingTop: 16 },
+  contentWide: { paddingHorizontal: 40 },
   // The light reaches down behind the head and fades into the ground before the card.
   light: { position: 'absolute', top: 0, left: 0, right: 0, height: 560 },
   // No glass here. The bar scrolls with the head rather than floating over

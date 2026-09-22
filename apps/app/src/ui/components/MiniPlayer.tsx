@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -134,11 +134,12 @@ function MiniPlayerInner(): ReactNode {
       >
         {/* Waiting on the bucket, the button says so rather than showing a
             pause glyph over silence (`PlayerBar` does the same). */}
-        {stalled ? (
-          <ActivityIndicator size="small" color={theme.colors.textPrimary} />
-        ) : (
-          <PlayPauseIcon playing={player.isPlaying} size={22} color={theme.colors.textPrimary} />
-        )}
+        <PlayPauseIcon
+          playing={player.isPlaying}
+          busy={stalled}
+          size={22}
+          color={theme.colors.textPrimary}
+        />
       </IconButton>
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={theme.colors.textSecondary} />

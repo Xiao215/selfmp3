@@ -325,18 +325,46 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * longer renders this provider at all, and only what subscribes to the
    * progress store (the scrubbers, the synced lyrics) hears it.
    */
-  useEffect(
-    () =>
-      engine.subscribe(state => {
-        // Tagged with the song the engine is timing, so a tick the song being
-        // left still had in it is not drawn as the new song's position.
-        stores.progress.set(engine.currentSongId, state.currentTime, state.duration)
-        stores.stalled.set(state.stalled)
-        playbackErrorRef.current(state)
-        setEngineState(previous => (differsBesidesClock(previous, state) ? state : previous))
-      }),
-    [engine, stores],
-  )
+  useEffect(() => {
+    /*
+     * A stall has to last before anyone is told about it.
+     *
+     * The two engines mean different things by the word. A browser's `waiting`
+     * fires when it has actually run dry, so it is always worth showing; the
+     * phone's player reports Loading or Buffering every time it takes a track,
+     * including one already on the disk that is ready in a blink. Told
+     * straight through, the phone flashed a spinner on every press of play —
+     * one tap, four changes of glyph (Xiao, 2026-09-27). A stall that clears
+     * inside the grace was never worth drawing; one that outlasts it is the
+     * one the spinner is for, and clearing is always told at once.
+     */
+    let waiting: ReturnType<typeof setTimeout> | null = null
+    const forget = (): void => {
+      if (waiting === null) return
+      clearTimeout(waiting)
+      waiting = null
+    }
+    const stop = engine.subscribe(state => {
+      // Tagged with the song the engine is timing, so a tick the song being
+      // left still had in it is not drawn as the new song's position.
+      stores.progress.set(engine.currentSongId, state.currentTime, state.duration)
+      if (!state.stalled) {
+        forget()
+        stores.stalled.set(false)
+      } else if (waiting === null && !stores.stalled.get()) {
+        waiting = setTimeout(() => {
+          waiting = null
+          stores.stalled.set(true)
+        }, STALL_SHOWS_AFTER_MS)
+      }
+      playbackErrorRef.current(state)
+      setEngineState(previous => (differsBesidesClock(previous, state) ? state : previous))
+    })
+    return () => {
+      forget()
+      stop()
+    }
+  }, [engine, stores])
 
   useEffect(() => () => engine.destroy(), [engine])
 
@@ -990,6 +1018,13 @@ export function usePlayerProgress(): PlayerProgress {
     [clock, fallback],
   )
 }
+
+/**
+ * How long a stall has to last before it is shown. Long enough that taking a
+ * track off this device never draws one, short enough that a real wait says so
+ * before it is felt as the app being stuck.
+ */
+const STALL_SHOWS_AFTER_MS = 320
 
 /** Waiting on the network mid-song, which shows differently from paused. */
 export function usePlayerStalled(): boolean {

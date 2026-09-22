@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, PanResponder, Pressable, Text, View } from 'react-native'
+import { PanResponder, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
@@ -359,18 +359,12 @@ function PlayButton({
       {/* Streaming, the first second is silence, and a pause glyph through it
           reads as "already playing" — so the button says it is working
           (Xiao, 2026-09-21). */}
-      {stalled ? (
-        <ActivityIndicator
-          size="small"
-          color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
-        />
-      ) : (
-        <PlayPauseIcon
-          playing={playing}
-          size={20}
-          color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
-        />
-      )}
+      <PlayPauseIcon
+        playing={playing}
+        busy={stalled}
+        size={20}
+        color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
+      />
     </Pressable>
   )
 }

@@ -237,6 +237,15 @@ describe('editing playlists', () => {
     expect(view.playlistSongs[mix]).toEqual(['a', 'c', 'b'].map(c => d.idOf('songs', c)))
   })
 
+  it('lets a playlist that follows tags be put in an order by hand', () => {
+    const d = device()
+    const live = d.idOf('playlists', '8')
+    const songs = d.apply([]).playlistSongs[live] ?? []
+    // The rule still says which songs; this says the order of the ones it names.
+    const changes = edits.reorderPlaylist(d.ctx(), live, [...songs].reverse())
+    expect(changes.map(change => change.type)).toEqual(['playlistOrdered'])
+  })
+
   it('refuses to put songs into a live playlist, or none that exist', () => {
     const d = device()
     expect(() => edits.addToPlaylist(d.ctx(), d.idOf('playlists', '8'), [1], undefined)).toThrow(

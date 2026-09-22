@@ -182,7 +182,7 @@ function Month({
       {month ? (
         <>
           <View style={styles.figures}>
-            <Figure value={month.listened} label="listened" />
+            <Figure value={month.listened} unit={month.listenedUnit} label="listened" />
             <Figure value={month.plays} label="plays" />
             <Figure value={month.streak} unit={month.streakUnit} label="streak" />
           </View>

@@ -10,6 +10,7 @@ function recorder(overrides: Partial<SignOutSteps> = {}): { steps: SignOutSteps;
   return {
     calls,
     steps: {
+      stopPlaying: () => void calls.push('stop'),
       sendPendingChanges: step('send'),
       endSession: step('end'),
       forgetLibrary: step('forget-library'),
@@ -22,16 +23,16 @@ function recorder(overrides: Partial<SignOutSteps> = {}): { steps: SignOutSteps;
 }
 
 describe('signing out of the cloud', () => {
-  it('sends what is waiting, ends the session, forgets what was kept, then hands back', async () => {
+  it('stops the music, sends what is waiting, ends the session, forgets what was kept, then hands back', async () => {
     const { steps, calls } = recorder()
     await signOutOfCloud(steps)
-    expect(calls.slice(0, 2)).toEqual(['send', 'end'])
-    expect([...calls.slice(2, 5)].sort()).toEqual([
+    expect(calls.slice(0, 3)).toEqual(['stop', 'send', 'end'])
+    expect([...calls.slice(3, 6)].sort()).toEqual([
       'forget-library',
       'forget-saved',
       'remove-downloads',
     ])
-    expect(calls[5]).toBe('done')
+    expect(calls[6]).toBe('done')
   })
 
   it('signs out even when the waiting changes cannot be sent', async () => {

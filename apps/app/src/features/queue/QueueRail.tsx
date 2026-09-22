@@ -233,10 +233,26 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
     ],
   }))
 
+  /*
+   * The rail itself takes a drop, under the rows: let go anywhere in it — the
+   * empty space below the last song included — and the song joins the end.
+   * A row's own target sits inside this one and stops the drop there, so only
+   * the space no row covers reaches here (Xiao, 2026-09-22).
+   */
+  const overRail = useSongDropTarget(railRef, {
+    enabled: true,
+    onDrop: songIds => actions.dropSongs(player.queue.items.length, songIds),
+  })
+
   return (
     <Animated.View
       ref={railRef}
-      style={[styles.rail, width < BESIDE_MIN && styles.railOver, slide]}
+      style={[
+        styles.rail,
+        width < BESIDE_MIN && styles.railOver,
+        overRail && styles.railTakingDrop,
+        slide,
+      ]}
       testID="queue-rail"
       role="complementary"
     >
@@ -257,6 +273,7 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
             artUri={artFor(playing.song)}
             playing={player.isPlaying}
             onOpen={() => router.navigate('/now-playing')}
+            onDropSongs={actions.dropSongs}
           />
         ) : null}
         {rows.next.map(row => (
@@ -341,21 +358,33 @@ function PlayingRow({
   artUri,
   playing,
   onOpen,
+  onDropSongs,
 }: {
   row: QueueRow
   artUri: string | null
   playing: boolean
   onOpen: () => void
+  onDropSongs: (at: number, songIds: readonly number[]) => void
 }): ReactNode {
   const tone = useSongColor(row.song, artUri)
+  // A song let go over what is playing goes straight after it — there is no
+  // "before" to drop into, and doing nothing there read as the drag being
+  // broken (Xiao, 2026-09-22).
+  const playingRef = useRef<View>(null)
+  const over = useSongDropTarget(playingRef, {
+    enabled: true,
+    onDrop: songIds => onDropSongs(row.index + 1, songIds),
+  })
   return (
     <Pressable
+      ref={playingRef}
       testID={`queue-row-${row.index}`}
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={`Playing ${row.song.title}. Open now playing`}
       style={[styles.row, { backgroundColor: withAlpha(tone.color, 0.2) }]}
     >
+      {over ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
       <View style={styles.gripSlot} />
       <View>
         <Cover uri={artUri} title={row.song.album || row.song.title} size={34} />
@@ -563,6 +592,9 @@ const styles = StyleSheet.create(theme => ({
   songTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   sub: { color: theme.colors.textSecondary, fontSize: type.tiny },
   dropLineFoot: { top: undefined, bottom: 0 },
+  // Let go anywhere else in the rail and the song joins the end: the whole
+  // rail says so, since there is no one row to draw a line against.
+  railTakingDrop: { backgroundColor: theme.colors.surface2 },
   dropLine: {
     position: 'absolute',
     left: 0,

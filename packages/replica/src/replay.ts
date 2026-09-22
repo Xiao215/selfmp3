@@ -54,14 +54,36 @@ export function replayedSnapshot(
             ...playlist,
             // A shuffled playlist keeps its order between edits: the same
             // seed each time, rather than a reshuffle whenever a song is loved.
-            songUids: livePlaylistSongs(playlist.rules, songs, {
-              now,
-              random: seeded(playlist.uid),
-            }),
+            songUids: inKeptOrder(
+              playlist.songUids,
+              livePlaylistSongs(playlist.rules, songs, {
+                now,
+                random: seeded(playlist.uid),
+              }),
+            ),
           }
         : playlist,
     ),
   }
+}
+
+/**
+ * The rule's answer, in the order it was put in by hand.
+ *
+ * A playlist that follows tags can be reordered (`edits.reorderPlaylist`), and
+ * what that writes is the playlist's own `songUids`. The rule still decides
+ * *which* songs; the hand order decides the order of the ones it names, and
+ * whatever the rule has matched since — which the order has never heard of —
+ * follows at the end. The same shape the server keeps (`repositories/playlists.ts`).
+ */
+function inKeptOrder(kept: readonly string[], matched: readonly string[]): string[] {
+  if (kept.length === 0) return [...matched]
+  const place = new Map(kept.map((uid, at) => [uid, at]))
+  const known: string[] = []
+  const rest: string[] = []
+  for (const uid of matched) (place.has(uid) ? known : rest).push(uid)
+  known.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
+  return [...known, ...rest]
 }
 
 /** The latest stamp anywhere in a snapshot: where this device's clock must go past. */

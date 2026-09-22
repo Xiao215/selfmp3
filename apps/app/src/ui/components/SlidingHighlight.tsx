@@ -61,13 +61,28 @@ export function useSlidingHighlight<K extends string>(
   // Before the paint, so the frame the new pair is drawn in starts where the
   // highlight was rather than flashing where it is going.
   useLayoutEffect(() => {
-    if (!pair) return
+    if (!pair) return undefined
     if (pair.from === pair.to) {
       progress.setValue(1)
-      return
+      return undefined
     }
     progress.setValue(0)
-    timing(progress, 1, duration, undefined, { easing: ease.out, native: false })
+    const slide = timing(progress, 1, duration, undefined, { easing: ease.out, native: false })
+    /*
+     * Whatever ends this slide, it ends on the target.
+     *
+     * A slide that is interrupted — the bar re-laid out under it, the screen
+     * went away and came back — used to leave `progress` wherever it had got
+     * to, and the pill with it: stranded between two tabs, lit on neither,
+     * until something moved it again. Pressing play was enough, because the
+     * mini player rising is a relayout of the bar (Xiao, 2026-09-22). The
+     * highlight is a statement about which tab you are on, so the one state
+     * it must never hold is "between".
+     */
+    return () => {
+      slide?.stop()
+      progress.setValue(1)
+    }
   }, [pair, progress, duration])
 
   const placed = active !== null && target !== undefined && pair !== null

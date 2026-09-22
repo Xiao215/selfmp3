@@ -249,12 +249,19 @@ export const Downloaded = ({
  * Not on this device: the downloaded disc's counterpart, drawn as an outline
  * so it reads as the same mark, not yet filled in.
  */
+/**
+ * A song that is not on this device: the cloud it is in, and nothing else.
+ *
+ * It was a download arrow in a circle, which says what you could do to the
+ * song rather than where it is — and beside a row that offers downloading in
+ * its ⋯ menu, an arrow reads as a button (Xiao, 2026-09-22). The same cloud
+ * the download icons are drawn from, without their arrow.
+ */
 export const NotDownloaded = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone, 'textMuted')
   return (
     <Icon color={color} {...rest}>
-      <Circle cx="12" cy="12" r="9" />
-      <Path d="M12 7.5v8M8.8 12.3 12 15.5l3.2-3.2" />
+      <Path d="M7 17.5a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5 3.5 3.5 0 0 1-.5 6.5Z" />
     </Icon>
   )
 }

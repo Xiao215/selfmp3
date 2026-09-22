@@ -124,6 +124,9 @@ export function useSongDropTarget(
       if (!carriesSongs(event)) return
       // Without this the browser refuses the drop.
       event.preventDefault()
+      // Targets nest — a queue row inside the rail — and the innermost one
+      // owns the drop, or a song would be added twice (Xiao, 2026-09-22).
+      event.stopPropagation()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
       setOver(true)
       onOver.current?.(event.clientY - node.getBoundingClientRect().top)
@@ -136,6 +139,7 @@ export function useSongDropTarget(
     const drop = (event: DragEvent): void => {
       if (!carriesSongs(event)) return
       event.preventDefault()
+      event.stopPropagation()
       setOver(false)
       setDragging(false)
       try {

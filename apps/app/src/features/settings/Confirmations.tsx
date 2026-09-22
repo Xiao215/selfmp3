@@ -13,6 +13,7 @@ import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { SIGNED_OUT_ROUTE, signOutOfCloud, signOutWarning } from './signOut'
+import { usePlayer } from '../../player/PlayerProvider'
 import { type Confirming } from './settings.model'
 import {} from '../metadata/metadata.model'
 
@@ -28,6 +29,7 @@ export function Confirmations({
   const { signedOutOfCloud } = useConnection()
   const { removeAll, queue: downloadQueue } = useDownloads()
   const startAnalysis = useStartAnalysis()
+  const player = usePlayer()
 
   const dialogs: Record<
     Exclude<Confirming, null>,
@@ -51,6 +53,7 @@ export function Confirmations({
       label: 'Sign out',
       run: () =>
         void signOutOfCloud({
+          stopPlaying: () => player.clearQueue(),
           sendPendingChanges: () => cloudLibrary.flushCloudChanges(),
           endSession: async () => {
             const session = await cloudSession.loadSession()

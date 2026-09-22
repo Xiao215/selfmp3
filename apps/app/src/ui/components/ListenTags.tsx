@@ -34,12 +34,13 @@ import { card, label as labelText } from '../surfaces'
  * shows the matches and nothing else: once you are searching, a wall of tags
  * you did not search for is in the way.
  *
- * **The same panel, laid out for the room it has.** With a mouse the lane's
+ * **The same panel, laid out for the room it has.** With a mouse a lane's
  * label sits beside its chips and the chips are the compact size. On a phone
- * the label goes above them — a 74-point gutter out of 368 is a quarter of the
- * width spent on the word MOST USED — the chips are finger-sized, and the
- * summary and Done take a row of their own along the foot rather than being
- * squeezed in beside the search.
+ * the label goes above them, the chips are finger-sized, and the summary and
+ * Done take a row of their own along the foot rather than being squeezed in
+ * beside the search. The tags used most carry no label at all: they are what
+ * the panel opens on, and naming them spent a quarter of a phone's width
+ * saying so.
  */
 export function ListenTags({
   open,
@@ -101,10 +102,16 @@ function Panel({
   )
 
   /** A labelled lane: the heading beside the chips, or above them on a phone. */
-  const lane = (label: string, list: readonly Tag[]): ReactNode =>
+  // A lane says what it is only when that tells you something. The tags you
+  // use most are what the panel opens on, so naming them spent a quarter of a
+  // phone's width saying "the usual ones" (Xiao, 2026-09-22); Lately keeps its
+  // name, because the point of that lane is that these are the new ones.
+  const lane = (label: string | null, list: readonly Tag[]): ReactNode =>
     list.length === 0 ? null : (
       <View style={wide ? styles.lane : styles.laneStacked}>
-        <Text style={[styles.laneLabel, wide && styles.laneLabelBeside]}>{label}</Text>
+        {label === null ? null : (
+          <Text style={[styles.laneLabel, wide && styles.laneLabelBeside]}>{label}</Text>
+        )}
         <View style={styles.cloud}>{list.map(chip)}</View>
       </View>
     )
@@ -170,7 +177,7 @@ function Panel({
           </Text>
         ) : (
           <>
-            {lane('Most used', mostUsed)}
+            {lane(null, mostUsed)}
             {lane('Lately', lately)}
           </>
         )}

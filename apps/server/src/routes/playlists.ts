@@ -184,10 +184,10 @@ export function playlistRoutes(container: Container): Router {
   router.put(
     '/playlists/:id/order',
     route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }) => {
-      const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist is ordered by its rules')
-      }
+      // A playlist that follows tags takes a hand order too: it keeps finding
+      // songs, and the ones it finds land after the order you set (Xiao,
+      // 2026-09-21).
+      requirePlaylist(params.id)
       container.playlists.reorder(params.id, body.songIds)
       container.edits.playlist(params.id, ['order'])
       container.bumpLibraryVersion()

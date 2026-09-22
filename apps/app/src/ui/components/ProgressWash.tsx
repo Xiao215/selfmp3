@@ -11,8 +11,8 @@ import { withAlpha } from '@selfmp3/client'
  *
  * The song's colour fills the bar from the left, and the leading edge fades
  * out over `fade` points instead of stopping at a hard line, so it reads as
- * light rather than as a block. The line along the foot, where there is one,
- * fades with it.
+ * light rather than as a block. The line along the edge, where there is one,
+ * fades with it and ends where it ends.
  *
  * The fade is centred on where the song has got to rather than ending there:
  * half of it before, half after. Ending there, the wash always looked to be
@@ -23,7 +23,7 @@ export function ProgressWash({
   color,
   alpha,
   fade,
-  footLine = false,
+  line,
 }: {
   /** 0 to 1. */
   fraction: number
@@ -33,7 +33,13 @@ export function ProgressWash({
   alpha: number
   /** Points over which the leading edge fades out. */
   fade: number
-  footLine?: boolean
+  /**
+   * A bright line along the wash's edge, and which edge it runs along. It is
+   * drawn here rather than by the bar so that it ends where the wash ends: a
+   * line of its own, stopping at the playhead, reads as a second and
+   * disagreeing answer to how far the song has got (Xiao, 2026-09-21).
+   */
+  line?: 'top' | 'foot'
 }): ReactNode {
   // Gradient ids are document ids on the web: two bars must not share one.
   const id = `wash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
@@ -52,17 +58,25 @@ export function ProgressWash({
           share of the bar, the child the points, so neither needs the other's
           units. */}
       <View style={[styles.played, { width: at }]}>
+        {line === 'top' ? (
+          <View style={[styles.line, { marginRight: half, backgroundColor: color }]} />
+        ) : null}
         <View
           style={[styles.fill, { marginRight: half, backgroundColor: withAlpha(color, alpha) }]}
         />
-        {footLine ? (
+        {line === 'foot' ? (
           <View style={[styles.line, { marginRight: half, backgroundColor: color }]} />
         ) : null}
       </View>
       {/* And out again half a fade after it. */}
       <View style={[styles.edge, { left: at, width: fade, marginLeft: -half }]}>
+        {line === 'top' ? (
+          <Fade id={`${id}line`} color={color} opacity={1} style={styles.line} />
+        ) : null}
         <Fade id={`${id}fill`} color={color} opacity={alpha} style={styles.fill} />
-        {footLine ? <Fade id={`${id}line`} color={color} opacity={1} style={styles.line} /> : null}
+        {line === 'foot' ? (
+          <Fade id={`${id}line`} color={color} opacity={1} style={styles.line} />
+        ) : null}
       </View>
     </View>
   )

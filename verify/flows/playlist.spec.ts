@@ -20,10 +20,8 @@ import {
  * drawn without tag chips as every row inside a place is, and this is what
  * says so from outside the code.
  *
- * The second is reordering, which is two gestures for one thing: at desktop
- * width a grip a mouse drags, on a phone the row itself, held. Both end in
- * the same request, so both are checked the same way — by the order the page
- * shows afterwards. The rows are put back where they were, so a run leaves
+ * The second is reordering, one gesture at every width: the row itself, held
+ * until it lifts. It is checked by the order the page shows afterwards. The rows are put back where they were, so a run leaves
  * the library as it found it and the next run starts from the same place.
  */
 
@@ -91,7 +89,7 @@ async function playlistNamed(page: Page, name: string): Promise<StoredPlaylist |
 }
 
 test.describe('a playlist’s songs', () => {
-  test('are drawn as the library draws a song', async ({ page }, info) => {
+  test('are drawn as the library draws a song', async ({ page }) => {
     const name = await openOneYouMade(page)
     test.skip(name === null, 'needs a playlist you made with at least 3 songs')
 
@@ -104,16 +102,11 @@ test.describe('a playlist’s songs', () => {
     // No tags inside a playlist, and so no dashed ＋ to add one (`S3`).
     await expect(row.getByRole('button', { name: `Edit tags for ${title}` })).toHaveCount(0)
 
-    const grip = row.getByRole('button', { name: gripName(title) })
-    if (info.project.name === 'phone') {
-      // No grip: the row is the handle, held.
-      await expect(grip).toHaveCount(0)
-    } else {
-      await expect(grip).toBeVisible()
-    }
+    // No grip at any width: the row itself is the handle, held.
+    await expect(row.getByRole('button', { name: gripName(title) })).toHaveCount(0)
   })
 
-  test('go in the order you put them in', async ({ page }, info) => {
+  test('go in the order you put them in', async ({ page }) => {
     const name = await openOneYouMade(page)
     test.skip(name === null, 'needs a playlist you made with at least 3 songs')
 
@@ -123,25 +116,17 @@ test.describe('a playlist’s songs', () => {
     const second = (await rows.nth(1).boundingBox())!
     const rowHeight = second.y - first.y
 
+    // The row is the handle at every width now: held still it lifts, and then
+    // it follows. The grip a mouse used to drag by is gone (Xiao, 2026-09-21).
     const move = async (from: number, rowsDown: number): Promise<void> => {
       const row = songRows(page).nth(from)
-      const title = await titleOf(row)
       const box = (await row.boundingBox())!
-      let x = box.x + box.width / 2
-      let y = box.y + box.height / 2
+      const x = box.x + box.width / 2
+      const y = box.y + box.height / 2
 
-      if (info.project.name === 'phone') {
-        // The row is the handle: held still, it lifts, and then it follows.
-        await page.mouse.move(x, y)
-        await page.mouse.down()
-        await page.waitForTimeout(600)
-      } else {
-        const grip = (await row.getByRole('button', { name: gripName(title) }).boundingBox())!
-        x = grip.x + grip.width / 2
-        y = grip.y + grip.height / 2
-        await page.mouse.move(x, y)
-        await page.mouse.down()
-      }
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.waitForTimeout(600)
       for (let step = 1; step <= 10; step += 1) {
         await page.mouse.move(x, y + (rowHeight * rowsDown * step) / 10)
         await page.waitForTimeout(20)

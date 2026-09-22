@@ -371,12 +371,21 @@ export const SongRow = memo(function SongRow({
 
       <Pressable
         onPress={event => onPress(event, song)}
+        // The same three answers as the phone's row above, in the same order.
+        // This branch used to ignore `onLongPress` altogether, so a row whose
+        // hold belonged to something else — a playlist row being moved — still
+        // opened its ⋯ menu 450ms in, and the menu's own backdrop then
+        // swallowed every press after it (Xiao, 2026-09-21).
         onLongPress={
-          !dense && onToggleSelect
-            ? () => onToggleSelect(song)
-            : onMore
-              ? () => onMore(moreRef.current, song)
-              : undefined
+          onLongPress === null
+            ? undefined
+            : onLongPress
+              ? () => onLongPress(song)
+              : !dense && onToggleSelect
+                ? () => onToggleSelect(song)
+                : onMore
+                  ? () => onMore(moreRef.current, song)
+                  : undefined
         }
         delayLongPress={450}
         accessibilityRole="button"

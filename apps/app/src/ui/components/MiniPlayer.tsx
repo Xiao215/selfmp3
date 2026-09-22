@@ -1,10 +1,10 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
@@ -46,6 +46,7 @@ function MiniPlayerInner(): ReactNode {
   const song = player.current
   const insets = useSafeAreaInsets()
   const songColor = useSongColor(song, song ? artFor(song) : null)
+  const stalled = usePlayerStalled()
 
   // The first song of a session: the card rises from under the tab bar and
   // runs a few points past its place before settling (`M1`, 3). After that the
@@ -131,7 +132,13 @@ function MiniPlayerInner(): ReactNode {
         onPress={player.toggle}
         label={player.isPlaying ? 'Pause' : 'Play'}
       >
-        <PlayPauseIcon playing={player.isPlaying} size={22} color={theme.colors.textPrimary} />
+        {/* Waiting on the bucket, the button says so rather than showing a
+            pause glyph over silence (`PlayerBar` does the same). */}
+        {stalled ? (
+          <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+        ) : (
+          <PlayPauseIcon playing={player.isPlaying} size={22} color={theme.colors.textPrimary} />
+        )}
       </IconButton>
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={theme.colors.textSecondary} />
@@ -158,7 +165,7 @@ function MiniProgress({ color }: { color: string }): ReactNode {
       color={color}
       alpha={currentColorScheme() === 'light' ? 0.18 : 0.26}
       fade={24}
-      footLine
+      line="foot"
     />
   )
 }

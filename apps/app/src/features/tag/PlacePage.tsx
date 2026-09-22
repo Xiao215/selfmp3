@@ -9,7 +9,6 @@ import { fonts, isDownloaded, radius, tagColors, type, useLibrary } from '@selfm
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
-import { glassBlur } from '../../ports/glassBlur'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -345,12 +344,15 @@ const styles = StyleSheet.create(theme => ({
   // The light stays inside the head, so it never runs on under the rows.
   head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
   headWide: { paddingHorizontal: 40, paddingTop: 16 },
+  // No glass here. The bar scrolls with the head rather than floating over
+  // the page, and it carries no fill, so `backdrop-filter` only blurred the
+  // head's own light inside the bar's rectangle — a band across the top with
+  // a hard edge where the filter stopped (Xiao, 2026-09-21).
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 8,
-    ...glassBlur,
   },
   hero: { gap: 16 },
   // The buttons go under the name when the page cannot hold all three abreast

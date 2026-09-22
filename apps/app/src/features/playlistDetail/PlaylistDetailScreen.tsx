@@ -9,15 +9,7 @@ import {
   useState,
 } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Animated,
-  PanResponder,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import type { FlatListProps, GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
@@ -27,7 +19,6 @@ import {
   bytesToDownload,
   clientApi,
   fonts,
-  HIT_TARGET,
   isDownloaded,
   queryKeys,
   radius,
@@ -44,8 +35,6 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayer } from '../../player/PlayerProvider'
 import { HoldToReorder } from '../../ui/components/HoldToReorder'
-import { dragCursor } from '../../ports/dragCursor'
-import { useNotADragSource } from '../../ports/songDrag'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -62,7 +51,6 @@ import {
   CloudDownload,
   Copy,
   Downloaded,
-  Grip,
   ListMusic,
   Live,
   More,
@@ -110,10 +98,10 @@ import { cameFrom, dropIndex, dropSide, movedTo, type DropSide } from './playlis
  * which could only do nothing.
  *
  * Rows are the library's `SongRow` without tag chips: inside a playlist the
- * playlist is the context (`S3`). A playlist you made moves its rows by their
- * grip at desktop width and by holding them on a phone. One that follows tags
- * shows them instead, as a row of chips above the songs, so what it is
- * picking stays what the page shows.
+ * playlist is the context (`S3`). Any playlist moves its rows the same way,
+ * by holding one until it lifts — a computer's mouse as much as a finger. One
+ * that follows tags shows its tags as a row of chips above the songs, so what
+ * it is picking stays what the page shows, and it takes a hand order too.
  *
  * Arriving with `?rename=1` puts the cursor in the name — where a playlist
  * just saved from a tag pick sends you when you press Rename on the message.
@@ -291,11 +279,11 @@ export function PlaylistDetailScreen(): ReactNode {
   // Not on this phone and no server to stream it from: faded.
   const unreachableHere = library.isError && installed
   const menuSongId = menuSong?.id ?? null
-  // A playlist you made can be put in any order you like; one that follows
-  // tags is in the order its rule gives, so its rows show no grip and do not
-  // lift under a held finger. Selection mode is not what reordering is for,
-  // so the grip steps aside while it is on.
-  const reorderable = manual && !selection.active
+  // Any playlist can be put in the order you like, one that follows tags
+  // included: it keeps finding songs, and the ones it finds land after the
+  // order you set (Xiao, 2026-09-21). Selection mode is not what reordering is
+  // for, so a held row selects rather than lifts while it is on.
+  const reorderable = !selection.active
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
       const here = isDownloaded(downloads.index, item.id)
@@ -762,10 +750,10 @@ interface RowActions {
  * library draws — a song row is a song row, and a playlist that had its own
  * was a playlist whose songs had no ⋯ at a finger's size and no colour under
  * the one that was playing. It is drawn without tag chips, as every row inside
- * a place is (`S3`). What a playlist adds is a grip to drag by at desktop
- * width, the lifted look while a row is being moved, and the line where it
- * would land; taking a song off the playlist is in the ⋯ menu, where
- * everything else done to a song already is.
+ * a place is (`S3`). What a playlist adds is the hold that lifts a row, the
+ * lifted look while it is being moved, and the line where it would land;
+ * taking a song off the playlist is in the ⋯ menu, where everything else done
+ * to a song already is.
  *
  * Only the handlers that need this row's place are made here — the press,
  * which plays from it, and the three that carry a move. The rest are the
@@ -803,7 +791,6 @@ const PlaylistRow = memo(function PlaylistRow({
   menuOpen: boolean
   actions: RowActions
 }): ReactNode {
-  const { dense } = useLayout()
   const songId = song.id
   const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
   const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
@@ -813,25 +800,11 @@ const PlaylistRow = memo(function PlaylistRow({
     [actions, songId, index],
   )
 
-  // The grip belongs to a pointer: where there is a mouse it is the thing to
-  // aim at. A finger has nothing to aim at — an iPad is as wide as a computer
-  // and still has only fingers — so there the row itself is the handle and
-  // holding it is the gesture (`dense`, and Xiao, 2026-09-20).
-  const grip = useMemo(
-    () =>
-      dense && reorderable ? (
-        <ReorderGrip
-          song={song}
-          onStart={onDragStart}
-          onMove={onDragMove}
-          onEnd={onDragEnd}
-          dragging={lifted}
-        />
-      ) : null,
-    [dense, reorderable, song, onDragStart, onDragMove, onDragEnd, lifted],
-  )
-
-  const holds = !dense && reorderable
+  // One gesture, everywhere: hold the row and it lifts. The grip column that
+  // used to stand in for it on a computer is gone — six dots on every row
+  // read as clutter, and a mouse can hold a row as well as a finger can
+  // (Xiao, 2026-09-21).
+  const holds = reorderable
 
   return (
     <HoldToReorder
@@ -852,7 +825,6 @@ const PlaylistRow = memo(function PlaylistRow({
         selecting={selecting}
         selected={selected}
         menuOpen={menuOpen}
-        leading={grip}
         lifted={lifted}
         dropTarget={dropTarget}
         onPress={onPress}
@@ -862,70 +834,6 @@ const PlaylistRow = memo(function PlaylistRow({
         onLongPress={holds ? null : actions.longPress}
       />
     </HoldToReorder>
-  )
-})
-
-/**
- * The grip a mouse drags a row by.
- *
- * A pan responder, where the held row uses gesture handler, and the reason is
- * the input rather than the platform. A pointer press on a grip is already a
- * statement of intent, so nothing has to be taken away from anything: React's
- * own responder system grants it at once and measures it to the pixel. The
- * held row cannot be that, which is why it is not — and gesture handler's web
- * build, which is exact enough for a finger's 350ms hold, lost about a third
- * of a mouse's travel here, landing rows one place short.
- *
- * The responder holds the travel so far, so one remade in the middle of a drag
- * starts counting from nothing and the row jumps: it is made once, and reads
- * this row's place when the drag runs rather than when it was built. The row
- * underneath never sees the press, so dragging cannot start a song by accident.
- */
-const ReorderGrip = memo(function ReorderGrip({
-  song,
-  onStart,
-  onMove,
-  onEnd,
-  dragging,
-}: {
-  song: Song
-  onStart: () => void
-  onMove: (dy: number) => void
-  onEnd: (dy: number) => void
-  dragging: boolean
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const { finePointer } = useLayout()
-  // The row around this one is a drag source — a song drags onto a playlist in
-  // the sidebar — and the browser's drag would swallow the grip's own.
-  const gripRef = useRef<View>(null)
-  useNotADragSource(gripRef)
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => onStart(),
-        onPanResponderMove: (_event, gesture) => onMove(gesture.dy),
-        onPanResponderRelease: (_event, gesture) => onEnd(gesture.dy),
-        onPanResponderTerminate: () => onEnd(0),
-      }),
-    [onStart, onMove, onEnd],
-  )
-
-  return (
-    <View
-      ref={gripRef}
-      {...pan.panHandlers}
-      accessibilityRole="button"
-      accessibilityLabel={`Move ${song.title}`}
-      {...tip('Drag to reorder')}
-      style={[styles.grip, !finePointer && styles.gripTouch, dragCursor(dragging)]}
-    >
-      <Grip size={16} color={theme.colors.textMuted} />
-    </View>
   )
 })
 
@@ -975,8 +883,6 @@ const styles = StyleSheet.create(theme => ({
   // place on this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  grip: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
-  gripTouch: { width: HIT_TARGET, height: HIT_TARGET },
   // The light stays inside the head, so it never runs on under the rows.
   head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
   headWide: { paddingHorizontal: 40, paddingTop: 44 },

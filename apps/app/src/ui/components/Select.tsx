@@ -95,7 +95,10 @@ export function Select<T extends string | number>({
           // Open, the control stays lit.
           open && styles.fieldOpen,
         ]}
-        onPress={() => setOpen(true)}
+        // A toggle, not an open: the popover leaves a hole over this control
+        // so that pressing it again reaches it, and what opened the list is
+        // what a second press on it should close (Xiao, 2026-09-21).
+        onPress={() => setOpen(shown => !shown)}
         testID={testID}
         // This control is a combobox named by what is chosen, with the
         // current value as its content.

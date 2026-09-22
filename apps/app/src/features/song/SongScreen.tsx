@@ -18,7 +18,6 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
-import { glassBlur } from '../../ports/glassBlur'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -351,12 +350,15 @@ const styles = StyleSheet.create(theme => ({
   contentWide: { paddingHorizontal: 40, paddingTop: 16 },
   // The light reaches down behind the head and fades into the ground before the card.
   light: { position: 'absolute', top: 0, left: 0, right: 0, height: 560 },
+  // No glass here. The bar scrolls with the head rather than floating over
+  // the page, and it carries no fill, so `backdrop-filter` only blurred the
+  // head's own light inside the bar's rectangle — a band across the top with
+  // a hard edge where the filter stopped (Xiao, 2026-09-21).
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 8,
-    ...glassBlur,
   },
   topRight: { flexDirection: 'row', gap: space.sm },
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: 16 },

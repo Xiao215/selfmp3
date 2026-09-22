@@ -31,7 +31,7 @@ export function useSongDragActive(): boolean {
 }
 
 /**
- * Keep a control inside a draggable row from starting the row's own drag.
- * Nothing on a phone, where no row is draggable to begin with.
+ * Stand every row's own drag down while one is held to be moved. Nothing on a
+ * phone, where no row is draggable to begin with.
  */
-export function useNotADragSource(_ref: RefObject<View | null>): void {}
+export function setReorderHold(_active: boolean): void {}

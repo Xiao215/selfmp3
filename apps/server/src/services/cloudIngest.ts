@@ -297,8 +297,10 @@ export class CloudIngest {
         return this.#requests?.cancel(change.uid, toSqliteTime(hlcTime(change.hlc))) ?? false
 
       case 'playlistOrdered': {
+        // A playlist that follows tags takes a hand order too, so its order
+        // travels between devices like any other (Xiao, 2026-09-21).
         const playlist = this.#sync.playlist(change.uid)
-        if (!playlist || playlist.kind !== 'manual') return false
+        if (!playlist) return false
         if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'order'))) return false
         const songIds = change.songUids.flatMap(uid => {
           const id = this.#sync.songId(uid)

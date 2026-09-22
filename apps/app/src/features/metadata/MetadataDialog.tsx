@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, type MetadataCandidate, type Song } from '@selfmp3/shared'
@@ -155,7 +155,11 @@ export function MetadataDialog({
                 active && styles.candidateActive,
               ]}
             >
-              <CandidateArt url={candidate.artworkUrl} />
+              <Cover
+                uri={candidate.artworkUrl ?? null}
+                title={candidate.album || candidate.title}
+                size={48}
+              />
               <View style={styles.candidateMain}>
                 <Text style={[styles.candidateTitle, active && styles.strong]} numberOfLines={1}>
                   {candidate.title}
@@ -236,7 +240,11 @@ export function MetadataDialog({
                           <Text style={styles.hint}>No cover</Text>
                         )}
                         <Text style={styles.arrow}>→</Text>
-                        <CandidateArt url={String(diff.value)} size={44} />
+                        <Cover
+                          uri={String(diff.value)}
+                          title={song.album || song.title}
+                          size={44}
+                        />
                         <Text style={styles.hint}>{diff.proposed}</Text>
                       </View>
                     ) : (
@@ -338,18 +346,6 @@ function Pill({ text }: { text: string }): ReactNode {
 }
 
 /** A remote thumbnail that quietly becomes an empty box when it will not load. */
-function CandidateArt({ url, size = 48 }: { url: string | undefined; size?: number }): ReactNode {
-  const [failed, setFailed] = useState(false)
-  if (!url || failed) return <View style={[styles.artEmpty, { width: size, height: size }]} />
-  return (
-    <Image
-      source={{ uri: url }}
-      style={[styles.art, { width: size, height: size }]}
-      onError={() => setFailed(true)}
-    />
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
@@ -434,9 +430,6 @@ const styles = StyleSheet.create(theme => ({
   badge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: radius.pill },
   badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   score: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
-  art: { borderRadius: radius.cover, backgroundColor: theme.colors.surface3 },
-  // A cover that is not there: the empty tone alone, no dashed edge.
-  artEmpty: { borderRadius: radius.cover, backgroundColor: theme.colors.surface3 },
   // Space, not a rule, sets the changes apart from the suggestions.
   diff: { marginTop: 16, gap: 2 },
   diffHead: {

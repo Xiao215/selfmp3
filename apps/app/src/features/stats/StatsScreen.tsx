@@ -429,13 +429,17 @@ const styles = StyleSheet.create(theme => ({
   tagDot: { width: 10, height: 10, borderRadius: 5 },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
   lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  // The name takes what is left and ellipsises; the figure beside it never
+  // gives up room, or a long title squeezes "3 plays" down to "3" and then
+  // past the column's edge (Xiao, 2026-09-21).
   lineName: {
     flexShrink: 1,
+    minWidth: 0,
     color: theme.colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
-  lineTrailing: { color: theme.colors.textSecondary, fontSize: 12 },
+  lineTrailing: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: 12 },
   track: {
     height: 4,
     borderRadius: 2,

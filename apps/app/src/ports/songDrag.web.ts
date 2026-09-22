@@ -16,11 +16,26 @@ import type { View } from 'react-native'
 
 const TYPE = 'application/x-selfmp3-songs'
 
-/** Marks a control whose drag is its own (`useNotADragSource`). */
-const NO_DRAG = 'data-no-song-drag'
-
 let dragging = false
 const listeners = new Set<() => void>()
+
+/**
+ * While a row is being held to be moved, no row is draggable.
+ *
+ * The row is the handle for reordering now, and the row is also what drags
+ * onto a playlist in the sidebar — one element, two gestures. The hold wins
+ * when it activates, which is before the pointer has moved at all, so there
+ * is still time to take the attribute away; a `dragstart` that has already
+ * fired cannot be taken back (see `useSongDragSource`). Restored on release.
+ */
+let held = false
+const draggables = new Set<(draggable: boolean) => void>()
+
+export function setReorderHold(active: boolean): void {
+  if (held === active) return
+  held = active
+  for (const set of draggables) set(!active)
+}
 
 function setDragging(next: boolean): void {
   if (dragging === next) return
@@ -47,22 +62,15 @@ export function useSongDragSource(
     const node = element(ref)
     if (!node || !enabled) return undefined
     /*
-     * Pressed on a control with a drag of its own — a playlist's grip — the
-     * row stops being draggable until the finger is up again.
-     *
-     * Cancelling the drag once it has started is too late: react-native-web
-     * ends whatever gesture is in progress the moment a `dragstart` is
-     * dispatched, whether or not anything then prevents it, so the grip got
-     * one move and lost the pointer. The only way to keep the gesture is for
-     * the browser to never begin a drag, and the only thing it reads for that
-     * is the attribute.
+     * Cancelling a drag once it has started is too late: react-native-web ends
+     * whatever gesture is in progress the moment a `dragstart` is dispatched,
+     * whether or not anything then prevents it. The only way to keep a gesture
+     * is for the browser never to begin a drag, and the only thing it reads
+     * for that is the attribute — so a row held to be moved has it taken away
+     * before the pointer has travelled at all (`setReorderHold`).
      */
-    const pressed = (event: Event): void => {
-      const from = event.target
-      node.draggable = !(from instanceof Element && from.closest(`[${NO_DRAG}]`))
-    }
-    const released = (): void => {
-      node.draggable = true
+    const setDraggable = (next: boolean): void => {
+      node.draggable = next
     }
     const start = (event: DragEvent): void => {
       const carried = ids.current()
@@ -76,17 +84,13 @@ export function useSongDragSource(
       setDragging(true)
     }
     const end = (): void => setDragging(false)
-    node.draggable = true
-    node.addEventListener('pointerdown', pressed, true)
-    node.addEventListener('pointerup', released, true)
-    node.addEventListener('pointercancel', released, true)
+    node.draggable = !held
+    draggables.add(setDraggable)
     node.addEventListener('dragstart', start)
     node.addEventListener('dragend', end)
     return () => {
       node.draggable = false
-      node.removeEventListener('pointerdown', pressed, true)
-      node.removeEventListener('pointerup', released, true)
-      node.removeEventListener('pointercancel', released, true)
+      draggables.delete(setDraggable)
       node.removeEventListener('dragstart', start)
       node.removeEventListener('dragend', end)
     }
@@ -163,15 +167,6 @@ export function useSongDropTarget(
  * finds the row. So the control marks itself, and the row's own drag stands
  * down when the press began inside a mark.
  */
-export function useNotADragSource(ref: RefObject<View | null>): void {
-  useEffect(() => {
-    const node = element(ref)
-    if (!node) return undefined
-    node.setAttribute(NO_DRAG, '')
-    node.setAttribute('draggable', 'false')
-    return () => node.removeAttribute(NO_DRAG)
-  }, [ref])
-}
 
 export function useSongDragActive(): boolean {
   return useSyncExternalStore(

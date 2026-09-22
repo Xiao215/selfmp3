@@ -282,12 +282,34 @@ export class PlaylistRepository {
     if (playlist.kind === 'live') {
       if (!playlist.rules) return []
       const { sql, params } = compileSmartRules(playlist.rules)
-      return this.#db
+      const matched = this.#db
         .prepare<unknown[], { id: number }>(sql)
         .all(...params)
         .map(row => row.id)
+      return this.#inKeptOrder(playlist.id, matched)
     }
     return this.#items.all(playlist.id).map(row => row.song_id)
+  }
+
+  /**
+   * The rule's answer, in the order you put it in.
+   *
+   * A playlist that follows tags can still be reordered by hand (Xiao,
+   * 2026-09-21): the order you dragged it into is kept in the playlist's own
+   * items and wins, and songs the rule has matched since — which have no place
+   * in it yet — follow at the end in the rule's own order. A song that stops
+   * matching keeps its stored place silently, so tagging it again puts it back
+   * where you had it rather than at the bottom.
+   */
+  #inKeptOrder(playlistId: number, matched: readonly number[]): number[] {
+    const place = new Map<number, number>()
+    for (const row of this.#everyItem.all(playlistId)) place.set(row.song_id, place.size)
+    if (place.size === 0) return [...matched]
+    const kept: number[] = []
+    const rest: number[] = []
+    for (const id of matched) (place.has(id) ? kept : rest).push(id)
+    kept.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
+    return [...kept, ...rest]
   }
 
   /**
@@ -307,10 +329,11 @@ export class PlaylistRepository {
     if (playlist.kind === 'live') {
       if (!playlist.rules) return []
       const { sql, params } = compileSmartRules(playlist.rules, { includeMissing: true })
-      return this.#db
+      const matched = this.#db
         .prepare<unknown[], { id: number }>(sql)
         .all(...params)
         .map(row => row.id)
+      return this.#inKeptOrder(playlist.id, matched)
     }
     return this.#everyItem.all(playlist.id).map(row => row.song_id)
   }
@@ -367,10 +390,19 @@ export class PlaylistRepository {
    * Ids that are not currently in the playlist are ignored, and ids the client
    * did not mention are appended in their existing order — so a stale client
    * reordering an old view cannot silently delete tracks.
+   *
+   * A playlist that follows tags has no items of its own until the first time
+   * it is put in an order by hand, so "currently in the playlist" there is the
+   * rule's own answer; without that the first reorder filtered every id away
+   * and stored nothing.
    */
   reorder(playlistId: number, songIds: readonly number[]): void {
+    const playlist = this.byId(playlistId)
     const run = this.#db.transaction(() => {
-      const existing = this.#everyItem.all(playlistId).map(row => row.song_id)
+      const existing =
+        playlist && playlist.kind === 'live'
+          ? this.snapshotSongIds(playlist)
+          : this.#everyItem.all(playlistId).map(row => row.song_id)
       const existingSet = new Set(existing)
       const ordered = songIds.filter(id => existingSet.has(id))
       const orderedSet = new Set(ordered)

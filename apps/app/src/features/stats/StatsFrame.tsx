@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { StyleProp, ViewStyle } from 'react-native'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -31,7 +32,16 @@ const SWAP_TRAVEL = 26
  * part-way through the move, which is what makes it read as the page catching
  * up rather than as a flash.
  */
-function Arriving({ order, children }: { order: number; children: ReactNode }): ReactNode {
+function Arriving({
+  order,
+  style,
+  children,
+}: {
+  order: number
+  /** The page's own gap: this view stands between the content and its blocks. */
+  style: StyleProp<ViewStyle>
+  children: ReactNode
+}): ReactNode {
   const [value] = useState(() => new Animated.Value(1))
   // Which window is showing and which side the last change came from, settled
   // during render as `SlidingHighlight` settles its pair: the interpolation
@@ -49,12 +59,15 @@ function Arriving({ order, children }: { order: number; children: ReactNode }): 
   }, [swap, value])
   return (
     <Animated.View
-      style={{
-        opacity: value,
-        transform: [
-          { translateX: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) },
-        ],
-      }}
+      style={[
+        style,
+        {
+          opacity: value,
+          transform: [
+            { translateX: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) },
+          ],
+        },
+      ]}
     >
       {children}
     </Animated.View>
@@ -128,7 +141,12 @@ export function StatsFrame({
             </View>
           ) : null}
         </View>
-        <Arriving order={STATS_PERIODS.indexOf(period)}>{children}</Arriving>
+        <Arriving
+          order={STATS_PERIODS.indexOf(period)}
+          style={wide ? styles.stackWide : styles.stack}
+        >
+          {children}
+        </Arriving>
         {wide ? null : <ReportLink pill={false} />}
         <ChromeSpacer />
       </ScrollView>
@@ -162,6 +180,11 @@ const styles = StyleSheet.create(theme => ({
   // `S2`'s gutters: 40 to 48 on a computer's page, 20 on a phone's.
   contentWide: { paddingTop: 40, paddingHorizontal: 44, gap: 14 },
   contentNarrow: { paddingTop: 18, paddingHorizontal: 20 },
+  // The blocks of the page are this view's children, not the scroll content's,
+  // so the page's gap has to be repeated here or the cards and the ranking sit
+  // flush against each other (Xiao, 2026-09-21).
+  stack: { gap: 12 },
+  stackWide: { gap: 14 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',

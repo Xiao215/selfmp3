@@ -87,3 +87,63 @@ describe('a playlist being played', () => {
     expect(playlist?.updatedAt).toBe('2020-01-01 00:00:00')
   })
 })
+
+/**
+ * A playlist that follows tags, put in an order by hand.
+ *
+ * Its songs are the rule's answer, worked out on every read, so an order set
+ * by hand has to be kept somewhere and laid over that answer: the songs you
+ * placed come first, in your order, and whatever the rule has matched since
+ * follows. It keeps following either way (Xiao, 2026-09-21).
+ */
+describe('a playlist that follows tags, ordered by hand', () => {
+  let db: Database.Database
+  let playlists: PlaylistRepository
+
+  const rulesForTag = (tagId: number): Parameters<PlaylistRepository['create']>[0]['rules'] => ({
+    match: 'any',
+    rules: [{ field: 'tag' as const, op: 'has' as const, tagId }],
+    orderBy: 'title',
+    order: 'asc',
+    limit: null,
+  })
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.exec(`
+      INSERT INTO songs (id, path, title) VALUES
+        (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B'), (3, 'c.m4a', 'C');
+      INSERT INTO tags (id, name, hue) VALUES (1, 'chill', 200);
+      INSERT INTO song_tags (song_id, tag_id) VALUES (1, 1), (2, 1), (3, 1);
+    `)
+    playlists = new PlaylistRepository(db)
+    playlists.create({ name: 'Chill', description: '', kind: 'live', rules: rulesForTag(1) })
+  })
+
+  const ids = (): number[] => playlists.songIds(playlists.byId(1)!)
+
+  it('is in the rule’s order until it is given one', () => {
+    expect(ids()).toEqual([1, 2, 3])
+  })
+
+  it('keeps the order it is put in', () => {
+    playlists.reorder(1, [3, 1, 2])
+    expect(ids()).toEqual([3, 1, 2])
+  })
+
+  it('still follows: a newly tagged song lands after the order you set', () => {
+    playlists.reorder(1, [3, 1, 2])
+    db.exec("INSERT INTO songs (id, path, title) VALUES (4, 'd.m4a', 'D');")
+    db.exec('INSERT INTO song_tags (song_id, tag_id) VALUES (4, 1);')
+    expect(ids()).toEqual([3, 1, 2, 4])
+  })
+
+  it('drops a song that stops matching, and puts it back where it was', () => {
+    playlists.reorder(1, [3, 1, 2])
+    db.exec('DELETE FROM song_tags WHERE song_id = 1')
+    expect(ids()).toEqual([3, 2])
+    db.exec('INSERT INTO song_tags (song_id, tag_id) VALUES (1, 1);')
+    expect(ids()).toEqual([3, 1, 2])
+  })
+})

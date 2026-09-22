@@ -10,12 +10,12 @@ import { DEFAULT_APP_URL } from './cloud.js'
  * domain of one's own, and workers.dev is not one. The doorman sends
  * `/privacy` there. Edit the words here and both follow.
  */
-export interface PrivacySection {
+interface PrivacySection {
   readonly heading: string
   readonly lines: readonly string[]
 }
 
-export interface PrivacyPolicy {
+interface PrivacyPolicy {
   /** As it reads on the page: "22 September 2026". */
   readonly updated: string
   readonly sections: readonly PrivacySection[]

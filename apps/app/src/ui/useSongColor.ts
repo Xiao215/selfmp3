@@ -45,3 +45,34 @@ export function useSongColor(song: Song | null, uri: string | null): SongColors 
   const tone = sent ?? (song ? tones.get(key) : null)
   return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
 }
+
+/* Covers read by address alone, for songs that are not songs yet. */
+const tonesByUri = new Map<string, CoverTone | null>()
+
+/**
+ * The colours of a cover the library does not hold: a song on the import
+ * review, known only by its picture's address. Read here where the platform
+ * can, and the accent until then or where it cannot. Pass null for a row that
+ * is not playing, so a long review reads one cover and not seventy.
+ */
+export function useCoverColor(uri: string | null): SongColors {
+  const accent = useAccent()
+  const [, setRead] = useState(0)
+  const unread = uri !== null && !tonesByUri.has(uri)
+
+  useEffect(() => {
+    if (!unread || !uri) return undefined
+    let cancelled = false
+    void readCoverPixels(uri).then(pixels => {
+      if (!pixels) return
+      tonesByUri.set(uri, pickCoverTone(pixels))
+      if (!cancelled) setRead(count => count + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [unread, uri])
+
+  const tone = uri ? tonesByUri.get(uri) : null
+  return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
+}

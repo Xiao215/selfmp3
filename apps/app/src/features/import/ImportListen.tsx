@@ -15,6 +15,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
+import { useCoverColor } from '../../ui/useSongColor'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { Play } from '../../ui/components/Icons'
 import {
@@ -115,8 +116,9 @@ export function useListen(via?: ServerConnection) {
  * A review row's cover, which is also its play button (`C14`). Under the
  * pointer the cover dims a little and a plain play glyph sits on it, no chip
  * and no wash. While it plays, the library's own mark for a playing song, the
- * equaliser, sits there in the accent instead; paused, the glyph is back and
- * stays, so the row you were hearing is still the one with a glyph on it.
+ * equaliser, sits there in the cover's own colour instead, as the library's
+ * playing row wears it; paused, the glyph is back and stays, so the row you
+ * were hearing is still the one with a glyph on it.
  * `shown` is whether the glyph is drawn when nothing is playing — under the
  * pointer, or always where there is no pointer to wait for. The button is
  * there either way, so a keyboard reaches it.
@@ -142,6 +144,8 @@ export function ListenCover({
   const status = listening?.status ?? null
   const on = status !== null
   const glyph = size >= 56 ? 22 : 18
+  // Only the row that is playing reads its cover; the others ask nothing.
+  const colors = useCoverColor(on ? item.thumbnail : null)
   return (
     <Pressable
       onPress={onPress}
@@ -158,7 +162,7 @@ export function ListenCover({
         {status === 'loading' ? (
           <ActivityIndicator size="small" color={theme.colors.textPrimary} />
         ) : status === 'playing' ? (
-          <Equalizer size={glyph - 2} />
+          <Equalizer size={glyph - 2} color={colors.tint} />
         ) : (
           <Play size={glyph} tone="textPrimary" />
         )}

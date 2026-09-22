@@ -5,7 +5,7 @@ import {
   type DoormanClaimResult,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { allowedEmails, isAllowed, requireSession, type Context } from './context.js'
+import { isAllowed, nobodyAllowed, requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
 import { page } from './html.js'
@@ -90,7 +90,7 @@ export async function start(ctx: Context): Promise<Response> {
   const keys = await keysOrNull(ctx)
   if (!google || !keys) return notSetUpPage()
   // Say so before the trip to Google, rather than after it.
-  if (allowedEmails(ctx.env.ALLOWED_EMAILS).size === 0) return nobodyAllowedPage()
+  if (nobodyAllowed(ctx.env.ALLOWED_EMAILS)) return nobodyAllowedPage()
 
   const nonce = randomToken()
   const state = await signState(
@@ -174,9 +174,8 @@ export async function callback(ctx: Context): Promise<Response> {
     })
   }
 
-  const allowed = allowedEmails(ctx.env.ALLOWED_EMAILS)
-  if (allowed.size === 0) return nobodyAllowedPage()
-  if (!allowed.has(identity.email.toLowerCase())) return notAllowedPage(identity.email)
+  if (nobodyAllowed(ctx.env.ALLOWED_EMAILS)) return nobodyAllowedPage()
+  if (!isAllowed(identity.email, ctx.env.ALLOWED_EMAILS)) return notAllowedPage(identity.email)
 
   // Google has vouched for an address on the list: the sign-in's first write.
   const signInCode = newSignInCode()
@@ -359,7 +358,7 @@ function nobodyAllowedPage(): Promise<Response> {
     title: 'Nobody can sign in yet',
     lines: [
       'This self.mp3 does not have a list of Google accounts that may sign in.',
-      'Its owner lists them in the ALLOWED_EMAILS secret.',
+      'Its owner lists them in the ALLOWED_EMAILS secret, or writes * there to let anyone in.',
     ],
   })
 }

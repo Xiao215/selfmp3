@@ -41,7 +41,7 @@ id = "ac00b5cff3df480fabc0df100615d071"
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
 #   SEAL_KEY              `openssl rand -base64 32`; every key the doorman uses comes from it
-#   ALLOWED_EMAILS        the Google addresses that may sign in, comma-separated
+#   ALLOWED_EMAILS        the Google addresses that may sign in, comma-separated; * for anyone
 
 # `npx wrangler dev --env dev`, on your own computer only: never deployed. The
 # web app's local addresses may call it, and DEV lets it use a bucket on this

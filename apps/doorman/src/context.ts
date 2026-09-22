@@ -62,10 +62,18 @@ export interface Context {
 }
 
 /**
+ * The one entry in ALLOWED_EMAILS that is not an address: on its own or among
+ * addresses, it lets any Google account in. Google still decides who can
+ * reach the doorman at all — an OAuth app left in Testing admits only its
+ * test users, whatever this list says.
+ */
+export const EVERYONE = '*'
+
+/**
  * ALLOWED_EMAILS as a set of lower-cased addresses. Google addresses are not
  * case-sensitive, and what someone types into a secret may not match what
  * Google says letter for letter. An unset or empty list lets nobody in: the
- * doorman is never open by default.
+ * doorman is never open by default, and opening it takes writing `*`.
  */
 export function allowedEmails(value: string | undefined): ReadonlySet<string> {
   const emails = new Set<string>()
@@ -75,8 +83,19 @@ export function allowedEmails(value: string | undefined): ReadonlySet<string> {
   return emails
 }
 
+/** Whether the list has `*` on it. */
+export function allowsEveryone(value: string | undefined): boolean {
+  return allowedEmails(value).has(EVERYONE)
+}
+
+/** Whether the list lets nobody in at all, so a sign-in can say so before the trip to Google. */
+export function nobodyAllowed(value: string | undefined): boolean {
+  return allowedEmails(value).size === 0
+}
+
 export function isAllowed(email: string, value: string | undefined): boolean {
-  return allowedEmails(value).has(email.trim().toLowerCase())
+  const allowed = allowedEmails(value)
+  return allowed.has(EVERYONE) || allowed.has(email.trim().toLowerCase())
 }
 
 /**

@@ -417,6 +417,25 @@ describe('coming back from Google', () => {
     const token = await h.signIn({ sub: '2', email: 'friend@example.com' })
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
+
+  it('lets any Google account in when the list says *', async () => {
+    for (const list of ['*', ' * ', 'me@example.com, *']) {
+      const h = harness()
+      h.env.ALLOWED_EMAILS = list
+      const token = await h.signIn({ sub: '9', email: 'stranger@example.org' })
+      expect((await h.call('/v1/me', { token })).status).toBe(200)
+    }
+  })
+
+  it('does not read * as part of an address', async () => {
+    const h = harness()
+    h.env.ALLOWED_EMAILS = '*@example.com'
+    const started = await begin(h)
+    const response = await finish(h, started, { ...ME, sub: '9', email: 'stranger@example.com' })
+    expect(response.status).toBe(403)
+    expect(await response.text()).toMatch(/Not allowed/)
+    expect(h.kv.writes).toBe(0)
+  })
 })
 
 describe('claiming', () => {
@@ -646,6 +665,8 @@ describe('sessions', () => {
     expect(refusedNow.status).toBe(401)
     expect(ErrorBodySchema.parse(await refusedNow.json()).error).toMatch(/no longer allowed/)
     h.env.ALLOWED_EMAILS = 'me@example.com, friend@example.com'
+    expect((await h.call('/v1/me', { token })).status).toBe(200)
+    h.env.ALLOWED_EMAILS = '*'
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 

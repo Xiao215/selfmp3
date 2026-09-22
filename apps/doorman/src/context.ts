@@ -67,7 +67,7 @@ export interface Context {
  * reach the doorman at all — an OAuth app left in Testing admits only its
  * test users, whatever this list says.
  */
-export const EVERYONE = '*'
+const EVERYONE = '*'
 
 /**
  * ALLOWED_EMAILS as a set of lower-cased addresses. Google addresses are not
@@ -75,17 +75,12 @@ export const EVERYONE = '*'
  * Google says letter for letter. An unset or empty list lets nobody in: the
  * doorman is never open by default, and opening it takes writing `*`.
  */
-export function allowedEmails(value: string | undefined): ReadonlySet<string> {
+function allowedEmails(value: string | undefined): ReadonlySet<string> {
   const emails = new Set<string>()
   for (const entry of (value ?? '').split(/[\s,]+/)) {
     if (entry) emails.add(entry.toLowerCase())
   }
   return emails
-}
-
-/** Whether the list has `*` on it. */
-export function allowsEveryone(value: string | undefined): boolean {
-  return allowedEmails(value).has(EVERYONE)
 }
 
 /** Whether the list lets nobody in at all, so a sign-in can say so before the trip to Google. */

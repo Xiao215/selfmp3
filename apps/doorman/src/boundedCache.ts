@@ -19,7 +19,7 @@
 const LIMIT = 500
 
 /** How long a remembered value stays good. */
-export const CACHE_MS = 60_000
+const CACHE_MS = 60_000
 
 interface Remembered<Value> {
   readonly value: Value

@@ -11,7 +11,7 @@ import type { LyricsIndexService } from './lyricsIndex.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
 
 /** What became of a request to remove some songs. */
-export interface RemovalResult {
+interface RemovalResult {
   /** Ids whose rows are gone. */
   removed: number[]
   filesDeleted: number
@@ -20,7 +20,7 @@ export interface RemovalResult {
 }
 
 /** A row another device already removed, and whether it asked for the audio too. */
-export interface RemovedElsewhere {
+interface RemovedElsewhere {
   id: number
   path: string
   deleteFile: boolean

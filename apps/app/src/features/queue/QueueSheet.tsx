@@ -181,12 +181,12 @@ function SheetPanel({
               timing(lift, LIFTED_SCALE, MOVE_MS.lift, undefined, { easing: ease.out })
               setDrag({ from: entry.index, over: entry.index })
             }}
-            onMove={dy => {
+            onMove={(_dx, dy) => {
               dragY.setValue(dy)
               const over = dragTarget(entry.index, dy, rowHeight, { first, last })
               setDrag(now => (now && now.over === over ? now : { from: entry.index, over }))
             }}
-            onEnd={dy => {
+            onEnd={(_dx, dy) => {
               setDrag(null)
               const to = dragTarget(entry.index, dy, rowHeight, { first, last })
               if (to !== entry.index) player.reorderQueue(entry.index, to)

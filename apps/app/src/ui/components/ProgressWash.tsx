@@ -45,11 +45,18 @@ export function ProgressWash({
   const id = `wash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   /*
    * Rounded, because on the web every distinct percentage becomes its own
-   * atomic CSS rule that will never be reused — four new rules a second while
-   * a song plays, for a difference no eye can see on a bar 300 points wide
-   * (`nowPlaying/stageMove.model.ts` explains the mechanism at length).
+   * atomic CSS rule (`nowPlaying/stageMove.model.ts` explains the mechanism at
+   * length) — but to a tenth of a percent, not to a whole one.
+   *
+   * A whole percent is a thousandth of the rules and it is also two seconds of
+   * a three-minute song: the wash sat still and then jumped fourteen points,
+   * four times in six seconds, which is what a bar that is not following its
+   * song looks like (Xiao, 2026-09-22). A tenth moves it about a point and a
+   * half per tick, as often as the scrubber's own thumb moves, and the values
+   * still repeat — a thousand of them, reused by every song — so the sheet
+   * stops growing exactly as it did before.
    */
-  const at = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%` as const
+  const at = `${Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10}%` as const
   const half = fade / 2
 
   return (

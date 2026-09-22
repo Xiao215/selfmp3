@@ -53,12 +53,16 @@ interface HoldToReorderProps {
    * whose order is not yours to set.
    */
   enabled: boolean
-  /** The row has lifted. */
-  onStart: () => void
-  /** How far it has travelled from where it started, in points. */
-  onMove: (dy: number) => void
+  /** The row has lifted, and where across the screen the hold began. */
+  onStart: (x: number) => void
+  /**
+   * How far it has travelled from where it started, in points. Sideways as
+   * well as down: a list whose rows also leave sideways reads both, and one
+   * that only reorders ignores the first.
+   */
+  onMove: (dx: number, dy: number) => void
   /** Let go, or taken away: the travel it ended at, and 0 when it was taken. */
-  onEnd: (dy: number) => void
+  onEnd: (dx: number, dy: number) => void
   /**
    * How tall a row is, reported by the one row that is asked. A move is
    * counted in whole rows travelled, and this wrapper is exactly the thing
@@ -93,14 +97,14 @@ function HeldByPointer({
   usePointerHold(ref, {
     enabled,
     holdMs: HOLD_TO_MOVE_MS,
-    onStart: () => {
+    onStart: x => {
       setReorderHold(true)
-      onStart()
+      onStart(x)
     },
     onMove,
-    onEnd: dy => {
+    onEnd: (dx, dy) => {
       setReorderHold(false)
-      onEnd(dy)
+      onEnd(dx, dy)
     },
   })
   return (
@@ -139,16 +143,17 @@ function HeldByFinger({
     // On the JS thread: what a move changes is React state and a query cache,
     // so a worklet would only hop back for every one of them.
     .runOnJS(true)
-    .onStart(() => {
+    .onStart(event => {
       setReorderHold(true)
-      onStart()
+      onStart(event.absoluteX)
     })
-    .onUpdate(event => onMove(event.translationY))
+    .onUpdate(event => onMove(event.translationX, event.translationY))
     // A gesture that was cancelled — the app went away, the list remounted —
     // ends where it began, so the row goes back.
     .onEnd((event, success) => {
       setReorderHold(false)
-      onEnd(success ? event.translationY : 0)
+      if (success) onEnd(event.translationX, event.translationY)
+      else onEnd(0, 0)
     })
 
   /* A view of its own, so the recogniser has one thing to attach to whatever

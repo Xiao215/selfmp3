@@ -295,10 +295,10 @@ export function PlayerBar(): ReactNode {
 /** The bar filling with the song's colour, and the bright line along its top. */
 function PlayedWash({ color }: { color: string }): ReactNode {
   const { position, duration } = usePlayerProgress()
-  // Whole points: a new percentage is a new CSS rule in a browser, and this
-  // one moves four times a second for as long as the music plays.
-  const percent = duration > 0 ? Math.round(Math.min(100, (position / duration) * 100)) : 0
-  return <ProgressWash fraction={percent / 100} color={color} alpha={0.2} fade={40} line="top" />
+  // Rounded once, by the wash: rounding here as well only made its steps
+  // coarser than the ones it had already settled on.
+  const fraction = duration > 0 ? Math.min(1, position / duration) : 0
+  return <ProgressWash fraction={fraction} color={color} alpha={0.2} fade={40} line="top" />
 }
 
 /** The scrubber with its two times, the other part of the bar that moves each tick. */

@@ -6,9 +6,10 @@ export interface PointerHold {
   readonly enabled: boolean
   /** How long the pointer rests before the row lifts. */
   readonly holdMs: number
-  readonly onStart: () => void
-  readonly onMove: (dy: number) => void
-  readonly onEnd: (dy: number) => void
+  readonly onStart: (x: number) => void
+  /** How far the pointer has travelled since the hold began. */
+  readonly onMove: (dx: number, dy: number) => void
+  readonly onEnd: (dx: number, dy: number) => void
 }
 
 /**

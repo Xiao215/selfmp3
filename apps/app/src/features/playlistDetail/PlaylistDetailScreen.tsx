@@ -810,8 +810,9 @@ const PlaylistRow = memo(function PlaylistRow({
     <HoldToReorder
       enabled={holds}
       onStart={onDragStart}
-      onMove={onDragMove}
-      onEnd={onDragEnd}
+      // A playlist's rows only ever move up and down.
+      onMove={(_dx, dy) => onDragMove(dy)}
+      onEnd={(_dx, dy) => onDragEnd(dy)}
       onLayoutHeight={index === 0 ? actions.measure : undefined}
     >
       <SongRow

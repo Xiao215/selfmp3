@@ -34,7 +34,8 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
 
     let timer: ReturnType<typeof setTimeout> | null = null
     let lifted = false
-    let from = 0
+    let fromX = 0
+    let fromY = 0
     let travelled = 0
 
     const forget = (): void => {
@@ -47,7 +48,8 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
     const down = (event: PointerEvent): void => {
       // The primary button only: a right-click is the menu's.
       if (event.button !== 0) return
-      from = event.clientY
+      fromX = event.clientX
+      fromY = event.clientY
       travelled = 0
       forget()
       timer = setTimeout(() => {
@@ -55,14 +57,14 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
         lifted = true
         // Every later move comes here, whatever it is over.
         node.setPointerCapture(event.pointerId)
-        latest.current.onStart()
+        latest.current.onStart(event.clientX)
       }, latest.current.holdMs)
     }
 
     const move = (event: PointerEvent): void => {
       if (!lifted) return
-      travelled = event.clientY - from
-      latest.current.onMove(travelled)
+      travelled = Math.abs(event.clientX - fromX) + Math.abs(event.clientY - fromY)
+      latest.current.onMove(event.clientX - fromX, event.clientY - fromY)
     }
 
     const up = (event: PointerEvent): void => {
@@ -70,7 +72,7 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
       if (!lifted) return
       lifted = false
       if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId)
-      latest.current.onEnd(event.clientY - from)
+      latest.current.onEnd(event.clientX - fromX, event.clientY - fromY)
     }
 
     const cancel = (): void => {
@@ -78,7 +80,7 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
       if (!lifted) return
       lifted = false
       // Taken away: the row goes back where it began.
-      latest.current.onEnd(0)
+      latest.current.onEnd(0, 0)
     }
 
     /*

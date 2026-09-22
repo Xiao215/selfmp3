@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, PanResponder, Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatDuration, type Song } from '@selfmp3/shared'
@@ -9,15 +9,14 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
-import { dragCursor } from '../../ports/dragCursor'
 import { spring, useEntrance } from '../../ui/motion'
 import { label, sectionTitle } from '../../ui/surfaces'
-import { tip } from '../../ui/tip'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Grip } from '../../ui/components/Icons'
+import { HoldToReorder } from '../../ui/components/HoldToReorder'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
@@ -48,7 +47,7 @@ const ROW_HEIGHT = 44
  * opened from the player bar and left open across pages until it is closed.
  *
  * The playing song on top, what is next under it with a grip each, what has
- * played greyed at the end. Drag a grip to move a song. Keep dragging past the
+ * played greyed at the end. Hold a row to move it. Keep dragging past the
  * rail's edge and the row shrinks, greys and says "Let go to remove"; let go
  * and it is gone, with an Undo for five seconds, and dragged back in nothing
  * happens. So that a drag is never the only way, Delete or Backspace on a
@@ -266,7 +265,6 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
             dropTarget={
               drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
             }
-            dragging={drag?.from === row.index}
             actions={actions}
           />
         ))}
@@ -281,7 +279,6 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
                 kind="played"
                 placeholder={false}
                 dropTarget={false}
-                dragging={false}
                 actions={actions}
               />
             ))}
@@ -388,7 +385,6 @@ const RailRow = memo(function RailRow({
   kind,
   placeholder,
   dropTarget,
-  dragging,
   actions,
 }: {
   row: QueueRow
@@ -397,7 +393,6 @@ const RailRow = memo(function RailRow({
   /** This row is out being dragged: its place stays, empty, until it lands. */
   placeholder: boolean
   dropTarget: boolean
-  dragging: boolean
   actions: RowActions
 }): ReactNode {
   const rowRef = useRef<View>(null)
@@ -429,29 +424,27 @@ const RailRow = memo(function RailRow({
   return (
     <View ref={rowRef} collapsable={false} style={[styles.slot, placeholder && styles.hole]}>
       {dropTarget ? <View style={styles.dropLine} /> : null}
-      <View style={[styles.row, placeholder && styles.hidden, kind === 'played' && styles.greyed]}>
-        {kind === 'next' ? (
-          <RowGrip
-            title={song.title}
-            dragging={dragging}
-            onStart={onDragStart}
-            onMove={onDragMove}
-            onEnd={onDragEnd}
-          />
-        ) : (
-          <View style={styles.gripSlot} />
-        )}
-        <Pressable
-          testID={`queue-row-${index}`}
-          onPress={() => actions.play(index)}
-          accessibilityRole="button"
-          accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
-          style={({ pressed }) => [styles.press, pressed && styles.pressed]}
-          {...web}
+      <HoldToReorder
+        enabled={kind === 'next'}
+        onStart={onDragStart}
+        onMove={onDragMove}
+        onEnd={onDragEnd}
+      >
+        <View
+          style={[styles.row, placeholder && styles.hidden, kind === 'played' && styles.greyed]}
         >
-          <RowFace song={song} artUri={artUri} />
-        </Pressable>
-      </View>
+          <Pressable
+            testID={`queue-row-${index}`}
+            onPress={() => actions.play(index)}
+            accessibilityRole="button"
+            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            style={({ pressed }) => [styles.press, pressed && styles.pressed]}
+            {...web}
+          >
+            <RowFace song={song} artUri={artUri} />
+          </Pressable>
+        </View>
+      </HoldToReorder>
     </View>
   )
 })
@@ -483,55 +476,6 @@ function RowFace({
           {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
         </Text>
       </View>
-    </View>
-  )
-}
-
-/**
- * The grip a mouse drags a row by, as a playlist's is (`ReorderGrip`): a
- * responder rather than gesture handler, because a press on a grip is already
- * a statement of intent and the responder measures a mouse's travel to the
- * pixel. It reports both ways, since here sideways is how a row leaves.
- */
-function RowGrip({
-  title,
-  dragging,
-  onStart,
-  onMove,
-  onEnd,
-}: {
-  title: string
-  dragging: boolean
-  onStart: (x: number) => void
-  onMove: (dx: number, dy: number) => void
-  onEnd: (dx: number, dy: number) => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  // Remade only when the row's handlers are, which is not during a drag: they
-  // are the row's own, made once for its song and place (`RailRow`).
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: event => onStart(event.nativeEvent.pageX),
-        onPanResponderMove: (_event, gesture) => onMove(gesture.dx, gesture.dy),
-        onPanResponderRelease: (_event, gesture) => onEnd(gesture.dx, gesture.dy),
-        onPanResponderTerminate: () => onEnd(0, 0),
-      }),
-    [onStart, onMove, onEnd],
-  )
-
-  return (
-    <View
-      {...pan.panHandlers}
-      accessibilityRole="button"
-      accessibilityLabel={`Move ${title}`}
-      {...tip('Drag to move, or out of the rail to remove')}
-      style={[styles.gripSlot, dragCursor(dragging)]}
-    >
-      <Grip size={14} color={theme.colors.textMuted} />
     </View>
   )
 }

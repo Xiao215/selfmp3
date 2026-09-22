@@ -21,8 +21,22 @@ interface Box {
  * box it is on now. Until the lit item has laid out there is no highlight to
  * move, and `placed` is false so the item can draw its own fill for that frame.
  *
- * Position and size, which the native driver cannot move, so this runs on the
- * JavaScript side — a few numbers, for a fifth of a second, on a tap.
+ * The highlight is laid out at the box it is going to — plain numbers, from
+ * React — and only a transform carries it there from the box it left: a
+ * translation for the distance and a scale for any difference in size, both
+ * on the native driver. At rest the transform is the identity, so what is on
+ * screen is exactly what React last committed, whatever happened in between.
+ *
+ * It used to be laid out with animated `left` and `width`, moved on the
+ * JavaScript side. On the new architecture that meant the slide wrote the
+ * view's position past React, and the position React had committed was
+ * already the destination; when the page arriving beside the bar held the
+ * JavaScript thread through the whole slide — Home's tags and covers on a
+ * phone — the next React commit put the pill back where the slide had
+ * started, and React, believing the pill was already at its destination,
+ * never sent it again. A tab lit on Home under a pill sitting on Library
+ * (Xiao's recording, 2026-09-22), and it stayed that way until something
+ * else moved the pill. Nothing the highlight owns can now be out of date.
  */
 export function useSlidingHighlight<K extends string>(
   active: K | null,
@@ -61,24 +75,14 @@ export function useSlidingHighlight<K extends string>(
   // Before the paint, so the frame the new pair is drawn in starts where the
   // highlight was rather than flashing where it is going.
   useLayoutEffect(() => {
-    if (!pair) return undefined
-    if (pair.from === pair.to) {
+    if (!pair || pair.from === pair.to) {
       progress.setValue(1)
       return undefined
     }
     progress.setValue(0)
-    const slide = timing(progress, 1, duration, undefined, { easing: ease.out, native: false })
-    /*
-     * Whatever ends this slide, it ends on the target.
-     *
-     * A slide that is interrupted — the bar re-laid out under it, the screen
-     * went away and came back — used to leave `progress` wherever it had got
-     * to, and the pill with it: stranded between two tabs, lit on neither,
-     * until something moved it again. Pressing play was enough, because the
-     * mini player rising is a relayout of the bar (Xiao, 2026-09-22). The
-     * highlight is a statement about which tab you are on, so the one state
-     * it must never hold is "between".
-     */
+    const slide = timing(progress, 1, duration, undefined, { easing: ease.out })
+    // Whatever ends this slide, it ends at rest: the highlight is a statement
+    // about which item is lit, and "between" is not an answer.
     return () => {
       slide?.stop()
       progress.setValue(1)
@@ -86,8 +90,6 @@ export function useSlidingHighlight<K extends string>(
   }, [pair, progress, duration])
 
   const placed = active !== null && target !== undefined && pair !== null
-  const between = (a: number, b: number): Animated.AnimatedInterpolation<number> =>
-    progress.interpolate({ inputRange: [0, 1], outputRange: [a, b] })
   const highlight =
     placed && pair ? (
       <Animated.View
@@ -96,14 +98,41 @@ export function useSlidingHighlight<K extends string>(
           style,
           {
             position: 'absolute',
-            left: between(pair.from.x, pair.to.x),
-            top: between(pair.from.y, pair.to.y),
-            width: between(pair.from.width, pair.to.width),
-            height: between(pair.from.height, pair.to.height),
+            left: pair.to.x,
+            top: pair.to.y,
+            width: pair.to.width,
+            height: pair.to.height,
+            transform: slideTransform(pair.from, pair.to, progress),
           },
         ]}
       />
     ) : null
 
   return { measure, placed, highlight }
+}
+
+/**
+ * The transform that shows a view laid out at `to` as if it were at `from`,
+ * fading to none as `progress` reaches 1. A view scales about its centre, so
+ * the translation is between the two centres and the scale the ratio of the
+ * two sizes; applied in that order, the centre lands first and the size
+ * follows around it.
+ */
+function slideTransform(
+  from: Box,
+  to: Box,
+  progress: Animated.Value,
+): NonNullable<Animated.WithAnimatedValue<ViewStyle>['transform']> {
+  const between = (a: number, b: number): Animated.AnimatedInterpolation<number> =>
+    progress.interpolate({ inputRange: [0, 1], outputRange: [a, b] })
+  const dx = from.x + from.width / 2 - (to.x + to.width / 2)
+  const dy = from.y + from.height / 2 - (to.y + to.height / 2)
+  const sx = to.width > 0 ? from.width / to.width : 1
+  const sy = to.height > 0 ? from.height / to.height : 1
+  return [
+    { translateX: between(dx, 0) },
+    { translateY: between(dy, 0) },
+    { scaleX: between(sx, 1) },
+    { scaleY: between(sy, 1) },
+  ]
 }

@@ -180,6 +180,38 @@ export function playNext(state: QueueState, songIds: readonly number[]): QueueSt
   }
 }
 
+/**
+ * Put songs at one place in the queue — where a song dropped on Up next goes.
+ *
+ * `playNext` and `enqueue` are this with the place chosen for you, after the
+ * current song and at the end; dropping a song names its own. Like both of
+ * them it moves rather than duplicates: a song already in the queue is taken
+ * out of where it was first, and `at` is then read against what is left, so
+ * dragging a song three places down lands it three places down rather than
+ * two. The playing song is never moved out from under the player, and `at` is
+ * clamped, so a drop past the last row lands at the end (Xiao, 2026-09-22).
+ */
+export function insertAt(state: QueueState, songIds: readonly number[], at: number): QueueState {
+  if (songIds.length === 0) return state
+
+  const current = state.index < 0 ? undefined : state.items[state.index]
+  const incoming = new Set(songIds)
+  const inserted = songIds.filter(id => id !== current)
+  if (inserted.length === 0) return state
+
+  // Where `at` pointed, counted in the list the songs are being taken out of.
+  const before = state.items
+    .slice(0, Math.max(0, Math.min(at, state.items.length)))
+    .filter(id => id === current || !incoming.has(id)).length
+  const filtered = state.items.filter((id, i) => i === state.index || !incoming.has(id))
+  const target = Math.max(0, Math.min(before, filtered.length))
+
+  const items = [...filtered.slice(0, target), ...inserted, ...filtered.slice(target)]
+  const index = current === undefined ? state.index : items.indexOf(current)
+
+  return { ...state, items, original: withOriginal(state, inserted), index }
+}
+
 /** Append to the end of the queue. */
 export function enqueue(state: QueueState, songIds: readonly number[]): QueueState {
   if (songIds.length === 0) return state

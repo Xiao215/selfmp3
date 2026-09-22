@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  insertAt,
   advance,
   cycleRepeat,
   EMPTY_QUEUE,
@@ -196,6 +197,46 @@ describe('previous', () => {
   it('does not go below the first track', () => {
     const start = base({ items: [1, 2], index: 0 })
     expect(previous(start)).toBe(start)
+  })
+})
+
+describe('insertAt', () => {
+  it('puts a new song exactly where it was dropped', () => {
+    const state = insertAt(base({ items: [1, 2, 3], index: 0 }), [9], 2)
+    expect(state.items).toEqual([1, 2, 9, 3])
+    expect(state.index).toBe(0)
+  })
+
+  it('drops at the end, and past the end', () => {
+    expect(insertAt(base({ items: [1, 2], index: 0 }), [9], 2).items).toEqual([1, 2, 9])
+    expect(insertAt(base({ items: [1, 2], index: 0 }), [9], 99).items).toEqual([1, 2, 9])
+  })
+
+  it('moves a song already in the queue rather than duplicating it', () => {
+    const state = insertAt(base({ items: [1, 2, 3, 4], index: 0 }), [4], 1)
+    expect(state.items).toEqual([1, 4, 2, 3])
+  })
+
+  it('counts the drop against the list the song is leaving', () => {
+    // 2 is dragged down past 3 and 4: it lands where the gap was, not one short.
+    const state = insertAt(base({ items: [1, 2, 3, 4], index: 0 }), [2], 4)
+    expect(state.items).toEqual([1, 3, 4, 2])
+  })
+
+  it('keeps pointing at the song that is playing', () => {
+    const state = insertAt(base({ items: [1, 2, 3], index: 2 }), [9], 0)
+    expect(state.items).toEqual([9, 1, 2, 3])
+    expect(state.items[state.index]).toBe(3)
+  })
+
+  it('will not move the playing song out from under the player', () => {
+    const state = insertAt(base({ items: [1, 2, 3], index: 1 }), [2], 0)
+    expect(state).toEqual(base({ items: [1, 2, 3], index: 1 }))
+  })
+
+  it('does nothing with no songs', () => {
+    const start = base({ items: [1, 2], index: 0 })
+    expect(insertAt(start, [], 1)).toBe(start)
   })
 })
 

@@ -16,6 +16,7 @@ import {
   moveItem,
   peekNext,
   playFrom,
+  insertAt as insertAtIndex,
   playNext as playNextIds,
   previous as previousInQueue,
   removeAt,
@@ -155,6 +156,8 @@ export interface PlayerApi {
   addToQueue: (songIds: readonly number[]) => void
   removeFromQueue: (index: number) => void
   reorderQueue: (from: number, to: number) => void
+  /** Put songs at one place in the queue: where a drag let go of them. */
+  insertIntoQueue: (at: number, songIds: readonly number[]) => void
   /** Empty the queue and stop, as the web's bin in Up next does. */
   clearQueue: () => void
   /** 0–1, as the engine has it; the bar's slider and the web's share one scale. */
@@ -720,6 +723,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
+  const insertIntoQueue = useCallback(
+    (at: number, songIds: readonly number[]) =>
+      mutateQueue(state => insertAtIndex(state, songIds, at)),
+    [mutateQueue],
+  )
+
   const clearQueue = useCallback(() => {
     engine.pause()
     setQueue(EMPTY_QUEUE)
@@ -804,6 +813,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       cycleRepeatMode,
       playNext,
       addToQueue,
+      insertIntoQueue,
       removeFromQueue,
       reorderQueue,
       clearQueue,
@@ -854,6 +864,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       cycleRepeatMode,
       playNext,
       addToQueue,
+      insertIntoQueue,
       removeFromQueue,
       reorderQueue,
       clearQueue,

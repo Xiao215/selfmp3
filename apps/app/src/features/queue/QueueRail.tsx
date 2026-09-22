@@ -17,6 +17,7 @@ import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Grip } from '../../ui/components/Icons'
 import { HoldToReorder } from '../../ui/components/HoldToReorder'
+import { useSongDropTarget } from '../../ports/songDrag'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
@@ -86,6 +87,8 @@ interface RowActions {
   readonly dragStart: (row: QueueRow, node: View | null, x: number) => void
   readonly dragMove: (index: number, dx: number, dy: number) => void
   readonly dragEnd: (index: number, dx: number, dy: number) => void
+  /** Songs dragged in from a list and let go at `at`, an index into `items`. */
+  readonly dropSongs: (at: number, songIds: readonly number[]) => void
 }
 
 function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode {
@@ -177,6 +180,7 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
         if (outcome.kind === 'remove') now.remove(index)
         else if (outcome.kind === 'move') now.player.reorderQueue(index, outcome.to)
       },
+      dropSongs: (at, songIds) => latest.current.player.insertIntoQueue(at, songIds),
     }),
     [dx, dy, outness],
   )
@@ -397,6 +401,22 @@ const RailRow = memo(function RailRow({
 }): ReactNode {
   const rowRef = useRef<View>(null)
   const { index, song } = row
+
+  /*
+   * A song dragged in from a list lands where it was let go, not at the end:
+   * each row is its own drop target and the half of it the pointer is over
+   * decides which side of the row the song goes (Xiao, 2026-09-22).
+   */
+  const [side, setSide] = useState<'above' | 'below'>('above')
+  const sideAt = (y: number): 'above' | 'below' => (y < ROW_HEIGHT / 2 ? 'above' : 'below')
+  const over = useSongDropTarget(rowRef, {
+    enabled: kind === 'next',
+    onOver: y => setSide(sideAt(y)),
+    onDrop: (songIds, y) => actions.dropSongs(sideAt(y) === 'above' ? index : index + 1, songIds),
+  })
+  // Read through `over` rather than cleared when it goes false: the side is
+  // only meaningful while the pointer is here, and nothing has to unset it.
+  const dropSide = over ? side : null
   const onDragStart = useCallback(
     (x: number) => actions.dragStart(row, rowRef.current, x),
     [actions, row],
@@ -423,7 +443,8 @@ const RailRow = memo(function RailRow({
 
   return (
     <View ref={rowRef} collapsable={false} style={[styles.slot, placeholder && styles.hole]}>
-      {dropTarget ? <View style={styles.dropLine} /> : null}
+      {dropTarget || dropSide === 'above' ? <View style={styles.dropLine} /> : null}
+      {dropSide === 'below' ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
       <HoldToReorder
         enabled={kind === 'next'}
         onStart={onDragStart}
@@ -541,6 +562,7 @@ const styles = StyleSheet.create(theme => ({
   text: { flex: 1, minWidth: 0, gap: 1, marginLeft: space.sm },
   songTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   sub: { color: theme.colors.textSecondary, fontSize: type.tiny },
+  dropLineFoot: { top: undefined, bottom: 0 },
   dropLine: {
     position: 'absolute',
     left: 0,

@@ -20,7 +20,11 @@ export function useSongDragSource(
 /** Let songs be dropped here. True while a drag carrying songs is over it. */
 export function useSongDropTarget(
   _ref: RefObject<View | null>,
-  _options: { enabled: boolean; onDrop: (songIds: number[]) => void },
+  _options: {
+    enabled: boolean
+    onDrop: (songIds: number[], y: number) => void
+    onOver?: (y: number) => void
+  },
 ): boolean {
   return false
 }

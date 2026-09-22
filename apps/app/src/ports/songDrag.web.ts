@@ -99,13 +99,20 @@ export function useSongDragSource(
 
 export function useSongDropTarget(
   ref: RefObject<View | null>,
-  options: { enabled: boolean; onDrop: (songIds: number[]) => void },
+  options: {
+    enabled: boolean
+    onDrop: (songIds: number[], y: number) => void
+    /** Where the pointer is inside this target, in its own points, while over it. */
+    onOver?: (y: number) => void
+  },
 ): boolean {
   const [over, setOver] = useState(false)
   const onDrop = useRef(options.onDrop)
+  const onOver = useRef(options.onOver)
   useEffect(() => {
     onDrop.current = options.onDrop
-  }, [options.onDrop])
+    onOver.current = options.onOver
+  }, [options.onDrop, options.onOver])
 
   const { enabled } = options
   useEffect(() => {
@@ -119,6 +126,7 @@ export function useSongDropTarget(
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
       setOver(true)
+      onOver.current?.(event.clientY - node.getBoundingClientRect().top)
     }
     const leave = (event: DragEvent): void => {
       // Moving onto a child of the target fires a leave on the target itself.
@@ -135,7 +143,8 @@ export function useSongDropTarget(
         const songIds = Array.isArray(parsed)
           ? parsed.filter((id): id is number => Number.isInteger(id))
           : []
-        if (songIds.length > 0) onDrop.current(songIds)
+        if (songIds.length > 0)
+          onDrop.current(songIds, event.clientY - node.getBoundingClientRect().top)
       } catch {
         // Not ours after all.
       }

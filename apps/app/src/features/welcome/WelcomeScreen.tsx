@@ -5,11 +5,14 @@ import {
   AppState,
   Image,
   KeyboardAvoidingView,
+  Linking,
+  Pressable,
   ScrollView,
   Text,
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import { DoormanError } from '@selfmp3/replica'
 import { fonts, radius, space, tagColors, type } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
@@ -223,9 +226,23 @@ export function WelcomeScreen(): ReactNode {
           <Button label="Open Google again" onPress={begin} />
         )}
         {stage.kind === 'idle' ? (
-          <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-            {welcomeFootnote(device)}
-          </Text>
+          <View style={[styles.footnotes, wide && styles.footnotesWide]}>
+            <Text style={[styles.footnote, wide && styles.footnoteWide]}>
+              {welcomeFootnote(device)}
+            </Text>
+            {/* What signing in with Google keeps, on the page the app is published from. */}
+            <Pressable
+              onPress={() => void Linking.openURL(`${DEFAULT_APP_URL}/privacy.html`)}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy policy"
+              hitSlop={8}
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={[styles.footnote, styles.privacy, wide && styles.footnoteWide]}>
+                Privacy policy
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
         )}
@@ -394,6 +411,8 @@ const styles = StyleSheet.create(theme => ({
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
   actions: { gap: space.lg },
   error: { color: theme.colors.danger, fontSize: type.body },
+  footnotes: { gap: 4, alignItems: 'center' },
+  footnotesWide: { alignItems: 'flex-start' },
   footnote: {
     color: theme.colors.textMuted,
     fontSize: type.small,
@@ -401,6 +420,8 @@ const styles = StyleSheet.create(theme => ({
     textAlign: 'center',
   },
   footnoteWide: { fontSize: 13, lineHeight: 19, maxWidth: 420, textAlign: 'left' },
+  privacy: { color: theme.colors.textSecondary, textDecorationLine: 'underline' },
+  pressed: { opacity: 0.6 },
   tiles: {
     flexDirection: 'row',
     flexWrap: 'wrap',

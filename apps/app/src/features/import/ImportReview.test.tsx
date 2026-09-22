@@ -125,6 +125,23 @@ describe('Import review, on a phone', () => {
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
   })
 
+  it('still opens an unticked song, to hear it before deciding', async () => {
+    await draw()
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Deselect 怪物'))
+    })
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('怪物, YOASOBI'))
+    })
+    expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
+    // And unticking the open one leaves it open.
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Deselect 群青'))
+    })
+    expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
+    expect(screen.getByText('Import 0 songs')).toBeTruthy()
+  })
+
   it('unticks every song from the head, and ticks them all back', async () => {
     await draw()
     await act(async () => {

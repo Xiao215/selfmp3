@@ -135,15 +135,10 @@ export function ImportReview({
     setOpen(null)
     listen.close()
   }
-  // An open row unticked closes: what is not coming in is not worth hearing.
-  const toggleChosen = (index: number): void => {
-    if (open === index) closeRow()
-    toggleChosenIn(key, index)
-  }
-  const chooseAll = (on: boolean): void => {
-    if (!on && open !== null) closeRow()
-    chooseAllIn(key, on)
-  }
+  // Ticking is separate from hearing: an unticked song still plays and still
+  // opens, so you can listen before deciding, and an open row stays open.
+  const toggleChosen = (index: number): void => toggleChosenIn(key, index)
+  const chooseAll = (on: boolean): void => chooseAllIn(key, on)
   const rename = (index: number, change: Rename): void => renameIn(key, index, change)
 
   const rows = review.items.map((item, index) => {
@@ -539,12 +534,12 @@ function PhoneRow({
         <SelectBox item={item} checked={!out} onToggle={onToggleChosen} wide={false} />
       )}
       <Pressable
-        onPress={state === 'in' ? onOpen : undefined}
-        disabled={state !== 'in'}
+        onPress={state === 'yours' ? undefined : onOpen}
+        disabled={state === 'yours'}
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
-        accessibilityHint={state === 'in' ? 'Opens it to hear it and fix its name' : undefined}
-        accessibilityState={{ disabled: state !== 'in' }}
+        accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
+        accessibilityState={{ disabled: state === 'yours' }}
         style={({ pressed }) => [
           styles.phoneRowBody,
           state !== 'in' && styles.dim,
@@ -614,7 +609,7 @@ function GridRow({
         {/* The box keeps its full colour: dimmed, an empty ring would all but vanish. */}
         <View style={[styles.cells, state !== 'in' && !open && styles.dim]}>
           <View style={styles.colCover}>
-            {canPlay && state === 'in' ? (
+            {canPlay && state !== 'yours' ? (
               <ListenCover item={item} listening={listening} onPress={onPlay} shown={reveal} />
             ) : (
               <Cover uri={item.thumbnail} title={item.title} size={40} />
@@ -652,8 +647,8 @@ function GridRow({
             </>
           ) : (
             <Pressable
-              onPress={state === 'in' ? onOpen : undefined}
-              disabled={state !== 'in'}
+              onPress={state === 'yours' ? undefined : onOpen}
+              disabled={state === 'yours'}
               accessibilityRole="button"
               accessibilityLabel={`Edit ${item.title || 'this song'}`}
               style={styles.names2}

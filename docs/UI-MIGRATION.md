@@ -365,7 +365,8 @@ shells, and the stage no longer has an Up next tab.
 - **Review** (`/import/review`): every song starts ticked, and only ticked songs are
   imported. A box at the left of each row, and one in the head for all of them. A song
   already in the library says "Yours already", has no box, and is skipped. An unticked song
-  stays in the list, dimmed and struck through.
+  stays in the list, dimmed and struck through, and still plays and opens, so it can be heard
+  before deciding.
   - Phone: tap a song and its row opens in place with Title and Artist fields and a bar to
     drag; tap the cover to close.
   - Computer: one grid for every row (`24px 40px 1.2fr 1fr 1fr 90px`: box, cover, title,

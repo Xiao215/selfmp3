@@ -29,6 +29,7 @@ import { Shell as Frame } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
 import { stackAnimation } from '../src/shell/pageStep'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
+import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
@@ -207,7 +208,7 @@ function Shell(): ReactNode {
   // here rather than on Welcome, so no second redirect can race it.
   useEffect(() => {
     if (status === 'ready' && pathname === '/welcome') {
-      router.replace(afterWelcome(fromCloud, storedFirstSync()))
+      router.replace(afterWelcome(fromCloud, storedFirstSync(), installedApp))
     }
   }, [status, pathname, fromCloud, router])
 

@@ -26,15 +26,19 @@ describe('whether First sync is due', () => {
   })
 
   it('follows a first Google sign-in', () => {
-    expect(afterWelcome(true, null)).toBe('/first-sync')
+    expect(afterWelcome(true, null, true)).toBe('/first-sync')
   })
 
   it('does not follow a second one on the same device', () => {
-    expect(afterWelcome(true, FIRST_SYNC_SEEN)).toBe('/')
+    expect(afterWelcome(true, FIRST_SYNC_SEEN, true)).toBe('/')
   })
 
   it('does not follow a server address, which the simulator tests type', () => {
-    expect(afterWelcome(false, null)).toBe('/')
+    expect(afterWelcome(false, null, true)).toBe('/')
+  })
+
+  it('skips it in a browser, which keeps nothing and has nothing to wait for', () => {
+    expect(afterWelcome(true, null, false)).toBe('/')
   })
 })
 

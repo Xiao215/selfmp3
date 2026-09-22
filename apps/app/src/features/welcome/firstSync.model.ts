@@ -26,9 +26,19 @@ export function firstSyncDue(stored: string | null): boolean {
  *
  * First sync only follows a Google sign-in: the address typed in a development
  * build is the simulator tests' way in, and they expect the app itself next.
+ *
+ * And only where the answer means anything. The page exists to ask whether to
+ * keep every song on this device, while the library comes down; a browser tab
+ * keeps nothing and streams everything, so there is no question to put and
+ * nothing to wait for — it goes straight in (Xiao, 2026-09-22). The desktop
+ * app is an installed app and still sees it.
  */
-export function afterWelcome(fromCloud: boolean, stored: string | null): '/first-sync' | '/' {
-  return fromCloud && firstSyncDue(stored) ? '/first-sync' : '/'
+export function afterWelcome(
+  fromCloud: boolean,
+  stored: string | null,
+  installed: boolean,
+): '/first-sync' | '/' {
+  return installed && fromCloud && firstSyncDue(stored) ? '/first-sync' : '/'
 }
 
 /**

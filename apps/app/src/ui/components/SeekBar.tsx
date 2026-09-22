@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -35,7 +35,6 @@ export function SeekBar({
   inline = false,
   loop = null,
   color,
-  onTrackWindow,
 }: {
   position: number
   duration: number
@@ -50,12 +49,6 @@ export function SeekBar({
   loop?: LoopRegion | null
   /** The playing song's colour, for the played part and the loop. The accent when not given. */
   color?: string
-  /**
-   * Where the track itself sits, in window points, whenever it moves. The
-   * player bar's wash fills to where the thumb is rather than to a share of
-   * its own width, and only the track knows where that is (Xiao, 2026-09-22).
-   */
-  onTrackWindow?: (x: number, width: number) => void
 }): ReactNode {
   const accent = useAccent()
   const fill = color ?? accent.accent
@@ -105,13 +98,8 @@ export function SeekBar({
   const shown = dragging ?? held ?? position
   const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
 
-  const hitRef = useRef<View>(null)
   const onLayout = (event: LayoutChangeEvent): void => {
     setWidth(event.nativeEvent.layout.width)
-    // Where it is on screen, not where it is in its parent: the wash that
-    // reads this is somewhere else entirely in the tree.
-    if (onTrackWindow)
-      hitRef.current?.measureInWindow(x => onTrackWindow(x, event.nativeEvent.layout.width))
   }
 
   if (inline) {
@@ -120,7 +108,6 @@ export function SeekBar({
         <Text style={styles.timeInline}>{formatDuration(shown)}</Text>
         <View style={styles.inlineTrack}>
           <View
-            ref={hitRef}
             style={[styles.hit, inline && styles.hitInline]}
             onLayout={onLayout}
             accessibilityRole="adjustable"

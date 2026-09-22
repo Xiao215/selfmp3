@@ -16,8 +16,7 @@ import { withAlpha } from '@selfmp3/client'
  *
  * The fade is centred on where the song has got to rather than ending there:
  * half of it before, half after. Ending there, the wash always looked to be
- * running behind the scrubber's own handle (Xiao, 2026-09-21) — which it was,
- * until `track` put the two on the same scale.
+ * running behind the scrubber's own handle (Xiao, 2026-09-21).
  */
 export function ProgressWash({
   fraction,
@@ -25,7 +24,6 @@ export function ProgressWash({
   alpha,
   fade,
   line,
-  track = null,
 }: {
   /** 0 to 1. */
   fraction: number
@@ -35,14 +33,6 @@ export function ProgressWash({
   alpha: number
   /** Points over which the leading edge fades out. */
   fade: number
-  /**
-   * The scrubber's own track, in this bar's points, where the wash shares a
-   * bar with one. The wash then fills to where the thumb is instead of to the
-   * same share of the whole bar, which is a different place — 250 points
-   * apart late in a song — and two answers to one number read as an error
-   * (Xiao, 2026-09-22).
-   */
-  track?: { offset: number; span: number } | null
   /**
    * A bright line along the wash's edge, and which edge it runs along. It is
    * drawn here rather than by the bar so that it ends where the wash ends: a
@@ -59,17 +49,14 @@ export function ProgressWash({
    * a song plays, for a difference no eye can see on a bar 300 points wide
    * (`nowPlaying/stageMove.model.ts` explains the mechanism at length).
    */
-  const clamped = Math.min(1, Math.max(0, fraction))
-  const at = track
-    ? Math.round(track.offset + clamped * track.span)
-    : (`${Math.round(clamped * 100)}%` as const)
+  const at = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%` as const
   const half = fade / 2
 
   return (
     <View pointerEvents="none" style={styles.wash}>
-      {/* Solid up to half a fade before the playhead: the parent carries how
-          far the song has got — a share of the bar, or points along the
-          scrubber's track — and the child the fade's own points. */}
+      {/* Solid up to half a fade before the playhead. The parent carries the
+          share of the bar, the child the points, so neither needs the other's
+          units. */}
       <View style={[styles.played, { width: at }]}>
         {line === 'top' ? (
           <View style={[styles.line, { marginRight: half, backgroundColor: color }]} />

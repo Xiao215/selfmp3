@@ -95,10 +95,23 @@ function Fade({
 }): ReactNode {
   return (
     <View style={style}>
-      {/* A box of one unit stretched over the view, rather than a width and a
-          height given as percentages: on a phone those measure nothing and the
-          gradient is never drawn, which left the wash ending at a hard line. */}
-      <Svg style={styles.fill} viewBox="0 0 1 1" preserveAspectRatio="none">
+      {/*
+        Pinned to all four edges, and a box of one unit stretched over it.
+        Both halves are needed, and each one alone has failed: percentages on
+        their own measure nothing on a phone, and `flex: 1` on its own leaves
+        the element with no definite height in a browser, where an `svg` with
+        a square viewBox then takes its width for its height — a 40-point
+        gradient down a bar 84 tall, which reads as no gradient at all and
+        left the wash ending at a hard line (Xiao, 2026-09-22). This is the
+        pairing `CoverLight` already draws its light with.
+      */}
+      <Svg
+        style={StyleSheet.absoluteFill}
+        width="100%"
+        height="100%"
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+      >
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0" stopColor={color} stopOpacity={opacity} />

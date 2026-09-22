@@ -31,6 +31,7 @@ import { ChevronRight, ListMusic, Refresh, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
+import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { countLabel, reviewName } from './review.model'
 
@@ -73,8 +74,8 @@ export function ImportScreen({
   const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
-  // The draft outlives this screen (importDraft.ts); only the error is the screen's.
-  const key = via?.baseUrl ?? 'own'
+  // The draft outlives this screen (importDraft.store.ts); only the error is the screen's.
+  const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { links, review, tagIds } = draft
   const [error, setError] = useState<string | null>(null)

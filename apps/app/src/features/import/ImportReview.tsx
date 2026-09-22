@@ -27,6 +27,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
 import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importDraft'
+import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { canListen, listenDetail, listeningLeftReview, type Listening } from './listen.model'
 import {
@@ -56,9 +57,10 @@ import {
  * into fields with its bar opening under it.
  *
  * A page of its own rather than a state of Import, because the review lives in
- * the draft (importDraft.ts), which outlives either page: Back keeps it, and
- * Import offers it again. With no review in the draft — a reload, an old link —
- * there is nothing to show, and it goes to Import.
+ * the draft (importDraft.store.ts), which outlives either page and the page's
+ * own reload: Back keeps it, and Import offers it again. With no review in the
+ * draft — imported, cancelled, never looked up — there is nothing to show, and
+ * it goes to Import.
  */
 export function ImportReview({
   via,
@@ -70,7 +72,7 @@ export function ImportReview({
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
   const source = useImportSource(via)
-  const key = via?.baseUrl ?? 'own'
+  const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { review, tagIds } = draft
   const listen = useListen(via)
@@ -78,7 +80,7 @@ export function ImportReview({
   const footInset = useBottomInset()
   const [open, setOpen] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /** Imported or cancelled: the draft empties as the page leaves, which is not a reload. */
+  /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
 
   const failed = (err: Error): void => {

@@ -159,6 +159,29 @@ describe('Import review, on a phone', () => {
     expect(screen.getAllByRole('checkbox')).toHaveLength(3)
   })
 
+  it('keeps its songs when the server is reached at another address', async () => {
+    // A cloud library's server is raced at every address it has, and the
+    // review is keyed by the server, not by whichever address won this time.
+    patchDraft('cloud', {
+      review: reviewFrom({ kind: 'playlist', playlistTitle: 'THE BOOK', items: [item(2, '群青')] }),
+    })
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const page = (baseUrl: string) => (
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <QueryClientProvider client={client}>
+          <ImportReview via={{ baseUrl, token: 't' }} />
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    )
+    const view = await render(page('http://192.168.1.20:4600'))
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Deselect 群青'))
+    })
+    await view.rerender(page('http://100.64.0.5:4600'))
+    expect(screen.getByText('THE BOOK')).toBeTruthy()
+    expect(screen.getByLabelText('Select 群青')).toBeTruthy()
+  })
+
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {
     await draw()
     await act(async () => {

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ClientStateProvider, type ServerConnection } from '@selfmp3/client'
 import { answerFromCloud, setServer } from '../api/client'
+import { forgetImportDraft } from '../features/import/importDraft'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
 
@@ -92,18 +93,21 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       answerFromCloud(false)
       setServer(next)
       forgetCachedServer()
+      // A review looked up on the last server names its tags; another server's are not those.
+      if (connection !== null && connection.baseUrl !== next.baseUrl) forgetImportDraft('own')
       setFromCloud(false)
       await saveConnection(next)
       setConnection(next)
       setStatus('ready')
     },
-    [forgetCachedServer],
+    [connection, forgetCachedServer],
   )
 
   const signedOutOfCloud = useCallback(() => {
     answerFromCloud(false)
     cloudLibrary.markCloudLibraryStale()
     forgetCachedServer()
+    forgetImportDraft('cloud')
     setFromCloud(false)
     setStatus(connection ? 'ready' : 'missing')
   }, [connection, forgetCachedServer])
@@ -112,6 +116,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     await clearConnection()
     setServer(null)
     forgetCachedServer()
+    forgetImportDraft('own')
     setConnection(null)
     setStatus('missing')
   }, [forgetCachedServer])

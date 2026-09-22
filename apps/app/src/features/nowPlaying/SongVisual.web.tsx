@@ -4,7 +4,7 @@ import { radius, type Rgb } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource.model'
-import { useReducedMotion } from '../../ui/useReducedMotion'
+import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import { recordVisualFrame } from './visualDebug'
 import {
@@ -61,7 +61,7 @@ export function SongVisual({
   cover: coverUri = null,
 }: SongVisualProps): ReactNode {
   const player = usePlayer()
-  const reduced = useReducedMotion()
+  const reduced = useMotionReduced()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { colors, tuning } = useVisualLook(song)
   const cover = useCoverImage(coverUri)

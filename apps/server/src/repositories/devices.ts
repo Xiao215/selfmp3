@@ -27,7 +27,6 @@ export class DeviceRepository {
   readonly #all
   readonly #byId
   readonly #upsert
-  readonly #rename
   readonly #delete
   readonly #prune
 
@@ -43,7 +42,6 @@ export class DeviceRepository {
         state = excluded.state,
         last_seen_at = excluded.last_seen_at
     `)
-    this.#rename = db.prepare('UPDATE devices SET name = ? WHERE id = ?')
     this.#delete = db.prepare('DELETE FROM devices WHERE id = ?')
     this.#prune = db.prepare('DELETE FROM devices WHERE last_seen_at < ?')
   }
@@ -56,10 +54,6 @@ export class DeviceRepository {
       state: JSON.stringify(heartbeat.state),
       lastSeenAt: now,
     })
-  }
-
-  rename(id: string, name: string): boolean {
-    return this.#rename.run(name, id).changes > 0
   }
 
   remove(id: string): boolean {

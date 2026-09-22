@@ -50,10 +50,13 @@ import {
   type Confirming,
   type SectionId,
 } from './settings.model'
-import {} from '../metadata/metadata.model'
 
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
+
+/** The index column itself, and the gutter on either side of it. */
+const INDEX_WIDTH = 172
+const INDEX_GUTTER = 32
 
 /** The page's top padding beside the index column, and on a narrow screen. */
 const COLUMN_TOP = 28
@@ -80,7 +83,7 @@ const LINKED_HOLD_MS = 2500
  * is a label over a card, its rows told apart by space. The page carries its own index — a
  * column beside the panels on a wide screen, a sticky row of chips above them
  * on a narrow one — and every setting has the same anatomy. A link from
- * elsewhere names its section (`/settings?section=connection`) and lands there.
+ * elsewhere names its section (`/settings?section=account`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -114,7 +117,7 @@ export function SettingsScreen(): ReactNode {
   )
   const { section: linked } = useLocalSearchParams<{ section?: string }>()
   const linkedSection = sections.find(section => section.id === linked)?.id
-  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'connection')
+  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'account')
   const chipsRef = useRef<ScrollView>(null)
   const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
   const chipsWidth = useRef(0)
@@ -333,10 +336,7 @@ export function SettingsScreen(): ReactNode {
 
         <StackedRows value={!wide}>
           <View style={styles.panels}>
-            <ConnectionPanel
-              anchor={node => anchorAt('connection', node)}
-              onConfirm={setConfirming}
-            />
+            <ConnectionPanel anchor={node => anchorAt('account', node)} onConfirm={setConfirming} />
 
             <AppearancePanel anchor={node => anchorAt('appearance', node)} />
 
@@ -439,8 +439,6 @@ export function SettingsScreen(): ReactNode {
   )
 }
 
-// ---------------------------------------------------------------- offline
-
 /**
  * Crossfade, where this device's engine can fade one song into the next — a
  * browser and the installed app can. A phone's engine plays gapless and cannot
@@ -475,10 +473,6 @@ function CrossfadeRow({
     </Row>
   )
 }
-
-// ------------------------------------------------------------- connection
-
-// ------------------------------------------------------------- the index
 
 /**
  * The sticky row of section chips.
@@ -521,7 +515,12 @@ function ChipBar({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentColumn: { paddingTop: COLUMN_TOP, paddingLeft: 32 + 172 + 32, paddingRight: 32 },
+  contentColumn: {
+    paddingTop: COLUMN_TOP,
+    // Clear of the index: its gutter, the column, and the same gutter again.
+    paddingLeft: INDEX_GUTTER + INDEX_WIDTH + INDEX_GUTTER,
+    paddingRight: INDEX_GUTTER,
+  },
   // `S2`'s phone gutter.
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
   head: { marginBottom: 20 },
@@ -531,7 +530,13 @@ const styles = StyleSheet.create(theme => ({
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   panels: { gap: 20, maxWidth: 780 },
-  indexColumn: { position: 'absolute', top: COLUMN_TOP, left: 32, width: 172, gap: 1 },
+  indexColumn: {
+    position: 'absolute',
+    top: COLUMN_TOP,
+    left: INDEX_GUTTER,
+    width: INDEX_WIDTH,
+    gap: 1,
+  },
   indexTitle: {
     ...label(theme.colors),
     paddingTop: 4,

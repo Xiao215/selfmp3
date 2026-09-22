@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultDirs } from './config.js'
+import { defaultDirs, resolveDirs } from './config.js'
 
 /**
  * Where the library lands when nothing says otherwise.
@@ -42,5 +42,28 @@ describe('defaultDirs', () => {
         expect(defaultDirs({ home: '/Users/me', profile })).toEqual(plain)
       }
     })
+  })
+})
+
+/**
+ * The server and the CLI must name the same two folders, or `selfmp3 backup`
+ * copies a library nobody is playing from. Both go through `resolveDirs`.
+ */
+describe('resolveDirs', () => {
+  const plain = defaultDirs({ profile: '' })
+
+  it('starts from the profile the environment names', () => {
+    expect(resolveDirs({})).toEqual(plain)
+    expect(resolveDirs({ SELFMP3_PROFILE: 'dev' })).toEqual(defaultDirs({ profile: 'dev' }))
+  })
+
+  it('lets an explicit folder win over the profile, each on its own', () => {
+    const dirs = resolveDirs({ SELFMP3_PROFILE: 'dev', SELFMP3_LIBRARY_DIR: '/srv/music' })
+    expect(dirs.libraryDir).toBe('/srv/music')
+    expect(dirs.dataDir).toBe(defaultDirs({ profile: 'dev' }).dataDir)
+  })
+
+  it('treats an exported-but-empty folder as unset', () => {
+    expect(resolveDirs({ SELFMP3_LIBRARY_DIR: '', SELFMP3_DATA_DIR: '' })).toEqual(plain)
   })
 })

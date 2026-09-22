@@ -86,8 +86,8 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      // The phone is often on a flaky link to the server at home. Retrying twice
-      // and then showing the cached library beats a spinner that never ends.
+      // The phone is often on a flaky link to the server at home. One retry and
+      // then the cached library beats a spinner that never ends.
       retry: 1,
       refetchOnWindowFocus: false,
       gcTime: 24 * 60 * 60 * 1000,

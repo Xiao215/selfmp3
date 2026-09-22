@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
 import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from './helpers.js'
 
 /**
@@ -27,8 +28,7 @@ interface LibrarySong {
 }
 
 async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
-  const api = process.env.SELFMP3_APP_API ?? ''
-  const response = await page.request.get(`${api}/api/library`)
+  const response = await page.request.get(`${appApi}/api/library`)
   return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
 }
 

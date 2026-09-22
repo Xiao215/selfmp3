@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Easing, Pressable, ScrollView, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, ScrollView, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import type { View as RNView } from 'react-native'
@@ -11,7 +11,7 @@ import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
-import { motionMs } from '../motion'
+import { ease, motionMs } from '../motion'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when
@@ -142,7 +142,7 @@ function AnchoredPopover({
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: motionMs(open ? motion.base : motion.fast),
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      easing: ease.out,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished && !open) setMounted(false)

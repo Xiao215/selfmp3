@@ -30,7 +30,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          # One Node version for the whole repository, in .nvmrc; `engines` in
+          # package.json says the same thing to anyone installing by hand.
+          node-version-file: .nvmrc
           cache: npm
 
       # No install scripts: esbuild and the packages it bundles need none, and

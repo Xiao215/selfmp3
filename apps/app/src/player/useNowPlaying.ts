@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react'
 
 import type { PlayerApi } from './PlayerProvider'
-import { positionJumped, type ProgressStore, type ReportedPosition } from './progress.model'
+import {
+  positionJumped,
+  SEEK_STEP_SECONDS,
+  type ProgressStore,
+  type ReportedPosition,
+} from './progress.model'
 import { mediaSession } from '../ports/mediaSession'
-
-/** What the seek buttons on a keyboard or a headset move by, in seconds. */
-const SEEK_STEP = 10
 
 /**
  * Tell the operating system what is playing.
@@ -42,7 +44,7 @@ export function useNowPlaying(
       next: () => latest.current.next(),
       previous: () => latest.current.previous(),
       seekTo: seconds => latest.current.seekTo(seconds),
-      seekBy: delta => latest.current.seekBy(delta || SEEK_STEP),
+      seekBy: delta => latest.current.seekBy(delta || SEEK_STEP_SECONDS),
     })
     return () => mediaSession.setActions(null)
   }, [])

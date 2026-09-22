@@ -1,5 +1,5 @@
 import type { ImportRequestView } from '@selfmp3/replica'
-import { youtubeVideoId, type ImportJob } from '@selfmp3/shared'
+import { youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
 
 /**
@@ -65,7 +65,7 @@ export function createPageHandler(handlers: Handlers) {
   return async function handle(request: PageRequest): Promise<PillState> {
     const videoId = youtubeVideoId(request.url)
     if (!videoId) return idle
-    const url = `https://www.youtube.com/watch?v=${videoId}`
+    const url = youtubeWatchUrl(videoId)
     const viaBucket = (await handlers.status({ type: 'status' })).mode === 'bucket'
 
     if (request.type === 'pillState') {

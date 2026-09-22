@@ -1,27 +1,9 @@
 import { useEffect, useState } from 'react'
 import { AppState } from 'react-native'
 
-import { meteredConnections } from '../ports/metered'
-// Imported lazily, and never at module scope. `expo-network` is a native
-// module, so on a binary built before it was added — which is every binary
-// until the next `expo run:ios` — touching it throws "Cannot find native
-// module 'ExpoNetwork'". At module scope that takes the screen down with it:
-// a route fails to export, and the error boundary itself is undefined by the
-// time anything tries to catch it. Knowing the connection is a nicety; the
-// app running is not.
-type NetworkModule = {
-  getNetworkStateAsync: () => Promise<{ isConnected?: boolean; type?: string }>
-  NetworkStateType: Record<string, string>
-}
+import { getNetworkStateAsync, NetworkStateType } from 'expo-network'
 
-function networkModule(): NetworkModule | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('expo-network') as NetworkModule
-  } catch {
-    return null
-  }
-}
+import { meteredConnections } from '../ports/metered'
 
 /**
  * What this phone is connected through, so downloading can care.
@@ -38,7 +20,7 @@ function networkModule(): NetworkModule | null {
 
 type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
 
-export async function connectionKind(): Promise<ConnectionKind> {
+async function connectionKind(): Promise<ConnectionKind> {
   /*
    * A computer's connection is never metered, as far as this app is concerned
    * (decided 2026-09-12). Wired, Wi-Fi at a desk, a laptop tethered — none of
@@ -48,18 +30,15 @@ export async function connectionKind(): Promise<ConnectionKind> {
    */
   if (!meteredConnections) return 'wifi'
   try {
-    const network = networkModule()
-    if (!network) return 'unknown'
-    const state = await network.getNetworkStateAsync()
+    const state = await getNetworkStateAsync()
     if (state.isConnected === false) return 'none'
-    const kinds = network.NetworkStateType
     switch (state.type) {
-      case kinds['WIFI']:
-      case kinds['ETHERNET']:
+      case NetworkStateType.WIFI:
+      case NetworkStateType.ETHERNET:
         return 'wifi'
-      case kinds['CELLULAR']:
+      case NetworkStateType.CELLULAR:
         return 'cellular'
-      case kinds['NONE']:
+      case NetworkStateType.NONE:
         return 'none'
       default:
         // A simulator, a VPN, something the OS will not name. Treated as

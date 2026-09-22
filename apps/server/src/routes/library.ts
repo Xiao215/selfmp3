@@ -86,15 +86,7 @@ export function libraryRoutes(container: Container): Router {
   /** Permanently forget songs whose files are gone. Explicit on purpose. */
   router.post(
     '/library/purge-missing',
-    route({}, async () => {
-      const purged = await container.scanner.purgeMissing()
-      if (purged > 0) {
-        // Tags whose last songs just went go too.
-        container.tags.pruneEmpty()
-        container.bumpLibraryVersion()
-      }
-      return { purged }
-    }),
+    route({}, async () => ({ purged: await container.songRemoval.purgeMissing() })),
   )
 
   /**

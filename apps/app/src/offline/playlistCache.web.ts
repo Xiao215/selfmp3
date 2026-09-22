@@ -1,5 +1,5 @@
 import { PlaylistSongsSchema, type PlaylistSongs } from '@selfmp3/shared'
-import { deleteStored, readStored, writeStored } from '../ports/idbStore.web'
+import { deleteStoredPrefix, readStored, writeStored } from '../ports/idbStore.web'
 
 /**
  * The browser's copy of each playlist's members: one IndexedDB record per
@@ -25,12 +25,7 @@ export function writeCachedPlaylist(songs: PlaylistSongs): void {
   )
 }
 
-/**
- * Forget them: signing out, where another account's ids would collide. The
- * store lists no keys, so the ids come from the library being forgotten.
- */
-export function clearCachedPlaylists(playlistIds: readonly number[] = []): void {
-  for (const id of playlistIds) {
-    void deleteStored(`${KEY_PREFIX}${id}`).catch(() => undefined)
-  }
+/** Forget them all: signing out, where another account's ids would collide. */
+export function clearCachedPlaylists(): Promise<void> {
+  return deleteStoredPrefix(KEY_PREFIX)
 }

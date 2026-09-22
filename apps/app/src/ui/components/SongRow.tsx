@@ -18,6 +18,7 @@ import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidt
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
+import { SIDEBAR_WIDTH } from '../../shell/Sidebar'
 import { useLayout } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
@@ -42,7 +43,6 @@ const ALBUM_COLUMN_CONTENT_WIDTH = 916
  * 2026-09-21). `RowTags` fits what it can into the room and counts the rest.
  */
 const TAG_CHIPS_CONTENT_WIDTH = 520
-const SIDEBAR_WIDTH = 244
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -167,7 +167,6 @@ export const SongRow = memo(function SongRow({
   leading?: ReactNode
   /** This row is the one being moved, so it rides above its neighbours. */
   lifted?: boolean
-  /** A move would land here: a line in the accent on the row's top edge. */
   /** Which edge the drop line falls on while a row is dragged over this one. */
   dropTarget?: 'above' | 'below' | null
 }): ReactNode {
@@ -571,7 +570,7 @@ function RowTags({
                 .map(tag => tag.name)
                 .join(', '),
             )}
-            style={[styles.rowTag, styles.rowTagMore]}
+            style={styles.rowTag}
           >
             <Text style={[styles.rowTagText, styles.rowTagMoreText]}>+{hidden}</Text>
           </Pressable>
@@ -850,7 +849,6 @@ const styles = StyleSheet.create(theme => ({
     // No one name may take the slot: past this it ends in an ellipsis.
     maxWidth: TAG_CHIP_MAX_WIDTH,
   },
-  rowTagMore: { backgroundColor: theme.colors.surface2 },
   rowTagMoreText: { color: theme.colors.textSecondary },
   rowTagDot: { width: 6, height: 6, borderRadius: 3 },
   rowTagText: { fontSize: 11, color: theme.colors.textPrimary, flexShrink: 1 },
@@ -869,13 +867,6 @@ const styles = StyleSheet.create(theme => ({
   },
   controlPressed: {
     backgroundColor: theme.colors.surface2,
-  },
-  duration: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    fontVariant: ['tabular-nums'],
-    minWidth: 34,
-    textAlign: 'right',
   },
   durationWide: {
     color: theme.colors.textMuted,

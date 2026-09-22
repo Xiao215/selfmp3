@@ -251,43 +251,6 @@ export type CloudServer = z.infer<typeof CloudServerSchema>
  * Lists only songs whose audio is in the bucket. A song still uploading is not
  * in the library yet as far as any other device is concerned.
  */
-/**
- * A snapshot as an older build wrote it, in the shape this build reads.
- *
- * Snapshots are the one thing here that outlives the code that wrote them. A
- * bucket holds months of them, written by whatever version was running that
- * afternoon, and every device reads the newest one it finds — so a field this
- * build renamed is not a rename at all until every snapshot in every bucket has
- * been rewritten. Until then the old name is simply what the library is called.
- *
- * `features` became `audioFeatures` on 2026-09-14. A library published three
- * hours before that stopped being readable by anything built after it: the
- * server refused to publish over a library it could not parse, which was the
- * right refusal, and the app threw outright. Both were looking at a perfectly
- * good snapshot.
- *
- * Read leniently, write one shape. Every reader runs this first, and nothing
- * writes the old names — so a bucket heals itself the next time a server
- * publishes, and this list only grows when a field is renamed again.
- */
-export function migrateCloudSnapshot(raw: unknown): unknown {
-  if (!raw || typeof raw !== 'object') return raw
-  const snapshot = raw as Record<string, unknown>
-  const songs: unknown = snapshot['songs']
-  if (!Array.isArray(songs)) return raw
-  const list = songs as unknown[]
-  return {
-    ...snapshot,
-    songs: list.map((song): unknown => {
-      if (!song || typeof song !== 'object') return song
-      const fields = song as Record<string, unknown>
-      if ('audioFeatures' in fields || !('features' in fields)) return song
-      const { features, ...rest } = fields
-      return { ...rest, audioFeatures: features }
-    }),
-  }
-}
-
 export const CloudSnapshotSchema = z.object({
   format: z.number().int().positive(),
   writtenAt: z.string(),
@@ -409,9 +372,9 @@ export const CloudStatusSchema = z.object({
     /**
      * Songs this server took on from the bucket's library whose files it has
      * not fetched yet. They are in the library and in every snapshot; what is
-     * not here is their audio. Absent from an older server's answer.
+     * not here is their audio.
      */
-    waiting: z.number().int().nonnegative().default(0),
+    waiting: z.number().int().nonnegative(),
   }),
   /**
    * Fetching those files, while it is happening. Null when nothing is waiting —
@@ -423,8 +386,7 @@ export const CloudStatusSchema = z.object({
       total: z.number().int().nonnegative(),
       current: z.string().nullable(),
     })
-    .nullable()
-    .default(null),
+    .nullable(),
   /** Everything this server has uploaded that is still in the bucket. */
   bytesInCloud: z.number().int().nonnegative(),
   lastSyncAt: z.string().nullable(),

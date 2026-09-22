@@ -12,8 +12,6 @@ export const SettingsSchema = z.object({
   crossfadeSeconds: z.number().min(0).max(12).default(0),
   /** Skip leading/trailing silence so tracks run together cleanly. */
   gapless: z.boolean().default(true),
-  /** Fraction of a track that must be heard before it counts as a play. */
-  playThreshold: z.number().min(0.05).max(1).default(0.5),
   /** Automatically look up lyrics for songs that do not have any. */
   autoFetchLyrics: z.boolean().default(true),
   /** How many downloads run at once. More is not always faster. */

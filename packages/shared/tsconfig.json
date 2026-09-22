@@ -3,6 +3,11 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
+    // DOM, unlike packages/replica, packages/client and
+    // packages/desktop-bridge — and for one name: `URL`. This package parses
+    // and builds addresses (`src/links.ts`, `src/cloud.ts`), every runtime
+    // that loads it has a real `URL`, and the DOM lib is where it is typed
+    // without pulling in @types/node. Nothing else here touches a browser.
     "lib": ["ES2023", "DOM"]
   },
   "include": ["src/**/*"],

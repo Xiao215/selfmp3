@@ -2,11 +2,12 @@
 import path from 'node:path'
 import type { ImportShareResult, ScanResult } from '@selfmp3/shared'
 import { formatBytes } from '@selfmp3/shared'
-import { APP_NAME, APP_VERSION, REPO_ROOT } from './config.js'
+import { APP_NAME, APP_VERSION, resolveDirs } from './config.js'
 import { ApiError, createClient, defaultBaseUrl } from './cli/api.js'
 import { CliUsageError, USAGE, parseCli, type Command } from './cli/args.js'
 import { backupTree } from './cli/backup.js'
 import { runDoctor } from './cli/doctor.js'
+import { loadDotEnv } from './dotenv.js'
 
 /**
  * `selfmp3` — the command-line front door.
@@ -21,10 +22,16 @@ import { runDoctor } from './cli/doctor.js'
 
 const out = (line = ''): void => console.log(line)
 
-/** Same defaults as config.ts, without creating the folders as a side effect. */
-const dirs = {
-  libraryDir: process.env['SELFMP3_LIBRARY_DIR'] ?? path.join(REPO_ROOT, 'library'),
-  dataDir: process.env['SELFMP3_DATA_DIR'] ?? path.join(REPO_ROOT, 'data'),
+/**
+ * The folders the server would use, found the way the server finds them —
+ * this checkout's `.env`, then the environment, then the profile's defaults —
+ * so `backup` copies the library the server serves and `doctor` reports on
+ * it. Only found, never created: `loadConfig` does that, and a `doctor` run
+ * before the first start should say the folders are missing, not make them.
+ */
+function serverDirs(): { libraryDir: string; dataDir: string } {
+  loadDotEnv()
+  return resolveDirs()
 }
 
 const NOT_RUNNING = `the server is not running at %s.
@@ -93,6 +100,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
 
     case 'backup': {
       const dest = path.resolve(command.dest)
+      const dirs = serverDirs()
       out(`backing up to ${dest}`)
       let total = { files: 0, copied: 0, bytes: 0, copiedBytes: 0 }
       for (const [name, src] of [
@@ -125,7 +133,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
     case 'doctor': {
       out(`${APP_NAME} ${APP_VERSION}`)
       out()
-      const lines = await runDoctor(client, dirs)
+      const lines = await runDoctor(client, serverDirs())
       for (const line of lines) {
         out(`  ${line.ok ? '✓' : '✗'} ${line.label.padEnd(8)} ${line.detail}`)
       }

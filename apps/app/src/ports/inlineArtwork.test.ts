@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { artworkInliner, artworkLoadable } from './inlineArtwork'
+import { artworkInliner } from './inlineArtwork'
 
 const KEPT = 'app://selfmp3/_media/covers/1-2fh19.jpg'
 
@@ -14,7 +14,6 @@ describe('artworkInliner', () => {
       'data:image/png;base64,AA',
       'blob:abc',
     ]) {
-      expect(artworkLoadable(src)).toBe(true)
       expect(inliner.ready(src)).toBe(src)
       expect(await inliner.load(src)).toBe(src)
     }
@@ -27,7 +26,6 @@ describe('artworkInliner', () => {
     )
     const inliner = artworkInliner(read)
 
-    expect(artworkLoadable(KEPT)).toBe(false)
     expect(inliner.ready(KEPT)).toBeNull()
     expect(await inliner.load(KEPT)).toBe('data:image/jpeg;base64,/9j/')
     expect(read).toHaveBeenCalledWith(KEPT)

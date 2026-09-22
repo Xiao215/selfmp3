@@ -16,7 +16,10 @@
  * 4. Forget the replica of the library, and the songs kept for it. Songs are
  *    kept under this account's ids, and another account's library would hand
  *    the same ids to other songs, so nothing kept may outlive the account.
- * 5. Forget the saved library, for the same reason.
+ * 5. Forget the saved library, for the same reason — and which songs were
+ *    removed by hand, which is the same ids again: kept, they would keep
+ *    another account's songs from downloading by themselves, with nothing to
+ *    show why.
  * 6. Hand back to the app, which returns to Welcome (`SIGNED_OUT_ROUTE`).
  */
 export interface SignOutSteps {
@@ -26,6 +29,7 @@ export interface SignOutSteps {
   readonly forgetLibrary: () => Promise<void>
   readonly removeDownloads: () => Promise<void>
   readonly forgetSavedLibrary: () => Promise<void>
+  readonly forgetExcluded: () => void
   readonly done: () => void
 }
 
@@ -39,6 +43,7 @@ export async function signOutOfCloud(steps: SignOutSteps): Promise<void> {
   steps.stopPlaying()
   await steps.sendPendingChanges().catch(() => undefined)
   await steps.endSession()
+  steps.forgetExcluded()
   await Promise.allSettled([
     steps.forgetLibrary(),
     steps.removeDownloads(),

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseFile, parseBuffer, type IAudioMetadata } from 'music-metadata'
-import { mimeForExtension } from '@selfmp3/shared'
+import { cleanArtist, mimeForExtension } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 
@@ -51,14 +51,6 @@ export function parseFilename(relativePath: string): { artist: string; title: st
     return { artist: artist.trim(), title: title.trim() }
   }
   return { artist: '', title: cleaned || base }
-}
-
-/** YouTube auto-generated channels are named "Artist - Topic". */
-export function cleanArtist(raw: string): string {
-  return raw
-    .replace(/\s*-\s*Topic$/i, '')
-    .replace(/\s*VEVO$/i, '')
-    .trim()
 }
 
 function pictureExtension(format: string | undefined): string {

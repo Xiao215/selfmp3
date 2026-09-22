@@ -99,3 +99,50 @@ describe('a scan that meets a file it cannot read', () => {
     expect(scanner.isRunning).toBe(false)
   })
 })
+
+/**
+ * What a scan reports is what changed since the last one. Every caller bumps
+ * the library version on a non-zero count, and every device refetches on a
+ * bump, so a quiet scan of an unchanged library has to say so — even when a
+ * song has been missing for months.
+ */
+describe('a scan of a library that has not changed', () => {
+  const nothing = { added: 0, updated: 0, removed: 0 }
+  const writes = (db: Database.Database): number =>
+    (db.prepare('SELECT total_changes() AS n').get() as { n: number }).n
+
+  it('counts a song as removed only the once, when its file goes', async () => {
+    const files = ['A - One.m4a', 'B - Two.m4a']
+    const { songs, scanner } = build(files)
+    await scanner.scan()
+
+    files.pop()
+    expect(await scanner.scan()).toMatchObject({ ...nothing, removed: 1 })
+    expect(songs.byPath('B - Two.m4a')?.missing).toBe(true)
+
+    expect(await scanner.scan()).toMatchObject(nothing)
+    expect(songs.byPath('B - Two.m4a')?.missing).toBe(true)
+  })
+
+  it('writes nothing at all when every file is as it was', async () => {
+    const { db, scanner } = build(['A - One.m4a', 'B - Two.m4a'])
+    await scanner.scan()
+
+    const before = writes(db)
+    expect(await scanner.scan()).toMatchObject(nothing)
+    expect(writes(db)).toBe(before)
+  })
+
+  it('counts a file that came back, unchanged, as updated', async () => {
+    const files = ['A - One.m4a', 'B - Two.m4a']
+    const { songs, scanner } = build(files)
+    await scanner.scan()
+    const gone = files.pop() as string
+    await scanner.scan()
+
+    files.push(gone)
+    expect(await scanner.scan()).toMatchObject({ ...nothing, updated: 1 })
+    expect(songs.byPath('B - Two.m4a')?.missing).toBe(false)
+    expect(await scanner.scan()).toMatchObject(nothing)
+  })
+})

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
+
 /**
  * Importing: look a link up, review it — leave its song out and bring it back,
  * rename it, hear it — and back out (docs/UI-MIGRATION.md, Phase 7).
@@ -26,9 +28,8 @@ async function dismissToasts(page: Page): Promise<void> {
 }
 
 async function skipWithoutYtDlp(page: Page): Promise<void> {
-  const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
   const tools = await page.request
-    .get(`${api}/api/import/tools`)
+    .get(`${appApi}/api/import/tools`)
     .then(async response =>
       response.ok() ? ((await response.json()) as { ytdlp?: boolean }) : null,
     )

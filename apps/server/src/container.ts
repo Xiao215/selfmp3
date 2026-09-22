@@ -51,7 +51,7 @@ import { CloudImportService } from './services/cloudImports.js'
 import { ImportRequestRepository } from './repositories/importRequests.js'
 import { buildImportPreview } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
-import { removeFolderIfEmpty } from './services/libraryLayout.js'
+import { SongRemovalService } from './services/songRemoval.js'
 
 /**
  * Composition root.
@@ -107,6 +107,8 @@ export interface Container {
   readonly motion: MotionStore
   readonly romanization: RomanizationService
   readonly lyricsIndex: LyricsIndexService
+  /** The one way a song leaves the library, whatever asked for it. */
+  readonly songRemoval: SongRemovalService
   readonly analysis: AnalysisService
   readonly events: EventHub
   readonly devices: DeviceService
@@ -125,6 +127,14 @@ export interface Container {
   libraryVersion(): number
   bumpLibraryVersion(): void
 
+  /**
+   * Stop every background worker: timers, watchers, downloads in flight, the
+   * event streams held open for each connected tab. The database stays open,
+   * so anything still finishing a request can still read.
+   */
+  stop(): void
+
+  /** `stop()`, and then the database. Safe to call twice. */
   close(): void
 }
 
@@ -169,7 +179,7 @@ export function createContainer(configured: Config): Container {
 
   // One clock for everything this server stamps, named as it is in the bucket.
   const clock = new SyncClock({
-    deviceId: () => cloudRepo.deviceId(process.platform === 'darwin' ? 'mac' : process.platform),
+    deviceId: () => cloudRepo.deviceId(),
     latest: () => syncRepo.latestStamp(),
   })
   const edits = new LocalEdits({ db, sync: syncRepo, clock })
@@ -262,7 +272,6 @@ export function createContainer(configured: Config): Container {
     metadata,
     lyrics,
     covers,
-    motion,
     logger,
   })
 
@@ -313,12 +322,24 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
-  const migrate = new MigrateService({ songs, logger })
+  const migrate = new MigrateService({ songs, logger, ytdlp })
   const lyricsIndex = new LyricsIndexService({
     songs,
     search: lyricsSearch,
     lyrics,
     metadata,
+    logger,
+  })
+  const songRemoval = new SongRemovalService({
+    storage,
+    songs,
+    tags,
+    lyrics,
+    covers,
+    lyricsCache,
+    motion,
+    lyricsIndex,
+    onChange: bump,
     logger,
   })
 
@@ -381,26 +402,7 @@ export function createContainer(configured: Config): Container {
   cloudSync.onIngested = async ({ removed, requested }) => {
     version++
     if (requested > 0) void cloudImports.process()
-    for (const song of removed) {
-      try {
-        // The audio goes only if the device that removed it said so; what is
-        // derived from the row goes either way, since the row has.
-        if (song.deleteFile) {
-          await storage.delete(song.path).catch(() => undefined)
-          await lyrics.deleteSidecar(song.path)
-          await removeFolderIfEmpty(storage, song.path)
-        }
-        await covers.delete(song.id)
-        await lyricsCache.delete(song.id)
-        await motion.delete(song.id)
-        lyricsIndex.remove(song.id)
-      } catch (error) {
-        logger.warn('could not tidy up a song removed on another device', {
-          path: song.path,
-          message: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
+    await songRemoval.tidyAfter(removed)
   }
 
   // Presence and remote control. The version watch reads `version` through the
@@ -414,7 +416,7 @@ export function createContainer(configured: Config): Container {
     libraryVersion: () => version,
   })
 
-  return {
+  const container: Container = {
     config,
     logger,
     db,
@@ -451,6 +453,7 @@ export function createContainer(configured: Config): Container {
     motion,
     romanization,
     lyricsIndex,
+    songRemoval,
     analysis,
     events,
     devices,
@@ -459,12 +462,9 @@ export function createContainer(configured: Config): Container {
     cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
-    // Shutdown can arrive here by either of two paths — the server closing
-    // cleanly or the timeout giving up on it — and `db.close()` throws the
-    // second time, so only the first call does the work.
-    close: () => {
-      if (closed) return
-      closed = true
+    // Every background worker in one place: a shutdown that forgot one would
+    // leave a timer or a download holding the process open.
+    stop: () => {
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()
@@ -472,7 +472,19 @@ export function createContainer(configured: Config): Container {
       importQueue.stop()
       cloudSync.stop()
       migrate.stop()
+      // Let the machine sleep again even if a stream is still winding down.
+      keepAwake.stop()
+    },
+    // Shutdown can arrive here by either of two paths — the server closing
+    // cleanly or the timeout giving up on it — and `db.close()` throws the
+    // second time, so only the first call does the work.
+    close: () => {
+      if (closed) return
+      closed = true
+      container.stop()
       db.close()
     },
   }
+
+  return container
 }

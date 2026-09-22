@@ -4,6 +4,7 @@ import { Text, View } from 'react-native'
 import { plural, formatBytes } from '@selfmp3/shared'
 import {
   downloadTally,
+  LARGE_SYNC_BYTES,
   staleDownloads,
   useLibrary,
   useManifest,
@@ -17,7 +18,6 @@ import { CloudDownload, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
 import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
 import { type Confirming } from './settings.model'
-import {} from '../metadata/metadata.model'
 
 /**
  * What this device keeps: whether songs download by themselves, whether one
@@ -95,7 +95,7 @@ export function OfflinePanel({
 
       <Row
         label="Download automatically on Wi-Fi"
-        hint="Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over 500 MB waits for you, and a song you remove by hand stays removed."
+        hint={`Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over ${formatBytes(LARGE_SYNC_BYTES)} waits for you, and a song you remove by hand stays removed.`}
       >
         <Toggle
           value={prefs.autoOnWifi}
@@ -255,5 +255,3 @@ function DownloadMeter(): ReactNode {
     <Meter fraction={progress.totalBytes > 0 ? progress.bytesWritten / progress.totalBytes : 0} />
   )
 }
-
-// -------------------------------------------------------------- importing

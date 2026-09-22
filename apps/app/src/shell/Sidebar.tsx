@@ -220,7 +220,6 @@ function Playlists(): ReactNode {
   const pathname = usePathname()
   const { data: library } = useLibrary()
   const [newOpen, setNewOpen] = useState(false)
-  const plusRef = useRef<View>(null)
 
   const all = library?.playlists
   // The ones the playlists page lists: an empty playlist is in neither.
@@ -250,17 +249,15 @@ function Playlists(): ReactNode {
           <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
           {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
         </Pressable>
-        <View ref={plusRef} collapsable={false}>
-          <Pressable
-            style={styles.tinyButton}
-            onPress={() => setNewOpen(open => !open)}
-            accessibilityRole="button"
-            accessibilityLabel="New playlist"
-            {...tip('New playlist')}
-          >
-            <Plus size={14} tone="textMuted" />
-          </Pressable>
-        </View>
+        <Pressable
+          style={styles.tinyButton}
+          onPress={() => setNewOpen(open => !open)}
+          accessibilityRole="button"
+          accessibilityLabel="New playlist"
+          {...tip('New playlist')}
+        >
+          <Plus size={14} tone="textMuted" />
+        </Pressable>
       </View>
 
       {recent.map(playlist => (
@@ -274,7 +271,7 @@ function Playlists(): ReactNode {
         />
       ))}
 
-      <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} anchorRef={plusRef} />
+      <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} />
     </View>
   )
 }

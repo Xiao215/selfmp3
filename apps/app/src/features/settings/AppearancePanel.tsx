@@ -7,7 +7,6 @@ import { Select } from '../../ui/components/Select'
 import { Slider } from '../../ui/components/Slider'
 import { Panel, Row } from './SettingsParts'
 import { accentName } from './settings.model'
-import {} from '../metadata/metadata.model'
 
 export function AppearancePanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { theme: ui } = useUnistyles()
@@ -68,8 +67,6 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
     </Panel>
   )
 }
-
-// ---------------------------------------------------------- confirmations
 
 const styles = StyleSheet.create(() => ({
   swatches: { flexDirection: 'row', gap: 6 },

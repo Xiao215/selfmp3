@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { recall, remember, type BoundedCache } from './boundedCache.js'
 import { randomToken, sha256Hex } from './encoding.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 
@@ -18,14 +19,10 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * has about a thousand writes a day for everything.
  *
  * Looking a session up costs a KV read, so each Worker instance remembers the
- * ones it has seen for a minute. That minute is also the most a sign-out can
- * take to be felt by an instance that had the session in hand — no worse than
- * KV itself, which may take as long to tell other places about the delete.
+ * ones it has seen (boundedCache.ts, which says for how long and why).
  */
 
 const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60
-const CACHE_MS = 60_000
-const CACHE_LIMIT = 500
 
 /** base64url of 32 random bytes. Anything else is not worth a KV read. */
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -48,7 +45,7 @@ export interface Identity {
   readonly picture: string | null
 }
 
-export type SessionCache = Map<string, { session: Session; until: number }>
+export type SessionCache = BoundedCache<Session>
 
 export class Sessions {
   readonly #kv: KvStore
@@ -77,28 +74,32 @@ export class Sessions {
 
   async find(token: string): Promise<Session | null> {
     if (!TOKEN.test(token)) return null
+    return this.#find(await sessionKey(token))
+  }
+
+  /** Sign a device out. False when there was no such session to end. */
+  async end(token: string): Promise<boolean> {
+    if (!TOKEN.test(token)) return false
+    // One hash, for the lookup and the delete alike.
     const key = await sessionKey(token)
+    if (!(await this.#find(key))) return false
+    this.#cache.delete(key)
+    await this.#kv.delete(key)
+    return true
+  }
+
+  async #find(key: string): Promise<Session | null> {
     const now = this.#now()
-    const cached = this.#cache.get(key)
-    if (cached && cached.until > now) return cached.session
+    const cached = recall(this.#cache, key, now)
+    if (cached) return cached
 
     const session = await getRecord(this.#kv, key, SessionSchema)
     if (!session) {
       this.#cache.delete(key)
       return null
     }
-    if (this.#cache.size >= CACHE_LIMIT) this.#cache.clear()
-    this.#cache.set(key, { session, until: now + CACHE_MS })
+    remember(this.#cache, key, session, now)
     return session
-  }
-
-  /** Sign a device out. False when there was no such session to end. */
-  async end(token: string): Promise<boolean> {
-    if (!(await this.find(token))) return false
-    const key = await sessionKey(token)
-    this.#cache.delete(key)
-    await this.#kv.delete(key)
-    return true
   }
 }
 

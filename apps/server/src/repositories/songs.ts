@@ -499,13 +499,22 @@ export class SongRepository {
       .map(toSong)
   }
 
-  /** Paths of every song currently in the database, for scan reconciliation. */
-  allPaths(): Map<string, { id: number; mtimeMs: number }> {
+  /**
+   * Every song currently in the database, by path, for scan reconciliation.
+   * `missing` rides along so the scan can tell a file that just went from one
+   * it marked last time, and a file that came back from one that never left.
+   */
+  allPaths(): Map<string, { id: number; mtimeMs: number; missing: boolean }> {
     const rows = this.#db
-      .prepare<[], { id: number; path: string; mtime_ms: number }>(
-        'SELECT id, path, mtime_ms FROM songs',
+      .prepare<[], { id: number; path: string; mtime_ms: number; missing: number }>(
+        'SELECT id, path, mtime_ms, missing FROM songs',
       )
       .all()
-    return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
+    return new Map(
+      rows.map(row => [
+        row.path,
+        { id: row.id, mtimeMs: row.mtime_ms, missing: row.missing === 1 },
+      ]),
+    )
   }
 }

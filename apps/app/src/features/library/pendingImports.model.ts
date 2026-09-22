@@ -11,7 +11,10 @@ import type { ImportRequestView } from '@selfmp3/replica'
  * YouTube video a thumbnail that can be worked out from the link.
  */
 
-type Request = Pick<ImportRequestView, 'uid' | 'url' | 'state' | 'title' | 'songIds' | 'error' | 'requestedAt'>
+type Request = Pick<
+  ImportRequestView,
+  'uid' | 'url' | 'state' | 'title' | 'songIds' | 'error' | 'requestedAt'
+>
 
 interface PendingImport {
   readonly uid: string

@@ -6,8 +6,8 @@ import {
   scoreHit,
   searchQuery,
   similarity,
-  type SearchHit,
 } from './migrateScore.js'
+import type { SearchHit } from './ytdlp.js'
 
 const hit = (partial: Partial<SearchHit> & { title: string }): SearchHit => ({
   url: `https://www.youtube.com/watch?v=${partial.title.replace(/\W/g, '').slice(0, 11)}`,

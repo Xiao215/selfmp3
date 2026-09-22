@@ -37,7 +37,7 @@ import {
   recoverPlayback,
   useLibrary,
   useSameArray,
-  useServerSettings,
+  useSettings,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
 import {
@@ -102,7 +102,6 @@ export interface PlayerApi {
   readonly songs: readonly Song[]
   readonly current: Song | null
   readonly isPlaying: boolean
-  readonly ready: boolean
   /**
    * Start these songs here; `shuffle` sets the mode first, else it is kept.
    * `position` starts the first song part-way, which is what a handoff needs:
@@ -205,7 +204,6 @@ export interface PlayerApi {
   setCountIn: (on: boolean) => void
 }
 
-/** Where this device keeps its volume. */
 /** Practice preferences, kept on this device. */
 const AUTO_MIX_KEY = 'automix'
 
@@ -232,7 +230,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed } = useDownloads()
-  const { data: serverSettings } = useServerSettings()
+  const { data: serverSettings } = useSettings()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
   // would mean dropping the audio that is playing. Its wiring is handed over
@@ -266,9 +264,23 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // Told every engine state; set once the commands it needs exist, below.
   const playbackErrorRef = useRef<(state: EngineState) => void>(() => undefined)
 
-  useEffect(() => {
-    queueRef.current = queue
-  }, [queue])
+  /*
+   * The one way the queue changes: the ref first, then the state.
+   *
+   * The ref is what every command and every engine callback reads, and it has
+   * to be right the moment a command returns, not after the render that
+   * follows. It used to be filled in by an effect, so two commands in one tick
+   * — a headset's double-tap sending Next twice, a drop into Up next calling
+   * `next()` and then `addToQueue` — both read the queue from before the first,
+   * and the phone's lookahead, asked for the next song straight after a skip,
+   * was told the song that had just been left. State still renders what is
+   * shown; the ref is the source of truth for what happens next.
+   */
+  const commitQueue = useCallback((next: QueueState) => {
+    queueRef.current = next
+    setQueue(next)
+  }, [])
+
   useEffect(() => {
     songsRef.current = songsById
   }, [songsById])
@@ -474,7 +486,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
         // Past songs that cannot play here: one not on this device, offline,
         // would otherwise load and sit paused with no word.
-        const { state, stop } = advancePlayable(queueRef.current, true, mayPlay)
+        const ended = queueRef.current
+        const { state, stop } = advancePlayable(ended, true, mayPlay)
         if (stop) {
           engine.pause()
           return
@@ -485,14 +498,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
           // carries on from where the night left off rather than replaying the
           // end of the last one.
           engine.pause()
-          setQueue(state)
+          commitQueue(state)
           loadIndex(state, false)
           return
         }
 
-        setQueue(state)
+        commitQueue(state)
         // Repeat-one leaves the index alone, so say explicitly to start again.
-        if (state.index === queueRef.current.index && state.repeat === 'one') {
+        // Compared with the queue the song ended in: the ref is already the
+        // new one, and against itself the index would always match.
+        if (state.index === ended.index && state.repeat === 'one') {
           engine.seek(0)
           void engine.play()
           const again = state.items[state.index] ?? null
@@ -510,7 +525,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         }
       },
     })
-  }, [engine, loadIndex, flushPlay, downloadQueue, mayPlay, sourcesFor, stores, sleep, trackingRef])
+  }, [
+    engine,
+    loadIndex,
+    flushPlay,
+    downloadQueue,
+    mayPlay,
+    sourcesFor,
+    stores,
+    sleep,
+    trackingRef,
+    commitQueue,
+  ])
 
   // --- commands ------------------------------------------------------------
 
@@ -527,7 +553,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // on.
         const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
         const next = mixed(playFrom(from, songIds, startIndex))
-        setQueue(next)
+        commitQueue(next)
         loadIndex(next, autoplay, position)
       }
       // A song that cannot play here says why, rather than loading and sitting
@@ -536,7 +562,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, start)) return
       start()
     },
-    [loadIndex, checkPlay, mixed],
+    [loadIndex, checkPlay, mixed, commitQueue],
   )
 
   /**
@@ -551,7 +577,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songIds.length === 0) return
       const begin = (start: number): void => {
         const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
-        setQueue(next)
+        commitQueue(next)
         loadIndex(next, true)
       }
       // Start on a song that can play here, when there is one.
@@ -564,21 +590,21 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, () => begin(start))) return
       begin(start)
     },
-    [loadIndex, checkPlay, mayPlay],
+    [loadIndex, checkPlay, mayPlay, commitQueue],
   )
 
   const jumpTo = useCallback(
     (index: number) => {
       const go = (): void => {
         const next = { ...queueRef.current, index }
-        setQueue(next)
+        commitQueue(next)
         loadIndex(next, true)
       }
       const songId = queueRef.current.items[index]
       if (songId !== undefined && !checkPlay(songId, go)) return
       go()
     },
-    [loadIndex, checkPlay],
+    [loadIndex, checkPlay, commitQueue],
   )
 
   const toggle = useCallback(() => {
@@ -597,9 +623,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     // moves on rather than playing the same song again.
     const { state, stop } = advancePlayable(queueRef.current, false, mayPlay)
     if (stop) return
-    setQueue(state)
+    commitQueue(state)
     loadIndex(state, engine.state.playing)
-  }, [engine, loadIndex, mayPlay])
+  }, [engine, loadIndex, mayPlay, commitQueue])
 
   const previous = useCallback(() => {
     // Within the first few seconds "previous" means the previous track, after
@@ -613,9 +639,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engine.seek(0)
       return
     }
-    setQueue(state)
+    commitQueue(state)
     loadIndex(state, engine.state.playing)
-  }, [engine, loadIndex])
+  }, [engine, loadIndex, commitQueue])
 
   // The lock screen's and the headphones' Next and Previous, as these buttons.
   useEffect(
@@ -674,7 +700,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
           engine.pause()
           return
         }
-        setQueue(after)
+        commitQueue(after)
         loadIndex(after, true)
         return
       }
@@ -682,7 +708,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       engine.pause()
       showToast(`Couldn’t play “${title}”: ${state.error}`, 'error')
     }
-  }, [engine, loadIndex, mayPlay])
+  }, [engine, loadIndex, mayPlay, commitQueue])
 
   const seekTo = useCallback(
     (seconds: number) => {
@@ -701,27 +727,26 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [engine],
   )
 
-  const toggleShuffle = useCallback(() => {
-    const next = setShuffle(queueRef.current, !queueRef.current.shuffle)
-    setQueue(next)
-    // The song that is playing is kept; only what follows it changed, which
-    // the engine picks up the next time it asks for the lookahead.
-    refreshLookahead(engine)
-  }, [engine])
-
-  const cycleRepeatMode = useCallback(() => {
-    const repeat = cycleRepeat(queueRef.current.repeat)
-    setQueue(state => ({ ...state, repeat }))
-  }, [])
-
   const mutateQueue = useCallback(
     (change: (state: QueueState) => QueueState) => {
-      const next = change(queueRef.current)
-      setQueue(next)
-      queueRef.current = next
+      commitQueue(change(queueRef.current))
       refreshLookahead(engine)
     },
-    [engine],
+    [engine, commitQueue],
+  )
+
+  // The song that is playing is kept; only what follows it changed, which
+  // the engine picks up the next time it asks for the lookahead.
+  const toggleShuffle = useCallback(
+    () => mutateQueue(state => setShuffle(state, !state.shuffle)),
+    [mutateQueue],
+  )
+
+  // Repeat changes what follows too: the last song again from the top, or
+  // this one over.
+  const cycleRepeatMode = useCallback(
+    () => mutateQueue(state => ({ ...state, repeat: cycleRepeat(state.repeat) })),
+    [mutateQueue],
   )
 
   const playNext = useCallback(
@@ -738,12 +763,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     (index: number) => {
       const wasCurrent = index === queueRef.current.index
       const next = removeAt(queueRef.current, index)
-      setQueue(next)
-      queueRef.current = next
+      commitQueue(next)
       if (wasCurrent && next.items.length > 0) loadIndex(next, engine.state.playing)
       else refreshLookahead(engine)
     },
-    [engine, loadIndex],
+    [engine, loadIndex, commitQueue],
   )
 
   const reorderQueue = useCallback(
@@ -759,10 +783,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   const clearQueue = useCallback(() => {
     engine.pause()
-    setQueue(EMPTY_QUEUE)
-    queueRef.current = EMPTY_QUEUE
+    commitQueue(EMPTY_QUEUE)
     refreshLookahead(engine)
-  }, [engine])
+  }, [engine, commitQueue])
 
   const setAutoMix = useCallback(
     (on: boolean) => {
@@ -824,7 +847,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       songs: resolved.queueSongs,
       current: resolved.currentSong,
       isPlaying: engineState.playing,
-      ready: true,
       playFrom: play,
       playShuffled,
       jumpTo,
@@ -952,14 +974,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 }
 
 /**
- * Tell an engine that keeps a lookahead that the order behind it changed.
- *
- * Only the native engine keeps one; the web engine asks `nextTrackId` when it
- * is ready to preload and needs no prompting. Rather than have the provider
- * know which is which — which is exactly what foundation 2 forbids — this asks
- * for the method and does nothing when it is not there.
- */
-/**
  * The addresses this device has for a library's media: the bucket's, through
  * whatever this platform has that can attach the doorman's header, and the
  * connected server's. Which of the two answers is the address model's rule.
@@ -991,6 +1005,14 @@ function refreshNowPlaying(engine: unknown, songId: number): void {
   candidate.refreshNowPlaying?.(songId)
 }
 
+/**
+ * Tell an engine that keeps a lookahead that the order behind it changed.
+ *
+ * Only the native engine keeps one; the web engine asks `nextTrackId` when it
+ * is ready to preload and needs no prompting. Rather than have the provider
+ * know which is which — which is exactly what foundation 2 forbids — this asks
+ * for the method and does nothing when it is not there.
+ */
 function refreshLookahead(engine: unknown): void {
   const candidate = engine as { refreshLookahead?: () => void }
   candidate.refreshLookahead?.()

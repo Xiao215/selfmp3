@@ -5,7 +5,7 @@ import {
   type Api,
   type ServerConnection,
 } from '@selfmp3/client/core'
-import { youtubeVideoId, type ImportJob } from '@selfmp3/shared'
+import { DEFAULT_LOCAL_SERVER_URL, youtubeVideoId, type ImportJob } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { Handlers, Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
@@ -178,7 +178,7 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       const address = normaliseBaseUrl(baseUrl)
       if (!address) {
         throw new Refusal(
-          'That doesn’t look like an address. Try http://localhost:4600, or your server’s ts.net address.',
+          `That doesn’t look like an address. Try ${DEFAULT_LOCAL_SERVER_URL}, or your server’s ts.net address.`,
           400,
         )
       }
@@ -279,10 +279,9 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       return result
     },
 
+    // Read plainly: the watcher and the pill ask through here too, and neither
+    // is anyone looking at the queue. The popup's asking is `forPages`.
     async queue() {
-      // A page asking for the queue is someone looking at it, so a failure the
-      // badge was holding up has been seen.
-      void watcher?.seen()
       return (await direct()).importQueue()
     },
 
@@ -323,6 +322,25 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
         // Sent with the next write, or the next time the network comes back.
       })
       return answer
+    },
+  }
+}
+
+/**
+ * The handlers as the extension's own pages get them (bridge.ts, `serve`).
+ *
+ * A page asking for the queue is someone looking at it, so a failure the badge
+ * was holding up has been seen. That has to be said here and not in `queue`
+ * itself: the watcher reads the queue through the same handler on every tick,
+ * and the pill on every YouTube page does too, and a `!` either of them could
+ * clear would last one poll rather than until the popup is opened.
+ */
+export function forPages(handlers: Handlers, watcher: JobWatcher | undefined): Handlers {
+  return {
+    ...handlers,
+    async queue(request) {
+      void watcher?.seen()
+      return handlers.queue(request)
     },
   }
 }

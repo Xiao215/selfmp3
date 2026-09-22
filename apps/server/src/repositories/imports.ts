@@ -107,7 +107,6 @@ export class ImportRepository {
       LIMIT ?
     `)
 
-    // The parameter is a JSON array of job ids to pass over for now.
     this.#nextQueued = db.prepare<[], ImportJobRow>(`
       SELECT * FROM import_jobs
        WHERE status = 'queued'

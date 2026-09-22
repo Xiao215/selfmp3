@@ -79,6 +79,8 @@ function fakeStorage(
     available: options.available ?? true,
     resumable: options.resumable ?? true,
     failWrite: false,
+    /** Songs whose file refuses to go: `delete` rejects for these. */
+    failDelete: new Set<number>(),
     written: [] as DownloadIndex[],
     discarded: [] as number[],
     deleted: [] as number[],
@@ -135,8 +137,10 @@ function fakeStorage(
     discard(target: Song): void {
       storage.discarded.push(target.id)
     },
-    delete(kept: { songId: number }): void {
+    delete(kept: { songId: number }): Promise<void> {
+      if (storage.failDelete.has(kept.songId)) return Promise.reject(new Error('EPERM'))
       storage.deleted.push(kept.songId)
+      return Promise.resolve()
     },
     clear(): Promise<void> {
       storage.cleared += 1
@@ -509,6 +513,43 @@ describe('keeping songs on this device', () => {
     await queue.removeAll()
     expect(storage.cleared).toBe(1)
     expect(queue.getState().index).toEqual(EMPTY_INDEX)
+  })
+
+  it('forgets only the files that actually went, and says which did not', async () => {
+    // The index used to be written before the file was touched, and the delete
+    // was fire-and-forget: a file that refused to go was orphaned — no entry,
+    // no tally, no way to remove it again.
+    const { storage, queue } = setup({ index: addEntry(addEntry(EMPTY_INDEX, entry(1)), entry(2)) })
+    await queue.load()
+    storage.failDelete.add(1)
+
+    await queue.remove([1, 2])
+    expect(storage.deleted).toEqual([2])
+    expect(entryFor(queue.getState().index, 1)).toBeTruthy()
+    expect(entryFor(queue.getState().index, 2)).toBeFalsy()
+    expect(storage.written.at(-1)).toEqual(queue.getState().index)
+    expect(queue.getState().error).toBe('もう少しだけ: not removed (EPERM)')
+
+    // The file is still there, still counted, and a later remove tries again.
+    storage.failDelete.delete(1)
+    await queue.remove([1])
+    expect(storage.deleted).toEqual([2, 1])
+    expect(queue.getState().index).toEqual(EMPTY_INDEX)
+  })
+
+  it('names the first file that would not go and counts the rest', async () => {
+    const { storage, queue } = setup({
+      index: addEntry(addEntry(addEntry(EMPTY_INDEX, entry(1)), entry(2)), entry(3)),
+    })
+    await queue.load()
+    storage.failDelete.add(2).add(3)
+
+    await queue.remove([1, 2, 3])
+    expect(storage.deleted).toEqual([1])
+    expect(queue.getState().error).toBe('三原色: not removed (EPERM), and 1 more')
+    expect(entryFor(queue.getState().index, 1)).toBeFalsy()
+    expect(entryFor(queue.getState().index, 2)).toBeTruthy()
+    expect(entryFor(queue.getState().index, 3)).toBeTruthy()
   })
 
   it('loads the index it has, and starts empty when there is none or it cannot be read', async () => {

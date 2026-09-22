@@ -2,8 +2,10 @@ import { join } from 'node:path'
 
 import { BrowserWindow, shell } from 'electron'
 
+import { NATIVE_BACKGROUND } from '@selfmp3/shared'
+
 import { MINIMUM_SIZE, displaysNow, openingBounds, rememberBounds } from './bounds.js'
-import { APP_ORIGIN } from './protocol.js'
+import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
 
 /**
  * The window.
@@ -41,8 +43,9 @@ export function createWindow({
     // macOS: Windows and Linux draw their own frame and have no inset to pad.
     ...(mac ? { titleBarStyle: 'hiddenInset' as const } : {}),
     // The app's own background, so a cold launch does not flash white before
-    // the first paint.
-    backgroundColor: '#14121a',
+    // the first paint — and the theme's own value, so it does not flash a near
+    // miss either.
+    backgroundColor: NATIVE_BACKGROUND,
     show: false,
     webPreferences: {
       preload,

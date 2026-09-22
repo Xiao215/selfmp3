@@ -26,6 +26,7 @@ import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
+import { SEEK_STEP_SECONDS } from '../player/progress.model'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { QueueRail } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
@@ -325,13 +326,6 @@ function PracticeSide(): ReactNode {
 }
 
 /**
- * What the desktop's application menu can ask for, beyond the palette.
- *
- * Going somewhere and opening the practice panel are things the page can do
- * today; the Playback items are phase 4's, and the menu does not draw them
- * until their handlers exist, so there is never a menu item that does nothing.
- */
-/**
  * `selfmp3://playlist/12` and `selfmp3://now-playing`, from the operating
  * system: a link in a note, or one the app sent itself. Nothing on a phone or
  * in a browser, which have their own ways of being pointed at a page.
@@ -348,8 +342,6 @@ function DeepLinkRoutes(): ReactNode {
   return null
 }
 
-/** What a seek item moves the song by. Ten seconds is the podcast convention. */
-const SEEK_STEP = 10
 /** One notch of the volume keys, on the engine's 0–1 scale. */
 const VOLUME_STEP = 0.05
 
@@ -372,8 +364,8 @@ function MenuCommands(): ReactNode {
     'play-pause': () => player.toggle(),
     next: () => player.next(),
     previous: () => player.previous(),
-    'seek-forward': () => player.seekBy(SEEK_STEP),
-    'seek-back': () => player.seekBy(-SEEK_STEP),
+    'seek-forward': () => player.seekBy(SEEK_STEP_SECONDS),
+    'seek-back': () => player.seekBy(-SEEK_STEP_SECONDS),
     shuffle: () => player.toggleShuffle(),
     repeat: () => player.cycleRepeatMode(),
     'volume-up': () => player.setVolume(Math.min(1, player.volume + VOLUME_STEP)),

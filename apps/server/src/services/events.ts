@@ -94,13 +94,6 @@ export class EventHub {
     return this.#subscribers.size
   }
 
-  hasSubscriber(deviceId: string): boolean {
-    for (const subscriber of this.#subscribers) {
-      if (subscriber.deviceId === deviceId) return true
-    }
-    return false
-  }
-
   /** Send to every open connection. */
   broadcast(event: ServerEvent): void {
     const frame = encodeSseEvent(event, this.#nextId++)

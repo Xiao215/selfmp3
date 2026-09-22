@@ -1,8 +1,9 @@
+import { DEFAULT_ACCENT_HUE, darkPalette } from '@selfmp3/client/core'
 import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
-import { createHandlers, explain } from './handlers.js'
+import { createHandlers, explain, forPages } from './handlers.js'
 import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
@@ -24,18 +25,31 @@ const store = idbStore()
  */
 const cloud = createCloud(store, (input, init) => fetch(input, init))
 
+/*
+ * The badge's colours, from the theme itself. Hand copies of these drifted
+ * once already, which is why `scripts/theme.mjs` exists; the hue is named
+ * rather than left to default because the extension has no hue setting and
+ * never will (theme.mjs says why).
+ */
+const THEME_COLORS = darkPalette(DEFAULT_ACCENT_HUE)
+
+/** The file the manifest declares as the extension's icon, reused by notifications. */
+const ICON = chrome.runtime.getManifest().icons?.['192'] ?? ''
+
 const badge = async (text: string): Promise<void> => {
   await chrome.action.setBadgeText({ text })
   if (text) {
     // The app's accent, and its danger red for a failure.
-    await chrome.action.setBadgeBackgroundColor({ color: text === '!' ? '#d4503f' : '#7b76e8' })
+    await chrome.action.setBadgeBackgroundColor({
+      color: text === '!' ? THEME_COLORS.danger : THEME_COLORS.accent,
+    })
   }
 }
 
 const notify = (notice: { title: string; message: string }): void => {
   void chrome.notifications.create({
     type: 'basic',
-    iconUrl: chrome.runtime.getURL('icons/icon-192.png'),
+    iconUrl: chrome.runtime.getURL(ICON),
     title: notice.title,
     message: notice.message,
   })
@@ -44,7 +58,8 @@ const notify = (notice: { title: string; message: string }): void => {
 /*
  * The watcher reads the queue through the handlers, and the handlers tell the
  * watcher what they started — so each is built with a reference to the other,
- * and the arrow below is what unties the knot.
+ * and the arrow below is what unties the knot. It reads the plain handlers: a
+ * tick is not the popup being opened, and must not clear the `!` it holds up.
  */
 const watcher = createWatcher({
   store,
@@ -60,8 +75,10 @@ const handlers: Handlers = createHandlers({
   cloud,
 })
 
-serve(handlers, explain)
-// The pill's channel, which learns nothing about the library but this one song.
+// The popup and the options page: a queue read from there clears the `!`.
+serve(forPages(handlers, watcher), explain)
+// The pill's channel, which learns nothing about the library but this one song —
+// and whose polling from a YouTube tab is not anyone looking at the badge.
 servePage(createPageHandler(handlers), explain)
 
 /**

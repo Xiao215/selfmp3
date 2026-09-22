@@ -49,10 +49,6 @@ export class HttpError extends Error {
   static failedDependency(message: string): HttpError {
     return new HttpError(424, message, 'failed_dependency')
   }
-
-  static internal(message = 'internal error'): HttpError {
-    return new HttpError(500, message, 'internal')
-  }
 }
 
 /** Turn a zod failure into something a human can act on. */

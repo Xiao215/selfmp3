@@ -14,6 +14,7 @@ import {
   errorResponse,
   forbidden,
   json,
+  methodNotAllowed,
   noContent,
   notFound,
 } from './http.js'
@@ -68,7 +69,8 @@ const RELAYED = [
 const CONTENT_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+(?:; ?charset=[a-z0-9-]+)?$/i
 
 /** The largest request body the free plan lets through. */
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+const MAX_UPLOAD_MB = 100
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 /** `GET /v1/list?prefix=<p>&cursor=<c>` — one page of a folder. */
 export async function list(ctx: Context): Promise<Response> {
@@ -94,11 +96,7 @@ export async function list(ctx: Context): Promise<Response> {
 export async function file(ctx: Context, encodedKey: string): Promise<Response> {
   const method = ctx.request.method
   if (method !== 'GET' && method !== 'HEAD' && method !== 'PUT' && method !== 'DELETE') {
-    const response = errorResponse(
-      new DoormanError(405, 'method_not_allowed', 'use GET, HEAD, PUT or DELETE'),
-    )
-    response.headers.set('allow', 'GET, HEAD, PUT, DELETE')
-    return response
+    return methodNotAllowed(['GET', 'HEAD', 'PUT', 'DELETE'])
   }
   const session = await requireSession(ctx)
   const key = fileKey(encodedKey)
@@ -177,7 +175,7 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
   if (!/^\s*\d{1,15}\s*$/.test(declared)) throw badRequest('Content-Length is not a number')
   const length = Number(declared)
   if (length > MAX_UPLOAD_BYTES) {
-    throw new DoormanError(413, 'too_large', 'a file can be at most 100 MB')
+    throw new DoormanError(413, 'too_large', `a file can be at most ${MAX_UPLOAD_MB} MB`)
   }
   const body = ctx.request.body
   if (length > 0 && !body) throw badRequest('the file is missing')

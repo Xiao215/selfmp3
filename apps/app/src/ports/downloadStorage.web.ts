@@ -22,6 +22,7 @@ import {
   offlineStorageAvailable,
   uncacheSong,
 } from './offline.web'
+import { prefs } from './prefs'
 import { recentIds } from './recentCopies'
 
 /**
@@ -45,15 +46,33 @@ import { recentIds } from './recentCopies'
  * throws, and would show nothing kept after a reload.
  */
 
-const INDEX_KEY = 'selfmp3.downloads'
+const INDEX_KEY = 'downloads'
 
 function savedIndex(): DownloadIndex | null {
   try {
-    const raw = window.localStorage.getItem(INDEX_KEY)
+    const raw = prefs.get(INDEX_KEY)
     return raw ? parseIndex(JSON.parse(raw)) : null
   } catch {
     return null
   }
+}
+
+/**
+ * Ask the browser not to evict the cache, the first time a song is asked for.
+ *
+ * Without this iOS quietly deletes the whole offline library after about a week
+ * of not opening the app — precisely when it is wanted. Asked here rather than
+ * at startup because some browsers prompt, and a download is the moment the
+ * question makes sense. Best-effort: a refusal is the platform saying it will
+ * decide for itself, not an error.
+ */
+let persistenceAsked = false
+
+function askToKeep(): void {
+  if (persistenceAsked) return
+  persistenceAsked = true
+  if (typeof navigator === 'undefined' || !navigator.storage?.persist) return
+  void navigator.storage.persist().catch(() => undefined)
 }
 
 const cacheStorage: DownloadStorage = {
@@ -106,7 +125,11 @@ const cacheStorage: DownloadStorage = {
         continue
       }
       // In the cache but not in the note: kept by an earlier build, or the note
-      // was cleared. Present, with what can be learned about it now.
+      // was cleared. Present, with what can be learned about it now — which
+      // does not include which revision it is, so `rev` is empty and nothing
+      // vouches for it. Harmless here: a browser's copy is reached through the
+      // song's own address, which already carries the rev, and `localUri`
+      // answers null whatever the index says.
       let sizeBytes = 0
       try {
         sizeBytes = (await cachedBytes([songId])).get(songId) ?? 0
@@ -118,6 +141,7 @@ const cacheStorage: DownloadStorage = {
         fileName: String(songId),
         sizeBytes,
         etag: '',
+        rev: '',
         downloadedAt: new Date(0).toISOString(),
       })
     }
@@ -125,11 +149,9 @@ const cacheStorage: DownloadStorage = {
   },
 
   writeIndex(index) {
-    try {
-      window.localStorage.setItem(INDEX_KEY, JSON.stringify(index))
-    } catch {
-      // The cache is the truth for what is kept; only the metadata is lost.
-    }
+    // The cache is the truth for what is kept; a write that cannot land (the
+    // prefs port swallows it) loses only the metadata.
+    prefs.set(INDEX_KEY, JSON.stringify(index))
     return Promise.resolve()
   },
 
@@ -140,6 +162,7 @@ const cacheStorage: DownloadStorage = {
   },
 
   begin(song, expectedBytes, onProgress) {
+    askToKeep()
     const controller = new AbortController()
     let running: Promise<number | null> | null = null
     return {
@@ -167,7 +190,9 @@ const cacheStorage: DownloadStorage = {
   },
 
   delete(entry) {
-    void uncacheSong(entry.songId).catch(() => undefined)
+    // Not swallowed: a copy the cache would not give up is a copy still kept,
+    // and the queue keeps its entry only if this rejects.
+    return uncacheSong(entry.songId)
   },
 
   clear() {

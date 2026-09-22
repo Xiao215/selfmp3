@@ -40,8 +40,6 @@ export function IconButton({
   active?: boolean
   /** On the control surface, for a button standing on its own in a header. */
   filled?: boolean
-  /** @deprecated Every icon button is round now; kept so callers need not change at once. */
-  round?: boolean
 }): ReactNode {
   const { dense } = useLayout()
   const press = usePressScale()

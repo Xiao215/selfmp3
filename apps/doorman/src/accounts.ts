@@ -1,5 +1,6 @@
 import type { DoormanMe } from '@selfmp3/shared'
 import { z } from 'zod'
+import { keep, recall, remember, type BoundedCache } from './boundedCache.js'
 import type { BucketTarget } from './bucket.js'
 import type { Log } from './context.js'
 import type { DoormanKeys } from './keys.js'
@@ -39,21 +40,16 @@ const StoredBucketSchema = z.object({
 
 const SignOutSchema = z.object({ sessionsValidAfter: z.string().datetime() })
 
-const CACHE_MS = 60_000
-const CACHE_LIMIT = 500
-
-interface Remembered<Value> {
-  readonly value: Value
-  readonly until: number
-}
-
 interface AccountCache {
   /** `bucket:<sub>` as KV had it: the sealed string, or null. */
-  readonly sealed: Map<string, Remembered<string | null>>
-  /** Opened buckets, by account and the sealed string they came from. */
+  readonly sealed: BoundedCache<string | null>
+  /**
+   * Opened buckets, keyed by the sealed string they came from, so an entry is
+   * only ever right — it needs no minute of its own, only a bound.
+   */
   readonly opened: Map<string, BucketTarget>
   /** `signout:<sub>`, in milliseconds, or null for never. */
-  readonly signedOut: Map<string, Remembered<number | null>>
+  readonly signedOut: BoundedCache<number | null>
 }
 
 export function newAccountCache(): AccountCache {
@@ -107,7 +103,7 @@ export class Accounts {
       this.#log.warn('an account’s bucket could not be opened; treating it as not connected')
       return null
     }
-    remember(this.#cache.opened, cacheKey, target)
+    keep(this.#cache.opened, cacheKey, target)
     return target
   }
 
@@ -162,25 +158,20 @@ export class Accounts {
   }
 
   async #remembered<Value>(
-    cache: Map<string, Remembered<Value>>,
+    cache: BoundedCache<Value>,
     sub: string,
     read: () => Promise<Value>,
   ): Promise<Value> {
-    const cached = cache.get(sub)
-    if (cached && cached.until > this.#now()) return cached.value
+    const cached = recall(cache, sub, this.#now())
+    if (cached !== undefined) return cached
     const value = await read()
     this.#set(cache, sub, value)
     return value
   }
 
-  #set<Value>(cache: Map<string, Remembered<Value>>, sub: string, value: Value): void {
-    remember(cache, sub, { value, until: this.#now() + CACHE_MS })
+  #set<Value>(cache: BoundedCache<Value>, sub: string, value: Value): void {
+    remember(cache, sub, value, this.#now())
   }
-}
-
-function remember<Value>(cache: Map<string, Value>, key: string, value: Value): void {
-  if (cache.size >= CACHE_LIMIT) cache.clear()
-  cache.set(key, value)
 }
 
 function bucketKey(sub: string): string {

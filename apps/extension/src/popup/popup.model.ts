@@ -454,11 +454,9 @@ export function countLabel(review: Review): string {
   return `${comingIn(review)} of ${review.items.length} coming in`
 }
 
-const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
-
 /** The commit pill: "Import 4 songs". */
 export function importLabel(count: number): string {
-  return `Import ${songs(count)}`
+  return `Import ${plural(count, 'song', 'songs')}`
 }
 
 /** What goes to the server: the songs coming in, as renamed, tagged, and no playlist. */

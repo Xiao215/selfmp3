@@ -176,7 +176,6 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   ImportCancelledSchema,
 ])
 export type Change = z.infer<typeof ChangeSchema>
-export type ChangeType = Change['type']
 
 /** Bumped when a log file changes in a way an older build cannot read. */
 export const LOG_FORMAT = 1

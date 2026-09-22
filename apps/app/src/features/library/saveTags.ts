@@ -82,10 +82,7 @@ export function useSaveTagsAsPlaylist(): {
                     .deletePlaylist(created.id)
                     .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.library }))
                     .catch((caught: unknown) =>
-                      showToast(
-                        `Couldn’t undo that: ${(caught as Error).message}`,
-                        'error',
-                      ),
+                      showToast(`Couldn’t undo that: ${(caught as Error).message}`, 'error'),
                     )
                 },
               },

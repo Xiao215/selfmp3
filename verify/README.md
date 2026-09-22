@@ -5,13 +5,8 @@
 The config has to be named: without `-c` Playwright reads the root one and none
 of the setup below applies.
 
-This is the fourth of phase 1's four gate commands, and it is the one that
-checks the thing the other three cannot: that the app still *behaves* the same
-after everything moved into `packages/client`. The other three prove it
-compiles, lints and passes its unit tests.
-
-They were written against the old web app, which was known to be right, and
-have run against `apps/app` since phase 2.
+These are the gate that checks the app still *behaves*, where `typecheck`,
+`lint` and the unit tests only prove it compiles.
 
 ## What they need
 
@@ -24,7 +19,9 @@ npm run verify:flows # in another terminal
 ```
 
 That is what the flows default to: the app at `http://localhost:4601`, its API
-at `http://localhost:4600`. The two are separate because the server does not
+at `http://localhost:4600`. Both defaults live in `verify/env.ts`, and only
+there: the config, the teardown and every spec that asks the server something
+import them from it. The two are separate because the server does not
 serve the app — its own page on 4600 is setup and status, and the app is built
 for GitHub Pages and for the desktop shell.
 
@@ -40,7 +37,12 @@ SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4610 npm 
 ```
 
 `verify/flows/pwa.spec.ts` needs a built app, since only a production build
-registers the service worker; it skips on a dev server.
+registers the service worker; it skips on a dev server. It looks at the app's
+own address unless `SELFMP3_BUILD_URL` names a build served elsewhere:
+
+```
+SELFMP3_BUILD_URL=http://localhost:8090 npm run verify:flows
+```
 
 `npm run dev` sets `SELFMP3_PROFILE=dev`, so this is the thirteen-song dev
 library in `~/Music/selfmp3-dev`, never the real one. The flows need at least

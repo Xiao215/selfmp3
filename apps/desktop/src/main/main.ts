@@ -2,6 +2,7 @@ import { join } from 'node:path'
 
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
+import { DEEP_LINK_SCHEME } from '@selfmp3/desktop-bridge'
 
 import { DeepLinks, deepLinkFromArgv } from './deepLinks.js'
 import { desktopInfo, registerIpc } from './ipc.js'
@@ -38,13 +39,23 @@ const currentWindow = (): BrowserWindow | null => mainWindow
 let quitting = false
 const isQuitting = (): boolean => quitting
 
+/**
+ * The one window, and the handler that forgets it.
+ *
+ * Both have to happen together: `mainWindow` still pointing at a destroyed
+ * window is how `showWindow` ends up calling `show()` on nothing.
+ */
+function openWindow(): void {
+  mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+}
+
 /** One window, reused: hidden rather than closed, so this shows it again. */
 function showWindow(): void {
   if (mainWindow === null) {
-    mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
-    mainWindow.on('closed', () => {
-      mainWindow = null
-    })
+    openWindow()
     return
   }
   if (mainWindow.isMinimized()) mainWindow.restore()
@@ -84,18 +95,18 @@ if (!app.requestSingleInstanceLock()) {
       if (process.defaultApp) {
         const entry = process.argv[1]
         if (entry !== undefined)
-          app.setAsDefaultProtocolClient('selfmp3', process.execPath, [entry])
+          app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME, process.execPath, [entry])
       } else {
-        app.setAsDefaultProtocolClient('selfmp3')
+        app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME)
       }
 
-      handleAppScheme({ web: WEB_ROOT })
+      handleAppScheme({
+        web: WEB_ROOT,
+        devOrigin: devUrl === null ? null : new URL(devUrl).origin,
+      })
 
       const info = desktopInfo({ development: devUrl !== null })
-      mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
-      mainWindow.on('closed', () => {
-        mainWindow = null
-      })
+      openWindow()
 
       registerIpc({ info, deepLinks, window: currentWindow })
       buildMenu(currentWindow)

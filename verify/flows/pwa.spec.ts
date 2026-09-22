@@ -1,22 +1,21 @@
 import { expect, test } from '@playwright/test'
 
+import { buildUrl } from '../env.js'
+
 /**
  * The installable web app: its manifest, its service worker, and opening with
  * no network.
  *
  * Only a production build registers the worker (a dev server's modules would
  * otherwise be cached and every change hidden), so this runs against the build
- * the Mac serves, not the dev server the other flows use. That is the flows'
- * own address unless SELFMP3_BUILD_URL says otherwise; it skips when no worker
- * is there to test.
+ * the Mac serves, not the dev server the other flows use. `buildUrl` in
+ * `env.ts` says where — the flows' own address unless SELFMP3_BUILD_URL says
+ * otherwise; it skips when no worker is there to test.
  */
-
-const BUILD =
-  process.env.SELFMP3_BUILD_URL ?? process.env.SELFMP3_WEB_URL ?? 'http://localhost:4600'
 
 test.describe('the installable web app', () => {
   test('has a manifest that takes shared links', async ({ page }) => {
-    const response = await page.request.get(`${BUILD}/manifest.webmanifest`)
+    const response = await page.request.get(`${buildUrl}/manifest.webmanifest`)
     test.skip(
       !response.ok() || (response.headers()['content-type'] ?? '').includes('text/html'),
       'this build has no manifest: export it first (npm run export:web --workspace @selfmp3/app)',
@@ -29,7 +28,7 @@ test.describe('the installable web app', () => {
     expect(manifest.share_target?.params).toEqual({ url: 'url', text: 'text', title: 'title' })
     expect(manifest.icons?.length).toBeGreaterThan(0)
 
-    await page.goto(`${BUILD}/`)
+    await page.goto(`${buildUrl}/`)
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
       'href',
       /manifest\.webmanifest$/,
@@ -38,13 +37,13 @@ test.describe('the installable web app', () => {
 
   test('opens with no network once it has been visited', async ({ page, context }) => {
     test.setTimeout(90_000)
-    const worker = await page.request.get(`${BUILD}/sw.js`)
+    const worker = await page.request.get(`${buildUrl}/sw.js`)
     test.skip(
       !worker.ok() || (worker.headers()['content-type'] ?? '').includes('text/html'),
       'this build has no service worker',
     )
 
-    await page.goto(`${BUILD}/`)
+    await page.goto(`${buildUrl}/`)
     const scope = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.ready
       return registration.scope

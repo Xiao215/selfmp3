@@ -1,6 +1,6 @@
 import { Menu, app, powerSaveBlocker } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { PlaybackState } from '@selfmp3/desktop-bridge'
+import type { DockPlaybackState } from '@selfmp3/desktop-bridge'
 
 import { sendCommand } from './commands.js'
 
@@ -14,7 +14,7 @@ import { sendCommand } from './commands.js'
  * has that the page has not is `powerSaveBlocker` and the Dock.
  */
 
-let state: PlaybackState = { playing: false, title: null, artist: null }
+let state: DockPlaybackState = { playing: false, title: null, artist: null }
 let blocker: number | null = null
 
 /**
@@ -68,7 +68,10 @@ function drawDock(window_: () => BrowserWindow | null): void {
 }
 
 /** Called by the `setPlaybackState` handler, and once at startup. */
-export function setPlaybackState(next: PlaybackState, window_: () => BrowserWindow | null): void {
+export function setPlaybackState(
+  next: DockPlaybackState,
+  window_: () => BrowserWindow | null,
+): void {
   const changed =
     next.playing !== state.playing || next.title !== state.title || next.artist !== state.artist
   state = next

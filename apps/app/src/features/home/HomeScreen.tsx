@@ -604,7 +604,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
   },
   sectionTitle: sectionTitle(theme.colors),
-  link: { color: theme.colors.accent, fontSize: 14, fontWeight: '600' },
   linkSmall: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
   tileUnmeasured: { opacity: 0 },

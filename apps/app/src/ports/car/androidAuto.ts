@@ -28,9 +28,9 @@ import { resolveMediaId, searchBrowseTree, type BrowseTree } from './browseTree'
  *     a previous session or from a voice result.
  *   - `RemotePlaySearch` — "play Kind of Blue", the voice search path.
  *
- * Both are resolved against exactly the same `BrowseTree` CarPlay browses, so
- * when RNTP does ship a browse-tree API the tree is already built and tested
- * and only the publishing call is missing. See docs/MOBILE.md for the
+ * Both are resolved against the same `BrowseTree` a browse API would publish,
+ * so when RNTP does ship one the tree is already built and tested and only the
+ * publishing call is missing. See docs/MOBILE.md for the
  * alternatives (a patched fork, or a small native MediaLibraryService).
  */
 

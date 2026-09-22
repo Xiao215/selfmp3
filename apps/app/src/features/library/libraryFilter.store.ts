@@ -16,7 +16,9 @@ export interface LibraryFilterStore {
   readonly subscribe: (listener: () => void) => () => void
 }
 
-export function createLibraryFilterStore(initial: LibraryFilter = DEFAULT_FILTER): LibraryFilterStore {
+export function createLibraryFilterStore(
+  initial: LibraryFilter = DEFAULT_FILTER,
+): LibraryFilterStore {
   let current = initial
   const listeners = new Set<() => void>()
   return {

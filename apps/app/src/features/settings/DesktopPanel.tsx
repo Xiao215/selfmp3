@@ -6,7 +6,6 @@ import { updates, type UpdateState } from '../../ports/updates'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row } from './SettingsParts'
-import {} from '../metadata/metadata.model'
 
 /**
  * The things only an installed desktop app has. Drawn nowhere else, because

@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util'
+import { DEFAULT_SERVER_PORT } from '@selfmp3/shared'
 
 /**
  * Argument parsing for the `selfmp3` command, kept pure so it can be tested
@@ -33,12 +34,12 @@ Commands
   start                 run the server in the foreground
   scan                  rescan the library folder (server must be running)
   import <url...>       queue one or more links for download (server must be running)
-  backup <dest-dir>     copy data/ and library/ into <dest-dir>, only what changed
+  backup <dest-dir>     copy the music and the database into <dest-dir>, only what changed
   doctor                check node, yt-dlp, ffmpeg, the server and the folders
   help                  show this message
 
 Options
-  --url <base>          server address (default: http://localhost:$SELFMP3_PORT or 4600)
+  --url <base>          server address (default: http://localhost:$SELFMP3_PORT or ${DEFAULT_SERVER_PORT})
   --token <token>       bearer token, if SELFMP3_AUTH_TOKEN is set on the server
   --version, -v         print the version
   --help, -h            show this message

@@ -57,7 +57,7 @@ import { SeekBar } from '../../ui/components/SeekBar'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { label } from '../../ui/surfaces'
+import { artShadow, label } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
@@ -888,14 +888,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     paddingVertical: space.lg,
   },
-  artShadow: {
-    borderRadius: radius.card,
-    shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 12,
-  },
+  artShadow: { borderRadius: radius.card, ...artShadow(theme.colors) },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -121,7 +121,10 @@ describe('tag filtering', () => {
       expect(topSongs(query, library, 2), query).toEqual(plain.slice(0, 2).map(m => m.item))
       if (query) {
         const filter = { ...byTitle, query }
-        expect(filterSongs(library, filter, () => false), query).toEqual(plain.map(m => m.item))
+        expect(
+          filterSongs(library, filter, () => false),
+          query,
+        ).toEqual(plain.map(m => m.item))
       }
     }
   })

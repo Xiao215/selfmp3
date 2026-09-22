@@ -1,7 +1,5 @@
 node_modules
 dist
-library
-data
 *.md
 package-lock.json
 .claude/

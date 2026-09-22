@@ -59,6 +59,13 @@ import type { CloudImportRequest, ImportRequestList, ImportRequestView } from '@
  * query is gated on having an address at all, which is `ClientState.ready`.
  */
 
+/**
+ * Every playlist's members live under this prefix, so an edit that may have
+ * reached any of them (`refetchLivePlaylists`) can ask for all of them again
+ * without knowing which.
+ */
+const playlistsKey = ['playlist'] as const
+
 export const queryKeys = {
   cloudImports: ['cloud-imports'] as const,
   cloudServer: ['cloud-server'] as const,
@@ -67,6 +74,8 @@ export const queryKeys = {
   importQueue: ['import', 'queue'] as const,
   importTools: ['import', 'tools'] as const,
   migrateJob: (id: string) => ['migrate', id] as const,
+  /** Everything counted: what a played song invalidates, in one go. */
+  statsRoot: ['stats'] as const,
   stats: (range: StatsRange) => ['stats', range] as const,
   wrapped: (range: WrappedRange) => ['stats', 'wrapped', range] as const,
   /*
@@ -81,7 +90,8 @@ export const queryKeys = {
    */
   gems: (limit: number) => ['gems', limit] as const,
   history: ['stats', 'history'] as const,
-  playlistSongs: (id: number) => ['playlist', id, 'songs'] as const,
+  playlists: playlistsKey,
+  playlistSongs: (id: number) => [...playlistsKey, id, 'songs'] as const,
   /** The phone's, for the two it asks for that a browser instead reads from `library`. */
   manifest: ['manifest'] as const,
   lyrics: (id: number) => ['lyrics', id] as const,
@@ -94,6 +104,9 @@ export const queryKeys = {
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
   cloud: ['cloud'] as const,
+  /** A library's uids: `which` is this device's copy or the server being asked. */
+  cloudUids: (which: 'device' | 'via-server', baseUrl?: string) =>
+    ['cloud-uids', which, baseUrl] as const,
 }
 
 /**
@@ -114,7 +127,7 @@ function useCloudLibraryChanges(client: QueryClient): void {
     if (!entry) {
       const stop = clientApi().onCloudLibraryChanged(() => {
         void client.invalidateQueries({ queryKey: queryKeys.library })
-        void client.invalidateQueries({ queryKey: ['playlist'] })
+        void client.invalidateQueries({ queryKey: queryKeys.playlists })
         void client.invalidateQueries({ queryKey: queryKeys.manifest })
         void client.invalidateQueries({ queryKey: queryKeys.cloudImports })
       })
@@ -207,6 +220,13 @@ export function useLibrary(): UseQueryResult<Library, Error> {
   })
 }
 
+/**
+ * The server's settings, including the few every client has to agree about.
+ *
+ * How much of a song counts as a play is one of them: it is one number deciding
+ * one thing, and two clients disagreeing means the same listening is counted
+ * differently depending on which one was in your hand.
+ */
 export function useSettings(): UseQueryResult<Settings, Error> {
   return useQuery({
     queryKey: queryKeys.settings,
@@ -295,21 +315,35 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
 }
 
 /**
- * A mutation that invalidates the library on success.
+ * A mutation that invalidates the library on success — and every playlist's
+ * members with it, unless told the edit cannot reach them.
  *
  * Almost every write in this app changes the library snapshot in some way, so
  * this wrapper removes a lot of repetitive `onSuccess` boilerplate — and, more
  * usefully, removes the chance of forgetting one.
+ *
+ * The members go too because these edits answer without the thing they
+ * changed, so their reach cannot be read off the answer: a deleted song leaves
+ * every list it was on, live or not; a bulk tag or a heart may move songs into
+ * or out of a live playlist, which the server works out from its rules on every
+ * read. The library is asked for whole here anyway; the lists on screen beside
+ * it are a small addition, and without it they kept the old members until
+ * their stale time ran out while the sidebar's counts had already moved.
+ *
+ * `members: false` is for the edits that cannot reach a list — a tag made or
+ * renamed, a playlist deleted, whose own list would only 404 if asked again.
  */
 function useLibraryMutation<TArgs, TResult>(
   fn: (args: TArgs) => Promise<TResult>,
   failure?: string,
+  { members = true }: { members?: boolean } = {},
 ): UseMutationResult<TResult, Error, TArgs> {
   const client = useQueryClient()
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
+      if (members) void client.invalidateQueries({ queryKey: queryKeys.playlists })
     },
     ...failed(failure),
   })
@@ -329,7 +363,8 @@ function failed(failure: string | undefined): { meta?: { failure: string } } {
  * `useLibraryMutation(() => clientApi().scan())` cannot infer `TArgs` from a
  * zero-parameter function, so it lands on `unknown` and callers are forced to
  * pass a meaningless argument to `mutate()`. Pinning `TArgs` to `void` here
- * makes `scan.mutate()` mean what it reads as.
+ * makes `scan.mutate()` mean what it reads as. A scan can add or remove songs,
+ * so the members always go with the library here.
  */
 function useVoidLibraryMutation<TResult>(
   fn: () => Promise<TResult>,
@@ -340,6 +375,7 @@ function useVoidLibraryMutation<TResult>(
     mutationFn: fn,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
+      void client.invalidateQueries({ queryKey: queryKeys.playlists })
     },
     ...failed(failure),
   })
@@ -377,14 +413,36 @@ function putInLibrary(
 const libraryFetching = (client: QueryClient): boolean =>
   client.isFetching({ queryKey: queryKeys.library }) > 0
 
-export const useCreateTag = () => useLibraryMutation((name: string) => clientApi().createTag(name))
+/**
+ * Ask for every playlist's members again, when a song edit may have moved it
+ * into or out of a live one.
+ *
+ * The server works a live playlist out from its rules on every read, and a
+ * rule can follow any field of a song — a tag, the heart, the artist, its BPM
+ * — so the answer to a song edit says nothing about which lists it changed.
+ * The library's counts follow on a refetch; the member lists held (an open
+ * playlist page, the cover mosaics' ids) do not, and kept the old members
+ * until their stale time ran out. With no library held there is no telling
+ * whether any playlist is live, and asking is cheaper than a stale list.
+ */
+function refetchLivePlaylists(client: QueryClient): void {
+  const library = client.getQueryData<Library>(queryKeys.library)
+  if (!library || hasLivePlaylists(library)) {
+    void client.invalidateQueries({ queryKey: queryKeys.playlists })
+  }
+}
+
+export const useCreateTag = () =>
+  useLibraryMutation((name: string) => clientApi().createTag(name), undefined, { members: false })
 
 export const useDeleteTag = () =>
   useLibraryMutation((id: number) => clientApi().deleteTag(id), 'Couldn’t delete the tag')
 
 export const useRenameTag = () =>
-  useLibraryMutation(({ id, name }: { id: number; name: string }) =>
-    clientApi().renameTag(id, name),
+  useLibraryMutation(
+    ({ id, name }: { id: number; name: string }) => clientApi().renameTag(id, name),
+    undefined,
+    { members: false },
   )
 
 /**
@@ -431,6 +489,7 @@ export function useSetSongTags() {
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
       putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
+      refetchLivePlaylists(client)
     },
   })
 }
@@ -449,6 +508,7 @@ export function usePatchSong() {
       clientApi().patchSong(id, patch),
     onSuccess: song => {
       putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
+      refetchLivePlaylists(client)
     },
   })
 }
@@ -496,7 +556,13 @@ export function useUpdatePlaylist() {
 }
 
 export const useDeletePlaylist = () =>
-  useLibraryMutation((id: number) => clientApi().deletePlaylist(id), 'Couldn’t delete the playlist')
+  useLibraryMutation(
+    (id: number) => clientApi().deletePlaylist(id),
+    'Couldn’t delete the playlist',
+    {
+      members: false,
+    },
+  )
 
 /**
  * Stop a playlist following its tags.
@@ -548,12 +614,14 @@ export function useToggleLoved() {
 
     onSuccess: (song, _variables, context) => {
       // The server's song, over the guess. A live playlist of loved songs is
-      // the one thing it cannot show, and asks for the library when there is one.
+      // the one thing it cannot show, and asks for the library — and the
+      // members — when there is one.
       putInLibrary(
         client,
         library => withSong(library, song),
         library => context.refetching || hasLivePlaylists(library),
       )
+      refetchLivePlaylists(client)
     },
 
     onError: (_error, _variables, context) => {
@@ -675,7 +743,8 @@ async function fetchPlaylistSongs(client: QueryClient, playlistId: number): Prom
 export function usePlaylistSongIds(playlistId: number | null) {
   const client = useQueryClient()
   return useQuery({
-    queryKey: playlistId === null ? ['playlist', 'none'] : queryKeys.playlistSongs(playlistId),
+    queryKey:
+      playlistId === null ? [...queryKeys.playlists, 'none'] : queryKeys.playlistSongs(playlistId),
     queryFn: async () => {
       if (playlistId === null) return { playlistId: 0, songIds: [] as number[] }
       return fetchPlaylistSongs(client, playlistId)
@@ -684,8 +753,11 @@ export function usePlaylistSongIds(playlistId: number | null) {
     /*
      * A cover mosaic asks for this, and there is one mosaic per playlist tile
      * and per tag row — so a short stale time means every tile refetches on
-     * every visit to the tab. The mutations invalidate `['playlist']`
-     * themselves, so freshness does not depend on this number at all.
+     * every visit to the tab. Freshness does not depend on this number: an edit
+     * to one playlist invalidates its own list, and one that may reach any
+     * list — a song edit with a live playlist present, a delete, a scan —
+     * invalidates the `queryKeys.playlists` prefix (`refetchLivePlaylists`,
+     * `useLibraryMutation`).
      */
     staleTime: 5 * 60_000,
   })
@@ -741,6 +813,8 @@ export function useFixCovers() {
     onSuccess: status => {
       client.setQueryData(queryKeys.fixCovers, status)
       void client.invalidateQueries({ queryKey: queryKeys.library })
+      // A rule can ask for art (`hasArt`), so found covers are new members.
+      refetchLivePlaylists(client)
     },
   })
 }
@@ -767,7 +841,8 @@ export function useSimilar(songId: number | null, limit = 12): UseQueryResult<Si
 
 /**
  * Background analysis progress, polled only while it is running — and the
- * library is refetched once it stops, so the new BPM and key badges appear.
+ * library is refetched once it stops, so the new BPM and key badges appear,
+ * with the members of any live playlist whose rules follow those.
  */
 export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStatus, Error> {
   const client = useQueryClient()
@@ -778,6 +853,7 @@ export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStat
       const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis)
       if (previous?.running && !status.running) {
         void client.invalidateQueries({ queryKey: queryKeys.library })
+        refetchLivePlaylists(client)
       }
       return status
     },
@@ -1019,15 +1095,3 @@ export function useMotion(songId: number | null): MotionCurve | null {
 
   return songId === null ? null : (query.data ?? null)
 }
-
-/**
- * The server's settings, for the few the phone has to agree about.
- *
- * How much of a song counts as a play is one of them: it is one number deciding
- * one thing, and the two clients disagreeing means the same listening is
- * counted differently depending on which one was in your hand.
- *
- * `useServerSettings` is an alias for `useSettings`, kept so existing call
- * sites did not have to move.
- */
-export const useServerSettings = useSettings

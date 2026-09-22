@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { clientApi, songIds, type ServerConnection, type SongIds } from '@selfmp3/client'
+import { clientApi, queryKeys, songIds, type ServerConnection, type SongIds } from '@selfmp3/client'
 import { apiFor } from '../api/client'
 
 /**
@@ -19,13 +19,13 @@ export function useServerSongIds(via: ServerConnection | undefined): SongIds {
   const baseUrl = via?.baseUrl
 
   const mine = useQuery({
-    queryKey: ['cloud-uids', 'device'] as const,
+    queryKey: queryKeys.cloudUids('device'),
     queryFn: () => clientApi().cloudUids(),
     enabled: via !== undefined,
     staleTime: 60_000,
   })
   const theirs = useQuery({
-    queryKey: ['cloud-uids', 'via-server', baseUrl] as const,
+    queryKey: queryKeys.cloudUids('via-server', baseUrl),
     queryFn: () => (via ? apiFor(via).cloudUids() : Promise.reject(new Error('no server to ask'))),
     enabled: via !== undefined,
     retry: false,

@@ -1,7 +1,7 @@
 import { IDLE_PACING, type ImportJob, type ImportQueue } from '@selfmp3/shared'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { memoryStore } from '../../verify/fixtures.js'
-import { createWatcher } from './watcher.js'
+import { createWatcher, GIVE_UP_AFTER } from './watcher.js'
 
 const job = (id: string, patch: Partial<ImportJob> = {}): ImportJob => ({
   id,
@@ -30,19 +30,32 @@ const queueOf = (jobs: ImportJob[]): ImportQueue => ({
   pacing: IDLE_PACING,
 })
 
-function watcherWith(first: ImportQueue) {
+function watcherWith(first: ImportQueue, now?: () => Date) {
   const badges: string[] = []
   const notices: { title: string; message: string }[] = []
   let answer: () => ImportQueue = () => first
+  let reads = 0
+  const store = memoryStore()
   const watcher = createWatcher({
-    store: memoryStore(),
-    queue: () => Promise.resolve(answer()),
+    store,
+    queue: () => {
+      reads += 1
+      return Promise.resolve(answer())
+    },
     badge: text => {
       badges.push(text)
     },
     notify: notice => notices.push(notice),
+    now,
   })
-  return { watcher, badges, notices, answerWith: (next: () => ImportQueue) => (answer = next) }
+  return {
+    watcher,
+    store,
+    badges,
+    notices,
+    reads: () => reads,
+    answerWith: (next: () => ImportQueue) => (answer = next),
+  }
 }
 
 describe('the watcher', () => {
@@ -79,6 +92,11 @@ describe('the watcher', () => {
     await watcher.tick()
     expect(badges.at(-1)).toBe('!')
 
+    // Its own reads — the 2 s poll, the 30 s alarm — are not anyone looking.
+    await watcher.tick()
+    await watcher.tick()
+    expect(badges.at(-1)).toBe('!')
+
     await watcher.seen()
     expect(badges.at(-1)).toBe('')
   })
@@ -104,5 +122,68 @@ describe('the watcher', () => {
     await watcher.tick()
     expect(badges).toEqual([''])
     expect(notices).toHaveLength(0)
+  })
+
+  it('forgets a batch a day old even while the server cannot be read', async () => {
+    let clock = new Date('2026-09-15T12:00:00Z')
+    const { watcher, store, answerWith } = watcherWith(queueOf([job('a')]), () => clock)
+    await watcher.add([job('a')], null)
+    answerWith(() => {
+      throw new Error('asleep')
+    })
+
+    clock = new Date('2026-09-16T11:00:00Z')
+    await watcher.tick()
+    expect(await store.read('batches')).toHaveLength(1)
+
+    clock = new Date('2026-09-16T12:00:01Z')
+    await watcher.tick()
+    expect(await store.read('batches')).toEqual([])
+  })
+
+  describe('following', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('polls while a batch is going, and stops once the server has missed a few answers', async () => {
+      vi.useFakeTimers()
+      const { watcher, reads, answerWith } = watcherWith(queueOf([job('a')]))
+      await watcher.add([job('a')], null)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(reads()).toBe(2)
+
+      answerWith(() => {
+        throw new Error('asleep')
+      })
+      for (let i = 0; i < GIVE_UP_AFTER; i += 1) await vi.advanceTimersByTimeAsync(2_000)
+      expect(reads()).toBe(2 + GIVE_UP_AFTER)
+
+      // No more of its own: the alarm is what asks from here on.
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(reads()).toBe(2 + GIVE_UP_AFTER)
+
+      // A new import starts it again, and one answer is a clean slate.
+      await watcher.add([job('b')], null)
+      answerWith(() => queueOf([job('a'), job('b')]))
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(reads()).toBe(3 + GIVE_UP_AFTER)
+    })
+
+    it('one slow answer among good ones does not end it', async () => {
+      vi.useFakeTimers()
+      const { watcher, reads, answerWith } = watcherWith(queueOf([job('a')]))
+      await watcher.add([job('a')], null)
+      let fail = true
+      answerWith(() => {
+        fail = !fail
+        if (!fail) return queueOf([job('a')])
+        throw new Error('slow')
+      })
+      for (let i = 0; i < 4 * GIVE_UP_AFTER; i += 1) await vi.advanceTimersByTimeAsync(2_000)
+      expect(reads()).toBe(4 * GIVE_UP_AFTER)
+    })
   })
 })

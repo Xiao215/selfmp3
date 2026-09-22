@@ -1,5 +1,5 @@
 import { MotionSchema, type Motion } from '@selfmp3/shared'
-import { readStored, writeStored } from '../ports/idbStore.web'
+import { deleteStoredPrefix, readStored, writeStored } from '../ports/idbStore.web'
 
 /**
  * The browser's copy of each song's motion curve: one IndexedDB record per
@@ -41,7 +41,12 @@ export function writeCachedMotion(songId: number, motion: Motion): void {
   )
 }
 
-/** The store lists no keys; the records are small and go with the site's data. */
-export function clearCachedMotion(): void {
+/**
+ * Forget them all: signing out, where another account's ids would collide and
+ * a song's visuals would follow another song's curve. The set first, so nothing
+ * asked meanwhile is told the curve is still here.
+ */
+export async function clearCachedMotion(): Promise<void> {
   kept.clear()
+  await deleteStoredPrefix(KEY_PREFIX)
 }

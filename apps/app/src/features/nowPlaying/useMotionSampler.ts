@@ -5,7 +5,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { canHearMusic } from '../../ports/liveAudio'
 import { chooseSampler, type MotionCurveLike, type MotionSampler } from './motionSource.model'
 import { debugCurve } from './visualDebug'
-import { useReducedMotion } from '../../ui/useReducedMotion'
+import { useMotionReduced } from '../../ui/motion'
 import { visualFeel } from './visuals.model'
 
 /**
@@ -28,7 +28,7 @@ let heard: FrequencyAnalyser | null = null
  */
 export function useMotionSampler(song: Song, active: boolean): MotionSampler {
   const player = usePlayer()
-  const reduced = useReducedMotion()
+  const reduced = useMotionReduced()
 
   const forced = debugCurve()
   // The curve analysis stored for this song, fetched only while a visual shows:

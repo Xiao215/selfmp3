@@ -31,11 +31,10 @@ const DownloadEntrySchema = z.object({
    * while its database is. Rebuild it and every id is handed out again: the
    * file called `2.m4a` then holds whatever used to be song 2, and the app
    * played it happily under the new song's name (Xiao's iPad, 2026-09-20 —
-   * 42 of 45 kept songs were somebody else's audio). Optional because an
-   * index written before this existed has none, and a copy we cannot vouch
-   * for is not played.
+   * 42 of 45 kept songs were somebody else's audio). Required, so a kept copy
+   * is always one that can be vouched for.
    */
-  rev: z.string().optional(),
+  rev: z.string(),
   downloadedAt: z.string(),
 })
 export type DownloadEntry = z.infer<typeof DownloadEntrySchema>
@@ -53,7 +52,9 @@ export const EMPTY_INDEX: DownloadIndex = { version: 1, entries: {} }
  * Read an index back, falling back to an empty one.
  *
  * A corrupt index must never stop the app opening: the audio files are still
- * on disk and the worst case is re-downloading them.
+ * on disk and the worst case is re-downloading them. An index written before
+ * entries carried a `rev` takes the same path — none of its entries can be
+ * vouched for, so the whole file is dropped and those songs are fetched again.
  */
 export function parseIndex(raw: unknown): DownloadIndex {
   const parsed = DownloadIndexSchema.safeParse(raw)
@@ -95,9 +96,8 @@ export function isDownloaded(index: DownloadIndex, songId: number): boolean {
  * Whether the file kept for a song is still that song's.
  *
  * True only when the entry remembers the same `rev` the library reports now.
- * An entry from before revs were written down (`rev` absent) cannot be
- * vouched for, so it is not played either: the song streams instead, and the
- * catch-up pass fetches it again with a rev attached.
+ * A song the library has not told us the rev of cannot be matched against, so
+ * it is not played from disk either: it streams instead.
  */
 export function entryIsCurrent(entry: DownloadEntry | null, rev: string | undefined): boolean {
   return entry !== null && rev !== undefined && entry.rev === rev

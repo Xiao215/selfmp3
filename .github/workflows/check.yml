@@ -36,7 +36,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          # One Node version for the whole repository, in .nvmrc; `engines` in
+          # package.json says the same thing to anyone installing by hand.
+          node-version-file: .nvmrc
           cache: npm
 
       # With install scripts, unlike the Pages build: better-sqlite3 is a
@@ -45,6 +47,11 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # The three Playwright suites are in no other project's graph, so they
+      # are checked on their own. `npm run check` does the same.
+      - name: Typecheck the verify suites
+        run: npm run typecheck:verify
 
       - name: Lint
         run: npm run lint

@@ -40,4 +40,3 @@ export function useLibraryFilter(): FilterState {
   const filter = useSyncExternalStore(store.subscribe, store.get, store.get)
   return [filter, store.set]
 }
-

@@ -26,7 +26,7 @@ import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { CloudError, type CloudStore } from '../bucket/store.js'
-import { MemoryCloudStore } from '../bucket/memoryStore.js'
+import { MemoryCloudStore } from './fixtures/memoryStore.js'
 import { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { MotionStore } from './motionStore.js'
@@ -46,6 +46,8 @@ import { CoverService } from './covers.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
 import { ScannerService } from './scanner.js'
+import { SongRemovalService } from './songRemoval.js'
+import { LyricsCache } from './lyricsCache.js'
 
 /**
  * Publishing to the bucket, against a real library folder, a database built
@@ -106,7 +108,7 @@ describe('CloudSyncService', () => {
       stats: new StatsRepository(db),
       sync: syncRepo,
       clock: new SyncClock({
-        deviceId: () => cloud.deviceId('mac'),
+        deviceId: () => cloud.deviceId(),
         latest: () => syncRepo.latestStamp(),
         now: () => clock,
       }),
@@ -124,7 +126,7 @@ describe('CloudSyncService', () => {
       sync: syncRepo,
       storage,
       clock: new SyncClock({
-        deviceId: () => cloud.deviceId('mac'),
+        deviceId: () => cloud.deviceId(),
         latest: () => syncRepo.latestStamp(),
         now: () => clock,
       }),
@@ -1217,7 +1219,22 @@ describe('CloudSyncService', () => {
       // their audio has not been fetched yet, which is a library being
       // restored and not a library that is gone. Forgetting it would throw
       // away the songs, their tags and their play history all at once.
-      expect(await scanner.purgeMissing()).toBe(0)
+      const logger = createLogger('silent')
+      const removal = new SongRemovalService({
+        storage: new LocalStorageDriver(root),
+        songs,
+        tags,
+        lyrics: new LyricsService(new LocalStorageDriver(root), logger, () =>
+          Promise.reject(new Error('offline')),
+        ),
+        covers,
+        lyricsCache: new LyricsCache({ dataDir } as Config, logger),
+        motion: new MotionStore({ dataDir }, logger),
+        lyricsIndex: { remove: () => undefined },
+        onChange: () => undefined,
+        logger,
+      })
+      expect(await removal.purgeMissing()).toBe(0)
       expect(uidsHere()).toEqual(before)
     })
 

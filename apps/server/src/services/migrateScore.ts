@@ -4,6 +4,7 @@ import {
   type MigrateCandidate,
   type MigrateSourceTrack,
 } from '@selfmp3/shared'
+import type { SearchHit } from './ytdlp.js'
 
 /**
  * Deciding which YouTube result is the song.
@@ -16,15 +17,6 @@ import {
  *
  * Pure, so the weighting can be tuned against a table of real cases.
  */
-
-/** What the searcher hands over for one result. */
-export interface SearchHit {
-  url: string
-  title: string
-  channel: string
-  duration: number
-  thumbnail: string | null
-}
 
 /** Lower-case, no accents, no punctuation, single spaces. */
 export function normalizeForMatch(text: string): string {

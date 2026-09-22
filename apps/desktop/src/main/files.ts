@@ -90,7 +90,12 @@ export async function download(
   const target = await writablePathFor(request.kind, request.name)
   const part = `${target}.part`
 
-  const resumeFrom = request.resumeFrom ?? (await sizeOf(part))
+  /*
+   * Always what is on disk, never an offset the page remembered: the two can
+   * disagree after a crash mid-write, and an append that lands at the wrong
+   * offset is a song that plays for forty seconds and then stops.
+   */
+  const resumeFrom = await sizeOf(part)
   const controller = new AbortController()
   running.set(request.id, controller)
 
@@ -119,20 +124,38 @@ export async function download(
     if (body === null) throw new Error('no body')
 
     const reader = body.getReader()
+    /*
+     * The disk's one listener, on before the first write. A full disk or a
+     * pulled volume fails a write that had already returned `true`, so the
+     * stream's `error` arrives while this loop is waiting on the network, not
+     * on `drain` — and an `error` nobody is listening for is an uncaught
+     * exception in the main process: the app, not the download. Every wait
+     * below is raced against this, so the disk failing ends the download the
+     * way a bad response does, with a rejection the page hears about. The
+     * reader is cancelled too, or the network would keep pulling the rest of
+     * the song into a queue nothing reads from.
+     */
+    const failed = new Promise<never>((_, reject) => {
+      sink.on('error', error => {
+        reject(error)
+        void reader.cancel(error).catch(() => {})
+      })
+    })
+    // Only the race below wants this rejection; on its own it is not "unhandled".
+    failed.catch(() => {})
+
     const report = progressGate(PROGRESS_INTERVAL_MS)
     try {
       for (;;) {
-        const { done, value } = await reader.read()
+        const { done, value } = await Promise.race([reader.read(), failed])
         if (done) break
         /*
          * `write` returning false is the disk saying it is behind. Reading on
          * regardless holds the rest of the song in memory until it catches up
          * — on a fast network and a slow disk, most of the song. Waiting for
-         * `drain` lets the network wait instead. `once` rejects on the
-         * stream's `error`, so a disk that fails mid-wait fails the download
-         * rather than hanging it.
+         * `drain` lets the network wait instead.
          */
-        if (!sink.write(Buffer.from(value))) await once(sink, 'drain')
+        if (!sink.write(Buffer.from(value))) await Promise.race([once(sink, 'drain'), failed])
         written += value.byteLength
         if (report.due()) onProgress(written, totalBytes)
       }

@@ -16,6 +16,7 @@ function recorder(overrides: Partial<SignOutSteps> = {}): { steps: SignOutSteps;
       forgetLibrary: step('forget-library'),
       removeDownloads: step('remove-downloads'),
       forgetSavedLibrary: step('forget-saved'),
+      forgetExcluded: () => void calls.push('forget-excluded'),
       done: () => void calls.push('done'),
       ...overrides,
     },
@@ -26,13 +27,22 @@ describe('signing out of the cloud', () => {
   it('stops the music, sends what is waiting, ends the session, forgets what was kept, then hands back', async () => {
     const { steps, calls } = recorder()
     await signOutOfCloud(steps)
-    expect(calls.slice(0, 3)).toEqual(['stop', 'send', 'end'])
-    expect([...calls.slice(3, 6)].sort()).toEqual([
+    expect(calls.slice(0, 4)).toEqual(['stop', 'send', 'end', 'forget-excluded'])
+    expect([...calls.slice(4, 7)].sort()).toEqual([
       'forget-library',
       'forget-saved',
       'remove-downloads',
     ])
-    expect(calls[6]).toBe('done')
+    expect(calls[7]).toBe('done')
+  })
+
+  it('forgets which songs were removed by hand, whether or not the rest can be forgotten', async () => {
+    const { steps, calls } = recorder({
+      forgetSavedLibrary: () => Promise.reject(new Error('quota')),
+    })
+    await signOutOfCloud(steps)
+    expect(calls).toContain('forget-excluded')
+    expect(calls.at(-1)).toBe('done')
   })
 
   it('signs out even when the waiting changes cannot be sent', async () => {
@@ -54,6 +64,7 @@ describe('signing out of the cloud', () => {
   it('does not hand back when the session could not be ended', async () => {
     const { steps, calls } = recorder({ endSession: () => Promise.reject(new Error('no storage')) })
     await expect(signOutOfCloud(steps)).rejects.toThrow('no storage')
+    expect(calls).not.toContain('forget-excluded')
     expect(calls).not.toContain('done')
   })
 })

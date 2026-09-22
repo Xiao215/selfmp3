@@ -21,6 +21,7 @@ import {
   openState,
   pkceChallenge,
   pkceVerifier,
+  signInTtlInWords,
   signState,
 } from './signin.js'
 
@@ -205,7 +206,7 @@ export async function callback(ctx: Context): Promise<Response> {
     code: formatSignInCode(signInCode),
     notes: [
       'Go back to self.mp3 — it asks for this code if it needs it.',
-      'It works once, for ten minutes. Never type it anywhere else, or give it to anyone.',
+      `It works once, for ${signInTtlInWords()}. Never type it anywhere else, or give it to anyone.`,
     ],
   })
 }

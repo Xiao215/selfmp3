@@ -215,8 +215,8 @@ export const LyricsResponseSchema = z.object({
    * needed none; null when the words are not Chinese or Japanese, or the
    * server could not romanize them. Part of the lyrics so that whatever keeps
    * the words keeps their romaji, and a device away from its server still has
-   * both. Absent from a server older than this field.
+   * both.
    */
-  romanized: z.array(z.string()).nullable().optional(),
+  romanized: z.array(z.string()).nullable(),
 })
 export type LyricsResponse = z.infer<typeof LyricsResponseSchema>

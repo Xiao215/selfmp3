@@ -6,17 +6,13 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
-      // The web app built for GitHub Pages, when built locally to try it.
-      '**/dist-pages/**',
       // Emitted declaration files from `tsc --build`; nothing to lint.
       '**/dist-types/**',
       // Wrangler's bundles and local state, written while `wrangler dev` runs.
       '**/.wrangler/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',
-      'library/**',
       '.claude/**',
-      'data/**',
       /*
        * The app lints itself with eslint-config-expo (apps/app/eslint.config.js).
        * This config is type-aware and resolves types through the root tsconfig
@@ -107,9 +103,10 @@ export default tseslint.config(
   },
   {
     /*
-     * Tests and the service worker sit outside the app's tsconfig projects —
-     * tests because they should not ship in the build output, sw.ts because it
-     * needs the WebWorker lib rather than the DOM one (see tsconfig.sw.json).
+     * Tests, what they hand each other, and the service worker sit outside the
+     * app's tsconfig projects — tests and their fixtures because they should
+     * not ship in the build output, sw.ts because it needs the WebWorker lib
+     * rather than the DOM one (see tsconfig.sw.json).
      *
      * typescript-eslint's project service therefore cannot resolve types for
      * them, so type-aware rules are switched off here.
@@ -120,7 +117,7 @@ export default tseslint.config(
      * they cannot share one, for the same reason the workspaces cannot (see
      * the note in the root tsconfig.json).
      */
-    files: ['**/*.test.ts', '**/*.test.tsx'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/src/**/fixtures/**/*.ts'],
     extends: [tseslint.configs.disableTypeChecked],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',

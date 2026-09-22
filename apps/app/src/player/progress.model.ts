@@ -12,6 +12,13 @@
  * Pure, so vitest runs it: no React, no engine.
  */
 
+/**
+ * What one seek moves the song by, in seconds. Ten is the podcast convention,
+ * and it is the same step wherever the ask comes from — a menu item, a media
+ * key, a headset, a lock screen — so a jump is the same jump everywhere.
+ */
+export const SEEK_STEP_SECONDS = 10
+
 /** Where the song has got to. Read it only where a scrubber or a synced line needs it. */
 export interface PlayerProgress {
   readonly position: number

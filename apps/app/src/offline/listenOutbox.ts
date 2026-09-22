@@ -52,7 +52,7 @@ const outbox = createListenOutbox({
   },
 })
 
-export const { flushListens, recordListen, loadPendingListens } = outbox
+export const { flushListens, recordListen } = outbox
 
 /*
  * `recordSkipListen` and `subscribePendingListens` are the package's too and

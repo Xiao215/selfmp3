@@ -1,14 +1,6 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "types": ["node"],
-    "verbatimModuleSyntax": true
-  },
+  "extends": "./tsconfig.base.json",
+  // Not in the shared base: `include` resolves relative to the file that
+  // wrote it, so one there would point all three suites at this folder.
   "include": ["**/*.ts"]
 }

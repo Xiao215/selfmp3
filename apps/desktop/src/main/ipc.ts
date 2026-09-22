@@ -5,13 +5,14 @@ import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   CHANNELS,
   EVENTS,
+  dockPlaybackStateSchema,
   downloadRequestSchema,
   externalUrlSchema,
   fileKindSchema,
   fileNameSchema,
   fileTextSchema,
-  loginItemSchema,
-  playbackStateSchema,
+  headersSchema,
+  loginItemOpenSchema,
   secretKeySchema,
   secretValueSchema,
   transferIdSchema,
@@ -103,7 +104,7 @@ export function registerIpc({
         fileKindSchema.parse(kind),
         fileNameSchema.parse(name),
         externalUrlSchema.parse(url),
-        headers === undefined ? undefined : (headers as Record<string, string>),
+        headersSchema.optional().parse(headers),
       ),
   )
   ipcMain.handle(CHANNELS.filesWrite, (_event, kind: unknown, name: unknown, text: unknown) =>
@@ -129,19 +130,13 @@ export function registerIpc({
   })
 
   /*
-   * Accepted and, in this phase, only remembered. Phase 4 is where it holds a
-   * power-save blocker and labels the Dock menu; taking the channel now means
-   * the page can publish its state from the moment the provider is wired,
-   * rather than gaining a new call later.
-   */
-  /*
    * Open at login. Reading it back from the OS rather than remembering what was
    * asked for: System Settings can turn it off behind the app's back, and a
    * toggle that then still shows "on" is a toggle nobody trusts again.
    */
   ipcMain.handle(CHANNELS.loginItemGet, () => app.getLoginItemSettings().openAtLogin)
   ipcMain.handle(CHANNELS.loginItemSet, (_event, value: unknown) => {
-    const { open } = loginItemSchema.parse({ open: value })
+    const open = loginItemOpenSchema.parse(value)
     // Just `openAtLogin`. `openAsHidden` — which would have opened it without
     // a window — was removed when macOS moved login items to ServiceManagement,
     // and Electron dropped it with the rest of that API.
@@ -153,7 +148,7 @@ export function registerIpc({
   ipcMain.handle(CHANNELS.updatesInstall, () => updates.install())
 
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
-    setPlaybackState(playbackStateSchema.parse(state), window_)
+    setPlaybackState(dockPlaybackStateSchema.parse(state), window_)
   })
 
   deepLinks.listen(url => {

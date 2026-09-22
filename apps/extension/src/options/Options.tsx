@@ -1,3 +1,4 @@
+import { DEFAULT_LOCAL_SERVER_URL } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
@@ -213,7 +214,7 @@ export function Options(): ReactNode {
           <p className="hint">
             For a library with no bucket, or a server this computer can reach that your library has
             not been told about; it is tried before the ones from your sync. On this computer,{' '}
-            <code>http://localhost:4600</code>. Over Tailscale, your server’s{' '}
+            <code>{DEFAULT_LOCAL_SERVER_URL}</code>. Over Tailscale, your server’s{' '}
             <code>https://…ts.net</code> address.
           </p>
           {wantsToken && (

@@ -330,11 +330,17 @@ export class CloudRepository {
     )
   }
 
-  /** This server's name in the bucket, made the first time it is asked for. */
-  deviceId(kind: string): string {
+  /**
+   * This server's name in the bucket, made the first time it is asked for.
+   *
+   * The name starts from the platform, so every caller would otherwise have to
+   * spell the same `darwin → mac` out; the id is written down once anyway, so
+   * only the first call on a fresh database ever looks.
+   */
+  deviceId(): string {
     const existing = this.#getSecret.get(DEVICE_SECRET)?.value
     if (existing) return existing
-    const id = newCloudDeviceId(kind)
+    const id = newCloudDeviceId(process.platform === 'darwin' ? 'mac' : process.platform)
     this.#setSecret.run(DEVICE_SECRET, id)
     return id
   }

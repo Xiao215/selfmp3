@@ -1,11 +1,11 @@
 import type {
   Command,
   DesktopInfo,
+  DockPlaybackState,
   DownloadRequest,
   DownloadResult,
   FileKind,
   FileStat,
-  PlaybackState,
   TransferProgress,
   UpdateStatus,
   Usage,
@@ -137,24 +137,22 @@ export interface DesktopBridge {
    * Lets the shell hold a `powerSaveBlocker` while music is playing and label
    * the Dock menu with what is on.
    */
-  setPlaybackState(state: PlaybackState): Promise<void>
+  setPlaybackState(state: DockPlaybackState): Promise<void>
 }
 
 /*
- * Everything the plan settled is here now. The rule that kept `loginItem` and
- * `updates` out until their handlers existed is worth keeping for whatever
- * comes next: a member of this interface is a promise that something answers
- * it, and a bridge that declares what it cannot do is worse than one that grows.
+ * A member of this interface is a promise that something answers it: nothing
+ * goes here until its handler exists.
  */
 
 export type {
   Command,
   DesktopInfo,
+  DockPlaybackState,
   DownloadRequest,
   DownloadResult,
   FileKind,
   FileStat,
-  PlaybackState,
   TransferProgress,
   UpdateStatus,
   Usage,

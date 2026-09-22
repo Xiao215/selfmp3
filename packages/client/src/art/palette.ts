@@ -104,7 +104,8 @@ export function tonePalette({ hue, chroma }: CoverTone): [Rgb, Rgb, Rgb] {
 }
 
 function hexToRgb(hex: string): Rgb {
-  return [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16)) as unknown as Rgb
+  const byte = (at: number): number => parseInt(hex.slice(at, at + 2), 16)
+  return [byte(1), byte(3), byte(5)]
 }
 
 export const rgba = ([r, g, b]: Rgb, alpha: number): string =>
@@ -148,7 +149,12 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   return [h, s, l]
 }
 
-function hslToRgb(h: number, s: number, l: number): Rgb {
+/**
+ * HSL to 0–255 RGB. Exported because the letter tile a song without a cover
+ * gets is drawn in `hsl()` by the platform, and `coverColor.ts` has to work out
+ * the same colour to tint the row with — one arithmetic, not two that drift.
+ */
+export function hslToRgb(h: number, s: number, l: number): Rgb {
   const k = (n: number): number => (n + h / 30) % 12
   const a = s * Math.min(l, 1 - l)
   const f = (n: number): number => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))

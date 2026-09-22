@@ -7,7 +7,7 @@ export interface Page {
 /**
  * The tab's link and title, which `activeTab` hands over for the tab the
  * toolbar button was pressed on — or the link given as `?url=`, which is how
- * the end-to-end specs open it (and, later, the review window).
+ * the end-to-end specs and the menu's own window (menus.ts) open it.
  */
 export async function currentPage(): Promise<Page> {
   const params = new URLSearchParams(location.search)

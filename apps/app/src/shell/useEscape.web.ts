@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 import type { EscapeOptions } from './useEscape'
 
@@ -19,6 +19,12 @@ const layers: string[] = []
  * Anything else, such as the library's selection, listens in the bubble phase,
  * so a layer has already had its chance. It also stands aside when focus is
  * inside a menu, dialog, listbox or combobox, which is closing itself.
+ *
+ * The callback is held in a ref and read at the keypress, the way `useHotkeys`
+ * holds its handlers. Callers hand in an inline `onClose`, a new function on
+ * every render of their parent; had the effect depended on it, a re-render
+ * behind an open popover would have taken the sheet beneath it out of the
+ * stack and put it back on top, and Escape would have closed the sheet.
  */
 export function useEscape(
   active: boolean,
@@ -26,6 +32,10 @@ export function useEscape(
   { layer = false }: EscapeOptions = {},
 ): void {
   const id = useId()
+  const latest = useRef(onEscape)
+  useEffect(() => {
+    latest.current = onEscape
+  })
 
   useEffect(() => {
     if (!active) return undefined
@@ -36,7 +46,7 @@ export function useEscape(
         if (event.key !== 'Escape' || layers[layers.length - 1] !== id) return
         event.preventDefault()
         event.stopPropagation()
-        onEscape()
+        latest.current()
       }
       window.addEventListener('keydown', onKeyDown, true)
       return () => {
@@ -55,9 +65,9 @@ export function useEscape(
       ) {
         return
       }
-      onEscape()
+      latest.current()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, onEscape, layer, id])
+  }, [active, layer, id])
 }

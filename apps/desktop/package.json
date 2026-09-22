@@ -15,7 +15,7 @@
     "dev": "node scripts/dev.mjs",
     "dist": "node scripts/dist.mjs",
     "typecheck": "tsc --build",
-    "clean": "rm -rf dist dist-types release tsconfig.tsbuildinfo",
+    "clean": "rm -rf dist dist-types release resources tsconfig.tsbuildinfo",
     "icon": "node scripts/icon.mjs"
   },
   "devDependencies": {
@@ -24,6 +24,6 @@
     "electron-builder": "26.15.3",
     "electron-updater": "6.8.9",
     "esbuild": "^0.28.2",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.4"
   }
 }

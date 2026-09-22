@@ -6,13 +6,13 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwwt/kIPLmtnBQ1iOOLLzSGPmc+LEXLIYh4rABc6ieaSiM8dT9XQ9w68fpjweSCQ0XN6QNaN1LVO0pTeTy4MSHbfycnJYgfhZFGoHCNXJo9jr0v797Pys7fbGI8JO+56XW7Ixt7tZrMOelZhR34cpodGqVXgrLFfGPalpV6+eJeocfeaOv17Wu47azPCK+EGS3f3k9XHPY1OXQhw869cwGlKPFJErwH/2th7LcYxXfIrrIXCyQDyLnEX/ctnutfmIo1NLYn13E9q8dnyB4Q1PcXdXr4/bUsFFs0vKb7wqjrpi2Rv1WefK3CdOd+kcBFfqTVNyqoI8frAhKOrcRS7yiwIDAQAB",
   "minimum_chrome_version": "120",
   "icons": {
-    "128": "icons/icon-192.png"
+    "192": "icons/icon-192.png"
   },
   "action": {
     "default_title": "Add to self.mp3",
     "default_popup": "popup.html",
     "default_icon": {
-      "32": "icons/icon-192.png"
+      "192": "icons/icon-192.png"
     }
   },
   "background": {

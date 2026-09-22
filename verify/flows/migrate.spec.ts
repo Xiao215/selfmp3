@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
+
 /**
  * Migrating a playlist: paste songs, match them, choose, and start over.
  *
@@ -11,9 +13,8 @@ import { expect, test, type Page } from '@playwright/test'
 const SONGS = 'YOASOBI - 群青\nアイドル by YOASOBI'
 
 async function skipWithoutYtDlp(page: Page): Promise<void> {
-  const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
   const tools = await page.request
-    .get(`${api}/api/import/tools`)
+    .get(`${appApi}/api/import/tools`)
     .then(async response =>
       response.ok() ? ((await response.json()) as { ytdlp?: boolean }) : null,
     )

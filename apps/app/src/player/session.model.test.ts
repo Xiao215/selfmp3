@@ -12,17 +12,16 @@ const known = (...ids: number[]): ReadonlySet<number> => new Set(ids)
 
 describe('the saved session', () => {
   it('survives being written and read back', () => {
-    const saved = sessionFromQueue(queue([3, 1, 2], 1), 42.5, 1000)
+    const saved = sessionFromQueue(queue([3, 1, 2], 1), 42.5)
     expect(parseSession(JSON.stringify(saved))).toEqual({
       queueIds: [3, 1, 2],
       index: 1,
       position: 42.5,
-      savedAt: 1000,
     })
   })
 
   it('keeps nothing for an empty queue, and reads nothing from junk', () => {
-    expect(sessionFromQueue(EMPTY_QUEUE, 10, 1)).toBeNull()
+    expect(sessionFromQueue(EMPTY_QUEUE, 10)).toBeNull()
     expect(parseSession(null)).toBeNull()
     expect(parseSession('not json')).toBeNull()
     expect(parseSession(JSON.stringify({ queueIds: [1, 2], index: 5, position: 1 }))).toBeNull()
@@ -31,9 +30,7 @@ describe('the saved session', () => {
 })
 
 describe('launchPlayback', () => {
-  const saved = parseSession(
-    JSON.stringify({ queueIds: [4, 9, 4, 7], index: 2, position: 61, savedAt: 1 }),
-  )
+  const saved = parseSession(JSON.stringify({ queueIds: [4, 9, 4, 7], index: 2, position: 61 }))
 
   it('comes back to the saved song and position, without songs since removed', () => {
     expect(launchPlayback(saved, undefined, known(4, 7))).toEqual({

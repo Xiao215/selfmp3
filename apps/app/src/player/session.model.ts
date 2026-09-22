@@ -18,7 +18,6 @@ interface SavedSession {
   readonly index: number
   /** Seconds into the song at `index`. */
   readonly position: number
-  readonly savedAt: number
 }
 
 interface LaunchPlayback {
@@ -27,17 +26,12 @@ interface LaunchPlayback {
   readonly position: number
 }
 
-export function sessionFromQueue(
-  queue: QueueState,
-  position: number,
-  now: number,
-): SavedSession | null {
+export function sessionFromQueue(queue: QueueState, position: number): SavedSession | null {
   if (queue.index < 0 || queue.index >= queue.items.length) return null
   return {
     queueIds: [...queue.items],
     index: queue.index,
     position: Math.max(0, position),
-    savedAt: now,
   }
 }
 
@@ -53,8 +47,7 @@ export function parseSession(raw: string | null): SavedSession | null {
     if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= ids.length)
       return null
     const position = typeof value.position === 'number' ? Math.max(0, value.position) : 0
-    const savedAt = typeof value.savedAt === 'number' ? value.savedAt : 0
-    return { queueIds: ids, index, position, savedAt }
+    return { queueIds: ids, index, position }
   } catch {
     return null
   }

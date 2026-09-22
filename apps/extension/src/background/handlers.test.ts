@@ -1,12 +1,34 @@
 import { ApiError } from '@selfmp3/client/core'
+import { IDLE_PACING, type ImportJob } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
-import { createHandlers, explain, Refusal } from './handlers.js'
+import { createHandlers, explain, forPages, Refusal } from './handlers.js'
+import { createWatcher } from './watcher.js'
 
 const library = fixtureLibrary()
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+
+/** One import that did not make it, for the queue the fake server answers with. */
+const failedJob: ImportJob = {
+  id: 'job-1',
+  url: IDOL_URL,
+  status: 'error',
+  step: 'downloading',
+  progress: null,
+  title: 'Idol',
+  artist: 'YOASOBI',
+  album: '',
+  thumbnail: null,
+  duration: 213,
+  error: 'Video unavailable',
+  songId: null,
+  attempts: 1,
+  tagIds: [],
+  createdAt: '2026-09-15 12:00:00',
+  updatedAt: '2026-09-15 12:00:30',
+}
 
 /** A server in a function: health for anyone, everything else for the token. */
 function fakeServer(token: string | null) {
@@ -40,6 +62,10 @@ function fakeServer(token: string | null) {
         return Promise.resolve(json(200, { ...library, tags }))
       case 'GET /api/settings':
         return Promise.resolve(json(200, { defaultImportTagIds: [1] }))
+      case 'GET /api/import/queue':
+        return Promise.resolve(
+          json(200, { jobs: [failedJob], active: 0, queued: 0, pacing: IDLE_PACING }),
+        )
       case 'POST /api/tags': {
         const { name } = JSON.parse(String(init.body)) as { name: string }
         const made = { id: tags.length + 1, name, hue: 200, songCount: 0 }
@@ -163,6 +189,38 @@ describe('asking about a link', () => {
     await expect(handlers.preview({ type: 'preview', url: IDOL_URL })).rejects.toBeInstanceOf(
       Refusal,
     )
+  })
+})
+
+describe('the queue', () => {
+  it('clears the badge’s ! when a page asks, and not when the watcher does', async () => {
+    const store = memoryStore()
+    const badges: string[] = []
+    // Wired as index.ts wires them: the watcher reads the queue through the
+    // handlers it is a dependency of.
+    const watcher = createWatcher({
+      store,
+      queue: () => handlers.queue({ type: 'queue' }),
+      badge: text => {
+        badges.push(text)
+      },
+      notify: () => undefined,
+    })
+    const handlers = createHandlers({ store, fetch: fakeServer(null).fetch, watcher })
+    await handlers.connect({ type: 'connect', baseUrl: 'http://localhost:4600', token: null })
+
+    await watcher.add([{ ...failedJob, status: 'running' }], null)
+    await watcher.tick()
+    expect(badges.at(-1)).toBe('!')
+    await watcher.tick()
+    expect(badges.at(-1)).toBe('!')
+
+    // The pill's channel reads the queue the plain way too.
+    await handlers.queue({ type: 'queue' })
+    expect(badges.at(-1)).toBe('!')
+
+    await forPages(handlers, watcher).queue({ type: 'queue' })
+    expect(badges.at(-1)).toBe('')
   })
 })
 

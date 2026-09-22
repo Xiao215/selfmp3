@@ -1,6 +1,7 @@
 import type { MediaSessionActions, MediaSessionPort, NowPlaying } from './mediaSession'
 import { desktop } from './desktop/bridge'
 import { artworkInliner } from './inlineArtwork'
+import { SEEK_STEP_SECONDS } from '../player/progress.model'
 
 export type { MediaSessionActions, MediaSessionPort, NowPlaying }
 
@@ -84,8 +85,8 @@ function handlers(actions: MediaSessionActions | null): void {
   set('seekto', details => {
     if (typeof details.seekTime === 'number') actions.seekTo(details.seekTime)
   })
-  set('seekforward', details => actions.seekBy(details.seekOffset ?? 10))
-  set('seekbackward', details => actions.seekBy(-(details.seekOffset ?? 10)))
+  set('seekforward', details => actions.seekBy(details.seekOffset ?? SEEK_STEP_SECONDS))
+  set('seekbackward', details => actions.seekBy(-(details.seekOffset ?? SEEK_STEP_SECONDS)))
 }
 
 export const mediaSession: MediaSessionPort = {

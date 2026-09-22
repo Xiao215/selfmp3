@@ -50,6 +50,7 @@ export * from './hlc.js'
 export * from './sync.js'
 export * from './smartRules.js'
 export * from './coverTone.js'
+export * from './theme.js'
 
 /** Audio file extensions the scanner will pick up. */
 export const AUDIO_EXTENSIONS = [

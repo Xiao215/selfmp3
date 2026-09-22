@@ -223,15 +223,42 @@ export class DownloadQueue {
     if (this.#state.error !== null) this.#patch({ error: null })
   }
 
+  /**
+   * Throw these songs' files away, and forget only the ones that went.
+   *
+   * The index is committed after the deletes settle, not before: a song whose
+   * file could not be removed keeps its entry, so its bytes still count towards
+   * "n songs kept" and the storage figure, and the next remove tries it again.
+   * Forgetting first and deleting after, without waiting, left an orphan — a
+   * file with no entry, which nothing could see and "Remove all" did not tally.
+   */
   async remove(songIds: readonly number[]): Promise<void> {
+    const kept = songIds
+      .map(songId => entryFor(this.#state.index, songId))
+      .filter(entry => entry !== null)
+    const settled = await Promise.allSettled(kept.map(entry => this.#storage.delete(entry)))
+
     let index = this.#state.index
-    for (const songId of songIds) {
-      const entry = entryFor(index, songId)
-      if (!entry) continue
-      this.#storage.delete(entry)
-      index = removeEntry(index, songId)
-    }
+    const failures: string[] = []
+    settled.forEach((result, position) => {
+      const entry = kept[position]
+      if (entry === undefined) return
+      if (result.status === 'fulfilled') {
+        index = removeEntry(index, entry.songId)
+        return
+      }
+      const title = this.#songsById.get(entry.songId)?.title ?? `song ${entry.songId}`
+      const reason = result.reason instanceof Error ? result.reason.message : null
+      failures.push(reason ? `${title}: not removed (${reason})` : `${title}: not removed`)
+    })
+
     await this.#commit(index)
+    // Told after the commit, the way a failed download is: one line, the first
+    // failure by name, and how many more went the same way.
+    const [first, ...rest] = failures
+    if (first !== undefined) {
+      this.#patch({ error: rest.length === 0 ? first : `${first}, and ${rest.length} more` })
+    }
   }
 
   async removeAll(): Promise<void> {

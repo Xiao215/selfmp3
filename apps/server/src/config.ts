@@ -1,9 +1,9 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
+import { DEFAULT_DOORMAN_URL, DEFAULT_SERVER_PORT } from '@selfmp3/shared'
 import { loadDotEnv } from './dotenv.js'
 
 /**
@@ -12,10 +12,6 @@ import { loadDotEnv } from './dotenv.js'
  * A typo in an environment variable fails at boot with a readable message
  * instead of surfacing as `undefined` three layers deep at 2am.
  */
-
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-/** dist/ -> apps/server -> apps -> repo root. Works from source and from build. */
-const REPO_ROOT = path.resolve(HERE, '../../..')
 
 /** A folder name, so not the `self.mp3` of the wordmark: a dot reads as a suffix. */
 const APP_DIR_NAME = 'selfmp3'
@@ -65,7 +61,26 @@ function profileSuffix(profile: string): string {
   return safe ? `-${safe.slice(0, 20)}` : ''
 }
 
-const DEFAULT_DIRS = defaultDirs()
+/**
+ * The two folders as the environment settles them: the profile's defaults,
+ * unless `SELFMP3_LIBRARY_DIR` / `SELFMP3_DATA_DIR` point elsewhere.
+ *
+ * Nothing is created here. The server makes the folders in `loadConfig`; the
+ * CLI, which copies them for `backup` and reports on them for `doctor`, must
+ * answer the same paths without leaving empty folders behind, so both go
+ * through this one function. An exported-but-empty variable counts as unset:
+ * `mkdir ''` is nobody's intention.
+ */
+export function resolveDirs(env: NodeJS.ProcessEnv = process.env): {
+  libraryDir: string
+  dataDir: string
+} {
+  const defaults = defaultDirs({ profile: env['SELFMP3_PROFILE'] ?? '' })
+  return {
+    libraryDir: env['SELFMP3_LIBRARY_DIR'] || defaults.libraryDir,
+    dataDir: env['SELFMP3_DATA_DIR'] || defaults.dataDir,
+  }
+}
 
 const BooleanFromEnv = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0', 'yes', 'no'])])
@@ -75,7 +90,7 @@ const BooleanFromEnv = z
 
 const ConfigSchema = z.object({
   /** Port the API listens on. */
-  port: z.coerce.number().int().min(1).max(65535).default(4600),
+  port: z.coerce.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
 
   /**
    * Bind address. Defaults to all interfaces because the addresses those
@@ -110,11 +125,11 @@ const ConfigSchema = z.object({
     .nullable()
     .default(null),
 
-  /** Where the audio files live. */
-  libraryDir: z.string().default(DEFAULT_DIRS.libraryDir),
+  /** Where the audio files live. `readEnv` always supplies it (`resolveDirs`). */
+  libraryDir: z.string().min(1),
 
-  /** Where the database and derived assets (cover art) live. */
-  dataDir: z.string().default(DEFAULT_DIRS.dataDir),
+  /** Where the database and derived assets (cover art) live. Likewise. */
+  dataDir: z.string().min(1),
 
   /**
    * A token of your own, instead of the one the server makes for itself.
@@ -174,14 +189,24 @@ const ConfigSchema = z.object({
 
 export type Config = Readonly<z.infer<typeof ConfigSchema>>
 
+/**
+ * Where a file waits before it belongs to the library: yt-dlp writes its
+ * downloads here, and analysis fetches object-storage files here so ffmpeg has
+ * a real path. Named once so the two never end up looking in different folders.
+ */
+export function stagingDir(config: Pick<Config, 'dataDir'>): string {
+  return path.join(config.dataDir, 'incoming')
+}
+
 function readEnv(): unknown {
   const env = process.env
   return {
     port: env['SELFMP3_PORT'] ?? undefined,
     host: env['SELFMP3_HOST'] ?? undefined,
     publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
-    libraryDir: env['SELFMP3_LIBRARY_DIR'] ?? undefined,
-    dataDir: env['SELFMP3_DATA_DIR'] ?? undefined,
+    // Resolved here rather than as schema defaults so a profile set by `.env`
+    // (read just before this) chooses the folders too, not only one exported.
+    ...resolveDirs(env),
     authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,
     corsOrigins: env['SELFMP3_CORS_ORIGINS'] ?? undefined,
     storageDriver: env['SELFMP3_STORAGE_DRIVER'] ?? undefined,
@@ -240,6 +265,19 @@ export function loadConfig(): Config {
   return Object.freeze(config)
 }
 
-export const APP_VERSION = '1.0.0'
+/**
+ * The version in `package.json`, read once. `createRequire` rather than a JSON
+ * import so the same line works from `src/` under tsx and from `dist/` after a
+ * build, without an import attribute the bundler would have to understand.
+ */
+export const APP_VERSION: string = (
+  createRequire(import.meta.url)('../package.json') as { version: string }
+).version
 export const APP_NAME = 'self.mp3'
-export { REPO_ROOT }
+
+/**
+ * What this server calls itself when it asks a public database for something.
+ * lrclib and MusicBrainz both ask for a contact URL in the User-Agent so they
+ * can reach whoever is hammering them, so it is the repository, named once.
+ */
+export const USER_AGENT = `${APP_NAME}/${APP_VERSION} (personal music library; https://github.com/Xiao215/selfmp3)`

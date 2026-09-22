@@ -3,15 +3,8 @@ import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type Device } from '@selfmp3/shared'
-import {
-  clientApi,
-  deviceListView,
-  queryKeys,
-  radius,
-  relativeTime,
-  useDevices,
-} from '@selfmp3/client'
+import { formatRelative, type Device } from '@selfmp3/shared'
+import { clientApi, deviceListView, queryKeys, radius, useDevices } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
@@ -198,10 +191,10 @@ function DevicesList({
             </View>
             <Text style={styles.deviceWhen}>
               {!live
-                ? `offline · last seen ${relativeTime(device.lastSeenAt)}`
+                ? `offline · last seen ${formatRelative(device.lastSeenAt)}`
                 : device.online
                   ? 'online'
-                  : `last seen ${relativeTime(device.lastSeenAt)}`}
+                  : `last seen ${formatRelative(device.lastSeenAt)}`}
             </Text>
             {/* Forgetting is the server's to do, so only while it answers. */}
             {live ? (
@@ -242,8 +235,6 @@ function DevicesList({
     </Panel>
   )
 }
-
-// -------------------------------------------------------------- shortcuts
 
 const styles = StyleSheet.create(theme => ({
   devices: { marginTop: 6 },

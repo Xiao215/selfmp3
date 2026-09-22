@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ThemePalette } from '@selfmp3/client'
-import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
+import { Circle, Path, Rect, Svg } from 'react-native-svg'
 
 /**
  * The app's icon set, hand-drawn rather than system glyphs.
@@ -17,7 +17,7 @@ import { Circle, Ellipse, Path, Rect, Svg } from 'react-native-svg'
  */
 
 /** A colour in the theme's palette, named. */
-type IconTone = keyof ThemePalette
+export type IconTone = keyof ThemePalette
 
 interface IconProps {
   readonly size?: number
@@ -38,7 +38,7 @@ interface IconProps {
 }
 
 /** An icon's ink: what it was given, the tone it asked for, or the default. */
-function useInk(
+export function useInk(
   given: string | undefined,
   tone: IconTone | undefined,
   fallback: IconTone = 'textSecondary',
@@ -525,16 +525,6 @@ export const Grip = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode
   )
 }
 
-export const Clock = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
-  const color = useInk(colorGiven, tone)
-  return (
-    <Icon color={color} {...rest}>
-      <Circle cx="12" cy="12" r="9" />
-      <Path d="M12 7v5l3 2" />
-    </Icon>
-  )
-}
-
 export const ChevronDown = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (
@@ -672,27 +662,5 @@ export const Heart = ({
         fill={filled ? color : 'none'}
       />
     </Icon>
-  )
-}
-
-/** The wordmark's note, on its own 512 grid. */
-export const BrandMark = ({
-  size = 22,
-  color: colorGiven,
-  tone,
-}: {
-  size?: number
-  color?: string
-  tone?: IconTone
-}): ReactNode => {
-  const color = useInk(colorGiven, tone, 'accent')
-  return (
-    <Svg width={size} height={size} viewBox="0 0 512 512" fill={color}>
-      <Path d="M186 168 L370 130 L370 190 L186 228 Z" />
-      <Rect x="186" y="168" width="26" height="180" rx="13" />
-      <Rect x="344" y="130" width="26" height="180" rx="13" />
-      <Ellipse cx="152" cy="348" rx="52" ry="39" transform="rotate(-22 152 348)" />
-      <Ellipse cx="310" cy="310" rx="52" ry="39" transform="rotate(-22 310 310)" />
-    </Svg>
   )
 }

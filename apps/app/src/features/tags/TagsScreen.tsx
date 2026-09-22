@@ -114,13 +114,10 @@ export function TagsScreen(): ReactNode {
     if (wide) setPaletteOpen(true)
     else router.navigate({ pathname: '/search', params: { scope: 'tags' } })
   }
-  const edit = (tag: Tag): void => {
+  // Stable, because a row is memoised and this is the prop every one of them holds.
+  const edit = useCallback((tag: Tag) => {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null
     setEditing(tag)
-  }
-  const editTag = useCallback((standing: TagStanding) => {
-    editorAnchor.current = rowRefs.current.get(standing.tag.id) ?? null
-    setEditing(standing.tag)
   }, [])
 
   return (
@@ -186,7 +183,7 @@ export function TagsScreen(): ReactNode {
                 rowRef={holdRowRef}
                 onOpen={openTag}
                 onPlay={playTag}
-                onHold={editTag}
+                onHold={edit}
               />
             ))}
             <Text style={styles.footer}>Hold a tag to rename, recolour or delete it.</Text>
@@ -356,7 +353,7 @@ const TagRow = memo(function TagRow({
   rowRef: (tagId: number, node: View | null) => void
   onOpen: (standing: TagStanding) => void
   onPlay: (standing: TagStanding) => void
-  onHold: (standing: TagStanding) => void
+  onHold: (tag: Tag) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const { tag } = standing
@@ -366,7 +363,7 @@ const TagRow = memo(function TagRow({
     <View ref={node => rowRef(tag.id, node)} collapsable={false} style={styles.rowWrap}>
       <Pressable
         onPress={() => onOpen(standing)}
-        onLongPress={() => onHold(standing)}
+        onLongPress={() => onHold(standing.tag)}
         delayLongPress={HOLD_MS}
         accessibilityRole="link"
         accessibilityLabel={`${tag.name}, ${line}`}

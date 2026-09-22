@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
-import { MigrateService, type Searcher } from './migrate.js'
+import { MigrateService } from './migrate.js'
+import type { YtDlpService } from './ytdlp.js'
 
 /**
- * The job runner, with YouTube replaced by a fake searcher. What matters here
+ * The job runner, with YouTube replaced by a fake `search`. What matters here
  * is the shape of the job over time: progress counts up, results land at the
  * right index, at most three searches run at once, and cancel actually stops.
  */
@@ -15,13 +16,13 @@ const tracks = (titles: string[]) =>
 function makeSearcher(options: { delayMs?: number; failOn?: string } = {}) {
   let inFlight = 0
   let peak = 0
-  const searcher: Searcher = async (query, signal) => {
+  const search: YtDlpService['search'] = async (query, _limit, signal) => {
     inFlight++
     peak = Math.max(peak, inFlight)
     try {
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(resolve, options.delayMs ?? 5)
-        signal.addEventListener('abort', () => {
+        signal?.addEventListener('abort', () => {
           clearTimeout(timer)
           reject(new Error('aborted'))
         })
@@ -40,7 +41,7 @@ function makeSearcher(options: { delayMs?: number; failOn?: string } = {}) {
       inFlight--
     }
   }
-  return { searcher, peak: () => peak }
+  return { ytdlp: { search }, peak: () => peak }
 }
 
 async function until(check: () => boolean, timeoutMs = 2_000): Promise<void> {
@@ -53,8 +54,8 @@ async function until(check: () => boolean, timeoutMs = 2_000): Promise<void> {
 
 describe('MigrateService.startMatch', () => {
   it('reports progress and fills results in order', async () => {
-    const { searcher, peak } = makeSearcher({ delayMs: 10 })
-    const service = new MigrateService({ songs: { all: () => [] }, logger, search: searcher })
+    const { ytdlp, peak } = makeSearcher({ delayMs: 10 })
+    const service = new MigrateService({ songs: { all: () => [] }, logger, ytdlp })
 
     const job = service.startMatch(tracks(['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven']))
     expect(job.status).toBe('running')
@@ -78,8 +79,8 @@ describe('MigrateService.startMatch', () => {
   })
 
   it('records a failed search on the item instead of failing the job', async () => {
-    const { searcher } = makeSearcher({ failOn: 'Bad' })
-    const service = new MigrateService({ songs: { all: () => [] }, logger, search: searcher })
+    const { ytdlp } = makeSearcher({ failOn: 'Bad' })
+    const service = new MigrateService({ songs: { all: () => [] }, logger, ytdlp })
     const job = service.startMatch(tracks(['Good', 'Bad']))
     await until(() => service.job(job.id)?.status === 'done')
     const done = service.job(job.id)!
@@ -89,17 +90,17 @@ describe('MigrateService.startMatch', () => {
   })
 
   it('flags tracks that are already in the library', async () => {
-    const { searcher } = makeSearcher()
+    const { ytdlp } = makeSearcher()
     const songs = { all: () => [{ title: 'One', artist: 'someone' }] as never[] }
-    const service = new MigrateService({ songs, logger, search: searcher })
+    const service = new MigrateService({ songs, logger, ytdlp })
     const job = service.startMatch(tracks(['One', 'Two']))
     await until(() => service.job(job.id)?.status === 'done')
     expect(service.job(job.id)!.items.map(item => item?.alreadyHave)).toEqual([true, false])
   })
 
   it('can be cancelled and then refuses a second cancel', async () => {
-    const { searcher } = makeSearcher({ delayMs: 200 })
-    const service = new MigrateService({ songs: { all: () => [] }, logger, search: searcher })
+    const { ytdlp } = makeSearcher({ delayMs: 200 })
+    const service = new MigrateService({ songs: { all: () => [] }, logger, ytdlp })
     const job = service.startMatch(tracks(['One', 'Two', 'Three', 'Four']))
     expect(service.cancel(job.id)).toBe(true)
     expect(service.cancel(job.id)).toBe(false)
@@ -112,7 +113,7 @@ describe('MigrateService.startMatch', () => {
     const service = new MigrateService({
       songs: { all: () => [] },
       logger,
-      search: makeSearcher().searcher,
+      ytdlp: makeSearcher().ytdlp,
     })
     expect(service.job('nope')).toBeNull()
     expect(service.cancel('nope')).toBe(false)
@@ -124,7 +125,7 @@ describe('MigrateService.parse', () => {
     const service = new MigrateService({
       songs: { all: () => [] },
       logger,
-      search: makeSearcher().searcher,
+      ytdlp: makeSearcher().ytdlp,
     })
     const result = await service.parse('Adele - Hello\nAdele - Skyfall')
     expect(result.kind).toBe('text')

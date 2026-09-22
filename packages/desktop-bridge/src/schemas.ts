@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { DEEP_LINK_SCHEME } from './channels.js'
+
 /**
  * Everything that crosses the preload boundary, as a zod schema.
  *
@@ -76,7 +78,7 @@ export const externalUrlSchema = z
   })
 
 /** A `selfmp3://` URL the operating system handed the app. */
-export const deepLinkSchema = z.string().startsWith('selfmp3://')
+export const deepLinkSchema = z.string().startsWith(`${DEEP_LINK_SCHEME}://`)
 
 /**
  * What the application menu and the media keys can ask the page to do.
@@ -106,16 +108,23 @@ export const commandSchema = z.enum([
 ])
 export type Command = z.infer<typeof commandSchema>
 
-/** Told to the shell so it can hold a power-save blocker and label the Dock. */
-export const playbackStateSchema = z.object({
+/**
+ * Told to the shell so it can hold a power-save blocker and label the Dock.
+ *
+ * `Dock` in the name because shared exports a `PlaybackState` of its own for
+ * handing a song between devices, and the two are unrelated: that one carries a
+ * position and a queue, this one carries only what the Dock menu prints.
+ */
+export const dockPlaybackStateSchema = z.object({
   playing: z.boolean(),
   /** What is playing, for the Dock menu to name. Null when nothing is. */
   title: z.string().max(300).nullable(),
   artist: z.string().max(300).nullable(),
 })
-export type PlaybackState = z.infer<typeof playbackStateSchema>
+export type DockPlaybackState = z.infer<typeof dockPlaybackStateSchema>
 
-export const loginItemSchema = z.object({ open: z.boolean() })
+/** Both the argument to `loginItem.set` and what either call answers. */
+export const loginItemOpenSchema = z.boolean()
 
 /**
  * What "check for updates" answered.
@@ -175,19 +184,21 @@ export const fileTextSchema = z.string().max(1024 * 1024)
 /** A download's id, the page's own handle on it, used to cancel. */
 export const transferIdSchema = z.string().min(1).max(128)
 
+/**
+ * Extra request headers for a fetch the shell makes on the page's behalf.
+ *
+ * The doorman reads a bearer header and nothing else, so a download from the
+ * bucket carries one. Kept out of the URL on purpose: a URL ends up in logs.
+ */
+export const headersSchema = z.record(z.string(), z.string())
+
 /** Where a song's bytes come from: the server, or the bucket through the doorman. */
 export const downloadRequestSchema = z.object({
   id: transferIdSchema,
   kind: fileKindSchema,
   name: fileNameSchema,
   url: z.string().url(),
-  /**
-   * The doorman reads a bearer header and nothing else, so a download from the
-   * bucket carries one. Kept out of the URL on purpose: a URL ends up in logs.
-   */
-  headers: z.record(z.string(), z.string()).optional(),
-  /** Continue an interrupted file from this many bytes. */
-  resumeFrom: z.number().int().nonnegative().optional(),
+  headers: headersSchema.optional(),
 })
 export type DownloadRequest = z.infer<typeof downloadRequestSchema>
 

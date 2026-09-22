@@ -1,5 +1,6 @@
 import { rgbToOklch, type CoverTone } from '@selfmp3/shared'
 import { oklchToHex } from '../theme/oklch.js'
+import { hslToRgb } from './palette.js'
 import { currentColorScheme, type ColorScheme } from '../theme/tokens.js'
 
 /**
@@ -30,13 +31,8 @@ const clamp = (value: number, low: number, high: number): number =>
  * `hsl(hue, 28%, 26%)`, so the tint matches what is on screen.
  */
 export function tileTone(hue: number): CoverTone {
-  const saturation = 0.28
-  const lightness = 0.26
-  const k = (n: number): number => (n + hue / 30) % 12
-  const a = saturation * Math.min(lightness, 1 - lightness)
-  const f = (n: number): number =>
-    (lightness - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255
-  const { c, h } = rgbToOklch(f(0), f(8), f(4))
+  const [r, g, b] = hslToRgb(hue, 0.28, 0.26)
+  const { c, h } = rgbToOklch(r, g, b)
   return { hue: h, chroma: c }
 }
 

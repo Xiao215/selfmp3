@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { type MenuCommand } from '../../ports/menuKeys'
 import { Kbd, Panel, partStyles } from './SettingsParts'
 import { shortcutRows } from './shortcuts.model'
-import {} from '../metadata/metadata.model'
 
 /**
  * The installed app's menu keys, read from the menu itself (`menuKeys` port),
@@ -35,8 +34,6 @@ export function ShortcutsPanel({
     </Panel>
   )
 }
-
-// ------------------------------------------------------------- appearance
 
 const styles = StyleSheet.create(() => ({
   shortcut: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },

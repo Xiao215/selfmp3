@@ -23,18 +23,30 @@ import { readFileSync } from 'node:fs'
  */
 
 /**
- * Whole files whose surface is meant to be wider than its readers.
+ * Declarations whose surface is meant to be wider than its readers.
  *
  * A wire contract is written out in full on purpose: a schema for something
  * that crosses the network belongs beside the rest whether or not this commit
  * happens to parse it, and the same goes for the extension's messages. The
  * doorman's fakes are a fixture module, which exists to be reached into. These
  * are the three the de-export pass left alone for the same reason.
+ *
+ * Shared's schemas are the one place where that licence is given by name and
+ * not by file. The whole folder used to be skipped, and that skip quietly
+ * covered a frame rate and a labels table nobody read as well — so the
+ * exemption is now only for what it was written for: a `*Schema`, and the type
+ * `z.infer` gives it, which is the same declaration written on a second line.
+ * Everything else in there is code like any other, and is checked like any
+ * other.
  */
-const skipDeclarations = file => EXCLUDED.some(skip => file.includes(skip))
+const skipDeclaration = (file, text, name) =>
+  EXCLUDED.some(skip => file.includes(skip)) ||
+  (file.includes(SCHEMAS) &&
+    (name.endsWith('Schema') || text.includes(`export type ${name} = z.infer<`)))
+
+const SCHEMAS = 'packages/shared/src/schemas/' // the server-to-client contract
 
 const EXCLUDED = [
-  'packages/shared/src/schemas/', // the server-to-client contract
   'apps/extension/src/bridge.ts', // the extension's own contract
   'apps/doorman/src/fakes.ts', // test fixtures, reached into by name
   '/verify/', // Playwright helpers, run by a config rather than imported
@@ -101,8 +113,11 @@ for (const [key, members] of groups) {
   if (members.every(file => file.includes('.test.'))) continue
   const names = new Set()
   for (const file of members) {
-    if (file.includes('.test.') || skipDeclarations(file)) continue
-    for (const [, name] of source.get(file).matchAll(DECLARATION)) names.add(name)
+    if (file.includes('.test.')) continue
+    const text = source.get(file)
+    for (const [, name] of text.matchAll(DECLARATION)) {
+      if (!skipDeclaration(file, text, name)) names.add(name)
+    }
   }
   for (const name of names) {
     if (ALLOWED.has(name)) continue

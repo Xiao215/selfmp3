@@ -41,12 +41,8 @@ export function writeCachedPlaylist(songs: PlaylistSongs): void {
   }
 }
 
-/**
- * Forget them all: signing out, where another account's ids would collide.
- * The ids are for the browser, which cannot list what it stored; here the
- * whole folder goes.
- */
-export function clearCachedPlaylists(_playlistIds: readonly number[] = []): void {
+/** Forget them all: signing out, where another account's ids would collide. */
+export async function clearCachedPlaylists(): Promise<void> {
   try {
     const directory = cacheDirectory()
     if (directory.exists) directory.delete()

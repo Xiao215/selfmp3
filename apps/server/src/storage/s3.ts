@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream'
+import { AUDIO_EXTENSIONS } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { RangeSource } from '../http/range.js'
 import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
@@ -53,8 +54,6 @@ export async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModu
     )
   }
 }
-
-const AUDIO_SUFFIXES = ['.m4a', '.mp3', '.opus', '.ogg', '.oga', '.flac', '.wav', '.aac', '.webm']
 
 export class S3StorageDriver implements StorageDriver {
   readonly name = 's3'
@@ -128,7 +127,7 @@ export class S3StorageDriver implements StorageDriver {
         const key = item['Key']
         if (typeof key !== 'string') continue
         const lower = key.toLowerCase()
-        if (AUDIO_SUFFIXES.some(suffix => lower.endsWith(suffix))) keys.push(key)
+        if (AUDIO_EXTENSIONS.some(suffix => lower.endsWith(suffix))) keys.push(key)
       }
       const truncated = page['IsTruncated'] === true
       const next = page['NextContinuationToken']

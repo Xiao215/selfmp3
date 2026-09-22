@@ -19,7 +19,7 @@ import type { Song } from '@selfmp3/shared'
 import { radius } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource.model'
-import { useReducedMotion } from '../../ui/useReducedMotion'
+import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
   createMotionState,
@@ -95,7 +95,7 @@ export function SongVisual({
   cover = null,
 }: SongVisualProps): ReactNode {
   const player = usePlayer()
-  const reduced = useReducedMotion()
+  const reduced = useMotionReduced()
   const [size, setSize] = useState<Size | null>(null)
   const { colors, tuning } = useVisualLook(song)
   const frame = useSharedValue<readonly number[]>(EMPTY_FRAME)
@@ -354,7 +354,7 @@ function Horizon({ size, colors, frame }: StyleProps): ReactNode {
           sunStyle,
         ]}
       />
-      {HILL_LAYERS.map((layer, index) => (
+      {HILL_LAYERS.map((_, index) => (
         <HillLine
           key={index}
           index={index}

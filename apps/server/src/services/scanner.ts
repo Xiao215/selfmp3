@@ -7,7 +7,6 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { MetadataService } from './metadata.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
-import type { MotionStore } from './motionStore.js'
 
 /**
  * Reconciling the library folder with the database.
@@ -27,7 +26,6 @@ export class ScannerService {
   readonly #metadata: MetadataService
   readonly #lyrics: LyricsService
   readonly #covers: CoverService
-  readonly #motion: Pick<MotionStore, 'delete'> | null
   readonly #logger: Logger
   #running = false
 
@@ -47,8 +45,6 @@ export class ScannerService {
     metadata: MetadataService
     lyrics: LyricsService
     covers: CoverService
-    /** Each song's motion curve, which goes when the song does. */
-    motion?: Pick<MotionStore, 'delete'>
     logger: Logger
   }) {
     this.#storage = deps.storage
@@ -56,7 +52,6 @@ export class ScannerService {
     this.#metadata = deps.metadata
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
-    this.#motion = deps.motion ?? null
     this.#logger = deps.logger.child('scan')
   }
 
@@ -166,9 +161,19 @@ export class ScannerService {
           if (existing) {
             const stat = await this.#storage.stat(key)
             const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
-            // Unchanged file: clear any stale "missing" flag and move on.
             if (stat && mtimeMs === existing.mtimeMs) {
-              this.#songs.clearMissing(existing.id)
+              /*
+               * Unchanged file. The only row that needs writing is one that was
+               * marked missing: its file came back, which clients should hear
+               * about like any other change. Every other row is left alone —
+               * a scan that finds nothing new must not touch anything, or the
+               * quiet hourly scan is a write per song and a refetch on every
+               * device.
+               */
+              if (existing.missing) {
+                this.#songs.clearMissing(existing.id)
+                updated++
+              }
               continue
             }
             await this.ingest(key)
@@ -186,9 +191,12 @@ export class ScannerService {
         }
       }
 
+      // A song already marked missing stays that way without being counted
+      // again: "removed" is what went since the last scan, and a library with
+      // one long-gone file must not look changed on every scan.
       const onDiskSet = new Set(onDisk)
-      for (const [key] of known) {
-        if (!onDiskSet.has(key)) {
+      for (const [key, row] of known) {
+        if (!onDiskSet.has(key) && !row.missing) {
           this.#songs.markMissing(key)
           removed++
         }
@@ -216,27 +224,5 @@ export class ScannerService {
 
     this.onScanComplete?.(result)
     return result
-  }
-
-  /**
-   * Permanently forget songs whose files are gone.
-   *
-   * Deliberately a separate, explicit action rather than something a scan does
-   * on its own — losing a play history to a temporarily unmounted drive would
-   * be unforgivable.
-   *
-   * Songs taken on from the bucket and still waiting for their audio are
-   * missing too, and are not that. They are the library being restored, not a
-   * library that is gone, so `missingAndForgettable` leaves them out.
-   */
-  async purgeMissing(): Promise<number> {
-    const rows = this.#songs.missingAndForgettable()
-    for (const song of rows) {
-      await this.#covers.delete(song.id)
-      await this.#motion?.delete(song.id)
-      this.#songs.delete(song.id)
-    }
-    if (rows.length > 0) this.#logger.info('purged missing songs', { count: rows.length })
-    return rows.length
   }
 }

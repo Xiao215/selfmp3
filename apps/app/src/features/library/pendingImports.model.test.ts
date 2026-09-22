@@ -23,15 +23,32 @@ describe('pending imports in a cloud library', () => {
   it('shows waiting, downloading and failed requests, newest first, titled by the link until looked up', () => {
     const rows = pendingImports(
       [
-        request({ uid: 'old', state: 'working', title: '群青', requestedAt: '2026-09-13T09:00:00.000Z' }),
+        request({
+          uid: 'old',
+          state: 'working',
+          title: '群青',
+          requestedAt: '2026-09-13T09:00:00.000Z',
+        }),
         request({ uid: 'new' }),
-        request({ uid: 'bad', state: 'failed', error: 'Private video', requestedAt: '2026-09-13T08:00:00.000Z' }),
+        request({
+          uid: 'bad',
+          state: 'failed',
+          error: 'Private video',
+          requestedAt: '2026-09-13T08:00:00.000Z',
+        }),
       ],
       new Set(),
     )
     expect(rows.map(row => row.uid)).toEqual(['new', 'old', 'bad'])
-    expect(rows[0]).toMatchObject({ title: 'https://www.youtube.com/watch?v=dGZqpVCJP3k', status: 'Waiting for your server' })
-    expect(rows[1]).toMatchObject({ title: '群青', status: 'Downloading on your server…', failed: false })
+    expect(rows[0]).toMatchObject({
+      title: 'https://www.youtube.com/watch?v=dGZqpVCJP3k',
+      status: 'Waiting for your server',
+    })
+    expect(rows[1]).toMatchObject({
+      title: '群青',
+      status: 'Downloading on your server…',
+      failed: false,
+    })
     expect(rows[2]).toMatchObject({ status: 'Couldn’t import it: Private video', failed: true })
   })
 

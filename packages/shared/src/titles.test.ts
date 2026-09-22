@@ -33,6 +33,12 @@ describe('cleanArtist', () => {
     expect(cleanArtist('YOASOBI - Topic')).toBe('YOASOBI')
     expect(cleanArtist('  Joe   Hisaishi ')).toBe('Joe Hisaishi')
   })
+
+  it('drops a VEVO channel suffix', () => {
+    expect(cleanArtist('AuroraLaneVEVO')).toBe('AuroraLane')
+    expect(cleanArtist('Aurora Lane VEVO')).toBe('Aurora Lane')
+    expect(cleanArtist('Klara Feld')).toBe('Klara Feld')
+  })
 })
 
 describe('tidyVideoTitle', () => {

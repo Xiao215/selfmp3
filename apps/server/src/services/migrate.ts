@@ -7,9 +7,9 @@ import type {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
-import { run, summarizeError } from './ytdlp.js'
+import type { YtDlpService } from './ytdlp.js'
 import { parseSpotifyEmbed, parseTrackList, spotifyPlaylistId } from './migrateParse.js'
-import { rankCandidates, searchQuery, type SearchHit } from './migrateScore.js'
+import { rankCandidates, searchQuery } from './migrateScore.js'
 import { alreadyHave as alreadyInLibrary, type LibrarySong } from './alreadyHave.js'
 
 /**
@@ -19,69 +19,20 @@ import { alreadyHave as alreadyInLibrary, type LibrarySong } from './alreadyHave
  * track with a few searches in flight at a time. Jobs live in memory only —
  * unlike the download queue there is nothing to resume after a restart, the
  * results are just suggestions the user has not committed to yet, and a
- * fifty-song search redone from scratch costs a minute rather than a download.
+ * fifty-song search redone from scratch costs minutes rather than a download.
+ *
+ * The searches go through YtDlpService like every other request to YouTube,
+ * so they spend the same budget as the download queue and a bot wall met here
+ * pauses it too (services/ytThrottle.ts).
  */
 
-/** How many yt-dlp searches run at once. More just gets YouTube to throttle. */
+/** How many searches run at once. The throttle paces them; this just bounds the burst. */
 const SEARCH_CONCURRENCY = 3
 /** Results per search; the top three after scoring are shown. */
 const SEARCH_RESULTS = 5
 /** Forget finished jobs after this long. */
 const JOB_TTL_MS = 60 * 60 * 1000
 const SPOTIFY_TIMEOUT_MS = 15_000
-
-/** A function that finds YouTube results for a query; swappable in tests. */
-export type Searcher = (query: string, signal: AbortSignal) => Promise<SearchHit[]>
-
-/** The subset of a flat `ytsearch` entry this reads. */
-interface SearchEntry {
-  id?: string
-  url?: string
-  title?: string
-  channel?: string
-  uploader?: string
-  duration?: number | null
-  thumbnails?: { url?: string; width?: number }[]
-}
-
-/** Search YouTube through yt-dlp without downloading anything. */
-const ytDlpSearcher: Searcher = async (query, signal) => {
-  const result = await run(
-    'yt-dlp',
-    [
-      '--flat-playlist',
-      '--dump-single-json',
-      '--no-warnings',
-      '--',
-      `ytsearch${SEARCH_RESULTS}:${query}`,
-    ],
-    { timeoutMs: 60_000, signal },
-  )
-  if (result.code !== 0) throw new Error(summarizeError(result.stderr, 'search failed'))
-
-  let parsed: { entries?: (SearchEntry | null)[] }
-  try {
-    parsed = JSON.parse(result.stdout) as { entries?: (SearchEntry | null)[] }
-  } catch {
-    throw new Error('yt-dlp returned something unreadable')
-  }
-
-  return (parsed.entries ?? [])
-    .filter((entry): entry is SearchEntry => entry != null && typeof entry.id === 'string')
-    .map(entry => ({
-      url:
-        entry.url && /^https?:/.test(entry.url)
-          ? entry.url
-          : `https://www.youtube.com/watch?v=${entry.id}`,
-      title: entry.title ?? '',
-      channel: entry.channel ?? entry.uploader ?? '',
-      duration: typeof entry.duration === 'number' ? entry.duration : 0,
-      // The smallest thumbnail is plenty for a 40px preview and loads fastest.
-      thumbnail:
-        entry.thumbnails?.find(thumb => thumb.url)?.url ??
-        `https://i.ytimg.com/vi/${entry.id}/default.jpg`,
-    }))
-}
 
 interface StoredJob {
   job: MigrateMatchJob
@@ -92,13 +43,17 @@ interface StoredJob {
 export class MigrateService {
   readonly #songs: Pick<SongRepository, 'all'>
   readonly #logger: Logger
-  readonly #search: Searcher
+  readonly #ytdlp: Pick<YtDlpService, 'search'>
   readonly #jobs = new Map<string, StoredJob>()
 
-  constructor(deps: { songs: Pick<SongRepository, 'all'>; logger: Logger; search?: Searcher }) {
+  constructor(deps: {
+    songs: Pick<SongRepository, 'all'>
+    logger: Logger
+    ytdlp: Pick<YtDlpService, 'search'>
+  }) {
     this.#songs = deps.songs
     this.#logger = deps.logger.child('migrate')
-    this.#search = deps.search ?? ytDlpSearcher
+    this.#ytdlp = deps.ytdlp
   }
 
   /** Text, CSV or a Spotify link → tracks. Only the Spotify path touches the network. */
@@ -207,7 +162,7 @@ export class MigrateService {
   ): Promise<MigrateMatchItem> {
     const alreadyHave = alreadyInLibrary(source, library) !== null
     try {
-      const hits = await this.#search(searchQuery(source), signal)
+      const hits = await this.#ytdlp.search(searchQuery(source), SEARCH_RESULTS, signal)
       return { source, candidates: rankCandidates(source, hits), alreadyHave, error: null }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

@@ -31,10 +31,14 @@ export function cleanTitle(raw: string): string {
     .trim()
 }
 
-/** An artist without the "- Topic" YouTube gives its auto-generated channels. */
+/**
+ * An artist without the channel suffixes YouTube leaves on a name: "- Topic"
+ * on an auto-generated channel, "VEVO" on a label's.
+ */
 export function cleanArtist(raw: string): string {
   return raw
     .replace(/\s*-\s*Topic$/i, '')
+    .replace(/\s*VEVO$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -123,10 +127,6 @@ function bare(name: string): string {
   return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
-/**
- * Whether a piece of a title is the channel's name: "YOASOBI" on "Ayase /
- * YOASOBI", "Adele" on "AdeleVEVO", "Official髭男dism" on itself.
- */
 /**
  * Whether a piece of a title is just the artist's name, as the channel gives it.
  *

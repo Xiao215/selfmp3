@@ -1,14 +1,9 @@
-import type { SyncManifest } from '@selfmp3/shared'
-import type { OfflineStore, SaveOptions, StorageUsage as PortStorageUsage } from '@selfmp3/client'
-
 /**
- * The web half of the `OfflineStore` port.
+ * The browser's audio cache: keeping, listing, sizing and removing songs.
  *
  * A song's stream URL, which is also its cache key, is injected wiring: the
- * same shape the engine port uses for `streamUrl`.
- *
- * Everything below is the adapter onto the port. It stays thin because the
- * browser's offline handling already matches the port's shape one for one.
+ * same shape the engine port uses for `streamUrl`. `downloadStorage.web.ts`
+ * is what dresses these up as the `DownloadStorage` port the queue wants.
  */
 
 /**
@@ -67,27 +62,6 @@ function audioCacheKey(songId: number): string {
 function songIdOfKey(url: string): number | null {
   const match = /\/api\/stream\/(\d+)$/.exec(new URL(url).pathname)
   return match?.[1] ? Number(match[1]) : null
-}
-
-interface SyncProgress {
-  readonly total: number
-  readonly done: number
-  readonly bytesDone: number
-  readonly bytesTotal: number
-  readonly currentTitle: string
-  /** The song being fetched right now, so its row can say so. */
-  readonly activeSongId: number | null
-  readonly failed: number
-}
-
-export interface StorageUsage {
-  /** Bytes used by cached audio specifically. */
-  readonly audioBytes: number
-  /** Bytes the whole origin is using, per the Storage API. */
-  readonly usedBytes: number
-  /** Bytes the browser is willing to give us, if it will say. */
-  readonly quotaBytes: number | null
-  readonly cachedCount: number
 }
 
 /*
@@ -166,7 +140,7 @@ export async function cachedBytes(ids: Iterable<number>): Promise<Map<number, nu
  * How far through a download is, from 0 to 1 — or null when the server did
  * not say how big the file is, and only "still going" can be shown.
  */
-export type DownloadFraction = number | null
+type DownloadFraction = number | null
 
 /**
  * Download one song into the cache.
@@ -245,208 +219,3 @@ export async function clearAudioCache(): Promise<void> {
   if (!cachesAvailable()) return
   await caches.delete(AUDIO_CACHE)
 }
-
-type ManifestEntry = SyncManifest['entries'][number]
-
-/**
- * Leave this much of the browser's quota free. Filling it to the last byte
- * gets the whole origin's storage evicted on some browsers, which would take
- * every download with it.
- */
-const STORAGE_CEILING = 0.9
-
-async function hasRoomFor(bytes: number): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return true
-  try {
-    const { usage, quota } = await navigator.storage.estimate()
-    if (!quota) return true
-    return (usage ?? 0) + bytes <= quota * STORAGE_CEILING
-  } catch {
-    return true
-  }
-}
-
-function isQuotaError(error: unknown): boolean {
-  return error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22)
-}
-
-/** Why a sync stopped: it finished, it was cancelled, or the device is full. */
-type SyncStop = 'complete' | 'aborted' | 'storage'
-
-/**
- * Download a list of manifest entries into the cache.
- *
- * Sequential rather than parallel: on a phone, four concurrent multi-megabyte
- * downloads make every one of them slower and make progress reporting
- * meaningless. One at a time is both faster in practice and interruptible at
- * a sensible granularity.
- *
- * Storage is checked before each song, not only when a write fails: a failed
- * write can come after the browser has already started evicting.
- */
-export async function syncLibrary(
-  entries: readonly ManifestEntry[],
-  options: {
-    titleFor: (songId: number) => string
-    onProgress: (progress: SyncProgress) => void
-    /** Each song as it lands, so the list can mark it without waiting for the end. */
-    onCached?: (songId: number) => void
-    /** How far through the current song is, for its row's ring. */
-    onSongProgress?: (songId: number, fraction: DownloadFraction) => void
-    signal: AbortSignal
-  },
-): Promise<{ progress: SyncProgress; stop: SyncStop }> {
-  let done = 0
-  let failed = 0
-  let bytesDone = 0
-  const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0)
-
-  const snapshot = (currentTitle: string, activeSongId: number | null): SyncProgress => ({
-    total: entries.length,
-    done,
-    bytesDone,
-    bytesTotal,
-    currentTitle,
-    activeSongId,
-    failed,
-  })
-
-  options.onProgress(snapshot('', null))
-
-  for (const entry of entries) {
-    if (options.signal.aborted) return { progress: snapshot('', null), stop: 'aborted' }
-    if (!(await hasRoomFor(entry.sizeBytes)))
-      return { progress: snapshot('', null), stop: 'storage' }
-
-    const title = options.titleFor(entry.id)
-    options.onProgress(snapshot(title, entry.id))
-
-    try {
-      const report = options.onSongProgress
-      await cacheSong(
-        entry.id,
-        options.signal,
-        report ? fraction => report(entry.id, fraction) : undefined,
-      )
-      bytesDone += entry.sizeBytes
-      options.onCached?.(entry.id)
-    } catch (error) {
-      if (options.signal.aborted) return { progress: snapshot('', null), stop: 'aborted' }
-      if (isQuotaError(error)) return { progress: snapshot('', null), stop: 'storage' }
-      // One bad file should not abandon the other 400.
-      failed++
-      console.warn(`could not cache song ${entry.id}`, error)
-    }
-
-    done++
-    options.onProgress(snapshot(title, null))
-  }
-
-  return { progress: snapshot('', null), stop: 'complete' }
-}
-
-/** How much space the offline library is taking up. */
-async function storageUsage(): Promise<StorageUsage> {
-  let audioBytes = 0
-  let cachedCount = 0
-
-  if (cachesAvailable()) {
-    try {
-      const cache = await caches.open(AUDIO_CACHE)
-      const keys = await cache.keys()
-      cachedCount = keys.length
-      // Summing content-length across every entry is cheap: headers only, no
-      // bodies are read.
-      for (const request of keys) {
-        const response = await cache.match(request)
-        const length = Number(response?.headers.get('content-length') ?? 0)
-        if (Number.isFinite(length)) audioBytes += length
-      }
-    } catch {
-      // Fall through with zeroes.
-    }
-  }
-
-  let usedBytes = audioBytes
-  let quotaBytes: number | null = null
-
-  if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
-    try {
-      const estimate = await navigator.storage.estimate()
-      usedBytes = estimate.usage ?? audioBytes
-      quotaBytes = estimate.quota ?? null
-    } catch {
-      // Some browsers refuse; the audio total is still useful on its own.
-    }
-  }
-
-  return { audioBytes, usedBytes, quotaBytes, cachedCount }
-}
-
-/**
- * Ask the browser not to evict our cache under storage pressure.
- *
- * Without this, iOS will quietly delete the offline library after a week or so
- * of not opening the app — which is precisely when you need it.
- */
-async function requestPersistentStorage(): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false
-  try {
-    if (await navigator.storage.persisted()) return true
-    return await navigator.storage.persist()
-  } catch {
-    return false
-  }
-}
-
-/**
- * The browser's `OfflineStore`.
- *
- * A thin mapping, which is the point: if the browser side had needed reshaping
- * to meet the port, that would have meant the port was describing something
- * other than what actually happens here.
- *
- * `localUri` is deliberately absent. The browser has nothing to hand back — the
- * service worker intercepts the ordinary stream URL, so the player never learns
- * a copy was involved. That is why the web app plays offline without a line of
- * code about it, and why the port makes that member optional.
- */
-function createWebOfflineStore(): OfflineStore {
-  return {
-    get available(): boolean {
-      return offlineStorageAvailable()
-    },
-    has: isCached,
-    ids: cachedSongIds,
-    bytes: cachedBytes,
-    /*
-     * The one cast in this file, and the right place for it. The port types
-     * `signal` as `unknown` because packages/client compiles without the DOM
-     * and cannot name `AbortSignal`; naming it again is exactly what a platform
-     * implementation is for. A wrong value fails here, at the boundary, rather
-     * than somewhere inside the cache.
-     */
-    save: (songId: number, options?: SaveOptions) =>
-      cacheSong(songId, options?.signal as AbortSignal | undefined, options?.onProgress),
-    remove: uncacheSong,
-    clear: clearAudioCache,
-    usage: storageUsage,
-    requestPersistence: requestPersistentStorage,
-  }
-}
-
-/*
- * Does the offline code that has been keeping your music actually satisfy the
- * interface written for it?
- *
- * Same assertion as the engine port, for the same reason: an interface derived
- * from two implementations can still miss one of them by a return type, and the
- * miss would surface when the shared OfflineProvider is written against it —
- * later, and more expensively.
- */
-const _conforms: OfflineStore = createWebOfflineStore()
-void _conforms
-
-/** And that the port's usage shape is the one this file already returned. */
-const _usageConforms: (u: StorageUsage) => PortStorageUsage = u => u
-void _usageConforms

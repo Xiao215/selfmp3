@@ -37,7 +37,7 @@ the root. Built with `apps/server`, so `dist/cli.js` appears with the rest of th
 start                 run the server in the foreground
 scan                  rescan the library folder
 import <url...>       queue links for download
-backup <dest-dir>     incremental copy of data/ and library/
+backup <dest-dir>     copy the music and the database into <dest-dir>, only what changed
 doctor                node, yt-dlp, ffmpeg, server, folders
 --version
 ```
@@ -73,8 +73,7 @@ binary matches (musl on arm64, for one); it installs, builds, then installs agai
 `--omit=dev` and checks both native modules load. The runtime stage is a clean
 `node:22-alpine` with `ffmpeg`, `yt-dlp` and `tini`, and copies only those production
 `node_modules` plus the three `dist/` folders and their `package.json` files. The layout
-mirrors the repo so `config.ts`'s `REPO_ROOT` still resolves to `/app` and the workspace
-symlinks in `node_modules` still point somewhere real.
+mirrors the repo so the workspace symlinks in `node_modules` still point somewhere real.
 
 - Runs as `node`, not root; `/app/library` and `/app/data` are volumes, chowned in the image
   so a fresh bind mount is writable.

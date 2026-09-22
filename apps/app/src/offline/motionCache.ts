@@ -52,7 +52,7 @@ export function writeCachedMotion(songId: number, motion: Motion): void {
 }
 
 /** Forget them all: signing out, where another account's ids would collide. */
-export function clearCachedMotion(): void {
+export async function clearCachedMotion(): Promise<void> {
   try {
     const directory = cacheDirectory()
     if (directory.exists) directory.delete()

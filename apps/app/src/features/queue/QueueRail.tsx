@@ -547,7 +547,8 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     bottom: 0,
     zIndex: 2,
-    boxShadow: '-18px 0 40px rgba(0, 0, 0, 0.35)',
+    // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.
+    boxShadow: `-18px 0 40px ${theme.colors.floatShadow}`,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: sectionTitle(theme.colors),

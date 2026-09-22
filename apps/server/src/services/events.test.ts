@@ -72,8 +72,7 @@ describe('EventHub', () => {
     expect(phone.text).toContain('"pause"')
     expect(phoneTab2.text).toContain('"pause"')
     expect(server.text).not.toContain('"pause"')
-    expect(hub.hasSubscriber('phone-000001')).toBe(true)
-    expect(hub.hasSubscriber('nobody-0000')).toBe(false)
+    expect(hub.sendTo('nobody-0000', { type: 'library', version: 1 })).toBe(0)
     hub.stop()
   })
 

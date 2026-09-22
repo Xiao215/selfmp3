@@ -1,4 +1,6 @@
+import { ExtensionStorage } from '@bacons/apple-targets'
 import { File } from 'expo-file-system'
+
 import { WIDGET_KEY, type WidgetSnapshot } from '../features/widget/widget.model'
 
 /**
@@ -11,43 +13,20 @@ import { WIDGET_KEY, type WidgetSnapshot } from '../features/widget/widget.model
  */
 const APP_GROUP = 'group.com.selfmp3.app'
 
-interface Storage {
-  set: (key: string, value: string) => void
-}
-interface StorageModule {
-  ExtensionStorage: (new (group: string) => Storage) & { reloadWidget: () => void }
-}
-
-/**
- * The native module, if this build has it. A dev client built before the
- * widget existed does not, and asking for a module that is not there throws
- * at import — which would stop the whole app opening. So it is looked for
- * here, and a build without it simply has no widget to feed.
+/*
+ * The module is in every prebuild, and it is safe to hold at module scope: it
+ * falls back to no-op natives of its own when the target is not linked, so
+ * constructing this cannot throw and a build without the widget simply writes
+ * nowhere.
  */
-function loadStorage(): StorageModule | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- a module that may not be linked
-    return require('@bacons/apple-targets') as StorageModule
-  } catch {
-    return null
-  }
-}
+const storage = new ExtensionStorage(APP_GROUP)
 
-const native = loadStorage()
-const storage = (() => {
-  try {
-    return native ? new native.ExtensionStorage(APP_GROUP) : null
-  } catch {
-    return null
-  }
-})()
-
-export const hasWidget = storage !== null
+/** An iPhone has one; Android and a browser answer from `widget.ts`. */
+export const hasWidget = true
 
 export function sendWidgetSnapshot(snapshot: WidgetSnapshot): void {
-  if (!storage || !native) return
   storage.set(WIDGET_KEY, JSON.stringify(snapshot))
-  native.ExtensionStorage.reloadWidget()
+  ExtensionStorage.reloadWidget()
 }
 
 /**

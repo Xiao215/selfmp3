@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
 import { answerRange } from '@selfmp3/shared'
-import { fileKindSchema } from '@selfmp3/desktop-bridge'
+import { APP_ORIGIN, MEDIA_PREFIX, fileKindSchema } from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
@@ -22,8 +22,6 @@ import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
  * serve songs out of the Cache API; here songs are files and the shell is
  * served from disk, and a second copy of the audio would be a second truth.
  */
-
-export const APP_ORIGIN = 'app://selfmp3'
 
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
@@ -44,16 +42,21 @@ export function registerAppScheme(): void {
 interface ProtocolRoots {
   /** `apps/app/dist`, copied into the bundle's resources by electron-builder. */
   readonly web: string
+  /**
+   * Metro's origin in `npm run dev:desktop`, where the page is served from
+   * there instead. Null in a real app, and the media handler's allow-list is
+   * the only thing that reads it.
+   */
+  readonly devOrigin: string | null
 }
-
-/** Where downloaded songs and covers are served from. */
-const MEDIA_PREFIX = '/_media/'
 
 export function handleAppScheme(roots: ProtocolRoots): void {
   protocol.handle('app', async request => {
     const url = new URL(request.url)
 
-    if (url.pathname.startsWith(MEDIA_PREFIX)) return serveMedia(request, url.pathname)
+    if (url.pathname.startsWith(MEDIA_PREFIX)) {
+      return serveMedia(request, url.pathname, roots.devOrigin)
+    }
 
     const resolved = resolveWithinRoot(roots.web, url.pathname)
     const stats = resolved === null ? null : await fileStats(resolved)
@@ -109,11 +112,16 @@ function notFound(): Response {
  * a year.
  *
  * The **CORS pair**: the engine sets `crossOrigin = 'use-credentials'` so the
- * analyser may read the samples, and that mode rejects `*`. The page's own
- * origin is echoed back instead, which is `app://selfmp3` in the app and
- * `http://localhost:4601` in `npm run dev:desktop`.
+ * analyser may read the samples, and that mode rejects `*`. So an origin has to
+ * be named — but only ever one the page is actually served from, `app://selfmp3`
+ * or Metro's in `npm run dev:desktop`. Echoing back whatever asked would let any
+ * page that reaches this scheme read someone's files with credentials attached.
  */
-async function serveMedia(request: Request, pathname: string): Promise<Response> {
+async function serveMedia(
+  request: Request,
+  pathname: string,
+  devOrigin: string | null,
+): Promise<Response> {
   const rest = pathname.slice(MEDIA_PREFIX.length)
   const slash = rest.indexOf('/')
   const kind = fileKindSchema.safeParse(slash === -1 ? '' : rest.slice(0, slash))
@@ -134,9 +142,10 @@ async function serveMedia(request: Request, pathname: string): Promise<Response>
     lastModified: stats.mtime,
   })
 
-  const origin = request.headers.get('Origin') ?? APP_ORIGIN
+  const origin = request.headers.get('Origin')
+  const ours = origin !== null && (origin === APP_ORIGIN || origin === devOrigin)
   const headers = new Headers(answer.headers)
-  headers.set('Access-Control-Allow-Origin', origin)
+  headers.set('Access-Control-Allow-Origin', ours ? origin : APP_ORIGIN)
   headers.set('Access-Control-Allow-Credentials', 'true')
 
   if (answer.status === 416 || answer.length === 0) {

@@ -23,6 +23,7 @@ const entry = (songId: number, patch: Partial<DownloadEntry> = {}): DownloadEntr
   fileName: `${songId}.mp3`,
   sizeBytes: 1000,
   etag: `etag-${songId}`,
+  rev: `rev-${songId}`,
   downloadedAt: '2025-01-01T00:00:00.000Z',
   ...patch,
 })
@@ -70,6 +71,13 @@ describe('parseIndex', () => {
 
   it('accepts an index with no entries key', () => {
     expect(parseIndex({ version: 1 })).toEqual(EMPTY_INDEX)
+  })
+
+  it('drops an index written before entries carried a rev', () => {
+    // None of those entries can be matched against the library, so keeping any
+    // of them would mean playing a file nothing vouches for.
+    const { rev: _rev, ...old } = entry(1)
+    expect(parseIndex({ version: 1, entries: { '1': old } })).toEqual(EMPTY_INDEX)
   })
 })
 

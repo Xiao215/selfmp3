@@ -15,14 +15,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import {
-  Downloaded,
-  Play,
-  Plus,
-  Search,
-  Shuffle,
-  SortLines,
-} from '../../ui/components/Icons'
+import { Downloaded, Play, Plus, Search, Shuffle, SortLines } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
@@ -300,31 +293,37 @@ export function LibraryScreen(): ReactNode {
         */}
         <View style={headWide ? styles.titlesWide : wide ? undefined : styles.phoneTitles}>
           <View style={wide ? undefined : styles.phoneTitleRow}>
-          <Text style={[styles.heading, !wide && styles.phoneHeading]} numberOfLines={1} accessibilityRole="header">
-            Library
-          </Text>
-          {/*
+            <Text
+              style={[styles.heading, !wide && styles.phoneHeading]}
+              numberOfLines={1}
+              accessibilityRole="header"
+            >
+              Library
+            </Text>
+            {/*
             A phone's order, as a round button beside the title (docs/ui-mock
             `P12`); a computer has it in its head row. No button for choosing:
             holding a row starts it, everywhere (Xiao, 2026-09-20).
           */}
-          {wide ? null : (
-            <View style={styles.phoneTools}>
-              <IconButton
-                label="Sort"
-                filled
-                onPress={() => setSorting(true)}
-                testID="library-sort-phone"
-              >
-                <SortLines size={18} tone="textPrimary" />
-              </IconButton>
-            </View>
-          )}
+            {wide ? null : (
+              <View style={styles.phoneTools}>
+                <IconButton
+                  label="Sort"
+                  filled
+                  onPress={() => setSorting(true)}
+                  testID="library-sort-phone"
+                >
+                  <SortLines size={18} tone="textPrimary" />
+                </IconButton>
+              </View>
+            )}
           </View>
           <View style={styles.subRow}>
             <Text style={styles.sub} testID="library-subline">
               {model.subtitle}
-              {installed && !model.loading ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}` : ''}
+              {installed && !model.loading
+                ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}`
+                : ''}
             </Text>
             {model.matchNote ? (
               <Text style={styles.sub} testID="library-match-note">
@@ -391,11 +390,7 @@ export function LibraryScreen(): ReactNode {
             accessibilityRole="search"
             accessibilityLabel="Search songs"
             testID="library-search"
-            style={[
-              styles.searchBox,
-              headWide && styles.searchWide,
-              dense && styles.searchDense,
-            ]}
+            style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}
           >
             <Search size={15} color={theme.colors.textMuted} />
             <Text style={styles.searchHint} numberOfLines={1}>
@@ -526,8 +521,12 @@ export function LibraryScreen(): ReactNode {
               icon={
                 <Downloaded
                   size={12}
-                  color={filter.downloadedOnly ? theme.colors.onPrimary : theme.colors.textSecondary}
-                  knockout={filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.surface2}
+                  color={
+                    filter.downloadedOnly ? theme.colors.onPrimary : theme.colors.textSecondary
+                  }
+                  knockout={
+                    filter.downloadedOnly ? theme.colors.textPrimary : theme.colors.surface2
+                  }
                 />
               }
               onPress={model.toggleDownloadedOnly}
@@ -560,7 +559,12 @@ export function LibraryScreen(): ReactNode {
           {filter.descending ? '' : ' · reversed'}
         </Text>
       ) : null}
-      <Sheet open={sorting} onClose={() => setSorting(false)} title="Sort by" testID="library-sort-sheet">
+      <Sheet
+        open={sorting}
+        onClose={() => setSorting(false)}
+        title="Sort by"
+        testID="library-sort-sheet"
+      >
         {model.sortOptions.map(option => (
           <SheetItem
             key={option.field}
@@ -596,7 +600,6 @@ export function LibraryScreen(): ReactNode {
           summary={model.tagFiltered ? model.subtitle : undefined}
         />
       </View>
-
 
       {model.tagFiltered || filter.query.trim() ? null : <GemsRow />}
 
@@ -643,11 +646,7 @@ export function LibraryScreen(): ReactNode {
 
       <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
 
-      <SongMenu
-        song={menuSong}
-        anchorRef={menuAnchorRef}
-        onClose={() => setMenuSong(null)}
-      />
+      <SongMenu song={menuSong} anchorRef={menuAnchorRef} onClose={() => setMenuSong(null)} />
     </SafeAreaView>
   )
 }

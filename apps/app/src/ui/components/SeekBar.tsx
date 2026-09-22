@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -64,6 +64,21 @@ export function SeekBar({
   // new time, the bar follows it again.
   const held =
     pending !== null && Math.abs(position - pending) >= SEEK_LANDED_SECONDS ? pending : null
+  /*
+   * The hold lets go on its own, a second after the finger did. The timer is
+   * the effect's rather than the gesture's so that it goes when the bar does:
+   * a scrubbed song closed before it woke had it setting state on a bar that
+   * is no longer there.
+   */
+  useEffect(() => {
+    if (pending === null) return undefined
+    const timer = setTimeout(
+      // This seek only: a later one, made meanwhile, starts its own hold.
+      () => setPending(current => (current === pending ? null : current)),
+      SEEK_SETTLE_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [pending])
 
   const responder = useMemo(() => {
     // locationX is relative to the view the finger is on. On iOS that is the
@@ -86,8 +101,6 @@ export function SeekBar({
       onPanResponderRelease: event => {
         const target = secondsAt(event.nativeEvent.locationX)
         setPending(target)
-        // Lets go of this seek only: a later one, made meanwhile, keeps its hold.
-        setTimeout(() => setPending(held => (held === target ? null : held)), SEEK_SETTLE_MS)
         setDragging(null)
         onSeek(target)
       },

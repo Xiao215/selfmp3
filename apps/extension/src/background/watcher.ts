@@ -19,6 +19,14 @@ const AWAKE_POLL_MS = 2_000
 export const ALARM_MINUTES = 0.5
 /** A batch nothing has been heard about for this long is dropped. */
 const STALE_MS = 24 * 60 * 60_000
+/**
+ * This many reads in a row failing ends the 2 s polling; the alarm carries on.
+ *
+ * While the server is away every poll fails, and a worker kept polling is a
+ * worker Chrome never stops — each tick would keep its idle timer from running
+ * out. Three misses tell a server asleep from one slow answer.
+ */
+export const GIVE_UP_AFTER = 3
 
 const BatchSchema = z.object({
   id: z.string(),
@@ -30,7 +38,10 @@ const BatchesSchema = z.array(BatchSchema)
 
 interface WatcherDeps {
   readonly store: KeyValueStore
-  /** The server's queue, as the handlers read it. */
+  /**
+   * The server's queue, read plainly: nothing here may count as the popup
+   * being opened, or the watcher would clear its own `!` on every tick.
+   */
   readonly queue: () => Promise<ImportQueue>
   readonly badge: (text: string) => void | Promise<void>
   readonly notify: (notice: { title: string; message: string }) => void
@@ -60,6 +71,8 @@ export function createWatcher({
   let following = false
   /** What the badge last counted, so `seen` can redraw it without another read. */
   let going = 0
+  /** Reads that failed since the last one that did not. */
+  let misses = 0
 
   const read = async (): Promise<Batch[]> => {
     const parsed = BatchesSchema.safeParse(await store.read(KEY))
@@ -69,8 +82,14 @@ export function createWatcher({
   const write = (batches: readonly Batch[]): Promise<void> => store.write(KEY, batches)
 
   async function tick(): Promise<void> {
-    const batches = await read()
+    const remembered = await read()
+    // Age is judged before the queue is asked, so a server that stays away
+    // cannot keep a batch — and the polling for it — alive past a day.
+    const stale = now().getTime() - STALE_MS
+    const batches = remembered.filter(batch => new Date(batch.startedAt).getTime() > stale)
+    if (batches.length !== remembered.length) await write(batches)
     if (batches.length === 0) {
+      going = 0
       await badge(badgeText(0, failed))
       return
     }
@@ -81,8 +100,10 @@ export function createWatcher({
     } catch {
       // The server is asleep or the token has gone: leave the badge as it is
       // rather than saying the imports vanished.
+      misses += 1
       return
     }
+    misses = 0
 
     for (const batch of finished(current, batches)) {
       if (batch.failed.length > 0) failed = true
@@ -90,10 +111,7 @@ export function createWatcher({
       if (notice) notify(notice)
     }
 
-    const stale = now().getTime() - STALE_MS
-    const left = batches.filter(
-      batch => !finished(current, [batch]).length && new Date(batch.startedAt).getTime() > stale,
-    )
+    const left = batches.filter(batch => !finished(current, [batch]).length)
     if (left.length !== batches.length) await write(left)
     going = stillGoing(current, left)
     await badge(badgeText(going, failed))
@@ -129,15 +147,18 @@ export function createWatcher({
     follow() {
       if (following) return
       following = true
+      misses = 0
       const again = (): void => {
         void (async () => {
           let more = false
           try {
             await tick()
-            more = (await read()).length > 0
+            // A server that has missed a few answers is asleep: the alarm
+            // keeps looking every 30 s, and this worker may stop.
+            more = misses < GIVE_UP_AFTER && (await read()).length > 0
           } catch {
-            // A read that failed is no reason to stop watching: the server may
-            // simply have been asleep for that one moment.
+            // IndexedDB failing to answer is no reason to stop watching: it
+            // may simply have been busy for that one moment.
             more = true
           }
           if (more) setTimeout(again, AWAKE_POLL_MS)

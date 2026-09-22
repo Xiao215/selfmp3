@@ -1,7 +1,14 @@
-import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } from './store.js'
+import {
+  CloudError,
+  type CloudObject,
+  type CloudPutOptions,
+  type CloudStore,
+} from '../../bucket/store.js'
 
 /**
- * A bucket in memory, for tests. It keeps what each upload said about itself
+ * A bucket in memory, for tests. Here rather than beside `bucket/store.ts`
+ * because nothing the server ships uses it, and `fixtures/` is outside the
+ * build (apps/server/tsconfig.json). It keeps what each upload said about itself
  * so a test can check the headers, counts uploads so a test can prove a file
  * was not sent twice, and can be told to fail like a bucket that is out of
  * reach or refuses the key.

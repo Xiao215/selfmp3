@@ -51,7 +51,7 @@ export function usePlaybackMemoryState(): PlaybackMemory {
  * every tick to copy a number nobody drew.
  */
 function writeSession(player: PlayerApi): void {
-  const session = sessionFromQueue(player.queue, player.getPosition(), Date.now())
+  const session = sessionFromQueue(player.queue, player.getPosition())
   prefs.set(SESSION_KEY, session ? JSON.stringify(session) : '')
 }
 

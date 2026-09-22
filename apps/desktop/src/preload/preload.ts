@@ -1,23 +1,25 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
+  APP_ORIGIN,
   BRIDGE_GLOBAL,
   CHANNELS,
   EVENTS,
+  MEDIA_PREFIX,
   commandSchema,
   deepLinkSchema,
   desktopInfoSchema,
   downloadResultSchema,
   fileListSchema,
   fileStatSchema,
+  loginItemOpenSchema,
   secretReadSchema,
   transferProgressSchema,
   updateStatusSchema,
   usageSchema,
   type DesktopBridge,
   type DesktopInfo,
+  type DockPlaybackState,
   type FileKind,
-  type PlaybackState,
-  type UpdateStatus,
 } from '@selfmp3/desktop-bridge'
 
 /**
@@ -116,7 +118,7 @@ const bridge: DesktopBridge = {
    * concatenation would be a round trip per row.
    */
   mediaUrl: (kind: FileKind, name: string) =>
-    `app://selfmp3/_media/${kind}/${encodeURIComponent(name)}`,
+    `${APP_ORIGIN}${MEDIA_PREFIX}${kind}/${encodeURIComponent(name)}`,
 
   openExternal: async url => {
     await ipcRenderer.invoke(CHANNELS.openExternal, url)
@@ -127,12 +129,12 @@ const bridge: DesktopBridge = {
 
   onCommand: listener => subscribe(EVENTS.command, value => commandSchema.parse(value), listener),
 
-  setPlaybackState: async (state: PlaybackState) => {
+  setPlaybackState: async (state: DockPlaybackState) => {
     await ipcRenderer.invoke(CHANNELS.setPlaybackState, state)
   },
 
   updates: {
-    check: () => ipcRenderer.invoke(CHANNELS.updatesCheck) as Promise<UpdateStatus>,
+    check: async () => updateStatusSchema.parse(await ipcRenderer.invoke(CHANNELS.updatesCheck)),
     install: async () => {
       await ipcRenderer.invoke(CHANNELS.updatesInstall)
     },
@@ -140,8 +142,9 @@ const bridge: DesktopBridge = {
   },
 
   loginItem: {
-    get: () => ipcRenderer.invoke(CHANNELS.loginItemGet) as Promise<boolean>,
-    set: (open: boolean) => ipcRenderer.invoke(CHANNELS.loginItemSet, open) as Promise<boolean>,
+    get: async () => loginItemOpenSchema.parse(await ipcRenderer.invoke(CHANNELS.loginItemGet)),
+    set: async (open: boolean) =>
+      loginItemOpenSchema.parse(await ipcRenderer.invoke(CHANNELS.loginItemSet, open)),
   },
 }
 

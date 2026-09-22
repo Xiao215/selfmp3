@@ -108,17 +108,13 @@ function main(): void {
     logger.info(`received ${signal}, shutting down`)
 
     if (scanTimer) clearInterval(scanTimer)
-    container.libraryWatcher.stop()
-    container.importQueue.stop()
-    container.cloudSync.stop()
-    // Let the machine sleep again even if a stream is still winding down.
-    container.keepAwake.stop()
 
-    // An event stream is answered and then held open for the life of the tab,
-    // so `server.close` would wait on it forever and never call back — and the
-    // database is closed in that callback. End the streams first and what is
-    // left to wait for is ordinary requests, which do finish.
-    container.devices.stop()
+    // Everything in the background, including the event streams: one is
+    // answered and then held open for the life of the tab, so `server.close`
+    // would wait on it forever and never call back — and the database is
+    // closed in that callback. Stop first and what is left to wait for is
+    // ordinary requests, which do finish.
+    container.stop()
 
     server.close(() => {
       container.close()

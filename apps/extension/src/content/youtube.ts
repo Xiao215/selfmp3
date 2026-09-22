@@ -1,3 +1,4 @@
+import { youtubeWatchUrl } from '@selfmp3/shared'
 import { pageKind } from '../pageKind.js'
 // The generated tokens (scripts/theme.mjs), as text for the pill's shadow root.
 import THEME from '../ui/theme.css'
@@ -49,7 +50,7 @@ function removePills(): void {
 async function refresh(videoId: string): Promise<void> {
   const reply = await askPage({
     type: 'pillState',
-    url: `https://www.youtube.com/watch?v=${videoId}`,
+    url: youtubeWatchUrl(videoId),
   })
   if (!pill || pill.videoId !== videoId) return
   if (reply.ok) pill.draw(reply.value)
@@ -68,7 +69,7 @@ function follow(videoId: string): void {
       }
       const reply = await askPage({
         type: 'pillState',
-        url: `https://www.youtube.com/watch?v=${videoId}`,
+        url: youtubeWatchUrl(videoId),
       })
       if (reply.ok && pill.videoId === videoId) pill.draw(reply.value)
       if (reply.ok && reply.value.state === 'importing') setTimeout(again, 1_500)
@@ -85,7 +86,7 @@ function clicked(clickedPill: PillHandles): void {
   void (async () => {
     const reply = await askPage({
       type: 'pillImport',
-      url: `https://www.youtube.com/watch?v=${videoId}`,
+      url: youtubeWatchUrl(videoId),
     })
     if (!pill || pill.videoId !== videoId) return
     if (reply.ok) {

@@ -31,7 +31,7 @@ export async function openLibrary(page: Page): Promise<void> {
 }
 
 /** The songs table, which is labelled `<heading> songs`. */
-export function songTable(page: Page): Locator {
+function songTable(page: Page): Locator {
   return page.getByRole('table', { name: /songs$/ })
 }
 
@@ -59,7 +59,7 @@ export function rowFor(page: Page, title: string): Locator {
 }
 
 /** The screen the app shows when it could not reach the server at all. */
-export function unreachable(page: Page): Locator {
+function unreachable(page: Page): Locator {
   return page.getByRole('heading', { name: /can.t reach your library/i })
 }
 

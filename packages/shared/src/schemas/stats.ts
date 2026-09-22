@@ -12,14 +12,6 @@ import { IdSchema } from './common.js'
 export const StatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
 export type StatsRange = z.infer<typeof StatsRangeSchema>
 
-export const STATS_RANGE_LABELS: Record<StatsRange, string> = {
-  '7d': 'Last 7 days',
-  '30d': 'Last 30 days',
-  '90d': 'Last 3 months',
-  '365d': 'Last year',
-  all: 'All time',
-}
-
 export const DailyPlaysSchema = z.object({
   /** YYYY-MM-DD in local server time. */
   date: z.string(),

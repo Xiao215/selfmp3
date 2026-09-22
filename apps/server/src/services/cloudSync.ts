@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import fsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
@@ -1414,7 +1413,7 @@ export class CloudSyncService {
   }
 
   #deviceId(): string {
-    return this.#deps.cloud.deviceId(os.platform() === 'darwin' ? 'mac' : os.platform())
+    return this.#deps.cloud.deviceId()
   }
 
   #clearTimers(): void {

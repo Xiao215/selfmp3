@@ -2,7 +2,7 @@ import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
-import type { Config } from '../config.js'
+import { stagingDir, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -272,9 +272,9 @@ export class AnalysisService {
     const local = this.#storage.localPath(key)
     if (local) return { file: local, cleanup: () => Promise.resolve() }
 
-    const stagingDir = path.join(this.#config.dataDir, 'incoming')
-    await fsp.mkdir(stagingDir, { recursive: true })
-    const file = path.join(stagingDir, `analyse-${Date.now()}${path.extname(key)}`)
+    const staging = stagingDir(this.#config)
+    await fsp.mkdir(staging, { recursive: true })
+    const file = path.join(staging, `analyse-${Date.now()}${path.extname(key)}`)
     await fsp.writeFile(file, await this.#storage.read(key))
     return { file, cleanup: () => fsp.rm(file, { force: true }).catch(() => undefined) }
   }

@@ -54,6 +54,21 @@ export function errorResponse(error: DoormanError): Response {
   return json(body, error.status)
 }
 
+/**
+ * `405`, with the `Allow` header the status is meaningless without.
+ *
+ * A response rather than a `DoormanError`, because only the caller knows which
+ * methods this particular path takes, and that list has to reach the header.
+ */
+export function methodNotAllowed(allowed: readonly string[]): Response {
+  const allow = allowed.join(', ')
+  const response = errorResponse(
+    new DoormanError(405, 'method_not_allowed', `use ${allow.replace(/, (?=[^,]*$)/, ' or ')}`),
+  )
+  response.headers.set('allow', allow)
+  return response
+}
+
 export function noContent(): Response {
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
 }

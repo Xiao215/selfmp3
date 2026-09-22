@@ -49,3 +49,24 @@ export const EVENTS = {
 
 /** The name the preload puts on the window, and nothing else goes on it. */
 export const BRIDGE_GLOBAL = 'selfmp3Desktop'
+
+/**
+ * Where the page lives in an installed app.
+ *
+ * Here rather than in the shell because both halves spell it: the main process
+ * serves this origin (`main/protocol.ts` says why a privileged scheme and not
+ * `file:`), the preload builds `mediaUrl` against it, and the window's
+ * navigation guard uses it to decide what still counts as the app.
+ */
+export const APP_ORIGIN = 'app://selfmp3'
+
+/** Under `APP_ORIGIN`: songs and covers on disk, served with a real 206. */
+export const MEDIA_PREFIX = '/_media/'
+
+/**
+ * The scheme the operating system hands back — `selfmp3://welcome#signin-code=…`.
+ *
+ * The shell claims it, `deepLinks.ts` picks it out of argv, and the schema the
+ * page parses arrivals with is built from it, so all three move together.
+ */
+export const DEEP_LINK_SCHEME = 'selfmp3'

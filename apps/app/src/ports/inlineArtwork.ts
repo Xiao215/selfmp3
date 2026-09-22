@@ -15,7 +15,7 @@ const LOADABLE = /^(https?|data|blob):/i
 /** The last few covers read, so going back a song or pausing reads nothing. */
 const REMEMBERED = 12
 
-export function artworkLoadable(src: string): boolean {
+function artworkLoadable(src: string): boolean {
   return LOADABLE.test(src)
 }
 

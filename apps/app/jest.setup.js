@@ -9,8 +9,8 @@ require('./src/ui/theme/unistyles')
 // is not a place to stub the app's own code: a test that renders a component
 // against fakes of its own dependencies proves the fakes work.
 
-// The player's native side. The web build already stubs this (metro.config.js)
-// and phase 3 replaces both with the engine port.
+// The player's native side, which the engine port speaks to. The web build
+// stubs the same module out of its bundle (metro.config.js).
 jest.mock('react-native-track-player', () => ({
   __esModule: true,
   default: { registerPlaybackService: jest.fn(), addEventListener: jest.fn() },

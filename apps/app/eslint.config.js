@@ -23,9 +23,6 @@ module.exports = [
       'dist/**',
       // The bundled service worker; sw/sw.ts is its source and is linted.
       'public/sw.js',
-      // Playwright's traces and screenshots from a failed run.
-      'test-results/**',
-      'playwright-report/**',
     ],
   },
   {

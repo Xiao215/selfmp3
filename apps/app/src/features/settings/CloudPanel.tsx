@@ -21,7 +21,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { CloudUpload, More, Refresh, Trash, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
-import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
+import { Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
 
 /**
  * Settings → Cloud (docs/SYNC.md).
@@ -539,7 +539,6 @@ function BucketForm({
           onPress={submit}
         />
       </Row>
-      <ButtonRow>{null}</ButtonRow>
     </>
   )
 }

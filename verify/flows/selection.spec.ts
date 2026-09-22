@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
 import {
   escaped,
   libraryReady,
@@ -104,8 +105,7 @@ test.describe('selecting songs', () => {
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
     // Asked of the server rather than counted off the screen, which draws a
     // different number of rows once select-all has scrolled through them.
-    const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
-    const library = (await (await page.request.get(`${api}/api/library`)).json()) as {
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
       songs: { missing: boolean }[]
     }
     // Library lists, and so selects, only songs whose file is there; a song

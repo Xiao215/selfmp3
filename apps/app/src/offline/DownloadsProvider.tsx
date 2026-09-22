@@ -119,6 +119,12 @@ interface DownloadsContextValue {
   /** Remove every download, and stop downloading by itself, or they would come back. */
   removeAll: () => Promise<void>
   /**
+   * Forget which songs were removed by hand: signing out. The ids are this
+   * account's, and another account's library hands the same numbers to other
+   * songs, which would then quietly never download by themselves.
+   */
+  forgetExcluded: () => void
+  /**
    * A removal is running. The buttons that start one are disabled while it is,
    * and starting a second does nothing: two passes over the same index would
    * have the later one write back the entries the earlier one deleted.
@@ -389,6 +395,12 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [runRemoval, setPrefs],
   )
 
+  const forgetExcluded = useCallback(() => {
+    setExcluded(new Set())
+    // The store has no delete; an empty list reads back as nothing excluded.
+    prefStore.set(EXCLUDED_KEY, '[]')
+  }, [])
+
   // The player's commands are made once; they read the latest rules through this.
   const songsById = useMemo(
     () => new Map((library.data?.songs ?? []).map(song => [song.id, song])),
@@ -424,7 +436,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     if (!now.fromCloud || now.excluded.has(songId)) return
     // A browser streams and keeps nothing, played or not.
     if (!installedApp) return
-    if (installedApp && now.prefs.autoOnWifi) return
+    if (now.prefs.autoOnWifi) return
     // A copy is a second fetch of a song already streaming, so it answers to
     // the rule every other download does: not over mobile data nobody agreed to.
     if (now.network === 'cellular' && !now.dataAllowed) return
@@ -506,6 +518,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       dropDownloads,
       removeFiles,
       removeAll,
+      forgetExcluded,
       removing,
       keepPlayed,
       mayPlay,
@@ -528,6 +541,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       dropDownloads,
       removeFiles,
       removeAll,
+      forgetExcluded,
       removing,
       keepPlayed,
       mayPlay,

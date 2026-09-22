@@ -620,7 +620,8 @@ const styles = StyleSheet.create(theme => ({
     position: 'absolute',
     zIndex: 5,
   },
-  floatBottom: { bottom: space.sm, left: space.sm, right: space.sm },
+  /* The foot itself is worked out per screen, above the player bar and the tab bar. */
+  floatBottom: { left: space.sm, right: space.sm },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',

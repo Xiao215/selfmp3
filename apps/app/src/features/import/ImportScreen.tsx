@@ -516,7 +516,6 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 20,
   },
   heading: pageTitle(theme.colors),
-  done: { color: theme.colors.accent, fontSize: 15, fontWeight: '600' },
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 48 },
   left: { width: 560, flexShrink: 1, gap: 22 },
   right: { flex: 1, minWidth: 0, paddingTop: 8 },

@@ -14,7 +14,7 @@ export type SectionId =
   | 'importing'
   | 'library'
   | 'cloud'
-  | 'connection'
+  | 'account'
   | 'lyrics'
   | 'devices'
   | 'desktop'
@@ -31,9 +31,8 @@ export type SectionId =
  * Import does, and with no server in reach it still shows the last list it had.
  */
 export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boolean }[] = [
-  // Which library this is, and signing out of it. Its id is older than its name:
-  // links from elsewhere (`/settings?section=connection`) still land here.
-  { id: 'connection', label: 'Account' },
+  // Which library this is, and signing out of it.
+  { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   // Named for the device it is on; see `sectionsFor`.
   { id: 'offline', label: 'On this phone' },

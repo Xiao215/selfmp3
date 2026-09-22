@@ -71,8 +71,6 @@ export function finished(queue: ImportQueue, batches: readonly Batch[]): Finishe
   return done
 }
 
-const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
-
 /**
  * What a finished batch is announced as: one song by name, several by count,
  * and what did not make it either way. Null when there is nothing to say —
@@ -84,10 +82,10 @@ export function noticeFor(batch: FinishedBatch): { title: string; message: strin
 
   const title =
     added.length === 0
-      ? `${songs(failed.length)} couldn’t be downloaded`
+      ? `${plural(failed.length, 'song', 'songs')} couldn’t be downloaded`
       : added.length === 1
         ? `${added[0]?.title ?? 'A song'} added`
-        : `${songs(added.length)} added`
+        : `${plural(added.length, 'song', 'songs')} added`
 
   const parts: string[] = []
   if (batch.batch.label) parts.push(batch.batch.label)

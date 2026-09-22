@@ -39,7 +39,7 @@ export interface SongFiles {
   /** The words' romanized lines (`lyrics/<sha256>.json`), or null when they need none. */
   readonly romanized: string | null
   /** The song's motion curve (`lyrics/<sha256>.json`), or null before the server analysed it. */
-  readonly motion?: string | null
+  readonly motion: string | null
 }
 
 export interface CloudLibrary {
@@ -138,8 +138,10 @@ export function snapshotToLibrary(
 
   const durationOf = new Map(librarySongs.map(song => [song.id, song.duration]))
   const playlistSongs: Record<number, number[]> = {}
+  const playlistIdOf = new Map<string, number>()
   const libraryPlaylists: Playlist[] = snapshot.playlists.map(playlist => {
     const id = idFor(playlists, playlist.uid)
+    playlistIdOf.set(playlist.uid, id)
     const songIds = playlist.songUids.flatMap(uid => {
       const songId = songIdOf.get(uid)
       return songId === undefined ? [] : [songId]
@@ -191,13 +193,16 @@ export function snapshotToLibrary(
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt)),
     server: snapshot.server ?? null,
     uids: {
-      songs: new Map(snapshot.songs.map(song => [songs[song.uid] ?? 0, song.uid])),
-      tags: new Map(snapshot.tags.map(tag => [tags[tag.uid] ?? 0, tag.uid])),
-      playlists: new Map(
-        snapshot.playlists.map(playlist => [playlists[playlist.uid] ?? 0, playlist.uid]),
-      ),
+      songs: flip(songIdOf),
+      tags: flip(tagIdOf),
+      playlists: flip(playlistIdOf),
     },
   }
+}
+
+/** The same pairs the other way round: this device's id → the bucket's uid. */
+function flip(byUid: ReadonlyMap<string, number>): Map<number, string> {
+  return new Map([...byUid].map(([uid, id]) => [id, uid]))
 }
 
 /** `audio/4f1c….m4a` → the first twelve characters of its hash. */

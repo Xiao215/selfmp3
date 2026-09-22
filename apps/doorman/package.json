@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "wrangler dev --env dev",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "clean": "rm -rf dist-types tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@selfmp3/shared": "*",

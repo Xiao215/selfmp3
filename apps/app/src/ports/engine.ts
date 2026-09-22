@@ -116,7 +116,6 @@ class NativeEngine implements PlaybackEngine {
   #cardShown = new Map<number, string>()
   #volume = 1
   #muted = false
-  #rate = 1
 
   onTrackEnd: (() => void) | null = null
   nextTrackId: (() => number | null) | null = null
@@ -293,7 +292,6 @@ class NativeEngine implements PlaybackEngine {
   }
 
   setRate(rate: number): void {
-    this.#rate = rate
     void TrackPlayer.setRate(rate)
     this.#patch({ rate })
   }

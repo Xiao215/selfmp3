@@ -158,5 +158,3 @@ function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean })
     </>
   )
 }
-
-// --------------------------------------------------------------- playback

@@ -37,10 +37,22 @@ export function formatBytes(bytes: number): string {
   return `${rounded} ${unit}`
 }
 
-/** Relative time that degrades gracefully: `just now`, `4h ago`, `12 Mar`. */
-export function formatRelative(iso: string | null, now = new Date()): string {
-  if (!iso) return 'never'
-  const then = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z')
+/**
+ * Relative time that degrades gracefully: `just now`, `4h ago`, `12 Mar`.
+ *
+ * A string is a stamp — ISO, or SQLite's `YYYY-MM-DD HH:MM:SS`, which is UTC
+ * without saying so. A number is epoch milliseconds, which is what a device's
+ * heartbeat carries; the device lists used to phrase their own ("3 min ago")
+ * and there is no reason for the same gap to read two ways.
+ */
+export function formatRelative(at: string | null, now?: Date): string
+export function formatRelative(at: number, now?: Date): string
+export function formatRelative(at: string | number | null, now = new Date()): string {
+  if (at === null || at === '') return 'never'
+  const then =
+    typeof at === 'number'
+      ? new Date(at)
+      : new Date(at.includes('T') ? at : at.replace(' ', 'T') + 'Z')
   const ms = now.getTime() - then.getTime()
   if (!Number.isFinite(ms)) return 'never'
   if (ms < 0) return 'just now'

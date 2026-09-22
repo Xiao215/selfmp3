@@ -1,6 +1,6 @@
 import {
+  CLOUD_FORMAT,
   CloudSnapshotSchema,
-  migrateCloudSnapshot,
   DoormanListSchema,
   HlcClock,
   LOG_FOLDER,
@@ -293,7 +293,7 @@ export function createCloudLibrary(
 
   function emptySnapshot(): CloudSnapshot {
     return {
-      format: 1,
+      format: CLOUD_FORMAT,
       writtenAt: new Date(0).toISOString(),
       writtenBy: 'none',
       upTo: {},
@@ -362,9 +362,7 @@ export function createCloudLibrary(
   ): Promise<CloudSnapshot | 'gone'> {
     const response = await session_.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
-    // Through the migration first: the newest snapshot in a bucket was not
-    // necessarily written by this build (schemas/cloud.ts).
-    return CloudSnapshotSchema.parse(migrateCloudSnapshot(JSON.parse(await readText(response))))
+    return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))
   }
 
   /** A log file, or `gone` when it went after the listing; one that cannot be read counts as empty. */
@@ -839,7 +837,7 @@ export function createCloudLibrary(
     const inPlaylists = new Set(Object.values(view.playlistSongs).flat())
     const entries = view.library.songs
       .filter(song => scope === 'library' || inPlaylists.has(song.id))
-      .map(song => ({ id: song.id, sizeBytes: song.sizeBytes, etag: song.rev ?? '' }))
+      .map(song => ({ id: song.id, sizeBytes: song.sizeBytes, etag: song.rev }))
     return {
       version: view.library.version,
       songCount: entries.length,

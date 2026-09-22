@@ -46,20 +46,13 @@ RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @self
 # sharp's native build for this platform is one, and the server cannot start
 # without it (the S3 SDK comes along too).
 #
-# sharp is the one production module that does not hoist to the root. miniflare
-# — a dev dependency, through the doorman's Workers tooling — pins sharp 0.35.4
-# and takes the root slot, so the server's ^0.34.5 installs into
-# apps/server/node_modules instead. `--omit=dev` then removes the root copy,
-# which is why that directory has to reach the runtime stage too.
-#
 # The two native modules are loaded the way the server itself will load them,
 # from its own entry point rather than from /app, and on the image's own
 # platform: an image whose server would not start fails to build rather than
 # being published. Resolving from /app would have missed exactly this.
-RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
+RUN rm -rf node_modules packages/shared/node_modules \
  && npm ci --workspace @selfmp3/shared --workspace @selfmp3/server \
       --omit=dev --no-audit --no-fund \
- && mkdir -p apps/server/node_modules \
  && node -e "const need = require('module').createRequire('/app/apps/server/dist/main.js'); \
              need('sharp'); \
              new (need('better-sqlite3'))(':memory:').close()"
@@ -109,8 +102,6 @@ COPY --from=server --chown=node:node /app/node_modules ./node_modules
 COPY --from=server --chown=node:node /app/packages/shared/package.json ./packages/shared/
 COPY --from=server --chown=node:node /app/packages/shared/dist ./packages/shared/dist
 COPY --from=server --chown=node:node /app/apps/server/package.json ./apps/server/
-# sharp lives here rather than in the root node_modules; see the server stage.
-COPY --from=server --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=server --chown=node:node /app/apps/server/dist ./apps/server/dist
 # The server's own page, read from beside `dist` at runtime.
 COPY --from=server --chown=node:node /app/apps/server/public ./apps/server/public

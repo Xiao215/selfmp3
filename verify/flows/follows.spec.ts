@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
 import { escaped, libraryReady, openLibrary, skipIfNoLibrary } from './helpers.js'
 
 /**
@@ -14,8 +15,6 @@ import { escaped, libraryReady, openLibrary, skipIfNoLibrary } from './helpers.j
  * Each test makes its own playlist and deletes it at the end, so the reference
  * playlists are never touched.
  */
-
-const API = process.env.SELFMP3_APP_API ?? ''
 
 interface Playlist {
   id: number
@@ -34,17 +33,17 @@ interface LibrarySong {
 }
 
 async function playlist(request: APIRequestContext, id: number): Promise<Playlist | undefined> {
-  const response = await request.get(`${API}/api/playlists`)
+  const response = await request.get(`${appApi}/api/playlists`)
   return ((await response.json()) as Playlist[]).find(entry => entry.id === id)
 }
 
 async function songIdsOf(request: APIRequestContext, id: number): Promise<number[]> {
-  const response = await request.get(`${API}/api/playlists/${id}/songs`)
+  const response = await request.get(`${appApi}/api/playlists/${id}/songs`)
   return ((await response.json()) as { songIds: number[] }).songIds
 }
 
 async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
-  const response = await page.request.get(`${API}/api/library`)
+  const response = await page.request.get(`${appApi}/api/library`)
   return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
 }
 
@@ -88,7 +87,7 @@ test.describe('a playlist that follows tags', () => {
     await expect(page.getByText(/^Saved “/)).toBeVisible()
     await expect(page.getByTestId('library-saved')).toBeVisible()
 
-    const made = await page.request.get(`${API}/api/playlists`)
+    const made = await page.request.get(`${appApi}/api/playlists`)
     const all = (await made.json()) as Playlist[]
     const created = all.find(entry => entry.name === tag.name)
     expect(created, `a playlist named ${tag.name}`).toBeDefined()
@@ -98,7 +97,7 @@ test.describe('a playlist that follows tags', () => {
       expect(created.kind).toBe('live')
       expect(created.rules?.rules.map(rule => rule.tagId)).toEqual([tag.id])
     } finally {
-      await page.request.delete(`${API}/api/playlists/${created.id}`)
+      await page.request.delete(`${appApi}/api/playlists/${created.id}`)
     }
   })
 
@@ -112,7 +111,7 @@ test.describe('a playlist that follows tags', () => {
     if (!pair) return
     const [first, second] = pair
 
-    const created = await page.request.post(`${API}/api/playlists`, {
+    const created = await page.request.post(`${appApi}/api/playlists`, {
       data: {
         name: `Flow — follows ${Date.now()}`,
         kind: 'live',
@@ -159,7 +158,7 @@ test.describe('a playlist that follows tags', () => {
       expect(ascending(after)).toEqual(ascending(widened))
       await expect(page.getByTestId('follows-row')).toHaveCount(0)
     } finally {
-      await page.request.delete(`${API}/api/playlists/${id}`)
+      await page.request.delete(`${appApi}/api/playlists/${id}`)
     }
   })
 })

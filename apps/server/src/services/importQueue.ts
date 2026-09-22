@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { isSquareCoverUrl, sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
-import type { Config } from '../config.js'
+import { stagingDir, type Config } from '../config.js'
 import type { KeepAwakeService } from './keepAwake.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -346,8 +346,8 @@ export class ImportQueueService {
     // yt-dlp writes to the real filesystem, so downloads always land in a local
     // staging directory first and are then handed to the storage driver. That
     // is what keeps object storage a drop-in swap.
-    const stagingDir = path.join(this.#config.dataDir, 'incoming')
-    await fsp.mkdir(stagingDir, { recursive: true })
+    const staging = stagingDir(this.#config)
+    await fsp.mkdir(staging, { recursive: true })
 
     /*
      * Clear anything this job left behind last time.
@@ -358,12 +358,12 @@ export class ImportQueueService {
      * the finished file is never recognised as new and the job fails with "no
      * file appeared" for ever, however often it is retried.
      */
-    for (const leftover of await safeReaddir(stagingDir)) {
+    for (const leftover of await safeReaddir(staging)) {
       if (!leftover.startsWith(baseName)) continue
-      await fsp.rm(path.join(stagingDir, leftover), { force: true }).catch(() => undefined)
+      await fsp.rm(path.join(staging, leftover), { force: true }).catch(() => undefined)
     }
 
-    const before = new Set(await safeReaddir(stagingDir))
+    const before = new Set(await safeReaddir(staging))
 
     // yt-dlp reports every chunk; a write per whole percent is plenty.
     let shown = 0
@@ -372,7 +372,7 @@ export class ImportQueueService {
       // `%` starts a field in an output template, so a title containing one —
       // "100%(real)" — would name the file something else entirely and the
       // download would never be found. `%%` is how a template spells a literal.
-      outputTemplate: path.join(stagingDir, `${baseName.replaceAll('%', '%%')}.%(ext)s`),
+      outputTemplate: path.join(staging, `${baseName.replaceAll('%', '%%')}.%(ext)s`),
       hasFfmpeg: tools.ffmpeg,
       signal,
       onProgress: percent => {
@@ -383,11 +383,11 @@ export class ImportQueueService {
       },
     })
 
-    const after = await safeReaddir(stagingDir)
+    const after = await safeReaddir(staging)
     const downloaded = after.find(name => !before.has(name) && name.startsWith(baseName))
     if (!downloaded) throw new Error('the download finished but no file appeared')
 
-    const stagedPath = path.join(stagingDir, downloaded)
+    const stagedPath = path.join(staging, downloaded)
     let libraryKey: string | null = null
 
     try {

@@ -17,9 +17,9 @@ export const ForgottenGemsSchema = z.object({
 export type ForgottenGems = z.infer<typeof ForgottenGemsSchema>
 
 /** Never look further back than this: two months without a play is "forgotten". */
-export const GEMS_MAX_DAYS = 60
+const GEMS_MAX_DAYS = 60
 /** A library only two weeks old cannot have forgotten anything yet. */
-export const GEMS_MIN_DAYS = 14
+const GEMS_MIN_DAYS = 14
 
 /**
  * The gap that counts as "a long time", scaled to how old the library is.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanArtist, parseFilename } from './metadata.js'
+import { parseFilename } from './metadata.js'
 
 describe('parseFilename', () => {
   it('splits Artist - Title', () => {
@@ -53,19 +53,5 @@ describe('parseFilename', () => {
 
   it('handles files inside subfolders', () => {
     expect(parseFilename('albums/Night/Aurora Lane - Sunrise.m4a').title).toBe('Sunrise')
-  })
-})
-
-describe('cleanArtist', () => {
-  it('strips the YouTube auto-channel suffix', () => {
-    expect(cleanArtist('Aurora Lane - Topic')).toBe('Aurora Lane')
-  })
-
-  it('strips a VEVO suffix', () => {
-    expect(cleanArtist('AuroraLaneVEVO')).toBe('AuroraLane')
-  })
-
-  it('leaves a normal name alone', () => {
-    expect(cleanArtist('Klara Feld')).toBe('Klara Feld')
   })
 })

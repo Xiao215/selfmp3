@@ -1,3 +1,4 @@
+import { NATIVE_BACKGROUND } from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
@@ -127,7 +128,9 @@ export type Accent = ReturnType<typeof buildAccent>
  * and nothing new separates with them.
  */
 const DARK = {
-  surface0: '#0b0d13',
+  // The one colour a window, a splash and a launcher icon are filled with
+  // before any of this is running, so it is written down where they can read it.
+  surface0: NATIVE_BACKGROUND,
   surface1: '#151821',
   surface2: '#1a1d25',
   surface3: '#1f2330',
@@ -248,8 +251,7 @@ export function applyColorScheme(scheme: ColorScheme, hue: number = DEFAULT_ACCE
 
 /**
  * `S2`'s shapes. Pills and round buttons are fully round; the rest are named
- * for what wears them. `sm`, `md` and `lg` are the old scale, kept only until
- * the last caller has moved (docs/UI-MIGRATION.md, Phase 1).
+ * for what wears them.
  */
 export const radius = {
   pill: 999,
@@ -259,9 +261,6 @@ export const radius = {
   mini: 16,
   cover: 10,
   coverSm: 8,
-  sm: 6,
-  md: 10,
-  lg: 16,
 } as const
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const

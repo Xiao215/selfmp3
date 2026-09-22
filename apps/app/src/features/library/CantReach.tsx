@@ -43,7 +43,7 @@ export function CantReach({ onRetry }: { onRetry: () => void }): ReactNode {
         <Button label="Try again" onPress={onRetry} />
         <Button
           label={wide ? 'Connection settings' : 'Settings'}
-          onPress={() => router.push({ pathname: '/settings', params: { section: 'connection' } })}
+          onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
         />
       </View>
     </View>

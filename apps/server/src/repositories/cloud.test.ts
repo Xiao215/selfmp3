@@ -164,8 +164,12 @@ describe('the connection', () => {
   })
 
   it('names this server once and keeps the name', () => {
-    const first = cloud.deviceId('mac')
-    expect(first).toMatch(/^mac-[0-9a-f]{8}$/)
-    expect(cloud.deviceId('mac')).toBe(first)
+    const first = cloud.deviceId()
+    // The name starts from the platform, so the prefix depends on where the
+    // tests run; a Mac is the one worth naming.
+    expect(first).toMatch(
+      process.platform === 'darwin' ? /^mac-[0-9a-f]{8}$/ : /^[a-z0-9-]+-[0-9a-f]{8}$/,
+    )
+    expect(cloud.deviceId()).toBe(first)
   })
 })

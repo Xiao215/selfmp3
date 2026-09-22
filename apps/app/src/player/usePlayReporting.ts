@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import type { MutableRefObject } from 'react'
+import type { RefObject } from 'react'
 import { AppState } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Song } from '@selfmp3/shared'
 import { queryKeys, secondsToCount } from '@selfmp3/client'
 
 import { flushListens, recordListen } from '../offline/listenOutbox'
-
-/** Stats are the other thing a counted play changes. */
-const STATS_KEY = ['stats'] as const
 
 /**
  * Counting a play, and sending the ones this device kept.
@@ -34,7 +31,7 @@ interface PlayReporting {
    * why it is a ref and why it is handed out rather than passed in: the hook
    * owns counting a play, so it owns what a play is counted from.
    */
-  readonly tracking: MutableRefObject<PlayTracking>
+  readonly tracking: RefObject<PlayTracking>
   /** Count what was heard, if enough of it was. `completed` is a song that ran out. */
   readonly flushPlay: (completed: boolean) => void
 }
@@ -45,7 +42,7 @@ export function usePlayReporting({
   connection,
 }: {
   /** The library, for the song's length: how much counts as a play. */
-  readonly songs: MutableRefObject<Map<number, Song>>
+  readonly songs: RefObject<Map<number, Song>>
   /** A song listened to is one worth keeping here, where songs stream. */
   readonly keepPlayed: (songId: number) => void
   /** Only to send again when the server this device talks to changes. */
@@ -79,7 +76,8 @@ export function usePlayReporting({
         // query on the page — lyrics, playlists, settings — for a play count.
         if (sent > 0) {
           void queryClient.invalidateQueries({ queryKey: queryKeys.library })
-          void queryClient.invalidateQueries({ queryKey: STATS_KEY })
+          // Stats are the other thing a counted play changes.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.statsRoot })
         }
       })
     }

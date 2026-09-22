@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MutableRefObject } from 'react'
+import type { RefObject } from 'react'
 import type { PlaybackEngine } from '@selfmp3/client'
 
 /**
@@ -19,7 +19,7 @@ interface SleepTimer {
   /** Whether it waits for the song playing to end rather than a clock. */
   readonly atSongEnd: boolean
   /** The same flag for the engine's own callbacks, and cleared by them. */
-  readonly atSongEndRef: MutableRefObject<boolean>
+  readonly atSongEndRef: RefObject<boolean>
   readonly set: (choice: number | 'song-end' | null) => void
   /** Used up by a song ending: the wiring says so, and the value follows. */
   readonly songEnded: () => void

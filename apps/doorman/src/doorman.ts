@@ -1,11 +1,21 @@
 import type { DoormanHealth } from '@selfmp3/shared'
+import { version as DOORMAN_VERSION } from '../package.json'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
 import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
-import { DoormanError, errorResponse, forbidden, json, notFound, notSetUp, redact } from './http.js'
+import {
+  DoormanError,
+  errorResponse,
+  forbidden,
+  json,
+  methodNotAllowed,
+  notFound,
+  notSetUp,
+  redact,
+} from './http.js'
 import { deriveKeys, type DoormanKeys } from './keys.js'
 import { Sessions, type SessionCache } from './sessions.js'
 import * as storage from './storage.js'
@@ -25,9 +35,6 @@ import * as storage from './storage.js'
  * What it builds lives as long as the Worker instance: a few caches, which
  * save KV reads and signing work between requests.
  */
-
-/** Keep in step with package.json. */
-const DOORMAN_VERSION = '1.0.0'
 
 interface DoormanDeps {
   /** How Google and the bucket are reached. The Worker's own fetch unless a test says otherwise. */
@@ -138,12 +145,7 @@ async function route(ctx: Context): Promise<Response> {
   const handler = Object.hasOwn(methods, request.method) ? methods[request.method] : undefined
   if (handler) return handler(ctx)
 
-  const allow = Object.keys(methods).join(', ')
-  const response = errorResponse(
-    new DoormanError(405, 'method_not_allowed', `use ${allow.replace(/, (?=[^,]*$)/, ' or ')}`),
-  )
-  response.headers.set('allow', allow)
-  return response
+  return methodNotAllowed(Object.keys(methods))
 }
 
 function health(): Promise<Response> {

@@ -37,7 +37,6 @@ export interface Cloud {
   flush(): Promise<void>
   /** Read the bucket once, so the first popup is not the thing that waits for it. */
   open(session: CloudSession): Promise<void>
-  forget(): Promise<void>
 }
 
 export function createCloud(store: KeyValueStore, fetchImpl: typeof fetch): Cloud {
@@ -109,6 +108,5 @@ export function createCloud(store: KeyValueStore, fetchImpl: typeof fetch): Clou
     open: async signedIn => {
       await library.loadCloudLibrary(signedIn)
     },
-    forget: () => library.forgetCloudLibrary(),
   }
 }

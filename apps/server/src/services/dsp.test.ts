@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MOTION_RATE } from '@selfmp3/shared'
 import {
   ANALYSIS_SAMPLE_RATE,
   analyzePcm,
@@ -8,7 +9,6 @@ import {
   estimateKey,
   estimateTempo,
   fft,
-  MOTION_FRAME_RATE,
   MOTION_SAMPLE_RATE,
   MotionBuilder,
   motionFromPcm,
@@ -251,9 +251,9 @@ describe('motionFromPcm', () => {
   it('has one frame per 50 ms, rounded up, for any length', () => {
     for (const samples of [0, 1, 551, 552, 11025, 11026, 27_690, 123_457]) {
       const curve = motionFromPcm(new Float32Array(samples), MSR)
-      expect(curve.rate).toBe(MOTION_FRAME_RATE)
+      expect(curve.rate).toBe(MOTION_RATE)
       expect(curve.duration).toBeCloseTo(samples / MSR, 9)
-      const expected = Math.ceil((samples * MOTION_FRAME_RATE) / MSR)
+      const expected = Math.ceil((samples * MOTION_RATE) / MSR)
       expect(curve.loudness.length, `${samples} samples`).toBe(expected)
       expect(curve.onset.length, `${samples} samples`).toBe(expected)
     }
@@ -289,13 +289,13 @@ describe('motionFromPcm', () => {
     const { onset } = motionFromPcm(clicksAt(times, 6), MSR)
 
     for (const time of times) {
-      const frame = Math.floor(time * MOTION_FRAME_RATE)
+      const frame = Math.floor(time * MOTION_RATE)
       const near = Math.max(onset[frame - 1] ?? 0, onset[frame] ?? 0, onset[frame + 1] ?? 0)
       // The clicks' strengths vary and the 98th percentile is the scale, so
       // the weaker ones sit a little under 255 — but far above the bed.
       expect(near, `click at ${time}s`).toBeGreaterThanOrEqual(150)
       // Halfway to the next click there is only the bed.
-      const between = Math.floor((time + 0.25) * MOTION_FRAME_RATE)
+      const between = Math.floor((time + 0.25) * MOTION_RATE)
       if (between < onset.length) expect(onset[between], `after ${time}s`).toBeLessThan(60)
     }
   })

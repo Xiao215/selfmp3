@@ -9,11 +9,11 @@ import {
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
+  SaveLyricsSchema,
   SetSongTagsSchema,
   similarSongs,
   SkipEventSchema,
   SongPatchSchema,
-  type BulkDeleteFailure,
   type BulkDeleteResult,
   type LyricsResponse,
   type PlayRecorded,
@@ -27,7 +27,6 @@ import { transact } from '../db/index.js'
 import { sqliteTime } from '../repositories/stats.js'
 import { revealInFileManager } from '../services/reveal.js'
 import { isLocalRequest } from '../http/local.js'
-import { removeFolderIfEmpty } from '../services/libraryLayout.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
@@ -73,48 +72,9 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/bulk/delete',
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
-      const requested = [...new Set(body.songIds)]
-      const songs = container.songs.byIds(requested)
-      const found = new Set(songs.map(song => song.id))
-      const failed: BulkDeleteFailure[] = requested
-        .filter(id => !found.has(id))
-        .map(id => ({ songId: id, reason: `no song with id ${id}`, removed: false }))
-
-      // Side effects one song at a time, and never fatal: the point of a batch
-      // is that one bad file does not cost you the other thirty-nine.
-      let filesDeleted = 0
-      for (const song of songs) {
-        if (body.deleteFile) {
-          try {
-            if (await container.storage.exists(song.path)) {
-              await container.storage.delete(song.path)
-              filesDeleted++
-            } else {
-              failed.push({
-                songId: song.id,
-                reason: 'the file was already missing from disk',
-                removed: true,
-              })
-            }
-            await container.lyrics.deleteSidecar(song.path)
-            await removeFolderIfEmpty(container.storage, song.path)
-          } catch (error) {
-            failed.push({
-              songId: song.id,
-              reason: error instanceof Error ? error.message : 'could not delete the file',
-              removed: true,
-            })
-          }
-        }
-        await container.covers.delete(song.id)
-        await container.lyricsCache.delete(song.id)
-        await container.motion.delete(song.id)
-        container.lyricsIndex.remove(song.id)
-      }
-
-      const { removed } = container.songs.deleteMany(songs.map(song => song.id))
-      if (removed.length > 0) container.bumpLibraryVersion()
-
+      const { removed, filesDeleted, failed } = await container.songRemoval.remove(body.songIds, {
+        deleteFile: body.deleteFile,
+      })
       return { removed: removed.length, filesDeleted, failed }
     }),
   )
@@ -387,7 +347,7 @@ export function songRoutes(container: Container): Router {
     route(
       {
         params: ParamsWithId,
-        body: z.object({ text: z.string().max(100_000) }),
+        body: SaveLyricsSchema,
       },
       async ({ params, body }) => {
         const song = requireSong(params.id)
@@ -438,20 +398,7 @@ export function songRoutes(container: Container): Router {
       },
       async ({ params, query }) => {
         const song = requireSong(params.id)
-
-        if (query.deleteFile) {
-          await container.storage.delete(song.path).catch(() => undefined)
-          await container.lyrics.deleteSidecar(song.path)
-          await removeFolderIfEmpty(container.storage, song.path)
-        }
-
-        await container.covers.delete(song.id)
-        await container.lyricsCache.delete(song.id)
-        await container.motion.delete(song.id)
-        container.songs.delete(song.id)
-        // A tag this was the last song of goes too.
-        container.tags.pruneEmpty()
-        container.bumpLibraryVersion()
+        await container.songRemoval.remove([song.id], { deleteFile: query.deleteFile })
         return { ok: true as const, fileDeleted: query.deleteFile }
       },
     ),

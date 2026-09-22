@@ -44,8 +44,9 @@ export function useSongWords(song: Song): {
 
   const romanizationOn = useRomanizationOn()
   // The romaji comes with the words (LyricsResponse.romanized): nothing more
-  // to ask for, and it is there wherever the words are kept.
-  const romanized = lyrics.data?.romanized ?? null
+  // to ask for, and it is there wherever the words are kept. Null only while
+  // there are no words yet.
+  const romanized = lyrics.data ? lyrics.data.romanized : null
 
   const error = lyrics.error
   const words = resolveSongWords({

@@ -1,0 +1,51 @@
+{
+  /*
+   * What the three Playwright suites have in common: this one, the desktop
+   * shell's and the extension's. They were three byte-identical files that had
+   * already drifted from the repo's own `tsconfig.base.json`; now they are one
+   * file that extends it, so a strictness flag added there reaches them too.
+   *
+   * These projects only ever check types — Playwright transpiles the specs
+   * itself — so `composite` comes back off: a composite project may not
+   * disable emit, and there is nothing here for another project to reference.
+   */
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+
+    /*
+     * Playwright transpiles the specs itself, so tsc is here only as a type
+     * checker — the same arrangement apps/desktop and apps/extension have with
+     * esbuild. Bundler resolution is what makes that true of the module system
+     * too: `apps/desktop` has no `"type": "module"`, and under NodeNext every
+     * `import` in its suite is an error about a file nobody ever asks Node to
+     * load.
+     */
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    /*
+     * `DOM` because a spec's `page.evaluate` body runs in the browser, and
+     * `node` because the rest of it runs here.
+     */
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    /*
+     * The two strictness flags these suites do not take from the repo's base.
+     *
+     * `noPropertyAccessFromIndexSignature`: a Playwright run is configured by
+     * the environment — `process.env.CI`, `SELFMP3_APP_API` — and this would
+     * turn every one of those into bracket notation for no safety at all; the
+     * property is `string | undefined` either way.
+     *
+     * `noUncheckedIndexedAccess`: a spec walks arrays it has just built and
+     * indexes them by a neighbour, which the compiler cannot follow —
+     * `apps/desktop/verify/smoke.spec.ts` compares each progress reading with
+     * `seen[index - 1]` under an `index === 0 ||` guard. The flag earns its
+     * keep in the source it was turned on for; here it only asks the specs to
+     * restate what the line above them already decided.
+     */
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false
+  }
+}

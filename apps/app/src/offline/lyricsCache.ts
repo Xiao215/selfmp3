@@ -49,7 +49,7 @@ export function writeCachedLyrics(songId: number, lyrics: LyricsResponse): void 
 }
 
 /** Forget them all: signing out, where another account's ids would collide. */
-export function clearCachedLyrics(): void {
+export async function clearCachedLyrics(): Promise<void> {
   try {
     const directory = cacheDirectory()
     if (directory.exists) directory.delete()

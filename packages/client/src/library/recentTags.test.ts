@@ -66,12 +66,7 @@ describe('the tags the rail shows', () => {
   })
 
   it('skips a remembered tag that has since been deleted', () => {
-    expect(railTags([99, 5], TAGS).map(t => t.name)).toEqual([
-      'rain',
-      'chill',
-      'chinese',
-      'hype',
-    ])
+    expect(railTags([99, 5], TAGS).map(t => t.name)).toEqual(['rain', 'chill', 'chinese', 'hype'])
   })
 
   it('shows every tag there is when there are fewer than four', () => {

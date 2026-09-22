@@ -184,7 +184,9 @@ export const downloadStorage: DownloadStorage = {
     if (file.exists) file.delete()
   },
 
-  delete(entry) {
+  async delete(entry) {
+    // `async` so a `delete()` that throws — a file the system will not let go
+    // of — is a rejection the queue can keep the entry for, not a stray throw.
     const file = new File(directory(), entry.fileName)
     if (file.exists) file.delete()
   },

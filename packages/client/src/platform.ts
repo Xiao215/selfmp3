@@ -157,10 +157,3 @@ export interface OutboxStore {
   read(): Promise<unknown>
   update(change: (current: unknown) => OutboxEvent[]): Promise<OutboxEvent[]>
 }
-
-/** Everything the package is handed at startup. */
-export interface ClientPlatform {
-  readonly fetch: ClientFetch
-  /** Absent where an app has no offline story yet; the query then just fails. */
-  readonly librarySnapshot?: LibrarySnapshotStore
-}

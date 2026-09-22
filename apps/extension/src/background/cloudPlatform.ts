@@ -30,7 +30,6 @@ interface PlatformDeps {
   readonly fetch: typeof fetch
   /** Where `beginSignIn` should leave the doorman's URL, for the page to open. */
   readonly openSignIn: (url: string) => void
-  readonly doormanUrl?: string
 }
 
 /** The store, as the replica wants it: quiet about a `remove` with nothing to remove. */
@@ -54,10 +53,9 @@ export function extensionCloudPlatform({
   store,
   fetch: fetchImpl,
   openSignIn,
-  doormanUrl = DEFAULT_DOORMAN_URL,
 }: PlatformDeps): CloudPlatform {
   return {
-    doormanUrl,
+    doormanUrl: DEFAULT_DOORMAN_URL,
     store: deviceStore(store),
     fetch: (url, init) => fetchImpl(url, init as RequestInit),
     randomBytes: into => crypto.getRandomValues(into),

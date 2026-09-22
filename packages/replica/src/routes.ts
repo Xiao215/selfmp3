@@ -6,6 +6,7 @@ import {
   CreatePlaylistSchema,
   CreateTagSchema,
   DEFAULT_SETTINGS,
+  DoormanHealthSchema,
   PlayEventSchema,
   RemoveFromPlaylistSchema,
   RenameTagSchema,
@@ -183,9 +184,10 @@ export function createCloudRoutes(
       '/api/songs/bulk/loved',
       ({ session, body }) => {
         const input = BulkLovedSchema.parse(body)
+        const wanted = new Set(input.songIds)
         return recordChanges(session, ctx => {
           const affected = ctx.view.library.songs.filter(
-            song => input.songIds.includes(song.id) && song.loved !== input.loved,
+            song => wanted.has(song.id) && song.loved !== input.loved,
           ).length
           return {
             changes: edits.loveSongs(ctx, input.songIds, input.loved),
@@ -313,10 +315,11 @@ export function createCloudRoutes(
       '/api/tags/bulk',
       ({ session, body }) => {
         const input = BulkTagSchema.parse(body)
+        const wanted = new Set(input.songIds)
         return recordChanges(session, ctx => {
           const on = input.action === 'add'
           const affected = ctx.view.library.songs.filter(
-            song => input.songIds.includes(song.id) && song.tagIds.includes(input.tagId) !== on,
+            song => wanted.has(song.id) && song.tagIds.includes(input.tagId) !== on,
           ).length
           return {
             changes: edits.tagSongs(ctx, input.tagId, input.songIds, on),
@@ -577,6 +580,12 @@ export function createCloudRoutes(
   async function health(): Promise<unknown> {
     const response = await session_.doormanFetch(null, '/v1/health')
     if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')
+    // A 200 is not yet an answer: a captive portal or a proxy's login page
+    // returns one too, and this route's whole job is to say the doorman is
+    // really there.
+    if (!DoormanHealthSchema.safeParse(await response.json().catch(() => null)).success) {
+      throw new DoormanError(response.status, 'the doorman is not answering')
+    }
     return {
       ok: true,
       version: 'web',

@@ -3,11 +3,12 @@ import type { Playlist, Song } from '@selfmp3/shared'
 /**
  * The library as a browsable hierarchy, for the car.
  *
- * CarPlay and Android Auto both want the same thing: a shallow tree of lists
- * where every leaf starts playback. Building it as pure data — rather than
- * inside the CarPlay template code — means it can be unit tested, and means
- * the identical tree can be handed to Android Auto if and when
- * react-native-track-player exposes an API for it (see docs/MOBILE.md).
+ * A head unit wants a shallow tree of lists where every leaf starts playback.
+ * Building it as pure data — rather than inside whatever native template code
+ * ends up publishing it — means it can be unit tested, and means the identical
+ * tree is ready to hand to Android Auto if and when react-native-track-player
+ * exposes an API for it (see docs/MOBILE.md). Nothing browses it today; what
+ * it is used for now is voice and media-id playback (`androidAuto.ts`).
  *
  * Every id is a plain string so it can survive a round trip through a native
  * media-id field.
@@ -53,9 +54,9 @@ export interface BrowseInput {
 
 interface BrowseOptions {
   /**
-   * Head units cap how many rows a list may have — CarPlay's limit is
-   * typically a couple of hundred and the API to ask for it is asynchronous.
-   * Capping here keeps every list well inside it and, more usefully, keeps a
+   * Head units cap how many rows a list may have — typically a couple of
+   * hundred, and the API to ask for the number is asynchronous. Capping here
+   * keeps every list well inside it and, more usefully, keeps a
    * five-thousand-song "Artists" list from being unusable while driving.
    */
   readonly maxItemsPerNode?: number

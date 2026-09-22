@@ -310,14 +310,20 @@ your real collection. Every root script:
 | `npm run dev:api` | The server with reload, on the `dev` profile |
 | `npm run dev:web` | Builds the packages, then the app's web dev server on `:4601` |
 | `npm run dev:desktop` | The desktop app against a dev build |
+| `npm run build:packages` | The four shared packages, in dependency order — every other build starts here |
 | `npm run build` | The packages and the server — what `npm start` runs |
 | `npm run build:desktop` | The same web export, packaged as a `.dmg` in `apps/desktop/release/` |
+| `npm run build:extension` | The packages and the browser extension, into `apps/extension/dist/` |
+| `npm run zip:extension` | That build, zipped into `apps/extension/release/` |
 | `npm start` | Run the built server |
 | `npm run cli -- <command>` | The `selfmp3` CLI: `start`, `scan`, `import`, `backup`, `doctor` |
 | `npm run typecheck` | TypeScript across the root project |
+| `npm run typecheck:clean` | The same, from scratch — for when a stale `tsconfig.tsbuildinfo` makes it lie |
+| `npm run typecheck:verify` | The three Playwright suites, which no other project checks |
 | `npm run typecheck:app` | Builds the packages, then type-checks the app and its service worker |
 | `npm run lint` / `npm run lint:fix` | ESLint, or ESLint with fixes |
 | `npm run lint:app` | ESLint for the app |
+| `npm run check:exports` | Exports nothing imports, twin-aware (`scripts/unused-exports.mjs`) |
 | `npm test` / `npm run test:watch` | The Vitest suite, once or watching |
 | `npm run test:app` | The app's component tests (Jest) |
 | `npm run check:app` | `typecheck:app`, `lint:app` and `test:app` |
@@ -325,6 +331,7 @@ your real collection. Every root script:
 | `npm run format` / `npm run format:check` | Prettier, writing or checking |
 | `npm run verify:flows` | Playwright flows at computer and phone width, against `npm run dev` ([verify/README.md](verify/README.md)) |
 | `npm run verify:desktop` | Playwright against the built desktop app |
+| `npm run verify:extension` | Playwright against the built browser extension |
 | `npm run clean` | Remove every build output |
 
 Inside `apps/app`, `npx expo run:ios` or `npx expo run:android` builds the phone app; see

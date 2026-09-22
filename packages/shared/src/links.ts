@@ -121,6 +121,18 @@ export function youtubeVideoId(url: string | null | undefined): string | null {
   return candidate && VIDEO_ID.test(candidate) ? candidate : null
 }
 
+/**
+ * The one link that stands for a video, whichever form it arrived in.
+ *
+ * The same video reaches us as `youtube.com/watch?v=…`,
+ * `music.youtube.com/watch?v=…&list=…` and `youtu.be/…`; anything that asks
+ * about a video by URL — the pill, the import queue — has to agree on which of
+ * those to use, so it is spelled once here rather than at each of them.
+ */
+export function youtubeWatchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${videoId}`
+}
+
 /** A YouTube channel, by its `@handle` or its `UC…` id. */
 export type YouTubeChannel = { readonly handle: string } | { readonly channelId: string }
 

@@ -8,11 +8,11 @@
     "start": "expo start --dev-client",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "prebuild": "expo prebuild --clean",
+    "native:prebuild": "expo prebuild --clean",
     "doctor": "npx --yes expo-doctor",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
-    "clean": "rm -rf .expo ios android",
+    "clean": "rm -rf .expo ios android dist public/sw.js",
     "web": "expo start --web",
     "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
     "export:web": "npm run build:sw && expo export -p web",
@@ -78,7 +78,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.0",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.18",

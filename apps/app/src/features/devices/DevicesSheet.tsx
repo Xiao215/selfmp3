@@ -2,7 +2,8 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { relativeTime, shortDeviceName, space, type } from '@selfmp3/client'
+import { shortDeviceName, space, type } from '@selfmp3/client'
+import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -90,10 +91,10 @@ export function DevicesSheet({
                   !named
                     ? device.state.playing
                       ? 'Playing something not in your bucket'
-                      : `Nothing loaded · ${relativeTime(device.lastSeenAt)}`
+                      : `Nothing loaded · ${formatRelative(device.lastSeenAt)}`
                     : device.state.playing
                       ? 'Playing now'
-                      : `Last seen ${relativeTime(device.lastSeenAt)}`
+                      : `Last seen ${formatRelative(device.lastSeenAt)}`
                 }
                 disabled={!named}
                 onPress={() => {

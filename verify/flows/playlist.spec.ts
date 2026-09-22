@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
 import {
   escaped,
   libraryReady,
@@ -74,8 +75,6 @@ async function openOneYouMade(page: Page): Promise<string | null> {
   return null
 }
 
-const API = process.env.SELFMP3_APP_API ?? ''
-
 interface StoredPlaylist {
   id: number
   name: string
@@ -83,7 +82,7 @@ interface StoredPlaylist {
 }
 
 async function playlistNamed(page: Page, name: string): Promise<StoredPlaylist | undefined> {
-  const response = await page.request.get(`${API}/api/library`)
+  const response = await page.request.get(`${appApi}/api/library`)
   const { playlists } = (await response.json()) as { playlists: StoredPlaylist[] }
   return playlists.find(entry => entry.name === name)
 }
@@ -189,12 +188,12 @@ test.describe('a playlist', () => {
     await expect(page).toHaveURL(/\/playlists\/\d+/)
     await expect.poll(async () => (await playlistNamed(page, name))?.songCount).toBe(1)
     const made = await playlistNamed(page, name)
-    if (made) await page.request.delete(`${API}/api/playlists/${made.id}`)
+    if (made) await page.request.delete(`${appApi}/api/playlists/${made.id}`)
   })
 
   test('is not listed while it is empty', async ({ page }) => {
     const name = `Flow — empty ${Date.now()}`
-    const created = await page.request.post(`${API}/api/playlists`, {
+    const created = await page.request.post(`${appApi}/api/playlists`, {
       data: { name, kind: 'manual' },
     })
     expect(created.ok()).toBe(true)
@@ -209,7 +208,7 @@ test.describe('a playlist', () => {
       const tiles = page.locator('[data-testid^="playlist-row-"]')
       await expect(tiles.filter({ hasText: name })).toHaveCount(0)
     } finally {
-      await page.request.delete(`${API}/api/playlists/${id}`)
+      await page.request.delete(`${appApi}/api/playlists/${id}`)
     }
   })
 })

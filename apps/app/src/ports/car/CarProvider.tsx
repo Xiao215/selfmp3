@@ -9,14 +9,17 @@ import { buildBrowseTree, type BrowseTree } from './browseTree'
 import { connectAndroidAuto } from './androidAuto'
 
 /**
- * Keeps the car's view of the library in sync, on both platforms.
+ * Keeps the car's view of the library in sync.
+ *
+ * Android Auto is the one integration there is; see `androidAuto.ts` for what
+ * of it can be wired up today.
  *
  * Renders nothing. It is a component only so it can sit inside the provider
  * tree and see the library, the player and the connection.
  *
- * The tree is handed to the car integrations behind a getter rather than as a
+ * The tree is handed to the car integration behind a getter rather than as a
  * value: the tree is built once when the head unit connects and then
- * live on the native side, so they must read the *current* tree when a row is
+ * lives on the native side, so it must read the *current* tree when a row is
  * tapped rather than closing over whatever existed at connection time.
  */
 export function CarProvider({ children }: { children: ReactNode }): ReactNode {
@@ -71,8 +74,8 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
     [library.data, playlists, playlistSongIds],
   )
 
-  // The car integrations are set up once and then live on the native side, so
-  // they read these refs rather than closing over a render's values.
+  // The car integration is set up once and then lives on the native side, so
+  // it reads these refs rather than closing over a render's values.
   const treeRef = useRef(tree)
   const playerRef = useRef(player)
   const connectionRef = useRef(connection)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Pressable, Text } from 'react-native'
+import { Animated, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { motion, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
@@ -9,7 +9,7 @@ import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toa
 import { IconButton } from './IconButton'
 import { X } from './Icons'
 import { floating } from '../surfaces'
-import { motionMs } from '../motion'
+import { ease, motionMs } from '../motion'
 
 /**
  * Mounted once, in the shell's toast row: every message raised with `showToast`.
@@ -79,7 +79,7 @@ function ToastItem({
     const animation = Animated.timing(shown, {
       toValue: leaving ? 0 : 1,
       duration: motionMs(leaving ? motion.base : motion.fast),
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      easing: ease.out,
       useNativeDriver: true,
     })
     animation.start(({ finished }) => {

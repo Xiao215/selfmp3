@@ -65,6 +65,10 @@ describe('formatRelative', () => {
   it('accepts the SQLite datetime format', () => {
     expect(formatRelative('2026-07-29 11:30:00', now)).toBe('30m ago')
   })
+
+  it('accepts epoch milliseconds, which is what a heartbeat carries', () => {
+    expect(formatRelative(Date.parse('2026-07-29T11:30:00Z'), now)).toBe('30m ago')
+  })
 })
 
 describe('sanitizeFilename', () => {

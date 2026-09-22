@@ -20,6 +20,32 @@ import { fromBase64Url, fromUtf8, randomBytes, toBase64Url, utf8 } from './encod
 /** How long a sign-in may take between starting and Google coming back. */
 export const SIGN_IN_TTL_MS = 10 * 60_000
 
+const MINUTES_IN_WORDS = [
+  'no',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+]
+
+/**
+ * "ten minutes", for the page that shows someone their code.
+ *
+ * Written out rather than typed out: the page is telling a person how long
+ * they have, and the only thing that decides that is `SIGN_IN_TTL_MS`. Past
+ * ten the digits read better than the word anyway.
+ */
+export function signInTtlInWords(): string {
+  const minutes = Math.round(SIGN_IN_TTL_MS / 60_000)
+  return `${MINUTES_IN_WORDS[minutes] ?? String(minutes)} minute${minutes === 1 ? '' : 's'}`
+}
+
 /** A state is a few hundred characters; anything far longer is not one of ours. */
 const MAX_STATE_LENGTH = 4096
 

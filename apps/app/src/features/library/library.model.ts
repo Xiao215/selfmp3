@@ -115,7 +115,10 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     (query: string) => setFilter(current => ({ ...current, query })),
     [setFilter],
   )
-  const clearQuery = useCallback(() => setFilter(current => ({ ...current, query: '' })), [setFilter])
+  const clearQuery = useCallback(
+    () => setFilter(current => ({ ...current, query: '' })),
+    [setFilter],
+  )
   const setSort = useCallback(
     (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
     [setFilter],
@@ -147,9 +150,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
-      subtitle: isPending
-        ? 'Loading…'
-        : `${plural(visible.length, 'song', 'songs')}`,
+      subtitle: isPending ? 'Loading…' : `${plural(visible.length, 'song', 'songs')}`,
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,
@@ -247,7 +248,9 @@ export function unreachableCopy({
   if (compact) {
     return {
       title,
-      body: fromCloud ? 'Check that you’re online, then try again.' : 'Check that it’s on, then try again.',
+      body: fromCloud
+        ? 'Check that you’re online, then try again.'
+        : 'Check that it’s on, then try again.',
     }
   }
   if (fromCloud) {

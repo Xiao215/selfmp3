@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { plural, formatBytes } from '@selfmp3/shared'
-import { useLibrary } from '@selfmp3/client'
+import { LARGE_SYNC_BYTES, useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
 
@@ -54,7 +54,7 @@ function wordsFor(
       case 'large':
         return {
           title: `Download ${size}?`,
-          body: `That’s ${songs}. Anything over 500 MB waits for you to ask, on any connection.`,
+          body: `That’s ${songs}. Anything over ${formatBytes(LARGE_SYNC_BYTES)} waits for you to ask, on any connection.`,
           confirm: 'Download',
           cancel: 'Not now',
         }

@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
-import type { View as RNView } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -42,27 +41,7 @@ import { newPlaylist } from './playlists.model'
  * cancelling at either step leaves nothing behind. One that follows tags is
  * made at once, since its tags are its songs.
  */
-export function NewPlaylist({
-  open,
-  onClose,
-  anchorRef,
-}: {
-  open: boolean
-  onClose: () => void
-  /** Kept for the callers that anchor a popover; this one is a dialogue at every width. */
-  anchorRef?: RefObject<RNView | null>
-}): ReactNode {
-  return <NewPlaylistDialog open={open} onClose={onClose} anchorRef={anchorRef} />
-}
-
-function NewPlaylistDialog({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-  anchorRef?: RefObject<RNView | null>
-}): ReactNode {
+export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()

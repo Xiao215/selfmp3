@@ -208,7 +208,12 @@ function Stack({
     <View style={styles.stack} aria-hidden>
       {shown.map((song, index) => (
         <View key={song.id} style={[index > 0 && styles.stacked, { zIndex: STACK_COVERS - index }]}>
-          <Cover uri={art(song)} title={song.album || song.title} size={size} radius={radius.md} />
+          <Cover
+            uri={art(song)}
+            title={song.album || song.title}
+            size={size}
+            radius={radius.cover}
+          />
         </View>
       ))}
       {rest > 0 ? (
@@ -252,7 +257,7 @@ const styles = StyleSheet.create(theme => ({
   stack: { flexDirection: 'row' },
   stacked: { marginLeft: -18 },
   more: {
-    borderRadius: radius.md,
+    borderRadius: radius.cover,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',
     justifyContent: 'center',

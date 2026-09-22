@@ -1,9 +1,8 @@
-import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { isSynced, LYRIC_EXTENSIONS, youtubeVideoId, type LyricsKind } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
-import { APP_VERSION } from '../config.js'
+import { USER_AGENT } from '../config.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 
 /**
@@ -17,7 +16,6 @@ import type { YouTubeMusicLyrics } from './youtubeMusic.js'
  *     (see youtubeMusic.ts), then lrclib.net, a community database.
  */
 
-const USER_AGENT = `self.mp3/${APP_VERSION} (personal music library; https://github.com/)`
 const LRCLIB = 'https://lrclib.net/api'
 const REQUEST_TIMEOUT_MS = 8_000
 
@@ -289,11 +287,6 @@ export class LyricsService {
         await this.#storage.delete(stem + extension).catch(() => undefined)
       }
     }
-  }
-
-  /** Where a sidecar would live, for logging. */
-  sidecarPathHint(audioKey: string): string {
-    return `${path.basename(audioKey).replace(/\.[^.]+$/, '')}.lrc`
   }
 }
 

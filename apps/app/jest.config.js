@@ -17,7 +17,9 @@ module.exports = {
   // half rather than the `.native` one that installs a native runtime, so a
   // shared value and `useAnimatedStyle` run in-process (the song visual).
   resolver: require.resolve('react-native-worklets/jest/resolver'),
+  // `standard-navigation` ships ESM only, and expo-router pulls it in: a row
+  // that reads the sidebar's width reaches the router through the shell.
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@shopify/flash-list|react-native-unistyles|react-native-nitro-modules)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@shopify/flash-list|react-native-unistyles|react-native-nitro-modules|standard-navigation)',
   ],
 }

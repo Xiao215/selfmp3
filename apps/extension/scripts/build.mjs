@@ -101,9 +101,9 @@ writeFileSync(join(out, 'manifest.json'), `${JSON.stringify({ ...manifest, versi
 
 copyFileSync(join(root, 'src', 'popup', 'popup.html'), join(out, 'popup.html'))
 copyFileSync(join(root, 'src', 'options', 'options.html'), join(out, 'options.html'))
-copyFileSync(
-  join(repoRoot, 'apps', 'app', 'public', 'icons', 'icon-192.png'),
-  join(out, 'icons', 'icon-192.png'),
-)
+// The manifest names the icon; this only puts the app's copy of that file
+// where the manifest has already promised it will be.
+const icon = manifest.icons['192']
+copyFileSync(join(repoRoot, 'apps', 'app', 'public', icon), join(out, icon))
 
 console.log(`\nThe extension is in ${out}. Load it unpacked from chrome://extensions.\n`)

@@ -4,7 +4,6 @@ import { type Settings } from '@selfmp3/shared'
 import { Select } from '../../ui/components/Select'
 import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row } from './SettingsParts'
-import {} from '../metadata/metadata.model'
 
 export function ImportingPanel({
   settings,
@@ -42,5 +41,3 @@ export function ImportingPanel({
     </Panel>
   )
 }
-
-// ---------------------------------------------------------------- library

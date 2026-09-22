@@ -15,7 +15,6 @@ import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { SIGNED_OUT_ROUTE, signOutOfCloud, signOutWarning } from './signOut'
 import { usePlayer } from '../../player/PlayerProvider'
 import { type Confirming } from './settings.model'
-import {} from '../metadata/metadata.model'
 
 export function Confirmations({
   confirming,
@@ -27,7 +26,7 @@ export function Confirmations({
   const router = useRouter()
   const client = useQueryClient()
   const { signedOutOfCloud } = useConnection()
-  const { removeAll, queue: downloadQueue } = useDownloads()
+  const { removeAll, forgetExcluded, queue: downloadQueue } = useDownloads()
   const startAnalysis = useStartAnalysis()
   const player = usePlayer()
 
@@ -67,13 +66,17 @@ export function Confirmations({
           },
           forgetSavedLibrary: async () => {
             await clearCachedLibrary()
-            clearCachedPlaylists()
-            clearCachedLyrics()
-            clearCachedMotion()
-            // Covers are found by song id, and another account's library hands
-            // the same ids to other songs: a kept cover would be the wrong picture.
-            await forgetCovers()
+            // All found by id, and another account's library hands the same
+            // ids to other songs and playlists: anything kept would be the
+            // wrong words, curve, members or picture.
+            await Promise.all([
+              clearCachedPlaylists(),
+              clearCachedLyrics(),
+              clearCachedMotion(),
+              forgetCovers(),
+            ])
           },
+          forgetExcluded,
           done: () => {
             signedOutOfCloud()
             router.replace(SIGNED_OUT_ROUTE)

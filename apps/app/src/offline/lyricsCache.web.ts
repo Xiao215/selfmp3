@@ -1,5 +1,5 @@
 import { LyricsResponseSchema, type LyricsResponse } from '@selfmp3/shared'
-import { readStored, writeStored } from '../ports/idbStore.web'
+import { deleteStoredPrefix, readStored, writeStored } from '../ports/idbStore.web'
 
 /**
  * The browser's copy of each song's words: one IndexedDB record per song.
@@ -43,7 +43,12 @@ export function writeCachedLyrics(songId: number, lyrics: LyricsResponse): void 
   )
 }
 
-/** The store lists no keys; the records are small and go with the site's data. */
-export function clearCachedLyrics(): void {
+/**
+ * Forget them all: signing out, where another account's ids would collide —
+ * its song 12 would open on this account's song 12's words. The set first, so
+ * nothing asked meanwhile is told the words are still here.
+ */
+export async function clearCachedLyrics(): Promise<void> {
   kept.clear()
+  await deleteStoredPrefix(KEY_PREFIX)
 }

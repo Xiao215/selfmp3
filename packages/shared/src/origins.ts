@@ -23,3 +23,13 @@ export const EXTENSION_ID = 'ojgfoohmmkangonahnbdpelfgmkjkfpi'
  * lets it through beside the desktop app's.
  */
 export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`
+
+/**
+ * The port the server listens on unless told otherwise. Clients that guess at a
+ * local server — the CLI, the extension's "on this computer" hint — have to
+ * guess the same number the server picks, so it is written once here.
+ */
+export const DEFAULT_SERVER_PORT = 4600
+
+/** Where a server on this computer, left on its default port, is listening. */
+export const DEFAULT_LOCAL_SERVER_URL = `http://localhost:${DEFAULT_SERVER_PORT}`

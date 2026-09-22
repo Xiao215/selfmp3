@@ -136,8 +136,11 @@ export const downloadStorage: DownloadStorage = {
     void desktop?.files.delete('songs', fileNameFor(song))
   },
 
-  delete(entry) {
-    void desktop?.files.delete('songs', entry.fileName)
+  async delete(entry) {
+    // Awaited, and its rejection passed on: the shell's `rm` is forced, so it
+    // fails only when the file genuinely would not go, and that is the one
+    // case the queue must hear about to keep the entry.
+    await desktop?.files.delete('songs', entry.fileName)
   },
 
   async clear() {

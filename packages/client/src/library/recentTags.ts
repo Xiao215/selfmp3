@@ -65,11 +65,7 @@ export function withTagUsed(ids: readonly number[], tagId: number): number[] {
  * A remembered id whose tag has since been deleted is skipped rather than
  * shown as a gap.
  */
-export function railTags(
-  recentIds: readonly number[],
-  tags: readonly Tag[],
-  count = 4,
-): Tag[] {
+export function railTags(recentIds: readonly number[], tags: readonly Tag[], count = 4): Tag[] {
   const byId = new Map(tags.map(tag => [tag.id, tag]))
   const chosen: Tag[] = []
   const taken = new Set<number>()

@@ -47,7 +47,8 @@ import {
   type StageTab,
 } from './nowPlaying.model'
 import { useLayout } from '../../shell/useLayout'
-import { motionMs } from '../../ui/motion'
+import { PLAYER_BAR_HEIGHT } from '../../shell/PlayerBar'
+import { ease, motionMs } from '../../ui/motion'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
 import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './stageMove.model'
@@ -64,10 +65,8 @@ import { TaggingLine } from './TaggingLine'
 import { useTagging, type Tagging } from './useTagging'
 import { tagLink } from '../tag/placeLinks'
 import { tip } from '../../ui/tip'
-import { floating, label } from '../../ui/surfaces'
+import { artShadow, floating, label } from '../../ui/surfaces'
 
-/** The player bar's height: the page is the window above it. */
-const BAR = 84
 /*
  * Where the top row starts. The page covers the sidebar, which is what keeps
  * everything else clear of the Mac's traffic lights, and they sit on this
@@ -283,14 +282,14 @@ function Stage({
     Animated.timing(shown, {
       toValue: 1,
       duration: motionMs(ENTER_MS),
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      easing: ease.out,
       useNativeDriver: true,
     }).start(() => setEntered(true))
     setStageExit(then => {
       Animated.timing(shown, {
         toValue: 0,
         duration: motionMs(LEAVE_MS),
-        easing: Easing.bezier(0.4, 0, 1, 1),
+        easing: ease.in,
         useNativeDriver: true,
       }).start(() => then())
     })
@@ -302,7 +301,7 @@ function Stage({
   const width = size?.width ?? window.width
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
-  const height = (size?.height ?? window.height) - BAR
+  const height = (size?.height ?? window.height) - PLAYER_BAR_HEIGHT
   const g = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
@@ -420,7 +419,7 @@ function Stage({
       {/* The cover's own colours as light behind everything. Sized by the page
           above the bar, as it always was; the light reaches past the edges so
           it runs on under the bar for when Focus puts it away. */}
-      <View pointerEvents="none" style={[styles.fill, { bottom: BAR }]}>
+      <View pointerEvents="none" style={[styles.fill, { bottom: PLAYER_BAR_HEIGHT }]}>
         <CoverGlow palette={palette} />
       </View>
       {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
@@ -563,7 +562,7 @@ function Stage({
                   left: frame.left,
                   right: frame.right,
                   top: frame.top,
-                  bottom: BAR,
+                  bottom: PLAYER_BAR_HEIGHT,
                   borderRadius: radius.cardLg,
                 },
             { opacity: visualFade },
@@ -582,7 +581,12 @@ function Stage({
         pose={m => wordsPose(width, g, focus, m)}
         style={[
           styles.words,
-          { left: frame.left, right: frame.right, top: frame.top, bottom: focus ? 0 : BAR },
+          {
+            left: frame.left,
+            right: frame.right,
+            top: frame.top,
+            bottom: focus ? 0 : PLAYER_BAR_HEIGHT,
+          },
         ]}
       >
         {shownTab === 'lyrics' ? (
@@ -718,7 +722,7 @@ function Stage({
         upNext={player.songs[player.queue.index + 1]}
         repeatOne={player.queue.repeat === 'one'}
         right={g.right}
-        bottom={BAR + (focus ? 28 : 64)}
+        bottom={PLAYER_BAR_HEIGHT + (focus ? 28 : 64)}
         lowered={idle}
       />
 
@@ -782,7 +786,11 @@ function StageUpNext({
       onPress={player.next}
       accessibilityRole="button"
       accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-      style={[styles.upNext, { right, bottom }, lowered && { transform: [{ translateY: BAR }] }]}
+      style={[
+        styles.upNext,
+        { right, bottom },
+        lowered && { transform: [{ translateY: PLAYER_BAR_HEIGHT }] },
+      ]}
     >
       <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
       <View style={styles.upNextText}>
@@ -809,41 +817,8 @@ const styles = StyleSheet.create(theme => ({
    * line. Now the page is one height, and what shows where the bar was is the
    * page's own light rather than the frame behind it.
    */
-  stagePage: { marginBottom: -BAR },
+  stagePage: { marginBottom: -PLAYER_BAR_HEIGHT },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  glow: {
-    position: 'absolute',
-    top: '-15%',
-    right: '-15%',
-    bottom: '-15%',
-    left: '-15%',
-    opacity: 0.5,
-  },
-  glowOne: {
-    position: 'absolute',
-    left: '-5%',
-    top: '5%',
-    width: '55%',
-    height: '70%',
-    borderRadius: 9999,
-  },
-  glowTwo: {
-    position: 'absolute',
-    left: '30%',
-    top: '50%',
-    width: '55%',
-    height: '60%',
-    borderRadius: 9999,
-    opacity: 0.7,
-  },
-  glowThree: {
-    position: 'absolute',
-    left: '70%',
-    top: '-10%',
-    width: '45%',
-    height: '55%',
-    borderRadius: 9999,
-  },
   head: {
     position: 'absolute',
     top: 0,
@@ -886,10 +861,7 @@ const styles = StyleSheet.create(theme => ({
     position: 'absolute',
     zIndex: 3,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 24 },
+    ...artShadow(theme.colors),
   },
   coverImage: { width: '100%', height: '100%' },
   meta: { position: 'absolute', zIndex: 2, gap: 10 },

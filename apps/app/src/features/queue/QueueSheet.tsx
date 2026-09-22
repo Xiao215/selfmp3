@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
@@ -480,6 +480,30 @@ function SwipeToRemove({
   const [measured, setWidth] = useState(0)
   const window = useWindowDimensions()
   const width = measured > 0 ? measured : window.width
+  const [going, setGoing] = useState(false)
+  // Rebuilt on every render of the list, so it is read through a ref rather
+  // than watched: an effect that restarted with it would never reach its end.
+  const remove = useRef(onRemove)
+  useEffect(() => {
+    remove.current = onRemove
+  })
+  /*
+   * The slide out, then the row taken out at the end of it. On a timer of the
+   * slide's own length rather than the animation's end: a value the gesture
+   * has been driving does not always report its end in a browser. The timer is
+   * the effect's so that closing the sheet mid-slide drops it — otherwise it
+   * woke afterwards and took a song out of the queue. The offset is put back,
+   * so an Undo brings the row back where it was.
+   */
+  useEffect(() => {
+    if (!going) return undefined
+    const timer = setTimeout(() => {
+      remove.current()
+      x.setValue(0)
+      setGoing(false)
+    }, motion.base)
+    return () => clearTimeout(timer)
+  }, [going, x])
 
   const swipe = Gesture.Pan()
     .enabled(enabled)
@@ -492,15 +516,8 @@ function SwipeToRemove({
     // back from a full swipe.
     .onEnd(event => {
       if (swipeRemoves(event.translationX, width)) {
-        // Slid the rest of the way, then taken out. On a timer of the slide's
-        // own length rather than the animation's end: a value the gesture has
-        // been driving does not always report its end in a browser. The offset
-        // is put back, so an Undo brings the row back where it was.
         timing(x, -width, motion.base)
-        setTimeout(() => {
-          onRemove()
-          x.setValue(0)
-        }, motion.base)
+        setGoing(true)
       } else {
         spring(x, 0)
       }

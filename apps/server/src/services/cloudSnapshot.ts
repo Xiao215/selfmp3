@@ -2,7 +2,6 @@ import { gunzipSync } from 'node:zlib'
 import {
   CLOUD_FORMAT,
   CloudSnapshotSchema,
-  migrateCloudSnapshot,
   toCloudRules,
   type CloudPlaylist,
   type CloudServer,
@@ -285,10 +284,7 @@ function snapshotText(body: Buffer): string {
  * must stop, never carry on as though the bucket held nothing.
  */
 export function parseSnapshot(body: Buffer): CloudSnapshot {
-  // Through the migration first: a bucket holds snapshots written by every
-  // version that has ever run against it, and the newest is not always the
-  // newest build's (schemas/cloud.ts, `migrateCloudSnapshot`).
-  return CloudSnapshotSchema.parse(migrateCloudSnapshot(JSON.parse(snapshotText(body))))
+  return CloudSnapshotSchema.parse(JSON.parse(snapshotText(body)))
 }
 
 /**

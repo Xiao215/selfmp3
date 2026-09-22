@@ -1,4 +1,4 @@
-import { camelotFromKey, keyName, type KeyMode } from '@selfmp3/shared'
+import { camelotFromKey, keyName, MOTION_RATE, type KeyMode } from '@selfmp3/shared'
 
 /**
  * Signal processing for the analyser, as pure functions over PCM.
@@ -516,9 +516,6 @@ export function analyzePcm(pcm: Float32Array, sampleRate: number): PcmFeatures {
  */
 export const MOTION_SAMPLE_RATE = 11025
 
-/** Frames per second of the curve (schemas/motion.ts). */
-export const MOTION_FRAME_RATE = 20
-
 /** The quietest level the loudness byte can say; anything below is 0. */
 const MOTION_FLOOR_DB = -60
 
@@ -588,7 +585,7 @@ export class MotionBuilder {
 
   /** The first sample of loudness frame `frame`. */
   #boundary(frame: number): number {
-    return Math.ceil((frame * this.#sampleRate) / MOTION_FRAME_RATE)
+    return Math.ceil((frame * this.#sampleRate) / MOTION_RATE)
   }
 
   push(chunk: Float32Array): void {
@@ -651,7 +648,7 @@ export class MotionBuilder {
     if (this.#spectra === 0) flux = 0
 
     const centre = this.#spectra * this.#hop + size / 2
-    const frame = Math.floor((centre * MOTION_FRAME_RATE) / this.#sampleRate)
+    const frame = Math.floor((centre * MOTION_RATE) / this.#sampleRate)
     if (flux > (this.#onset[frame] ?? 0)) this.#onset[frame] = flux
     this.#spectra++
   }
@@ -659,7 +656,7 @@ export class MotionBuilder {
   finish(): MotionCurveData {
     if (this.#count > 0) this.#closeLoudnessFrame()
     const duration = this.#samples / this.#sampleRate
-    const frames = Math.ceil(duration * MOTION_FRAME_RATE - 1e-9)
+    const frames = Math.ceil(duration * MOTION_RATE - 1e-9)
 
     const loudness = new Uint8Array(frames)
     let last = 0
@@ -688,7 +685,7 @@ export class MotionBuilder {
       }
     }
 
-    return { rate: MOTION_FRAME_RATE, duration, loudness, onset }
+    return { rate: MOTION_RATE, duration, loudness, onset }
   }
 }
 

@@ -23,7 +23,7 @@
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "music-metadata": "^11.0.0",
     "pinyin-pro": "^3.29.3",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

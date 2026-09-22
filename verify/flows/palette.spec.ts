@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 
+import { appApi } from '../env.js'
 import {
   escaped,
   libraryReady,
@@ -75,8 +76,7 @@ test.describe('command palette', () => {
     await expect(box).toBeVisible()
 
     // An artist the library holds, asked of the server, is found as an artist.
-    const api = process.env.SELFMP3_APP_API ?? new URL(page.url()).origin
-    const library = (await (await page.request.get(`${api}/api/library`)).json()) as {
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
       songs: { artist: string; missing: boolean }[]
     }
     const artist = library.songs.find(song => !song.missing && /^[\w ]+$/.test(song.artist))?.artist

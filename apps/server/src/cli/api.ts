@@ -1,4 +1,4 @@
-import type { Health } from '@selfmp3/shared'
+import { DEFAULT_LOCAL_SERVER_URL, type Health } from '@selfmp3/shared'
 
 /**
  * The thinnest possible client for the running server. The CLI never touches
@@ -57,6 +57,6 @@ export function createClient(baseUrl: string, token: string | null): ServerClien
 
 /** Where a server started from this checkout would be listening. */
 export function defaultBaseUrl(): string {
-  const port = process.env['SELFMP3_PORT'] ?? '4600'
-  return `http://localhost:${port}`
+  const port = process.env['SELFMP3_PORT']
+  return port ? `http://localhost:${port}` : DEFAULT_LOCAL_SERVER_URL
 }

@@ -4,9 +4,17 @@
  * Written as JS rather than JSON so the non-obvious entries can carry the
  * reason they exist. Everything here feeds `expo prebuild`, which is what
  * generates ios/ and android/ — those folders are not committed.
- *
- * @type {import('@expo/config-types').ExpoConfig}
  */
+
+/*
+ * The dark theme's ground, written down once in @selfmp3/shared. Everything
+ * painted before the app is running — the window, the splash, the Android
+ * launcher icon's backdrop — has to be this exact colour, or the first frame
+ * shifts tone the moment React takes over.
+ */
+const { NATIVE_BACKGROUND } = require('@selfmp3/shared')
+
+/** @type {import('@expo/config-types').ExpoConfig} */
 const config = {
   name: 'self.mp3',
   slug: 'selfmp3',
@@ -15,7 +23,7 @@ const config = {
   orientation: 'portrait',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
-  backgroundColor: '#14121a',
+  backgroundColor: NATIVE_BACKGROUND,
 
   // Rendered from public/icons/icon.svg, so the phone and the web build
   // wear the same mark. Square and opaque, because iOS rounds and masks it
@@ -57,7 +65,7 @@ const config = {
     // to whatever shape the launcher uses and paints this colour behind it.
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#14121a',
+      backgroundColor: NATIVE_BACKGROUND,
     },
     // FOREGROUND_SERVICE* come from react-native-track-player's own manifest;
     // these two are ours: network access and the wake lock the player holds
@@ -71,7 +79,7 @@ const config = {
     [
       'expo-splash-screen',
       {
-        backgroundColor: '#14121a',
+        backgroundColor: NATIVE_BACKGROUND,
         // Not optional on Android, whatever the plugin's own types suggest.
         // The plugin writes `windowSplashScreenAnimatedIcon` into styles.xml
         // unconditionally but only renders `drawable/splashscreen_logo` when

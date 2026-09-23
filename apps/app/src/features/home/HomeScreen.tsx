@@ -426,11 +426,7 @@ function Tile({
           style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
         >
           <Text
-            style={[
-              styles.tileName,
-              small && styles.tileNameSmall,
-              { color: colours.tileInk },
-            ]}
+            style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
             numberOfLines={1}
           >
             {tile.tag.name}

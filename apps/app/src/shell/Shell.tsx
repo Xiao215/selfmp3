@@ -429,6 +429,12 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     flexDirection: 'row',
     minHeight: 0,
+    // Clipped at the window's edges: Up next slides in from past the right
+    // one, and without this the window could be scrolled sideways to the rail
+    // that had not arrived yet — a scrollbar that came and went with the
+    // slide. Everything that has to escape the frame — a popover, a song
+    // being dragged, a toast — is drawn by the overlay host above this.
+    overflow: 'hidden',
   },
   content: {
     flex: 1,

@@ -62,9 +62,16 @@ const nativeDriver = true
 
 /**
  * The one spring (`motion.spring`), or a jump to the end under Reduce Motion.
- * Returns what was started, so a caller can chain or stop it.
+ * Returns what was started, so a caller can chain or stop it. `native` is
+ * false for what the native driver cannot move — a width, a height — as it is
+ * in `timing`; a value that moves both must be off the native driver for both,
+ * since it cannot change drivers once it has been handed over.
  */
-export function spring(value: Animated.Value, toValue: number): Animated.CompositeAnimation | null {
+export function spring(
+  value: Animated.Value,
+  toValue: number,
+  { native = nativeDriver }: { native?: boolean } = {},
+): Animated.CompositeAnimation | null {
   if (reduced) {
     value.setValue(toValue)
     return null
@@ -74,7 +81,7 @@ export function spring(value: Animated.Value, toValue: number): Animated.Composi
     stiffness: motion.spring.stiffness,
     damping: motion.spring.damping,
     mass: 1,
-    useNativeDriver: nativeDriver,
+    useNativeDriver: native,
   })
   animation.start()
   return animation

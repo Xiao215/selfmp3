@@ -9,7 +9,8 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
-import { spring, useEntrance } from '../../ui/motion'
+import { ease, spring, timing } from '../../ui/motion'
+import { MOVE_MS } from '../../ui/motion.model'
 import { label, sectionTitle } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
@@ -63,7 +64,16 @@ export function QueueRail(): ReactNode {
   const { wide } = useLayout()
   const edits = useQueueEdits()
   const shown = open && wide && edits.player.current !== null
-  return shown ? <Rail edits={edits} /> : null
+
+  // Kept up from the moment it is asked for until its exit has played out, as
+  // the phone's sheet is: shut, the rail slides away first and only then is it
+  // taken down, which is when the page gets its room back. Adjusted during
+  // render, so opening never paints a frame without it.
+  const [mounted, setMounted] = useState(shown)
+  if (shown && !mounted) setMounted(true)
+  const gone = useCallback(() => setMounted(false), [])
+
+  return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
 }
 
 /** A drag under way: the row it started on, where it would land, and whether it is out. */
@@ -91,7 +101,15 @@ interface RowActions {
   readonly dropSongs: (at: number, songIds: readonly number[]) => void
 }
 
-function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode {
+function Rail({
+  shown,
+  onGone,
+  edits,
+}: {
+  shown: boolean
+  onGone: () => void
+  edits: ReturnType<typeof useQueueEdits>
+}): ReactNode {
   const { width } = useLayout()
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -223,15 +241,54 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
 
   const playing = rows.playing
 
-  // In from the window's right edge on the spring as Up next opens
-  // (docs/ui-mock `M3`, 6). The board draws it over a page that stays live;
-  // here it is a column beside the page, which makes its room at once.
-  const entrance = useEntrance()
+  /*
+   * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
+   * open. In on the spring, out in `railOut` and then `onGone`, so Hide slides
+   * the rail off the window before the rail is taken down rather than blinking
+   * it out of the frame.
+   *
+   * Beside the page the rail's room is the slot's width, which grows and
+   * shrinks under it: the page widens and narrows over the same fifth of a
+   * second instead of snapping at either end. A width is beyond the native
+   * driver, and one value cannot be on the native driver for the slide and off
+   * it for the width, so both ways run on the JavaScript side — which is where
+   * a browser and the desktop app run every animation anyway.
+   */
+  const [progress] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (shown) {
+      spring(progress, 1, { native: false })
+      return
+    }
+    timing(progress, 0, MOVE_MS.railOut, onGone, { easing: ease.in, native: false })
+  }, [shown, progress, onGone])
+
+  /*
+   * Made once, since an interpolation made each render is a new node each
+   * render. `clamp` on the width so the spring's small overshoot cannot open a
+   * hairline of page between the rail's right edge and the window's.
+   */
   const [slide] = useState(() => ({
-    transform: [
-      { translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
-    ],
+    room: {
+      width: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, RAIL_WIDTH],
+        extrapolate: 'clamp' as const,
+      }),
+    },
+    over: {
+      transform: [
+        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
+      ],
+    },
   }))
+
+  /*
+   * Too narrow to keep the rail beside the page (an iPad in portrait): it lies
+   * over the page instead, as the board draws it, and slides in over a page
+   * that keeps its width rather than taking room of its own.
+   */
+  const over = width < BESIDE_MIN
 
   /*
    * The rail itself takes a drop, under the rows: let go anywhere in it — the
@@ -246,108 +303,113 @@ function Rail({ edits }: { edits: ReturnType<typeof useQueueEdits> }): ReactNode
 
   return (
     <Animated.View
-      ref={railRef}
-      style={[
-        styles.rail,
-        width < BESIDE_MIN && styles.railOver,
-        overRail && styles.railTakingDrop,
-        slide,
-      ]}
-      testID="queue-rail"
-      role="complementary"
+      style={over ? styles.roomOver : [styles.room, slide.room]}
+      pointerEvents={shown ? 'auto' : 'none'}
+      aria-hidden={!shown}
     >
-      <View style={styles.head}>
-        <Text style={styles.title} accessibilityRole="header">
-          Up next
-        </Text>
-        <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
-          <ChevronRight size={15} color={theme.colors.textSecondary} />
-        </IconButton>
-      </View>
-      <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
-
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {playing ? (
-          <PlayingRow
-            row={playing}
-            artUri={artFor(playing.song)}
-            playing={player.isPlaying}
-            onOpen={() => router.navigate('/now-playing')}
-            onDropSongs={actions.dropSongs}
-          />
-        ) : null}
-        {rows.next.map(row => (
-          <RailRow
-            key={row.song.id}
-            row={row}
-            artUri={artFor(row.song)}
-            kind="next"
-            placeholder={drag?.from === row.index}
-            dropTarget={
-              drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
-            }
-            actions={actions}
-          />
-        ))}
-        {rows.played.length > 0 ? (
-          <>
-            <Text style={styles.label}>Played</Text>
-            {rows.played.map(row => (
-              <RailRow
-                key={row.song.id}
-                row={row}
-                artUri={artFor(row.song)}
-                kind="played"
-                placeholder={false}
-                dropTarget={false}
-                actions={actions}
-              />
-            ))}
-          </>
-        ) : null}
-      </ScrollView>
-
-      <View style={styles.autoMix}>
-        <Toggle
-          value={player.autoMix}
-          onChange={player.setAutoMix}
-          label="Auto-mix"
-          testID="auto-mix"
-        />
-        <Text style={styles.autoMixLabel}>Auto-mix</Text>
-        <Text style={styles.autoMixHint} numberOfLines={1}>
-          {autoMixLine({
-            autoMix: player.autoMix,
-            canCrossfade: player.canCrossfade,
-            upcoming: rows.next.length,
-            nextCrossfadeSeconds: player.nextCrossfadeSeconds,
-          })}
-        </Text>
-      </View>
-
-      <Popover
-        open={menuRow !== null}
-        onClose={() => setMenuRow(null)}
-        anchorRef={menuAnchor}
-        align="start"
-        width={200}
-        testID="queue-menu"
+      <Animated.View
+        ref={railRef}
+        style={[
+          styles.rail,
+          over && [styles.railOver, slide.over],
+          overRail && styles.railTakingDrop,
+        ]}
+        testID="queue-rail"
+        role="complementary"
       >
-        <SheetItem
-          label="Play"
-          onPress={() => {
-            if (menuRow) actions.play(menuRow.index)
-            setMenuRow(null)
-          }}
-        />
-        <SheetItem
-          label="Remove from queue"
-          onPress={() => {
-            if (menuRow) actions.remove(menuRow.index)
-            setMenuRow(null)
-          }}
-        />
-      </Popover>
+        <View style={styles.head}>
+          <Text style={styles.title} accessibilityRole="header">
+            Up next
+          </Text>
+          <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
+            <ChevronRight size={15} color={theme.colors.textSecondary} />
+          </IconButton>
+        </View>
+        <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
+
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          {playing ? (
+            <PlayingRow
+              row={playing}
+              artUri={artFor(playing.song)}
+              playing={player.isPlaying}
+              onOpen={() => router.navigate('/now-playing')}
+              onDropSongs={actions.dropSongs}
+            />
+          ) : null}
+          {rows.next.map(row => (
+            <RailRow
+              key={row.song.id}
+              row={row}
+              artUri={artFor(row.song)}
+              kind="next"
+              placeholder={drag?.from === row.index}
+              dropTarget={
+                drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
+              }
+              actions={actions}
+            />
+          ))}
+          {rows.played.length > 0 ? (
+            <>
+              <Text style={styles.label}>Played</Text>
+              {rows.played.map(row => (
+                <RailRow
+                  key={row.song.id}
+                  row={row}
+                  artUri={artFor(row.song)}
+                  kind="played"
+                  placeholder={false}
+                  dropTarget={false}
+                  actions={actions}
+                />
+              ))}
+            </>
+          ) : null}
+        </ScrollView>
+
+        <View style={styles.autoMix}>
+          <Toggle
+            value={player.autoMix}
+            onChange={player.setAutoMix}
+            label="Auto-mix"
+            testID="auto-mix"
+          />
+          <Text style={styles.autoMixLabel}>Auto-mix</Text>
+          <Text style={styles.autoMixHint} numberOfLines={1}>
+            {autoMixLine({
+              autoMix: player.autoMix,
+              canCrossfade: player.canCrossfade,
+              upcoming: rows.next.length,
+              nextCrossfadeSeconds: player.nextCrossfadeSeconds,
+            })}
+          </Text>
+        </View>
+
+        <Popover
+          open={menuRow !== null}
+          onClose={() => setMenuRow(null)}
+          anchorRef={menuAnchor}
+          align="start"
+          width={200}
+          testID="queue-menu"
+        >
+          <SheetItem
+            label="Play"
+            onPress={() => {
+              if (menuRow) actions.play(menuRow.index)
+              setMenuRow(null)
+            }}
+          />
+          <SheetItem
+            label="Remove from queue"
+            onPress={() => {
+              if (menuRow) actions.remove(menuRow.index)
+              setMenuRow(null)
+            }}
+          />
+        </Popover>
+      </Animated.View>
     </Animated.View>
   )
 }
@@ -531,9 +593,28 @@ function RowFace({
 }
 
 const styles = StyleSheet.create(theme => ({
+  /*
+   * The rail's room beside the page, which is all that grows and shrinks: the
+   * rail inside it keeps its width, so nothing in it is laid out again frame
+   * by frame — a title that fits at the end fits all the way. Clipped, so the
+   * part of the rail still hanging off the window is not drawn over the
+   * practice panel or a scrollbar.
+   */
+  room: { flexShrink: 0, overflow: 'hidden' },
+  /*
+   * Its room where the rail lies over the page instead: the full width from
+   * the first frame, the page under it left as wide as it was, and nothing
+   * clipped, so the rail's shadow still falls on the page.
+   */
+  roomOver: { position: 'absolute', top: 0, right: 0, bottom: 0, width: RAIL_WIDTH, zIndex: 2 },
+  // Pinned to the left edge of its room, which is what carries it in: as the
+  // slot widens, the rail's left edge travels in from the window's right edge.
   rail: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
     width: RAIL_WIDTH,
-    flexShrink: 0,
     paddingTop: 28,
     paddingHorizontal: 18,
     paddingBottom: space.lg,
@@ -542,11 +623,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
   },
   railOver: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
     // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.
     boxShadow: `-18px 0 40px ${theme.colors.floatShadow}`,
   },

@@ -18,6 +18,8 @@ export const MOVE_MS = {
   /** A sheet coming up from the foot, and going back down (`M2`, 3). */
   sheetUp: 300,
   sheetDown: 220,
+  /** Up next's rail on a computer, sliding back out past the right edge (`M3`, 6). */
+  railOut: 200,
   /** The tab bar's pill, and the page stepping in (`M2`, 4). */
   tab: 160,
   /** A playing row's wash coming in from the left (`M2`, 5). */

@@ -47,7 +47,14 @@ const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
  * the person's, not this build's. Yesterday's library is what a sleeping Mac
  * degrades to, and re-downloading every song on a deploy is unthinkable.
  */
-const API_CACHE = 'selfmp3-api-v1'
+/*
+ * v2: v1 could hold a cover under an address that named a different cover —
+ * the page's address changed with the library while this worker still read
+ * the old key for the song (see `bucketFileFor`) — and, kept immutable, that
+ * picture never left. Naming a new cache lets `activate` drop v1 whole; what
+ * it held is thirty-odd small pictures the bucket hands back on the next look.
+ */
+const API_CACHE = 'selfmp3-api-v2'
 const AUDIO_CACHE = 'selfmp3-audio-v1'
 
 /** Caches this worker owns. Anything else from an old build gets deleted. */
@@ -281,9 +288,11 @@ async function networkFirst(request: Request): Promise<Response> {
 /**
  * Cache-first, keyed on the full URL including `?v=`.
  *
- * With `replaceOtherVersions`, storing a response first drops every other
- * version of the same path, so a cover that changes does not leave the old
- * one behind forever.
+ * With `replaceOtherVersions`, storing a response drops every other version
+ * of the same path, so a cover that changes does not leave the old one behind
+ * forever. The others go after the store, by their exact addresses: dropped
+ * by path before the store, two requests for one cover that missed together
+ * each swept before either had stored, and both versions stayed.
  */
 async function cacheFirst(
   request: Request,
@@ -297,10 +306,13 @@ async function cacheFirst(
     const response = fromBucket ? await fetchFromBucket(fromBucket) : await fetch(request)
     if (response.ok) {
       const cache = await caches.open(cacheName)
-      if (options.replaceOtherVersions) {
-        await cache.delete(new URL(request.url).pathname, { ignoreSearch: true })
-      }
       await cache.put(request, response.clone())
+      if (options.replaceOtherVersions) {
+        const versions = await cache.keys(new URL(request.url).pathname, { ignoreSearch: true })
+        await Promise.all(
+          versions.filter(version => version.url !== request.url).map(v => cache.delete(v)),
+        )
+      }
     }
     return response
   } catch {
@@ -376,28 +388,75 @@ interface BucketFile {
   readonly token: string
 }
 
+/** How often, and how far apart, the map is read again for a key that does not match its address. */
+const MAP_REREADS = 3
+const MAP_REREAD_MS = 400
+
 /**
  * The bucket file behind a stream or cover URL, when the app is signed in to
  * the doorman — which only the web build is. Null otherwise: served by the
  * Mac, nothing here changes.
+ *
+ * The address itself says which file it means. A library read from the
+ * bucket gives a song's `rev` as `<audio hash>.<cover hash>`, the first twelve
+ * characters of each file's hash-named key (packages/replica/src/
+ * snapshotLibrary.ts, `hashOf`), and the page sends it as `?v=`. The map of
+ * songs to keys read here is only the way from that to the whole key, and it
+ * can lag: the page writes it to IndexedDB after it has drawn the library,
+ * and the copy kept here is trusted for a few seconds. When a cover changed,
+ * a row asked for the new address inside that lag, was answered with the old
+ * file, and the cache kept that answer under the new address for good — 祝福
+ * wore THE BOOK's pink for a day, in the right green. So a key that does not
+ * name what the address names is read again, a little later, a few times;
+ * one that still does not is no answer at all, and nothing is stored.
  */
 async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketFile | null> {
   if (!CLOUD) return null
   const match = /\/api\/(?:stream|art)\/(\d+)$/.exec(url.pathname)
   const songId = match?.[1]
   if (!songId) return null
+  const wanted = keyHashIn(url, kind)
   try {
     let read = await bucketRead(false)
     // A song added a moment ago, or a session just made: not a miss yet.
     if (!read.fresh && (!read.session || read.files?.[songId] === undefined)) {
       read = await bucketRead(true)
     }
-    const key = read.files?.[songId]?.[kind]
+    let key = read.files?.[songId]?.[kind]
+    for (let attempt = 0; wanted !== null && !names(key, wanted); attempt++) {
+      if (attempt === MAP_REREADS) return null
+      if (attempt > 0 || read.fresh) await pause(MAP_REREAD_MS)
+      read = await bucketRead(true)
+      key = read.files?.[songId]?.[kind]
+    }
     if (!read.session || typeof key !== 'string') return null
     return { url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
   } catch {
     return null
   }
+}
+
+/**
+ * The twelve hex characters the address's `?v=` gives for `kind`'s key, or
+ * null for an address that names no key: a song with no cover (`0` there),
+ * or a Mac's addresses, whose `rev` is the file's size, mtime and art
+ * revision in base 36 and never twelve hex characters.
+ */
+function keyHashIn(url: URL, kind: 'audio' | 'cover'): string | null {
+  const rev = url.searchParams.get('v')
+  if (!rev) return null
+  const [audio = '', cover = ''] = rev.split('.')
+  const half = kind === 'audio' ? audio : cover
+  return /^[0-9a-f]{12}$/.test(half) ? half : null
+}
+
+/** Whether a bucket key is the file an address's hash names. */
+function names(key: unknown, hash: string): boolean {
+  return typeof key === 'string' && key.includes(`/${hash}`)
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**

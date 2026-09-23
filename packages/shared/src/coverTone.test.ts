@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickCoverTone, rgbToOklch } from './coverTone.js'
+import { hasColour, pickCoverTone, rgbToOklch } from './coverTone.js'
 
 /** RGBA pixels from a list of [r, g, b, count] runs. */
 function pixels(...runs: Array<[number, number, number, number]>): Uint8ClampedArray {
@@ -79,13 +79,28 @@ describe('pickCoverTone', () => {
         [138, 130, 138, 100],
       ),
     )
-    expect(collage).toBeNull()
+    expect(collage?.chroma).toBe(0)
+    expect(hasColour(collage!)).toBe(false)
   })
 
-  it('gives up on a cover with no colour in it', () => {
-    expect(
-      pickCoverTone(pixels([20, 20, 20, 100], [128, 128, 128, 200], [250, 250, 250, 50])),
-    ).toBeNull()
+  it('calls a cover with no colour in it grey, and says how light it is', () => {
+    // A black-and-white photograph: dark, mid and pale greys.
+    const photo = pickCoverTone(
+      pixels([20, 20, 20, 100], [128, 128, 128, 200], [250, 250, 250, 50]),
+    )
+    expect(photo?.chroma).toBe(0)
+    expect(hasColour(photo!)).toBe(false)
+    // Its palette carries the lightness the screen draws its grey at.
+    const lightness = (photo?.palette ?? []).reduce((sum, s) => sum + s.l * s.share, 0)
+    expect(lightness).toBeGreaterThan(0.4)
+    expect(lightness).toBeLessThan(0.7)
+    // Pure black is grey too, not nothing.
+    expect(pickCoverTone(pixels([0, 0, 0, 50]))?.chroma).toBe(0)
+  })
+
+  it('gives up only on a cover with nothing to read', () => {
     expect(pickCoverTone(new Uint8ClampedArray())).toBeNull()
+    // Every pixel transparent: nothing was drawn.
+    expect(pickCoverTone(new Uint8ClampedArray([0, 0, 0, 0, 255, 255, 255, 0]))).toBeNull()
   })
 })

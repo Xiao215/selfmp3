@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pickCoverTone, rgbToOklch } from '@selfmp3/shared'
-import { songColors, tileTone, withAlpha } from './coverColor.js'
+import { neutralWash, songColors, tileTone, withAlpha } from './coverColor.js'
 
 /** RGBA pixels of one colour. */
 const solid = (r: number, g: number, b: number): number[] =>
@@ -21,6 +21,27 @@ describe('songColors', () => {
   it('gives dark text on the light theme, however pale the cover', () => {
     const pale = songColors(pickCoverTone(solid(200, 230, 250))!, 'light')
     expect(lightnessOf(pale.tint)).toBeLessThan(0.5)
+  })
+})
+
+describe('neutralWash', () => {
+  it('is a grey as light as the cover, lifted on the dark theme and lowered on the light', () => {
+    const pale = pickCoverTone(solid(235, 235, 235))!
+    const dark = pickCoverTone(solid(40, 40, 40))!
+    expect(pale.chroma).toBe(0)
+    const chromaOf = (hex: string): number => {
+      const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
+      return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).c
+    }
+    expect(chromaOf(neutralWash(pale, 'dark'))).toBeLessThan(0.01)
+    expect(lightnessOf(neutralWash(pale, 'dark'))).toBeGreaterThan(
+      lightnessOf(neutralWash(dark, 'dark')),
+    )
+    expect(lightnessOf(neutralWash(pale, 'dark'))).toBeGreaterThan(0.85)
+    expect(lightnessOf(neutralWash(dark, 'dark'))).toBeGreaterThan(0.55)
+    expect(lightnessOf(neutralWash(pale, 'light'))).toBeLessThan(
+      lightnessOf(neutralWash(pale, 'dark')),
+    )
   })
 })
 

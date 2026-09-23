@@ -496,6 +496,18 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_songs_size ON songs(size_bytes);
     `,
   },
+  {
+    // A cover with no colour in it used to be recorded as having none, and
+    // the playing song wore the accent. It is now a grey as light as the
+    // cover, which the picker says with a chroma of 0 and a palette. The
+    // covers recorded as colourless are read once more so they say so too;
+    // one that could not be read at all is read again as well, which costs a
+    // moment of ffmpeg per cover.
+    name: 'read colourless covers again, for how light they are',
+    sql: `
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

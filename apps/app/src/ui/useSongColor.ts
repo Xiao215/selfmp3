@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { songColors, tileTone, type SongColors } from '@selfmp3/client'
-import { hueFromString, pickCoverTone, type CoverTone, type Song } from '@selfmp3/shared'
+import { neutralWash, songColors, tileTone, type SongColors } from '@selfmp3/client'
+import { hasColour, hueFromString, pickCoverTone, type CoverTone, type Song } from '@selfmp3/shared'
 import { readCoverPixels } from '../ports/coverPixels'
 import { useAccent } from './accent'
 
@@ -43,8 +43,9 @@ function useCoverTone(key: string | null, uri: string | null, read: boolean): Co
  *
  * The server picks a cover's colour once and sends it with the song, so this
  * is usually just arithmetic. A song the server has not read yet is read here
- * where the platform can (a canvas, in a browser). Until then, and for a cover
- * with no colour in it, the accent stands in.
+ * where the platform can (a canvas, in a browser). Until then the accent
+ * stands in. A cover with no colour in it washes the row in its own grey and
+ * keeps the accent for the text, so it still reads as playing, not selected.
  *
  * Only asked for the song that is playing — its row, the player bar, the mini
  * player — never for a whole list.
@@ -59,8 +60,12 @@ export function useSongColor(song: Song | null, uri: string | null): SongColors 
   )
 
   if (song && !song.hasArt) return songColors(tileTone(hueFromString(song.album || song.title)))
-  const tone = sent ?? read
-  return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
+  return colorsOf(sent ?? read, accent.accent)
+}
+
+function colorsOf(tone: CoverTone | null, accent: string): SongColors {
+  if (!tone) return { color: accent, tint: accent }
+  return hasColour(tone) ? songColors(tone) : { color: neutralWash(tone), tint: accent }
 }
 
 /**
@@ -71,6 +76,5 @@ export function useSongColor(song: Song | null, uri: string | null): SongColors 
  */
 export function useCoverColor(uri: string | null): SongColors {
   const accent = useAccent()
-  const tone = useCoverTone(uri, uri, true)
-  return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
+  return colorsOf(useCoverTone(uri, uri, true), accent.accent)
 }

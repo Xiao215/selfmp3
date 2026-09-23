@@ -33,6 +33,29 @@ export function tileTone(hue: number): CoverTone {
   return { hue: h, chroma: c }
 }
 
+/**
+ * The wash for a cover with no colour in it: a grey as light as the cover,
+ * from its palette. The text is not decided here — `useSongColor` gives it
+ * the accent, so a playing row in grey still reads as playing rather than as
+ * selected, which is the one thing a grey wash on its own could not say.
+ *
+ * Pushed up on the dark theme and down on the light one, the way a colour's
+ * wash is, so a mid-grey photograph still shows on the rows; a pale cover
+ * (Chopin, on white paper) gives a near-white wash, a dark one a darker grey.
+ */
+export function neutralWash(
+  { palette }: CoverTone,
+  scheme: ColorScheme = currentColorScheme(),
+): string {
+  const lightness = palette?.length
+    ? palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) /
+      palette.reduce((sum, swatch) => sum + swatch.share, 0)
+    : 0.5
+  return scheme === 'light'
+    ? oklchToHex(0.35 + 0.35 * lightness, 0, 0)
+    : oklchToHex(0.55 + 0.35 * lightness, 0, 0)
+}
+
 /** The two colours to draw with, from a cover's tone. */
 export function songColors(
   { hue, chroma }: CoverTone,

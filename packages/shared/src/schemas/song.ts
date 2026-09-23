@@ -17,7 +17,8 @@ export type CoverSwatch = z.infer<typeof CoverSwatchSchema>
 
 /**
  * The most vivid colour in a song's cover, as OKLCH hue and chroma, picked by
- * the server (`coverTone.ts`). Devices draw the playing song in it.
+ * the server (`coverTone.ts`). Devices draw the playing song in it. Chroma 0
+ * is a cover with no colour in it, drawn in a grey as light as the cover.
  *
  * `palette` is the handful of colours the cover is made of, most of the cover
  * first, which the no-lyrics visuals draw in. Optional: a cover read by an older

@@ -9,6 +9,11 @@ import type { CoverSwatch, CoverTone } from './schemas/song.js'
  * picks it from the image itself for a cover the server has not read yet. Both
  * use this, so a cover is the same colour whichever did the reading.
  *
+ * A cover with no colour in it — a black-and-white photograph, a grey
+ * collage — is a tone too, with no chroma: its palette says how light it is,
+ * and the screen draws the playing song in that grey rather than in a colour
+ * it never had. Only a cover with nothing to read gives null.
+ *
  * The picking is plain arithmetic on a handful of pixels (the cover drawn at
  * 24×24), done in OKLCH so "the most vivid colour" means what the eye means by
  * it: pixels are grouped by hue, weighted by how colourful they are, and the
@@ -55,9 +60,15 @@ const MIN_COLOURFULNESS = 0.02
 const MIN_SOFT_COLOURFULNESS = 0.012
 const SOFT_MAJORITY = 0.4
 
+/** Whether a tone is a colour at all, rather than the grey of a colourless cover. */
+export function hasColour(tone: CoverTone): boolean {
+  return tone.chroma > 0
+}
+
 /**
- * The cover's colour from RGBA pixels, or null for a cover with no real
- * colour in it (black and white photography, a grey placeholder).
+ * The cover's colour from RGBA pixels: chroma 0 for a cover with no real
+ * colour in it (black and white photography, a grey placeholder), and null
+ * only for one with no pixels to read.
  */
 export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   const weight = new Float64Array(HUE_BINS)
@@ -84,7 +95,10 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
     cosSum[bin] = (cosSum[bin] ?? 0) + Math.cos(radians) * c
   }
 
-  if (counted === 0) return null
+  const palette = pickCoverPalette(pixels)
+  if (palette.length === 0) return null
+  const grey: CoverTone = { hue: 0, chroma: 0, palette }
+  if (counted === 0) return grey
 
   let best = 0
   for (let bin = 1; bin < HUE_BINS; bin++) {
@@ -97,17 +111,16 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   // few bins, and was taken for grey.
   let colour = 0
   for (const binWeight of weight) colour += binWeight
-  if (total === 0) return null
+  if (total === 0) return grey
   const colourfulness = colour / counted
   // Little colour, but all of it one colour — beige paper, a sepia print — is
   // a colour, where the same little spread over every hue is a grey with noise.
   const soft = colourfulness >= MIN_SOFT_COLOURFULNESS && total / colour >= SOFT_MAJORITY
-  if (colourfulness < MIN_COLOURFULNESS && !soft) return null
+  if (colourfulness < MIN_COLOURFULNESS && !soft) return grey
 
   const hue = ((Math.atan2(sinSum[best] ?? 0, cosSum[best] ?? 0) * 180) / Math.PI + 360) % 360
   // Chroma-weighted mean chroma: the vivid pixels of the winning hue decide.
-  const palette = pickCoverPalette(pixels)
-  return { hue, chroma: (chroma[best] ?? 0) / total, ...(palette.length > 0 ? { palette } : {}) }
+  return { hue, chroma: (chroma[best] ?? 0) / total, palette }
 }
 
 /** How many colours a cover is summed up in. */

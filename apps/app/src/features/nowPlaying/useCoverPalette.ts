@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { placeholderPalette, tonePalette, type Palette } from '@selfmp3/client'
-import type { Song } from '@selfmp3/shared'
+import { hasColour, type Song } from '@selfmp3/shared'
 import { sampleCoverPalette } from '../../ports/coverPalette'
 
 /* One read per cover, not one per mount: switching tabs should not re-sample it. */
@@ -59,8 +59,6 @@ export function useCoverPalette(song: Song, uri: string | null): Palette {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, uri])
 
-  return (
-    palettes.get(key) ??
-    (song.coverTone ? tonePalette(song.coverTone) : placeholderPalette(song.id))
-  )
+  const tone = song.coverTone && hasColour(song.coverTone) ? song.coverTone : null
+  return palettes.get(key) ?? (tone ? tonePalette(tone) : placeholderPalette(song.id))
 }

@@ -88,6 +88,20 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
 }
 
 /**
+ * Where the tags on offer come from, for a picker that is not this device's.
+ *
+ * A cloud library's import screen talks to the server directly, and that
+ * server numbers its tags its own way (importSource.ts): a tag ticked here
+ * has to be the server's, or what is queued names a tag the server does not
+ * have. So that screen hands the picker its own list and its own way to make
+ * one; everywhere else this is left out and the picker is this device's.
+ */
+interface TagSource {
+  readonly tags: readonly Tag[]
+  readonly create: (name: string) => Promise<Tag>
+}
+
+/**
  * The picker itself, for tags on a song or tags for songs not yet here (an
  * import, a migration): search as you type, tick, and make a tag on the spot.
  * It holds no choice of its own; whoever shows it keeps `selected`.
@@ -97,12 +111,15 @@ export function TagSearchList({
   onChange,
   onLeave,
   autoFocus = false,
+  from,
 }: {
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
   /** Close whatever this is drawn in, as the nudge's "Open the artist" leaves for the artist. */
   onLeave?: () => void
   autoFocus?: boolean
+  /** Another library's tags, when the ticked ids are not this device's. */
+  from?: TagSource
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
@@ -110,10 +127,15 @@ export function TagSearchList({
   const dense = usePanelDense()
   const [focused, setFocused] = useState(false)
   const { data: library } = useLibrary()
-  const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
+  const tags = useMemo<readonly Tag[]>(
+    () => from?.tags ?? library?.tags ?? [],
+    [from?.tags, library?.tags],
+  )
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const createTag = useCreateTag()
+  const createHere = useCreateTag()
+  const makeThere = from?.create
+  const [making, setMaking] = useState(false)
   const nudge = useArtistNudge(onLeave)
   // The set as it is now: a tag ticked while a create waited must survive it.
   const latest = useRef(selected)
@@ -135,8 +157,9 @@ export function TagSearchList({
 
   const make = async (name: string): Promise<void> => {
     setError(null)
+    setMaking(true)
     try {
-      const tag = await createTag.mutateAsync(name)
+      const tag = await (makeThere ? makeThere(name) : createHere.mutateAsync(name))
       setQuery('')
       const next = new Set([...latest.current, tag.id])
       latest.current = next
@@ -144,12 +167,14 @@ export function TagSearchList({
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
       setError(`Couldn’t create “${name}”: ${(caught as Error).message}`)
+    } finally {
+      setMaking(false)
     }
   }
 
   /** A name that is an artist's asks first (`P11`); any other is made at once. */
   const create = (): void => {
-    if (!trimmed || createTag.isPending) return
+    if (!trimmed || making) return
     nudge.check(trimmed, () => void make(trimmed))
   }
 

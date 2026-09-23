@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ImportQueue, Library, ToolStatus } from '@selfmp3/shared'
+import type { ImportQueue, Library, Tag, ToolStatus } from '@selfmp3/shared'
 import {
   clientApi,
   queryKeys,
+  useCreateTag,
   useImportQueue,
   useImportTools,
   useLibrary,
@@ -20,10 +21,18 @@ import { apiFor } from '../../api/client'
  * directly numbers its tags and playlists its own way, so its library is read
  * from it too, rather than from this device's copy, and what is queued names
  * the server's ids.
+ *
+ * Which is why a tag made while importing is made there too (`createTag`).
+ * The picker used to make it on this device whatever the screen was pointed
+ * at: the new tag never came back as a chip — the chips are the server's
+ * tags, and the server had never heard of it — and the import carried a
+ * number that meant another tag there, or nothing (Xiao, 2026-09-22).
  */
 interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
   readonly library: Library | undefined
+  /** Make a tag in the library whose tags this screen offers, and show it there. */
+  readonly createTag: (name: string) => Promise<Tag>
   readonly tools: ToolStatus | undefined
   readonly refetchTools: () => Promise<unknown>
   readonly queue: ImportQueue | undefined
@@ -77,11 +86,25 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
   const ownLibrary = useLibrary()
   const ownQueue = useImportQueue(server === null)
   const ownTools = useImportTools(server === null)
+  const createHere = useCreateTag()
+  // Steady between renders: the picker rebuilds its list around this.
+  const createOnServer = useCallback(
+    async (name: string): Promise<Tag> => {
+      if (!server) return noServer()
+      const tag = await server.createTag(name)
+      await queryClient.invalidateQueries({ queryKey: keys.library })
+      return tag
+    },
+    [server, queryClient, keys.library],
+  )
+  // `mutateAsync` is the same function between renders; the object around it is not.
+  const createOnDevice = createHere.mutateAsync
 
   if (server) {
     return {
       api: server,
       library: serverLibrary.data,
+      createTag: createOnServer,
       tools: serverTools.data,
       refetchTools: serverTools.refetch,
       queue: serverQueue.data,
@@ -92,6 +115,7 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
   return {
     api: clientApi(),
     library: ownLibrary.data,
+    createTag: createOnDevice,
     tools: ownTools.data,
     refetchTools: ownTools.refetch,
     queue: ownQueue.data,

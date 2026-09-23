@@ -187,6 +187,7 @@ export function ImportScreen({
         <View style={styles.composeFoot}>
           <TagItPill
             tags={tags}
+            createTag={source.createTag}
             selected={tagIds}
             onChange={next => patchDraft({ tagIds: next })}
           />

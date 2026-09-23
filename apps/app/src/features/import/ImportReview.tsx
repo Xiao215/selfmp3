@@ -279,6 +279,7 @@ export function ImportReview({
           <View style={wide ? styles.tagsWide : null}>
             <TagThem
               tags={tags}
+              createTag={source.createTag}
               selected={tagIds}
               onChange={next => patchDraft({ tagIds: next })}
             />

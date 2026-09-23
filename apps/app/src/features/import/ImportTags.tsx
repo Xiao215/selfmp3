@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -15,25 +15,38 @@ import { TagSearchList } from '../../ui/components/TagPicker'
  * page (`P29`), and "Tag them" with chips on the review (`P30`, `C14`).
  *
  * Both open the tag picker a song uses, which makes a tag on the spot and asks
- * first when the name is an artist's (`useArtistNudge`).
+ * first when the name is an artist's (`useArtistNudge`). The tags are the ones
+ * the import is going to (importSource.ts), list and new tag alike, so a tag
+ * ticked or made here is one the import can name.
  */
 
 /** The picker, as a sheet: a small centred window on a computer. */
 function TagSheet({
   open,
   onClose,
+  tags,
+  createTag,
   selected,
   onChange,
 }: {
   open: boolean
   onClose: () => void
+  tags: readonly Tag[]
+  createTag: (name: string) => Promise<Tag>
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
 }): ReactNode {
+  const from = useMemo(() => ({ tags, create: createTag }), [tags, createTag])
   return (
     <Sheet open={open} onClose={onClose} title="Tag these songs" titleTone="label">
       {open ? (
-        <TagSearchList selected={selected} onChange={onChange} onLeave={onClose} autoFocus />
+        <TagSearchList
+          selected={selected}
+          onChange={onChange}
+          onLeave={onClose}
+          from={from}
+          autoFocus
+        />
       ) : null}
     </Sheet>
   )
@@ -42,10 +55,12 @@ function TagSheet({
 /** `P29`: "Tag it [night drive ▾] as it arrives", the choice read back in one pill. */
 export function TagItPill({
   tags,
+  createTag,
   selected,
   onChange,
 }: {
   tags: readonly Tag[]
+  createTag: (name: string) => Promise<Tag>
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
 }): ReactNode {
@@ -71,6 +86,8 @@ export function TagItPill({
       <TagSheet
         open={open}
         onClose={() => setOpen(false)}
+        tags={tags}
+        createTag={createTag}
         selected={selected}
         onChange={onChange}
       />
@@ -85,10 +102,12 @@ export function TagItPill({
  */
 export function TagThem({
   tags,
+  createTag,
   selected,
   onChange,
 }: {
   tags: readonly Tag[]
+  createTag: (name: string) => Promise<Tag>
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
 }): ReactNode {
@@ -129,6 +148,8 @@ export function TagThem({
       <TagSheet
         open={open}
         onClose={() => setOpen(false)}
+        tags={tags}
+        createTag={createTag}
         selected={selected}
         onChange={onChange}
       />

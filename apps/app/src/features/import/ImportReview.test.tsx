@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { reviewFrom } from '@selfmp3/client'
+import { configureClient, reviewFrom, type Api } from '@selfmp3/client'
+
+import { OverlayProvider } from '../../shell/Overlay'
 
 import { ImportReview } from './ImportReview'
 import { patchDraft, resetImportDraft } from './importDraft'
@@ -33,21 +35,55 @@ jest.mock('./ImportListen', () => ({
 const mockEnqueue = jest.fn()
 /** What the server says the library has now; an answer that does not fit changes nothing. */
 const mockAlreadyHave = jest.fn((): Promise<{ have: boolean[] }> => Promise.resolve({ have: [] }))
+const JPOP = { id: 7, name: 'jpop', hue: 2, songCount: 0 }
+/** The tags of the library the import is going to. */
+const mockTags = [JPOP]
+/**
+ * A tag made while importing is made there too, and turns up in that library's
+ * tags — here at once, in the app when the answer is asked for again.
+ */
+const mockCreateTag = jest.fn((name: string) => {
+  const tag = { id: 61, name, hue: 4, songCount: 0 }
+  mockTags.push(tag)
+  return Promise.resolve(tag)
+})
 jest.mock('./importSource', () => {
   // One object for the life of the test, as ImportUnreachable.test.tsx says why.
-  const source = {
-    api: {
-      importEnqueue: (request: unknown) => mockEnqueue(request),
-      importAlreadyHave: () => mockAlreadyHave(),
+  // Built on the first ask rather than here: the factory runs before the file's
+  // own consts, and the tags it holds would be nothing at all.
+  let source: unknown = null
+  return {
+    useImportSource: () => {
+      source ??= {
+        api: {
+          importEnqueue: (request: unknown) => mockEnqueue(request),
+          importAlreadyHave: () => mockAlreadyHave(),
+        },
+        library: { songs: [], tags: mockTags, playlists: [] },
+        createTag: (name: string) => mockCreateTag(name),
+        tools: { ytdlp: true, ffmpeg: true },
+        refetchTools: () => Promise.resolve(),
+        queue: { jobs: [], pacing: null },
+        invalidateQueue: () => Promise.resolve(),
+        invalidateLibrary: () => Promise.resolve(),
+      }
+      return source
     },
-    library: { songs: [], tags: [], playlists: [] },
-    tools: { ytdlp: true, ffmpeg: true },
-    refetchTools: () => Promise.resolve(),
-    queue: { jobs: [], pacing: null },
-    invalidateQueue: () => Promise.resolve(),
-    invalidateLibrary: () => Promise.resolve(),
   }
-  return { useImportSource: () => source }
+})
+
+/*
+ * The tag picker reads this device's library as well as the import's, for the
+ * nudge that asks before a tag is named after an artist. Nothing here is that
+ * device, so the one client the hooks reach for answers nothing and holds
+ * nothing open.
+ */
+configureClient({
+  api: {
+    onCloudLibraryChanged: () => () => undefined,
+    answersFromCloud: () => true,
+    library: () => Promise.resolve({ songs: [], tags: [], playlists: [] }),
+  } as unknown as Api,
 })
 
 const METRICS = {
@@ -67,12 +103,20 @@ const item = (n: number, title: string, alreadyHave = false) => ({
 
 const draw = async (): Promise<void> => {
   const client = new QueryClient({
-    defaultOptions: { mutations: { retry: false, gcTime: Infinity } },
+    // The picker reads this device's library too; its collection timer would
+    // hold the runner open long after the test had passed.
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { retry: false, gcTime: Infinity },
+    },
   })
   await render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <QueryClientProvider client={client}>
-        <ImportReview />
+        {/* The tag picker is a sheet, and a sheet is drawn by the shell's overlay host. */}
+        <OverlayProvider>
+          <ImportReview />
+        </OverlayProvider>
       </QueryClientProvider>
     </SafeAreaProvider>,
   )
@@ -87,6 +131,8 @@ describe('Import review, on a phone', () => {
   beforeEach(() => {
     mockEnqueue.mockReset()
     mockAlreadyHave.mockReset().mockResolvedValue({ have: [] })
+    mockCreateTag.mockClear()
+    mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
         kind: 'playlist',
@@ -198,6 +244,44 @@ describe('Import review, on a phone', () => {
     await view.rerender(page('http://100.64.0.5:4600'))
     expect(screen.getByText('THE BOOK')).toBeTruthy()
     expect(screen.getByLabelText('Select 群青')).toBeTruthy()
+  })
+
+  /*
+   * The chips read back the tags the import is going to, and the picker over
+   * them has to be the same library's, or a tag ticked there is a number this
+   * page knows nothing about: it drew no chip, and the import named a tag the
+   * server did not have (Xiao, 2026-09-22).
+   */
+  it('shows a ticked tag as a chip, and sends it', async () => {
+    await draw()
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('import-add-tag'))
+    })
+    await act(async () => {
+      fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
+    })
+    // The chip is the button; the row in the picker above it is the checkbox.
+    expect(screen.getByRole('button', { name: 'jpop' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('import-commit'))
+    })
+    expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
+  })
+
+  it('makes a new tag where the import is going, and chips it', async () => {
+    await draw()
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('import-add-tag'))
+    })
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText('Search or create a tag'), 'citypop')
+    })
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Create citypop'))
+    })
+    expect(mockCreateTag).toHaveBeenCalledWith('citypop')
+    expect(screen.getByRole('button', { name: 'citypop' })).toBeTruthy()
   })
 
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {

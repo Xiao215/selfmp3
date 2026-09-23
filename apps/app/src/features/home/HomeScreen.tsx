@@ -581,10 +581,9 @@ const TILE_GAP = 10
 /** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
 const SMALL_TILE = 140
 
-/** The page's side gutters, the widest a computer's page grows, and the card column beside the tiles. */
+/** The page's side gutters, and the card column beside the tiles. */
 const GUTTER_NARROW = 20
 const GUTTER_WIDE = 48
-const PAGE_MAX = 1040
 const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
 /**
@@ -597,7 +596,7 @@ const BESIDE_MIN = 880
 /** Whether the card column sits beside the tiles, or under them. */
 function useCardsBeside(wide: boolean): boolean {
   const column = useContentWidth()
-  return wide && (column === null || Math.min(column, PAGE_MAX) >= BESIDE_MIN)
+  return wide && (column === null || column >= BESIDE_MIN)
 }
 
 /**
@@ -613,21 +612,15 @@ function useTilesRowWidth(wide: boolean): number {
   const column = useContentWidth()
   if (!wide) return Math.floor(width - GUTTER_NARROW * 2)
   if (column === null) return 0
-  const page = Math.min(column, PAGE_MAX)
-  const cards = page >= BESIDE_MIN ? SIDE_COLUMN + COLUMN_GAP : 0
-  return Math.floor(page - GUTTER_WIDE * 2 - cards)
+  const cards = column >= BESIDE_MIN ? SIDE_COLUMN + COLUMN_GAP : 0
+  return Math.floor(column - GUTTER_WIDE * 2 - cards)
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: 22 },
   contentNarrow: { paddingHorizontal: GUTTER_NARROW, paddingTop: 4 },
-  contentWide: {
-    paddingHorizontal: GUTTER_WIDE,
-    paddingTop: 40,
-    maxWidth: PAGE_MAX,
-    width: '100%',
-  },
+  contentWide: { paddingHorizontal: GUTTER_WIDE, paddingTop: 40 },
   stack: { gap: 10 },
   cardsStacked: { gap: 12 },
   cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { reviewFrom } from '@selfmp3/client'
@@ -31,10 +31,15 @@ jest.mock('./ImportListen', () => ({
 }))
 
 const mockEnqueue = jest.fn()
+/** What the server says the library has now; an answer that does not fit changes nothing. */
+const mockAlreadyHave = jest.fn((): Promise<{ have: boolean[] }> => Promise.resolve({ have: [] }))
 jest.mock('./importSource', () => {
   // One object for the life of the test, as ImportUnreachable.test.tsx says why.
   const source = {
-    api: { importEnqueue: (request: unknown) => mockEnqueue(request) },
+    api: {
+      importEnqueue: (request: unknown) => mockEnqueue(request),
+      importAlreadyHave: () => mockAlreadyHave(),
+    },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),
@@ -81,6 +86,7 @@ const draw = async (): Promise<void> => {
 describe('Import review, on a phone', () => {
   beforeEach(() => {
     mockEnqueue.mockReset()
+    mockAlreadyHave.mockReset().mockResolvedValue({ have: [] })
     patchDraft('own', {
       review: reviewFrom({
         kind: 'playlist',
@@ -104,6 +110,18 @@ describe('Import review, on a phone', () => {
     expect(screen.getByLabelText('Deselect 群青')).toBeTruthy()
     expect(screen.queryByLabelText(/アイドル$/)).toBeNull()
     expect(screen.getByLabelText('Deselect all')).toBeTruthy()
+  })
+
+  it('asks the server again what is yours, since the kept review may be old', async () => {
+    // Removed from the library since the link was looked up: coming in after all.
+    mockAlreadyHave.mockResolvedValue({ have: [false, false, false] })
+    await draw()
+
+    await waitFor(() => expect(screen.queryByText('Yours already')).toBeNull())
+    expect(screen.getByTestId('import-count').props['children']).toBe('3 of 3 in')
+    expect(screen.getByText('Import 3 songs')).toBeTruthy()
+    expect(screen.getByLabelText('Deselect アイドル')).toBeTruthy()
+    expect(mockAlreadyHave).toHaveBeenCalledTimes(1)
   })
 
   it('unticks a song, keeps it listed, and ticks it back', async () => {

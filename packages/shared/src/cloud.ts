@@ -189,9 +189,13 @@ export function isCloudFileKey(key: string): boolean {
   return FILE_KEY.test(key)
 }
 
-/** Snapshots and change logs are rewritten and pruned; files named by their hash never are. */
+/**
+ * Snapshots and change logs are rewritten and pruned, and a removed song's
+ * files go once no song names them (docs/SYNC.md). Only `format.json`, the
+ * doorman's own, is never deleted.
+ */
 export function isDeletableCloudKey(key: string): boolean {
-  return isCloudFileKey(key) && (key.startsWith(SNAPSHOTS_FOLDER) || key.startsWith(LOG_FOLDER))
+  return isCloudFileKey(key) && key !== FORMAT_KEY
 }
 
 /** The folders a device may list: one of the library's own, or one device's log. */

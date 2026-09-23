@@ -21,6 +21,7 @@ import {
   DeviceListSchema,
   HealthSchema,
   ImportEnqueueResultSchema,
+  AlreadyHaveResponseSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
   ImportShareResultSchema,
@@ -60,6 +61,7 @@ import {
   type DeviceCommand,
   type DeviceHeartbeat,
   type ImportEnqueue,
+  type ImportPreviewItem,
   type ImportShareRequest,
   type MigrateEnqueue,
   type MigrateSourceTrack,
@@ -410,6 +412,17 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     importPreview: (url: string) =>
       request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
+
+    /** Which of a kept review's tracks the library has now (see `refreshAlreadyHave`). */
+    importAlreadyHave: (tracks: readonly ImportPreviewItem[]) =>
+      request('POST', '/api/import/already-have', AlreadyHaveResponseSchema, {
+        tracks: tracks.map(({ url, title, artist, duration }) => ({
+          url,
+          title,
+          artist,
+          duration,
+        })),
+      }),
 
     importEnqueue: (input: ImportEnqueue) =>
       request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),

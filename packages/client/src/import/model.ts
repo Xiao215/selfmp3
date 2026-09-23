@@ -79,6 +79,31 @@ export function reviewFrom(preview: ImportPreview): Review {
 }
 
 /**
+ * A kept review told again which of its songs the library has now.
+ *
+ * "Yours already" is a fact about the library at the moment it is read, and
+ * a draft outlives the reading: a song removed since is coming in after all,
+ * and a song imported since (from a phone, say) is not. A row that becomes
+ * yours loses its tick; a row that stops being yours gets one, as it would
+ * have had the link been looked up now. The same review comes back when
+ * nothing changed, so a screen can tell.
+ */
+export function refreshAlreadyHave(review: Review, have: readonly boolean[]): Review {
+  if (have.length !== review.items.length) return review
+  let changed = false
+  const chosen = new Set(review.chosen)
+  const items = review.items.map((item, index) => {
+    const now = have[index] ?? item.alreadyHave
+    if (now === item.alreadyHave) return item
+    changed = true
+    if (now) chosen.delete(index)
+    else chosen.add(index)
+    return { ...item, alreadyHave: now }
+  })
+  return changed ? { ...review, items, chosen } : review
+}
+
+/**
  * The tag a link is named after, if you already have one: an artist's page
  * or a search for "yoasobi" with a `yoasobi` tag in the library. Pre-ticked,
  * so the songs are tagged without asking; still yours to untick.

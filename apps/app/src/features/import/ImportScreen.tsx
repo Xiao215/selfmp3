@@ -33,6 +33,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
+import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportSource } from './importSource'
 import { countLabel, reviewName } from './review.model'
 
@@ -79,6 +80,8 @@ export function ImportScreen({
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { links, review, tagIds } = draft
+  // The card offering a kept review counts songs coming in: as the library is now.
+  useRefreshReview(api, key, reviewUrls(review))
   const [error, setError] = useState<string | null>(null)
   const [linksFocused, setLinksFocused] = useState(false)
   /** What the pasted links take up, so the box grows with them. */

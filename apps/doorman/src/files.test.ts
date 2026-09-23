@@ -473,15 +473,20 @@ describe('deleting a file', () => {
     expect((await h.call(`/v1/files/${LOG}`, { method: 'DELETE', token })).status).toBe(204)
   })
 
-  it('never deletes a file named by its hash, or format.json', async () => {
+  it('deletes a removed song’s files, which the server asks once nothing names them', async () => {
     const { h, token } = await connected()
     h.bucket.put(`selfmp3/${SONG}`, 'abc')
-    for (const key of [SONG, `covers/${SHA}.jpg`, `lyrics/${SHA}.lrc`, 'format.json']) {
-      const response = await h.call(`/v1/files/${key}`, { method: 'DELETE', token })
-      expect(response.status).toBe(403)
-      expect((await error(response)).code).toBe('forbidden')
+    for (const key of [SONG, `covers/${SHA}.jpg`, `lyrics/${SHA}.lrc`]) {
+      expect((await h.call(`/v1/files/${key}`, { method: 'DELETE', token })).status).toBe(204)
     }
-    expect(h.bucket.objects.has(`selfmp3/${SONG}`)).toBe(true)
+    expect(h.bucket.objects.has(`selfmp3/${SONG}`)).toBe(false)
+  })
+
+  it('never deletes format.json', async () => {
+    const { h, token } = await connected()
+    const response = await h.call('/v1/files/format.json', { method: 'DELETE', token })
+    expect(response.status).toBe(403)
+    expect((await error(response)).code).toBe('forbidden')
     expect(h.bucket.requests).toEqual([])
   })
 })

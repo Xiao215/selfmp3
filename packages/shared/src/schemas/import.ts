@@ -80,6 +80,32 @@ export const ImportPreviewSchema = z.object({
   playlistTitle: z.string().nullable(),
   items: z.array(ImportPreviewItemSchema),
 })
+
+/**
+ * Which of these tracks the library has now, asked again for a review that
+ * was kept on the device: "Yours already" is a fact about the library at the
+ * moment it is read, and a draft made before a removal — or an import — has
+ * the answer from then.
+ */
+export const AlreadyHaveRequestSchema = z.object({
+  tracks: z
+    .array(
+      z.object({
+        url: z.string(),
+        title: z.string(),
+        artist: z.string(),
+        duration: z.number().nonnegative(),
+      }),
+    )
+    .max(2000),
+})
+export type AlreadyHaveRequest = z.infer<typeof AlreadyHaveRequestSchema>
+
+export const AlreadyHaveResponseSchema = z.object({
+  /** One answer per track asked about, in order. */
+  have: z.array(z.boolean()),
+})
+export type AlreadyHaveResponse = z.infer<typeof AlreadyHaveResponseSchema>
 export type ImportPreview = z.infer<typeof ImportPreviewSchema>
 
 export const ImportPreviewRequestSchema = z.object({

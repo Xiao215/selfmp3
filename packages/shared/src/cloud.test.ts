@@ -209,10 +209,10 @@ describe('what may pass through the doorman', () => {
     }
   })
 
-  it('lets snapshots and logs be deleted, never files named by their hash', () => {
+  it('lets everything but format.json be deleted: snapshots, logs, and a removed song’s files', () => {
     expect(isDeletableCloudKey(snapshot)).toBe(true)
     expect(isDeletableCloudKey('log/iphone-0b7d44a1/000123.jsonl')).toBe(true)
-    expect(isDeletableCloudKey(`audio/${SHA}.m4a`)).toBe(false)
+    expect(isDeletableCloudKey(`audio/${SHA}.m4a`)).toBe(true)
     expect(isDeletableCloudKey('format.json')).toBe(false)
   })
 

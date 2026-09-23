@@ -188,9 +188,11 @@ below); the plain command deploys the real doorman.
   can no longer open the bucket keys it sealed, so everyone connects their
   bucket again (the bucket and its files are untouched).
 - **What a device may do to the library**: read everything in it, add files,
-  and replace or delete snapshots and change logs. It can never replace
-  `format.json` (the doorman writes that when a bucket is connected), and
-  never replace or delete a song, cover or lyrics file once it is there.
+  replace or delete snapshots and change logs, and delete a song, cover or
+  lyrics file — which the server does once no song names it, after a removal
+  (docs/SYNC.md). It can never replace one of those once it is there, and
+  never replace or delete `format.json` (the doorman writes that when a bucket
+  is connected).
 - **Logs**: `npx wrangler tail` shows what the doorman is doing, including why
   a sign-in was refused. It never logs a token, a key or a secret.
 - **Running it on your own computer**: put `GOOGLE_CLIENT_ID` and the three

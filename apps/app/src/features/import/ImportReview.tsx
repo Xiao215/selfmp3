@@ -29,6 +29,7 @@ import { TagThem } from './ImportTags'
 import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
+import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { canListen, listenDetail, listeningLeftReview, type Listening } from './listen.model'
 import {
   chosenState,
@@ -75,6 +76,8 @@ export function ImportReview({
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { review, tagIds } = draft
+  // A kept review's "Yours already" is from when the link was looked up.
+  useRefreshReview(source.api, key, reviewUrls(review))
   const listen = useListen(via)
   const backTo = useBackTo()
   const footInset = useBottomInset()

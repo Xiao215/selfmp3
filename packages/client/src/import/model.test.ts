@@ -14,6 +14,7 @@ import {
   matchingTag,
   queueActivity,
   queueControls,
+  refreshAlreadyHave,
   reviewFrom,
   sharedLinks,
 } from './model.js'
@@ -221,5 +222,39 @@ describe('shared links', () => {
     expect(
       sharedLinks({ url: 'https://a.example/x', text: 'https://a.example/x https://b.example/y' }),
     ).toBe('https://a.example/x\nhttps://b.example/y')
+  })
+})
+
+describe('a kept review told again what the library has', () => {
+  const item = (n: number, alreadyHave: boolean): ImportPreviewItem => ({
+    url: `https://youtu.be/${n}`,
+    title: `Song ${n}`,
+    artist: 'YOASOBI',
+    album: '',
+    duration: 200,
+    thumbnail: null,
+    alreadyHave,
+  })
+  const review = reviewFrom({
+    kind: 'playlist',
+    playlistTitle: 'Top songs',
+    items: [item(1, true), item(2, false), item(3, false)],
+  })
+
+  it('frees a song that was removed since, and ticks it; takes one imported since out', () => {
+    const next = refreshAlreadyHave(review, [false, true, false])
+    expect(next.items.map(i => i.alreadyHave)).toEqual([false, true, false])
+    expect([...next.chosen].sort()).toEqual([0, 2])
+  })
+
+  it('is the same review when nothing changed, or when the answer does not fit', () => {
+    expect(refreshAlreadyHave(review, [true, false, false])).toBe(review)
+    expect(refreshAlreadyHave(review, [true, false])).toBe(review)
+  })
+
+  it('keeps a tick you took off yourself', () => {
+    const unticked = { ...review, chosen: new Set([1]) }
+    const next = refreshAlreadyHave(unticked, [false, false, false])
+    expect([...next.chosen].sort()).toEqual([0, 1])
   })
 })

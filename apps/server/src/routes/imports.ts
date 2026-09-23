@@ -3,12 +3,14 @@ import { pipeline } from 'node:stream/promises'
 import { Router } from 'express'
 import { z } from 'zod'
 import {
+  AlreadyHaveRequestSchema,
   BooleanQuerySchema,
   isYouTubeUrl,
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
   ImportShareRequestSchema,
   YT_LIKED_MUSIC_URL,
+  type AlreadyHaveResponse,
   type ImportEnqueueItem,
   type ImportEnqueueResult,
   type ImportPreview,
@@ -20,7 +22,7 @@ import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
-import { normaliseUrl } from '../services/alreadyHave.js'
+import { alreadyHave, normaliseUrl, sourceUrlIndex } from '../services/alreadyHave.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -88,6 +90,23 @@ export function importRoutes(container: Container): Router {
     route({ body: ImportPreviewRequestSchema }, ({ body }): Promise<ImportPreview> =>
       buildImportPreview(container, body.url),
     ),
+  )
+
+  /**
+   * The preview's "Yours already", asked again without asking YouTube again.
+   *
+   * A review is kept on the device across reloads (the app's import draft),
+   * so the answer it carries is from whenever the link was looked up. A song
+   * removed since — or imported since — has to change it, and this is the
+   * same rule the preview applied, over the library as it is now.
+   */
+  router.post(
+    '/import/already-have',
+    route({ body: AlreadyHaveRequestSchema }, ({ body }): AlreadyHaveResponse => {
+      const library = container.songs.all()
+      const knownLinks = sourceUrlIndex(library)
+      return { have: body.tracks.map(track => alreadyHave(track, library, knownLinks) !== null) }
+    }),
   )
 
   /**

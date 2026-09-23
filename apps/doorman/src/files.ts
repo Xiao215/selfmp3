@@ -27,10 +27,12 @@ import type { Session } from './sessions.js'
  * files may pass: `isCloudFileKey` and `isCloudListPrefix` from the shared
  * package decide, before anything reaches the bucket.
  *
- * A session can write, but not undo the library. `format.json` is the
- * doorman's own, written when a bucket is connected, and no device may
- * replace or delete it. A file named by the hash of its bytes is never
- * replaced once it is there. Only snapshots and change logs are deleted.
+ * A session can write, and delete what the library has let go of.
+ * `format.json` is the doorman's own, written when a bucket is connected, and
+ * no device may replace or delete it. A file named by the hash of its bytes
+ * is never replaced once it is there; it is deleted once no song names it
+ * (docs/SYNC.md), which the server asks for after the snapshot without the
+ * song is up.
  * And what a file says about itself — its type and encoding — is held to
  * the few shapes the library uses.
  *
@@ -204,7 +206,7 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
 
 async function remove(ctx: Context, session: Session, key: string): Promise<Response> {
   if (!isDeletableCloudKey(key)) {
-    throw forbidden('only snapshots and change logs are ever deleted')
+    throw forbidden('format.json is never deleted')
   }
   const bucket = await requireBucket(ctx, session)
   await bucket.remove(key)

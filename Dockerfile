@@ -37,7 +37,9 @@ COPY apps/extension/package.json apps/extension/
 RUN npm ci --workspace @selfmp3/shared --workspace @selfmp3/server --include-workspace-root \
       --no-audit --no-fund
 
-COPY tsconfig.base.json ./
+# Both halves of the root config: `tsconfig.base.json` extends
+# `tsconfig.strict.json`, and tsc reads the chain from disk.
+COPY tsconfig.base.json tsconfig.strict.json ./
 COPY packages/shared packages/shared
 COPY apps/server apps/server
 RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @selfmp3/server

@@ -13,6 +13,7 @@ import {
 } from './ytdlp.js'
 import {
   freshState,
+  PAUSE_MS,
   RateLimitedError,
   YtThrottleService,
   type ThrottleState,
@@ -295,5 +296,100 @@ cat "${dir}/stdout.json"
     controller.abort()
     await expect(pending).rejects.toThrow()
     expect(fs.existsSync(path.join(dir, 'args.txt'))).toBe(false)
+  })
+})
+
+/**
+ * What the download queue's calls do when a rate-limit pause is already on.
+ *
+ * The queue declines to claim a job while the throttle is paused, so nothing
+ * should be sitting in `#pace` waiting one out. One job can be there anyway:
+ * the one claimed in the moment before another worker's refusal landed. It
+ * used to sleep here for the whole quarter of an hour, holding a worker slot
+ * and reading as `running` the entire time — which is precisely what the
+ * scheduler is written to avoid, and what made the queue's rate-limit tests
+ * fail on a loaded machine, where the second child is slow enough to lose the
+ * race. It comes back as a refusal instead, and the queue puts it back.
+ */
+describe('a queue job that reaches yt-dlp just after a pause began', () => {
+  let dir: string
+  let savedPath: string | undefined
+  let state: ThrottleState
+  let service: YtDlpService
+
+  const NOW = 1_700_000_000_000
+
+  /** True once the stand-in binary has been run at all. */
+  const asked = (): boolean => fs.existsSync(path.join(dir, 'args.txt'))
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-paused-'))
+    const bin = path.join(dir, 'bin')
+    fs.mkdirSync(bin)
+    fs.writeFileSync(
+      path.join(bin, 'yt-dlp'),
+      `#!/bin/sh
+printf '%s\\n' "$@" > "${dir}/args.txt"
+`,
+      { mode: 0o755 },
+    )
+    savedPath = process.env.PATH
+    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
+
+    // Tokens to spare, so the pause is the only thing in the way — and a
+    // stopped clock, so anything that decides to wait it out waits forever.
+    state = { ...freshState(NOW), tokens: 5, pausedUntil: NOW + PAUSE_MS, limitedAt: NOW }
+    service = new YtDlpService(
+      createLogger('silent'),
+      () => ({ ytCookieSource: 'none', ytCookieBrowser: 'chrome', ytCookieFile: '' }),
+      new YtThrottleService(
+        { get: () => state, save: next => void (state = next) },
+        () => false,
+        () => NOW,
+      ),
+    )
+  })
+
+  afterEach(() => {
+    process.env.PATH = savedPath
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('goes back in the queue rather than holding its slot for the pause', async () => {
+    await expect(
+      service.download({
+        url: 'https://www.youtube.com/watch?v=6I1SNW0tVYk',
+        outputTemplate: path.join(dir, '%(title)s.%(ext)s'),
+        hasFfmpeg: false,
+      }),
+    ).rejects.toBeInstanceOf(RateLimitedError)
+    // Nothing was asked of YouTube, so nothing was spent for asking.
+    expect(asked()).toBe(false)
+    expect(state.tokens).toBe(5)
+  })
+
+  it('answers the same way to the probe that comes before the download', async () => {
+    await expect(
+      service.probe('https://www.youtube.com/watch?v=6I1SNW0tVYk', undefined, 'patient'),
+    ).rejects.toBeInstanceOf(RateLimitedError)
+    expect(asked()).toBe(false)
+  })
+
+  it('is still patient about an empty bucket, which is a wait of seconds', async () => {
+    // No pause, just nothing in the bucket: this is the wait the queue exists
+    // to sit through, and giving up on it would fail jobs for being paced.
+    state = { ...state, tokens: 0, pausedUntil: 0, limitedAt: 0 }
+    const controller = new AbortController()
+    const pending = service.download({
+      url: 'https://www.youtube.com/watch?v=6I1SNW0tVYk',
+      outputTemplate: path.join(dir, '%(title)s.%(ext)s'),
+      hasFfmpeg: false,
+      signal: controller.signal,
+    })
+    // With a stopped clock the only way out is the job being cancelled, which
+    // is what "still waiting" looks like from here.
+    controller.abort()
+    await expect(pending).rejects.not.toBeInstanceOf(RateLimitedError)
+    expect(asked()).toBe(false)
   })
 })

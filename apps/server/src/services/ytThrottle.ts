@@ -265,14 +265,26 @@ export class YtThrottleService {
    * link, previewing a track — where waiting out a fifteen minute pause is
    * worse than being told what is happening. The download queue passes none:
    * it has nowhere to be.
+   *
+   * `waitOutPause: false` separates the two reasons this waits. An empty
+   * bucket is a wait of seconds that ends by itself, and a job is right to sit
+   * through it. A pause is a quarter of an hour that the download queue
+   * already knows how to spend: it declines to claim anything while one is on.
+   * A job that was claimed in the moment before the refusal landed would
+   * otherwise sit here holding a worker slot and reading as `running` for the
+   * whole pause — the one thing the queue's scheduler is written not to do.
+   * Such a job says so instead, and goes back in the queue it came from.
    */
-  async take(options: { signal?: AbortSignal; maxWaitMs?: number } = {}): Promise<boolean> {
-    const { signal, maxWaitMs } = options
+  async take(
+    options: { signal?: AbortSignal; maxWaitMs?: number; waitOutPause?: boolean } = {},
+  ): Promise<boolean> {
+    const { signal, maxWaitMs, waitOutPause = true } = options
     const deadline = maxWaitMs === undefined ? null : this.#now() + maxWaitMs
 
     for (;;) {
       signal?.throwIfAborted()
       if (this.tryTake()) return true
+      if (!waitOutPause && this.status().pausedUntil !== null) return false
 
       const wait = this.waitMs()
       if (deadline !== null && this.#now() + wait > deadline) return false

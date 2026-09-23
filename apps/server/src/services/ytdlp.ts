@@ -322,10 +322,25 @@ export class YtDlpService {
    *
    * `maxWaitMs` is passed by the paths someone is waiting on in a browser;
    * the download queue passes none and waits as long as it takes.
+   *
+   * `waitOutPause: false` is the queue's, and the refusal it gets back is a
+   * `RateLimitedError` rather than the message above: nothing is wrong with
+   * the song, and the queue puts it back exactly as it would a refusal that
+   * came from YouTube itself. The budget was cut when the refusal landed, so
+   * there is nothing more to charge this job for having arrived just after it.
    */
-  async #pace(options: { signal?: AbortSignal; maxWaitMs?: number }): Promise<void> {
+  async #pace(options: {
+    signal?: AbortSignal
+    maxWaitMs?: number
+    waitOutPause?: boolean
+  }): Promise<void> {
     const took = await this.#throttle.take(options)
     if (took) return
+    if (options.waitOutPause === false && this.#throttle.status().pausedUntil !== null) {
+      throw new RateLimitedError(
+        'YouTube refused this address for rate a moment ago; waiting the pause out.',
+      )
+    }
     const seconds = Math.ceil(this.#throttle.waitMs() / 1000)
     throw new Error(
       `Pacing requests to YouTube so this address does not get blocked — ` +
@@ -411,13 +426,14 @@ export class YtDlpService {
      * `patient` is for the download queue, which would rather wait for the
      * budget than fail. Signed out, a request's worth takes 48 seconds to come
      * back, so the wait a person will sit through would fail the queue's own
-     * jobs for nothing more than having been paced.
+     * jobs for nothing more than having been paced. It waits out an empty
+     * bucket, not a rate-limit pause: see `#pace`.
      */
     wait: 'interactive' | 'patient' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
     await this.#pace({
       ...(signal ? { signal } : {}),
-      ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : {}),
+      ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
     })
     const result = await run(
       'yt-dlp',
@@ -575,7 +591,7 @@ export class YtDlpService {
     signal?: AbortSignal
     onProgress?: (percent: number) => void
   }): Promise<void> {
-    await this.#pace(input.signal ? { signal: input.signal } : {})
+    await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
     const args = [
       ...BASE_ARGS,
       '--format',

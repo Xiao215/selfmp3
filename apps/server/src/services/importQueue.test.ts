@@ -47,13 +47,16 @@ import { YtThrottleService } from './ytThrottle.js'
  * cores. It is here to end a wait that is never going to finish, and to say so,
  * rather than to police how long a loaded machine may take.
  *
- * Ten seconds was still policing. A runner with two cores and two hundred
- * other test files in flight took longer than that to spawn one of these
- * children, and the budget failed a rate-limit test that had passed on every
- * other push (Pages run 35821594984, 2026-09-23). Thirty is past anything a
- * loaded machine has shown, and a wait that is truly stuck still ends here
- * with a sentence about what it was waiting for rather than at vitest's own
- * timeout, which says nothing.
+ * The rate-limit tests below failed on CI three pushes running, at ten
+ * seconds and then at thirty, and the budget was not what was wrong: a job
+ * claimed in the moment before another worker's refusal landed used to sleep
+ * out the whole fifteen minute pause inside yt-dlp's pacing, still marked
+ * `running`, so `running === 0` was never going to hold — a race a two-core
+ * runner loses and a quiet laptop wins. The queue puts that job back now
+ * (ytThrottle's `waitOutPause`), and the budget is left generous because it
+ * is here to end a wait that is never going to finish, with a sentence about
+ * what it was waiting for, rather than at vitest's own timeout, which says
+ * nothing.
  */
 async function until(done: () => boolean, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs

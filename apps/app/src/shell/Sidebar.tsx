@@ -686,7 +686,10 @@ const styles = StyleSheet.create(theme => ({
   // Where you are: a lighter surface and full-strength ink, not the accent,
   // which is kept for the button that commits something (`S2`). Raised rather
   // than `surfaceSelected`, which is white on Paper, as the rail is.
-  itemOn: { backgroundColor: theme.colors.surface3 },
+  // The radius is the highlight's own: the sliding fill is a view behind the
+  // rows, not the row itself, so without it the lit destination had square
+  // corners while every row it slid between was rounded.
+  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: 12 },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },

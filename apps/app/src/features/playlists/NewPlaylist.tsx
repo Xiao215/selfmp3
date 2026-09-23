@@ -64,9 +64,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   // What it would hold, worked out here rather than asked of the server: the
   // whole library is already in memory, and a count that lags behind the chips
   // is worse than no count.
-  const matching = fromTags
-    ? songs.filter(song => !song.missing && tagIds.some(id => song.tagIds.includes(id)))
-    : []
+  const matching = fromTags ? songs.filter(song => tagIds.some(id => song.tagIds.includes(id))) : []
   const seconds = matching.reduce((total, song) => total + song.duration, 0)
 
   const ready = name.trim().length > 0 && (!fromTags || tagIds.length > 0)

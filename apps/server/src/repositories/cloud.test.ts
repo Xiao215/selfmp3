@@ -116,7 +116,7 @@ describe('uids and the search index', () => {
   it('reads song files with their uids for the sync', () => {
     const id = insert('Sunrise')
     const [file] = new CloudRepository(db).songFiles()
-    expect(file).toMatchObject({ id, title: 'Sunrise', uid: uid('songs', id), missing: false })
+    expect(file).toMatchObject({ id, title: 'Sunrise', uid: uid('songs', id) })
   })
 })
 

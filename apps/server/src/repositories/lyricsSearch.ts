@@ -108,7 +108,7 @@ export class LyricsSearchRepository {
     this.#unindexed = db.prepare<[], { id: number }>(`
       SELECT s.id FROM songs s
       LEFT JOIN lyrics_index li ON li.song_id = s.id
-      WHERE s.missing = 0 AND s.lyrics_kind != 'none' AND li.song_id IS NULL
+      WHERE s.lyrics_kind != 'none' AND li.song_id IS NULL
     `)
   }
 

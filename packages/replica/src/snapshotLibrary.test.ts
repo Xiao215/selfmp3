@@ -70,7 +70,6 @@ describe('snapshotToLibrary', () => {
       hasArt: true,
       lyricsKind: 'synced',
       sizeBytes: 4_000_000,
-      missing: false,
     })
     expect(library.tags[0]).toMatchObject({ name: 'chill', songCount: 1 })
     expect(library.songs[0]?.tagIds).toEqual([library.tags[0]?.id])

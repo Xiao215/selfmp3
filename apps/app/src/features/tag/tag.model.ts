@@ -30,7 +30,7 @@ export function placeSize(place: Place): number {
 
 /**
  * Every song any of the places holds, each once, newest first as Library
- * opens. A missing file is left out, as it is from Library.
+ * opens.
  */
 export function placeSongs<S extends Song>(places: readonly Place[], songs: readonly S[]): S[] {
   if (places.length === 0) return []
@@ -43,9 +43,8 @@ export function placeSongs<S extends Song>(places: readonly Place[], songs: read
   return songs
     .filter(
       song =>
-        !song.missing &&
-        (song.tagIds.some(id => tagIds.has(id)) ||
-          (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key)))),
+        song.tagIds.some(id => tagIds.has(id)) ||
+        (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key))),
     )
     .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
 }
@@ -57,13 +56,13 @@ export function placeSummary(songs: readonly Pick<Song, 'duration'>[]): string {
   return songs.length === 0 ? count : `${count} · ${formatLongDuration(seconds)}`
 }
 
-/** A song with no tag yet: the untagged card's songs. A missing file is not one. */
-export function isUntagged(song: Pick<Song, 'tagIds' | 'missing'>): boolean {
-  return song.tagIds.length === 0 && !song.missing
+/** A song with no tag yet: the untagged card's songs. */
+export function isUntagged(song: Pick<Song, 'tagIds'>): boolean {
+  return song.tagIds.length === 0
 }
 
 /** Newest first: what was just imported is what most needs a tag. */
-export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'missing' | 'addedAt'>>(
+export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'addedAt'>>(
   songs: readonly T[],
 ): T[] {
   return songs.filter(isUntagged).sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
@@ -92,7 +91,6 @@ export interface TagStanding {
 export function tagsMostPlayed(tags: readonly Tag[], songs: readonly Song[]): TagStanding[] {
   const byTag = new Map<number, Song[]>()
   for (const song of songs) {
-    if (song.missing) continue
     for (const id of song.tagIds) {
       const list = byTag.get(id)
       if (list) list.push(song)

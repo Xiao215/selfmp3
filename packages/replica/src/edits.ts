@@ -113,20 +113,11 @@ export function tagSongs(
   })
 }
 
-/**
- * Out of the library, on every device.
- *
- * `deleteFile` is what the person was asked and answered, carried through so
- * the server does the same thing it would have done had they asked it directly.
- */
-export function removeSongs(
-  ctx: EditContext,
-  ids: readonly number[],
-  deleteFile = false,
-): Change[] {
+/** Out of the library, on every device. */
+export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
   return [...new Set(ids)].flatMap(id => {
     const uid = ctx.view.uids.songs.get(id)
-    return uid ? [{ type: 'songRemoved' as const, hlc: ctx.stamp(), uid, deleteFile }] : []
+    return uid ? [{ type: 'songRemoved' as const, hlc: ctx.stamp(), uid }] : []
   })
 }
 

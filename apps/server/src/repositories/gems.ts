@@ -31,7 +31,7 @@ export class GemsRepository {
   libraryAgeDays(): number {
     const row = this.#db
       .prepare<[], { age: number | null }>(
-        "SELECT julianday('now') - MIN(julianday(added_at)) AS age FROM songs WHERE missing = 0",
+        "SELECT julianday('now') - MIN(julianday(added_at)) AS age FROM songs",
       )
       .get()
     return Math.max(0, row?.age ?? 0)
@@ -45,8 +45,7 @@ export class GemsRepository {
     const row = this.#db
       .prepare<[number, number], { count: number }>(
         `SELECT COUNT(*) AS count FROM songs
-          WHERE missing = 0
-            AND (loved = 1 OR play_count >= ?)
+          WHERE (loved = 1 OR play_count >= ?)
             AND julianday('now') - julianday(COALESCE(last_played_at, added_at)) >= ?`,
       )
       .get(MIN_PLAYS, minDays)
@@ -62,8 +61,7 @@ export class GemsRepository {
                   * (julianday('now') - julianday(COALESCE(last_played_at, added_at)))
                   * (0.75 + (abs(random()) % 1000) / 2000.0) AS score
            FROM songs
-          WHERE missing = 0
-            AND (loved = 1 OR play_count >= ?)
+          WHERE (loved = 1 OR play_count >= ?)
             AND julianday('now') - julianday(COALESCE(last_played_at, added_at)) >= ?
           ORDER BY score DESC
           LIMIT ?`,

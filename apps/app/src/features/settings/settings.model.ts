@@ -6,7 +6,7 @@ import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
  */
 
 /** Which destructive action is waiting to be confirmed, if any. */
-export type Confirming = 'remove-downloads' | 'redo-analysis' | 'forget-missing' | 'sign-out' | null
+export type Confirming = 'remove-downloads' | 'redo-analysis' | 'sign-out' | null
 
 export type SectionId =
   | 'playback'
@@ -204,6 +204,6 @@ export function splitDevices<
 }
 
 export function scanHint(result: ScanResult | undefined): string {
-  if (!result) return 'Pick up files you added, renamed or deleted outside self.mp3.'
-  return `Last scan found ${result.total} songs — ${result.added} new, ${result.updated} updated, ${result.removed} now missing.`
+  if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
+  return `Last sweep found ${result.added} new and ${result.updated} updated; ${result.total} songs in the library.`
 }

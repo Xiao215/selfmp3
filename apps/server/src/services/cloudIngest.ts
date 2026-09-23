@@ -13,6 +13,7 @@ import {
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import type { Logger } from '../logger.js'
+import type { CloudRepository } from '../repositories/cloud.js'
 import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -37,15 +38,11 @@ export interface IngestResult {
   /** Changes that changed something here. */
   readonly applied: number
   /**
-   * Songs another device removed. What is derived from them — cover, cached
-   * lyrics, search index — goes with the row either way; the audio itself only
-   * when `deleteFile` says the person asked for that.
+   * Songs another device removed. Their rows are gone and their bucket files
+   * trashed; what hung off each row — the copy on disk, the cover, cached
+   * lyrics, the search index — is the caller's to tidy (services/songRemoval.ts).
    */
-  readonly removed: readonly {
-    readonly id: number
-    readonly path: string
-    readonly deleteFile: boolean
-  }[]
+  readonly removed: readonly { readonly id: number; readonly path: string }[]
   /** Links other devices asked this server to import, seen for the first time. */
   readonly requested: number
 }
@@ -57,6 +54,7 @@ export class CloudIngest {
   readonly #playlists: PlaylistRepository
   readonly #stats: StatsRepository
   readonly #sync: SyncRepository
+  readonly #cloud: Pick<CloudRepository, 'trashSong'>
   readonly #requests: ImportRequestRepository | null
   readonly #clock: SyncClock
   readonly #logger: Logger
@@ -68,6 +66,8 @@ export class CloudIngest {
     playlists: PlaylistRepository
     stats: StatsRepository
     sync: SyncRepository
+    /** Where a removed song's bucket files wait to be deleted. */
+    cloud: Pick<CloudRepository, 'trashSong'>
     /** Where link requests go; without it they are left for a server that has one. */
     requests?: ImportRequestRepository
     clock: SyncClock
@@ -79,6 +79,7 @@ export class CloudIngest {
     this.#playlists = deps.playlists
     this.#stats = deps.stats
     this.#sync = deps.sync
+    this.#cloud = deps.cloud
     this.#requests = deps.requests ?? null
     this.#clock = deps.clock
     this.#logger = deps.logger.child('ingest')
@@ -95,7 +96,7 @@ export class CloudIngest {
    * ever arrive.
    */
   apply(changes: readonly Change[], alongside: () => void = () => undefined): IngestResult {
-    const removed: { id: number; path: string; deleteFile: boolean }[] = []
+    const removed: { id: number; path: string }[] = []
     let applied = 0
     let requested = 0
     this.#db.transaction(() => {
@@ -122,7 +123,7 @@ export class CloudIngest {
     return { applied, removed, requested }
   }
 
-  #applyOne(change: Change, removed: { id: number; path: string; deleteFile: boolean }[]): boolean {
+  #applyOne(change: Change, removed: { id: number; path: string }[]): boolean {
     switch (change.type) {
       case 'songEdited': {
         const id = this.#sync.songId(change.uid)
@@ -155,10 +156,11 @@ export class CloudIngest {
         const id = this.#sync.songId(change.uid)
         const song = id === null ? null : this.#songs.byId(id)
         if (id === null || !song) return false
+        // Its bucket files wait for the snapshot without it before they go;
+        // the bookkeeping that names them goes with the row, so it is read first.
+        this.#cloud.trashSong(id)
         this.#songs.delete(id)
-        // The audio only goes if that is what was asked for. The device that
-        // removed it offered the choice; this is the other half of it.
-        removed.push({ id, path: song.path, deleteFile: change.deleteFile })
+        removed.push({ id, path: song.path })
         return true
       }
 

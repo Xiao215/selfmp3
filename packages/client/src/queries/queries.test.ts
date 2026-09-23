@@ -137,7 +137,7 @@ describe('useDeleteSong', () => {
     const client = seeded([manual])
     const mutation = mount(client, useDeleteSong)
 
-    await act(() => mutation().mutateAsync({ id: 1, deleteFile: false }))
+    await act(() => mutation().mutateAsync(1))
 
     expect(invalidated(client, queryKeys.playlistSongs(manual.id))).toBe(true)
     expect(invalidated(client, queryKeys.library)).toBe(true)

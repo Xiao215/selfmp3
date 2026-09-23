@@ -86,7 +86,7 @@ export class StatsRepository {
         `SELECT COUNT(*) AS count,
                 COALESCE(SUM(duration), 0) AS duration,
                 COALESCE(SUM(CASE WHEN play_count = 0 THEN 1 ELSE 0 END), 0) AS never
-           FROM songs WHERE missing = 0`,
+           FROM songs`,
       )
       .get()
 

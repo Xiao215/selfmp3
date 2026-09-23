@@ -13,13 +13,6 @@ describe('linkIndex', () => {
       }),
       song({ id: 2, title: 'Dropped in', artist: 'Me' }),
       song({
-        id: 3,
-        title: 'Gone',
-        artist: 'Them',
-        sourceUrl: 'https://youtu.be/ZRtdQ81jPUQ',
-        missing: true,
-      }),
-      song({
         id: 4,
         title: 'Hello again',
         artist: 'Adele',

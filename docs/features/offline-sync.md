@@ -20,7 +20,6 @@ Files:
 | Which address a song plays and draws from | `apps/app/src/api/mediaAddress.model.ts`, `apps/app/src/ports/bucketMedia.ts` (+ `.web.ts`), `apps/app/sw/sw.ts` |
 | Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
 | What the counts mean | `downloadTally` in `packages/client/src/downloads/downloadIndex.ts` |
-| What removing means here | `removingTakesTheCopy` in `apps/app/src/ports/device.ts` (+ `.web.ts`) |
 | Late plays on the server | `apps/server/src/routes/songs.ts`, `repositories/stats.ts` |
 | Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts`, `packages/client/src/downloads/downloadIndex.test.ts`, `apps/app/src/features/settings/OfflinePanel.test.tsx`, `apps/app/src/ui/components/SongMenu.test.tsx` |
 
@@ -80,19 +79,16 @@ the server and never a song the library still has, even one whose file is missin
 
 ## Removing a song
 
-The same words mean different things on the two kinds of device, so they ask different
-questions (`removingTakesTheCopy`; a port, never `Platform.OS` in a screen).
+Removing has one meaning on every device (docs/SYNC.md): the song leaves the library
+everywhere, and whatever this device downloaded of it is deleted with it. "Remove from
+library…" asks once and does that. There is no "keep the file" — the server keeps no copy of
+the library, so there is nothing to keep, and a copy left anywhere is how removed songs used
+to come back.
 
-- **On a computer**, "Remove from library…" offers the choice it always has: take the row out
-  and leave the file, or delete the audio file too. That file is the *server's* — the one in
-  the library folder, which a rescan would find again — so keeping it is a real option.
-- **On a phone**, there is no such folder and the owner's rule is plain: delete from library
-  means delete from local too. It is one action behind one confirmation, and it takes the
-  download with it. Dropping the download on its own is still there, separately, as "Remove
-  download".
+A song removed on *another* device goes here too: when the library the device reads no longer
+names a song it kept, the download queue deletes the copy (`configure` in
+`packages/client/src/downloads/queue.ts`, only once the library has actually answered).
 
-The multi-select confirmation (`ConfirmRemoveSongs`) is the same component either way: on a
-phone its tick-box is gone and its wording says the copies here go too.
 
 ## The two numbers
 

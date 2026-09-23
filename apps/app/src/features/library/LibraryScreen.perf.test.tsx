@@ -119,7 +119,6 @@ function song(id: number): Song {
     sizeBytes: 1000,
     rev: 1,
     loved: false,
-    missing: false,
     tagIds: [1],
     playCount: 0,
     lastPlayedAt: null,

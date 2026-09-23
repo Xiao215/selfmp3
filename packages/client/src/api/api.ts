@@ -258,9 +258,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     scan: () => request('POST', '/api/library/scan', ScanResultSchema),
 
-    purgeMissing: () =>
-      request('POST', '/api/library/purge-missing', z.object({ purged: z.number() })),
-
     manifest: (scope: OfflineScope = 'library') =>
       request('GET', `/api/library/manifest?scope=${scope}`, SyncManifestSchema),
 
@@ -316,10 +313,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     similar: (id: number, limit = 20) =>
       request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 
-    deleteSong: (id: number, deleteFile: boolean) =>
-      request('DELETE', `/api/songs/${id}?deleteFile=${deleteFile ? 1 : 0}`, OkSchema),
+    deleteSong: (id: number) => request('DELETE', `/api/songs/${id}`, OkSchema),
 
-    /** The multi-select delete. `deleteFile` is always an explicit decision. */
+    /** The multi-select delete. */
     bulkDeleteSongs: (input: BulkDeleteSongs) =>
       request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
 

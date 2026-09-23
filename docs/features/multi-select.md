@@ -148,8 +148,8 @@ what the dialog promises. Only the file-deleting path is permanent.
 ## The server
 
 ```
-POST /api/songs/bulk/delete   { songIds: number[], deleteFile?: boolean }
-  -> { removed, filesDeleted, failed: [{ songId, reason, removed }] }
+POST /api/songs/bulk/delete   { songIds: number[] }
+  -> { removed, failed: [{ songId, reason, removed }] }
 
 POST /api/songs/bulk/loved    { songIds: number[], loved: boolean } -> { affected }
 
@@ -167,11 +167,11 @@ Inside `bulk/delete`:
 - Rows go in **one transaction** (`SongRepository.deleteMany`) and the library version is
   bumped **once**, so the client settles in a single refetch instead of flickering N times.
 - The file system is treated as unreliable and the database as authoritative. A file that is
-  already gone from disk is reported and skipped, never a reason to abandon the other
+  that will not go is reported and skipped, never a reason to abandon the other
   thirty-nine. `failed[].removed` says which happened: `false` means nothing happened to that
-  song (a stale id), `true` means the row went but the file did not.
-- `deleteFile` defaults to `false` in the schema, the same way it does in the single-song
-  route's query string. The dangerous value is never the default.
+  song (a stale id), `true` means the row went but the copy on disk did not.
+- Removing is one thing: the row, the copy on the server's disk, and — once the snapshot
+  without the song is up — the song's files in the bucket (docs/SYNC.md).
 
 `deleteMany`, `byIds`, `setLovedMany` and `PlaylistRepository.removeMany` are the only new SQL,
 and they are covered in `apps/server/src/repositories/bulk.test.ts` against an in-memory SQLite

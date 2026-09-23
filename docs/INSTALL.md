@@ -370,7 +370,7 @@ selfmp3 doctor                   # after `npm link`, or inside the container
 | Command | What it does |
 |---|---|
 | `selfmp3 start` | run the server in the foreground |
-| `selfmp3 scan` | rescan the library folder |
+| `selfmp3 scan` | sweep the inbox folder for files dropped there |
 | `selfmp3 import <url…>` | queue one or more links for download |
 | `selfmp3 backup <dest-dir>` | copy the data and library folders, only what changed |
 | `selfmp3 doctor` | node, yt-dlp, ffmpeg, the server, the folders |

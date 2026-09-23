@@ -97,14 +97,8 @@ describe('the cover-art pass', () => {
     ...patch,
   })
 
-  it('counts only songs whose files are here and have no art', () => {
-    expect(
-      missingArtCount([
-        { hasArt: false, missing: false },
-        { hasArt: false, missing: true },
-        { hasArt: true, missing: false },
-      ]),
-    ).toBe(1)
+  it('counts the songs that have no art', () => {
+    expect(missingArtCount([{ hasArt: false }, { hasArt: true }])).toBe(1)
     expect(coverArtHint(0)).toBe('Every song has artwork.')
     expect(coverArtHint(1)).toMatch(/^1 song has none/)
   })

@@ -514,11 +514,7 @@ export function usePatchSong() {
 }
 
 export const useDeleteSong = () =>
-  useLibraryMutation(
-    ({ id, deleteFile }: { id: number; deleteFile: boolean }) =>
-      clientApi().deleteSong(id, deleteFile),
-    'Couldn’t delete the song',
-  )
+  useLibraryMutation((id: number) => clientApi().deleteSong(id), 'Couldn’t delete the song')
 
 /**
  * The multi-select delete.
@@ -528,9 +524,7 @@ export const useDeleteSong = () =>
  * in one refetch instead of flickering N times.
  */
 export const useBulkDeleteSongs = () =>
-  useLibraryMutation((input: { songIds: number[]; deleteFile: boolean }) =>
-    clientApi().bulkDeleteSongs(input),
-  )
+  useLibraryMutation((input: { songIds: number[] }) => clientApi().bulkDeleteSongs(input))
 
 export const useBulkLoved = () =>
   useLibraryMutation(

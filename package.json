@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "SELFMP3_PROFILE=dev npm run dev --workspace @selfmp3/server",
+    "dev:api": "SELFMP3_PROFILE=dev SELFMP3_CLOUD_DIR=bucket npm run dev --workspace @selfmp3/server",
     "dev:web": "npm run build:packages && npm run web --workspace @selfmp3/app -- --port 4601",
     "dev:desktop": "npm run dev --workspace @selfmp3/desktop",
     "build:packages": "tsc -b packages/shared packages/replica packages/client packages/desktop-bridge",

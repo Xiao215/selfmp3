@@ -152,12 +152,19 @@ function renderLibrary() {
   rows.push(
     row(
       'Songs',
-      'Everything this server has scanned. Drop audio into the folder and it appears.',
+      'In your bucket, which every device reads. This server keeps no copy of them.',
       songs === null ? '—' : plural(songs, 'song'),
     ),
   )
   if (health?.libraryPath) {
-    rows.push(row('Folder', 'Where the audio lives on this computer.', health.libraryPath, true))
+    rows.push(
+      row(
+        'Inbox',
+        'Where an import lands, and where you can drop audio: it is uploaded, then the copy here is deleted.',
+        health.libraryPath,
+        true,
+      ),
+    )
   }
   document.getElementById('library-body').innerHTML = rows.join('')
 }

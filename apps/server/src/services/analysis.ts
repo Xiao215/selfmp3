@@ -60,6 +60,7 @@ export class AnalysisService {
   readonly #motion: MotionStore
   readonly #scanner: ScannerService
   readonly #importQueue: ImportQueueService
+  readonly #fetchAudio: (songId: number) => Promise<Buffer | null>
   readonly #logger: Logger
   readonly #onProgress: (done: number, finished: boolean) => void
 
@@ -80,6 +81,12 @@ export class AnalysisService {
     motion: MotionStore
     scanner: ScannerService
     importQueue: ImportQueueService
+    /**
+     * A song's audio from the bucket, for one whose copy here has already gone
+     * (services/cloudSync.ts). Null when the bucket has none, or none is
+     * connected. Absent where the bucket is not what is being tested.
+     */
+    fetchAudio?: (songId: number) => Promise<Buffer | null>
     logger: Logger
     /** Called after each song, and once more when the queue drains. */
     onProgress: (done: number, finished: boolean) => void
@@ -91,6 +98,7 @@ export class AnalysisService {
     this.#motion = deps.motion
     this.#scanner = deps.scanner
     this.#importQueue = deps.importQueue
+    this.#fetchAudio = deps.fetchAudio ?? (() => Promise.resolve(null))
     this.#logger = deps.logger.child('analysis')
     this.#onProgress = deps.onProgress
   }
@@ -216,7 +224,7 @@ export class AnalysisService {
   /** Analyse one song and store the result. Exposed for the tests and the route. */
   async analyze(songId: number, key: string, duration: number): Promise<void> {
     const startedAt = Date.now()
-    const { file, cleanup } = await this.#localFile(key)
+    const { file, cleanup } = await this.#localFile(songId, key)
 
     try {
       const [pcm, loudness, motion] = await Promise.all([
@@ -265,17 +273,27 @@ export class AnalysisService {
   }
 
   /**
-   * ffmpeg needs a real path. Local storage has one; object storage does not,
-   * so the file is fetched to a staging directory and removed afterwards.
+   * ffmpeg needs a real path. A song still in the inbox has one; a song whose
+   * copy here has gone is fetched from the bucket into the staging directory
+   * and removed afterwards, as is one in object storage.
    */
-  async #localFile(key: string): Promise<{ file: string; cleanup: () => Promise<void> }> {
-    const local = this.#storage.localPath(key)
-    if (local) return { file: local, cleanup: () => Promise.resolve() }
+  async #localFile(
+    songId: number,
+    key: string,
+  ): Promise<{ file: string; cleanup: () => Promise<void> }> {
+    const here = await this.#storage.exists(key)
+    if (here) {
+      const local = this.#storage.localPath(key)
+      if (local) return { file: local, cleanup: () => Promise.resolve() }
+    }
+
+    const data = here ? await this.#storage.read(key) : await this.#fetchAudio(songId)
+    if (!data) throw new Error('no copy of the audio here, and none in the bucket')
 
     const staging = stagingDir(this.#config)
     await fsp.mkdir(staging, { recursive: true })
     const file = path.join(staging, `analyse-${Date.now()}${path.extname(key)}`)
-    await fsp.writeFile(file, await this.#storage.read(key))
+    await fsp.writeFile(file, data)
     return { file, cleanup: () => fsp.rm(file, { force: true }).catch(() => undefined) }
   }
 }

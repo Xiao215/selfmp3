@@ -93,7 +93,7 @@ function main(): void {
       void container.scanner
         .scan()
         .then(result => {
-          if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
+          if (result.added || result.updated) container.bumpLibraryVersion()
         })
         .catch(() => undefined)
     }, autoScanMinutes * 60_000)
@@ -205,7 +205,7 @@ function startLibrary(container: Container): void {
     void container.scanner
       .scan()
       .then(result => {
-        if (result.added || result.updated || result.removed) container.bumpLibraryVersion()
+        if (result.added || result.updated) container.bumpLibraryVersion()
         // Lyrics+: index lyrics for search once the scan knows which songs have them.
         warmLyrics()
       })

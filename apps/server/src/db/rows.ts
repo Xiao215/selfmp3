@@ -41,7 +41,6 @@ export interface SongRow {
   last_played_at: string | null
   added_at: string
   updated_at: string
-  missing: number
   /** Present only on the joined library query: "1,4,7" or null. */
   tag_ids?: string | null
   /** From the LEFT JOIN on song_audio_features; all null when not analysed yet. */
@@ -149,7 +148,6 @@ export function toSong(row: SongRow): Song {
     sourceUrl: row.source_url,
     lastPlayedAt: row.last_played_at,
     addedAt: row.added_at,
-    missing: row.missing === 1,
     tagIds: parseIdList(row.tag_ids),
     audioFeatures: audioFeaturesFromSongRow(row),
   }

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
+import { CloudRepository } from '../repositories/cloud.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
 import { SongRepository } from '../repositories/songs.js'
 import { TagRepository } from '../repositories/tags.js'
@@ -21,7 +22,9 @@ import { SongRemovalService } from './songRemoval.js'
 /**
  * Against a real library folder and data directory, so what is left on disk
  * afterwards is what is checked. Four call sites used to each forget one of
- * the things a song leaves behind; these pin every one of them.
+ * the things a song leaves behind; these pin every one of them — including
+ * the copy on disk, which always goes: left there, the next sweep would make a
+ * new song of it, which is how forty-three removed songs once came back.
  */
 describe('SongRemovalService', () => {
   let root: string
@@ -30,6 +33,7 @@ describe('SongRemovalService', () => {
   let songs: SongRepository
   let tags: TagRepository
   let search: LyricsSearchRepository
+  let cloud: CloudRepository
   let lyricsCache: LyricsCache
   let covers: CoverService
   let removal: SongRemovalService
@@ -44,6 +48,7 @@ describe('SongRemovalService', () => {
     songs = new SongRepository(db)
     tags = new TagRepository(db)
     search = new LyricsSearchRepository(db)
+    cloud = new CloudRepository(db)
     const storage = new LocalStorageDriver(path.join(root, 'library'))
     const lyrics = new LyricsService(storage, logger, () => Promise.reject(new Error('offline')))
     const config = { dataDir } as Config
@@ -54,6 +59,7 @@ describe('SongRemovalService', () => {
       storage,
       songs,
       tags,
+      cloud,
       lyrics,
       covers,
       lyricsCache,
@@ -108,6 +114,31 @@ describe('SongRemovalService', () => {
   const cacheFolder = (id: number): boolean =>
     fs.existsSync(path.join(dataDir, 'lyrics', String(id)))
 
+  /** As the cloud pass would have left it: every file up, under a key each. */
+  const uploaded = (id: number, name: string): { audio: string; cover: string } => {
+    const audio = `audio/${name}.m4a`
+    const cover = `covers/${name}.jpg`
+    cloud.recordFile(audio, 5)
+    cloud.recordFile(cover, 3)
+    cloud.saveState({
+      songId: id,
+      audioKey: audio,
+      audioSize: 5,
+      audioSig: '5-1700000000000',
+      coverKey: cover,
+      coverSize: 3,
+      coverSig: 'art-1',
+      lyricsKey: null,
+      lyricsSize: null,
+      lyricsKind: null,
+      romanizedKey: null,
+      lyricsSig: 'tags-5-1700000000000',
+      motionKey: null,
+      motionSig: 'none',
+    })
+    return { audio, cover }
+  }
+
   describe('remove', () => {
     it('takes a tag out with the last song that had it', async () => {
       const one = addSong('A - One')
@@ -117,25 +148,55 @@ describe('SongRemovalService', () => {
       tags.addToSong(one.id, chill.id)
       tags.addToSong(two.id, loud.id)
 
-      const result = await removal.remove([one.id], { deleteFile: false })
+      const result = await removal.remove([one.id])
 
-      expect(result).toEqual({ removed: [one.id], filesDeleted: 0, failed: [] })
+      expect(result).toEqual({ removed: [one.id], failed: [] })
       expect(tags.all().map(tag => tag.name)).toEqual(['loud'])
       expect(songs.byId(two.id)).not.toBeNull()
-      // The row went, the file stayed: that is what "remove from my list" means.
-      expect(onDisk(one.key)).toBe(true)
       expect(changes).toBe(1)
     })
 
-    it('deletes the audio, its sidecar and the folder they were in when asked', async () => {
+    it('deletes the copy on disk, its sidecar and the folder they were in', async () => {
       const { id, key } = addSong('A - One')
 
-      const result = await removal.remove([id], { deleteFile: true })
+      const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], filesDeleted: 1, failed: [] })
+      expect(result).toEqual({ removed: [id], failed: [] })
       expect(onDisk(key)).toBe(false)
       expect(onDisk('A - One/A - One.lrc')).toBe(false)
       expect(onDisk('A - One')).toBe(false)
+    })
+
+    it('puts the song’s bucket files in the trash, and leaves another song’s alone', async () => {
+      const gone = addSong('A - One')
+      const kept = addSong('B - Two')
+      const goneUid = (
+        db.prepare('SELECT uid FROM songs WHERE id = ?').get(gone.id) as { uid: string }
+      ).uid
+      const theirs = uploaded(gone.id, 'one')
+      const others = uploaded(kept.id, 'two')
+
+      await removal.remove([gone.id])
+
+      // Nothing is deleted from the bucket here: the snapshot every device is
+      // reading still names these, and the pass lets them go once it does not.
+      expect(cloud.trashedKeys()).toEqual([theirs.audio, theirs.cover].sort())
+      // And the song itself is remembered, so adoption cannot hand it back
+      // from the snapshot that still lists it.
+      expect(cloud.wasRemoved(goneUid)).toBe(true)
+      expect(cloud.hasFile(theirs.audio)).toBe(true)
+      expect(cloud.hasFile(others.audio)).toBe(true)
+    })
+
+    it('does not trash a file another song still points at', async () => {
+      const gone = addSong('A - One')
+      const kept = addSong('B - Two')
+      uploaded(gone.id, 'shared')
+      uploaded(kept.id, 'shared')
+
+      await removal.remove([gone.id])
+
+      expect(cloud.trashedKeys()).toEqual([])
     })
 
     it('clears everything derived from the row', async () => {
@@ -144,31 +205,28 @@ describe('SongRemovalService', () => {
       await lyricsCache.write(id, 'romaji', 'abcd', { lines: [] })
       search.replace(id, 'abcd', ['la la'])
 
-      await removal.remove([id], { deleteFile: false })
+      await removal.remove([id])
 
       expect(covers.find(id)).toBeNull()
       expect(cacheFolder(id)).toBe(false)
       expect(search.indexedHash(id)).toBeNull()
     })
 
-    it('reports a file that was already gone, and still removes the row', async () => {
+    it('removes the row of a song whose copy here had already gone', async () => {
       const { id, key } = addSong('A - One')
       fs.rmSync(path.join(root, 'library', key))
 
-      const result = await removal.remove([id], { deleteFile: true })
+      const result = await removal.remove([id])
 
-      expect(result).toEqual({
-        removed: [id],
-        filesDeleted: 0,
-        failed: [{ songId: id, reason: 'the file was already missing from disk', removed: true }],
-      })
+      expect(result).toEqual({ removed: [id], failed: [] })
       expect(songs.byId(id)).toBeNull()
+      expect(onDisk('A - One')).toBe(false)
     })
 
     it('reports ids it does not know without changing anything', async () => {
       const { id } = addSong('A - One')
 
-      const result = await removal.remove([id, 999], { deleteFile: false })
+      const result = await removal.remove([id, 999])
 
       expect(result.removed).toEqual([id])
       expect(result.failed).toEqual([
@@ -176,61 +234,32 @@ describe('SongRemovalService', () => {
       ])
       expect(changes).toBe(1)
 
-      expect(await removal.remove([999], { deleteFile: false })).toEqual({
+      expect(await removal.remove([999])).toEqual({
         removed: [],
-        filesDeleted: 0,
         failed: [{ songId: 999, reason: 'no song with id 999', removed: false }],
       })
       expect(changes).toBe(1)
     })
   })
 
-  describe('purgeMissing', () => {
-    it('forgets a missing song and everything it left behind', async () => {
-      const gone = addSong('A - One')
-      const here = addSong('B - Two')
-      const only = tags.create('only')
-      tags.addToSong(gone.id, only.id)
-      await lyricsCache.write(gone.id, 'romaji', 'abcd', { lines: [] })
-      search.replace(gone.id, 'abcd', ['la la'])
-      songs.markMissing(gone.key)
-
-      expect(await removal.purgeMissing()).toBe(1)
-
-      expect(songs.byId(gone.id)).toBeNull()
-      expect(songs.byId(here.id)).not.toBeNull()
-      expect(cacheFolder(gone.id)).toBe(false)
-      expect(search.indexedHash(gone.id)).toBeNull()
-      expect(tags.all()).toEqual([])
-      expect(changes).toBe(1)
-    })
-
-    it('does nothing, quietly, when no song is missing', async () => {
-      addSong('A - One')
-
-      expect(await removal.purgeMissing()).toBe(0)
-      expect(changes).toBe(0)
-    })
-  })
-
   describe('tidyAfter', () => {
-    it('clears what hung off a row another device removed, and only the file it was told to', async () => {
-      const kept = addSong('A - One')
-      const destroyed = addSong('B - Two')
-      await lyricsCache.write(kept.id, 'romaji', 'abcd', { lines: [] })
-      await lyricsCache.write(destroyed.id, 'romaji', 'abcd', { lines: [] })
+    it('clears what hung off a row another device removed, the copy on disk included', async () => {
+      const one = addSong('A - One')
+      const two = addSong('B - Two')
+      await lyricsCache.write(one.id, 'romaji', 'abcd', { lines: [] })
+      await lyricsCache.write(two.id, 'romaji', 'abcd', { lines: [] })
       // The cloud pass has already taken the rows, inside its own transaction.
-      songs.delete(kept.id)
-      songs.delete(destroyed.id)
+      songs.delete(one.id)
+      songs.delete(two.id)
 
       await removal.tidyAfter([
-        { id: kept.id, path: kept.key, deleteFile: false },
-        { id: destroyed.id, path: destroyed.key, deleteFile: true },
+        { id: one.id, path: one.key },
+        { id: two.id, path: two.key },
       ])
 
-      expect(cacheFolder(kept.id)).toBe(false)
-      expect(cacheFolder(destroyed.id)).toBe(false)
-      expect(onDisk(kept.key)).toBe(true)
+      expect(cacheFolder(one.id)).toBe(false)
+      expect(cacheFolder(two.id)).toBe(false)
+      expect(onDisk('A - One')).toBe(false)
       expect(onDisk('B - Two')).toBe(false)
       // The pass moves the version itself.
       expect(changes).toBe(0)

@@ -123,16 +123,35 @@ export class DownloadQueue {
     return this.#state
   }
 
-  configure(connection: Connection, songs: readonly Song[]): void {
+  /**
+   * The library as this device now has it.
+   *
+   * A song that has left the library while it waited is no longer wanted, and
+   * not a failure to report: "Cannot download song 47" over an empty Library
+   * was forty-three songs removed with one of them still queued. Forgotten
+   * before the map is replaced, so its half-written file is still one this
+   * queue knows how to throw away.
+   *
+   * With `authoritative`, a song already kept here that the library no longer
+   * names goes too — the bucket is the library, and a removal made on any
+   * device is a removal here (docs/SYNC.md). Only when the list really is
+   * the library: an answer that has not arrived yet is an empty list too, and
+   * deleting every download over it would be the wrong kind of memorable.
+   */
+  configure(
+    connection: Connection,
+    songs: readonly Song[],
+    options: { authoritative?: boolean } = {},
+  ): void {
     this.#storage.configure?.(connection, songs)
-    // A song that has left the library while it waited is no longer wanted,
-    // and not a failure to report: "Cannot download song 47" over an empty
-    // Library was forty-three songs removed with one of them still queued.
-    // Forgotten before the map is replaced, so its half-written file is still
-    // one this queue knows how to throw away.
     const listed = new Set(songs.map(song => song.id))
     this.#forget(this.#state.queue.filter(id => !listed.has(id)))
     this.#songsById = new Map(songs.map(song => [song.id, song]))
+    if (!options.authoritative) return
+    const gone = Object.values(this.#state.index.entries)
+      .map(entry => entry.songId)
+      .filter(songId => !listed.has(songId))
+    if (gone.length > 0) void this.remove(gone)
   }
 
   setManifest(manifest: SyncManifest | null): void {

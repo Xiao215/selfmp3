@@ -188,22 +188,10 @@ function compileRule(rule: SmartRule): CompiledQuery {
   throw new Error(`unsupported smart-playlist rule: ${JSON.stringify(rule)}`)
 }
 
-/**
- * Build the id query for a rule set.
- *
- * Missing files are excluded — a live playlist should never hand the player a
- * track it cannot stream. `includeMissing` is for the one caller that is not
- * the player: a snapshot says what the *bucket's* library holds, and a song
- * this server has no file for may still have its audio up there (the snapshot
- * narrows to those itself). Publishing the player's view would take a song out
- * of a playlist on every other device because of this one server's disk.
- */
-export function compileSmartRules(
-  rules: SmartRules,
-  options: { includeMissing?: boolean } = {},
-): CompiledQuery {
+/** Build the id query for a rule set. */
+export function compileSmartRules(rules: SmartRules): CompiledQuery {
   const params: unknown[] = []
-  const conditions: string[] = options.includeMissing ? [] : ['s.missing = 0']
+  const conditions: string[] = []
 
   const compiled = rules.rules.map(compileRule)
   if (compiled.length > 0) {

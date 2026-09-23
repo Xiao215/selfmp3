@@ -42,23 +42,6 @@ export function deviceKind(): DeviceKind {
   return Platform.OS === 'ios' || Platform.OS === 'android' ? 'phone' : 'desktop'
 }
 
-/**
- * Whether removing a song from the library takes this device's copy with it,
- * in one action.
- *
- * On a phone, yes: "delete from library means delete from local too". Asking a
- * second question there — keep it on this phone, or not — offers a state
- * nobody wants, a song on the device that the library has never heard of.
- *
- * A computer keeps its two options, because there they are about a different
- * file: the one in the *server's* library folder, which a rescan would find
- * again. That distinction is real and is not a phone's to make.
- *
- * Here beside `deviceKind` because it is the same question — what kind of
- * thing am I — asked once. A screen asks this file, never `Platform.OS`.
- */
-export const removingTakesTheCopy = deviceKind() === 'phone'
-
 /** "iPhone" rather than a user agent: this app knows what it is running on. */
 function defaultName(): string {
   // In another device's list an iPad is an iPad (docs/ui-mock `T09`: "except the words").

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { Readable } from 'node:stream'
 import type { CloudConnection } from '../repositories/cloud.js'
 import { loadS3, streamToBuffer, type S3ClientLike, type S3Module } from '../storage/s3.js'
 
@@ -32,6 +33,12 @@ export interface CloudStore {
   /** Every object whose key starts with `prefix`, relative to the bucket's folder. */
   list(prefix: string): Promise<CloudObject[]>
   delete(key: string): Promise<void>
+  /**
+   * Bytes `start` to `end` of an object, inclusive as HTTP counts them, or
+   * null when there is no such object. How a song this server no longer holds
+   * a copy of is streamed to a player (routes/media.ts).
+   */
+  range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null>
 }
 
 /**
@@ -112,6 +119,24 @@ export class S3CloudStore implements CloudStore {
         new s3.GetObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
       )
       return await streamToBuffer(object['Body'])
+    } catch (error) {
+      if (isNotFound(error)) return null
+      throw this.#explain(error)
+    }
+  }
+
+  async range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+    const { s3, client } = await this.#client()
+    try {
+      const object = await client.send(
+        new s3.GetObjectCommand({
+          Bucket: this.#connection.bucket,
+          Key: this.#key(key),
+          Range: `bytes=${start}-${end}`,
+        }),
+      )
+      const body = object['Body']
+      return body instanceof Readable ? body : Readable.from([await streamToBuffer(body)])
     } catch (error) {
       if (isNotFound(error)) return null
       throw this.#explain(error)

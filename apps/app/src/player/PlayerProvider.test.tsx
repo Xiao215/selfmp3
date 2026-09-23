@@ -119,7 +119,6 @@ const song = (id: number): Song =>
     path: `audio/${id}.m4a`,
     duration: 200,
     sizeBytes: 1000,
-    missing: false,
     loved: false,
     hasArt: false,
     tagIds: [],

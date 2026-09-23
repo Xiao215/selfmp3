@@ -21,7 +21,6 @@ import {
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { removingTakesTheCopy } from '../../ports/device'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { showToast } from '../toast'
@@ -567,25 +566,20 @@ export function SelectionBar({
           songs={songs}
           pending={bulkDelete.isPending}
           error={deleteError}
-          takesTheCopy={removingTakesTheCopy}
           onCancel={() => setConfirming(false)}
-          onConfirm={deleteFile => {
-            // Where removing takes the copy with it, it goes now rather than
-            // after the answer: the counts that name these songs are drawn
-            // from the library and the index, and both have to lose them at
-            // the same moment.
-            if (removingTakesTheCopy) void dropDownloads(ids)
+          onConfirm={() => {
+            // The copies here go now rather than after the answer: the counts
+            // that name these songs are drawn from the library and the index,
+            // and both have to lose them at the same moment.
+            void dropDownloads(ids)
             bulkDelete.mutate(
-              { songIds: ids, deleteFile },
+              { songIds: ids },
               {
                 onSuccess: result => {
                   setConfirming(false)
                   onDone()
-                  // The summary: what went, what was deleted, what did not.
+                  // The summary: what went, and what did not.
                   const parts = [`Removed ${plural(result.removed, 'song', 'songs')}`]
-                  if (result.filesDeleted > 0) {
-                    parts.push(`deleted ${plural(result.filesDeleted, 'file', 'files')}`)
-                  }
                   const trouble = result.failed.length
                   if (trouble > 0) parts.push(`${trouble} needed attention`)
                   showToast(

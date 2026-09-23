@@ -63,19 +63,15 @@ export function songRoutes(container: Container): Router {
   /**
    * Remove many songs from the library at once — the multi-select path.
    *
-   * `deleteFile` carries the same weight it does on the single-song route:
-   * off by default, and a separate decision from removing the row. The batch
-   * is deliberately forgiving about the file system and strict about the
-   * database: a file that is already gone is reported and skipped, while the
-   * rows go in one transaction and the library version is bumped once.
+   * The batch is deliberately forgiving about the file system and strict
+   * about the database: a copy that will not go is reported, while the rows go
+   * in one transaction and the library version is bumped once.
    */
   router.post(
     '/songs/bulk/delete',
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
-      const { removed, filesDeleted, failed } = await container.songRemoval.remove(body.songIds, {
-        deleteFile: body.deleteFile,
-      })
-      return { removed: removed.length, filesDeleted, failed }
+      const { removed, failed } = await container.songRemoval.remove(body.songIds)
+      return { removed: removed.length, failed }
     }),
   )
 
@@ -209,8 +205,8 @@ export function songRoutes(container: Container): Router {
       if (!absolute) {
         throw HttpError.conflict('your library is in cloud storage, so there is no folder to show')
       }
-      if (song.missing || !(await container.storage.exists(song.path))) {
-        throw HttpError.notFound('the file is missing from your library folder')
+      if (!(await container.storage.exists(song.path))) {
+        throw HttpError.notFound('this song is in the bucket, not on this computer')
       }
       await revealInFileManager(absolute)
       return { ok: true as const }
@@ -382,26 +378,14 @@ export function songRoutes(container: Container): Router {
     ),
   )
 
-  /**
-   * Remove a song from the library.
-   *
-   * `deleteFile=1` also removes the audio from disk. Defaults to off, because
-   * "remove from my list" and "destroy the file" should never be the same
-   * button by accident.
-   */
+  /** Remove a song from the library, on every device. */
   router.delete(
     '/songs/:id',
-    route(
-      {
-        params: ParamsWithId,
-        query: z.object({ deleteFile: BooleanQuerySchema }),
-      },
-      async ({ params, query }) => {
-        const song = requireSong(params.id)
-        await container.songRemoval.remove([song.id], { deleteFile: query.deleteFile })
-        return { ok: true as const, fileDeleted: query.deleteFile }
-      },
-    ),
+    route({ params: ParamsWithId }, async ({ params }) => {
+      const song = requireSong(params.id)
+      await container.songRemoval.remove([song.id])
+      return { ok: true as const }
+    }),
   )
 
   return router

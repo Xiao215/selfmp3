@@ -71,22 +71,15 @@ export function libraryRoutes(container: Container): Router {
     })),
   )
 
+  /** Sweep the inbox folder: a file dropped there becomes a song, and is uploaded. */
   router.post(
     '/library/scan',
     route({}, async (): Promise<ScanResult> => {
       const result = await container.scanner.scan()
-      if (result.added > 0 || result.updated > 0 || result.removed > 0) {
-        container.bumpLibraryVersion()
-      }
+      if (result.added > 0 || result.updated > 0) container.bumpLibraryVersion()
       void container.lyricsIndex.backfill()
       return result
     }),
-  )
-
-  /** Permanently forget songs whose files are gone. Explicit on purpose. */
-  router.post(
-    '/library/purge-missing',
-    route({}, async () => ({ purged: await container.songRemoval.purgeMissing() })),
   )
 
   /**

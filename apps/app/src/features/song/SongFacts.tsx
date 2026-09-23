@@ -167,11 +167,6 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
           <Text style={styles.strong}>
             {formatName(song.mime, song.path)} · {formatDuration(song.duration)}
           </Text>
-          {song.missing ? (
-            <Text style={[styles.note, { color: theme.colors.warning }]}>
-              The file is missing from your library folder.
-            </Text>
-          ) : null}
         </Fact>
         <Fact label="Source">
           {song.sourceUrl ? (

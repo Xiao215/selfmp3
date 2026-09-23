@@ -130,12 +130,8 @@ export class LibraryWatcherService {
     void this.#scanner
       .scan()
       .then(result => {
-        if (result.added || result.updated || result.removed) {
-          this.#logger.info('library changed', {
-            added: result.added,
-            updated: result.updated,
-            removed: result.removed,
-          })
+        if (result.added || result.updated) {
+          this.#logger.info('inbox changed', { added: result.added, updated: result.updated })
           this.#onChanged()
         }
       })

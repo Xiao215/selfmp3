@@ -78,10 +78,12 @@ close.
 
 ### Your library
 
-**Files first.** Drop audio into `~/Music/selfmp3` and it appears: the folder is watched,
-so a drag in Finder is enough. Every import gets a folder of its own, `Artist - Title/`,
-with its lyrics beside it. Filtering, sorting and search run on the device, so they are
-instant and work offline. See [watched-library-folder.md](docs/features/watched-library-folder.md).
+**The bucket is the library.** Every song, cover and lyric lives in a storage bucket of your
+own, and every device reads it from there. The server's folder, `~/Music/selfmp3`, is an
+inbox: an import lands there, a file you drop there is imported too, and once a song is in
+the bucket the copy is deleted. Filtering, sorting and search run on the device, so they are
+instant and work offline. See [watched-library-folder.md](docs/features/watched-library-folder.md)
+and [SYNC.md](docs/SYNC.md).
 
 **Tags instead of folders.** One flat vocabulary you define. Combine tags — `chinese` and
 `chill` — or leave one out: `chill`, but not `live`. Rename and recolour them in place, tag
@@ -257,7 +259,7 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. `127.0.0.1` keeps it to this machine |
 | `SELFMP3_PUBLIC_URL` | none | One more address to publish, for a device that cannot reach a local one: the HTTPS address of a tunnel in front of this server ([INSTALL.md](docs/INSTALL.md#letting-someone-else-in)) |
-| `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | Where your audio lives |
+| `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | The inbox: where an import lands until it is in the bucket |
 | `SELFMP3_DATA_DIR` | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) | The database and cover art |
 | `SELFMP3_PROFILE` | none | A separate installation: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
 | `SELFMP3_AUTH_TOKEN` | one the server makes for itself | A bearer token of your own, 8 characters or more |
@@ -265,7 +267,8 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
-| `SELFMP3_SCAN_ON_BOOT` | `true` | Scan the library folder at startup |
+| `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox folder at startup, so a file dropped in while the server was off is imported |
+| `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data directory unless absolute |
 
 For the `s3` driver, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
 `SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`
@@ -426,11 +429,11 @@ Feature pages, each with what it does, how it works and where the code is:
 npm run cli -- backup /Volumes/Backup/selfmp3     # or copy the two folders yourself
 ```
 
-That is the whole thing. The library folder (`~/Music/selfmp3`) holds your audio and lyric
-sidecars; `selfmp3.db` in the data folder (`~/Library/Application Support/selfmp3`) holds
-tags, playlists, play history and metadata edits. The backup copies only what changed, and
-copies the database through SQLite's backup API, so the server can keep running. `covers/` in
-the data folder is a cache and rebuilds itself on the next scan. More in
+That is the whole thing. The music is in your bucket; `selfmp3.db` in the data folder
+(`~/Library/Application Support/selfmp3`) holds the play history, which is the one thing only
+the server has (see [FEATURE_TODO.md](docs/FEATURE_TODO.md), "The cloud"). The backup copies
+only what changed, and copies the database through SQLite's backup API, so the server can
+keep running. `covers/` in the data folder is a cache. More in
 [INSTALL.md](docs/INSTALL.md#backing-up).
 
 ---

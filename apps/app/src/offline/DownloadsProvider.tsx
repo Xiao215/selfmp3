@@ -216,7 +216,11 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   }, [])
 
   useEffect(() => {
-    downloadQueue.configure(connection, library.data?.songs ?? [])
+    // The answer, once there is one, is the library: a kept song it does not
+    // name was removed on some device, and goes here too.
+    downloadQueue.configure(connection, library.data?.songs ?? [], {
+      authoritative: library.data !== undefined,
+    })
   }, [connection, library.data])
 
   useEffect(() => {
@@ -241,10 +245,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   // context value with them, is remade from it, and an edit to one song's
   // heart is not a change to which songs there are.
   const songIds = useSameArray(
-    useMemo(
-      () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
-      [library.data],
-    ),
+    useMemo(() => (library.data?.songs ?? []).map(song => song.id), [library.data]),
   )
   const missingIds = useMemo(
     () => pendingIds(state.index, songIds).filter(id => !excluded.has(id)),

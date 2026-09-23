@@ -25,7 +25,6 @@ const song = (id: number, overrides: Partial<Song> = {}): Song => ({
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2026-09-01 10:00:00',
-  missing: false,
   tagIds: [],
   audioFeatures: null,
   ...overrides,

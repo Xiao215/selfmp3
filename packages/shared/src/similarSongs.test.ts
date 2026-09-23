@@ -35,7 +35,6 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2026-01-01',
-  missing: false,
   tagIds: [],
   audioFeatures: null,
   ...patch,
@@ -49,17 +48,15 @@ describe('similarSongs', () => {
     song(3, { audioFeatures: feat({ bpm: 61, camelot: '8A' }) }), // half time, relative key
     song(4, { audioFeatures: feat({ bpm: 90, camelot: '2A', energy: 0.95 }) }), // far
     song(5, { audioFeatures: null }), // not analysed
-    song(6, { missing: true, audioFeatures: feat() }), // identical but gone
     song(7, {
       artist: 'Aurora Lane',
       audioFeatures: feat({ bpm: 90, camelot: '2A', energy: 0.95 }),
     }),
   ]
 
-  it('never returns the seed or a missing file', () => {
+  it('never returns the seed', () => {
     const ids = similarSongs(seed, library, 10).map(s => s.id)
     expect(ids).not.toContain(1)
-    expect(ids).not.toContain(6)
   })
 
   it('orders by distance and honours the limit', () => {

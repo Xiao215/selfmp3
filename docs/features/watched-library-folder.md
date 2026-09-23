@@ -1,8 +1,11 @@
-# Watched library folder
+# Watched inbox folder
 
-While the server is running, any change inside the library folder — a file added, removed
-or renamed, including a drag-and-drop into Finder — triggers a rescan automatically. No
-timer, no "Rescan library" click.
+While the server is running, any change inside its folder — a file added or renamed,
+including a drag-and-drop into Finder — triggers a sweep automatically. No timer, no
+"Rescan library" click. The folder is an inbox rather than the library (docs/SYNC.md): a
+file that lands there becomes a song, the cloud pass uploads it, and once it is wholly in
+the bucket the copy is deleted. A file that is gone says nothing to the sweep; a song
+leaves the library only when someone removes it.
 
 ## Setting
 
@@ -25,8 +28,8 @@ redundant for a local library.
 - Events are **debounced** (`services/debounce.ts`): 1.5 s of quiet after the last event,
   with a 15 s ceiling so a very long copy still gets a scan partway through. A folder of
   forty files becomes one scan.
-- A file still being copied is harmless: the scanner is incremental (unchanged size+mtime
-  is skipped) and idempotent, so the next write event simply rescans it once its size
+- A file still being copied is harmless: the sweep is incremental (an unchanged time is
+  skipped) and idempotent, so the next write event simply reads it again once its size
   settles.
 - The watcher is started from `main.ts` after the import queue, and stopped on shutdown
   and in `container.close()`.

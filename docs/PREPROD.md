@@ -54,8 +54,8 @@ disconnect the copy *before* it boots:
 sqlite3 /path/to/copy/selfmp3.db "DELETE FROM secrets WHERE name LIKE 'cloud.%';"
 ```
 
-and always give it its own `SELFMP3_LIBRARY_DIR`, or its restore pass downloads the bucket
-into `~/Music/selfmp3`.
+and always give it its own `SELFMP3_LIBRARY_DIR` and `SELFMP3_CLOUD_DIR`, or it imports
+into `~/Music/selfmp3` and publishes into your real bucket.
 
 **3. Look before you start the real server.** Before `npm start`, and again after:
 

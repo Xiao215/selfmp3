@@ -22,17 +22,11 @@ import { SongMenu } from './SongMenu'
 const mockNavigate = jest.fn()
 jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }))
 
-let mockTakesTheCopy = true
 const mockDeleteSong = jest.fn()
 const mockRemoveByHand = jest.fn(() => Promise.resolve())
 const mockDropDownloads = jest.fn(() => Promise.resolve())
 let mockIndex: { version: 1; entries: Record<string, unknown> }
 
-jest.mock('../../ports/device', () => ({
-  get removingTakesTheCopy() {
-    return mockTakesTheCopy
-  },
-}))
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
@@ -100,7 +94,6 @@ const downloaded = {
 describe('what the menu offers', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockTakesTheCopy = true
     mockIndex = { version: 1, entries: {} }
   })
 
@@ -131,7 +124,6 @@ describe('what the menu offers', () => {
 describe('removing a song where the copy goes with it', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockTakesTheCopy = true
     mockIndex = downloaded
   })
 
@@ -143,16 +135,10 @@ describe('removing a song where the copy goes with it', () => {
     // tick later; `find` waits for it where `get` would read the menu as it was.
     const confirm = await screen.findByRole('menuitem', { name: 'Remove from library' })
     expect(screen.getByText(/The download on this device goes too/)).toBeTruthy()
-    // Not the two-way question: there is nothing here to keep the file for.
-    expect(
-      screen.queryByRole('menuitem', { name: 'Remove from library, keep the file' }),
-    ).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: 'Delete the file too' })).toBeNull()
 
     fireEvent.press(confirm)
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
-    // The server's own file is not a phone's to delete.
-    expect(mockDeleteSong).toHaveBeenCalledWith({ id: 4, deleteFile: false })
+    expect(mockDeleteSong).toHaveBeenCalledWith(4)
   })
 
   it('still offers dropping the download on its own', async () => {
@@ -170,24 +156,5 @@ describe('removing a song where the copy goes with it', () => {
     fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
     await screen.findByRole('menuitem', { name: 'Remove from library' })
     expect(screen.queryByText(/The download on this device goes too/)).toBeNull()
-  })
-})
-
-describe('removing a song where the file is the server’s', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-    mockTakesTheCopy = false
-    mockIndex = downloaded
-  })
-
-  it('keeps the two choices apart', async () => {
-    await draw()
-
-    fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
-    fireEvent.press(
-      await screen.findByRole('menuitem', { name: 'Remove from library, keep the file' }),
-    )
-    expect(mockDeleteSong).toHaveBeenCalledWith({ id: 4, deleteFile: false })
-    expect(mockDropDownloads).not.toHaveBeenCalled()
   })
 })

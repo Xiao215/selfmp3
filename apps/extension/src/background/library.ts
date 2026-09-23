@@ -9,14 +9,13 @@ import type { KeyValueStore } from './store.js'
  *
  * "Is this one mine?" is answered from the link alone, before yt-dlp is asked
  * anything: each song's `sourceUrl`, keyed by video id, so a youtu.be link, a
- * music.youtube.com one and a watch page with a playlist on it are one song. A
- * song whose file has gone missing is not counted as had.
+ * music.youtube.com one and a watch page with a playlist on it are one song.
  */
 export function linkIndex(songs: readonly Song[]): Record<string, SongHit> {
   const links: Record<string, SongHit> = {}
   for (const song of songs) {
     const id = youtubeVideoId(song.sourceUrl)
-    if (!id || song.missing || links[id]) continue
+    if (!id || links[id]) continue
     links[id] = {
       id: song.id,
       title: song.title,

@@ -41,7 +41,6 @@ const song: Song = {
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2026-01-01T00:00:00.000Z',
-  missing: false,
   tagIds: [1],
   audioFeatures: null,
 }

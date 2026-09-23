@@ -87,10 +87,7 @@ export function FirstSyncScreen(): ReactNode {
     }
   }, [])
 
-  const songs = useMemo(
-    () => (library.data?.songs ?? []).filter(song => !song.missing),
-    [library.data],
-  )
+  const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const withArt = useMemo(() => songs.filter(song => song.hasArt), [songs])
 
   // The covers, fetched while the page is open, a few at a time, so the bar

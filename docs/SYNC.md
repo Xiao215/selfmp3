@@ -57,7 +57,10 @@ song bytes stream through it without it holding them.
 2. **Files never change once uploaded.** Audio, covers and lyrics are stored under the
    SHA-256 of their bytes. Changing a song's cover uploads a new file and points the song at
    it; the old one is never overwritten. A device that has `audio/4f1c…9a.m4a` has exactly
-   those bytes, forever, and can cache it forever.
+   those bytes, for as long as the file exists, and can cache it for that long. A file is
+   deleted only once no song in the library names it — a removed song's, after the snapshot
+   without the song is up — and a device that kept a copy of a removed song lets its copy
+   go when it learns of the removal.
 3. **Each device writes only its own files.** A device's changes go in its own folder of the
    log. Two devices never write the same file, so no change is ever lost to another device
    overwriting it — which matters, because plain storage cannot tell you it happened.
@@ -184,6 +187,44 @@ a song still uploading is not in the library yet, as far as any other device is 
 Passes run at startup, a few seconds after anything changes, when another device has written
 something, and on demand. An import is not done until its song is in a snapshot.
 
+### The server keeps no copy of the library
+
+The bucket is the library, and the server is one more device — the one with yt-dlp. It keeps
+a database that is its copy of the library's metadata, as every device does, and nothing else
+of the library for longer than it has to.
+
+**The folder is an inbox, not a library.** An import downloads into `~/Music/selfmp3`, and a
+file dropped there by hand is an import too (`services/scanner.ts` sweeps it, on a watch and
+at boot). The pass uploads what it finds. Once a song is wholly in the bucket — audio, cover,
+words, motion curve — and analysis is done with it, and the snapshot naming it is up, **the
+pass deletes the copy here** (`#letGo` in `services/cloudSync.ts`). The words stay beside where
+the audio was, a few kilobytes the pass reads to know the bucket's are current. A folder with
+nothing new in it is a folder with nothing in it.
+
+**A song's audio comes from the bucket when it is wanted here.** Analysis of a song whose copy
+has gone fetches it into the staging folder and throws it away after
+(`services/analysis.ts`). The server's own stream route serves a copy that is still here and
+otherwise forwards each range the player asks for to the bucket (`routes/media.ts`), so nothing
+that streams through the server has to know the difference.
+
+**Removing is one thing, everywhere.** A song removed on any device — the server's own routes,
+a phone's log — loses its row here, whatever copy was still in the inbox, and its cover and
+caches, and its bucket files are put in `cloud_trash`. Nothing is deleted from the bucket at
+once: the snapshot every device is reading still names the song. The next pass writes the
+snapshot without it, and then deletes from the bucket every trashed file that no remaining
+song names (two songs can share a cover; a song imported twice shares everything). There is
+no "keep the file" option any more, on any device: a copy left on a disk is exactly how
+forty-three removed songs came back as new ones on 2026-09-22, resurrected by the sweep that
+the next import's file set off.
+
+**No bucket, no library.** With none connected the API answers every route but the cloud
+ones and the health check with a 409 saying so (`http/middleware.ts`, `requireCloud`), rather
+than an empty library every device would take for the truth. So the app does nothing without
+a cloud — including the dev profile and the verify lanes, which is why `SELFMP3_CLOUD_DIR`
+exists: a folder that speaks the bucket's five words (`bucket/local.ts`), connected from the
+start and never saved. `npm run dev` sets it. A phone or a browser never sees such a bucket;
+it is one this server publishes to and streams from.
+
 ### A server joining a bucket that already has a library
 
 For a long time the server only ever *wrote* snapshots. That is the right shape for exactly one
@@ -200,7 +241,6 @@ anything**, and takes on every song in it that it does not already have
 |---|---|
 | **When** | Once per bucket, on the first pass after connecting, signing in, or starting up — and again when you press *Publish now*, which starts over. Nothing is published until it has finished, an import's own publish included. |
 | **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, play and skip counts, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
-| **`missing`** | Set on every adopted song: the audio is in the bucket, not on this disk. That is what the column has always meant. |
 | **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
@@ -224,27 +264,11 @@ another bitrate, or re-tagged by a tool that rewrites the file. Guessing those a
 strength of their names would be a worse failure than the duplicate; the import's own matcher
 (`services/alreadyHave.ts`) is what keeps them from arriving in the first place.
 
-**Then the files come down.** Behind the pass, one song at a time, the audio, cover and lyrics of
-every adopted song are fetched into the library folder
-(`apps/server/src/services/cloudRestore.ts`) and the song stops being missing. It never blocks a
-pass — a big library is hours of downloading and everything else has to carry on — and stopping it
-costs nothing: the queue is a query over `missing` rows with a `cloud_songs` entry, not a cursor,
-and a song leaves it only when its files are on disk. Every step asks the disk first, so resuming
-re-downloads nothing and a second run over a finished library downloads nothing at all. The cloud
-panel says how many are left and which one is coming down.
-
-Two things it deliberately does **not** do. It does not fetch a song whose file this server once
-had and has lost — an unplugged drive is not an invitation to re-download a library, and the two
-are told apart by whether the row was ever scanned. And it does not verify what arrives against
-the hash in its key: the bucket names files by their SHA-256 and B2 checks the transfer, so this
-would only catch a bucket lying to itself.
-
-**What a scan does to an adopted song: nothing.** A scan marks a song whose file is not there
-missing rather than deleting it — that rule was already there, so that an unplugged drive does not
-cost you a play history — and an adopted song is missing already. A file that lands at its path,
-from the fetching above or dropped in by hand, is matched to it by path and becomes that song, with
-its tags and counts intact. *Settings → Forget missing songs* leaves them alone too: they are a
-library being restored, not a library that is gone.
+**And that is all.** Nothing is fetched. An adopted song's audio stays in the bucket, which is
+where every song's audio ends up anyway (above); its row here reads to the pass as unchanged,
+so the pass sends nothing for it and publishes the bucket's files as they are. A sweep of the
+inbox leaves it alone: a sweep makes songs of files, and a song with no file here is not its
+business.
 
 ### Every device reads the bucket
 
@@ -285,7 +309,7 @@ changes moves its own clock past it.
 | Playlist order | The latest order wins; songs it does not mention keep their place after the ones it does, so reordering an old view never drops a song another device added. |
 | Plays and skips | Only ever added. The same one twice counts once. |
 | New tags and playlists | The device makes the `uid`, so a playlist can be made offline and have songs added to it before any other device has heard of it. A tag made twice under one name on two devices becomes one tag, and the second uid still finds it. |
-| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist. The files stay in the bucket. |
+| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
 
 Because the latest stamp wins whenever a change is applied, the same changes give every device
 the same library, in whatever order they arrive. Snapshots carry the stamp of anything a change
@@ -415,7 +439,12 @@ libraries that deliberately number different songs the same.
   app is built on. It comes after the native app has been built at all, and only once it is
   confirmed to handle YouTube's JavaScript challenge.
 - **Tidying up**: snapshots written from the log, so a new device replays only recent changes;
-  files no song points at, deleted after 30 days.
+  files that no song points at and that no removal trashed — an upload whose import failed
+  halfway — deleted after 30 days.
+- **Play history in the bucket.** The server's `play_events` table is the only place the
+  *when* of a play survives, so Stats is server-only and dies with the server's disk. One
+  small file per device per month under a `plays/` folder would let any device answer, and
+  let the server hold no user data at all.
 - **A Google Drive driver**, if it is ever wanted.
 
 ## What this gives up
@@ -491,9 +520,10 @@ the server that is *Settings → Cloud*; everywhere else it is the first thing t
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts` |
-| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman) |
+| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts` |
-| Taking on the library already in a bucket, and fetching its files | `apps/server/src/services/cloudAdopt.ts`, `apps/server/src/services/cloudRestore.ts` |
+| Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
+| Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |

@@ -68,7 +68,17 @@ describe('CloudIngest', () => {
       now: () => now,
     })
     edits = new LocalEdits({ db, sync, clock })
-    ingest = new CloudIngest({ db, songs, tags, playlists, stats, sync, clock, logger })
+    ingest = new CloudIngest({
+      db,
+      songs,
+      tags,
+      playlists,
+      stats,
+      sync,
+      cloud: new CloudRepository(db),
+      clock,
+      logger,
+    })
   })
 
   afterEach(() => db.close())

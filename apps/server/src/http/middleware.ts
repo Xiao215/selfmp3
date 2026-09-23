@@ -143,13 +143,39 @@ export function allowedOrigins(config: Config): Set<string> {
 }
 
 /**
+ * No bucket, no library.
+ *
+ * The bucket is the library (docs/SYNC.md) and this server keeps no copy of
+ * it, so with none connected there is nothing to answer about: no songs to
+ * list, nowhere for an import to go. Rather than answer with an empty library
+ * that every device would take for the truth, the API says so, and only the
+ * routes that connect a bucket — and the health check the page reads first —
+ * are open until one is.
+ */
+export function requireCloud(connected: () => boolean): RequestHandler {
+  const open = ['/health', '/cloud']
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (connected()) return next()
+    if (open.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+      return next()
+    }
+    next(
+      HttpError.conflict(
+        'No cloud bucket is connected. The library lives in the bucket, so connect one first: ' +
+          'sign in with Google on the server’s page.',
+      ),
+    )
+  }
+}
+
+/**
  * Refuse a write that another website asked for.
  *
  * Nothing here needs a cookie, so the browser attaches no credentials of its
  * own — but on the machine running the server it answers at a predictable
  * address and asks for no token (`local.ts`), which is enough. A page you
  * happen to be visiting can submit a
- * form at `http://localhost:4600/api/library/purge-missing` and the browser
+ * form at `http://localhost:4600/api/songs/bulk/delete` and the browser
  * will send it: a form post is a "simple" request, so it goes without asking
  * permission first, and the reply being unreadable is no comfort once the write
  * has happened.

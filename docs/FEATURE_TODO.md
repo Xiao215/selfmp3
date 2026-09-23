@@ -126,6 +126,15 @@ to Google or reach a Tailscale address.
 | From the worker's DevTools, `GET /api/health` and a `POST` to the server's `100.x` and `ts.net` addresses: no prompt, no address-space error | Not recorded |
 | Google sign-in from the options page, with an allowed and a refused account | Not recorded |
 
+## The cloud
+
+- **Play history in the bucket.** The server's `play_events` table is the only place the
+  *when* of a play survives, so Stats is server-only and dies with the server's disk. Agreed
+  2026-09-22, when the server stopped keeping any copy of the library (SYNC.md, "The server
+  keeps no copy of the library"): one small file per device per month under a `plays/` folder
+  would let any device answer, and let the server hold no user data at all. Phased after the
+  server-side cleanup, which is built.
+
 ## Tooling
 
 - **pnpm and Turborepo.** The 2026 default, deliberately not adopted: MOBILE.md records how

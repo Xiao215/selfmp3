@@ -8,12 +8,11 @@ import type { StorageDriver } from '../storage/index.js'
 import { ScannerService } from './scanner.js'
 
 /**
- * What a scan does when one file will not be read.
+ * What a sweep does when one file will not be read.
  *
  * A truncated download, a permission the copy did not carry, a format the tag
- * reader gives up on. Whatever the reason, the rest of the library is still
- * there and still has to be scanned — and the songs whose files really are
- * gone still have to be marked missing.
+ * reader gives up on. Whatever the reason, the rest of the folder is still
+ * there and still has to be swept.
  */
 
 const BAD = 'Broken - Track.m4a'
@@ -28,7 +27,7 @@ function build(files: string[]) {
     list: () => Promise.resolve(files),
     stat: (key: string) =>
       Promise.resolve({ sizeBytes: 100, modifiedAt: new Date(1_700_000_000_000), key }),
-  } as unknown as StorageDriver
+  } as unknown as StorageDriver & { stat: StorageDriver['stat'] }
 
   const metadata = {
     read: (key: string) => {
@@ -57,7 +56,7 @@ function build(files: string[]) {
     logger,
   })
 
-  return { db, songs, scanner }
+  return { db, songs, scanner, storage }
 }
 
 describe('a scan that meets a file it cannot read', () => {
@@ -70,14 +69,14 @@ describe('a scan that meets a file it cannot read', () => {
     expect(songs.allPaths().has('C - Three.m4a')).toBe(true)
   })
 
-  it('still marks songs whose files are gone', async () => {
+  it('leaves a song alone whose file is not in the folder: it is in the bucket', async () => {
     const { db, songs, scanner } = build(['A - One.m4a', BAD])
     db.exec("INSERT INTO songs (id, path, title) VALUES (99, 'Gone - Song.m4a', 'Gone');")
 
     const result = await scanner.scan()
 
-    expect(result.removed).toBe(1)
-    expect(songs.byId(99)?.missing).toBe(true)
+    expect(result).toMatchObject({ added: 1, updated: 0 })
+    expect(songs.byId(99)).not.toBeNull()
   })
 
   it('leaves the bad file out of the library rather than half-adding it', async () => {
@@ -101,27 +100,28 @@ describe('a scan that meets a file it cannot read', () => {
 })
 
 /**
- * What a scan reports is what changed since the last one. Every caller bumps
+ * What a sweep reports is what changed since the last one. Every caller bumps
  * the library version on a non-zero count, and every device refetches on a
- * bump, so a quiet scan of an unchanged library has to say so — even when a
- * song has been missing for months.
+ * bump, so a quiet sweep of a folder with nothing new in it has to say so.
+ *
+ * A file that is not in the folder any more says nothing at all: the bucket
+ * is the library, and a copy here is let go once the song is up. The row
+ * stays, untouched, and comes to no harm.
  */
-describe('a scan of a library that has not changed', () => {
-  const nothing = { added: 0, updated: 0, removed: 0 }
+describe('a sweep of a folder that has not changed', () => {
+  const nothing = { added: 0, updated: 0 }
   const writes = (db: Database.Database): number =>
     (db.prepare('SELECT total_changes() AS n').get() as { n: number }).n
 
-  it('counts a song as removed only the once, when its file goes', async () => {
+  it('says nothing when a file has gone, and keeps the song', async () => {
     const files = ['A - One.m4a', 'B - Two.m4a']
     const { songs, scanner } = build(files)
     await scanner.scan()
 
     files.pop()
-    expect(await scanner.scan()).toMatchObject({ ...nothing, removed: 1 })
-    expect(songs.byPath('B - Two.m4a')?.missing).toBe(true)
-
     expect(await scanner.scan()).toMatchObject(nothing)
-    expect(songs.byPath('B - Two.m4a')?.missing).toBe(true)
+    expect(songs.byPath('B - Two.m4a')).not.toBeNull()
+    expect(await scanner.scan()).toMatchObject(nothing)
   })
 
   it('writes nothing at all when every file is as it was', async () => {
@@ -133,16 +133,24 @@ describe('a scan of a library that has not changed', () => {
     expect(writes(db)).toBe(before)
   })
 
-  it('counts a file that came back, unchanged, as updated', async () => {
+  it('does not count a file that came back, unchanged, as anything', async () => {
     const files = ['A - One.m4a', 'B - Two.m4a']
-    const { songs, scanner } = build(files)
+    const { scanner } = build(files)
     await scanner.scan()
     const gone = files.pop() as string
     await scanner.scan()
 
     files.push(gone)
-    expect(await scanner.scan()).toMatchObject({ ...nothing, updated: 1 })
-    expect(songs.byPath('B - Two.m4a')?.missing).toBe(false)
     expect(await scanner.scan()).toMatchObject(nothing)
+  })
+
+  it('re-reads a file whose time has moved', async () => {
+    const files = ['A - One.m4a']
+    const { scanner, storage } = build(files)
+    await scanner.scan()
+
+    storage.stat = (key: string) =>
+      Promise.resolve({ sizeBytes: 100, modifiedAt: new Date(1_700_000_001_000), key })
+    expect(await scanner.scan()).toMatchObject({ added: 0, updated: 1 })
   })
 })

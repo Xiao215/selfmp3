@@ -72,7 +72,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
       const result = await client.post<ScanResult>('/library/scan')
       out(
         `done in ${Math.round(result.durationMs)} ms: ${result.added} added, ${result.updated} updated, ` +
-          `${result.removed} missing, ${result.total} songs total`,
+          `${result.total} songs total`,
       )
       return 0
     }

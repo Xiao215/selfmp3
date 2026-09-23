@@ -25,7 +25,6 @@ const song = (id: number, extra: Partial<Song> = {}): Song => ({
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2026-09-01 00:00:00',
-  missing: false,
   tagIds: [],
   audioFeatures: null,
   ...extra,
@@ -105,7 +104,6 @@ describe('recentlyPlayed', () => {
       song(1, { lastPlayedAt: '2026-09-10 10:00:00' }),
       song(2),
       song(3, { lastPlayedAt: '2026-09-12 08:00:00' }),
-      song(4, { lastPlayedAt: '2026-09-11 23:00:00', missing: true }),
       song(3, { lastPlayedAt: '2026-09-12 08:00:00' }),
     ]
     expect(recentlyPlayed(songs).map(entry => entry.id)).toEqual([3, 1])

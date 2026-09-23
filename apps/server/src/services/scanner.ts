@@ -9,16 +9,23 @@ import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 
 /**
- * Reconciling the library folder with the database.
+ * Sweeping the inbox folder.
  *
- * Three rules shape this:
+ * The folder is not the library (docs/SYNC.md): the bucket is, and a file here
+ * is on its way there. An import writes its download here, and a file dropped
+ * in by hand is an import too. Either way the sweep makes a song of any audio
+ * file it does not know, the cloud pass uploads it, and once every part of it
+ * is in the bucket the pass deletes the copy here.
+ *
+ * Two rules shape this:
  *
  *  - A file that is new gets fully parsed and inserted.
- *  - A file whose size and mtime are unchanged is skipped entirely. On a large
- *    library this turns a rescan from minutes into milliseconds.
- *  - A file that has disappeared is *marked missing*, not deleted. Tags, play
- *    counts and playlist membership survive an unplugged external drive or a
- *    file being renamed, and come back when it does.
+ *  - A file whose time is unchanged is skipped entirely, so a sweep over a
+ *    folder with nothing new in it costs a stat per file.
+ *
+ * A path the database knows and the folder does not is the ordinary state of
+ * every uploaded song, and says nothing: a song leaves the library only when
+ * someone removes it.
  */
 export class ScannerService {
   readonly #storage: StorageDriver
@@ -35,7 +42,7 @@ export class ScannerService {
    * rather than an event emitter, the same shape the player engine uses.
    */
   onIngested: ((songId: number, change: 'added' | 'updated') => void) | null = null
-  /** Called once a full scan finishes, whatever it found. */
+  /** Called once a full sweep finishes, whatever it found. */
   onScanComplete: ((result: ScanResult) => void) | null = null
 
   constructor(deps: {
@@ -124,22 +131,21 @@ export class ScannerService {
   }
 
   /**
-   * Full reconciliation.
+   * One sweep of the folder.
    *
-   * Guarded against concurrent runs: two overlapping scans would race on the
+   * Guarded against concurrent runs: two overlapping sweeps would race on the
    * same rows for no benefit, so a second caller gets a no-op result.
    */
   async scan(): Promise<ScanResult> {
     if (this.#running) {
       this.#logger.debug('scan already in progress, skipping')
-      return { added: 0, updated: 0, removed: 0, total: this.#songs.count(), durationMs: 0 }
+      return { added: 0, updated: 0, total: this.#songs.count(), durationMs: 0 }
     }
 
     this.#running = true
     const startedAt = Date.now()
     let added = 0
     let updated = 0
-    let removed = 0
     let skipped = 0
 
     try {
@@ -148,34 +154,22 @@ export class ScannerService {
 
       for (const key of onDisk) {
         /*
-         * One file the scan cannot read must not end the scan.
+         * One file the sweep cannot read must not end the sweep.
          *
          * A truncated download, a permission the copy did not carry, a format
          * the tag reader gives up on: any of these throws, and letting it out
-         * of the loop means every file after it is never looked at and the
-         * pass that marks deleted songs missing never runs at all. So the bad
-         * file is reported and the scan goes on without it.
+         * of the loop means every file after it is never looked at. So the bad
+         * file is reported and the sweep goes on without it.
          */
         try {
           const existing = known.get(key)
           if (existing) {
             const stat = await this.#storage.stat(key)
             const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
-            if (stat && mtimeMs === existing.mtimeMs) {
-              /*
-               * Unchanged file. The only row that needs writing is one that was
-               * marked missing: its file came back, which clients should hear
-               * about like any other change. Every other row is left alone —
-               * a scan that finds nothing new must not touch anything, or the
-               * quiet hourly scan is a write per song and a refetch on every
-               * device.
-               */
-              if (existing.missing) {
-                this.#songs.clearMissing(existing.id)
-                updated++
-              }
-              continue
-            }
+            // Unchanged file: a sweep that finds nothing new must not touch
+            // anything, or the quiet sweep is a write per song and a refetch on
+            // every device.
+            if (stat && mtimeMs === existing.mtimeMs) continue
             await this.ingest(key)
             updated++
           } else {
@@ -190,17 +184,6 @@ export class ScannerService {
           })
         }
       }
-
-      // A song already marked missing stays that way without being counted
-      // again: "removed" is what went since the last scan, and a library with
-      // one long-gone file must not look changed on every scan.
-      const onDiskSet = new Set(onDisk)
-      for (const [key, row] of known) {
-        if (!onDiskSet.has(key) && !row.missing) {
-          this.#songs.markMissing(key)
-          removed++
-        }
-      }
     } finally {
       this.#running = false
     }
@@ -208,7 +191,6 @@ export class ScannerService {
     const result: ScanResult = {
       added,
       updated,
-      removed,
       total: this.#songs.count(),
       durationMs: Date.now() - startedAt,
     }
@@ -217,7 +199,6 @@ export class ScannerService {
       added,
       updated,
       ...(skipped > 0 ? { skipped } : {}),
-      missing: removed,
       total: result.total,
       ms: result.durationMs,
     })

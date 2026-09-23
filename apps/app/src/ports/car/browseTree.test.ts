@@ -32,7 +32,6 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2025-01-01T00:00:00.000Z',
-  missing: false,
   tagIds: [],
   audioFeatures: null,
   ...patch,
@@ -112,11 +111,6 @@ describe('buildBrowseTree', () => {
     const tree = buildBrowseTree(input({ songs: [song(1, { album: '   ', artist: '' })] }))
     expect(nodeById(tree, 'albums')?.items).toEqual([])
     expect(nodeById(tree, 'artists')?.items).toEqual([])
-  })
-
-  it('leaves missing songs out — there is nothing a driver can do about them', () => {
-    const tree = buildBrowseTree(input({ songs: [song(1), song(2, { missing: true })] }))
-    expect(nodeById(tree, 'recent')?.songIds).toEqual([1])
   })
 
   it('orders recently added newest first and honours the limit', () => {

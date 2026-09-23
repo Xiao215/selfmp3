@@ -27,6 +27,7 @@ export class AudioFeaturesRepository {
   readonly #deleteAll
   readonly #nextPending
   readonly #countPending
+  readonly #isAnalysed
 
   constructor(db: Db) {
     this.#bySong = db.prepare<[number], AudioFeaturesRow>(
@@ -63,13 +64,16 @@ export class AudioFeaturesRepository {
     this.#deleteAll = db.prepare('DELETE FROM song_audio_features')
 
     // A song is pending when it has no row, or a row from an older algorithm.
-    // Missing files are skipped: there is nothing to decode.
+    // Whether its audio is on this disk is not asked here: analysis fetches it
+    // from the bucket when it is not (services/analysis.ts).
     const pendingWhere = `
-      s.missing = 0
-      AND NOT EXISTS (
+      NOT EXISTS (
         SELECT 1 FROM song_audio_features f WHERE f.song_id = s.id AND f.version >= ?
       )
     `
+    this.#isAnalysed = db.prepare<[number, number], { n: number }>(
+      'SELECT COUNT(*) AS n FROM song_audio_features WHERE song_id = ? AND version >= ?',
+    )
     this.#nextPending = db.prepare<[number], { id: number }>(
       `SELECT s.id FROM songs s WHERE ${pendingWhere} ORDER BY s.added_at DESC, s.id DESC LIMIT 1`,
     )
@@ -104,6 +108,16 @@ export class AudioFeaturesRepository {
   /** Forget everything, so the next run re-analyses the whole library. */
   deleteAll(): number {
     return this.#deleteAll.run().changes
+  }
+
+  /**
+   * Whether analysis has had its say on this song at this version — a result,
+   * or a row that records it could not be read. Either way there is nothing
+   * left that needs the audio on this disk, which is what the cloud pass asks
+   * before it lets the local copy go.
+   */
+  isAnalysed(songId: number, version: number): boolean {
+    return (this.#isAnalysed.get(songId, version)?.n ?? 0) > 0
   }
 
   nextPending(version: number): number | null {

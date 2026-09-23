@@ -125,9 +125,7 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
   const limit = options.maxItemsPerNode ?? DEFAULT_MAX_ITEMS
   const recentLimit = options.recentLimit ?? DEFAULT_RECENT_LIMIT
 
-  // A missing file plays as an error in a car, where there is nothing useful
-  // the driver can do about it. Leave them out entirely.
-  const songs = input.songs.filter(song => !song.missing)
+  const songs = input.songs
   const byId = new Map(songs.map(song => [song.id, song]))
 
   const nodes: Record<string, BrowseNode> = {}

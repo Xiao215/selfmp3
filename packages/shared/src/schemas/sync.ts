@@ -35,20 +35,13 @@ export const SongTaggedSchema = z.object({
   on: z.boolean(),
 })
 
+/**
+ * The song is out of the library, everywhere. Every device drops the copy it
+ * kept, and the bucket lets the song's files go once nothing names them.
+ */
 export const SongRemovedSchema = z.object({
   type: z.literal('songRemoved'),
   ...at,
-  /**
-   * Whether the audio goes too, or only the song.
-   *
-   * "Remove from my list" and "destroy the file" are different answers to
-   * different questions, and the device that asked is the only one that knows
-   * which was meant — so the answer travels with the change rather than being
-   * assumed by whoever applies it. Defaults to keeping the file: it is the
-   * safe way to be wrong, and a log written without this field said nothing
-   * about deleting anything.
-   */
-  deleteFile: z.boolean().default(false),
 })
 
 export const SongPlayedSchema = z.object({

@@ -49,9 +49,8 @@ const NOTHING: SearchFound = { songs: [], tags: [], artists: [] }
 export function searchLibrary(query: string, library: SearchLibrary | undefined): SearchFound {
   const trimmed = query.trim()
   if (!trimmed || !library) return NOTHING
-  const present = library.songs.filter(song => !song.missing)
   return {
-    songs: searchSongs(trimmed, present).map(match => match.item),
+    songs: searchSongs(trimmed, library.songs).map(match => match.item),
     tags: fuzzyRank(trimmed, library.tags, tag => tag.name).map(match => match.item),
     artists: fuzzyRank(trimmed, libraryArtists(library.songs), artist => artist.name).map(
       match => match.item,
@@ -128,7 +127,7 @@ export function recentItems(
     currentSongId === null ? undefined : library.songs.find(song => song.id === currentSongId)
   const dated: { at: string; item: RecentItem }[] = []
   for (const song of library.songs) {
-    if (song.lastPlayedAt && song.id !== currentSongId && !song.missing) {
+    if (song.lastPlayedAt && song.id !== currentSongId) {
       dated.push({ at: song.lastPlayedAt, item: { kind: 'song', song } })
     }
   }

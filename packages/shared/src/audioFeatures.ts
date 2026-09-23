@@ -188,14 +188,13 @@ export function transitionCrossfade(
  *
  * A brute-force pass over the library: with a few thousand songs and a
  * distance that is a handful of subtractions, this is microseconds, and an
- * index would be more code than the feature. Missing files are left out —
- * a recommendation you cannot play is worse than none.
+ * index would be more code than the feature.
  */
 export function similarSongs(seed: Song, library: readonly Song[], limit: number): Song[] {
   const scored: Array<{ song: Song; distance: number }> = []
 
   for (const candidate of library) {
-    if (candidate.id === seed.id || candidate.missing) continue
+    if (candidate.id === seed.id) continue
     scored.push({ song: candidate, distance: songDistance(seed, candidate) })
   }
 

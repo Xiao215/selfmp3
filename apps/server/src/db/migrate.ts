@@ -457,6 +457,34 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_song_aliases_song ON song_aliases(song_id);
     `,
   },
+  {
+    // 25. The bucket is the library, and this server keeps no copy of it
+    // (docs/SYNC.md). A song's audio is on this disk only between its import
+    // and its upload, so "the file is missing" stopped meaning anything: it is
+    // the ordinary state of every song. The column goes, and with it the idea
+    // that the folder is somewhere a song can be lost from.
+    //
+    // `cloud_trash` is the other half: the bucket files of a song that was
+    // removed, kept until the snapshot without the song has gone up, and then
+    // deleted from the bucket if no other song names them. `removed_songs` is
+    // the uid of each such song for the same while: the bucket's newest
+    // snapshot still lists it until then, and a server that reads that
+    // snapshot again — a restart, *Publish now* — must not take it back on.
+    name: 'the server keeps no library of its own',
+    sql: `
+      DROP INDEX IF EXISTS idx_songs_missing;
+      ALTER TABLE songs DROP COLUMN missing;
+      CREATE TABLE cloud_trash (
+        key        TEXT    PRIMARY KEY,
+        size       INTEGER NOT NULL DEFAULT 0,
+        trashed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE removed_songs (
+        uid        TEXT    PRIMARY KEY,
+        removed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

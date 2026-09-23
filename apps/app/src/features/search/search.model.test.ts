@@ -12,7 +12,7 @@ import {
 } from './search.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI', extra: object = {}) =>
-  ({ id, title, artist, album: '', tagIds: [7], missing: false, ...extra }) as never
+  ({ id, title, artist, album: '', tagIds: [7], ...extra }) as never
 
 const library = {
   songs: [
@@ -20,7 +20,6 @@ const library = {
     song(2, 'Racing into the Night'),
     song(3, 'Monster'),
     song(4, 'ノーチラス', 'Yorushika'),
-    song(5, 'Gone', 'Yorushika', { missing: true }),
   ],
   playlists: [] as never,
   tags: [
@@ -59,7 +58,7 @@ describe('before anything is typed', () => {
 })
 
 describe('searchLibrary', () => {
-  it('finds songs, tags and artists, and leaves out a missing file', () => {
+  it('finds songs, tags and artists', () => {
     const found = searchLibrary('yorushika', library)
     expect(found.songs.map(item => (item as { id: number }).id)).toEqual([4])
     expect(found.tags.map(tag => tag.name)).toEqual(['yorushika'])
@@ -101,7 +100,6 @@ describe('recentItems', () => {
         song(1, 'アイドル', 'x', { lastPlayedAt: '2026-09-10T10:00:00Z' }),
         song(2, 'Racing', 'x', { lastPlayedAt: '2026-09-12T10:00:00Z' }),
         song(3, 'Monster', 'x', { lastPlayedAt: null }),
-        song(4, 'Gone', 'x', { lastPlayedAt: '2026-09-13T10:00:00Z', missing: true }),
       ],
       playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
     }

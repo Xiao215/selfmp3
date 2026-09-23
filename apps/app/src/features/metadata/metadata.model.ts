@@ -140,8 +140,8 @@ export const scorePercent = (score: number): string => `${Math.round(score * 100
 
 // --- the cover-art pass (Settings → Library) ----------------------------------
 
-export function missingArtCount(songs: readonly Pick<Song, 'hasArt' | 'missing'>[]): number {
-  return songs.filter(song => !song.hasArt && !song.missing).length
+export function missingArtCount(songs: readonly Pick<Song, 'hasArt'>[]): number {
+  return songs.filter(song => !song.hasArt).length
 }
 
 export function coverArtHint(missing: number): string {

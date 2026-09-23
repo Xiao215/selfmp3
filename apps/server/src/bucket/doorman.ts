@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import {
   DoormanClaimResultSchema,
   DoormanListSchema,
@@ -137,6 +138,19 @@ class DoormanCloudStore implements CloudStore {
     })
     if (response.status === 404) return null
     return Buffer.from(await response.arrayBuffer())
+  }
+
+  async range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+    // The doorman passes `Range` straight to the bucket and its 206 straight
+    // back (docs/SYNC.md), which is how every browser tab streams already.
+    const response = await this.#doorman.request('GET', filePath(key), {
+      token: this.#token,
+      allow404: true,
+      headers: { Range: `bytes=${start}-${end}` },
+    })
+    if (response.status === 404) return null
+    if (!response.body) return Readable.from([Buffer.from(await response.arrayBuffer())])
+    return Readable.fromWeb(response.body)
   }
 
   async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {

@@ -125,7 +125,6 @@ export function snapshotToLibrary(
       sourceUrl: song.sourceUrl,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
-      missing: false,
       tagIds,
       audioFeatures: song.audioFeatures,
     }

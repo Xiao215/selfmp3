@@ -49,10 +49,7 @@ export function tagCloseStep({
  * still have none. A song already tagged further on is not one to go, and the
  * one playing drops out of the count the moment it is given a tag.
  */
-export function taggingLeft(
-  songs: readonly Pick<Song, 'tagIds' | 'missing'>[],
-  index: number,
-): number {
+export function taggingLeft(songs: readonly Pick<Song, 'tagIds'>[], index: number): number {
   let left = 0
   for (let i = Math.max(0, index); i < songs.length; i += 1) {
     const song = songs[i]

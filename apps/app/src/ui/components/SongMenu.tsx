@@ -21,7 +21,6 @@ import { songLink } from '../../features/song/song.model'
 import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { removingTakesTheCopy } from '../../ports/device'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from './Button'
@@ -59,11 +58,9 @@ import { TagPicker } from './TagPicker'
  * the metadata is a button on the song's page, beside the facts it changes.
  *
  * Destructive actions sit last and apart, and removing always asks first.
- * What it then offers depends on the device (`removingTakesTheCopy`): a
- * computer separates "remove from my list" from "delete the actual file",
- * which are never one mis-tap apart, because that second file is the server's
- * and a rescan would find it again. A phone has no such file and one meaning —
- * remove it, and take the download with it — so it asks once and does that.
+ * Removing has one meaning on every device — the song leaves the library
+ * everywhere, and the download here goes with it — so it asks once and does
+ * that.
  *
  * Dropping the download on its own stays up by the head, as "Remove
  * download": keeping the song and freeing the room is a different wish.
@@ -302,12 +299,11 @@ function Items({
           danger
           onPress={() => setConfirmingDelete(true)}
         />
-      ) : removingTakesTheCopy ? (
+      ) : (
         /*
-         * One question, then one action. Removing a song here is removing it:
-         * the row leaves the library and the download leaves the device with
-         * it. The other choice a computer offers is about the file in the
-         * server's library folder, which is not this device's to decide.
+         * One question, then one action. Removing a song is removing it: the
+         * row leaves the library on every device, and whatever this device
+         * downloaded of it leaves with it.
          */
         <View>
           <Text style={styles.hint}>
@@ -320,23 +316,8 @@ function Items({
             danger
             onPress={then(() => {
               void dropDownloads([song.id])
-              deleteSong.mutate({ id: song.id, deleteFile: false })
+              deleteSong.mutate(song.id)
             })}
-          />
-          <SheetItem label="Cancel" onPress={() => setConfirmingDelete(false)} />
-        </View>
-      ) : (
-        <View>
-          <Text style={styles.hint}>Remove “{song.title}”?</Text>
-          <SheetItem
-            label="Remove from library, keep the file"
-            onPress={then(() => deleteSong.mutate({ id: song.id, deleteFile: false }))}
-          />
-          <SheetItem
-            icon={<Trash size={16} color={theme.colors.danger} />}
-            label="Delete the file too"
-            danger
-            onPress={then(() => deleteSong.mutate({ id: song.id, deleteFile: true }))}
           />
           <SheetItem label="Cancel" onPress={() => setConfirmingDelete(false)} />
         </View>

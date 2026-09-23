@@ -98,14 +98,12 @@ a one-line change.
 
 ### Storage is an interface
 
-`StorageDriver` — `stat`, `read`, `write`, `list`, `rangeSource`, `signedUrl`, `localPath`.
-Local disk implements it today; `S3StorageDriver` implements it for R2, B2, MinIO and AWS
-behind an optional dependency that is imported dynamically.
-
-This was a deliberate ~100 lines of extra work. It means "move my library to cloud storage"
-is a config change and one file, not a rewrite of every path that touches a file. `localPath`
-returning `null` is the honest escape hatch: tools like `ffprobe` need a real filesystem
-path, and object storage does not have one, so those code paths know to buffer instead.
+`StorageDriver` — `stat`, `read`, `write`, `list`, `rangeSource`, `signedUrl`, `localPath` —
+is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`, `range` — is the
+bucket. Local disk implements the first; `S3CloudStore`, the doorman's store and a folder
+(`bucket/local.ts`, for the dev profile and the verify lanes) implement the second, and the
+sync cannot tell them apart. `localPath` returning `null` is the honest escape hatch: tools
+like `ffprobe` need a real filesystem path, so those code paths know to buffer instead.
 
 ### Range requests get their own module and the most tests
 
@@ -118,15 +116,19 @@ The service worker duplicates a version of this logic in `sw.ts`, because the Ca
 returns whole responses and something has to slice them when the player asks for bytes
 500–999 of a cached file.
 
-### Missing files are marked, not deleted
+### The server keeps no copy of the library
 
-A scan that cannot find a file sets `missing = 1`. It does not delete the row.
+The bucket is the library (docs/SYNC.md), and the folder the server works in is an inbox:
+an import lands there, a file dropped there is an import, and once a song is wholly in the
+bucket and analysed the cloud pass deletes the copy. There is no `missing` state, because
+"the audio is not on this disk" is the ordinary state of every song, and there is no "keep
+the file" when removing one, because a copy left in the folder is a new song to the next
+sweep — which is how forty-three removed songs came back one evening. A song's audio comes
+from the bucket when the server wants it: analysis fetches it to a temp file, and the stream
+route forwards ranges to the bucket.
 
-Unplug an external drive, or rename a file, and your tags, play counts and playlist
-membership survive — and come back when the file does. Permanently forgetting them is a
-separate, explicit action behind a confirmation. Losing a play history to a temporarily
-unmounted drive would be unforgivable, and it is exactly the kind of thing an
-over-eager reconciler does.
+The row is what survives. Tags, play counts and playlist places belong to the song, not to
+any file, and a song leaves the library only when someone removes it.
 
 ### Play events, not just counters
 
@@ -206,10 +208,12 @@ passing through JavaScript memory.
 ### The server is a worker, and its page says so
 
 The bucket is the library. That makes the server one of the things that writes
-to it — it imports, scans, analyses and publishes — rather than the place every
-device points at, and the page it serves on `:4600` follows: the library count,
-the Cloud section, **Publish now**, and where to go to listen. Hand-written HTML,
-CSS and JS in `apps/server/public/`, a few hundred lines, no build step.
+to it — it imports, sweeps its inbox, analyses and publishes — rather than the
+place every device points at, and the page it serves on `:4600` follows: the
+library count, the Cloud section, **Publish now**, and where to go to listen.
+Hand-written HTML, CSS and JS in `apps/server/public/`, a few hundred lines, no
+build step. With no bucket connected the API refuses everything but connecting
+one: there is no library to serve.
 
 It used to serve `apps/app/dist` at every non-`/api` path instead, which meant
 one deployment of the app was special — the one whose origin happened to be the

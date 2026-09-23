@@ -48,10 +48,7 @@ export function OfflinePanel({
     removing,
   } = useDownloads()
 
-  const songIds = useMemo(
-    () => (library.data?.songs ?? []).filter(song => !song.missing).map(song => song.id),
-    [library.data],
-  )
+  const songIds = useMemo(() => (library.data?.songs ?? []).map(song => song.id), [library.data])
   /*
    * Counted against the library in front of you, not against the index. A song
    * removed anywhere — here, or on another device an hour ago — is out of

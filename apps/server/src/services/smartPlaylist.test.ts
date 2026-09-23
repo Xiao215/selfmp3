@@ -28,8 +28,7 @@ function makeDb(): Database.Database {
       has_art INTEGER NOT NULL DEFAULT 0,
       lyrics_kind TEXT NOT NULL DEFAULT 'none',
       added_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_played_at TEXT,
-      missing INTEGER NOT NULL DEFAULT 0
+      last_played_at TEXT
     );
     CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE song_tags (song_id INTEGER, tag_id INTEGER, PRIMARY KEY (song_id, tag_id));
@@ -42,8 +41,8 @@ function makeDb(): Database.Database {
   `)
 
   const insert = db.prepare(`
-    INSERT INTO songs (id, title, artist, album, duration, year, play_count, loved, has_art, lyrics_kind, added_at, last_played_at, missing)
-    VALUES (@id, @title, @artist, @album, @duration, @year, @play_count, @loved, @has_art, @lyrics_kind, @added_at, @last_played_at, @missing)
+    INSERT INTO songs (id, title, artist, album, duration, year, play_count, loved, has_art, lyrics_kind, added_at, last_played_at)
+    VALUES (@id, @title, @artist, @album, @duration, @year, @play_count, @loved, @has_art, @lyrics_kind, @added_at, @last_played_at)
   `)
 
   const rows = [
@@ -60,7 +59,6 @@ function makeDb(): Database.Database {
       lyrics_kind: 'synced',
       added_at: "datetime('now','-2 days')",
       last_played_at: "datetime('now','-1 days')",
-      missing: 0,
     },
     {
       id: 2,
@@ -75,7 +73,6 @@ function makeDb(): Database.Database {
       lyrics_kind: 'none',
       added_at: "datetime('now','-40 days')",
       last_played_at: null,
-      missing: 0,
     },
     {
       id: 3,
@@ -90,22 +87,6 @@ function makeDb(): Database.Database {
       lyrics_kind: 'plain',
       added_at: "datetime('now','-100 days')",
       last_played_at: "datetime('now','-90 days')",
-      missing: 0,
-    },
-    {
-      id: 4,
-      title: 'Gone Missing',
-      artist: 'Ghost',
-      album: '',
-      duration: 100,
-      year: null,
-      play_count: 99,
-      loved: 1,
-      has_art: 0,
-      lyrics_kind: 'none',
-      added_at: "datetime('now')",
-      last_played_at: null,
-      missing: 1,
     },
   ]
 
@@ -158,11 +139,6 @@ function run(db: Database.Database, rules: Partial<SmartRules>): number[] {
 
 describe('compileSmartRules', () => {
   const db = makeDb()
-
-  it('excludes missing files from every result', () => {
-    // Song 4 is missing; a playlist must never hand the player a dead track.
-    expect(run(db, { rules: [] })).toEqual([1, 3, 2])
-  })
 
   it('matches text with contains', () => {
     expect(run(db, { rules: [{ field: 'artist', op: 'contains', value: 'aurora' }] })).toEqual([
@@ -288,6 +264,6 @@ describe('compileSmartRules', () => {
     })
     expect(ids).toEqual([])
     // The table had better still be there.
-    expect(db.prepare('SELECT COUNT(*) AS n FROM songs').get()).toEqual({ n: 4 })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM songs').get()).toEqual({ n: 3 })
   })
 })

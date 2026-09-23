@@ -1,3 +1,4 @@
+import { ANALYSIS_VERSION } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import { createLogger, type Logger } from './logger.js'
 import { openDatabase, type Db } from './db/index.js'
@@ -46,7 +47,6 @@ import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
 import { CloudAdopt } from './services/cloudAdopt.js'
 import { CloudIngest } from './services/cloudIngest.js'
-import { CloudRestore } from './services/cloudRestore.js'
 import { CloudImportService } from './services/cloudImports.js'
 import { ImportRequestRepository } from './repositories/importRequests.js'
 import { buildImportPreview } from './services/importPreview.js'
@@ -190,6 +190,7 @@ export function createContainer(configured: Config): Container {
     playlists,
     stats,
     sync: syncRepo,
+    cloud: cloudRepo,
     requests: importRequests,
     clock,
     logger,
@@ -207,17 +208,6 @@ export function createContainer(configured: Config): Container {
     sync: syncRepo,
     storage,
     clock,
-    logger,
-  })
-
-  // And then fetches their files from the bucket, in the background. The
-  // scanner is built below, after the sync it feeds, so it is read lazily.
-  const restore = new CloudRestore({
-    cloud: cloudRepo,
-    storage,
-    covers,
-    lyrics,
-    scanner: () => scanner,
     logger,
   })
 
@@ -240,7 +230,10 @@ export function createContainer(configured: Config): Container {
     sync: syncRepo,
     ingest,
     adopt,
-    restore,
+    // The last thing that needs a song's audio here; once it is done, the
+    // copy on this disk may go.
+    analysed: songId => audioFeatures.isAnalysed(songId, ANALYSIS_VERSION),
+    cloudDir: config.cloudDir ?? undefined,
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
@@ -334,6 +327,7 @@ export function createContainer(configured: Config): Container {
     storage,
     songs,
     tags,
+    cloud: cloudRepo,
     lyrics,
     covers,
     lyricsCache,
@@ -367,6 +361,8 @@ export function createContainer(configured: Config): Container {
     motion,
     scanner,
     importQueue,
+    // A song whose copy here has gone is fetched from the bucket to analyse.
+    fetchAudio: songId => cloudSync.fetchAudio(songId),
     logger,
     // A version bump makes clients refetch; do it in batches, and once at the
     // end, so a long first run does not have every phone re-downloading the
@@ -389,16 +385,12 @@ export function createContainer(configured: Config): Container {
     else analysis.kick()
   }
 
-  // A song fetched back from the bucket is a song that can be played now, so
-  // every client should hear about it as it lands rather than at the end.
-  restore.onRestored = bump
   scanner.onScanComplete = () => analysis.kick()
 
   // Other devices' changes, applied during a cloud pass. The pass publishes
   // what they changed itself, so this only moves the version clients watch —
-  // and tidies up after songs removed elsewhere. A file the person chose to
-  // keep is left where it is, and the next scan adds it back as a new song,
-  // exactly as it would have had they removed it on this server.
+  // and tidies up after songs removed elsewhere: whatever copy was still here
+  // goes, so no sweep can make a new song of it.
   cloudSync.onIngested = async ({ removed, requested }) => {
     version++
     if (requested > 0) void cloudImports.process()

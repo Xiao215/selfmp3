@@ -34,6 +34,7 @@ import {
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import { CloudError, S3CloudStore, type CloudStore } from '../bucket/store.js'
+import { LocalCloudStore } from '../bucket/local.js'
 import { DoormanClient } from '../bucket/doorman.js'
 import { debounce, type Debounced } from './debounce.js'
 import type {
@@ -51,6 +52,7 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
+import { removeFolderIfEmpty } from './libraryLayout.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
@@ -63,7 +65,6 @@ import {
   snapshotSongCount,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
-import type { CloudRestore } from './cloudRestore.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -81,6 +82,12 @@ import type { CloudRestore } from './cloudRestore.js'
  * `cloud_songs`. A song whose file, cover and lyric sidecar are unchanged is
  * not read at all, so a pass over a library that is already up there costs a
  * database query and a stat per song.
+ *
+ * The bucket is the library and this server keeps no copy of it. So a pass
+ * ends by letting go: the audio of every song that is wholly in the bucket,
+ * analysed, and in the snapshot just written is deleted from this disk; and
+ * the files of songs removed since the last pass, waiting in `cloud_trash`,
+ * are deleted from the bucket once no song names them.
  */
 
 /** How long after a change a pass starts, so a burst of changes is one pass. */
@@ -169,11 +176,18 @@ interface CloudSyncDeps {
    */
   readonly adopt?: CloudAdopt
   /**
-   * What fetches the files of songs adopted from the bucket
-   * (services/cloudRestore.ts). Absent where they are not what is being
-   * tested, which then leaves adopted songs waiting for their audio.
+   * Whether analysis is done with a song (repositories/audioFeatures.ts): the
+   * last thing that needs its audio on this disk, so the last thing asked
+   * before the copy here is let go. Absent, no copy is ever let go — for tests
+   * of everything else, which read the files back.
    */
-  readonly restore?: CloudRestore
+  readonly analysed?: (songId: number) => boolean
+  /**
+   * A folder to use as the bucket instead of an account (bucket/local.ts).
+   * Connected from the start and never saved; signing in and connecting are
+   * refused while it is set.
+   */
+  readonly cloudDir?: string
   /** Links other devices asked to import: how each is going goes in every snapshot. */
   readonly importRequests?: ImportRequestRepository
   /**
@@ -240,6 +254,12 @@ export class CloudSyncService {
 
   /** Publishing is one at a time: the import step and a pass can both ask. */
   #publishing: Promise<void> = Promise.resolve()
+  /**
+   * Bucket deletions in flight, by key. An upload of the same bytes during one
+   * waits for it, so a file is never taken for present because it was about
+   * to be gone (`#putOnce`).
+   */
+  readonly #deleting = new Map<string, Promise<void>>()
   #lastSnapshotHash: string | null = null
   /** The addresses the last snapshot carried, to notice when the server has moved. */
   #publishedServer: string | null = null
@@ -276,6 +296,7 @@ export class CloudSyncService {
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
+    if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
   get connected(): boolean {
@@ -287,6 +308,13 @@ export class CloudSyncService {
    * connected directly — and run a first pass.
    */
   start(): void {
+    if (this.#deps.cloudDir) {
+      this.#logger.info('publishing to a folder standing in for the bucket', {
+        folder: this.#deps.cloudDir,
+      })
+      void this.#pass()
+      return
+    }
     const session = this.#deps.cloud.doormanSession()
     if (session && this.#doorman && session.url === this.#doorman.url) {
       this.#session = session
@@ -307,7 +335,6 @@ export class CloudSyncService {
     this.#stopped = true
     this.#clearTimers()
     this.#stopSignIn()
-    this.#deps.restore?.stop()
   }
 
   /** Something in the library changed. Cheap to call as often as you like. */
@@ -339,11 +366,20 @@ export class CloudSyncService {
     while (this.#running) await this.#running
   }
 
-  /** Resolves once the pass and the fetching a pass starts are both done. For tests. */
-  async whenSettled(): Promise<void> {
-    await this.whenIdle()
-    await this.#deps.restore?.whenIdle()
-    await this.whenIdle()
+  /** The bucket in use, for streaming a song this server holds no copy of. */
+  bucket(): CloudStore | null {
+    return this.#store
+  }
+
+  /**
+   * A song's audio from the bucket: for analysis, once the copy here has gone.
+   * Null with no bucket, or a song whose audio is not up yet.
+   */
+  async fetchAudio(songId: number): Promise<Buffer | null> {
+    const store = this.#store
+    const state = this.#deps.cloud.state(songId)
+    if (!store || !state) return null
+    return store.get(state.audioKey)
   }
 
   /**
@@ -353,6 +389,7 @@ export class CloudSyncService {
    * bucket. Throws `CloudError`.
    */
   async connect(input: CloudConnect): Promise<CloudStatus> {
+    this.#refuseWithFolder()
     const endpoint = parseEndpoint(input.endpoint)
     if (!endpoint) {
       throw new CloudError(
@@ -393,6 +430,7 @@ export class CloudSyncService {
    * the direct connection. The bucket and everything in it are left alone.
    */
   disconnect(): CloudStatus {
+    this.#refuseWithFolder()
     const session = this.#session
     if (session && this.#doorman) {
       // Best effort: the session is forgotten here either way.
@@ -414,6 +452,7 @@ export class CloudSyncService {
    * blocked). The doorman is asked every couple of seconds for ten minutes.
    */
   beginSignIn(attempt: string): CloudStatus {
+    this.#refuseWithFolder()
     if (!this.#doorman) {
       throw new CloudError('other', 'No doorman is set up for this server to sign in through.')
     }
@@ -611,9 +650,7 @@ export class CloudSyncService {
       songs: {
         total: totals.songs,
         inCloud: store ? totals.songsInCloud : 0,
-        waiting: store ? (this.#deps.restore?.waiting() ?? 0) : 0,
       },
-      restoring: store ? (this.#deps.restore?.progress() ?? null) : null,
       bytesInCloud: store ? totals.bytes : 0,
       lastSyncAt: this.#lastSyncAt,
       lastSnapshotAt: this.#lastSnapshotAt,
@@ -678,19 +715,35 @@ export class CloudSyncService {
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
+      /** Songs wholly in the bucket as they are here: what may be let go of below. */
+      const settled: SongFileInfo[] = []
+      let withoutCopy = 0
       for (const file of cloud.songFiles()) {
-        if (file.missing) continue
         const signatures = await this.#signatures(file)
         const state = states.get(file.id)
         if (
-          !state ||
-          state.audioSig !== signatures.audio ||
-          state.coverSig !== signatures.cover ||
-          state.lyricsSig !== signatures.lyrics ||
-          state.motionSig !== signatures.motion
+          state &&
+          state.audioSig === signatures.audio &&
+          state.coverSig === signatures.cover &&
+          state.lyricsSig === signatures.lyrics &&
+          state.motionSig === signatures.motion
         ) {
-          changed.push({ file, signatures })
+          settled.push(file)
+          continue
         }
+        // Something to send, and the audio may have to be read for it: a song
+        // whose copy here has already gone is published as the bucket has it,
+        // and what could not be sent for it is said once.
+        if (!(await this.#deps.storage.exists(file.path))) {
+          withoutCopy++
+          continue
+        }
+        changed.push({ file, signatures })
+      }
+      if (withoutCopy > 0) {
+        this.#logger.debug('songs with something to send and no copy here to send it from', {
+          songs: withoutCopy,
+        })
       }
 
       const total = changed.length
@@ -701,6 +754,7 @@ export class CloudSyncService {
         this.#progress = { done, total, current: file.title }
         try {
           await this.#uploadSongFiles(store, file, states.get(file.id) ?? null, signatures)
+          settled.push(file)
         } catch (error) {
           // Offline, a refused key, no bucket: nothing else will work either.
           if (error instanceof CloudError && error.kind !== 'other') throw error
@@ -719,6 +773,14 @@ export class CloudSyncService {
       if (finished > 0)
         this.#logger.info('finished imports that were waiting to upload', { count: finished })
 
+      // Only now, with the snapshot up: what this disk holds of the library
+      // is no longer needed here, what the library no longer names is no
+      // longer needed in the bucket, and nothing can take a removed song back.
+      cloud.forgetRemoved()
+      await this.#letGo(settled)
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#emptyTrash(store)
+
       if (changed.length > 0) {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
       }
@@ -726,12 +788,6 @@ export class CloudSyncService {
       this.#retryIndex = 0
       this.#state = failed > 0 ? 'error' : 'idle'
       if (failed === 0) this.#lastError = null
-
-      // Last, and deliberately not awaited. Fetching the files of a library
-      // just taken on is hours of downloading for a big one, and the pass has
-      // to be over — published, idle, answering — long before it finishes. It
-      // keeps its own place, so a pass interrupting it costs nothing.
-      this.#deps.restore?.start(store, () => generation === this.#generation && !this.#stopped)
     } catch (error) {
       if (generation !== this.#generation) return
       if (error instanceof CloudError && error.kind === 'auth' && this.#session) {
@@ -1164,11 +1220,79 @@ export class CloudSyncService {
   }
 
   /**
+   * Let go of the copies on this disk.
+   *
+   * Every song here is wholly in the bucket as it stands, and the snapshot
+   * naming it is up; what the copy is still for is analysis, so a song analysis
+   * has not reached yet keeps it a while longer. The words stay beside where
+   * the audio was — a few kilobytes, and the pass reads them to know the
+   * bucket's are current — and the folder goes with the audio when nothing is
+   * left in it.
+   */
+  async #letGo(settled: readonly SongFileInfo[]): Promise<void> {
+    const analysed = this.#deps.analysed
+    if (!analysed) return
+    const { storage } = this.#deps
+    let released = 0
+    for (const file of settled) {
+      if (this.#stopped) return
+      if (!analysed(file.id)) continue
+      if (!(await storage.exists(file.path))) continue
+      try {
+        await storage.delete(file.path)
+        await removeFolderIfEmpty(storage, file.path)
+        released++
+      } catch (error) {
+        this.#logger.warn('could not let go of a copy', {
+          path: file.path,
+          message: message(error),
+        })
+      }
+    }
+    if (released > 0) this.#logger.info('let go of copies now in the bucket', { songs: released })
+  }
+
+  /**
+   * Delete from the bucket the files of removed songs, now that the snapshot
+   * without them is up. Only files no song names: two songs can share a cover,
+   * and a song imported twice shares everything.
+   *
+   * A file's listing goes before its bytes do, so an upload of the same bytes
+   * that lands meanwhile finds it absent and sends it again, rather than
+   * finding it present and pointing every device at a file about to vanish.
+   * One that fails stays in the trash for the next pass.
+   */
+  async #emptyTrash(store: CloudStore): Promise<void> {
+    const { cloud } = this.#deps
+    let deleted = 0
+    for (const key of cloud.trashedKeys()) {
+      if (this.#stopped) return
+      const inflight = store.delete(key).finally(() => this.#deleting.delete(key))
+      this.#deleting.set(key, inflight)
+      try {
+        await inflight
+        cloud.forgetFile(key)
+        deleted++
+      } catch (error) {
+        if (error instanceof CloudError && error.kind !== 'other') throw error
+        this.#logger.warn('could not delete a removed song’s file from the bucket', {
+          key,
+          message: message(error),
+        })
+      }
+    }
+    if (deleted > 0) this.#logger.info('deleted removed songs’ files from the bucket', { deleted })
+  }
+
+  /**
    * Put a file the bucket may already have. Files are named by their hash, so
    * one that is there with the right size is the right file: remembered once,
    * never asked about or sent again.
    */
   async #putOnce(store: CloudStore, key: string, data: Buffer, contentType: string): Promise<void> {
+    // Not while the trash is deleting the very same bytes: wait, then look.
+    const inflight = this.#deleting.get(key)
+    if (inflight) await inflight.catch(() => undefined)
     if (this.#deps.cloud.hasFile(key)) return
     const existing = await store.head(key)
     if (!existing || existing.size !== data.length) {
@@ -1269,7 +1393,7 @@ export class CloudSyncService {
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
       playlistUids: cloud.playlistUids(),
-      playlistSongIds: playlist => playlists.snapshotSongIds(playlist),
+      playlistSongIds: playlist => playlists.songIds(playlist),
       deviceId,
       writtenAt,
     })
@@ -1370,6 +1494,23 @@ export class CloudSyncService {
       prefix: connection.prefix,
       keyIdHint: `${connection.keyId.slice(0, 6)}…`,
     })
+  }
+
+  /** A folder standing in for the bucket (bucket/local.ts). */
+  #useFolder(dir: string): void {
+    const target = { endpoint: 'file://', bucket: dir, prefix: '' }
+    this.#deps.cloud.adoptTarget(target)
+    this.#use(new LocalCloudStore(dir), { ...target, region: '', keyIdHint: 'folder' })
+  }
+
+  /** With a folder as the bucket there is no account to sign in to or out of. */
+  #refuseWithFolder(): void {
+    if (!this.#deps.cloudDir) return
+    throw new CloudError(
+      'other',
+      `This server’s bucket is the folder ${this.#deps.cloudDir} (SELFMP3_CLOUD_DIR). ` +
+        'Unset that to sign in to an account instead.',
+    )
   }
 
   #useDoorman(session: DoormanSession): void {

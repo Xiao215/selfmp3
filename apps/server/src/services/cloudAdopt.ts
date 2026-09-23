@@ -33,11 +33,11 @@ import type { SyncClock } from './localEdits.js'
  * So before a server publishes for the first time into a bucket that has a
  * library, it reads that library and takes on every song in it that it does not
  * have. The row it makes is a whole song — its uid, its tags, its playlists,
- * its plays, its stamps — with `missing` set, because the audio is in the
- * bucket and not on this disk. What was uploaded for it is written to
- * `cloud_songs` from the snapshot, so the next publish re-emits exactly the
- * song it was handed instead of trying to upload files that are already up
- * there.
+ * its plays, its stamps. Its audio stays where it is, in the bucket: this
+ * server keeps no copy of the library (docs/SYNC.md). What was uploaded for it
+ * is written to `cloud_songs` from the snapshot, so the next publish re-emits
+ * exactly the song it was handed instead of trying to upload files that are
+ * already up there.
  *
  * Adoption only ever *adds*. A song this server already has under the same uid
  * is left alone, field for field: the bucket's snapshot is not a change with a
@@ -63,17 +63,20 @@ const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio:
 /**
  * What `cloud_songs` says about a song nobody on this device has read.
  *
- * The signatures are what the upload pass compares a file's size, cover
- * revision and lyric sidecar against to decide whether to send it again. Two of
- * them are set to the value a song with no local file of that kind really
- * produces (`none`), which is the point: if the audio later lands here and the
- * cover and the curve do not, they are still the bucket's, and the snapshot
- * goes on naming them rather than quietly dropping them from every device.
- * Audio and lyrics have no such value, so they get one no real file can make
- * and are worked out properly the moment there is a file to work them out from.
+ * The signatures are what the upload pass compares a song's row, cover
+ * revision, lyric sidecar and motion curve against to decide whether to send
+ * it again. Each is set to exactly the value the pass works out for a song
+ * that has no file of that kind here — the audio's from its size and a time of
+ * zero, the lyrics' likewise, and `none` for a cover and a curve — so an
+ * adopted song is *unchanged* to the pass, and the snapshot goes on naming the
+ * bucket's files rather than trying to upload what this server never had.
  */
-const ADOPTED_SIGNATURE = 'adopted'
 const NO_LOCAL_FILE = 'none'
+
+/** The audio's signature as `cloudSync.ts` reads it from a row no file has ever set. */
+function adoptedAudioSignature(size: number): string {
+  return `${size}-0`
+}
 
 /** A song in the snapshot that is one this server already has, under another uid. */
 interface SameSong {
@@ -184,6 +187,8 @@ export class CloudAdopt {
     const taken = new Set<string>()
     for (const song of songs) {
       if (this.#sync.songId(song.uid) !== null) continue
+      // Removed here since that snapshot was written: not the bucket's to give back.
+      if (this.#cloud.wasRemoved(song.uid)) continue
       const songId = await this.#songWithTheSameAudio(song)
       if (songId !== null) {
         same.push({ uid: song.uid, songId })
@@ -328,11 +333,12 @@ export class CloudAdopt {
     // `reconcileFiles` leaves out a song whose file the bucket has lost.
     if (!audioPresent) return
 
+    const audioSig = adoptedAudioSignature(song.audio.size)
     this.#cloud.saveState({
       songId: id,
       audioKey: song.audio.key,
       audioSize: song.audio.size,
-      audioSig: ADOPTED_SIGNATURE,
+      audioSig,
       coverKey: song.cover?.key ?? null,
       coverSize: song.cover?.size ?? null,
       coverSig: NO_LOCAL_FILE,
@@ -340,7 +346,7 @@ export class CloudAdopt {
       lyricsSize: song.lyrics?.size ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
       romanizedKey: song.lyrics?.romanized ?? null,
-      lyricsSig: ADOPTED_SIGNATURE,
+      lyricsSig: `tags-${audioSig}`,
       motionKey: song.motion ?? null,
       motionSig: NO_LOCAL_FILE,
     })

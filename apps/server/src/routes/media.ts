@@ -1,11 +1,14 @@
 import fs from 'node:fs'
+import { PassThrough } from 'node:stream'
 import { Router } from 'express'
 import { z } from 'zod'
-import { BooleanQuerySchema, IdSchema } from '@selfmp3/shared'
+import { BooleanQuerySchema, IdSchema, type Song } from '@selfmp3/shared'
+import type { CloudStore } from '../bucket/store.js'
 import type { Container } from '../container.js'
+import type { CloudSongState } from '../repositories/cloud.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
-import { sendRange } from '../http/range.js'
+import { sendRange, type RangeSource } from '../http/range.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -14,6 +17,37 @@ const ART_SIZES = [160, 320, 640, 1024] as const
 
 function snapArtSize(wanted: number): number {
   return ART_SIZES.find(size => size >= wanted) ?? 1024
+}
+
+/**
+ * A song's audio as the bucket holds it, a range at a time.
+ *
+ * The copy on this disk is let go once a song is wholly in the bucket
+ * (services/cloudSync.ts), so for most of a library this is the source: each
+ * range the player asks for is asked of the bucket in turn, and nothing is
+ * kept on the way past. The bucket names the file by its hash, which is as
+ * good an etag as there is.
+ */
+function bucketSource(store: CloudStore, song: Song, state: CloudSongState): RangeSource {
+  return {
+    sizeBytes: state.audioSize,
+    mime: song.mime,
+    etag: `"${state.audioKey.replace(/^audio\//, '').replace(/\.[^.]+$/, '')}"`,
+    lastModified: new Date(`${state.uploadedAt.replace(' ', 'T')}Z`),
+    open: (start, end) => {
+      const out = new PassThrough()
+      store
+        .range(state.audioKey, start, end)
+        .then(body => {
+          if (!body) out.destroy(new Error('the bucket has no such file'))
+          else body.pipe(out)
+        })
+        .catch((error: unknown) => {
+          out.destroy(error instanceof Error ? error : new Error(String(error)))
+        })
+      return out
+    },
+  }
 }
 
 /**
@@ -45,13 +79,16 @@ export function mediaRoutes(container: Container): Router {
         }
       }
 
-      const source = await container.storage.rangeSource(song.path, song.mime)
+      // A copy still here — an import not yet uploaded, or not yet analysed —
+      // is served from here; otherwise the bucket is where the song is.
+      let source = await container.storage.rangeSource(song.path, song.mime)
       if (!source) {
-        // The database says it exists but storage disagrees: flag it so the
-        // UI can show it as missing rather than silently failing to play.
-        container.songs.markMissing(song.path)
-        container.bumpLibraryVersion()
-        throw HttpError.notFound('the audio file for this song is missing')
+        const store = container.cloudSync.bucket()
+        const state = container.cloudRepo.state(song.id)
+        if (!store || !state) {
+          throw HttpError.notFound('this song’s audio is not in the bucket yet')
+        }
+        source = bucketSource(store, song, state)
       }
 
       // Somebody is listening right now, which macOS has no way of knowing

@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { parseTagging, tagCloseStep, taggingLeft, taggingLine } from './tagging.model'
 
-const untagged = { tagIds: [], missing: false }
-const tagged = { tagIds: [3], missing: false }
-const missing = { tagIds: [], missing: true }
+const untagged = { tagIds: [] }
+const tagged = { tagIds: [3] }
 
 describe('parseTagging', () => {
   it('is on only for "1"', () => {
@@ -46,10 +45,6 @@ describe('taggingLeft', () => {
 
   it('drops the song playing once it has a tag', () => {
     expect(taggingLeft([tagged, untagged], 0)).toBe(1)
-  })
-
-  it('does not count a missing file', () => {
-    expect(taggingLeft([untagged, missing], 0)).toBe(1)
   })
 
   it('is nothing past the end or on an empty queue', () => {

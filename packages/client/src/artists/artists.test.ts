@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Song } from '@selfmp3/shared'
 import { artistKey, findArtist, libraryArtists, songArtistKeys, splitArtists } from './artists.js'
 
-const song = (id: number, artist: string, missing = false): Song =>
-  ({ id, artist, missing }) as unknown as Song
+const song = (id: number, artist: string): Song => ({ id, artist }) as unknown as Song
 
 describe('splitArtists', () => {
   it('leaves one name whole', () => {
@@ -53,7 +52,6 @@ describe('libraryArtists', () => {
     song(3, 'Yorushika'),
     song(4, 'ヨルシカ'),
     song(5, 'YOASOBI feat. Yorushika'),
-    song(6, 'Gone', true),
   ]
 
   it('groups by name however it is cased, most songs first', () => {
@@ -64,10 +62,6 @@ describe('libraryArtists', () => {
 
   it('keeps two spellings in two scripts apart', () => {
     expect(findArtist(songs, 'ヨルシカ')?.songIds).toEqual([4])
-  })
-
-  it('leaves out a song whose file is missing', () => {
-    expect(findArtist(songs, 'Gone')).toBeUndefined()
   })
 
   it('works once per library', () => {

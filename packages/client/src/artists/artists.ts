@@ -67,7 +67,6 @@ export function libraryArtists(songs: readonly Song[]): readonly Artist[] {
   if (cached) return cached
   const byKey = new Map<string, { songIds: number[]; spellings: Map<string, number> }>()
   for (const song of songs) {
-    if (song.missing) continue
     for (const name of splitArtists(song.artist)) {
       const key = artistKey(name)
       let entry = byKey.get(key)

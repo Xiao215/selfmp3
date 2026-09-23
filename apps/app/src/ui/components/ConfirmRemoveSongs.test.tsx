@@ -6,13 +6,9 @@ import { OverlayProvider } from '../../shell/Overlay'
 import { ConfirmRemoveSongs } from './ConfirmRemoveSongs'
 
 /**
- * The confirmation, and the question it does or does not ask.
- *
- * On a computer the box is the whole point: "remove from my list" and "delete
- * the files" are different things and must never be one mis-tap apart. On a
- * phone there is nothing to tick — removing a song is removing it, and the
- * download goes with it — and offering the choice there only invites the state
- * nobody wants, a file on the device for a song the library has never heard of.
+ * The confirmation asks one question. Removing a song is removing it on every
+ * device, and whatever this device downloaded of it goes too; there is no
+ * "keep the file" to tick, because the server keeps no copy to keep.
  */
 
 jest.mock('../../shell/useLayout', () => ({
@@ -42,23 +38,24 @@ const draw = (props: Partial<Parameters<typeof ConfirmRemoveSongs>[0]> = {}) =>
   )
 
 describe('ConfirmRemoveSongs', () => {
-  it('offers the file as a separate choice where there is a library folder', async () => {
-    await draw()
-
-    expect(screen.getByRole('checkbox')).toBeTruthy()
-    expect(screen.getByText('Also delete the 2 audio files from disk')).toBeTruthy()
-  })
-
-  it('asks once, and only once, where removing takes the copy with it', async () => {
+  it('asks once, with no file to keep, and says the download here goes too', async () => {
     const onConfirm = jest.fn()
-    await draw({ takesTheCopy: true, onConfirm })
+    await draw({ onConfirm })
 
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.getByText('Remove 2 songs from your library?')).toBeTruthy()
     expect(screen.getByText(/deleted from this device/)).toBeTruthy()
+    expect(screen.getByText(/on every device/)).toBeTruthy()
 
     fireEvent.press(screen.getByRole('button', { name: 'Remove 2 songs' }))
-    // Never the server's files: that is the choice a phone does not make.
-    expect(onConfirm).toHaveBeenCalledWith(false)
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the first few songs and counts the rest', async () => {
+    await draw({ songs: [song(1), song(2), song(3), song(4), song(5)] })
+
+    expect(screen.getByText('Song 1')).toBeTruthy()
+    expect(screen.getByText('Song 3')).toBeTruthy()
+    expect(screen.getByText('and 2 more songs')).toBeTruthy()
   })
 })

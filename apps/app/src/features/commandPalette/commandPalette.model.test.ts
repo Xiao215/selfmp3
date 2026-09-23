@@ -4,7 +4,7 @@ import { fuzzyRank } from '@selfmp3/shared'
 import { paletteCommands, paletteResults, stepIndex, untaggedCount } from './commandPalette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
-  ({ id, title, artist, album: '', tagIds: [7], missing: false }) as never
+  ({ id, title, artist, album: '', tagIds: [7] }) as never
 
 const library = {
   songs: [song(1, 'アイドル'), song(2, 'Racing into the Night'), song(3, 'Monster')],
@@ -112,11 +112,7 @@ describe('the command palette', () => {
   })
 
   it('counts untagged songs once per library', () => {
-    const songs = [
-      song(1, 'a'),
-      { ...(song(2, 'b') as object), tagIds: [] } as never,
-      { ...(song(3, 'c') as object), tagIds: [], missing: true } as never,
-    ]
+    const songs = [song(1, 'a'), { ...(song(2, 'b') as object), tagIds: [] } as never]
     expect(untaggedCount(songs)).toBe(1)
     expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
   })

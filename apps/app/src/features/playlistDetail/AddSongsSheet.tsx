@@ -63,7 +63,7 @@ export function AddSongsSheet({
   const inPlaylist = target.kind === 'existing' ? target.inPlaylist : NOTHING
 
   const results = useMemo(() => {
-    const songs = (library?.songs ?? []).filter(song => !song.missing)
+    const songs = library?.songs ?? []
     if (!query.trim()) {
       return [...songs].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, SHOWN)
     }

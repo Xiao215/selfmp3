@@ -183,8 +183,16 @@ const ConfigSchema = z.object({
 
   logLevel: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
-  /** Scan the library folder at boot. Disable for a faster start on huge libraries. */
+  /** Sweep the inbox folder at boot: a file dropped in while the server was off is imported. */
   scanOnBoot: BooleanFromEnv.default(true),
+
+  /**
+   * A folder to use as the bucket instead of an account (bucket/local.ts).
+   * The app does nothing without a cloud, and the dev profile and the verify
+   * lanes should not need a Backblaze account to run. Relative to the data
+   * directory unless absolute; null means a real bucket, signed in to.
+   */
+  cloudDir: z.string().trim().min(1).nullable().default(null),
 })
 
 export type Config = Readonly<z.infer<typeof ConfigSchema>>
@@ -221,6 +229,7 @@ function readEnv(): unknown {
     doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
     logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,
     scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] ?? undefined,
+    cloudDir: env['SELFMP3_CLOUD_DIR'] || undefined,
   }
 }
 
@@ -252,7 +261,13 @@ export function loadConfig(): Config {
     throw new Error(`Invalid configuration:\n${issues}`)
   }
 
-  const config = parsed.data
+  const config = {
+    ...parsed.data,
+    cloudDir:
+      parsed.data.cloudDir === null || path.isAbsolute(parsed.data.cloudDir)
+        ? parsed.data.cloudDir
+        : path.join(parsed.data.dataDir, parsed.data.cloudDir),
+  }
 
   if (config.storageDriver === 's3' && !config.s3.bucket) {
     throw new Error('SELFMP3_STORAGE_DRIVER=s3 requires SELFMP3_S3_BUCKET to be set')

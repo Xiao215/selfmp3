@@ -22,10 +22,10 @@ export const LibrarySchema = z.object({
 })
 export type Library = z.infer<typeof LibrarySchema>
 
+/** What a sweep of the server's inbox folder found (services/scanner.ts). */
 export const ScanResultSchema = z.object({
   added: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
-  removed: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
   durationMs: z.number().nonnegative(),
 })

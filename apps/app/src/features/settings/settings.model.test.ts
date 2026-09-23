@@ -138,8 +138,8 @@ describe('settings', () => {
         songCount: 13,
       }),
     ).toBe('self.mp3 1.0.0 · 13 songs · local storage')
-    expect(scanHint({ added: 1, updated: 2, removed: 0, total: 13, durationMs: 40 })).toBe(
-      'Last scan found 13 songs — 1 new, 2 updated, 0 now missing.',
+    expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
+      'Last sweep found 1 new and 2 updated; 13 songs in the library.',
     )
   })
 })

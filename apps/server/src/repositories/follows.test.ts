@@ -21,11 +21,11 @@ function makeDb(): Database.Database {
   migrate(db, createLogger('silent'))
 
   const insert = db.prepare(`
-    INSERT INTO songs (id, path, title, artist, album, duration, missing)
-    VALUES (@id, @path, @title, @artist, @album, @duration, @missing)
+    INSERT INTO songs (id, path, title, artist, album, duration)
+    VALUES (@id, @path, @title, @artist, @album, @duration)
   `)
   const rows = [
-    { id: 1, path: 'a.mp3', title: '夜曲', artist: '周杰倫', album: '', duration: 217, missing: 0 },
+    { id: 1, path: 'a.mp3', title: '夜曲', artist: '周杰倫', album: '', duration: 217 },
     {
       id: 2,
       path: 'b.mp3',
@@ -33,7 +33,6 @@ function makeDb(): Database.Database {
       artist: '蘇打綠',
       album: '',
       duration: 281,
-      missing: 0,
     },
     {
       id: 3,
@@ -42,10 +41,7 @@ function makeDb(): Database.Database {
       artist: 'Marconi',
       album: '',
       duration: 489,
-      missing: 0,
     },
-    // On another device's disk, not this one's: it is still in the library.
-    { id: 4, path: 'd.mp3', title: 'Gone', artist: 'Nobody', album: '', duration: 100, missing: 1 },
   ]
   for (const row of rows) insert.run(row)
   return db
@@ -68,7 +64,6 @@ describe('a playlist that follows tags', () => {
     tags.addToSong(1, chinese)
     tags.addToSong(2, chinese)
     tags.addToSong(3, chill)
-    tags.addToSong(4, chill)
   })
 
   const following = (tagIds: readonly number[]) =>
@@ -115,21 +110,11 @@ describe('a playlist that follows tags', () => {
     expect(playlists.songIds(playlists.byId(playlist.id)!).sort()).toEqual([1, 2])
   })
 
-  it('keeps a song whose file is missing from this disk', () => {
-    const playlist = following([chill])
-    // The player's view leaves out song 4; the playlist must not.
-    expect(playlists.songIds(playlist)).not.toContain(4)
-    expect(playlists.snapshotSongIds(playlist)).toContain(4)
-
-    playlists.stopFollowing(playlist)
-    expect(playlists.snapshotSongIds(playlists.byId(playlist.id)!)).toContain(4)
-  })
-
   it('keeps the order the rules had put them in', () => {
     const playlist = following([chill, chinese])
-    const ordered = playlists.snapshotSongIds(playlist)
+    const ordered = playlists.songIds(playlist)
     playlists.stopFollowing(playlist)
-    expect(playlists.snapshotSongIds(playlists.byId(playlist.id)!)).toEqual(ordered)
+    expect(playlists.songIds(playlists.byId(playlist.id)!)).toEqual(ordered)
   })
 
   it('does nothing to a playlist that was not following anything', () => {

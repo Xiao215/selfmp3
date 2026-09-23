@@ -92,7 +92,7 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-045 `PROPER` L** — Two `cleanArtist` with different rules (`services/metadata.ts:57-62` strips VEVO; `packages/shared/src/titles.ts:35-40` does not). Add the rule to shared, delete the server copy.
 - [ ] **T-046 `PROPER` L** — Two `similarity()` implementations (`lookupScore.ts:36-98` Dice bigram; `migrateScore.ts:30-61` edit distance). Document why they differ or converge.
 - [ ] **T-047 `PERF` L** — `CoverService.find` probes three files with `existsSync` on every `/api/art/:id` (`covers.ts:133-141`) although `songs.art_ext` records the extension.
-- [ ] **T-048 `PERF` L** — `CloudRestore.waiting()` materialises every restore row to count them on every 2–10 s status poll (`cloudRestore.ts:98-100`). `SELECT COUNT(*)`.
+- [x] **T-048 `PERF` L** — (moot: `cloudRestore.ts` is gone; the server keeps no copy of the library, docs/SYNC.md) `CloudRestore.waiting()` materialises every restore row to count them on every 2–10 s status poll (`cloudRestore.ts:98-100`). `SELECT COUNT(*)`.
 - [ ] **T-049 `ROBUST` L** — `S3StorageDriver.stat` swallows every error as "not found" (`storage/s3.ts:104-106`); a credentials hiccup would `markMissing` the whole library. Return null only for 404/`NoSuchKey`.
 - [x] **T-050 `HARDCODE` L** — `AUDIO_SUFFIXES` in `storage/s3.ts:57` duplicates shared `AUDIO_EXTENSIONS` (the local driver uses it).
 - [x] **T-051 `DEAD` L** — `EventHub.hasSubscriber` (`events.ts:97-102`) used only by its own test.

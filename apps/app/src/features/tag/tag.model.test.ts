@@ -42,11 +42,10 @@ describe('a place’s songs', () => {
     song(2, { tagIds: [2] }),
     song(3, { artist: 'Yorushika' }),
     song(4, { tagIds: [1], artist: 'yorushika' }),
-    song(5, { tagIds: [1], missing: true }),
   ]
   const yorushika = libraryArtists(songs).find(artist => artist.key === 'yorushika')!
 
-  it('is every song a tag carries, newest first, leaving out a missing file', () => {
+  it('is every song a tag carries, newest first', () => {
     const places: Place[] = [{ kind: 'tag', tag: tag(1, 'chill') }]
     expect(placeSongs(places, songs).map(item => item.id)).toEqual([4, 1])
   })
@@ -95,7 +94,7 @@ describe('All tags', () => {
   })
 
   it('counts the untagged songs for the card, newest first', () => {
-    const songs = [song(1), song(2, { tagIds: [1] }), song(3), song(4, { missing: true })]
+    const songs = [song(1), song(2, { tagIds: [1] }), song(3)]
     expect(untaggedSongs(songs).map(item => item.id)).toEqual([3, 1])
     expect(untaggedCardTitle(2)).toBe('2 songs have no tag yet')
     expect(untaggedCardTitle(1)).toBe('1 song has no tag yet')

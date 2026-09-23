@@ -42,6 +42,8 @@ export interface CloudSongState {
   /** The song's motion curve (`lyrics/<sha256>.json`), or null before analysis has made one. */
   readonly motionKey: string | null
   readonly motionSig: string
+  /** When the audio last went up, in SQLite's UTC format. */
+  readonly uploadedAt: string
 }
 
 /** What the sync needs to know about a song's files, straight from its row. */
@@ -55,22 +57,6 @@ export interface SongFileInfo {
   readonly mtimeMs: number
   readonly hasArt: boolean
   readonly artRev: number
-  readonly missing: boolean
-}
-
-/** A song taken on from the bucket whose files are still only in the bucket. */
-export interface SongToRestore {
-  readonly id: number
-  /** Where its audio goes when it arrives. */
-  readonly path: string
-  readonly title: string
-  readonly audioKey: string
-  readonly audioSize: number
-  readonly coverKey: string | null
-  /** Whether this server already has a cover for it, from wherever. */
-  readonly hasArt: boolean
-  readonly lyricsKey: string | null
-  readonly lyricsSynced: boolean
 }
 
 /**
@@ -114,11 +100,10 @@ interface SongFileRow {
   mtime_ms: number
   has_art: number
   art_rev: number
-  missing: number
 }
 
 const SONG_FILE_SELECT =
-  'SELECT id, uid, title, path, mime, size_bytes, mtime_ms, has_art, art_rev, missing FROM songs'
+  'SELECT id, uid, title, path, mime, size_bytes, mtime_ms, has_art, art_rev FROM songs'
 
 function toSongFile(row: SongFileRow): SongFileInfo {
   return {
@@ -131,7 +116,6 @@ function toSongFile(row: SongFileRow): SongFileInfo {
     mtimeMs: row.mtime_ms,
     hasArt: row.has_art === 1,
     artRev: row.art_rev,
-    missing: row.missing === 1,
   }
 }
 
@@ -150,18 +134,7 @@ interface CloudSongRow {
   lyrics_sig: string
   motion_key: string | null
   motion_sig: string
-}
-
-interface ToRestoreRow {
-  id: number
-  path: string
-  title: string
-  has_art: number
-  audio_key: string
-  audio_size: number
-  cover_key: string | null
-  lyrics_key: string | null
-  lyrics_kind: string | null
+  uploaded_at: string
 }
 
 export class CloudRepository {
@@ -172,10 +145,15 @@ export class CloudRepository {
   readonly #songFiles
   readonly #songFile
   readonly #states
+  readonly #state
   readonly #saveState
   readonly #hasFile
   readonly #recordFile
-  readonly #toRestore
+  readonly #trashSong
+  readonly #trashedKeys
+  readonly #forgetFile
+  readonly #rememberRemoved
+  readonly #wasRemoved
 
   constructor(db: Db) {
     this.#db = db
@@ -192,6 +170,7 @@ export class CloudRepository {
     this.#songFile = db.prepare<[number], SongFileRow>(`${SONG_FILE_SELECT} WHERE id = ?`)
 
     this.#states = db.prepare<[], CloudSongRow>('SELECT * FROM cloud_songs')
+    this.#state = db.prepare<[number], CloudSongRow>('SELECT * FROM cloud_songs WHERE song_id = ?')
     this.#saveState = db.prepare(`
       INSERT INTO cloud_songs (
         song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
@@ -219,14 +198,37 @@ export class CloudRepository {
       ON CONFLICT (key) DO UPDATE SET size = excluded.size
     `)
 
-    this.#toRestore = db.prepare<[], ToRestoreRow>(`
-      SELECT s.id, s.path, s.title, s.has_art,
-             c.audio_key, c.audio_size, c.cover_key, c.lyrics_key, c.lyrics_kind
-        FROM songs s
-        JOIN cloud_songs c ON c.song_id = s.id
-       WHERE s.missing = 1 AND s.mtime_ms = 0
-       ORDER BY s.id
+    // Every file of one song, into the trash, with the size the bucket listed.
+    this.#trashSong = db.prepare(`
+      INSERT INTO cloud_trash (key, size)
+      SELECT k.key, COALESCE(f.size, 0)
+        FROM (
+          SELECT audio_key AS key FROM cloud_songs WHERE song_id = @songId
+          UNION SELECT cover_key FROM cloud_songs WHERE song_id = @songId
+          UNION SELECT lyrics_key FROM cloud_songs WHERE song_id = @songId
+          UNION SELECT romanized_key FROM cloud_songs WHERE song_id = @songId
+          UNION SELECT motion_key FROM cloud_songs WHERE song_id = @songId
+        ) k
+        LEFT JOIN cloud_files f ON f.key = k.key
+       WHERE k.key IS NOT NULL
+      ON CONFLICT (key) DO NOTHING
     `)
+    this.#trashedKeys = db.prepare<[], { key: string }>(`
+      SELECT key FROM cloud_trash t
+       WHERE NOT EXISTS (
+         SELECT 1 FROM cloud_songs c
+          WHERE c.audio_key = t.key OR c.cover_key = t.key OR c.lyrics_key = t.key
+             OR c.romanized_key = t.key OR c.motion_key = t.key
+       )
+       ORDER BY key
+    `)
+    this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
+    this.#rememberRemoved = db.prepare(
+      'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ? AND uid IS NOT NULL',
+    )
+    this.#wasRemoved = db.prepare<[string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM removed_songs WHERE uid = ?',
+    )
   }
 
   // --- The connection ------------------------------------------------------
@@ -326,7 +328,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -358,63 +360,94 @@ export class CloudRepository {
 
   states(): Map<number, CloudSongState> {
     const states = new Map<number, CloudSongState>()
-    for (const row of this.#states.all()) {
-      states.set(row.song_id, {
-        songId: row.song_id,
-        audioKey: row.audio_key,
-        audioSize: row.audio_size,
-        audioSig: row.audio_sig,
-        coverKey: row.cover_key,
-        coverSize: row.cover_size,
-        coverSig: row.cover_sig,
-        lyricsKey: row.lyrics_key,
-        lyricsSize: row.lyrics_size,
-        lyricsKind:
-          row.lyrics_kind === 'plain' || row.lyrics_kind === 'synced' ? row.lyrics_kind : null,
-        romanizedKey: row.romanized_key,
-        lyricsSig: row.lyrics_sig,
-        motionKey: row.motion_key,
-        motionSig: row.motion_sig,
-      })
-    }
+    for (const row of this.#states.all()) states.set(row.song_id, toState(row))
     return states
   }
 
-  saveState(state: CloudSongState): void {
+  /** What is in the bucket for one song, or null before anything is. */
+  state(songId: number): CloudSongState | null {
+    const row = this.#state.get(songId)
+    return row ? toState(row) : null
+  }
+
+  saveState(state: Omit<CloudSongState, 'uploadedAt'>): void {
     this.#saveState.run(state)
+  }
+
+  // --- The trash -------------------------------------------------------------
+
+  /**
+   * Put a song's bucket files in the trash, before its row goes, and remember
+   * the song's uid until the snapshot without it is up.
+   *
+   * Nothing is deleted from the bucket here: the snapshot that still names the
+   * song is the one every device is reading, and its files have to outlive it.
+   * The cloud pass deletes what is in the trash once the next snapshot is up,
+   * and only what no other song points at — two songs can share a cover. The
+   * uid is what keeps adoption from taking the song back on from that same
+   * snapshot in the meantime (services/cloudAdopt.ts).
+   */
+  trashSong(songId: number): void {
+    this.#db.transaction(() => {
+      this.#rememberRemoved.run(songId)
+      this.#trashSong.run({ songId })
+    })()
+  }
+
+  /** Whether this song was removed here and the bucket has not been told yet. */
+  wasRemoved(uid: string): boolean {
+    return (this.#wasRemoved.get(uid)?.n ?? 0) > 0
+  }
+
+  /** The snapshot without the removed songs is up: nothing can take them back on now. */
+  forgetRemoved(): void {
+    this.#db.exec('DELETE FROM removed_songs')
+  }
+
+  /** Trashed files no song names any more: what the pass may delete. */
+  trashedKeys(): string[] {
+    return this.#trashedKeys.all().map(row => row.key)
+  }
+
+  /** The bucket no longer has this file: out of the trash and the listing both. */
+  forgetFile(key: string): void {
+    this.#db.transaction(() => {
+      this.#db.prepare('DELETE FROM cloud_trash WHERE key = ?').run(key)
+      this.#forgetFile.run(key)
+    })()
   }
 
   /**
    * The song here whose audio is this file in the bucket, or null.
    *
    * A bucket file is named by the hash of its bytes, so the same key is the
-   * same audio whatever either side calls the song. One that is really here is
-   * preferred over a row whose file has gone, and the oldest row over a newer
-   * one, since the newer is the likelier to be the accident.
+   * same audio whatever either side calls the song. The oldest row wins over a
+   * newer one, since the newer is the likelier to be the accident.
    */
   songWithAudio(audioKey: string): number | null {
     const row = this.#db
       .prepare<[string], { id: number }>(
         `SELECT s.id FROM cloud_songs c JOIN songs s ON s.id = c.song_id
-          WHERE c.audio_key = ? ORDER BY s.missing ASC, s.id ASC LIMIT 1`,
+          WHERE c.audio_key = ? ORDER BY s.id ASC LIMIT 1`,
       )
       .get(audioKey)
     return row?.id ?? null
   }
 
   /**
-   * Songs really here that have never been uploaded, of exactly this size.
+   * Songs that have never been uploaded, of exactly this size.
    *
    * A song's hash is only written down when it goes up, so a server signing in
    * for the first time knows none of its own. Size is what it does know, and
    * two different recordings of exactly the same length in bytes are rare
-   * enough that hashing the few that match costs nothing.
+   * enough that hashing the few that match costs nothing. The caller reads
+   * each file, and one that is not on this disk is simply not a match.
    */
   unsentSongsOfSize(sizeBytes: number): { id: number; path: string }[] {
     return this.#db
       .prepare<[number], { id: number; path: string }>(
         `SELECT s.id, s.path FROM songs s LEFT JOIN cloud_songs c ON c.song_id = s.id
-          WHERE c.song_id IS NULL AND s.missing = 0 AND s.size_bytes = ? ORDER BY s.id`,
+          WHERE c.song_id IS NULL AND s.size_bytes = ? ORDER BY s.id`,
       )
       .all(sizeBytes)
   }
@@ -458,45 +491,15 @@ export class CloudRepository {
   }
 
   /**
-   * Songs this server took on from the bucket and has not fetched the files
-   * for yet (services/cloudRestore.ts), oldest row first.
-   *
-   * `mtime_ms = 0` is what separates them from a song whose file this server
-   * did have and has lost — an unplugged drive, a folder moved. Both are
-   * `missing`, and only one of them is this server's to fetch: quietly
-   * re-downloading a library because a drive was unplugged for an afternoon is
-   * not a thing anybody asked for. An adopted row has never been scanned, so
-   * its mtime has never been anything but zero.
-   *
-   * The queue is the query. There is no cursor to keep in step and nothing to
-   * lose in a crash: whatever is still missing is still here to be found next
-   * time, in the same order.
-   */
-  songsToRestore(): SongToRestore[] {
-    return this.#toRestore.all().map(row => ({
-      id: row.id,
-      path: row.path,
-      title: row.title,
-      audioKey: row.audio_key,
-      audioSize: row.audio_size,
-      coverKey: row.cover_key,
-      hasArt: row.has_art === 1,
-      lyricsKey: row.lyrics_key,
-      lyricsSynced: row.lyrics_kind === 'synced',
-    }))
-  }
-
-  /**
-   * Songs whose file is on this server, how many of them have their audio in
-   * the bucket, and the size of everything this server has uploaded.
+   * How many songs the library has, how many of them have their audio in the
+   * bucket, and the size of everything in the bucket this server knows of.
    */
   totals(): { songs: number; songsInCloud: number; bytes: number } {
     const row = this.#db
       .prepare<[], { songs: number; in_cloud: number; bytes: number | null }>(
         `SELECT
-           (SELECT COUNT(*) FROM songs WHERE missing = 0) AS songs,
-           (SELECT COUNT(*) FROM cloud_songs c JOIN songs s ON s.id = c.song_id
-             WHERE s.missing = 0) AS in_cloud,
+           (SELECT COUNT(*) FROM songs) AS songs,
+           (SELECT COUNT(*) FROM cloud_songs c JOIN songs s ON s.id = c.song_id) AS in_cloud,
            (SELECT SUM(size) FROM cloud_files) AS bytes`,
       )
       .get()
@@ -513,5 +516,26 @@ export class CloudRepository {
       .prepare<[], { id: number; uid: string }>('SELECT id, uid FROM playlists')
       .all()
     return new Map(rows.map(row => [row.id, row.uid]))
+  }
+}
+
+function toState(row: CloudSongRow): CloudSongState {
+  return {
+    songId: row.song_id,
+    audioKey: row.audio_key,
+    audioSize: row.audio_size,
+    audioSig: row.audio_sig,
+    coverKey: row.cover_key,
+    coverSize: row.cover_size,
+    coverSig: row.cover_sig,
+    lyricsKey: row.lyrics_key,
+    lyricsSize: row.lyrics_size,
+    lyricsKind:
+      row.lyrics_kind === 'plain' || row.lyrics_kind === 'synced' ? row.lyrics_kind : null,
+    romanizedKey: row.romanized_key,
+    lyricsSig: row.lyrics_sig,
+    motionKey: row.motion_key,
+    motionSig: row.motion_sig,
+    uploadedAt: row.uploaded_at,
   }
 }

@@ -5,6 +5,7 @@ import {
   bearerAuth,
   cors,
   requestLogger,
+  requireCloud,
   sameOriginWrites,
   securityHeaders,
 } from './http/middleware.js'
@@ -61,6 +62,11 @@ export function createApp(container: Container): Express {
   app.use(express.json({ limit: '1mb' }))
   app.use('/api', sameOriginWrites(container.config))
   app.use('/api', bearerAuth(container.config))
+  // The library is the bucket's: until one is connected there is none to serve.
+  app.use(
+    '/api',
+    requireCloud(() => container.cloudSync.connected),
+  )
 
   const api = express.Router()
   api.use(libraryRoutes(container))

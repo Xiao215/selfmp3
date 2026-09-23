@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import {
   CloudError,
   type CloudObject,
@@ -42,6 +43,15 @@ export class MemoryCloudStore implements CloudStore {
     return this.#answer(() => {
       this.gets.push(key)
       return this.objects.get(key)?.body ?? null
+    })
+  }
+
+  range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+    return this.#answer(() => {
+      const object = this.objects.get(key)
+      if (!object) return null
+      this.gets.push(key)
+      return Readable.from([object.body.subarray(start, end + 1)])
     })
   }
 

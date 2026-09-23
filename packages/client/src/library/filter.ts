@@ -140,7 +140,7 @@ export function filterSongs(
   filter: LibraryFilter,
   isDownloaded: (songId: number) => boolean,
 ): Song[] {
-  let result = songs.filter(song => !song.missing)
+  let result = [...songs]
 
   if (tagFiltered(filter)) {
     result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)

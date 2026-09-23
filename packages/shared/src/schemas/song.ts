@@ -74,8 +74,6 @@ export const SongSchema = z.object({
   sourceUrl: z.string().nullable(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
-  /** True when the file vanished from disk but we kept the metadata. */
-  missing: z.boolean(),
   tagIds: z.array(IdSchema),
   /** Null until the background analyser has looked at the file. */
   audioFeatures: AudioFeaturesSchema.nullable().default(null),
@@ -115,14 +113,12 @@ export type SetSongTags = z.infer<typeof SetSongTagsSchema>
 /**
  * Remove many songs from the library in one request.
  *
- * `deleteFile` is a separate field with a `false` default rather than part of
- * the id list for the same reason the per-song route keeps it in the query
- * string and off by default: "remove from my list" and "destroy the files"
- * are different intentions, and forty of them at once is not undoable.
+ * Removing is one thing: the song leaves the library on every device, and the
+ * bucket lets its files go once nothing names them (docs/SYNC.md). There is no
+ * "keep the file" — the server keeps no copy to keep.
  */
 export const BulkDeleteSongsSchema = z.object({
   songIds: z.array(IdSchema).min(1).max(2000),
-  deleteFile: z.boolean().default(false),
 })
 export type BulkDeleteSongs = z.infer<typeof BulkDeleteSongsSchema>
 
@@ -143,8 +139,6 @@ export type BulkDeleteFailure = z.infer<typeof BulkDeleteFailureSchema>
 export const BulkDeleteResultSchema = z.object({
   /** Rows actually removed from the library. */
   removed: z.number().int().nonnegative(),
-  /** Audio files actually deleted from disk. Always 0 without `deleteFile`. */
-  filesDeleted: z.number().int().nonnegative(),
   failed: z.array(BulkDeleteFailureSchema),
 })
 export type BulkDeleteResult = z.infer<typeof BulkDeleteResultSchema>

@@ -24,8 +24,9 @@ export type Ok = z.infer<typeof OkSchema>
  * A boolean in a query string.
  *
  * Deliberately NOT `z.coerce.boolean()` — that runs JavaScript's `Boolean()`,
- * under which the string `"0"` is `true`. A request for `?deleteFile=0` would
- * then delete the file, which is about as bad as a coercion bug gets.
+ * under which the string `"0"` is `true`. A request for `?refresh=0` would
+ * then refresh, and a `?destroy=0` would destroy, which is about as bad as a
+ * coercion bug gets.
  */
 export const BooleanQuerySchema = z
   .union([z.boolean(), z.string()])

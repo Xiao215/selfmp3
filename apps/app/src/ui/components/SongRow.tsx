@@ -201,7 +201,7 @@ export const SongRow = memo(function SongRow({
   const tint = [
     // Selected: a translucent accent that reads as picked on the dark UI.
     selected && styles.selected,
-    (song.missing || unavailable) && styles.missing,
+    unavailable && styles.unavailable,
     // Held and moving: off the page, over the rows it is passing.
     lifted && styles.lifted,
   ]
@@ -398,7 +398,6 @@ export const SongRow = memo(function SongRow({
             <Text style={[styles.titleWide, active && { color: songColor.tint }]} numberOfLines={1}>
               {song.title}
             </Text>
-            {song.missing ? <Text style={styles.badge}>FILE MISSING</Text> : null}
           </View>
           <View style={styles.subtitleRow}>
             {downloaded ? (
@@ -716,7 +715,7 @@ const styles = StyleSheet.create(theme => ({
   // The palette's own selected-row colour, so picking a row is recoloured by
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
-  missing: {
+  unavailable: {
     opacity: 0.55,
   },
   /* A row held and moving. The cell around it does the raising (`LiftedCell`);

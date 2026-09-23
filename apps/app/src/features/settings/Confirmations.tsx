@@ -83,15 +83,6 @@ export function Confirmations({
           },
         }),
     },
-    'forget-missing': {
-      title: 'Permanently forget missing songs?',
-      body: 'Their tags and play history go with them.',
-      label: 'Forget missing songs',
-      run: () =>
-        void clientApi()
-          .purgeMissing()
-          .then(() => client.invalidateQueries({ queryKey: queryKeys.library })),
-    },
   }
   const dialog = confirming === null ? null : dialogs[confirming]
 

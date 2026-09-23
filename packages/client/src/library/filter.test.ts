@@ -31,7 +31,6 @@ const song = (id: number, title: string, tagIds: number[]): Song =>
     artist: '',
     album: '',
     tagIds,
-    missing: false,
     addedAt: `2026-01-${String(10 + id)}`,
   }) as unknown as Song
 

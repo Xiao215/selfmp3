@@ -173,6 +173,22 @@ function setup(
 }
 
 describe('keeping songs on this device', () => {
+  it('lets go of a kept song the library no longer names, once the library has answered', async () => {
+    const { storage, queue } = setup({ index: addEntry(addEntry(EMPTY_INDEX, entry(1)), entry(2)) })
+    await queue.load()
+
+    // No answer yet is an empty list too, and must not cost a single download.
+    queue.configure(null, [])
+    await Promise.resolve()
+    expect(storage.deleted).toEqual([])
+
+    queue.configure(null, [FIRST], { authoritative: true })
+    await vi.waitFor(() =>
+      expect(queue.getState().index.entries).toEqual(addEntry(EMPTY_INDEX, entry(1)).entries),
+    )
+    expect(storage.deleted).toEqual([2])
+  })
+
   it('fetches one song at a time, in order, skipping what is kept or already queued', async () => {
     const { storage, queue } = setup({ index: addEntry(EMPTY_INDEX, entry(2)) })
     await queue.load()

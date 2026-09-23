@@ -30,7 +30,7 @@ const SONG_SELECT = `
   LEFT JOIN song_audio_features f ON f.song_id = s.id
 `
 
-/** A song taken from the bucket's snapshot, with no file on this disk yet. */
+/** A song taken from the bucket's snapshot: its audio is in the bucket, not here. */
 interface AdoptedSong {
   uid: string
   path: string
@@ -81,8 +81,6 @@ export class SongRepository {
   readonly #insert
   readonly #insertAdopted
   readonly #updateScanned
-  readonly #markMissing
-  readonly #clearMissing
   readonly #withSource
   readonly #setSourceUrl
   readonly #deleteById
@@ -112,18 +110,17 @@ export class SongRepository {
       )
     `)
 
-    // `mtime_ms` stays 0 and `missing` 1: there is no file here yet, and both
-    // are what the scan and the upload pass read to tell that apart from a
-    // song whose audio this server holds.
+    // `mtime_ms` is 0: no file of this song has ever been on this disk, and
+    // the upload pass reads the audio's signature as its size and that.
     this.#insertAdopted = db.prepare(`
       INSERT INTO songs (
         uid, path, title, artist, album, album_artist, track_no, year, duration,
         size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
-        play_count, skip_count, loved, source_url, last_played_at, added_at, missing
+        play_count, skip_count, loved, source_url, last_played_at, added_at
       ) VALUES (
         @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
         @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
-        @playCount, @skipCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt, 1
+        @playCount, @skipCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt
       )
     `)
 
@@ -137,13 +134,10 @@ export class SongRepository {
              mime        = @mime,
              mtime_ms    = @mtimeMs,
              lyrics_kind = @lyricsKind,
-             missing     = 0,
              updated_at  = datetime('now')
        WHERE id = @id
     `)
 
-    this.#markMissing = db.prepare('UPDATE songs SET missing = 1 WHERE path = ?')
-    this.#clearMissing = db.prepare('UPDATE songs SET missing = 0 WHERE id = ?')
     this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
     this.#withSource = db.prepare<[], { id: number; source_url: string }>(
       'SELECT id, source_url FROM songs WHERE source_url IS NOT NULL',
@@ -186,7 +180,7 @@ export class SongRepository {
 
     this.#count = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM songs')
     this.#manifest = db.prepare<[], { id: number; size_bytes: number; mtime_ms: number }>(
-      'SELECT id, size_bytes, mtime_ms FROM songs WHERE missing = 0 ORDER BY id',
+      'SELECT id, size_bytes, mtime_ms FROM songs ORDER BY id',
     )
   }
 
@@ -228,13 +222,12 @@ export class SongRepository {
 
   /**
    * A song this server learned about from the bucket rather than from a file
-   * (services/cloudAdopt.ts): everything the library knows about it, and
-   * `missing`, because the audio is not on this disk yet.
+   * (services/cloudAdopt.ts): everything the library knows about it.
    *
    * It still needs a `path`, which is `NOT NULL UNIQUE` — that column is where
-   * the file *will* be, and what a later scan of the library folder matches the
-   * arriving file against. `has_art` stays 0: the cover is in the bucket, not
-   * here, and `cloud_songs` is what keeps pointing at it.
+   * a copy of the file goes should one ever land here. `has_art` stays 0: the
+   * cover is in the bucket, not here, and `cloud_songs` is what keeps pointing
+   * at it.
    */
   insertAdopted(song: AdoptedSong): number {
     const info = this.#insertAdopted.run({
@@ -291,14 +284,6 @@ export class SongRepository {
         `UPDATE songs SET ${assignments.join(', ')}, updated_at = datetime('now') WHERE id = @id`,
       )
       .run(values)
-  }
-
-  markMissing(path: string): void {
-    this.#markMissing.run(path)
-  }
-
-  clearMissing(id: number): void {
-    this.#clearMissing.run(id)
   }
 
   /** Where an imported song came from: how its own lyrics are found later. */
@@ -428,10 +413,10 @@ export class SongRepository {
     }))
   }
 
-  /** Songs with no cover art whose file is present, for the cover-art pass. */
+  /** Songs with no cover art, for the cover-art pass. */
   withoutArt(): Song[] {
     return this.#db
-      .prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 AND s.missing = 0 ORDER BY s.id`)
+      .prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
       .all()
       .map(toSong)
   }
@@ -441,7 +426,7 @@ export class SongRepository {
     const row = this.#db
       .prepare<[], { id: number; art_rev: number }>(
         `SELECT id, art_rev FROM songs
-          WHERE has_art = 1 AND missing = 0
+          WHERE has_art = 1
             AND (cover_tone_rev IS NULL OR cover_tone_rev != art_rev)
           ORDER BY id LIMIT 1`,
       )
@@ -469,52 +454,15 @@ export class SongRepository {
   }
 
   /**
-   * Missing songs it is safe to forget for good: the ones whose file this
-   * server really has lost.
-   *
-   * Not every missing song is one of those any more. A server that took the
-   * bucket's library on has a row per song with no file here yet
-   * (services/cloudAdopt.ts) and is in the middle of fetching them; forgetting
-   * those would throw away the library somebody is restoring, and take its
-   * tags and play history with it. They are told apart by `mtime_ms`: a row
-   * that has never been scanned has never had anything but zero there.
-   *
-   * The `cloud_songs` reference is the one place this file looks outside the
-   * songs table, and it is deliberate. An optional dependency wired in from
-   * outside would be a guard somebody could forget to connect, and this one
-   * deletes libraries when it is not there.
+   * Every song currently in the database, by path, for the inbox sweep: a
+   * file at a known path is re-read only when its time has moved.
    */
-  missingAndForgettable(): Song[] {
-    return this.#db
-      .prepare<[], SongRow>(
-        `${SONG_SELECT}
-          WHERE s.missing = 1
-            AND NOT (
-              s.mtime_ms = 0
-              AND EXISTS (SELECT 1 FROM cloud_songs c WHERE c.song_id = s.id)
-            )
-          ORDER BY s.id`,
-      )
-      .all()
-      .map(toSong)
-  }
-
-  /**
-   * Every song currently in the database, by path, for scan reconciliation.
-   * `missing` rides along so the scan can tell a file that just went from one
-   * it marked last time, and a file that came back from one that never left.
-   */
-  allPaths(): Map<string, { id: number; mtimeMs: number; missing: boolean }> {
+  allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#db
-      .prepare<[], { id: number; path: string; mtime_ms: number; missing: number }>(
-        'SELECT id, path, mtime_ms, missing FROM songs',
+      .prepare<[], { id: number; path: string; mtime_ms: number }>(
+        'SELECT id, path, mtime_ms FROM songs',
       )
       .all()
-    return new Map(
-      rows.map(row => [
-        row.path,
-        { id: row.id, mtimeMs: row.mtime_ms, missing: row.missing === 1 },
-      ]),
-    )
+    return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
   }
 }

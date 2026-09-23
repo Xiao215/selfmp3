@@ -24,7 +24,6 @@ export class PlaylistRepository {
   readonly #insert
   readonly #delete
   readonly #items
-  readonly #everyItem
   readonly #maxPosition
   readonly #insertItem
   readonly #removeItem
@@ -60,23 +59,6 @@ export class PlaylistRepository {
     this.#delete = db.prepare('DELETE FROM playlists WHERE id = ?')
 
     this.#items = db.prepare<[number], { song_id: number }>(`
-      SELECT pi.song_id
-        FROM playlist_items pi
-        JOIN songs s ON s.id = pi.song_id
-       WHERE pi.playlist_id = ? AND s.missing = 0
-       ORDER BY pi.position, pi.rowid
-    `)
-
-    /*
-     * Every row, missing songs included.
-     *
-     * `#items` hides songs whose file is gone, which is right for playing a
-     * playlist and wrong for rewriting one: `add` and `reorder` clear the
-     * playlist and write back what they read, so reading the hidden version
-     * would drop every missing song on the way through. A missing song is
-     * usually an unplugged drive, and it comes back.
-     */
-    this.#everyItem = db.prepare<[number], { song_id: number }>(`
       SELECT song_id
         FROM playlist_items
        WHERE playlist_id = ?
@@ -247,13 +229,10 @@ export class PlaylistRepository {
    * kind. One transaction: a crash half-way through would otherwise leave a
    * playlist that is neither.
    *
-   * `snapshotSongIds` rather than `songIds`, so a song whose file is missing
-   * from this disk stays in the list. It is still in the library, still in the
-   * bucket, and dropping it here would be a silent deletion nobody asked for.
    */
   stopFollowing(playlist: Playlist): void {
     if (playlist.kind !== 'live') return
-    const keep = this.snapshotSongIds(playlist)
+    const keep = this.songIds(playlist)
     this.#db.transaction(() => {
       this.#clearItems.run(playlist.id)
       keep.forEach((songId, index) => this.#insertItem.run(playlist.id, songId, index))
@@ -303,39 +282,13 @@ export class PlaylistRepository {
    */
   #inKeptOrder(playlistId: number, matched: readonly number[]): number[] {
     const place = new Map<number, number>()
-    for (const row of this.#everyItem.all(playlistId)) place.set(row.song_id, place.size)
+    for (const row of this.#items.all(playlistId)) place.set(row.song_id, place.size)
     if (place.size === 0) return [...matched]
     const kept: number[] = []
     const rest: number[] = []
     for (const id of matched) (place.has(id) ? kept : rest).push(id)
     kept.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
     return [...kept, ...rest]
-  }
-
-  /**
-   * A playlist's songs as a snapshot should carry them (docs/SYNC.md): every
-   * one, whether or not this server holds its file.
-   *
-   * `songIds` leaves out a song whose file is gone, which is right for playing
-   * and wrong for publishing. A song missing from this disk may still have its
-   * audio in the bucket — a server that took the library on from the bucket has
-   * a whole library of them — and it is still in the playlist on every other
-   * device. Publishing the player's view would quietly take it out of the
-   * playlist everywhere because of one server's disk. The snapshot narrows to
-   * songs the bucket really has itself (services/cloudSnapshot.ts), which is
-   * the filter that belongs here.
-   */
-  snapshotSongIds(playlist: Playlist): number[] {
-    if (playlist.kind === 'live') {
-      if (!playlist.rules) return []
-      const { sql, params } = compileSmartRules(playlist.rules, { includeMissing: true })
-      const matched = this.#db
-        .prepare<unknown[], { id: number }>(sql)
-        .all(...params)
-        .map(row => row.id)
-      return this.#inKeptOrder(playlist.id, matched)
-    }
-    return this.#everyItem.all(playlist.id).map(row => row.song_id)
   }
 
   /** Append or insert songs, keeping positions dense and ordered. */
@@ -350,7 +303,7 @@ export class PlaylistRepository {
       // Inserting in the middle: rebuild the order rather than shuffling
       // positions in place, which is simpler to reason about and cheap at
       // playlist scale.
-      const existing = this.#everyItem.all(playlistId).map(row => row.song_id)
+      const existing = this.#items.all(playlistId).map(row => row.song_id)
       const incoming = songIds.filter(id => !existing.includes(id))
       const clamped = Math.min(Math.max(position, 0), existing.length)
       const merged = [...existing.slice(0, clamped), ...incoming, ...existing.slice(clamped)]
@@ -401,8 +354,8 @@ export class PlaylistRepository {
     const run = this.#db.transaction(() => {
       const existing =
         playlist && playlist.kind === 'live'
-          ? this.snapshotSongIds(playlist)
-          : this.#everyItem.all(playlistId).map(row => row.song_id)
+          ? this.songIds(playlist)
+          : this.#items.all(playlistId).map(row => row.song_id)
       const existingSet = new Set(existing)
       const ordered = songIds.filter(id => existingSet.has(id))
       const orderedSet = new Set(ordered)

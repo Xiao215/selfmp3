@@ -10,9 +10,9 @@ function makeDb(): Database.Database {
   migrate(db, createLogger('silent'))
 
   const insert = db.prepare(
-    `INSERT INTO songs (id, path, title, added_at, play_count, loved, last_played_at, missing)
+    `INSERT INTO songs (id, path, title, added_at, play_count, loved, last_played_at)
      VALUES (@id, @path, @title, datetime('now', @added), @plays, @loved,
-             CASE WHEN @last IS NULL THEN NULL ELSE datetime('now', @last) END, @missing)`,
+             CASE WHEN @last IS NULL THEN NULL ELSE datetime('now', @last) END)`,
   )
   // Library is a year old, so the threshold is the 60-day ceiling.
   insert.run({
@@ -23,7 +23,6 @@ function makeDb(): Database.Database {
     plays: 20,
     loved: 1,
     last: '-120 days',
-    missing: 0,
   })
   insert.run({
     id: 2,
@@ -33,7 +32,6 @@ function makeDb(): Database.Database {
     plays: 8,
     loved: 0,
     last: '-90 days',
-    missing: 0,
   })
   insert.run({
     id: 3,
@@ -43,7 +41,6 @@ function makeDb(): Database.Database {
     plays: 30,
     loved: 1,
     last: '-2 days',
-    missing: 0,
   })
   insert.run({
     id: 4,
@@ -53,7 +50,6 @@ function makeDb(): Database.Database {
     plays: 2,
     loved: 0,
     last: '-200 days',
-    missing: 0,
   })
   insert.run({
     id: 5,
@@ -63,17 +59,6 @@ function makeDb(): Database.Database {
     plays: 0,
     loved: 1,
     last: null,
-    missing: 0,
-  })
-  insert.run({
-    id: 6,
-    path: 'f',
-    title: 'Missing file',
-    added: '-365 days',
-    plays: 50,
-    loved: 1,
-    last: '-200 days',
-    missing: 1,
   })
   insert.run({
     id: 7,
@@ -83,7 +68,6 @@ function makeDb(): Database.Database {
     plays: 9,
     loved: 0,
     last: '-59 days',
-    missing: 0,
   })
   return db
 }
@@ -111,7 +95,7 @@ describe('GemsRepository', () => {
       .pick(60, 20)
       .map(gem => gem.songId)
       .sort((a, b) => a - b)
-    // 3 is recent, 4 was never liked, 6 is missing, 7 is one day short.
+    // 3 is recent, 4 was never liked, 7 is one day short.
     expect(ids).toEqual([1, 2, 5])
     expect(repo.count(60)).toBe(3)
   })

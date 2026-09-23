@@ -82,7 +82,7 @@ function tileCover(list: readonly Song[]): Song | null {
 export function recentlyPlayed(songs: readonly Song[], limit: number = HOME_RECENTS): Song[] {
   const seen = new Set<number>()
   return songs
-    .filter(song => song.lastPlayedAt !== null && !song.missing)
+    .filter(song => song.lastPlayedAt !== null)
     .sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
     .filter(song => (seen.has(song.id) ? false : (seen.add(song.id), true)))
     .slice(0, limit)

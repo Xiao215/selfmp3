@@ -41,7 +41,6 @@ export function song(fields: Partial<Song> & Pick<Song, 'id' | 'title' | 'artist
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-09-01 12:00:00',
-    missing: false,
     tagIds: [],
     audioFeatures: null,
     ...fields,

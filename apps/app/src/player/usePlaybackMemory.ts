@@ -86,7 +86,7 @@ export function usePlaybackMemory(): void {
       settle(null)
       return
     }
-    const known = new Set(library.data.songs.filter(song => !song.missing).map(song => song.id))
+    const known = new Set(library.data.songs.map(song => song.id))
     const launch = launchPlayback(parseSession(prefs.get(SESSION_KEY)), addressSong, known)
     const songId = launch ? launch.queueIds[launch.index] : undefined
     if (!launch || songId === undefined || !mayPlay(songId)) {

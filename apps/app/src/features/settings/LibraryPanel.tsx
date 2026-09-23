@@ -13,8 +13,8 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Refresh, Sparkles, Trash, X } from '../../ui/components/Icons'
-import { ButtonRow, Lead, Notice, Panel, partStyles, Row } from './SettingsParts'
+import { Refresh, Sparkles, X } from '../../ui/components/Icons'
+import { Lead, Notice, Panel, partStyles, Row } from './SettingsParts'
 import { scanHint, type Confirming } from './settings.model'
 import {
   coverArtHint,
@@ -38,7 +38,6 @@ export function LibraryPanel({
   const startAnalysis = useStartAnalysis()
   const songs = library.data?.songs ?? []
   const analysed = songs.filter(song => song.audioFeatures !== null).length
-  const missing = songs.filter(song => song.missing).length
   const running = analysis.data?.running === true
 
   return (
@@ -83,24 +82,7 @@ export function LibraryPanel({
           </Text>
         </View>
       ) : null}
-      <CoverArtRow songs={songs} last={missing === 0} />
-      {missing > 0 ? (
-        <View>
-          <Notice tone="warn">
-            {missing} {missing === 1 ? 'song is' : 'songs are'} in your library but the{' '}
-            {missing === 1 ? 'file is' : 'files are'} gone. Their tags and play counts are kept in
-            case the files come back.
-          </Notice>
-          <ButtonRow>
-            <Button
-              label="Forget missing songs"
-              icon={<Trash size={15} tone="danger" />}
-              variant="danger"
-              onPress={() => onConfirm('forget-missing')}
-            />
-          </ButtonRow>
-        </View>
-      ) : null}
+      <CoverArtRow songs={songs} last />
     </Panel>
   )
 }

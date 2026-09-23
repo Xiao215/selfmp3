@@ -66,7 +66,7 @@ function MakeTag({ artist, onDone }: { artist: Artist; onDone: () => void }): Re
     }
     setBusy(true)
     try {
-      const tag = await createTag.mutateAsync(artist.name)
+      const tag = await createTag.mutateAsync({ name: artist.name })
       await bulkTag.mutateAsync({ songIds: [...artist.songIds], tagId: tag.id, action: 'add' })
       const count = artist.songIds.length
       showToast(`Made the tag “${tag.name}” from ${plural(count, 'song', 'songs')}`, 'good')

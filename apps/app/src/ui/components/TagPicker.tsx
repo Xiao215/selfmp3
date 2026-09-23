@@ -160,7 +160,7 @@ export function TagSearchList({
     setError(null)
     setMaking(true)
     try {
-      const tag = await (makeThere ? makeThere(name) : createHere.mutateAsync(name))
+      const tag = await (makeThere ? makeThere(name) : createHere.mutateAsync({ name }))
       setQuery('')
       const next = new Set([...latest.current, tag.id])
       latest.current = next

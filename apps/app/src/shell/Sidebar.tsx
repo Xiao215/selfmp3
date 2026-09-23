@@ -44,6 +44,7 @@ import {
   Search,
   Tag as TagIcon,
 } from '../ui/components/Icons'
+import { HueSwatches, autoTagHue } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { Avatar } from '../ui/components/Avatar'
@@ -335,6 +336,8 @@ function Tags(): ReactNode {
   const nudge = useArtistNudge()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
+  // A colour picked for the new tag; left alone, the name chooses one.
+  const [hue, setHue] = useState<number | undefined>(undefined)
 
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
@@ -348,6 +351,7 @@ function Tags(): ReactNode {
    */
   const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
   const trimmed = name.trim()
+  const autoHue = autoTagHue(trimmed)
   const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
   const exact = suggestions.find(match => match.exact)
 
@@ -359,6 +363,7 @@ function Tags(): ReactNode {
 
   const closeForm = (): void => {
     setName('')
+    setHue(undefined)
     setAdding(false)
   }
 
@@ -369,7 +374,10 @@ function Tags(): ReactNode {
     }
     // Opening the tag that exists beats silently making a near-duplicate.
     if (exact) open(exact.item)
-    else nudge.check(trimmed, () => void createTag.mutateAsync(trimmed).catch(() => undefined))
+    else {
+      const tag = { name: trimmed, ...(hue === undefined ? {} : { hue }) }
+      nudge.check(trimmed, () => void createTag.mutateAsync(tag).catch(() => undefined))
+    }
     closeForm()
   }
 
@@ -416,6 +424,9 @@ function Tags(): ReactNode {
             autoCorrect={false}
             accessibilityLabel="New tag name"
           />
+          <View style={styles.tagHues}>
+            <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} size={16} />
+          </View>
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>
@@ -721,6 +732,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
   },
   tagForm: { paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
+  tagHues: { paddingTop: 6, marginHorizontal: -4 },
   tagInput: {
     color: theme.colors.textPrimary,
     fontSize: 13,

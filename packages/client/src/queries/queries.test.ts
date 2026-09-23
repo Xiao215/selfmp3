@@ -61,7 +61,8 @@ configureClient({
   api: {
     setSongTags: (id: number, tagIds: number[]) => Promise.resolve(song(id, { tagIds })),
     deleteSong: () => Promise.resolve({ ok: true }),
-    createTag: (name: string) => Promise.resolve({ id: 12, name, hue: 0, songCount: 0 }),
+    createTag: ({ name }: { name: string }) =>
+      Promise.resolve({ id: 12, name, hue: 0, songCount: 0 }),
     onCloudLibraryChanged: () => () => undefined,
     answersFromCloud: () => false,
   } as unknown as Api,
@@ -149,7 +150,7 @@ describe('useCreateTag', () => {
     const client = seeded([live])
     const mutation = mount(client, useCreateTag)
 
-    await act(() => mutation().mutateAsync('new'))
+    await act(() => mutation().mutateAsync({ name: 'new' }))
 
     expect(invalidated(client, queryKeys.playlistSongs(live.id))).toBe(false)
     expect(invalidated(client, queryKeys.library)).toBe(true)

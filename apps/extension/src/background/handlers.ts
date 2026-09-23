@@ -256,7 +256,7 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
 
     async createTag({ name }) {
       const { route, api } = await answering()
-      const tag = await api.createTag(name)
+      const tag = await api.createTag({ name })
       // Sent now, as a link left in the bucket is: the worker may be stopped
       // before the replica's own timer fires.
       if (route.mode === 'bucket') await cloud?.flush().catch(() => undefined)

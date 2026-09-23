@@ -30,6 +30,7 @@ import type {
   Motion,
   PlaylistSongs,
   SyncManifest,
+  CreateTag,
 } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
@@ -435,7 +436,7 @@ function refetchLivePlaylists(client: QueryClient): void {
 }
 
 export const useCreateTag = () =>
-  useLibraryMutation((name: string) => clientApi().createTag(name), undefined, { members: false })
+  useLibraryMutation((tag: CreateTag) => clientApi().createTag(tag), undefined, { members: false })
 
 export const useDeleteTag = () =>
   useLibraryMutation((id: number) => clientApi().deleteTag(id), 'Couldn’t delete the tag')

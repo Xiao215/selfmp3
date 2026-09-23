@@ -99,14 +99,15 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
   const createOnServer = useCallback(
     async (name: string): Promise<Tag> => {
       if (!server) return noServer()
-      const tag = await server.createTag(name)
+      const tag = await server.createTag({ name })
       await queryClient.invalidateQueries({ queryKey: keys.library })
       return tag
     },
     [server, queryClient, keys.library],
   )
   // `mutateAsync` is the same function between renders; the object around it is not.
-  const createOnDevice = createHere.mutateAsync
+  const makeHere = createHere.mutateAsync
+  const createOnDevice = useCallback((name: string): Promise<Tag> => makeHere({ name }), [makeHere])
 
   const { fromCloud } = useConnection()
   const queue = server ? serverQueue.data : ownQueue.data

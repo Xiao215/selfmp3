@@ -31,6 +31,7 @@ import {
   X,
 } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { usePressScale } from '../../ui/motion'
 import { card, label, pageTitle } from '../../ui/surfaces'
@@ -217,14 +218,20 @@ function NewTag({
   const createTag = useCreateTag()
   const nudge = useArtistNudge()
   const [name, setName] = useState('')
+  // A colour picked for the new tag; left alone, the name chooses one.
+  const [hue, setHue] = useState<number | undefined>(undefined)
   const [focused, setFocused] = useState(false)
   const trimmed = name.trim()
+  const autoHue = autoTagHue(trimmed)
 
   const make = async (wanted: string): Promise<void> => {
-    if (!(await createTag.mutateAsync(wanted).catch(() => null))) return
+    const tag = { name: wanted, ...(hue === undefined ? {} : { hue }) }
+    if (!(await createTag.mutateAsync(tag).catch(() => null))) return
     // The field stays open and empty: tags arrive in handfuls, and a second
-    // one should not cost another trip to the +.
+    // one should not cost another trip to the +. The colour goes too: the
+    // next tag is its own, not a twin of this one.
     setName('')
+    setHue(undefined)
   }
 
   const submit = (): void => {
@@ -289,6 +296,10 @@ function NewTag({
           onPress={submit}
           testID="tags-create"
         />
+      </View>
+      <View style={styles.newColour}>
+        <Text style={styles.fieldLabel}>Colour</Text>
+        <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} />
       </View>
       {createTag.isError ? (
         <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
@@ -414,6 +425,7 @@ const styles = StyleSheet.create(theme => ({
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
   newRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  newColour: { gap: 6 },
   newHint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: 16 },
   error: { color: theme.colors.danger, fontSize: type.small },
   input: {

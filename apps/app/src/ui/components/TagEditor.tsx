@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
-  oklchToHexAlpha,
   radius,
   space,
   tagColors,
@@ -17,6 +16,7 @@ import {
 import { useAccent } from '../accent'
 import { Button } from './Button'
 import { Check, Trash } from './Icons'
+import { HueSwatches } from './HueSwatches'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
@@ -33,12 +33,6 @@ import { label } from '../surfaces'
  * A popover beside the control at desktop width and a sheet on a phone — the
  * primitive decides, not this.
  */
-
-/**
- * Twelve hues around the wheel, skipping the muddy stretch between yellow and
- * green where chips stop looking like different colours from each other.
- */
-const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
 
 export function TagEditor({
   tag,
@@ -84,10 +78,6 @@ function Editor({
 
   const trimmed = name.trim()
   const changed = trimmed.length > 0 && trimmed !== tag.name
-  // A tag made before the palette existed has a hue of its own; it leads the
-  // row so the current colour is always one of the choices.
-  const hues: readonly number[] = HUES.some(hue => hue === tag.hue) ? HUES : [tag.hue, ...HUES]
-
   const submit = (): void => {
     if (!changed) return
     rename.mutate({ id: tag.id, name: trimmed })
@@ -136,30 +126,11 @@ function Editor({
 
       <View style={styles.section}>
         <Text style={styles.fieldLabel}>Colour</Text>
-        <View style={styles.swatches} role="radiogroup" aria-label="Tag colour">
-          {hues.map(hue => {
-            const on = tag.hue === hue
-            return (
-              <Pressable
-                key={hue}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
-                accessibilityLabel={`Hue ${hue}`}
-                onPress={() => setHue.mutate({ id: tag.id, hue })}
-                style={[
-                  styles.swatchRing,
-                  on && { borderColor: oklchToHexAlpha(0.75, 0.14, hue, 1) },
-                ]}
-              >
-                <View
-                  style={[styles.swatch, { backgroundColor: oklchToHexAlpha(0.62, 0.15, hue, 1) }]}
-                >
-                  {on ? <Check size={12} color={oklchToHexAlpha(0.18, 0.03, hue, 1)} /> : null}
-                </View>
-              </Pressable>
-            )
-          })}
-        </View>
+        <HueSwatches
+          value={tag.hue}
+          first={tag.hue}
+          onChange={hue => setHue.mutate({ id: tag.id, hue })}
+        />
       </View>
 
       {!confirmingDelete ? (
@@ -217,20 +188,5 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
   },
   error: { color: theme.colors.danger, fontSize: 12, marginTop: 5 },
-  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  // The ring is the mark of the chosen colour, so it keeps its edge.
-  swatchRing: {
-    borderWidth: 2,
-    borderColor: 'transparent',
-    borderRadius: 999,
-    padding: 2,
-  },
-  swatch: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
 }))

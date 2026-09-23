@@ -47,6 +47,7 @@ import {
   SyncManifestSchema,
   CloudUidsSchema,
   TagSchema,
+  type CreateTag,
   BulkDeleteResultSchema,
   CloudStatusSchema,
   type AddToPlaylist,
@@ -323,7 +324,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     // --- tags ---------------------------------------------------------------
 
-    createTag: (name: string) => request('POST', '/api/tags', TagSchema, { name }),
+    createTag: (tag: CreateTag) => request('POST', '/api/tags', TagSchema, tag),
 
     renameTag: (id: number, name: string) =>
       request('PATCH', `/api/tags/${id}`, TagSchema, { name }),

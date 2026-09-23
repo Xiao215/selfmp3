@@ -276,6 +276,7 @@ export function songRoutes(container: Container): Router {
         // have no words is not asked about again on every play.
         const metadata = await container.metadata.read(song.path)
         const resolved = await container.lyrics.resolve(
+          song.id,
           song.path,
           metadata.embeddedLyrics,
           song.instrumental ? null : lookup,

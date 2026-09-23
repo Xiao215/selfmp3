@@ -1307,8 +1307,9 @@ describe('CloudSyncService', () => {
       await service.whenIdle()
 
       expect(here('A - One/A - One.m4a')).toBe(false)
-      // The words stay beside where the audio was.
-      expect(here('A - One/A - One.lrc')).toBe(true)
+      // The words and the folder go with it.
+      expect(here('A - One/A - One.lrc')).toBe(false)
+      expect(here('A - One')).toBe(false)
       expect(latest().songs.map(song => song.title)).toEqual(['One'])
       expect(service.status().songs).toEqual({ total: 1, inCloud: 1 })
 
@@ -1325,6 +1326,57 @@ describe('CloudSyncService', () => {
           .songs.map(song => song.title)
           .sort(),
       ).toEqual(['One', 'Two'])
+    })
+
+    it('reads the words from the bucket once the sidecar has gone, and keeps naming them', async () => {
+      const service = lettingGo()
+      const words = '[00:01.00] la\n[00:02.00] la'
+      const id = addSong('A - One', 'one', { lyrics: words })
+      analysed.add(id)
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(here('A - One/A - One.lrc')).toBe(false)
+      const key = latest().songs[0]?.lyrics?.key
+      expect(key).toBeDefined()
+
+      // What the lyrics routes, the index and the romanization pass now read.
+      expect(await service.fetchLyrics(id)).toEqual({ text: words, synced: true })
+      const lyrics = new LyricsService(
+        new LocalStorageDriver(root),
+        createLogger('silent'),
+        () => Promise.reject(new Error('offline')),
+        null,
+        songId => service.fetchLyrics(songId),
+      )
+      expect(await lyrics.stored(id, 'A - One/A - One.m4a')).toEqual({
+        source: 'cloud',
+        kind: 'synced',
+        text: words,
+      })
+
+      // And the next pass sends nothing and changes nothing: the bucket's
+      // words are current, since nothing here could have changed them.
+      const before = bucket.puts.length
+      await service.syncNow()
+      expect(bucket.puts.slice(before).filter(key => key.startsWith('lyrics/'))).toEqual([])
+      expect(latest().songs[0]?.lyrics?.key).toBe(key)
+    })
+
+    it('takes the words out of the bucket’s song when they are cleared here', async () => {
+      const service = lettingGo()
+      const id = addSong('A - One', 'one', { lyrics: '[00:01.00] la la' })
+      analysed.add(id)
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(latest().songs[0]?.lyrics).not.toBeNull()
+
+      // Cleared by hand (PUT /songs/:id/lyrics with nothing): the sidecar is
+      // long gone, and the row is what says so.
+      songs.setLyricsKind(id, 'none')
+      await service.syncNow()
+
+      expect(latest().songs[0]?.lyrics).toBeNull()
+      expect(await service.fetchLyrics(id)).toBeNull()
     })
 
     it('keeps the copy until analysis is done with it', async () => {

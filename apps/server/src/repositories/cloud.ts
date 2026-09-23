@@ -57,6 +57,8 @@ export interface SongFileInfo {
   readonly mtimeMs: number
   readonly hasArt: boolean
   readonly artRev: number
+  /** As the row says: what the words' signature falls back to when no file is here. */
+  readonly lyricsKind: string
 }
 
 /**
@@ -100,10 +102,11 @@ interface SongFileRow {
   mtime_ms: number
   has_art: number
   art_rev: number
+  lyrics_kind: string
 }
 
 const SONG_FILE_SELECT =
-  'SELECT id, uid, title, path, mime, size_bytes, mtime_ms, has_art, art_rev FROM songs'
+  'SELECT id, uid, title, path, mime, size_bytes, mtime_ms, has_art, art_rev, lyrics_kind FROM songs'
 
 function toSongFile(row: SongFileRow): SongFileInfo {
   return {
@@ -116,6 +119,7 @@ function toSongFile(row: SongFileRow): SongFileInfo {
     mtimeMs: row.mtime_ms,
     hasArt: row.has_art === 1,
     artRev: row.art_rev,
+    lyricsKind: row.lyrics_kind,
   }
 }
 

@@ -184,20 +184,20 @@ describe('LyricsService', () => {
   describe('resolve', () => {
     it('passes the instrumental answer through and writes no sidecar', async () => {
       const { lyrics } = service({ get: { instrumental: true } })
-      expect(await lyrics.resolve('Midnight Drive.mp3', null, song)).toBe('instrumental')
+      expect(await lyrics.resolve(1, 'Midnight Drive.mp3', null, song)).toBe('instrumental')
       expect(await lyrics.findSidecar('Midnight Drive.mp3')).toBeNull()
     })
 
     it('stays off the network without remote input', async () => {
       const { lyrics, lrclib } = service({ get: { plainLyrics: 'la la' } })
-      expect(await lyrics.resolve('Midnight Drive.mp3', null, null)).toBeNull()
+      expect(await lyrics.resolve(1, 'Midnight Drive.mp3', null, null)).toBeNull()
       expect(lrclib.calls).toEqual([])
     })
 
     it('prefers a local sidecar over whatever lrclib says', async () => {
       await storage.write('Midnight Drive.lrc', Buffer.from('[00:01.00]mine'))
       const { lyrics, lrclib } = service({ get: { instrumental: true } })
-      expect(await lyrics.resolve('Midnight Drive.mp3', null, song)).toMatchObject({
+      expect(await lyrics.resolve(1, 'Midnight Drive.mp3', null, song)).toMatchObject({
         source: 'sidecar',
         text: '[00:01.00]mine',
       })
@@ -206,7 +206,7 @@ describe('LyricsService', () => {
 
     it('saves found lyrics as a sidecar', async () => {
       const { lyrics } = service({ get: { syncedLyrics: '[00:01.00]la la' } })
-      expect(await lyrics.resolve('Midnight Drive.mp3', null, song)).toMatchObject({
+      expect(await lyrics.resolve(1, 'Midnight Drive.mp3', null, song)).toMatchObject({
         source: 'remote',
         kind: 'synced',
       })

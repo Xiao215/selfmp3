@@ -124,6 +124,8 @@ interface Signatures {
   readonly lyrics: string
   /** The motion curve file's size and time, or `none` before analysis has made one. */
   readonly motion: string
+  /** Whether the audio is on this disk: what a changed audio signature needs to be sent from. */
+  readonly audioHere: boolean
 }
 
 /** A song's words in the bucket, and their romanized lines beside them. */
@@ -380,6 +382,19 @@ export class CloudSyncService {
     const state = this.#deps.cloud.state(songId)
     if (!store || !state) return null
     return store.get(state.audioKey)
+  }
+
+  /**
+   * A song's words from the bucket, once the sidecar here has gone: what the
+   * lyrics routes, the search index and the romanization pass read. Null with
+   * no bucket, or a song the bucket holds no words for.
+   */
+  async fetchLyrics(songId: number): Promise<{ text: string; synced: boolean } | null> {
+    const store = this.#store
+    const state = this.#deps.cloud.state(songId)
+    if (!store || !state?.lyricsKey) return null
+    const body = await store.get(state.lyricsKey)
+    return body ? { text: body.toString('utf8'), synced: state.lyricsKind === 'synced' } : null
   }
 
   /**
@@ -719,8 +734,8 @@ export class CloudSyncService {
       const settled: SongFileInfo[] = []
       let withoutCopy = 0
       for (const file of cloud.songFiles()) {
-        const signatures = await this.#signatures(file)
         const state = states.get(file.id)
+        const signatures = await this.#signatures(file, state)
         if (
           state &&
           state.audioSig === signatures.audio &&
@@ -731,10 +746,11 @@ export class CloudSyncService {
           settled.push(file)
           continue
         }
-        // Something to send, and the audio may have to be read for it: a song
-        // whose copy here has already gone is published as the bucket has it,
-        // and what could not be sent for it is said once.
-        if (!(await this.#deps.storage.exists(file.path))) {
+        // New audio has to be read from a copy here. A cover, a curve or the
+        // words can go up without it; a song whose audio changed and whose
+        // copy has already gone is published as the bucket has it, and what
+        // could not be sent for it is said once.
+        if ((!state || state.audioSig !== signatures.audio) && !signatures.audioHere) {
           withoutCopy++
           continue
         }
@@ -1062,19 +1078,33 @@ export class CloudSyncService {
    * file does. The curve is compared by a stat rather than by hashing it, as
    * the sidecar is: it is written whole and renamed into place, so a new curve
    * is always a new time, and a pass over an unchanged library reads no file.
+   *
+   * With neither a sidecar nor the audio here — the ordinary state, once the
+   * pass has let both go — nothing here can have changed the words, and their
+   * signature is whatever was sent: the bucket's words stand. The one thing
+   * that can still change them is the row saying there are none (the words
+   * were cleared by hand), which is `none`, and sends the song up without them.
    */
-  async #signatures(file: SongFileInfo): Promise<Signatures> {
+  async #signatures(file: SongFileInfo, state: CloudSongState | null = null): Promise<Signatures> {
     const audio = `${file.sizeBytes}-${file.mtimeMs}`
     const cover = file.hasArt ? `art-${file.artRev}` : 'none'
     const curve = (await this.#deps.motion?.stat(file.id)) ?? null
     const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : 'none'
+    const audioHere = await this.#deps.storage.exists(file.path)
     const sidecar = await this.#deps.lyrics.findSidecar(file.path)
-    if (!sidecar) return { audio, cover, lyrics: `tags-${audio}`, motion }
+    if (!sidecar) {
+      const lyrics = audioHere
+        ? `tags-${audio}`
+        : file.lyricsKind === 'none'
+          ? 'none'
+          : (state?.lyricsSig ?? 'none')
+      return { audio, cover, lyrics, motion, audioHere }
+    }
     const stat = await this.#deps.storage.stat(sidecar.key)
     const lyrics = stat
       ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
       : `tags-${audio}`
-    return { audio, cover, lyrics, motion }
+    return { audio, cover, lyrics, motion, audioHere }
   }
 
   /** Upload whatever of one song's files the bucket does not have yet. */
@@ -1084,7 +1114,7 @@ export class CloudSyncService {
     state: CloudSongState | null,
     known?: Signatures,
   ): Promise<void> {
-    const signatures = known ?? (await this.#signatures(file))
+    const signatures = known ?? (await this.#signatures(file, state))
 
     let audio: { key: string; size: number }
     if (state && state.audioSig === signatures.audio) {
@@ -1220,26 +1250,28 @@ export class CloudSyncService {
   }
 
   /**
-   * Let go of the copies on this disk.
+   * Let go of the copies on this disk: the audio, the words beside it, and
+   * the folder they were in.
    *
    * Every song here is wholly in the bucket as it stands, and the snapshot
    * naming it is up; what the copy is still for is analysis, so a song analysis
-   * has not reached yet keeps it a while longer. The words stay beside where
-   * the audio was — a few kilobytes, and the pass reads them to know the
-   * bucket's are current — and the folder goes with the audio when nothing is
-   * left in it.
+   * has not reached yet keeps it a while longer. From here on the words are
+   * read from the bucket (`fetchLyrics`), and the pass knows they are current
+   * because nothing here can have changed them (`#signatures`).
    */
   async #letGo(settled: readonly SongFileInfo[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
-    const { storage } = this.#deps
+    const { storage, lyrics } = this.#deps
     let released = 0
     for (const file of settled) {
       if (this.#stopped) return
       if (!analysed(file.id)) continue
-      if (!(await storage.exists(file.path))) continue
+      const audioHere = await storage.exists(file.path)
+      if (!audioHere && !(await lyrics.findSidecar(file.path))) continue
       try {
-        await storage.delete(file.path)
+        if (audioHere) await storage.delete(file.path)
+        await lyrics.deleteSidecar(file.path)
         await removeFolderIfEmpty(storage, file.path)
         released++
       } catch (error) {

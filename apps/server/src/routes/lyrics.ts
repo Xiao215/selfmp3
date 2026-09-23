@@ -37,6 +37,7 @@ export function lyricsRoutes(container: Container): Router {
   const resolveText = async (song: Song): Promise<string> => {
     const metadata = await container.metadata.read(song.path)
     const resolved = await container.lyrics.resolve(
+      song.id,
       song.path,
       metadata.embeddedLyrics,
       song.instrumental

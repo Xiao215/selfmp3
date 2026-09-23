@@ -42,7 +42,7 @@ export async function romanizedLines(
  */
 export async function romanizeLibrary(deps: {
   readonly songs: { all(): readonly Song[] }
-  readonly lyrics: { readSidecar(audioKey: string): Promise<{ text: string } | null> }
+  readonly lyrics: { stored(songId: number, audioKey: string): Promise<{ text: string } | null> }
   readonly metadata: { read(path: string): Promise<{ embeddedLyrics: string | null }> }
   readonly lyricsCache: LyricsCache
   readonly romanization: RomanizationService
@@ -52,9 +52,9 @@ export async function romanizeLibrary(deps: {
   for (const song of deps.songs.all()) {
     if (song.lyricsKind === 'none') continue
     try {
-      const sidecar = await deps.lyrics.readSidecar(song.path)
+      const stored = await deps.lyrics.stored(song.id, song.path)
       const text =
-        sidecar?.text ??
+        stored?.text ??
         (await deps.metadata.read(song.path).catch(() => null))?.embeddedLyrics?.trim()
       if (!text) continue
       const hash = LyricsCache.hash(text)

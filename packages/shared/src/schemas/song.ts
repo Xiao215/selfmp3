@@ -201,7 +201,8 @@ export const SkipEventSchema = z.object({
 export type SkipEvent = z.infer<typeof SkipEventSchema>
 
 export const LyricsResponseSchema = z.object({
-  source: z.enum(['sidecar', 'embedded', 'remote']),
+  /** `cloud` is the bucket's copy: what a server that keeps no copy of its own answers with. */
+  source: z.enum(['sidecar', 'embedded', 'cloud', 'remote']),
   kind: LyricsKindSchema,
   text: z.string(),
   /**

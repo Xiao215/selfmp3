@@ -6,21 +6,24 @@ import { USER_AGENT } from '../config.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 
 /**
- * Lyrics come from three places, in order of trust:
+ * Lyrics come from four places, in order of trust:
  *
  *  1. A sidecar file next to the audio (`Artist - Title.lrc`). Yours, editable,
- *     wins over everything.
- *  2. Tags embedded in the audio file itself.
- *  3. The network, fetched once and then written to disk as a sidecar so it
- *     is available offline afterwards: YouTube Music's timed lyrics first
- *     (see youtubeMusic.ts), then lrclib.net, a community database.
+ *     wins over everything — while it is here. The cloud pass uploads it and
+ *     then lets it go with the audio (docs/SYNC.md), so for most of a library
+ *     there is none.
+ *  2. Tags embedded in the audio file itself, while the audio is here.
+ *  3. The bucket's copy of the words, which is where both of the above end up.
+ *  4. The network, fetched once and then written to disk as a sidecar for the
+ *     pass to send up: YouTube Music's timed lyrics first (see
+ *     youtubeMusic.ts), then lrclib.net, a community database.
  */
 
 const LRCLIB = 'https://lrclib.net/api'
 const REQUEST_TIMEOUT_MS = 8_000
 
 interface LyricsResult {
-  readonly source: 'sidecar' | 'embedded' | 'remote'
+  readonly source: 'sidecar' | 'embedded' | 'cloud' | 'remote'
   readonly kind: LyricsKind
   readonly text: string
 }
@@ -66,22 +69,42 @@ interface LrclibRecord {
  */
 const SYNCED_TOLERANCE_S = 1
 
+/** The words as the bucket holds them for a song, or null when it holds none. */
+type FromBucket = (songId: number) => Promise<RemoteLyrics | null>
+
 export class LyricsService {
   readonly #storage: StorageDriver
   readonly #logger: Logger
   readonly #fetch: FetchLike
   readonly #youtubeMusic: YouTubeMusicLyrics | null
+  readonly #fromBucket: FromBucket | null
 
   constructor(
     storage: StorageDriver,
     logger: Logger,
     fetchImpl: FetchLike = fetch,
     youtubeMusic: YouTubeMusicLyrics | null = null,
+    fromBucket: FromBucket | null = null,
   ) {
     this.#storage = storage
     this.#logger = logger.child('lyrics')
     this.#fetch = fetchImpl
     this.#youtubeMusic = youtubeMusic
+    this.#fromBucket = fromBucket
+  }
+
+  /**
+   * The words this server can hand over without asking the network: a
+   * sidecar still here, or else the bucket's copy. What the search index and
+   * the romanization pass read, since both run unattended.
+   */
+  async stored(songId: number, audioKey: string): Promise<LyricsResult | null> {
+    const sidecar = await this.readSidecar(audioKey)
+    if (sidecar) return sidecar
+    const cloud = await this.#fromBucket?.(songId)
+    return cloud
+      ? { source: 'cloud', kind: cloud.synced ? 'synced' : 'plain', text: cloud.text }
+      : null
   }
 
   /** Path of an existing sidecar for this audio key, or null. */
@@ -229,6 +252,7 @@ export class LyricsService {
    * sidecar by hand, the words are there, whatever lrclib thought.
    */
   async resolve(
+    songId: number,
     audioKey: string,
     embedded: string | null,
     remoteInput: LyricsLookup | null,
@@ -239,6 +263,9 @@ export class LyricsService {
     if (embedded?.trim()) {
       return { source: 'embedded', kind: isSynced(embedded) ? 'synced' : 'plain', text: embedded }
     }
+
+    const cloud = await this.#fromBucket?.(songId)
+    if (cloud) return { source: 'cloud', kind: cloud.synced ? 'synced' : 'plain', text: cloud.text }
 
     if (!remoteInput) return null
 

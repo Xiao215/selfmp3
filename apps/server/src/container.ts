@@ -174,7 +174,15 @@ export function createContainer(configured: Config): Container {
   const importRequests = new ImportRequestRepository(db)
 
   const metadata = new MetadataService(storage, logger)
-  const lyrics = new LyricsService(storage, logger, fetch, new YouTubeMusicLyrics(logger))
+  // The words come from the bucket once the sidecar has gone up and been let
+  // go; the sync is built below, so it is reached lazily.
+  const lyrics: LyricsService = new LyricsService(
+    storage,
+    logger,
+    fetch,
+    new YouTubeMusicLyrics(logger),
+    songId => cloudSync.fetchLyrics(songId),
+  )
   const covers = new CoverService(config, songs, logger)
 
   // One clock for everything this server stamps, named as it is in the bucket.

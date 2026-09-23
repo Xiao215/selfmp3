@@ -67,7 +67,8 @@ const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio:
  * revision, lyric sidecar and motion curve against to decide whether to send
  * it again. Each is set to exactly the value the pass works out for a song
  * that has no file of that kind here — the audio's from its size and a time of
- * zero, the lyrics' likewise, and `none` for a cover and a curve — so an
+ * zero, the lyrics' likewise or `none` where the bucket has none, and `none`
+ * for a cover and a curve — so an
  * adopted song is *unchanged* to the pass, and the snapshot goes on naming the
  * bucket's files rather than trying to upload what this server never had.
  */
@@ -346,7 +347,7 @@ export class CloudAdopt {
       lyricsSize: song.lyrics?.size ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
       romanizedKey: song.lyrics?.romanized ?? null,
-      lyricsSig: `tags-${audioSig}`,
+      lyricsSig: song.lyrics ? `tags-${audioSig}` : NO_LOCAL_FILE,
       motionKey: song.motion ?? null,
       motionSig: NO_LOCAL_FILE,
     })

@@ -7,7 +7,7 @@ import type { MetadataService } from './metadata.js'
 import { LyricsCache } from './lyricsCache.js'
 
 /**
- * Keeps the lyric search index in step with the lyrics on disk.
+ * Keeps the lyric search index in step with the lyrics the server holds.
  *
  * Indexing happens whenever lyrics are resolved or saved, plus a one-off
  * backfill after boot for songs the scanner knows have lyrics but that nobody
@@ -66,10 +66,10 @@ export class LyricsIndexService {
     return hits
   }
 
-  /** Sidecar or embedded text only — no network, this runs unattended. */
+  /** Sidecar, the bucket's copy, or embedded text — no network, this runs unattended. */
   async #localText(song: Song): Promise<string | null> {
-    const sidecar = await this.#lyrics.readSidecar(song.path)
-    if (sidecar) return sidecar.text
+    const stored = await this.#lyrics.stored(song.id, song.path)
+    if (stored) return stored.text
     const metadata = await this.#metadata.read(song.path).catch(() => null)
     return metadata?.embeddedLyrics?.trim() ? metadata.embeddedLyrics : null
   }

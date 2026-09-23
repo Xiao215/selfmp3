@@ -167,6 +167,20 @@ export class ImportQueueService {
     return retried
   }
 
+  /** Pause all: every download that can still be stopped is, and the queue behind it waits. */
+  pause(): number {
+    const cancelled = this.#imports.cancelAll()
+    for (const jobId of cancelled) this.#inFlight.get(jobId)?.abort()
+    return cancelled.length
+  }
+
+  /** Resume all: what was paused goes back in the queue and the worker is woken. */
+  resume(): number {
+    const resumed = this.#imports.retryCancelled()
+    if (resumed > 0) this.kick()
+    return resumed
+  }
+
   /**
    * The scheduler.
    *

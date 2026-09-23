@@ -15,6 +15,7 @@ import {
   jobTone,
   linkHint,
   matchingTag,
+  queueControls,
   radius,
   reviewFrom,
   sharedLinks,
@@ -141,6 +142,7 @@ export function ImportScreen({
 
   const hint = linkHint(links)
   const folded = queue ? foldQueue(queue.jobs) : null
+  const controls = folded ? queueControls(folded.open) : null
   const ready = hasLink(links) && !preview.isPending && tools?.ytdlp !== false
 
   const form = (
@@ -281,15 +283,39 @@ export function ImportScreen({
    * failed — is always first; the day's arrivals come after it, a few at a
    * time, since a morning's imports were a screen of rows pushing the one that
    * failed out of sight.
+   *
+   * Beside Now, the whole queue at once: Pause all while anything is still
+   * downloading or waiting, Resume all while anything was paused. Forty rows
+   * each with its own Cancel or Retry were forty taps.
    */
   const jobs =
-    queue && folded && queue.jobs.length > 0 ? (
+    queue && folded && controls && queue.jobs.length > 0 ? (
       <View style={styles.jobs} testID="import-queue">
         {folded.open.length > 0 ? (
           <View style={styles.group} aria-live="polite">
-            <Text style={styles.groupLabel} accessibilityRole="header">
-              Now
-            </Text>
+            <View style={styles.groupHead}>
+              <Text style={styles.groupLabel} accessibilityRole="header">
+                Now
+              </Text>
+              <View style={styles.groupActions}>
+                {controls.pausable > 0 ? (
+                  <FoldAction
+                    label="Pause all"
+                    accessibilityLabel="Pause every download"
+                    onPress={() => afterJob(api.pauseImports())}
+                    testID="import-pause-all"
+                  />
+                ) : null}
+                {controls.resumable > 0 ? (
+                  <FoldAction
+                    label="Resume all"
+                    accessibilityLabel="Resume every paused download"
+                    onPress={() => afterJob(api.resumeImports())}
+                    testID="import-resume-all"
+                  />
+                ) : null}
+              </View>
+            </View>
             {folded.open.map(job => (
               <JobRow
                 key={job.id}
@@ -418,17 +444,19 @@ function Finished({
   )
 }
 
-/** "Clear" and "Show all": quiet, in the accent, a finger's height. */
+/** "Clear", "Pause all" and "Show all": quiet, in the accent, a finger's height. */
 function FoldAction({
   label,
   accessibilityLabel,
   expanded,
   onPress,
+  testID,
 }: {
   label: string
   accessibilityLabel: string
   expanded?: boolean
   onPress: () => void
+  testID?: string
 }): ReactNode {
   return (
     <Pressable
@@ -438,6 +466,7 @@ function FoldAction({
       accessibilityState={expanded === undefined ? undefined : { expanded }}
       hitSlop={{ top: 8, bottom: 8 }}
       style={({ pressed }) => [styles.foldAction, pressed && styles.pressed]}
+      testID={testID}
     >
       <Text style={styles.foldActionText}>{label}</Text>
     </Pressable>
@@ -621,6 +650,7 @@ const styles = StyleSheet.create(theme => ({
   jobs: { gap: 18 },
   group: { gap: 6 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   groupLabel: groupLabel(theme.colors),
   foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
   foldActionText: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },

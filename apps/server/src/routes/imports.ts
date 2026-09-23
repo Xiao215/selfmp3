@@ -275,6 +275,21 @@ export function importRoutes(container: Container): Router {
     }),
   )
 
+  /**
+   * The whole queue at once. Pause all calls off everything that can still be
+   * called off; Resume all queues everything that was cancelled again, and
+   * leaves what failed on its own to its own Retry.
+   */
+  router.post(
+    '/import/pause',
+    route({}, () => ({ paused: container.importQueue.pause() })),
+  )
+
+  router.post(
+    '/import/resume',
+    route({}, () => ({ resumed: container.importQueue.resume() })),
+  )
+
   router.post(
     '/import/clear',
     route({}, () => ({ cleared: container.imports.clearFinished() })),

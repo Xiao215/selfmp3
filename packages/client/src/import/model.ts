@@ -129,6 +129,22 @@ export function foldQueue<T extends Pick<ImportJob, 'status'>>(
   }
 }
 
+/**
+ * What Pause all and Resume all have to work on, so each is offered only
+ * while it would do something: Pause all takes every job a Cancel would,
+ * Resume all every job that was cancelled. A job that failed on its own
+ * keeps its own Retry, since a reason worth reading is on its row.
+ */
+export function queueControls(jobs: readonly Pick<ImportJob, 'status' | 'step'>[]): {
+  pausable: number
+  resumable: number
+} {
+  return {
+    pausable: jobs.filter(job => jobAction(job) === 'cancel').length,
+    resumable: jobs.filter(job => job.status === 'cancelled').length,
+  }
+}
+
 /** A server's `2026-09-14 08:30:00` is UTC without saying so; an ISO time says so. */
 function stampDate(stamp: string): Date {
   return new Date(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`)

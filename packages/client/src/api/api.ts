@@ -425,6 +425,10 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     retryImport: (id: string) => request('POST', `/api/import/jobs/${id}/retry`, OkSchema),
 
+    pauseImports: () => request('POST', '/api/import/pause', z.object({ paused: z.number() })),
+
+    resumeImports: () => request('POST', '/api/import/resume', z.object({ resumed: z.number() })),
+
     clearImports: () => request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
 
     // --- migrate ------------------------------------------------------------

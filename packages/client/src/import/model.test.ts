@@ -13,6 +13,7 @@ import {
   linkHint,
   matchingTag,
   queueActivity,
+  queueControls,
   reviewFrom,
   sharedLinks,
 } from './model.js'
@@ -160,6 +161,20 @@ describe('import queue', () => {
     // The server's own stamps are UTC with a space and no zone.
     const utc = now.toISOString().slice(0, 19).replace('T', ' ')
     expect(finishedLabel([{ updatedAt: utc }], now)).toBe('1 added today')
+  })
+
+  it('offers Pause all for what a cancel would take, and Resume all for what was paused', () => {
+    expect(
+      queueControls([
+        job({ status: 'queued' }),
+        job({ status: 'running', step: 'downloading' }),
+        job({ status: 'running', step: 'saving' }),
+        job({ status: 'cancelled' }),
+        job({ status: 'error', step: 'downloading' }),
+        job({ status: 'error', step: 'uploading' }),
+      ]),
+    ).toEqual({ pausable: 2, resumable: 1 })
+    expect(queueControls([])).toEqual({ pausable: 0, resumable: 0 })
   })
 
   it('reports activity only while there is some', () => {

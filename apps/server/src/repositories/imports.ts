@@ -273,6 +273,36 @@ export class ImportRepository {
     return info.changes > 0
   }
 
+  /**
+   * Pause all: call off every job `cancel` would take, in one statement, and
+   * name the ones it took so the downloads among them can be stopped. The
+   * same line is drawn as for one job — a song past its download is added
+   * anyway.
+   */
+  cancelAll(): string[] {
+    return this.#db
+      .prepare<[], { id: string }>(
+        `UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now')
+          WHERE status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading'))
+          RETURNING id`,
+      )
+      .all()
+      .map(row => row.id)
+  }
+
+  /**
+   * Resume all: what Pause all called off goes back in the queue, in the
+   * order it was asked for. A job that failed on its own is left as it is,
+   * with its reason, for its own Retry.
+   */
+  retryCancelled(): number {
+    return this.#db
+      .prepare(
+        "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE status = 'cancelled'",
+      )
+      .run().changes
+  }
+
   /** Clear finished jobs the user has seen. */
   clearFinished(): number {
     return this.#db

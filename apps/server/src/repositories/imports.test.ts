@@ -67,4 +67,33 @@ describe('ImportRepository', () => {
       expect(imports.byId(id)?.status).toBe('running')
     })
   })
+
+  describe('pause all and resume all', () => {
+    it('calls off what a cancel would, and names the ones it took', () => {
+      const [downloading = '', saving = '', queued = ''] = enqueue('One', 'Two', 'Three')
+      imports.claimNext()
+      imports.claimNext()
+      imports.update(downloading, { step: 'downloading' })
+      imports.update(saving, { step: 'saving' })
+
+      expect(imports.cancelAll().sort()).toEqual([downloading, queued].sort())
+      expect(imports.byId(downloading)?.status).toBe('cancelled')
+      expect(imports.byId(queued)?.status).toBe('cancelled')
+      expect(imports.byId(saving)?.status).toBe('running')
+      expect(imports.cancelAll()).toEqual([])
+    })
+
+    it('queues what was paused again, in the order it was asked for, and leaves failures be', () => {
+      const [first = '', failed = '', second = ''] = enqueue('One', 'Two', 'Three')
+      imports.claimNext()
+      imports.update(failed, { status: 'error', error: 'Video unavailable' })
+      imports.cancelAll()
+
+      expect(imports.retryCancelled()).toBe(2)
+      expect(imports.claimNext()?.id).toBe(first)
+      expect(imports.claimNext()?.id).toBe(second)
+      expect(imports.byId(failed)?.status).toBe('error')
+      expect(imports.retryCancelled()).toBe(0)
+    })
+  })
 })

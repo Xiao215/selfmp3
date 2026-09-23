@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Linking, Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { plural, formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
   formatAddedDate,
@@ -34,7 +34,6 @@ import { label as labelText } from '../../ui/surfaces'
  * sentence and keeps it.
  */
 export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean }): ReactNode {
-  const { theme } = useUnistyles()
   const artFor = useArt()
   // The energy wave and the source link are drawn in the song's own colour —
   // the one its cover gives the page around them — rather than this device's

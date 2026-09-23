@@ -309,10 +309,12 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   const router = useRouter()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
-  // row on a phone, not the whole of it.
+  // row on a phone, not the whole of it. The columns share the row by flex,
+  // so a tile is as wide as the layout makes it on every frame; the number is
+  // only for the name's size, which may follow a frame behind.
   const rowWidth = useTilesRowWidth(wide)
   const columns = wide ? 3 : 2
-  const tileWidth = rowWidth > 0 ? (rowWidth - TILE_GAP * (columns - 1)) / columns : undefined
+  const small = rowWidth > 0 && (rowWidth - TILE_GAP * (columns - 1)) / columns < SMALL_TILE
   if (loading) return <View style={styles.tilesPlaceholder} />
   if (tiles.length === 0) {
     return (
@@ -327,7 +329,8 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   return (
     <TileGrid
       tiles={tiles}
-      width={tileWidth}
+      columns={columns}
+      small={small}
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
       onOpen={tile => router.navigate(tagLink(tile.tag.name))}
     />
@@ -342,28 +345,49 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
  */
 function TileGrid({
   tiles,
-  width,
+  columns,
+  small,
   artFor,
   onOpen,
 }: {
   tiles: readonly HomeTile[]
-  width: number | undefined
+  columns: number
+  /** Whether a tile is narrower than `SMALL_TILE`, and its name a size down. */
+  small: boolean
   artFor: (tile: HomeTile) => string | null
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
+  /*
+   * Rows of `columns`, each tile a flex column of its row, and blank cells
+   * filling out the last row so a lone tile keeps a column's width. Sized by
+   * the row rather than by a number: a width worked out in JavaScript arrives
+   * a frame after the layout it was worked out from, and while a window was
+   * being dragged narrower the tiles kept the old width for that frame and
+   * lay across the card column beside them (Xiao's recording, 2026-09-23).
+   */
+  const rows: HomeTile[][] = []
+  for (let start = 0; start < tiles.length; start += columns)
+    rows.push(tiles.slice(start, start + columns))
   return (
     <View style={styles.tiles}>
-      {tiles.map((tile, index) => (
-        <Tile
-          key={tile.tag.id}
-          tile={tile}
-          index={index}
-          arrive={arrive}
-          width={width}
-          artUri={artFor(tile)}
-          onPress={() => onOpen(tile)}
-        />
+      {rows.map((row, rowIndex) => (
+        <View key={row[0]?.tag.id ?? rowIndex} style={styles.tileRow}>
+          {row.map((tile, column) => (
+            <Tile
+              key={tile.tag.id}
+              tile={tile}
+              index={rowIndex * columns + column}
+              arrive={arrive}
+              small={small}
+              artUri={artFor(tile)}
+              onPress={() => onOpen(tile)}
+            />
+          ))}
+          {Array.from({ length: columns - row.length }, (_, blank) => (
+            <View key={`blank-${blank}`} style={styles.tileCell} />
+          ))}
+        </View>
       ))}
     </View>
   )
@@ -373,7 +397,7 @@ function Tile({
   tile,
   index,
   arrive,
-  width,
+  small,
   artUri,
   onPress,
 }: {
@@ -381,8 +405,7 @@ function Tile({
   index: number
   /** Whether this paint is the one the tiles fade up in. */
   arrive: boolean
-  /** Unknown for the first frame, before the row has been measured. */
-  width: number | undefined
+  small: boolean
   artUri: string | null
   onPress: () => void
 }): ReactNode {
@@ -392,8 +415,8 @@ function Tile({
   const colours = tagColors(tile.tag.hue)
   return (
     // Two views, because the arrival and the press each carry a transform.
-    <Animated.View style={arrival}>
-      <Animated.View style={[{ width }, width === undefined && styles.tileUnmeasured, press.style]}>
+    <Animated.View style={[styles.tileCell, arrival]}>
+      <Animated.View style={press.style}>
         <Pressable
           testID={`home-tile-${index}`}
           onPress={onPress}
@@ -405,7 +428,7 @@ function Tile({
           <Text
             style={[
               styles.tileName,
-              width !== undefined && width < SMALL_TILE && styles.tileNameSmall,
+              small && styles.tileNameSmall,
               { color: colours.tileInk },
             ]}
             numberOfLines={1}
@@ -584,7 +607,8 @@ function useCardsBeside(wide: boolean): boolean {
 /**
  * How wide the row of tiles is, worked out from the page rather than
  * measured: the window on a phone, the page column beside the sidebar on a
- * computer, less the gutters and, there, the card column.
+ * computer, less the gutters and, there, the card column. The tiles are laid
+ * out by flex and never told this; it only decides how large a name is set.
  */
 function useTilesRowWidth(wide: boolean): number {
   // The app's own width, not the window's: an iPad in Split View is handed
@@ -657,8 +681,9 @@ const styles = StyleSheet.create(theme => ({
   },
   sectionTitle: sectionTitle(theme.colors),
   linkSmall: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
-  tileUnmeasured: { opacity: 0 },
+  tiles: { gap: TILE_GAP },
+  tileRow: { flexDirection: 'row', gap: TILE_GAP },
+  tileCell: { flex: 1, minWidth: 0 },
   tile: {
     height: 98,
     borderRadius: radius.card,

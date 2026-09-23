@@ -46,8 +46,16 @@ import { YtThrottleService } from './ytThrottle.js'
  * but stretches several times over with the rest of the suite on the other
  * cores. It is here to end a wait that is never going to finish, and to say so,
  * rather than to police how long a loaded machine may take.
+ *
+ * Ten seconds was still policing. A runner with two cores and two hundred
+ * other test files in flight took longer than that to spawn one of these
+ * children, and the budget failed a rate-limit test that had passed on every
+ * other push (Pages run 35821594984, 2026-09-23). Thirty is past anything a
+ * loaded machine has shown, and a wait that is truly stuck still ends here
+ * with a sentence about what it was waiting for rather than at vitest's own
+ * timeout, which says nothing.
  */
-async function until(done: () => boolean, timeoutMs = 10_000): Promise<void> {
+async function until(done: () => boolean, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (!done() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10))
   if (!done()) throw new Error(`until: still false after ${timeoutMs}ms`)
@@ -55,7 +63,9 @@ async function until(done: () => boolean, timeoutMs = 10_000): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 20))
 }
 
-describe('ImportQueueService, when a download fails', { timeout: 30_000 }, () => {
+// Room for the two longest waits in one test, and the child processes between
+// them, so `until`'s message is what a stuck test reports.
+describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () => {
   let imports: ImportRepository
   let throttle: YtThrottleService
   let queue: ImportQueueService

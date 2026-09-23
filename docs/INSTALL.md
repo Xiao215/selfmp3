@@ -100,10 +100,13 @@ rather than in a browser's cache. Same app as the tab — it is the same build i
 window — so nothing is set up twice and a library downloaded in one is not downloaded
 again in the other.
 
-Download the `.dmg` from
+The easy way: open the web app in a browser on the Mac and go to Settings → **Mac app**.
+It finds the latest release and offers a download for each chip, with this Mac's first
+where the browser can tell (Chrome and Edge can; Safari cannot, and the line under the
+button says how to check). The same files are on
 [the releases page](https://github.com/Xiao215/selfmp3/releases) — `-arm64` for a Mac
 with Apple silicon (M1 or later), `-x64` for an Intel Mac; Apple menu → About This Mac
-says which — open it, and drag **self.mp3** to Applications.
+says which. Open the `.dmg` and drag **self.mp3** to Applications.
 
 **The first launch, if the build was not signed.** macOS refuses an app it cannot trace to
 a registered developer, and a personal project usually has no such certificate. Open

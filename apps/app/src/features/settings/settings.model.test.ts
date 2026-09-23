@@ -6,6 +6,7 @@ import {
   ALL_SECTIONS,
   crossfadeLabel,
   devicePlace,
+  downloadHint,
   healthLine,
   landingOffset,
   RECENT_DEVICE_WINDOW_MS,
@@ -68,6 +69,27 @@ describe('settings', () => {
   it('shows the desktop section only where there is a shell to ask', () => {
     expect(sectionsFor(false).map(section => section.id)).not.toContain('desktop')
     expect(sectionsFor(false, true, true, true).map(section => section.id)).toContain('desktop')
+  })
+
+  it('offers the Mac app only to a browser tab on a Mac, in the desktop section\u2019s place', () => {
+    expect(sectionsFor(false).map(section => section.id)).not.toContain('getApp')
+    const tab = sectionsFor(false, false, true, false, 'computer', true).map(section => section.id)
+    expect(tab).toContain('getApp')
+    expect(tab).not.toContain('desktop')
+    expect(tab.indexOf('getApp')).toBe(tab.indexOf('lyrics') + 1)
+    expect(ALL_LABEL('getApp')).toBe('Mac app')
+  })
+
+  it('tells a browser that cannot name its chip how to find out', () => {
+    const base = { loading: false, error: false, version: '1.0.0', offers: 2 }
+    expect(downloadHint({ ...base, chip: 'arm64' })).toMatch(/^Version 1\.0\.0\. /)
+    expect(downloadHint({ ...base, chip: 'arm64' })).not.toContain('About This Mac')
+    expect(downloadHint({ ...base, chip: null })).toContain('About This Mac')
+    expect(downloadHint({ ...base, offers: 0, chip: null })).toBe(
+      'No release yet. The releases page will have the first one.',
+    )
+    expect(downloadHint({ ...base, loading: true, chip: null })).toBe('Finding the latest version…')
+    expect(downloadHint({ ...base, error: true, chip: null })).toContain('releases page')
   })
 
   it('picks the last section past the reading line', () => {

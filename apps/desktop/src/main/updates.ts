@@ -2,7 +2,7 @@ import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { EVENTS, type UpdateStatus } from '@selfmp3/desktop-bridge'
 
-import { isNewer, versionFromTag } from './updates.rule.js'
+import { isNewer, LATEST_RELEASE_API, RELEASES_URL, versionFromTag } from '@selfmp3/shared'
 
 /**
  * Whether there is a newer self.mp3, and what can be done about it.
@@ -20,12 +20,6 @@ import { isNewer, versionFromTag } from './updates.rule.js'
  * `canInstall` is what the page draws the difference from, so Settings never
  * offers a button that would fail.
  */
-
-/** The releases this app is a build of. */
-const OWNER = 'Xiao215'
-const REPO = 'selfmp3'
-const LATEST = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`
-const RELEASES = `https://github.com/${OWNER}/${REPO}/releases`
 
 let status: UpdateStatus = {
   state: 'idle',
@@ -98,7 +92,7 @@ export async function check(window_: BrowserWindow | null): Promise<UpdateStatus
   }
 
   try {
-    const response = await fetch(LATEST, {
+    const response = await fetch(LATEST_RELEASE_API, {
       headers: { Accept: 'application/vnd.github+json' },
       signal: AbortSignal.timeout(10_000),
     })
@@ -106,7 +100,7 @@ export async function check(window_: BrowserWindow | null): Promise<UpdateStatus
     const body = (await response.json()) as { tag_name?: unknown; html_url?: unknown }
     const tag = typeof body.tag_name === 'string' ? body.tag_name : ''
     const found = versionFromTag(tag)
-    const url = typeof body.html_url === 'string' ? body.html_url : RELEASES
+    const url = typeof body.html_url === 'string' ? body.html_url : RELEASES_URL
     if (found === null) {
       publish(window_, { state: 'none', message: 'no release to compare with' })
       return status

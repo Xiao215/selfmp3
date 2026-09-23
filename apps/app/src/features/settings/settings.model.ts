@@ -18,6 +18,7 @@ export type SectionId =
   | 'lyrics'
   | 'devices'
   | 'desktop'
+  | 'getApp'
   | 'appearance'
   | 'shortcuts'
   | 'about'
@@ -44,6 +45,8 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boo
   // Not the server's: romaji is kept with the words in the cloud too, and the switch is this device's.
   { id: 'lyrics', label: 'Lyrics' },
   { id: 'desktop', label: 'Desktop app' },
+  // The same place in the page as Desktop app, for the tab that could become it.
+  { id: 'getApp', label: 'Mac app' },
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'about', label: 'About' },
 ]
@@ -74,6 +77,8 @@ export function onThisDevice(place: DevicePlace): string {
  * It is also the only place with keyboard shortcuts to list: its menu has them,
  * and a browser tab has only Space, for play and pause.
  * `place`: names the group of what this device keeps.
+ * `offered`: a browser tab on a Mac is offered the desktop app to install
+ * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
  */
 export function sectionsFor(
   fromCloud: boolean,
@@ -81,13 +86,15 @@ export function sectionsFor(
   keyboard = true,
   shell = false,
   place: DevicePlace = 'phone',
+  offered = false,
 ): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
       (!fromCloud || !section.server) &&
       (installed || section.id !== 'offline') &&
       ((keyboard && shell) || section.id !== 'shortcuts') &&
-      (shell || section.id !== 'desktop'),
+      (shell || section.id !== 'desktop') &&
+      (offered || section.id !== 'getApp'),
   ).map(section =>
     section.id === 'offline'
       ? { id: section.id, label: onThisDevice(place) }
@@ -206,4 +213,29 @@ export function splitDevices<
 export function scanHint(result: ScanResult | undefined): string {
   if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
   return `Last sweep found ${result.added} new and ${result.updated} updated; ${result.total} songs in the library.`
+}
+
+/**
+ * The line under "self.mp3 for Mac" in a browser tab: what is on offer and,
+ * where the browser could not say which Mac this is, how to tell — the two
+ * dmgs are named for the chip, and the Intel one runs on an M1 under Rosetta
+ * without a word.
+ */
+export function downloadHint(state: {
+  readonly loading: boolean
+  readonly error: boolean
+  readonly version: string | null
+  readonly offers: number
+  readonly chip: 'arm64' | 'x64' | null
+}): string {
+  if (state.loading) return 'Finding the latest version…'
+  if (state.error) return 'Could not reach GitHub. Every version is on the releases page.'
+  if (state.offers === 0) return 'No release yet. The releases page will have the first one.'
+  const what =
+    'Your music on the disk rather than in a browser\u2019s cache, the media keys, and a Dock icon.'
+  const version = state.version ? `Version ${state.version}. ` : ''
+  const which = state.chip
+    ? ''
+    : ' Apple menu \u203a About This Mac says whether this Mac has Apple silicon or an Intel chip.'
+  return `${version}${what}${which}`
 }

@@ -67,6 +67,8 @@ offline settings behave as they do on a phone at home.
 | The smoke flow, against the built app | `apps/desktop/verify/smoke.spec.ts` |
 | Packaging, the signing tiers, and the icon | `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/dist.mjs` |
 | The release workflow | `.github/workflows/desktop.yml` |
+| Where releases are, and what a tag means — read by the updater and by a tab's Settings › Mac app | `packages/shared/src/releases.ts` |
+| The app offered from a browser tab on a Mac | `apps/app/src/ports/macApp.web.ts`, `apps/app/src/features/settings/GetAppPanel.tsx` |
 
 `window.selfmp3Desktop` is the whole surface between the page and the shell,
 exposed by the preload with `contextIsolation` on, `nodeIntegration` off and

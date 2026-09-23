@@ -18,6 +18,7 @@ import { type Settings } from '@selfmp3/shared'
 import { clientApi, queryKeys, radius, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
+import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { deviceKind } from '../../ports/device'
@@ -35,6 +36,7 @@ import { Confirmations } from './Confirmations'
 import { ConnectionPanel } from './ConnectionPanel'
 import { DesktopPanel } from './DesktopPanel'
 import { DevicesPanel } from './DevicesPanel'
+import { GetAppPanel } from './GetAppPanel'
 import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
@@ -99,9 +101,17 @@ export function SettingsScreen(): ReactNode {
   })
 
   // A mouse or trackpad stands in for a keyboard, and only the installed app —
-  // the one with a login item — has a menu of keys to list.
+  // the one with a login item — has a menu of keys to list. A tab on a Mac is
+  // the one place the desktop app is offered from.
   const place = devicePlace(deviceKind())
-  const sections = sectionsFor(fromCloud, installedApp, finePointer, loginItem.available, place)
+  const sections = sectionsFor(
+    fromCloud,
+    installedApp,
+    finePointer,
+    loginItem.available,
+    place,
+    macApp.offered,
+  )
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
@@ -410,6 +420,8 @@ export function SettingsScreen(): ReactNode {
             {loginItem.available ? (
               <DesktopPanel anchor={node => anchorAt('desktop', node)} />
             ) : null}
+
+            {macApp.offered ? <GetAppPanel anchor={node => anchorAt('getApp', node)} /> : null}
 
             {shortcuts ? (
               <ShortcutsPanel items={shortcuts} anchor={node => anchorAt('shortcuts', node)} />

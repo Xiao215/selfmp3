@@ -52,3 +52,16 @@ export function describeUserAgent(userAgent: string, maxTouchPoints = 0): Device
 
   return { name: `${platform} · ${browser}`, kind }
 }
+
+/**
+ * Whether this browser is on a Mac — the one computer the desktop app is built
+ * for, so the one that is offered it. iPadOS claims to be a Mac and is told
+ * apart by touch, the same rule as above.
+ */
+export function onMac(userAgent: string, maxTouchPoints = 0): boolean {
+  return (
+    /Macintosh|Mac OS X/.test(userAgent) &&
+    !/iPhone|iPod|iPad/.test(userAgent) &&
+    maxTouchPoints <= 1
+  )
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeUserAgent } from './userAgent.js'
+import { describeUserAgent, onMac } from './userAgent.js'
 
 const IPHONE_SAFARI =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
@@ -36,5 +36,14 @@ describe('describeUserAgent', () => {
 
   it('falls back gracefully on something unknown', () => {
     expect(describeUserAgent('curl/8.0')).toEqual({ name: 'Device · Browser', kind: 'other' })
+  })
+
+  it('knows a Mac, and does not take an iPad for one', () => {
+    expect(onMac(MAC_CHROME)).toBe(true)
+    expect(onMac(MAC_SAFARI)).toBe(true)
+    // iPadOS Safari says Macintosh; its five touch points give it away.
+    expect(onMac(MAC_SAFARI, 5)).toBe(false)
+    expect(onMac(IPHONE_SAFARI)).toBe(false)
+    expect(onMac(WINDOWS_EDGE)).toBe(false)
   })
 })

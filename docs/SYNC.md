@@ -384,6 +384,7 @@ Stats, the metadata lookup and the untagged inbox all looked like for months.
 | Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
 | Devices, handoff, remote control | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
+| An artist's page | its picture, from the artist's page on YouTube Music | lit by a song's cover instead, as every place is |
 | Untagged | *nothing* — it is a pass over the library, and tagging is an ordinary edit | always works |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers

@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { Text } from 'react-native'
 import { useRouter } from 'expo-router'
-import { splitArtists } from '@selfmp3/client'
+import { splitArtists } from '@selfmp3/shared'
 import { artistLink } from '../tag/placeLinks'
 
 /**

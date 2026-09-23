@@ -14,6 +14,9 @@ import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtu
  *
  * A channel with no songs list (YouTube calls every channel an artist, a
  * tech reviewer included) and any failure along the way are both null.
+ *
+ * The same page carries the wide picture YouTube Music draws behind the
+ * artist's name, which is what an artist's page here is lit by (`backdrop`).
  */
 
 export interface ArtistSongs {
@@ -56,6 +59,21 @@ export class YouTubeMusicArtists {
     }
   }
 
+  /**
+   * The picture behind the artist's name, at the size asked for, or null for
+   * a channel without one. The page names it at a few sizes; the address
+   * takes its size in the path, so any size can be asked for.
+   */
+  async backdrop(
+    channelId: string,
+    size: { width: number; height: number },
+  ): Promise<string | null> {
+    const page = await this.#api.post('browse', { browseId: channelId })
+    const url = page ? headerImage(page) : null
+    if (!url) return null
+    return `${url.split('=')[0]}=w${size.width}-h${size.height}-p-l90-rj`
+  }
+
   /** `@handle` to a channel id. Only music.youtube.com links resolve, so it is asked as one. */
   async #resolve(handle: string): Promise<string | null> {
     const response = await this.#api.post('navigation/resolve_url', {
@@ -67,13 +85,24 @@ export class YouTubeMusicArtists {
   }
 }
 
+/** Whichever header the page has: immersive, with the wide picture, or the plain one. */
+function headerRenderer(page: unknown): Record<string, unknown> | undefined {
+  const header = (page as { header?: Record<string, unknown> } | null)?.header
+  return header ? (Object.values(header)[0] as Record<string, unknown> | undefined) : undefined
+}
+
 /** The artist's name, from whichever header the page has. */
 function headerTitle(page: unknown): string {
-  const header = (page as { header?: Record<string, unknown> } | null)?.header
-  const renderer = header ? Object.values(header)[0] : undefined
-  return runs((renderer as { title?: unknown } | undefined)?.title)
-    .join('')
-    .trim()
+  return runs(headerRenderer(page)?.['title']).join('').trim()
+}
+
+/** The largest of the header's pictures, or null where the header has none. */
+function headerImage(page: unknown): string | null {
+  const thumbnails = findKey(headerRenderer(page)?.['thumbnail'], 'thumbnails')
+  const largest = Array.isArray(thumbnails)
+    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
+    : undefined
+  return typeof largest === 'string' ? largest : null
 }
 
 /** One row of the songs list. Columns read title, artist, plays, album. */

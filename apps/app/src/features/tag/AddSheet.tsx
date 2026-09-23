@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { libraryArtists, radius, tagColors, useLibrary } from '@selfmp3/client'
+import { libraryArtists } from '@selfmp3/shared'
+import { radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'

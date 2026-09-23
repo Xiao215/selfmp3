@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { libraryArtists } from '@selfmp3/client'
+import { libraryArtists } from '@selfmp3/shared'
 
 import {
   addSheetRows,

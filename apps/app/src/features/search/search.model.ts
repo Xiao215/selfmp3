@@ -1,5 +1,13 @@
-import { fuzzyRank, isCjkQuery, type Library, type Song, type Tag } from '@selfmp3/shared'
-import { libraryArtists, searchSongs, type Artist } from '@selfmp3/client'
+import {
+  fuzzyRank,
+  isCjkQuery,
+  type Library,
+  type Song,
+  type Tag,
+  libraryArtists,
+  type Artist,
+} from '@selfmp3/shared'
+import { searchSongs } from '@selfmp3/client'
 
 /**
  * Search, without the screen (docs/ui-mock `P18`–`P20`, `C05`; `S3`, "Search").

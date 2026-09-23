@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Artist } from '@selfmp3/client'
+import type { Artist } from '@selfmp3/shared'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { nudgeBody, nudgeTitle } from './artistNudge.model'
 

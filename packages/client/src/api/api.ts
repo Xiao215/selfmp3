@@ -17,6 +17,7 @@
  */
 import {
   AnalysisStatusSchema,
+  ArtistBackdropSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
   HealthSchema,
@@ -529,6 +530,18 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('PATCH', '/api/settings', SettingsSchema, patch),
 
     stats: (range: StatsRange) => request('GET', `/api/stats?range=${range}`, StatsSchema),
+
+    /**
+     * Whether the server has a picture for this artist, finding one if it
+     * can (routes/artists.ts). The picture itself is drawn from the address
+     * `createMediaUrl` gives, once this names a copy.
+     */
+    artistBackdrop: (name: string) =>
+      request(
+        'GET',
+        `/api/artists/backdrop?name=${encodeURIComponent(name)}`,
+        ArtistBackdropSchema,
+      ),
 
     wrapped: (range: WrappedRange) =>
       request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),

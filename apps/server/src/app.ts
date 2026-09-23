@@ -25,6 +25,7 @@ import { deviceRoutes } from './routes/devices.js'
 import { wrappedRoutes } from './routes/wrapped.js'
 import { gemsRoutes } from './routes/gems.js'
 import { cloudRoutes } from './routes/cloud.js'
+import { artistRoutes } from './routes/artists.js'
 
 /**
  * Wire the HTTP layer.
@@ -83,6 +84,7 @@ export function createApp(container: Container): Express {
   api.use(wrappedRoutes(container))
   api.use(gemsRoutes(container))
   api.use(cloudRoutes(container))
+  api.use(artistRoutes(container))
   app.use('/api', api)
 
   app.use('/api', notFoundHandler)

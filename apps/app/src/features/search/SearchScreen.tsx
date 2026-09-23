@@ -5,16 +5,8 @@ import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import type { LyricsSearchHit, Song, Tag } from '@selfmp3/shared'
-import {
-  clientApi,
-  isDownloaded,
-  queryKeys,
-  radius,
-  tagColors,
-  useLibrary,
-  type Artist,
-} from '@selfmp3/client'
+import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
+import { clientApi, isDownloaded, queryKeys, radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'

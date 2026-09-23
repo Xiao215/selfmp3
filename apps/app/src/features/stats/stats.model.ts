@@ -1,5 +1,5 @@
 import type { HourlyPlays, Stats, StatsRange, TopEntry, TopSong } from '@selfmp3/shared'
-import { artistKey, splitArtists } from '@selfmp3/client'
+import { artistKey, splitArtists } from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.

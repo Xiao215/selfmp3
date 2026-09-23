@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Song } from '@selfmp3/shared'
+import type { Song } from './schemas/song.js'
 import { artistKey, findArtist, libraryArtists, songArtistKeys, splitArtists } from './artists.js'
 
 const song = (id: number, artist: string): Song => ({ id, artist }) as unknown as Song

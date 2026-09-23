@@ -1,4 +1,4 @@
-import type { Artist } from '@selfmp3/client'
+import type { Artist } from '@selfmp3/shared'
 
 /**
  * The nudge a new tag gets when its name is an artist's (docs/ui-mock `P11`),

@@ -177,3 +177,36 @@ describe('YouTubeMusicArtists.topSongs', () => {
     expect(await artists.topSongs({ channelId: YOASOBI })).toBeNull()
   })
 })
+
+describe('YouTubeMusicArtists.backdrop', () => {
+  const pageWithPicture = {
+    header: {
+      musicImmersiveHeaderRenderer: {
+        title: text('YOASOBI'),
+        thumbnail: {
+          musicThumbnailRenderer: {
+            thumbnail: {
+              thumbnails: [
+                { url: 'https://yt3.test/yoasobi=w540-h225-p-l90-rj', width: 540, height: 225 },
+                { url: 'https://yt3.test/yoasobi=w2880-h1200-p-l90-rj', width: 2880, height: 1200 },
+              ],
+            },
+          },
+        },
+      },
+    },
+  }
+
+  const artists = (page: unknown) =>
+    new YouTubeMusicArtists(createLogger('silent'), () => Promise.resolve(Response.json(page)))
+
+  it('asks for the header picture at the size wanted', async () => {
+    const url = await artists(pageWithPicture).backdrop(YOASOBI, { width: 1200, height: 500 })
+    expect(url).toBe('https://yt3.test/yoasobi=w1200-h500-p-l90-rj')
+  })
+
+  it('is null for a page whose header has no picture', async () => {
+    const plain = { header: { musicVisualHeaderRenderer: { title: text('Someone') } } }
+    expect(await artists(plain).backdrop(YOASOBI, { width: 1200, height: 500 })).toBeNull()
+  })
+})

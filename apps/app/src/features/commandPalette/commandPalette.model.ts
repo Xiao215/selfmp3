@@ -1,5 +1,4 @@
-import { fuzzyRank, type Library } from '@selfmp3/shared'
-import type { Artist } from '@selfmp3/client'
+import { fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
 import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 

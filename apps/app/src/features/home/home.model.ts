@@ -1,5 +1,4 @@
-import { formatLongDuration, type Song, type Stats, type Tag } from '@selfmp3/shared'
-import { splitArtists } from '@selfmp3/client'
+import { formatLongDuration, type Song, type Stats, type Tag, splitArtists } from '@selfmp3/shared'
 import { tagsMostPlayed } from '../tag/tag.model'
 
 /**

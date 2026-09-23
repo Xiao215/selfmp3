@@ -26,6 +26,7 @@ import { artShadow, label as labelText } from '../../ui/surfaces'
 import { useSaveTagsAsPlaylist } from '../library/saveTags'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
+import { useArtistBackdrop } from './useArtistBackdrop'
 import {
   albumsOf,
   artistSummary,
@@ -82,6 +83,9 @@ export function PlacePage({
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const leadArt = lead ? artFor(lead) : null
   const light = useSongColor(lead, leadArt)
+  // An artist alone is lit by their own picture where the server has one,
+  // and by a song's cover — as every place is — until then.
+  const backdrop = useArtistBackdrop(only?.kind === 'artist' ? only.artist : null)
 
   const title = chosen.map(placeName).join(' + ') || placeName(place)
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)
@@ -106,7 +110,7 @@ export function PlacePage({
 
   const head = (
     <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
-      <CoverLight color={light.color} art={artistAlone ? leadArt : null} />
+      <CoverLight color={light.color} art={artistAlone ? (backdrop ?? leadArt) : null} />
       <View style={styles.topBar}>
         <IconButton label="Back" onPress={back} filled>
           <ChevronLeft size={20} tone="textPrimary" />

@@ -1,5 +1,14 @@
-import { plural, formatLongDuration, fuzzyRank, type Song, type Tag } from '@selfmp3/shared'
-import { artistKey, libraryArtists, songArtistKeys, type Artist } from '@selfmp3/client'
+import {
+  plural,
+  formatLongDuration,
+  fuzzyRank,
+  type Song,
+  type Tag,
+  artistKey,
+  libraryArtists,
+  songArtistKeys,
+  type Artist,
+} from '@selfmp3/shared'
 
 /**
  * Tags and artists as places (docs/ui-mock `P07`–`P11`, `C06`), without the

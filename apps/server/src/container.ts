@@ -16,6 +16,7 @@ import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
+import { ArtistBackdropService } from './services/artistBackdrops.js'
 import { YouTubeMusicLists } from './services/youtubeMusicLists.js'
 import { ListenService } from './services/listen.js'
 import { CoverService } from './services/covers.js'
@@ -94,6 +95,7 @@ export interface Container {
   readonly ytdlp: YtDlpService
   readonly throttle: YtThrottleService
   readonly youtubeMusicArtists: YouTubeMusicArtists
+  readonly artistBackdrops: ArtistBackdropService
   readonly youtubeMusicLists: YouTubeMusicLists
   readonly listen: ListenService
   readonly importQueue: ImportQueueService
@@ -287,6 +289,7 @@ export function createContainer(configured: Config): Container {
   // Cookie settings are read per call, so a change applies without a restart.
   const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
+  const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
   const listen = new ListenService(ytdlp)
 
@@ -441,6 +444,7 @@ export function createContainer(configured: Config): Container {
     scanner,
     ytdlp,
     youtubeMusicArtists,
+    artistBackdrops,
     youtubeMusicLists,
     listen,
     importQueue,

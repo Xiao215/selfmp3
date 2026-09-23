@@ -32,6 +32,9 @@ export function createMediaUrl(transport: ApiTransport) {
         ...(size === undefined ? {} : { size: String(size) }),
         ...media(),
       }),
+    /** An artist's picture, by name; `rev` names the copy the server said it keeps. */
+    artistBackdrop: (name: string, rev: string) =>
+      withParams(transport.url('/api/artists/backdrop/image'), rev, { name, ...media() }),
     /**
      * The live event stream; `deviceId` lets commands be addressed to this tab.
      *

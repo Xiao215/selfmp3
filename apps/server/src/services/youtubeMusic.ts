@@ -9,6 +9,16 @@ import {
   YouTubeMusicApi,
   type FetchLike,
 } from './youtubeMusicApi.js'
+import {
+  AUDIO_TRACK,
+  fits,
+  isSameSong,
+  lengthGap,
+  parseLength,
+  searchSongs,
+  type SongLookup,
+  type Track,
+} from './youtubeMusicSongs.js'
 
 /**
  * Timed lyrics from YouTube Music.
@@ -25,42 +35,12 @@ import {
  * lrclib is always tried after it.
  */
 
-/** The search's "Songs" filter: studio tracks only, no videos or playlists. */
-const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
 /** Search hits worth asking for lyrics, best first. Each costs two requests. */
 const MAX_CANDIDATES = 2
 
-/**
- * How far the track's length may be from the file's for its timings to be
- * trusted — the same second as lrclib gets. YouTube Music shows lengths in
- * whole seconds, rounded up (a 248.06 s download shows as 4:09), so a track
- * shown as L seconds is anywhere from L − 1 to L long.
- */
-const LENGTH_TOLERANCE_S = 1
-
-/** The one kind of entry whose timings match a download: the studio audio, not a video. */
-const AUDIO_TRACK = 'MUSIC_VIDEO_TYPE_ATV'
-
-/** A title naming another cut of the song, which the song itself does not. */
-const OTHER_VERSION =
-  /\b(?:version|ver\.|remix|live|instrumental|inst\.|acoustic|karaoke|off vocal|cover|sped up|slowed)\b/i
-
-interface YouTubeMusicLookup {
+interface YouTubeMusicLookup extends SongLookup {
   /** The video the song was downloaded from, when it was. */
   readonly videoId: string | null
-  readonly artist: string
-  readonly title: string
-  /** Seconds, from the file; 0 when unknown. */
-  readonly duration: number
-}
-
-interface Track {
-  readonly videoId: string
-  readonly title: string
-  readonly artist: string
-  readonly audioTrack: boolean
-  /** Whole seconds as shown, or null. */
-  readonly length: number | null
 }
 
 interface WatchInfo {
@@ -149,6 +129,7 @@ export class YouTubeMusicLyrics {
         videoId,
         title: texts('title').join(''),
         artist: texts('longBylineText').join('').split(' • ')[0] ?? '',
+        artistChannelId: null,
         audioTrack: findKey(renderer, 'musicVideoType') === AUDIO_TRACK,
         length: parseLength(texts('lengthText').join('')),
       },
@@ -158,77 +139,10 @@ export class YouTubeMusicLyrics {
 
   /** Studio tracks that are this song, nearest in length first. */
   async #searchSongs(input: YouTubeMusicLookup): Promise<Track[]> {
-    const query = `${input.artist} ${input.title}`.trim()
-    const response = await this.#api.post('search', { query, params: SONGS_ONLY }, WEB_CLIENT)
-    if (!response) return []
-
-    const tracks: Track[] = []
-    for (const item of findAll(response, 'musicResponsiveListItemRenderer')) {
-      const videoId = findKey((item as Record<string, unknown>)['playlistItemData'], 'videoId')
-      if (typeof videoId !== 'string') continue
-      // Column one is the title; column two reads "Artist • Album • 3:27".
-      const columns = findAll(item, 'musicResponsiveListItemFlexColumnRenderer').map(column =>
-        runs((column as Record<string, unknown>)['text']).join(''),
-      )
-      const details = (columns[1] ?? '').split(' • ')
-      tracks.push({
-        videoId,
-        title: columns[0] ?? '',
-        artist: details[0] ?? '',
-        audioTrack: findKey(item, 'musicVideoType') === AUDIO_TRACK,
-        length: parseLength(details.at(-1) ?? ''),
-      })
-    }
-
+    const tracks = (await searchSongs(this.#api, input)) ?? []
     return tracks
       .filter(track => track.audioTrack && isSameSong(track, input) && fits(track, input.duration))
       .sort((a, b) => lengthGap(a, input.duration) - lengthGap(b, input.duration))
       .slice(0, MAX_CANDIDATES)
   }
-}
-
-/** Seconds between the file and the track, allowing for the rounded-up length. */
-function lengthGap(track: Track, duration: number): number {
-  if (duration <= 0) return 0
-  if (track.length === null) return Number.POSITIVE_INFINITY
-  if (duration > track.length) return duration - track.length
-  if (duration < track.length - 1) return track.length - 1 - duration
-  return 0
-}
-
-function fits(track: Track, duration: number): boolean {
-  return lengthGap(track, duration) <= LENGTH_TOLERANCE_S
-}
-
-/**
- * Same title and artist, give or take how each side writes them: YouTube
- * Music may add a romanized title ("オリオン - Orion"), and a local file may
- * list a featured artist. A title naming another cut — "(English Version)",
- * "(Live)" — is another song for lyrics, unless the file's title says so too.
- */
-function isSameSong(track: Track, input: YouTubeMusicLookup): boolean {
-  const title = normalize(track.title)
-  const wanted = normalize(input.title)
-  if (!title || !wanted || !(title.includes(wanted) || wanted.includes(title))) return false
-  if (OTHER_VERSION.test(track.title) && !OTHER_VERSION.test(input.title)) return false
-
-  const artist = normalize(track.artist)
-  const wantedArtist = normalize(input.artist)
-  return !wantedArtist || artist.includes(wantedArtist) || wantedArtist.includes(artist)
-}
-
-function normalize(text: string): string {
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[\s\p{P}\p{S}]/gu, '')
-}
-
-/** "3:27" or "1:02:03" to seconds. */
-function parseLength(text: string): number | null {
-  if (!/^\d+(?::\d{2}){1,2}$/.test(text.trim())) return null
-  return text
-    .trim()
-    .split(':')
-    .reduce((total, part) => total * 60 + Number(part), 0)
 }

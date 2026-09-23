@@ -73,7 +73,6 @@ export * from './art/palette.js'
 export * from './art/coverColor.js'
 
 /** Artists, from the songs' own artist strings. */
-export * from './artists/artists.js'
 
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'

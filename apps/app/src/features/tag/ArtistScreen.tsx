@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { findArtist, useBulkTag, useCreateTag, useLibrary, type Artist } from '@selfmp3/client'
+import { useBulkTag, useCreateTag, useLibrary } from '@selfmp3/client'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Tag as TagIcon } from '../../ui/components/Icons'
@@ -11,7 +11,7 @@ import { tagLink } from './placeLinks'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag } from './tag.model'
-import { plural } from '@selfmp3/shared'
+import { plural, findArtist, type Artist } from '@selfmp3/shared'
 
 /**
  * An artist's page, `/artist/<name>` (docs/ui-mock `P10`): the tag page with

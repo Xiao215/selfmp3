@@ -1,8 +1,10 @@
-import type { Song } from '@selfmp3/shared'
+import type { Song } from './schemas/song.js'
 
 /**
  * Artists, from the songs' own artist strings (docs/UI-MIGRATION.md, Phase 4
- * and Open question 3).
+ * and Open question 3). Here rather than in the client because the server
+ * reads them too, to find an artist's page on YouTube Music through the songs
+ * (apps/server services/artistBackdrops.ts).
  *
  * An artist is a place, like a tag, but nobody makes one: it is what the
  * songs say. A string that names several — "A feat. B", "A & B", "A, B",
